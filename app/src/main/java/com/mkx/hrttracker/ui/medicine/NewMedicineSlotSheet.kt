@@ -103,12 +103,15 @@ fun NewMedicineSlotSheet(
         },
     ) {
         CreateMedicineResultText(saveResult = uiState.createSaveResult)
+        // Controls stay visually enabled while a save is in flight; the VM
+        // ignores draft mutations during the lock, text fields stay read-
+        // only to avoid input flicker, and the sheet's dismissal lock keeps
+        // the form in view until ROOM finishes.
         CreateMedicineForm(
             medicineDraft = uiState.medicineDraft,
             onMedicineDraftChange = viewModel::updateMedicineDraft,
             errorMessageRes = uiState.errorMessageRes,
             readOnly = isSheetLocked,
-            enabled = !isSheetLocked,
         )
 
         if (
@@ -121,7 +124,6 @@ fun NewMedicineSlotSheet(
                 activePreparationType = activePreparationType,
                 onDoseInstructionDraftChange = viewModel::updateDoseInstructionDraft,
                 errorMessageRes = uiState.errorMessageRes,
-                enabled = !isSheetLocked,
             )
         }
 
@@ -148,7 +150,6 @@ fun NewMedicineSlotSheet(
                         ).toString(),
                     )
                 },
-                enabled = !isSheetLocked,
                 errorMessageRes = uiState.errorMessageRes
                     ?.takeIf { it == R.string.validation_count_required },
             )
@@ -164,7 +165,6 @@ fun NewMedicineSlotSheet(
                 appliedZoneId = uiState.appliedZoneId,
                 onAppliedDateChange = viewModel::updateAppliedDate,
                 onAppliedTimeChange = viewModel::updateAppliedTime,
-                enabled = !isSheetLocked,
             )
         }
     }

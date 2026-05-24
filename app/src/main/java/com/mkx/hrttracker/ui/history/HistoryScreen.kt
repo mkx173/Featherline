@@ -556,16 +556,18 @@ private fun HistoryScreenContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingSelectedEntries,
-                    onClick = onDeleteConfirm,
+                    onClick = {
+                        if (!uiState.isDeletingSelectedEntries) onDeleteConfirm()
+                    },
                 ) {
                     Text(text = stringResource(R.string.delete_entries_confirm))
                 }
             },
             dismissButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingSelectedEntries,
-                    onClick = onDeleteDismiss,
+                    onClick = {
+                        if (!uiState.isDeletingSelectedEntries) onDeleteDismiss()
+                    },
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
@@ -608,8 +610,8 @@ private fun HistoryScreenContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingAllEntries,
                     onClick = {
+                        if (uiState.isDeletingAllEntries) return@TextButton
                         isDeleteAllConfirmationVisible = false
                         onDeleteAllClick()
                     }
@@ -619,8 +621,10 @@ private fun HistoryScreenContent(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingAllEntries,
-                    onClick = { isDeleteAllConfirmationVisible = false }
+                    onClick = {
+                        if (uiState.isDeletingAllEntries) return@TextButton
+                        isDeleteAllConfirmationVisible = false
+                    }
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }

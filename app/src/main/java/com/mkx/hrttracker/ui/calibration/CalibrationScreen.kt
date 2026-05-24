@@ -374,8 +374,8 @@ private fun CalibrationScreenContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingAllEntries,
                     onClick = {
+                        if (uiState.isDeletingAllEntries) return@TextButton
                         isDeleteAllEntriesConfirmationVisible = false
                         onDeleteAllCalibrationEntries()
                     }
@@ -385,8 +385,10 @@ private fun CalibrationScreenContent(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingAllEntries,
-                    onClick = { isDeleteAllEntriesConfirmationVisible = false }
+                    onClick = {
+                        if (uiState.isDeletingAllEntries) return@TextButton
+                        isDeleteAllEntriesConfirmationVisible = false
+                    }
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }

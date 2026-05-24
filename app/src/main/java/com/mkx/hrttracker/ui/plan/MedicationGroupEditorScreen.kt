@@ -871,17 +871,17 @@ private fun MedicationGroupEditorScreenContent(
                             index = 0,
                             count = 1,
                             onClick = {
+                                if (uiState.isDeleting) return@PreferenceSegmentedListItem
                                 shouldDeleteRelatedEntriesWithGroup =
                                     !shouldDeleteRelatedEntriesWithGroup
                             },
-                            enabled = !uiState.isDeleting,
                             trailingContent = {
                                 Checkbox(
                                     checked = shouldDeleteRelatedEntriesWithGroup,
                                     onCheckedChange = {
+                                        if (uiState.isDeleting) return@Checkbox
                                         shouldDeleteRelatedEntriesWithGroup = it
                                     },
-                                    enabled = !uiState.isDeleting,
                                 )
                             },
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -891,8 +891,8 @@ private fun MedicationGroupEditorScreenContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !uiState.isDeleting,
                     onClick = {
+                        if (uiState.isDeleting) return@TextButton
                         if (hasRelatedEntries && shouldDeleteRelatedEntriesWithGroup) {
                             onDeleteWithRecordsConfirm()
                         } else {
@@ -908,8 +908,7 @@ private fun MedicationGroupEditorScreenContent(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !uiState.isDeleting,
-                    onClick = onDeleteDismiss,
+                    onClick = { if (!uiState.isDeleting) onDeleteDismiss() },
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
@@ -953,15 +952,17 @@ private fun MedicationGroupEditorScreenContent(
                         index = 0,
                         count = 2,
                         onClick = {
+                            if (isArchiveActionInProgress) return@PreferenceSegmentedListItem
                             shouldCreateActiveCopyAfterArchive =
                                 !shouldCreateActiveCopyAfterArchive
                         },
-                        enabled = !isArchiveActionInProgress,
                         trailingContent = {
                             Checkbox(
                                 checked = shouldCreateActiveCopyAfterArchive,
-                                onCheckedChange = { shouldCreateActiveCopyAfterArchive = it },
-                                enabled = !isArchiveActionInProgress
+                                onCheckedChange = {
+                                    if (isArchiveActionInProgress) return@Checkbox
+                                    shouldCreateActiveCopyAfterArchive = it
+                                },
                             )
                         },
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -974,15 +975,17 @@ private fun MedicationGroupEditorScreenContent(
                         index = 1,
                         count = 2,
                         onClick = {
+                            if (isArchiveActionInProgress) return@PreferenceSegmentedListItem
                             hasAcknowledgedArchiveIsPermanent =
                                 !hasAcknowledgedArchiveIsPermanent
                         },
-                        enabled = !isArchiveActionInProgress,
                         trailingContent = {
                             Checkbox(
                                 checked = hasAcknowledgedArchiveIsPermanent,
-                                onCheckedChange = { hasAcknowledgedArchiveIsPermanent = it },
-                                enabled = !isArchiveActionInProgress
+                                onCheckedChange = {
+                                    if (isArchiveActionInProgress) return@Checkbox
+                                    hasAcknowledgedArchiveIsPermanent = it
+                                },
                             )
                         },
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -990,11 +993,15 @@ private fun MedicationGroupEditorScreenContent(
                 }
             },
             confirmButton = {
+                // Semantic enable kept (acknowledgement + no-blocking-slots) so
+                // the user can't fire archive without meeting the gates. The
+                // in-progress lock is enforced as a click no-op so the button
+                // stays visually normal while ROOM is writing.
                 TextButton(
-                    enabled = !isArchiveActionInProgress &&
-                        hasAcknowledgedArchiveIsPermanent &&
+                    enabled = hasAcknowledgedArchiveIsPermanent &&
                         !isArchiveBlockedByCurrentOrFuturePlannedSlots,
                     onClick = {
+                        if (isArchiveActionInProgress) return@TextButton
                         runArchiveConfirmationAction(
                             shouldCreateActiveCopyAfterArchive =
                                 shouldCreateActiveCopyAfterArchive,
@@ -1015,8 +1022,7 @@ private fun MedicationGroupEditorScreenContent(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !isArchiveActionInProgress,
-                    onClick = onArchiveDismiss,
+                    onClick = { if (!isArchiveActionInProgress) onArchiveDismiss() },
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
@@ -1045,8 +1051,9 @@ private fun MedicationGroupEditorScreenContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingRelatedEntries,
-                    onClick = onDeleteRelatedEntriesConfirm,
+                    onClick = {
+                        if (!uiState.isDeletingRelatedEntries) onDeleteRelatedEntriesConfirm()
+                    },
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
@@ -1056,8 +1063,9 @@ private fun MedicationGroupEditorScreenContent(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingRelatedEntries,
-                    onClick = onDeleteRelatedEntriesDismiss,
+                    onClick = {
+                        if (!uiState.isDeletingRelatedEntries) onDeleteRelatedEntriesDismiss()
+                    },
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }

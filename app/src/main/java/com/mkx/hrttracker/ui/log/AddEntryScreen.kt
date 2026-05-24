@@ -253,8 +253,8 @@ private fun AddEntryScreenContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !uiState.isDeleting,
                     onClick = {
+                        if (uiState.isDeleting) return@TextButton
                         isDeleteConfirmationVisible = false
                         onDeleteClick()
                     }
@@ -264,8 +264,10 @@ private fun AddEntryScreenContent(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !uiState.isDeleting,
-                    onClick = { isDeleteConfirmationVisible = false },
+                    onClick = {
+                        if (uiState.isDeleting) return@TextButton
+                        isDeleteConfirmationVisible = false
+                    },
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
@@ -288,16 +290,18 @@ private fun AddEntryScreenContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !uiState.isSaving,
-                    onClick = onSaveAfterFulfillmentWarningClick
+                    onClick = {
+                        if (!uiState.isSaving) onSaveAfterFulfillmentWarningClick()
+                    },
                 ) {
                     Text(text = stringResource(R.string.save))
                 }
             },
             dismissButton = {
                 TextButton(
-                    enabled = !uiState.isSaving,
-                    onClick = onScheduleFulfillmentWarningDismiss,
+                    onClick = {
+                        if (!uiState.isSaving) onScheduleFulfillmentWarningDismiss()
+                    },
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }

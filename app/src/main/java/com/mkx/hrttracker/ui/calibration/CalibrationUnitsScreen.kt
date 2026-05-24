@@ -654,8 +654,7 @@ private fun CalibrationCustomAnalyteDialog(
                 ) {
                     customAnalyte?.let { existingAnalyte ->
                         TextButton(
-                            enabled = !isBusy,
-                            onClick = { isArchiveConfirmationVisible = true },
+                            onClick = { if (!isBusy) isArchiveConfirmationVisible = true },
                         ) {
                             Text(
                                 text = stringResource(R.string.archive),
@@ -664,16 +663,10 @@ private fun CalibrationCustomAnalyteDialog(
                         }
                     }
                     Spacer(modifier = Modifier.weight(1f))
-                    TextButton(
-                        enabled = !isBusy,
-                        onClick = onDismiss,
-                    ) {
+                    TextButton(onClick = { if (!isBusy) onDismiss() }) {
                         Text(text = stringResource(R.string.cancel))
                     }
-                    TextButton(
-                        enabled = !isBusy,
-                        onClick = { submit() },
-                    ) {
+                    TextButton(onClick = { if (!isBusy) submit() }) {
                         Text(text = stringResource(R.string.save))
                     }
                 }
@@ -705,8 +698,8 @@ private fun CalibrationCustomAnalyteDialog(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !isBusy,
                     onClick = {
+                        if (isBusy) return@TextButton
                         isArchiveConfirmationVisible = false
                         onArchive(customAnalyte.uuid)
                     },
@@ -716,8 +709,10 @@ private fun CalibrationCustomAnalyteDialog(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !isBusy,
-                    onClick = { isArchiveConfirmationVisible = false },
+                    onClick = {
+                        if (isBusy) return@TextButton
+                        isArchiveConfirmationVisible = false
+                    },
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }

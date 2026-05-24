@@ -296,8 +296,8 @@ fun MedicationLogEntryEditorSheet(
             appliedDateText = dateFormatter(appliedDate),
             appliedTimeText = appliedTime.format(timeFormatter),
             appliedZoneId = appliedZoneId,
-            onAppliedDateChange = onAppliedDateChange,
-            onAppliedTimeChange = onAppliedTimeChange,
+            onAppliedDateChange = { if (!isSaving) onAppliedDateChange(it) },
+            onAppliedTimeChange = { if (!isSaving) onAppliedTimeChange(it) },
         )
     }
 }
@@ -375,6 +375,10 @@ internal fun MedicationEditorSheetScaffold(
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
+            // Buttons stay visually enabled while a save is in flight; the
+            // click handlers no-op so a second tap can't fire a duplicate save
+            // / delete. The sheet dismissal lock keeps the buttons in view
+            // until ROOM finishes.
             val hasDestructiveAction = destructiveButtonText != null && onDestructiveAction != null
             if (hasDestructiveAction) {
                 val destructiveAction = checkNotNull(onDestructiveAction)
@@ -388,9 +392,8 @@ internal fun MedicationEditorSheetScaffold(
                 ) {
                     HrtButton(
                         text = destructiveButtonText,
-                        onClick = destructiveAction,
+                        onClick = { if (!isSaving) destructiveAction() },
                         modifier = Modifier.weight(1f),
-                        enabled = !isSaving,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
                             contentColor = MaterialTheme.colorScheme.onErrorContainer,
@@ -398,19 +401,17 @@ internal fun MedicationEditorSheetScaffold(
                     )
                     HrtButton(
                         text = confirmButtonText,
-                        onClick = onConfirm,
+                        onClick = { if (!isSaving) onConfirm() },
                         modifier = Modifier.weight(1f),
-                        enabled = !isSaving,
                     )
                 }
             } else {
                 HrtButton(
                     text = confirmButtonText,
-                    onClick = onConfirm,
+                    onClick = { if (!isSaving) onConfirm() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = dimensionResource(R.dimen.padding_xsmall)),
-                    enabled = !isSaving,
                 )
             }
         }
@@ -462,9 +463,11 @@ internal fun MedicationEditorContent(
             selectedOption = medicineDraft.category,
             optionLabel = { category -> stringResource(category.labelRes) },
             onOptionSelected = { category ->
-                onMedicineDraftChange { it.changeCategory(category) }
+                if (!isSaving) {
+                    onMedicineDraftChange { it.changeCategory(category) }
+                }
             },
-            enabled = canEditMedicationIdentity && !isSaving,
+            enabled = canEditMedicationIdentity,
         )
     }
 
@@ -476,8 +479,8 @@ internal fun MedicationEditorContent(
             applicationType = applicationType,
             doseInstructionDraft = doseInstructionDraft,
             countText = countText,
-            canOpenMedicinePicker = canRepickMedicine && !isSaving,
-            onOpenMedicinePicker = onOpenMedicinePicker,
+            canOpenMedicinePicker = canRepickMedicine,
+            onOpenMedicinePicker = { if (!isSaving) onOpenMedicinePicker() },
             errorMessageRes = errorMessageRes,
         )
 
@@ -508,8 +511,8 @@ internal fun MedicationEditorContent(
         applicationType = applicationType,
         doseInstructionDraft = doseInstructionDraft,
         countText = countText,
-        canOpenMedicinePicker = canRepickMedicine && !isSaving,
-        onOpenMedicinePicker = onOpenMedicinePicker,
+        canOpenMedicinePicker = canRepickMedicine,
+        onOpenMedicinePicker = { if (!isSaving) onOpenMedicinePicker() },
         errorMessageRes = errorMessageRes,
         trailingIndicator = summaryTrailingIndicator,
     )
@@ -532,9 +535,10 @@ internal fun MedicationEditorContent(
             medicineDraft = medicineDraft,
             doseInstructionDraft = doseInstructionDraft,
             activePreparationType = activePreparationType,
-            onDoseInstructionDraftChange = onDoseInstructionDraftChange,
+            onDoseInstructionDraftChange = { transform ->
+                if (!isSaving) onDoseInstructionDraftChange(transform)
+            },
             errorMessageRes = errorMessageRes,
-            enabled = !isSaving,
         )
     }
 
@@ -542,10 +546,9 @@ internal fun MedicationEditorContent(
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         MedicationCountTextField(
             value = countText,
-            onValueChange = onCountTextChange,
-            onDecreaseClick = onDecreaseCountClick,
-            onIncreaseClick = onIncreaseCountClick,
-            enabled = !isSaving,
+            onValueChange = { if (!isSaving) onCountTextChange(it) },
+            onDecreaseClick = { if (!isSaving) onDecreaseCountClick() },
+            onIncreaseClick = { if (!isSaving) onIncreaseCountClick() },
             errorMessageRes = errorMessageRes
                 ?.takeIf { it == R.string.validation_count_required },
         )
@@ -642,7 +645,6 @@ internal fun DoseInstructionForm(
     activePreparationType: MedicinePreparationType = doseInstructionDraft.preparationType,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
     errorMessageRes: Int?,
-    enabled: Boolean = true,
 ) {
     if (activePreparationType == MedicinePreparationType.PILL) {
         val availableRoutes = MedicationCatalog.tabletRoutesFor(medicineDraft.category)
@@ -678,7 +680,6 @@ internal fun DoseInstructionForm(
                         it.copy(applicationType = route)
                     }
                 },
-                enabled = enabled,
             )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         }
@@ -721,7 +722,6 @@ internal fun DoseInstructionForm(
                 // Slider.steps counts intermediate stops between the endpoints,
                 // so 3 selectable options (1/4, 1/2, 1) need 1 intermediate step.
                 steps = options.size - 2,
-                enabled = enabled,
             )
         }
 
@@ -740,7 +740,6 @@ internal fun DoseInstructionForm(
             isError = errorMessageRes == R.string.validation_dose_volume_required,
             errorMessageRes = R.string.validation_dose_volume_required
                 .takeIf { errorMessageRes == it },
-            enabled = enabled,
             onValueChange = { value ->
                 onDoseInstructionDraftChange { it.copy(volumeMl = value) }
             },
@@ -755,7 +754,6 @@ internal fun DoseInstructionForm(
                 isError = errorMessageRes == R.string.validation_dose_weight_required,
                 errorMessageRes = R.string.validation_dose_weight_required
                     .takeIf { errorMessageRes == it },
-                enabled = enabled,
                 onValueChange = { value ->
                     onDoseInstructionDraftChange { it.copy(weightGrams = value) }
                 },
@@ -765,7 +763,6 @@ internal fun DoseInstructionForm(
                     medicineDraft = medicineDraft,
                     doseInstructionDraft = doseInstructionDraft,
                 ),
-                enabled = enabled,
                 onPresetClick = { preset ->
                     onDoseInstructionDraftChange { it.applyDoseAssistPreset(preset) }
                 },
@@ -780,7 +777,6 @@ internal fun TabletRouteRow(
     availableRoutes: List<MedicationApplicationType>,
     applicationType: MedicationApplicationType,
     onApplicationTypeChange: (MedicationApplicationType) -> Unit,
-    enabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
     ConnectedButtonGroup(
@@ -796,7 +792,6 @@ internal fun TabletRouteRow(
             )
         },
         onOptionSelected = onApplicationTypeChange,
-        enabled = enabled,
     )
 }
 
@@ -912,21 +907,13 @@ internal fun MedicationLogAppliedAtFields(
     appliedZoneId: ZoneId = ZoneId.systemDefault(),
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
-    enabled: Boolean = true,
 ) {
     val uses24HourFormat = rememberUses24HourTimeFormat()
     val focusManager = LocalFocusManager.current
     var showDatePickerModal by remember { mutableStateOf(false) }
     var showTimePickerModal by remember { mutableStateOf(false) }
 
-    LaunchedEffect(enabled) {
-        if (!enabled) {
-            showDatePickerModal = false
-            showTimePickerModal = false
-        }
-    }
-
-    if (showDatePickerModal && enabled) {
+    if (showDatePickerModal) {
         DatePickerModal(
             onDateSelected = onAppliedDateChange,
             onDismiss = {
@@ -944,11 +931,11 @@ internal fun MedicationLogAppliedAtFields(
         label = { Text(stringResource(R.string.field_date_of_application)) },
         modifier = Modifier
             .fillMaxWidth()
-            .pointerInput(appliedDate, enabled) {
+            .pointerInput(appliedDate) {
                 awaitEachGesture {
                     awaitFirstDown(pass = PointerEventPass.Initial)
                     val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
-                    if (upEvent != null && enabled) {
+                    if (upEvent != null) {
                         showDatePickerModal = true
                     }
                 }
@@ -959,13 +946,12 @@ internal fun MedicationLogAppliedAtFields(
                 contentDescription = stringResource(R.string.select_date),
             )
         },
-        enabled = enabled,
         singleLine = true,
     )
 
     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
-    if (showTimePickerModal && enabled) {
+    if (showTimePickerModal) {
         TimePickerModal(
             onTimeSelected = { selectedTime ->
                 onAppliedTimeChange(selectedTime)
@@ -987,11 +973,11 @@ internal fun MedicationLogAppliedAtFields(
         label = { Text(stringResource(R.string.field_time_of_application)) },
         modifier = Modifier
             .fillMaxWidth()
-            .pointerInput(appliedTime, enabled) {
+            .pointerInput(appliedTime) {
                 awaitEachGesture {
                     awaitFirstDown(pass = PointerEventPass.Initial)
                     val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
-                    if (upEvent != null && enabled) {
+                    if (upEvent != null) {
                         showTimePickerModal = true
                     }
                 }
@@ -1002,7 +988,6 @@ internal fun MedicationLogAppliedAtFields(
                 contentDescription = stringResource(R.string.select_time),
             )
         },
-        enabled = enabled,
         singleLine = true,
     )
 
@@ -1185,7 +1170,6 @@ private fun NumericField(
 internal fun DoseAssistPresetRow(
     presets: List<MedicationDoseAssistPreset>,
     onPresetClick: (MedicationDoseAssistPreset) -> Unit,
-    enabled: Boolean = true,
 ) {
     if (presets.isEmpty()) {
         return
@@ -1204,7 +1188,6 @@ internal fun DoseAssistPresetRow(
             presets.forEach { preset ->
                 AssistChip(
                     onClick = { onPresetClick(preset) },
-                    enabled = enabled,
                     label = { Text(text = doseAssistPresetLabel(preset)) },
                 )
             }
@@ -1248,7 +1231,6 @@ internal fun MedicationCountTextField(
     onValueChange: (String) -> Unit,
     onDecreaseClick: () -> Unit,
     onIncreaseClick: () -> Unit,
-    enabled: Boolean,
     @StringRes errorMessageRes: Int? = null,
 ) {
     val focusManager = LocalFocusManager.current
@@ -1280,18 +1262,15 @@ internal fun MedicationCountTextField(
                 modifier = Modifier.padding(end = 4.dp),
             ) {
                 IconButton(
-                    onClick = { if (enabled) onDecreaseClick() },
-                    enabled = enabled && stepBaseCount > 1,
+                    onClick = onDecreaseClick,
+                    enabled = stepBaseCount > 1,
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Remove,
                         contentDescription = stringResource(R.string.decrease_medication_count),
                     )
                 }
-                IconButton(
-                    onClick = { if (enabled) onIncreaseClick() },
-                    enabled = enabled,
-                ) {
+                IconButton(onClick = onIncreaseClick) {
                     Icon(
                         imageVector = Icons.Rounded.Add,
                         contentDescription = stringResource(R.string.increase_medication_count),
@@ -1308,7 +1287,6 @@ internal fun MedicationCountTextField(
             }
         },
         modifier = Modifier.fillMaxWidth(),
-        enabled = enabled,
         singleLine = true,
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Number,

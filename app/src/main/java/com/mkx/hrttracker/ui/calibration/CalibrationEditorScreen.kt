@@ -211,10 +211,10 @@ fun CalibrationEditorScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        if (uiState.isDeleting) return@TextButton
                         isDeleteDialogVisible = false
                         viewModel.delete()
                     },
-                    enabled = !uiState.isDeleting,
                 ) {
                     Text(text = stringResource(R.string.delete_entries_confirm))
                 }
@@ -222,7 +222,6 @@ fun CalibrationEditorScreen(
             dismissButton = {
                 TextButton(
                     onClick = { isDeleteDialogVisible = false },
-                    enabled = !uiState.isDeleting,
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
