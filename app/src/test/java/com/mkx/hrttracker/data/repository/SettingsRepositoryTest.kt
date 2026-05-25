@@ -107,6 +107,15 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `stock intro prompt shown flag defaults false and persists true`() = runTest(testDispatcher) {
+        assertEquals(false, settingsRepository.stockIntroPromptShownFlow.first())
+
+        settingsRepository.markStockIntroPromptShown()
+
+        assertEquals(true, settingsRepository.stockIntroPromptShownFlow.first())
+    }
+
+    @Test
     fun `homeE2DisplayUnitFlow emits canonical unit after setting canonical unit`() = runTest(testDispatcher) {
         val nonCanonical = BloodTestCatalog.definitionFor(BloodAnalyteKey.E2)
             .allowedUnits

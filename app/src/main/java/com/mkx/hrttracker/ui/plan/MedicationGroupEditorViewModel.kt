@@ -23,7 +23,9 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
@@ -57,6 +59,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -135,6 +138,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
         MutableSharedFlow<MedicationGroupEditorCompletionEvent>(extraBufferCapacity = 1)
     val completionEvents: SharedFlow<MedicationGroupEditorCompletionEvent> =
         _completionEvents.asSharedFlow()
+    private val _events = MutableSharedFlow<MedicationGroupEditorEvent>(extraBufferCapacity = 2)
+    val events: SharedFlow<MedicationGroupEditorEvent> = _events.asSharedFlow()
     val currentMinute: StateFlow<LocalDateTime> = appTimeSource.currentMinute
 
     init {
@@ -992,6 +997,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 )
             }
             if (isSaved && savedGroupUuid != null) {
+                runCatching {
+                    maybeEmitStockIntroEvent(
+                        savedState = currentState,
+                        savedGroupUuid = savedGroupUuid,
+                    )
+                }
+                _events.emit(MedicationGroupEditorEvent.SaveCompleted)
                 _completionEvents.tryEmit(MedicationGroupEditorCompletionEvent.SAVE_COMPLETED)
                 withContext(NonCancellable) {
                     runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
@@ -1016,6 +1028,43 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private suspend fun maybeEmitStockIntroEvent(
+        savedState: MedicationGroupEditorUiState,
+        savedGroupUuid: UUID,
+    ) {
+        if (savedState.isEditing) return
+        if (settingsRepository.stockIntroPromptShownFlow.first()) return
+        if (activeGroupCountAfterSave(savedGroupUuid) != 1) return
+
+        val medicines = savedState.medications
+            .mapNotNull { medication -> medication.resolvedMedicine }
+            .filterNot { medicine -> medicine.preparation is MedicinePreparation.PatchOff }
+            .distinctBy { medicine -> medicine.uuid }
+        if (medicines.isEmpty()) return
+
+        _events.emit(MedicationGroupEditorEvent.ShowStockIntroPrompt(medicines))
+        settingsRepository.markStockIntroPromptShown()
+    }
+
+    private fun activeGroupCountAfterSave(savedGroupUuid: UUID): Int {
+        val activeGroupCount = latestGroups.count(MedicationGroup::isActive)
+        val savedGroupAlreadyObserved = latestGroups.any { group -> group.uuid == savedGroupUuid }
+        return if (savedGroupAlreadyObserved) activeGroupCount else activeGroupCount + 1
+    }
+
+    suspend fun enableStockTrackingFromIntro(
+        medicineUuid: UUID,
+        initialCount: Double,
+    ) {
+        if (!initialCount.isFinite() || initialCount < 0.0) return
+        medicineRepository.enableTracking(
+            uuid = medicineUuid,
+            initialUnitsRemaining = initialCount,
+            initialOpenContainerAmount = null,
+            initialUnitsLastTotal = initialCount,
+        )
     }
 
     fun showDeleteConfirmation() {
@@ -1160,6 +1209,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 )
             }
             if (archived) {
+                _events.emit(MedicationGroupEditorEvent.DeleteOrArchiveCompleted)
                 _completionEvents.tryEmit(
                     MedicationGroupEditorCompletionEvent.DELETE_OR_ARCHIVE_COMPLETED
                 )
@@ -1550,6 +1600,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 )
             }
             if (isDeleted) {
+                _events.emit(MedicationGroupEditorEvent.DeleteOrArchiveCompleted)
                 _completionEvents.tryEmit(
                     MedicationGroupEditorCompletionEvent.DELETE_OR_ARCHIVE_COMPLETED
                 )
@@ -2000,6 +2051,16 @@ data class CreatePastScheduledSlotRecordsSaveState(
 enum class MedicationGroupEditorCompletionEvent {
     SAVE_COMPLETED,
     DELETE_OR_ARCHIVE_COMPLETED,
+}
+
+sealed interface MedicationGroupEditorEvent {
+    data class ShowStockIntroPrompt(
+        val medicines: List<Medicine>,
+    ) : MedicationGroupEditorEvent
+
+    data object SaveCompleted : MedicationGroupEditorEvent
+
+    data object DeleteOrArchiveCompleted : MedicationGroupEditorEvent
 }
 
 data class MedicationGroupEditorUiState(

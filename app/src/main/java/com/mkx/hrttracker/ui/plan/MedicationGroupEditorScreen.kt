@@ -108,10 +108,12 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
+import com.mkx.hrttracker.ui.catalog.stock.StockIntroPromptSheet
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
@@ -138,6 +140,7 @@ import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -165,12 +168,17 @@ fun MedicationGroupEditorScreen(
     val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
     val hasNotificationAccess = reminderCapabilityState.hasNotificationAccess
     val hasExactAlarmAccess = reminderCapabilityState.hasExactAlarmAccess
+    val scope = rememberCoroutineScope()
     val reminderNotificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
     var isExactAlarmDialogVisible by rememberSaveable { mutableStateOf(false) }
     var showInexactReminderWarning by rememberSaveable { mutableStateOf(false) }
     var pendingNotificationEnableRequest by rememberSaveable { mutableStateOf<String?>(null) }
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
+    var pendingStockIntroMedicines by remember { mutableStateOf<List<Medicine>?>(null) }
+    var pendingSaveNavigationTarget by remember {
+        mutableStateOf<MedicationGroupEditorSaveNavigationTarget?>(null)
+    }
     val startedAsNewGroupCreationFlow = remember { !uiState.isEditing }
     val isNewGroupCreationFlow = resolveMedicationGroupEditorIsNewGroupCreationFlow(
         uiState = uiState,
@@ -273,23 +281,41 @@ fun MedicationGroupEditorScreen(
             isExactAlarmDialogVisible = exactAlarmUiState.showExactAlarmDialog
         }
     }
+    fun navigateAfterSave(target: MedicationGroupEditorSaveNavigationTarget) {
+        when (target) {
+            MedicationGroupEditorSaveNavigationTarget.BACK -> onGroupSaved()
+            MedicationGroupEditorSaveNavigationTarget.PLAN -> onGroupSavedToPlan()
+        }
+    }
+
+    fun finishPendingStockIntroPrompt() {
+        pendingStockIntroMedicines = null
+        val target = pendingSaveNavigationTarget
+        pendingSaveNavigationTarget = null
+        if (target != null) {
+            navigateAfterSave(target)
+        }
+    }
 
     LaunchedEffect(viewModel, openedFromArchivedGroupsPage) {
-        viewModel.completionEvents.collect { event ->
+        viewModel.events.collect { event ->
             when (event) {
-                MedicationGroupEditorCompletionEvent.SAVE_COMPLETED -> {
-                    when (
-                        resolveMedicationGroupEditorSaveNavigationTarget(
-                            uiState = latestUiState,
-                            openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
-                        )
-                    ) {
-                        MedicationGroupEditorSaveNavigationTarget.BACK -> onGroupSaved()
-                        MedicationGroupEditorSaveNavigationTarget.PLAN -> onGroupSavedToPlan()
+                is MedicationGroupEditorEvent.ShowStockIntroPrompt -> {
+                    pendingStockIntroMedicines = event.medicines
+                }
+                MedicationGroupEditorEvent.SaveCompleted -> {
+                    val target = resolveMedicationGroupEditorSaveNavigationTarget(
+                        uiState = latestUiState,
+                        openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+                    )
+                    if (pendingStockIntroMedicines != null) {
+                        pendingSaveNavigationTarget = target
+                    } else {
+                        navigateAfterSave(target)
                     }
                 }
 
-                MedicationGroupEditorCompletionEvent.DELETE_OR_ARCHIVE_COMPLETED -> onGroupSaved()
+                MedicationGroupEditorEvent.DeleteOrArchiveCompleted -> onGroupSaved()
             }
         }
     }
@@ -321,6 +347,30 @@ fun MedicationGroupEditorScreen(
                 isExactAlarmDialogVisible = false
                 showInexactReminderWarning = true
             }
+        )
+    }
+
+    pendingStockIntroMedicines?.let { medicines ->
+        StockIntroPromptSheet(
+            medicines = medicines,
+            onDone = { entries ->
+                scope.launch {
+                    entries.forEach { entry ->
+                        val initialCount = entry.initialCount ?: return@forEach
+                        try {
+                            viewModel.enableStockTrackingFromIntro(
+                                medicineUuid = entry.medicine.uuid,
+                                initialCount = initialCount,
+                            )
+                        } catch (cause: CancellationException) {
+                            throw cause
+                        } catch (_: Exception) {
+                        }
+                    }
+                    finishPendingStockIntroPrompt()
+                }
+            },
+            onDismissRequest = ::finishPendingStockIntroPrompt,
         )
     }
 
