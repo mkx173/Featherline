@@ -28,10 +28,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class MedicineRepository @Inject constructor(
+class MedicineRepository @Inject internal constructor(
     @param:ApplicationContext private val context: Context,
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotRepository: HomeSnapshotRepository,
+    private val stockMutator: MedicineStockMutator,
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeAllActive(): Flow<List<Medicine>> {
@@ -190,6 +191,112 @@ class MedicineRepository @Inject constructor(
         }
     }
 
+    suspend fun enableTracking(
+        uuid: UUID,
+        initialUnitsRemaining: Double?,
+        initialOpenContainerAmount: Double?,
+        initialUnitsLastTotal: Double?,
+        now: Instant = Instant.now(),
+    ) {
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                stockMutator.enableTracking(
+                    database = database,
+                    medicineUuid = uuid,
+                    initialUnitsRemaining = initialUnitsRemaining,
+                    initialOpenContainerAmount = initialOpenContainerAmount,
+                    initialUnitsLastTotal = initialUnitsLastTotal,
+                    now = now,
+                )
+            }
+        }
+    }
+
+    suspend fun disableTracking(
+        uuid: UUID,
+        now: Instant = Instant.now(),
+    ) {
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                stockMutator.disableTracking(
+                    database = database,
+                    medicineUuid = uuid,
+                    now = now,
+                )
+            }
+        }
+    }
+
+    internal suspend fun applyRecount(
+        uuid: UUID,
+        recount: StockRecount,
+        now: Instant = Instant.now(),
+    ) {
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                stockMutator.applyRecount(
+                    database = database,
+                    medicineUuid = uuid,
+                    recount = recount,
+                    now = now,
+                )
+            }
+        }
+    }
+
+    internal suspend fun applyReceived(
+        uuid: UUID,
+        received: StockReceived,
+        now: Instant = Instant.now(),
+    ) {
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                stockMutator.applyReceived(
+                    database = database,
+                    medicineUuid = uuid,
+                    received = received,
+                    now = now,
+                )
+            }
+        }
+    }
+
+    internal suspend fun applyDiscard(
+        uuid: UUID,
+        discard: StockDiscard,
+        now: Instant = Instant.now(),
+    ) {
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                stockMutator.applyDiscard(
+                    database = database,
+                    medicineUuid = uuid,
+                    discard = discard,
+                    now = now,
+                )
+            }
+        }
+    }
+
+    suspend fun updateWarnAtDaysRemaining(
+        uuid: UUID,
+        warnAtDaysRemaining: Int,
+        now: Instant = Instant.now(),
+    ) {
+        require(warnAtDaysRemaining in 1..365) {
+            "warnAtDaysRemaining must be 1..365"
+        }
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                database.medicineDao().updateWarnAtDaysRemaining(
+                    uuid = uuid.toString(),
+                    warnAtDaysRemaining = warnAtDaysRemaining,
+                    updatedAtEpochMillis = now.toEpochMilli(),
+                )
+            }
+        }
+    }
+
     suspend fun isLocked(uuid: UUID): Boolean {
         return databaseHolder.get().medicineDao().logReferenceCount(uuid.toString()) > 0
     }
@@ -232,6 +339,13 @@ class MedicineRepository @Inject constructor(
                 if (collision != null && collision.uuid != existing.uuid) {
                     throw MedicineIdentityCollisionException(newIdentityKey)
                 }
+                if (existing.trackingEnabled) {
+                    stockMutator.clearStockOnPreparationEdit(
+                        database = database,
+                        medicineUuid = uuid,
+                        now = now,
+                    )
+                }
                 val storageFields = preparation.toStorageFields()
                 // Reuse the existing column value when the caller passed null,
                 // so a partial update (preparation only, no unit change) is a
@@ -273,6 +387,11 @@ class MedicineRepository @Inject constructor(
                 if (dao.activeGroupReferenceCount(uuid.toString()) > 0) {
                     throw MedicineReferencedByActiveGroupException(uuid)
                 }
+                stockMutator.clearStockOnArchive(
+                    database = database,
+                    medicineUuid = uuid,
+                    now = now,
+                )
                 dao.archive(
                     uuid = uuid.toString(),
                     archivedAtEpochMillis = nowEpochMillis,

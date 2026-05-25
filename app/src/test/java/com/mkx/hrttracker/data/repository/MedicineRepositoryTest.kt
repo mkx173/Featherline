@@ -16,6 +16,7 @@ import com.mkx.hrttracker.util.ToastManager
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -44,6 +45,7 @@ class MedicineRepositoryTest {
     private val database: HrtTrackerDatabase = mockk()
     private val dao: MedicineDao = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
+    private val stockMutator: MedicineStockMutator = mockk(relaxed = true)
     private val duplicateMedicineMessage = "Medicine already exists."
 
     private lateinit var repository: MedicineRepository
@@ -69,6 +71,7 @@ class MedicineRepositoryTest {
             context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
         )
     }
 
@@ -405,12 +408,7 @@ class MedicineRepositoryTest {
     @Test
     fun updatePreparation_rejectsLockedMedicine() = runTest {
         val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
-        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
-            firstArg<suspend () -> Unit>().invoke()
-        }
-        coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
-            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
-        }
+        stubUnitMutation()
         coEvery { dao.getByUuid(uuid.toString()) } returns medicineEntity(uuid = uuid.toString())
         coEvery { dao.logReferenceCount(uuid.toString()) } returns 1
 
@@ -426,20 +424,94 @@ class MedicineRepositoryTest {
     }
 
     @Test
+    fun updatePreparation_trackingOn_clearsStockBeforePrepUpdate() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val existing = medicineEntity(uuid = uuid.toString()).copy(trackingEnabled = true)
+        stubUnitMutation()
+        coEvery { dao.getByUuid(uuid.toString()) } returns existing
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 0
+        coEvery { dao.getByIdentityKey(any()) } returns null
+
+        repository.updatePreparation(
+            uuid = uuid,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 4.0),
+            now = Instant.parse("2026-05-22T00:00:00Z"),
+        )
+
+        coVerifyOrder {
+            stockMutator.clearStockOnPreparationEdit(database, uuid, any())
+            dao.updatePreparationFields(
+                uuid.toString(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+            )
+        }
+    }
+
+    @Test
+    fun updatePreparation_trackingOff_doesNotInvokeStockClear() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val existing = medicineEntity(uuid = uuid.toString()).copy(trackingEnabled = false)
+        stubUnitMutation()
+        coEvery { dao.getByUuid(uuid.toString()) } returns existing
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 0
+        coEvery { dao.getByIdentityKey(any()) } returns null
+
+        repository.updatePreparation(
+            uuid = uuid,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 4.0),
+            now = Instant.parse("2026-05-22T00:00:00Z"),
+        )
+
+        coVerify(exactly = 0) {
+            stockMutator.clearStockOnPreparationEdit(any(), any(), any())
+        }
+    }
+
+    @Test
     fun archive_rejectsMedicineReferencedByActiveGroup() = runTest {
         val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
-        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
-            firstArg<suspend () -> Unit>().invoke()
-        }
-        coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
-            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
-        }
+        stubUnitMutation()
         coEvery { dao.activeGroupReferenceCount(uuid.toString()) } returns 1
 
         assertThrows(MedicineReferencedByActiveGroupException::class.java) {
             kotlinx.coroutines.test.runTest {
                 repository.archive(uuid, now = Instant.parse("2026-05-22T00:00:00Z"))
             }
+        }
+
+        coVerify(exactly = 0) {
+            stockMutator.clearStockOnArchive(any(), any(), any())
+        }
+    }
+
+    @Test
+    fun archive_invokesStockClearInsideTransaction() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val now = Instant.parse("2026-05-22T00:00:00Z")
+        stubUnitMutation()
+        coEvery { dao.activeGroupReferenceCount(uuid.toString()) } returns 0
+
+        repository.archive(uuid, now = now)
+
+        coVerifyOrder {
+            stockMutator.clearStockOnArchive(database, uuid, now)
+            dao.archive(
+                uuid = uuid.toString(),
+                archivedAtEpochMillis = now.toEpochMilli(),
+                updatedAtEpochMillis = now.toEpochMilli(),
+            )
         }
     }
 
@@ -571,6 +643,15 @@ class MedicineRepositoryTest {
             updatedAtEpochMillis = 200,
             archivedAtEpochMillis = archivedAtEpochMillis,
         )
+    }
+
+    private fun stubUnitMutation() {
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+        }
+        coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
     }
 
     private fun customMedicineEntity(): MedicineEntity {

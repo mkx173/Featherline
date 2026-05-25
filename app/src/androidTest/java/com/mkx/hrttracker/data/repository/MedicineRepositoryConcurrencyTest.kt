@@ -32,6 +32,7 @@ class MedicineRepositoryConcurrencyTest {
 
     private val databaseHolder: DatabaseHolder = mockk()
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
+    private val stockMutator: MedicineStockMutator = mockk(relaxed = true)
 
     @Before
     fun setUp() {
@@ -54,6 +55,7 @@ class MedicineRepositoryConcurrencyTest {
             context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
         )
     }
 
