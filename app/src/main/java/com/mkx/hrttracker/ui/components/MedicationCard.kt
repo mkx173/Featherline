@@ -133,12 +133,12 @@ internal fun MedicationCard(
     val leadingSurfaceColor = when {
         isSelected -> MaterialTheme.colorScheme.primary
         useGroupPalette -> groupColorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.secondaryContainer
     }
     val leadingContentColor = when {
         isSelected -> MaterialTheme.colorScheme.onPrimary
         useGroupPalette -> groupColorScheme.onPrimaryContainer
-        else -> MaterialTheme.colorScheme.onPrimaryContainer
+        else -> MaterialTheme.colorScheme.onSecondaryContainer
     }
     val leadingIconModifier = Modifier
         .size(36.dp)
