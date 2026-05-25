@@ -12,8 +12,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -40,11 +44,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -77,6 +84,7 @@ import com.mkx.hrttracker.ui.medication.hasRawMassDoseField
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
 import com.mkx.hrttracker.ui.medication.medicinePreparationSummary
 import com.mkx.hrttracker.ui.medication.shortLabelRes
+import com.mkx.hrttracker.util.labelRes
 import java.util.UUID
 
 @Composable
@@ -494,18 +502,13 @@ private fun MedicineEditSheet(
             onSave(preparationToSave, draft.displayDoseUnit)
         },
     ) {
-        if (showsDisplayName) {
-            OutlinedTextField(
-                value = displayName,
-                onValueChange = onDisplayNameChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(text = stringResource(R.string.medicine_display_name)) },
-                supportingText = {
-                    Text(text = stringResource(R.string.medicine_display_name_hint))
-                },
-                singleLine = true,
+        if (medicine.selection is MedicineSelection.Catalog) {
+            EditDisplayNameField(
+                catalogSelection = medicine.selection,
+                displayName = displayName,
+                onDisplayNameChange = onDisplayNameChange,
             )
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         }
         if (isLocked) {
             Text(
@@ -513,15 +516,67 @@ private fun MedicineEditSheet(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        } else {
-            PreparationEditorFields(
-                draft = draft,
-                onDraftChange = { draft = it },
-                showsUnitPicker = isCustom &&
-                    draft.preparationType.hasRawMassDoseField(draft.patchSpecKind),
-            )
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+        }
+        PreparationEditorFields(
+            draft = draft,
+            onDraftChange = { draft = it },
+            showsUnitPicker = isCustom &&
+                draft.preparationType.hasRawMassDoseField(draft.patchSpecKind),
+            enabled = !isLocked,
+        )
+    }
+}
+
+// Mirrors CreateMedicineSheet.DisplayNameField: catalog key as the placeholder
+// (so an empty input keeps the medicine using the catalog default name) and
+// label/leading-icon affordances that read as one row. No supporting hint —
+// the placeholder already communicates the fallback name.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditDisplayNameField(
+    catalogSelection: MedicineSelection.Catalog,
+    displayName: String,
+    onDisplayNameChange: (String) -> Unit,
+) {
+    val focusManager = LocalFocusManager.current
+    val displayNameState = rememberTextFieldState(initialText = displayName)
+    val currentDisplayName by rememberUpdatedState(displayName)
+    val currentOnDisplayNameChange by rememberUpdatedState(onDisplayNameChange)
+
+    LaunchedEffect(displayNameState, displayName) {
+        if (displayNameState.text.toString() != displayName) {
+            displayNameState.setTextAndPlaceCursorAtEnd(displayName)
         }
     }
+
+    LaunchedEffect(displayNameState) {
+        snapshotFlow { displayNameState.text.toString() }.collect { value ->
+            if (value != currentDisplayName) {
+                currentOnDisplayNameChange(value)
+            }
+        }
+    }
+
+    val defaultName = stringResource(catalogSelection.medicationKey.labelRes)
+    OutlinedTextField(
+        state = displayNameState,
+        labelPosition = displayNameFieldLabelPosition(),
+        label = { Text(text = stringResource(R.string.medicine_display_name)) },
+        placeholder = { Text(text = defaultName) },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.Label,
+                contentDescription = null,
+            )
+        },
+        modifier = Modifier.fillMaxWidth(),
+        lineLimits = TextFieldLineLimits.SingleLine,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+        ),
+        onKeyboardAction = { focusManager.clearFocus() },
+    )
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -530,8 +585,9 @@ private fun PreparationEditorFields(
     draft: MedicinePreparationDraftUiState,
     onDraftChange: (MedicinePreparationDraftUiState) -> Unit,
     showsUnitPicker: Boolean,
+    enabled: Boolean = true,
 ) {
-    // Identity is fixed for an existing medicine — the dialog never offers a
+    // Identity is fixed for an existing medicine — the sheet never offers a
     // preparation-type switch; we only edit the numeric fields of the
     // preparation the medicine already declared. (Switching preparation type
     // would change the identityKey and is better modeled as "create a new
@@ -555,6 +611,7 @@ private fun PreparationEditorFields(
                         ),
                         suffix = stringResource(rawMassUnit),
                         leadingIconRes = R.drawable.ic_medication,
+                        enabled = enabled,
                         onValueChange = { onDraftChange(draft.copy(pillStrengthMg = it)) },
                     )
                     PreparationDoseUnitPicker(
@@ -563,6 +620,7 @@ private fun PreparationEditorFields(
                             onDraftChange(draft.copy(displayDoseUnit = unit))
                         },
                         visible = showsUnitPicker,
+                        enabled = enabled,
                     )
                 }
             }
@@ -574,6 +632,7 @@ private fun PreparationEditorFields(
                         label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
                         suffix = stringResource(rawMassUnit),
                         leadingIconRes = R.drawable.ic_vaccines,
+                        enabled = enabled,
                         onValueChange = { onDraftChange(draft.copy(singleUseVialStrengthMg = it)) },
                     )
                     PreparationDoseUnitPicker(
@@ -582,6 +641,7 @@ private fun PreparationEditorFields(
                             onDraftChange(draft.copy(displayDoseUnit = unit))
                         },
                         visible = showsUnitPicker,
+                        enabled = enabled,
                     )
                 }
             }
@@ -592,6 +652,7 @@ private fun PreparationEditorFields(
                     label = fieldLabelWithUnit(R.string.field_concentration_mg_per_ml, R.string.unit_mg_per_ml),
                     suffix = stringResource(R.string.unit_mg_per_ml),
                     leadingIconRes = R.drawable.ic_humidity_percentage,
+                    enabled = enabled,
                     onValueChange = { onDraftChange(draft.copy(concentrationMgPerMl = it)) },
                 )
                 NumericInputField(
@@ -599,6 +660,7 @@ private fun PreparationEditorFields(
                     label = fieldLabelWithUnit(R.string.field_vial_volume_ml, R.string.unit_ml),
                     suffix = stringResource(R.string.unit_ml),
                     leadingIconRes = R.drawable.ic_fluid,
+                    enabled = enabled,
                     onValueChange = { onDraftChange(draft.copy(vialVolumeMl = it)) },
                 )
             }
@@ -609,6 +671,7 @@ private fun PreparationEditorFields(
                     label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
                     suffix = stringResource(R.string.unit_percent),
                     leadingIconRes = R.drawable.ic_humidity_percentage,
+                    enabled = enabled,
                     onValueChange = { onDraftChange(draft.copy(gelConcentrationPercent = it)) },
                 )
                 NumericInputField(
@@ -616,6 +679,7 @@ private fun PreparationEditorFields(
                     label = fieldLabelWithUnit(R.string.field_sachet_weight_grams, R.string.unit_grams),
                     suffix = stringResource(R.string.unit_grams),
                     leadingIconRes = R.drawable.ic_weight,
+                    enabled = enabled,
                     onValueChange = { onDraftChange(draft.copy(sachetWeightGrams = it)) },
                 )
             }
@@ -626,6 +690,7 @@ private fun PreparationEditorFields(
                     label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
                     suffix = stringResource(R.string.unit_percent),
                     leadingIconRes = R.drawable.ic_humidity_percentage,
+                    enabled = enabled,
                     onValueChange = { onDraftChange(draft.copy(gelConcentrationPercent = it)) },
                 )
                 NumericInputField(
@@ -633,6 +698,7 @@ private fun PreparationEditorFields(
                     label = fieldLabelWithUnit(R.string.field_container_weight_grams, R.string.unit_grams),
                     suffix = stringResource(R.string.unit_grams),
                     leadingIconRes = R.drawable.ic_weight,
+                    enabled = enabled,
                     onValueChange = { onDraftChange(draft.copy(containerWeightGrams = it)) },
                 )
             }
@@ -658,6 +724,7 @@ private fun PreparationEditorFields(
                     onOptionSelected = { kind ->
                         onDraftChange(draft.copy(patchSpecKind = kind))
                     },
+                    enabled = enabled,
                 )
                 when (draft.patchSpecKind) {
                     PatchSpecKind.TOTAL_MG -> {
@@ -667,6 +734,7 @@ private fun PreparationEditorFields(
                                 label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
                                 suffix = stringResource(rawMassUnit),
                                 leadingIconRes = R.drawable.ic_chronic,
+                                enabled = enabled,
                                 onValueChange = {
                                     onDraftChange(draft.copy(patchTotalMg = it))
                                 },
@@ -677,6 +745,7 @@ private fun PreparationEditorFields(
                                     onDraftChange(draft.copy(displayDoseUnit = unit))
                                 },
                                 visible = showsUnitPicker,
+                                enabled = enabled,
                             )
                         }
                     }
@@ -686,6 +755,7 @@ private fun PreparationEditorFields(
                         label = fieldLabelWithUnit(R.string.field_patch_release_rate, R.string.unit_mcg_day),
                         suffix = stringResource(R.string.unit_mcg_day),
                         leadingIconRes = R.drawable.ic_speed,
+                        enabled = enabled,
                         onValueChange = {
                             onDraftChange(draft.copy(patchReleaseRateMcgPerDay = it))
                         },
@@ -694,9 +764,9 @@ private fun PreparationEditorFields(
             }
 
             // The PATCH_OFF singleton's preparation has no editable fields;
-            // the detail screen hides the preparation editor entirely for it
-            // (see MedicineDetailScreenContent), so this branch only exists
-            // for when-exhaustiveness.
+            // the detail screen hides the entire edit sheet for it (see
+            // MedicineDetailScreenContent), so this branch only exists for
+            // when-exhaustiveness.
             MedicinePreparationType.PATCH_OFF -> Unit
         }
     }
@@ -708,6 +778,7 @@ private fun PreparationDoseUnitPicker(
     selectedUnit: MedicineDisplayDoseUnit,
     onUnitSelected: (MedicineDisplayDoseUnit) -> Unit,
     visible: Boolean,
+    enabled: Boolean = true,
 ) {
     if (!visible) {
         return
@@ -735,6 +806,7 @@ private fun PreparationDoseUnitPicker(
                 onOptionSelected = onUnitSelected,
                 layout = ConnectedButtonGroupLayout.ROW,
                 applyCjkTextOffset = false,
+                enabled = enabled,
             )
         }
     }
@@ -759,6 +831,7 @@ private fun NumericInputField(
     onValueChange: (String) -> Unit,
     suffix: String? = null,
     @androidx.annotation.DrawableRes leadingIconRes: Int? = null,
+    enabled: Boolean = true,
 ) {
     OutlinedTextField(
         value = value,
@@ -775,6 +848,7 @@ private fun NumericInputField(
             }
         },
         singleLine = true,
+        enabled = enabled,
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
             keyboardType = KeyboardType.Decimal,
         ),
