@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.normalizeCustomMedicationName
 import com.mkx.hrttracker.util.ToastManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -313,6 +314,7 @@ class MedicineRepository @Inject constructor(
                     updatedAt = now,
                     archivedAt = null,
                     displayDoseUnit = displayDoseUnit,
+                    stock = MedicineStock(),
                 )
                 try {
                     dao.insert(medicine.toEntity())

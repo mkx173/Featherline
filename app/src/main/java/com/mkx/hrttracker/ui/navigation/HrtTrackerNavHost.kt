@@ -51,6 +51,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
 import com.mkx.hrttracker.ui.calibration.CalibrationScreen
@@ -1146,6 +1147,12 @@ private fun saveMedicine(medicine: Medicine): ArrayList<Any?> {
         medicine.createdAt.toEpochMilli(),
         medicine.updatedAt.toEpochMilli(),
         medicine.archivedAt?.toEpochMilli(),
+        medicine.stock.trackingEnabled,
+        medicine.stock.unitsRemaining,
+        medicine.stock.unitsLastTotal,
+        medicine.stock.openContainerAmount,
+        medicine.stock.warnAtDaysRemaining,
+        medicine.stock.generation,
     )
 }
 
@@ -1179,6 +1186,21 @@ private fun restoreMedicine(saved: Any): Medicine {
         createdAt = Instant.ofEpochMilli(list[8] as Long),
         updatedAt = Instant.ofEpochMilli(list[9] as Long),
         archivedAt = (list[10] as? Long)?.let(Instant::ofEpochMilli),
+        stock = restoreMedicineStock(list),
+    )
+}
+
+private fun restoreMedicineStock(list: ArrayList<Any?>): MedicineStock {
+    if (list.size < 17) {
+        return MedicineStock()
+    }
+    return MedicineStock(
+        trackingEnabled = list[11] as Boolean,
+        unitsRemaining = list[12] as? Double,
+        unitsLastTotal = list[13] as? Double,
+        openContainerAmount = list[14] as? Double,
+        warnAtDaysRemaining = list[15] as Int,
+        generation = list[16] as Long,
     )
 }
 

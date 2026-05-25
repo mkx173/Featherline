@@ -17,6 +17,7 @@ import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.ui.components.MedicationCardLeadingIconContainerColorArgbKey
 import com.mkx.hrttracker.ui.components.MedicationCardLeadingIconTestTag
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -92,5 +93,6 @@ private fun testMedicine(): Medicine {
         createdAt = Instant.EPOCH,
         updatedAt = Instant.EPOCH,
         archivedAt = null,
+        stock = MedicineStock(),
     )
 }

@@ -40,4 +40,19 @@ data class MedicineEntity(
     // this column default to `MG` via the migration.
     @ColumnInfo(defaultValue = "MG")
     val displayDoseUnit: String = "MG",
+
+    // ----- Stock fields (v3, added by MIGRATION_2_3) -----
+
+    @ColumnInfo(defaultValue = "0")
+    val trackingEnabled: Boolean = false,
+
+    val stockUnitsRemaining: Double? = null,
+    val stockUnitsLastTotal: Double? = null,
+    val openContainerAmount: Double? = null,
+
+    @ColumnInfo(defaultValue = "14")
+    val warnAtDaysRemaining: Int = 14,
+
+    @ColumnInfo(defaultValue = "0")
+    val stockGeneration: Long = 0L,
 )

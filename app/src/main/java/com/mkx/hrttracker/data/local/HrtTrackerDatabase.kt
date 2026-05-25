@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BloodTestResultEntity::class,
         CustomBloodAnalyteEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
@@ -38,5 +38,21 @@ internal val MIGRATION_1_2: Migration = object : Migration(1, 2) {
         db.execSQL(
             "ALTER TABLE medicines ADD COLUMN displayDoseUnit TEXT NOT NULL DEFAULT 'MG'"
         )
+    }
+}
+
+internal val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // medicines: stock state + session generation
+        db.execSQL("ALTER TABLE medicines ADD COLUMN trackingEnabled INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE medicines ADD COLUMN stockUnitsRemaining REAL")
+        db.execSQL("ALTER TABLE medicines ADD COLUMN stockUnitsLastTotal REAL")
+        db.execSQL("ALTER TABLE medicines ADD COLUMN openContainerAmount REAL")
+        db.execSQL("ALTER TABLE medicines ADD COLUMN warnAtDaysRemaining INTEGER NOT NULL DEFAULT 14")
+        db.execSQL("ALTER TABLE medicines ADD COLUMN stockGeneration INTEGER NOT NULL DEFAULT 0")
+
+        // medication_log_entries: per-log deduction marker + session token
+        db.execSQL("ALTER TABLE medication_log_entries ADD COLUMN stockDeductionUnits REAL")
+        db.execSQL("ALTER TABLE medication_log_entries ADD COLUMN stockGeneration INTEGER")
     }
 }

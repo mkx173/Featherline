@@ -2412,6 +2412,7 @@ private fun previewMedicine(
         createdAt = Instant.EPOCH,
         updatedAt = Instant.EPOCH,
         archivedAt = null,
+        stock = com.mkx.hrttracker.model.medication.MedicineStock(),
     )
 }
 

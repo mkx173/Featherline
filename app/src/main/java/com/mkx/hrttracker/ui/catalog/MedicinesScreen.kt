@@ -615,5 +615,6 @@ private fun previewMedicine(): com.mkx.hrttracker.model.medication.Medicine {
         createdAt = java.time.Instant.EPOCH,
         updatedAt = java.time.Instant.EPOCH,
         archivedAt = null,
+        stock = com.mkx.hrttracker.model.medication.MedicineStock(),
     )
 }

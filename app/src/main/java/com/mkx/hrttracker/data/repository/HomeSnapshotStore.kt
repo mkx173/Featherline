@@ -30,6 +30,7 @@ import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.DenseSamplePolicy
@@ -492,6 +493,7 @@ internal object HomeSnapshotCodec {
         writeLong(medicine.updatedAt.toEpochMilli())
         writeNullableLong(medicine.archivedAt?.toEpochMilli())
         writeString(medicine.displayDoseUnit.name)
+        writeMedicineStock(medicine.stock)
     }
 
     private fun DataInputStream.readMedicine(): Medicine {
@@ -505,6 +507,7 @@ internal object HomeSnapshotCodec {
         val updatedAt = Instant.ofEpochMilli(readLong())
         val archivedAt = readNullableLong()?.let(Instant::ofEpochMilli)
         val displayDoseUnit = MedicineDisplayDoseUnit.fromStorageValue(readString())
+        val stock = readMedicineStock()
         // PATCH_OFF preparation is the discriminator for the sentinel selection,
         // mirroring MedicineEntityMappers.toMedicineModel — the cache writer
         // emits CATALOG selectionKind for storage convenience and we fix it up
@@ -535,6 +538,27 @@ internal object HomeSnapshotCodec {
             updatedAt = updatedAt,
             archivedAt = archivedAt,
             displayDoseUnit = displayDoseUnit,
+            stock = stock,
+        )
+    }
+
+    private fun DataOutputStream.writeMedicineStock(stock: MedicineStock) {
+        writeBoolean(stock.trackingEnabled)
+        writeNullableDouble(stock.unitsRemaining)
+        writeNullableDouble(stock.unitsLastTotal)
+        writeNullableDouble(stock.openContainerAmount)
+        writeInt(stock.warnAtDaysRemaining)
+        writeLong(stock.generation)
+    }
+
+    private fun DataInputStream.readMedicineStock(): MedicineStock {
+        return MedicineStock(
+            trackingEnabled = readBoolean(),
+            unitsRemaining = readNullableDouble(),
+            unitsLastTotal = readNullableDouble(),
+            openContainerAmount = readNullableDouble(),
+            warnAtDaysRemaining = readInt(),
+            generation = readLong(),
         )
     }
 
@@ -831,9 +855,9 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 }
 
 private const val TAG = "HomeSnapshotStore"
-// v14 introduces the CAPSULE preparation marker; older caches don't carry the
-// marker and will be rejected by codec-version mismatch.
-private const val SNAPSHOT_CODEC_VERSION = 14
+// v15 carries MedicineStock inside cached Medicine values; older caches are
+// rejected by codec-version mismatch so tracked stock is never defaulted away.
+private const val SNAPSHOT_CODEC_VERSION = 15
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0

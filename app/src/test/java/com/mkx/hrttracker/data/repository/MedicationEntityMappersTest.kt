@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.testCustomMedicine
@@ -29,6 +30,30 @@ class MedicationEntityMappersTest {
         assertEquals(MedicinePreparationType.CAPSULE.name, entity.preparationType)
         assertEquals(100.0, entity.strengthMgPerTablet!!, 1e-9)
         assertEquals(MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0), restored.preparation)
+    }
+
+    @Test
+    fun medicineStock_roundTripsThroughMedicineEntityFields() {
+        val stock = MedicineStock(
+            trackingEnabled = true,
+            unitsRemaining = 12.5,
+            unitsLastTotal = 30.0,
+            openContainerAmount = 0.75,
+            warnAtDaysRemaining = 10,
+            generation = 4L,
+        )
+        val medicine = testMedicine().copy(stock = stock)
+
+        val entity = medicine.toEntity()
+        val restored = entity.toMedicineModel()
+
+        assertEquals(true, entity.trackingEnabled)
+        assertEquals(12.5, entity.stockUnitsRemaining!!, 1e-9)
+        assertEquals(30.0, entity.stockUnitsLastTotal!!, 1e-9)
+        assertEquals(0.75, entity.openContainerAmount!!, 1e-9)
+        assertEquals(10, entity.warnAtDaysRemaining)
+        assertEquals(4L, entity.stockGeneration)
+        assertEquals(stock, restored.stock)
     }
 
     @Test

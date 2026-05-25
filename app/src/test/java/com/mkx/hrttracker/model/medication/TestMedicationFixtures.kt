@@ -13,6 +13,7 @@ fun testMedicine(
     createdAt: Instant = Instant.EPOCH,
     updatedAt: Instant = Instant.EPOCH,
     archivedAt: Instant? = null,
+    stock: MedicineStock = MedicineStock(),
 ): Medicine {
     return Medicine(
         uuid = uuid,
@@ -24,6 +25,7 @@ fun testMedicine(
         createdAt = createdAt,
         updatedAt = updatedAt,
         archivedAt = archivedAt,
+        stock = stock,
     )
 }
 
@@ -36,6 +38,7 @@ fun testCustomMedicine(
     createdAt: Instant = Instant.EPOCH,
     updatedAt: Instant = Instant.EPOCH,
     archivedAt: Instant? = null,
+    stock: MedicineStock = MedicineStock(),
 ): Medicine {
     return Medicine(
         uuid = uuid,
@@ -47,6 +50,7 @@ fun testCustomMedicine(
         createdAt = createdAt,
         updatedAt = updatedAt,
         archivedAt = archivedAt,
+        stock = stock,
     )
 }
 
@@ -57,6 +61,7 @@ fun testPatchOffMedicine(
     createdAt: Instant = Instant.EPOCH,
     updatedAt: Instant = Instant.EPOCH,
     archivedAt: Instant? = null,
+    stock: MedicineStock = MedicineStock(),
 ): Medicine {
     return Medicine(
         uuid = uuid,
@@ -68,6 +73,7 @@ fun testPatchOffMedicine(
         createdAt = createdAt,
         updatedAt = updatedAt,
         archivedAt = archivedAt,
+        stock = stock,
     )
 }
 

@@ -208,6 +208,7 @@ data class Medicine(
     // vial strength, patch total mg) are entered and displayed in. Catalog
     // medicines always store MG; the picker only renders for custom medicines.
     val displayDoseUnit: MedicineDisplayDoseUnit = MedicineDisplayDoseUnit.MG,
+    val stock: MedicineStock,
 ) {
     init {
         if (selection is MedicineSelection.Catalog) {

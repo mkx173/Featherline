@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import io.mockk.coEvery
@@ -99,5 +100,6 @@ private fun patchOffMedicine(): Medicine {
         createdAt = Instant.EPOCH,
         updatedAt = Instant.EPOCH,
         archivedAt = null,
+        stock = MedicineStock(),
     )
 }

@@ -46,6 +46,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
@@ -312,5 +313,6 @@ private fun previewMedicine(medicationKey: MedicationKey): Medicine {
         createdAt = java.time.Instant.EPOCH,
         updatedAt = java.time.Instant.EPOCH,
         archivedAt = null,
+        stock = MedicineStock(),
     )
 }
