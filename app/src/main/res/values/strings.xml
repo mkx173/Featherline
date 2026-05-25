@@ -298,9 +298,9 @@
     <string name="plan_archived_groups_archived_at">Archived at %1$s</string>
     <string name="medicines_title">Medicines</string>
     <string name="medicines_empty_state">No medicines yet.</string>
-    <string name="medicine_picker_add_new_medicine">New medicine</string>
-    <string name="create_medicine_title">Create medicine</string>
-    <string name="create_medicine_action">Create</string>
+    <string name="medicine_picker_add_new_medicine">Add medicine</string>
+    <string name="create_medicine_title">Add medicine</string>
+    <string name="create_medicine_action">Save</string>
     <string name="medicine_detail_title">Medicine details</string>
     <string name="medicine_locked_by_logs">This medicine already has related records, so some fields can’t be changed.</string>
     <string name="medicine_display_name">Display name</string>
@@ -314,7 +314,10 @@
     <string name="medicine_archive_confirm_title">Archive medicine?</string>
     <string name="medicine_archive_confirm_message">The medicine will be hidden from pickers. Logged history is preserved.</string>
     <string name="medicine_archive_blocked_by_groups">Remove this medicine from active groups before archiving.</string>
-    <string name="medicine_archive_blocked_count">%1$d active group(s) reference this medicine.</string>
+    <plurals name="medicine_archive_blocked_count">
+        <item quantity="one">%1$d active group is using this medicine.</item>
+        <item quantity="other">%1$d active groups are using this medicine.</item>
+    </plurals>
     <string name="medicine_archive_failure">Unable to archive this medicine.</string>
     <string name="medicine_patch_off_name">Patch off</string>
     <string name="medicine_patch_off_detail_summary">Logging this entry removes any currently-applied estradiol patch.</string>

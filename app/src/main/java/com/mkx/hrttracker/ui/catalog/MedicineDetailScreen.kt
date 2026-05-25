@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
@@ -427,7 +428,11 @@ private fun ArchiveAction(
     // flash. The detail page is only opened for active medicines, so the
     // post-archive transient is the only path that would have rendered it.
     val supportText = if (!canArchive) {
-        stringResource(R.string.medicine_archive_blocked_count, linkedActiveGroupCount)
+        pluralStringResource(
+            R.plurals.medicine_archive_blocked_count,
+            linkedActiveGroupCount,
+            linkedActiveGroupCount,
+        )
     } else {
         null
     }

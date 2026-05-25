@@ -288,9 +288,9 @@
     <string name="plan_archived_groups_archived_at">归档于 %1$s</string>
     <string name="medicines_title">药物</string>
     <string name="medicines_empty_state">暂无药物</string>
-    <string name="medicine_picker_add_new_medicine">新建药物</string>
-    <string name="create_medicine_title">新建药物</string>
-    <string name="create_medicine_action">创建</string>
+    <string name="medicine_picker_add_new_medicine">添加药物</string>
+    <string name="create_medicine_title">添加药物</string>
+    <string name="create_medicine_action">保存</string>
     <string name="medicine_detail_title">药物详情</string>
     <string name="medicine_locked_by_logs">这个药物已有相关的记录，因此您无法更改部分内容</string>
     <string name="medicine_display_name">显示名称</string>
@@ -304,7 +304,10 @@
     <string name="medicine_archive_confirm_title">归档药物？</string>
     <string name="medicine_archive_confirm_message">此药物会从选择器中隐藏，历史记录会保留</string>
     <string name="medicine_archive_blocked_by_groups">请先从活跃分组中移除此药物再归档</string>
-    <string name="medicine_archive_blocked_count">%1$d 个活跃分组引用了此药物</string>
+    <plurals name="medicine_archive_blocked_count">
+        <item quantity="one">%1$d 个活跃分组正在使用此药物</item>
+        <item quantity="other">%1$d 个活跃分组正在使用此药物</item>
+    </plurals>
     <string name="medicine_archive_failure">无法归档此药物</string>
     <string name="medicine_patch_off_name">贴片取下</string>
     <string name="medicine_patch_off_detail_summary">记录此条目会取下所有雌二醇贴片</string>

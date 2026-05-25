@@ -51,6 +51,7 @@ import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
@@ -432,7 +433,7 @@ private fun MedicinesScreenContent(
 
                 item(key = "add-new-medicine") {
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-                    HrtFilledTonalButton(
+                    HrtButton(
                         text = stringResource(R.string.medicine_picker_add_new_medicine),
                         onClick = onAddNewMedicine,
                         icon = Icons.Rounded.Add,
