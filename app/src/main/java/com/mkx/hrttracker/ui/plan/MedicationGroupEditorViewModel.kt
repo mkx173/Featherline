@@ -651,10 +651,15 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 persistedMedicationId = null,
                 resolvedMedicine = medicine,
                 medicineDraft = draft,
-                doseInstructionDraft = DoseInstructionDraftUiState(
-                    applicationType = slot.applicationType,
-                    preparationType = medicine.preparation.type,
-                ),
+                // Back-project the slot's dose instruction onto the draft so a
+                // later edit reopens the form with the picked values instead of
+                // empty defaults. Mirrors toItemUiState() for persisted items.
+                doseInstructionDraft = com.mkx.hrttracker.ui.medication
+                    .doseInstructionDraftFromInstruction(
+                        applicationType = slot.applicationType,
+                        preparationType = medicine.preparation.type,
+                        doseInstruction = slot.doseInstruction,
+                    ),
                 applicationType = slot.applicationType,
                 doseInstruction = slot.doseInstruction,
                 count = normalizeMedicationCount(
