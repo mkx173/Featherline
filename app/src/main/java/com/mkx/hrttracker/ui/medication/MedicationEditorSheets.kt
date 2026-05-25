@@ -487,8 +487,7 @@ internal fun MedicationEditorContent(
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         NumericField(
             value = "",
-            label = stringResource(R.string.field_dosage_mg),
-            placeholder = stringResource(R.string.medication_editor_patch_off_hint),
+            label = stringResource(R.string.medication_editor_patch_off_hint),
             leadingIconRes = medicationApplicationOutlinedIconRes(MedicationApplicationType.PATCH_OFF),
             enabled = false,
             readOnly = true,
@@ -517,8 +516,6 @@ internal fun MedicationEditorContent(
         trailingIndicator = summaryTrailingIndicator,
     )
 
-    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-
     // The dose instruction form must render whenever the route requires per-
     // instruction dose data (VolumeMl for INJECTION_MULTI_USE_VIAL,
     // WeightGrams for GEL_CONTAINER, TabletFraction for PILL), regardless of
@@ -531,6 +528,7 @@ internal fun MedicationEditorContent(
         activePreparationType != null &&
         requiresEditableDoseInstructionForm(activePreparationType)
     ) {
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         DoseInstructionForm(
             medicineDraft = medicineDraft,
             doseInstructionDraft = doseInstructionDraft,
