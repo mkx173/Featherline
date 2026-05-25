@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -25,10 +26,12 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -36,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,13 +64,14 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.HrtButton
-import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
 import com.mkx.hrttracker.ui.medication.hasRawMassDoseField
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
@@ -126,9 +131,8 @@ fun MedicineDetailScreen(
         onNavigateBack = onNavigateBack,
         onGroupClick = onGroupClick,
         onDisplayNameChange = viewModel::updateDisplayNameText,
-        onSaveDisplayName = viewModel::saveDisplayName,
-        onSavePreparation = { preparation, unit ->
-            viewModel.savePreparation(preparation, unit)
+        onSaveAll = { preparation, unit ->
+            viewModel.saveAll(preparation, unit)
         },
         onArchive = { viewModel.archive() },
         modifier = modifier,
@@ -142,8 +146,7 @@ private fun MedicineDetailScreenContent(
     onNavigateBack: () -> Unit,
     onGroupClick: (UUID) -> Unit,
     onDisplayNameChange: (String) -> Unit,
-    onSaveDisplayName: () -> Unit,
-    onSavePreparation: (MedicinePreparation, MedicineDisplayDoseUnit) -> Unit,
+    onSaveAll: (MedicinePreparation?, MedicineDisplayDoseUnit?) -> Unit,
     onArchive: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -153,7 +156,9 @@ private fun MedicineDetailScreenContent(
         lazyListState = listState,
         state = topAppBarState,
     )
-    var preparationEditorOpen by remember { mutableStateOf(false) }
+    val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    var editSheetOpen by remember { mutableStateOf(false) }
     var archiveConfirmOpen by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -181,17 +186,6 @@ private fun MedicineDetailScreenContent(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),
-                actions = {
-                    // The PATCH_OFF singleton has no display name; the Save
-                    // action would be a no-op for it.
-                    if (uiState.medicine?.selection !is MedicineSelection.PatchOff) {
-                        HrtButton(
-                            text = stringResource(R.string.save),
-                            onClick = onSaveDisplayName,
-                            modifier = Modifier.padding(end = 8.dp),
-                        )
-                    }
-                },
                 scrollBehavior = scrollBehavior,
             )
         },
@@ -212,6 +206,11 @@ private fun MedicineDetailScreenContent(
             // preparation editor, no archive (the PK simulator and the slot
             // picker both depend on a single, always-present row).
             val isPatchOff = medicine.selection is MedicineSelection.PatchOff
+            // Custom medicines have nothing left to edit once logs lock the
+            // preparation; only catalog medicines retain an editable surface
+            // (the display-name override) in that state.
+            val canEditMedicine = !isPatchOff &&
+                (medicine.selection is MedicineSelection.Catalog || !uiState.isLocked)
 
             LazyColumn(
                 state = listState,
@@ -219,37 +218,20 @@ private fun MedicineDetailScreenContent(
                 contentPadding = appContentPaddingValues(),
             ) {
                 item(key = "medicine-header") {
-                    MedicineHeaderCard(medicine = medicine)
+                    MedicineHeaderCard(
+                        medicine = medicine,
+                        onEditClick = if (canEditMedicine) {
+                            { editSheetOpen = true }
+                        } else {
+                            null
+                        },
+                    )
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                 }
 
                 if (isPatchOff) {
                     item(key = "patch-off-summary") {
                         PatchOffSummarySection()
-                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                    }
-                } else {
-                    // Custom medicines already have a user-typed name; an extra
-                    // display-name override has no use there. The Save action in
-                    // the top bar also becomes a no-op for them, but it costs
-                    // nothing to keep visible.
-                    if (medicine.selection is MedicineSelection.Catalog) {
-                        item(key = "display-name") {
-                            DisplayNameSection(
-                                displayName = uiState.displayNameText,
-                                isLocked = false,
-                                onValueChange = onDisplayNameChange,
-                            )
-                            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                        }
-                    }
-
-                    item(key = "preparation") {
-                        PreparationSection(
-                            medicine = medicine,
-                            isLocked = uiState.isLocked,
-                            onEditClick = { preparationEditorOpen = true },
-                        )
                         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                     }
                 }
@@ -302,15 +284,27 @@ private fun MedicineDetailScreenContent(
         }
     }
 
-    if (preparationEditorOpen) {
-        PreparationEditorDialog(
-            medicine = uiState.medicine ?: return,
-            onDismiss = { preparationEditorOpen = false },
-            onSave = { preparation, displayDoseUnit ->
-                preparationEditorOpen = false
-                onSavePreparation(preparation, displayDoseUnit)
-            },
-        )
+    if (editSheetOpen) {
+        val editingMedicine = uiState.medicine
+        if (editingMedicine == null) {
+            editSheetOpen = false
+        } else {
+            MedicineEditSheet(
+                medicine = editingMedicine,
+                displayName = uiState.displayNameText,
+                onDisplayNameChange = onDisplayNameChange,
+                isLocked = uiState.isLocked,
+                sheetState = editSheetState,
+                onDismissRequest = { editSheetOpen = false },
+                onCloseClick = {
+                    hideBottomSheet(scope, editSheetState) { editSheetOpen = false }
+                },
+                onSave = { preparation, displayDoseUnit ->
+                    hideBottomSheet(scope, editSheetState) { editSheetOpen = false }
+                    onSaveAll(preparation, displayDoseUnit)
+                },
+            )
+        }
     }
 
     if (archiveConfirmOpen) {
@@ -362,7 +356,10 @@ private fun LinkedSlotListItem(
 }
 
 @Composable
-private fun MedicineHeaderCard(medicine: Medicine) {
+private fun MedicineHeaderCard(
+    medicine: Medicine,
+    onEditClick: (() -> Unit)?,
+) {
     MedicationCard(
         medicine = medicine,
         doseInstruction = com.mkx.hrttracker.model.medication.DoseInstruction.Noop,
@@ -372,30 +369,21 @@ private fun MedicineHeaderCard(medicine: Medicine) {
         onClick = null,
         extraSupportingText = medicinePreparationSummary(medicine),
         leadingIconAsForm = true,
+        trailingContent = onEditClick?.let { editClick ->
+            {
+                CompositionLocalProvider(
+                    LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+                ) {
+                    IconButton(onClick = editClick) {
+                        Icon(
+                            imageVector = Icons.Rounded.Edit,
+                            contentDescription = stringResource(R.string.medicine_edit_action),
+                        )
+                    }
+                }
+            }
+        },
     )
-}
-
-@Composable
-private fun DisplayNameSection(
-    displayName: String,
-    isLocked: Boolean,
-    onValueChange: (String) -> Unit,
-) {
-    Column {
-        SectionHeader(text = stringResource(R.string.medicine_display_name))
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-        OutlinedTextField(
-            value = displayName,
-            onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(text = stringResource(R.string.medicine_display_name)) },
-            supportingText = {
-                Text(text = stringResource(R.string.medicine_display_name_hint))
-            },
-            singleLine = true,
-            enabled = !isLocked,
-        )
-    }
 }
 
 @Composable
@@ -409,38 +397,6 @@ private fun PatchOffSummarySection() {
             text = stringResource(R.string.medicine_patch_off_detail_summary),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun PreparationSection(
-    medicine: Medicine,
-    isLocked: Boolean,
-    onEditClick: () -> Unit,
-) {
-    Column {
-        SectionHeader(text = stringResource(R.string.medicine_preparation))
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-        Text(
-            text = medicinePreparationSummary(medicine),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        if (isLocked) {
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-            Text(
-                text = stringResource(R.string.medicine_locked_by_logs),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-        HrtFilledTonalButton(
-            text = stringResource(R.string.medicine_preparation_edit),
-            onClick = onEditClick,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isLocked,
         )
     }
 }
@@ -494,12 +450,18 @@ private fun SectionHeader(text: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PreparationEditorDialog(
+private fun MedicineEditSheet(
     medicine: Medicine,
-    onDismiss: () -> Unit,
-    onSave: (MedicinePreparation, MedicineDisplayDoseUnit) -> Unit,
+    displayName: String,
+    onDisplayNameChange: (String) -> Unit,
+    isLocked: Boolean,
+    sheetState: SheetState,
+    onDismissRequest: () -> Unit,
+    onCloseClick: () -> Unit,
+    onSave: (MedicinePreparation?, MedicineDisplayDoseUnit?) -> Unit,
 ) {
     val isCustom = medicine.selection is MedicineSelection.Custom
+    val showsDisplayName = medicine.selection is MedicineSelection.Catalog
     val initialDraft = remember(medicine.uuid, medicine.preparation, medicine.displayDoseUnit) {
         medicine.preparation.toPreparationDraft(
             displayDoseUnit = if (isCustom) medicine.displayDoseUnit
@@ -508,32 +470,53 @@ private fun PreparationEditorDialog(
     }
     var draft by remember(initialDraft) { mutableStateOf(initialDraft) }
     val candidate = remember(draft) { draft.toPreparationOrNull() }
+    // When the medicine is locked we can still rename the catalog display
+    // name, so the sheet remains useful; the preparation half is replaced
+    // by a locked notice and updatePreparation is skipped on Save.
+    val canSave = if (isLocked) showsDisplayName else candidate != null
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.medicine_preparation_edit)) },
-        text = {
+    MedicationEditorSheetScaffold(
+        title = stringResource(R.string.medicine_edit_title),
+        sheetState = sheetState,
+        confirmButtonText = stringResource(R.string.save),
+        onDismissRequest = onDismissRequest,
+        onCloseClick = onCloseClick,
+        fillAvailableHeight = false,
+        isSaving = false,
+        onConfirm = {
+            if (!canSave) return@MedicationEditorSheetScaffold
+            val preparationToSave = if (isLocked) null else candidate
+            onSave(preparationToSave, draft.displayDoseUnit)
+        },
+    ) {
+        if (showsDisplayName) {
+            OutlinedTextField(
+                value = displayName,
+                onValueChange = onDisplayNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(text = stringResource(R.string.medicine_display_name)) },
+                supportingText = {
+                    Text(text = stringResource(R.string.medicine_display_name_hint))
+                },
+                singleLine = true,
+            )
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+        }
+        if (isLocked) {
+            Text(
+                text = stringResource(R.string.medicine_locked_by_logs),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
             PreparationEditorFields(
                 draft = draft,
                 onDraftChange = { draft = it },
                 showsUnitPicker = isCustom &&
                     draft.preparationType.hasRawMassDoseField(draft.patchSpecKind),
             )
-        },
-        confirmButton = {
-            TextButton(
-                enabled = candidate != null,
-                onClick = { candidate?.let { onSave(it, draft.displayDoseUnit) } },
-            ) {
-                Text(text = stringResource(R.string.save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel))
-            }
-        },
-    )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

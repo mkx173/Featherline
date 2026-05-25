@@ -140,6 +140,47 @@ class MedicineDetailViewModel @Inject constructor(
         }
     }
 
+    // One-shot orchestration for the merged display-name + preparation sheet:
+    // saves the buffered display-name and, when the medicine is unlocked, the
+    // user-edited preparation. Emits a single saveResult so the toast reflects
+    // the final outcome instead of racing two independent saves.
+    fun saveAll(
+        preparation: MedicinePreparation?,
+        displayDoseUnit: com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit? = null,
+    ): Job = viewModelScope.launch {
+        val displayNameDraft = displayNameTextFlow.value
+        if (displayNameDraft != null) {
+            val sanitized = displayNameDraft.trim().takeIf(String::isNotBlank)
+            val result = runCatching {
+                medicineRepository.setDisplayName(medicineUuid, sanitized)
+            }
+            if (result.isFailure) {
+                saveResultFlow.value = MedicineDetailSaveResult.FAILURE_OTHER
+                return@launch
+            }
+        }
+        if (preparation != null) {
+            val result = runCatching {
+                medicineRepository.updatePreparation(
+                    uuid = medicineUuid,
+                    preparation = preparation,
+                    displayDoseUnit = displayDoseUnit,
+                )
+            }
+            if (result.isFailure) {
+                saveResultFlow.value = when (result.exceptionOrNull()) {
+                    is MedicineLockedException -> MedicineDetailSaveResult.FAILURE_LOCKED
+                    is MedicineIdentityCollisionException ->
+                        MedicineDetailSaveResult.FAILURE_IDENTITY_COLLISION
+                    else -> MedicineDetailSaveResult.FAILURE_OTHER
+                }
+                return@launch
+            }
+            isLockedFlow.value = medicineRepository.isLocked(medicineUuid)
+        }
+        saveResultFlow.value = MedicineDetailSaveResult.SUCCESS
+    }
+
     fun savePreparation(
         preparation: MedicinePreparation,
         displayDoseUnit: com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit? = null,

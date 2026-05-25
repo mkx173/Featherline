@@ -293,6 +293,8 @@
     <string name="medicine_display_name_hint">可选。此药物出现的位置都会使用该名称。</string>
     <string name="medicine_preparation">制剂</string>
     <string name="medicine_preparation_edit">编辑制剂</string>
+    <string name="medicine_edit_title">编辑药物</string>
+    <string name="medicine_edit_action">编辑药物</string>
     <string name="medicine_linked_groups">当前分组</string>
     <string name="medicine_linked_groups_empty">没有当前分组使用此药物。</string>
     <string name="medicine_archive_action">归档</string>
