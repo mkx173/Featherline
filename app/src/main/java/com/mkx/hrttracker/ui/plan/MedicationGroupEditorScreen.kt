@@ -566,9 +566,12 @@ private fun MedicationGroupEditorScreenContent(
     var pendingMedicationRemoval by remember { mutableStateOf<MedicationRemovalRequest?>(null) }
     var isMasterReminderRecoveryDialogVisible by remember { mutableStateOf(false) }
     val groupNameFocusRequester = remember { FocusRequester() }
-    val canSave = !shouldDisableMedicationGroupEditorSaveAction(
-        uiState = uiState,
-    )
+    // Form-validity gates only. Transient post-save / post-delete states
+    // keep the save button visually normal; the click handler no-ops via
+    // shouldDisableMedicationGroupEditorSaveAction below.
+    val canSave = hasSaveableMedicationGroupContent(uiState) &&
+        !uiState.scheduleTimeOrderError &&
+        !uiState.isArchived
     val shouldUseArchivedPresentation = shouldUseArchivedMedicationGroupEditorPresentation(
         uiState = uiState,
         openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
@@ -1206,7 +1209,13 @@ private fun MedicationGroupEditorScreenContent(
                     if (!shouldUseArchivedPresentation) {
                         HrtButton(
                             text = stringResource(R.string.save),
-                            onClick = onSaveClick,
+                            onClick = {
+                                if (shouldDisableMedicationGroupEditorSaveAction(
+                                        uiState = uiState,
+                                    )
+                                ) return@HrtButton
+                                onSaveClick()
+                            },
                             enabled = canSave,
                             modifier = Modifier.padding(end = 8.dp),
                         )

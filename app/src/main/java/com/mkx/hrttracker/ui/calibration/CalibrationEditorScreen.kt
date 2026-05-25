@@ -303,8 +303,9 @@ private fun CalibrationEditorScreenContent(
     val addAnalyteOptions = remember(uiState.drafts, uiState.customAnalytes) {
         calibrationAddAnalyteOptions(uiState)
     }
-    val canSave = canSaveCalibrationEditorState(uiState) &&
-        !isCalibrationEditorBusy(uiState)
+    // Form-validity gate only. Busy state keeps the save button visually
+    // normal; the click handler no-ops while ROOM is writing.
+    val canSave = canSaveCalibrationEditorState(uiState)
     val remainingAnalyteCount = addAnalyteOptions.size
     var notesDraft by rememberSaveable { mutableStateOf(uiState.notes) }
     val analyteFocusRequesters = remember(uiState.drafts.map { it.draftKey }) {
@@ -359,7 +360,10 @@ private fun CalibrationEditorScreenContent(
                 actions = {
                     HrtButton(
                         text = stringResource(R.string.save),
-                        onClick = { onSaveClick(notesDraft) },
+                        onClick = {
+                            if (isCalibrationEditorBusy(uiState)) return@HrtButton
+                            onSaveClick(notesDraft)
+                        },
                         enabled = canSave,
                         modifier = Modifier.padding(end = 8.dp),
                     )
