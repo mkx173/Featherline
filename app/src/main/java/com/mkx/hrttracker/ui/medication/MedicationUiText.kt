@@ -117,7 +117,7 @@ fun doseInstructionSummary(
             instruction.valueGrams.formatDose(appLocale),
         )
         // Gel sachets dose one whole packet at a time but the packet's gram weight
-        // is still useful context — render it alongside the active mg.
+        // is still useful context.
         DoseInstruction.WholeUnit -> (medicine.preparation as? MedicinePreparation.GelSachet)?.let {
             stringResource(
                 R.string.dose_instruction_summary_weight_grams,
@@ -125,6 +125,14 @@ fun doseInstructionSummary(
             )
         }
         DoseInstruction.Noop -> null
+    }
+
+    // Concentration-bearing preparations (multi-use vial, gel) show
+    // "concentration · portion" so the row identifies which preparation
+    // a log/slot refers to when one medicine has several preparations.
+    val concentration = concentrationSummary(medicine.preparation, appLocale)
+    if (concentration != null) {
+        return listOfNotNull(concentration, portion).joinToString(separator = " · ")
     }
 
     val active = DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(medicine, instruction)?.let { rate ->
@@ -147,6 +155,26 @@ fun doseInstructionSummary(
 
     val parts = listOfNotNull(portion, active)
     return parts.takeIf { it.isNotEmpty() }?.joinToString(separator = " · ")
+}
+
+@Composable
+private fun concentrationSummary(
+    preparation: MedicinePreparation,
+    locale: java.util.Locale,
+): String? = when (preparation) {
+    is MedicinePreparation.InjectionMultiUseVial -> stringResource(
+        R.string.dose_instruction_summary_concentration_mg_per_ml,
+        preparation.concentrationMgPerMl.formatDose(locale),
+    )
+    is MedicinePreparation.GelSachet -> stringResource(
+        R.string.dose_instruction_summary_concentration_percent,
+        preparation.concentrationPercent.formatDose(locale),
+    )
+    is MedicinePreparation.GelContainer -> stringResource(
+        R.string.dose_instruction_summary_concentration_percent,
+        preparation.concentrationPercent.formatDose(locale),
+    )
+    else -> null
 }
 
 internal fun formatTabletFraction(fraction: DoseInstruction.TabletFraction): String {
