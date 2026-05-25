@@ -713,4 +713,64 @@
     <string name="widget_preview_dose_supporting_cpa">口服 · 12.5 mg</string>
     <string name="widget_preview_dose_supporting_progesterone">口服 · 200 mg</string>
     <string name="widget_preview_dose_time_evening">21:00</string>
+
+    <string name="stock_section_title">库存</string>
+    <string name="stock_chip_low">不足</string>
+    <string name="stock_chip_out">已用完</string>
+    <string name="stock_runway_unknown_title">无法预估</string>
+    <string name="stock_runway_unknown_body">将此药品加入分组后即可预估剩余天数。</string>
+    <string name="stock_runway_days_remaining">约剩 %1$d 天</string>
+    <string name="stock_runway_days_remaining_combined">约剩 %1$d 天 · 合计</string>
+    <string name="stock_no_schedule">无计划</string>
+
+    <string name="stock_optin_title">追踪库存</string>
+    <string name="stock_optin_body">在此药品库存不足时收到提醒。</string>
+    <string name="stock_optin_button">设置追踪</string>
+    <string name="stock_manager_track_chip">+ 追踪</string>
+
+    <string name="stock_row_tablets">片剂 · %1$s</string>
+    <string name="stock_row_capsules">胶囊 · %1$s</string>
+    <string name="stock_row_patches">贴片 · %1$s</string>
+    <string name="stock_row_sachets">袋装 · %1$s</string>
+    <string name="stock_row_vials_single">药瓶 · %1$s</string>
+    <string name="stock_row_sealed_vials">未拆封药瓶 · %1$s</string>
+    <string name="stock_row_sealed_pumps">未拆封容器 · %1$s</string>
+    <string name="stock_row_open_vial">已开瓶 · %1$s / %2$s mL</string>
+    <string name="stock_row_open_pump">已开容器 · %1$s / %2$s g</string>
+    <string name="stock_row_count_over_total">%1$s / %2$s</string>
+    <string name="stock_row_count_only">%1$s</string>
+
+    <string name="stock_adjust_button">调整</string>
+    <string name="stock_adjust_title">调整库存</string>
+    <string name="stock_adjust_tab_recount">盘点</string>
+    <string name="stock_adjust_tab_received">收到</string>
+    <string name="stock_adjust_tab_discard">丢弃</string>
+    <string name="stock_adjust_after">调整后：%1$s</string>
+    <string name="stock_adjust_after_with_runway">调整后：%1$s · %2$s</string>
+    <string name="stock_adjust_field_now_have">实际数量</string>
+    <string name="stock_adjust_field_out_of_total">总数（可选）</string>
+    <string name="stock_adjust_field_sealed">未拆封</string>
+    <string name="stock_adjust_field_open_remaining">已开容器剩余</string>
+    <string name="stock_adjust_field_received">本次收到</string>
+    <string name="stock_adjust_field_sealed_received">收到未拆封</string>
+    <string name="stock_adjust_field_discard_pool">丢弃数量</string>
+    <string name="stock_adjust_field_discard_open">从已开容器</string>
+    <string name="stock_adjust_field_discard_sealed">从未拆封</string>
+    <string name="stock_adjust_confirm">确认</string>
+
+    <string name="stock_warnat_row_label">剩余 %1$d 天时提醒</string>
+    <string name="stock_warnat_sheet_title">剩余多少天时提醒？</string>
+    <string name="stock_warnat_chip_days">%1$d 天</string>
+
+    <string name="stock_disable_button">关闭库存追踪</string>
+    <string name="stock_disable_title">关闭库存追踪？</string>
+    <string name="stock_disable_body">可以稍后再开启，并从当前数量继续。</string>
+    <string name="stock_disable_confirm">关闭</string>
+    <string name="stock_cancel">取消</string>
+
+    <string name="stock_intro_prompt_title">为这些药品追踪库存？</string>
+    <string name="stock_intro_prompt_body">输入想追踪的药品数量，其余留空即可跳过。</string>
+    <string name="stock_intro_prompt_hint">例如 60</string>
+    <string name="stock_intro_prompt_done">完成</string>
+    <string name="stock_intro_prompt_not_now">暂不</string>
 </resources>
