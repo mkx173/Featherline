@@ -228,10 +228,40 @@ class MedicinesViewModelTest {
         collectJob.cancel()
     }
 
+    // Why this matters: the PATCH_OFF singleton is a helper action for active
+    // patch regimens. After the last active patch medicine is archived, keeping
+    // the singleton visible leaves a medicine-manager row that no longer has a
+    // useful paired patch-on medicine.
+    @Test
+    fun hidesPatchOffSingletonWhenThereAreNoActivePatchMedicines() = runTest {
+        val estradiolTablet = testMedicine(
+            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000019"),
+            key = MedicationKey.ESTRADIOL,
+        )
+        val patchOff = testPatchOffMedicine(
+            createdAt = Instant.parse("2026-05-01T00:00:01Z"),
+        )
+        every { medicineRepository.observeAllActive() } returns
+            flowOf(listOf(estradiolTablet, patchOff))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val collectJob = startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val estradiolSection = viewModel.uiState.value.activeSections
+            .single { it.category == MedicationCategory.ESTRADIOL }
+        assertEquals(
+            listOf(estradiolTablet.uuid),
+            estradiolSection.medicines.map { it.medicine.uuid },
+        )
+        collectJob.cancel()
+    }
+
     // Why this matters: the PATCH_OFF singleton is auto-created alongside the
-    // first patch medicine; the manager should list both rows under ESTRADIOL
-    // so the user can tap either one. Loss of the patch-off row breaks the
-    // slot picker flow that depends on a tappable PATCH_OFF entry.
+    // first active patch medicine; the manager should list both rows under
+    // ESTRADIOL so the user can tap either one. Loss of the patch-off row breaks
+    // the slot picker flow that depends on a tappable PATCH_OFF entry.
     @Test
     fun listsPatchOffSingletonAlongsidePatchMedicineInEstradiolSection() = runTest {
         val patchMedicine = testMedicine(
@@ -248,6 +278,43 @@ class MedicinesViewModelTest {
         )
         every { medicineRepository.observeAllActive() } returns
             flowOf(listOf(patchMedicine, patchOff))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val collectJob = startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val estradiolSection = viewModel.uiState.value.activeSections
+            .single { it.category == MedicationCategory.ESTRADIOL }
+        assertEquals(
+            listOf(patchMedicine.uuid, patchOff.uuid),
+            estradiolSection.medicines.map { it.medicine.uuid },
+        )
+        collectJob.cancel()
+    }
+
+    // Why this matters: the first patch medicine and its auto-created PATCH_OFF
+    // singleton use the same timestamp when the create path passes one `now`.
+    // Sorting by UUID would sometimes put "Remove patch" before the patch the
+    // user just created.
+    @Test
+    fun patchOffSingletonSortsAfterPatchMedicineWhenCreatedAtMatches() = runTest {
+        val createdAt = Instant.parse("2026-05-01T00:00:00Z")
+        val patchMedicine = testMedicine(
+            uuid = UUID.fromString("ffffffff-0000-0000-0000-000000000020"),
+            key = MedicationKey.ESTRADIOL_PATCH,
+            preparation = com.mkx.hrttracker.model.medication.MedicinePreparation.Patch(
+                com.mkx.hrttracker.model.medication.MedicinePreparation
+                    .PatchSpecification.TotalMg(valueMg = 4.0),
+            ),
+            createdAt = createdAt,
+        )
+        val patchOff = testPatchOffMedicine(
+            uuid = UUID.fromString("00000000-0000-0000-0000-000000000020"),
+            createdAt = createdAt,
+        )
+        every { medicineRepository.observeAllActive() } returns
+            flowOf(listOf(patchOff, patchMedicine))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
         val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)

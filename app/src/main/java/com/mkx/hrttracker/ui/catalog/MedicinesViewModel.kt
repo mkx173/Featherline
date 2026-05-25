@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.isArchived
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,8 +26,8 @@ import javax.inject.Inject
  * live data from the two repositories directly; there is no in-VM cache, so an
  * upstream emission immediately reshapes the on-screen list.
  *
- * PATCH_OFF carries no medicine, so a patch-off slot/log never produces a row
- * here — the list shows only medicines, not application events.
+ * The PATCH_OFF singleton is a medicine-manager action row, not a regular
+ * medicine. It is shown only while at least one active patch medicine exists.
  */
 @HiltViewModel
 class MedicinesViewModel @Inject constructor(
@@ -55,10 +56,11 @@ class MedicinesViewModel @Inject constructor(
         activeMedicines: List<Medicine>,
         referenceCounts: Map<java.util.UUID, Int>,
     ): List<MedicineCategorySection> {
-        if (activeMedicines.isEmpty()) {
+        val visibleMedicines = activeMedicines.visibleInMedicineManager()
+        if (visibleMedicines.isEmpty()) {
             return emptyList()
         }
-        val byCategory = activeMedicines.groupBy { it.category }
+        val byCategory = visibleMedicines.groupBy { it.category }
         // Iterate enum order so the section order is deterministic and
         // doesn't drift with insertion order from the database. Within each
         // section, sort by creation time (oldest first) so the user sees their
@@ -71,6 +73,7 @@ class MedicinesViewModel @Inject constructor(
                 medicines = medicines
                     .sortedWith(
                         compareBy<Medicine> { it.createdAt }
+                            .thenBy { it.preparation is MedicinePreparation.PatchOff }
                             .thenBy { it.uuid.toString() },
                     )
                     .map { medicine ->
@@ -98,6 +101,15 @@ class MedicinesViewModel @Inject constructor(
             }
             .groupingBy { it }
             .eachCount()
+    }
+
+    private fun List<Medicine>.visibleInMedicineManager(): List<Medicine> {
+        val hasActivePatchMedicine = any { it.preparation is MedicinePreparation.Patch }
+        return if (hasActivePatchMedicine) {
+            this
+        } else {
+            filterNot { it.preparation is MedicinePreparation.PatchOff }
+        }
     }
 
     private companion object {
