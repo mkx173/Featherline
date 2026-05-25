@@ -11,6 +11,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.Medicine
@@ -41,10 +42,12 @@ class MedicineDetailScreenPatchOffTest {
         val patchOff = patchOffMedicine()
         val medicineRepository: MedicineRepository = mockk()
         val medicationGroupRepository: MedicationGroupRepository = mockk()
+        val stockRepository: MedicineStockRepository = mockk()
         val settingsRepository: SettingsRepository = mockk()
         every { medicineRepository.observeAllActive() } returns flowOf(listOf(patchOff))
         every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { stockRepository.observeProjections() } returns flowOf(emptyList())
         every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
         coEvery { medicineRepository.isLocked(patchOff.uuid) } returns false
 
@@ -56,6 +59,7 @@ class MedicineDetailScreenPatchOffTest {
                     viewModel = MedicineDetailViewModel(
                         medicineRepository = medicineRepository,
                         medicationGroupRepository = medicationGroupRepository,
+                        stockRepository = stockRepository,
                         settingsRepository = settingsRepository,
                         savedStateHandle = SavedStateHandle(
                             mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to patchOff.uuid.toString()),

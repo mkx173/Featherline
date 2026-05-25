@@ -745,4 +745,71 @@
     <string name="widget_preview_dose_supporting_cpa">Oral · 12.5 mg</string>
     <string name="widget_preview_dose_supporting_progesterone">Oral · 200 mg</string>
     <string name="widget_preview_dose_time_evening">9:00 PM</string>
+
+    <!-- Stock section -->
+    <string name="stock_section_title">Stock</string>
+    <string name="stock_chip_low">LOW</string>
+    <string name="stock_chip_out">OUT</string>
+    <string name="stock_runway_unknown_title">Runway unknown</string>
+    <string name="stock_runway_unknown_body">Add this medicine to a group to forecast.</string>
+    <string name="stock_runway_days_remaining">~%1$d days remaining</string>
+    <string name="stock_runway_days_remaining_combined">~%1$d days remaining · combined</string>
+    <string name="stock_no_schedule">No schedule</string>
+
+    <!-- Untracked opt-in -->
+    <string name="stock_optin_title">Track stock</string>
+    <string name="stock_optin_body">Get a heads-up when this medicine is running low.</string>
+    <string name="stock_optin_button">Set up tracking</string>
+    <string name="stock_manager_track_chip">+ Track</string>
+
+    <!-- Stock row labels -->
+    <string name="stock_row_tablets">Tablets · %1$s</string>
+    <string name="stock_row_capsules">Capsules · %1$s</string>
+    <string name="stock_row_patches">Patches · %1$s</string>
+    <string name="stock_row_sachets">Sachets · %1$s</string>
+    <string name="stock_row_vials_single">Vials · %1$s</string>
+    <string name="stock_row_sealed_vials">Sealed vials · %1$s</string>
+    <string name="stock_row_sealed_pumps">Sealed pumps · %1$s</string>
+    <string name="stock_row_open_vial">Open vial · %1$s / %2$s mL</string>
+    <string name="stock_row_open_pump">Open pump · %1$s / %2$s g</string>
+    <string name="stock_row_count_over_total">%1$s / %2$s</string>
+    <string name="stock_row_count_only">%1$s</string>
+
+    <!-- Adjust sheet -->
+    <string name="stock_adjust_button">Adjust</string>
+    <string name="stock_adjust_title">Adjust stock</string>
+    <string name="stock_adjust_tab_recount">Recount</string>
+    <string name="stock_adjust_tab_received">Received</string>
+    <string name="stock_adjust_tab_discard">Discard</string>
+    <string name="stock_adjust_after">After: %1$s</string>
+    <string name="stock_adjust_after_with_runway">After: %1$s · %2$s</string>
+    <string name="stock_adjust_field_now_have">Now have</string>
+    <string name="stock_adjust_field_out_of_total">Out of total (optional)</string>
+    <string name="stock_adjust_field_sealed">Sealed</string>
+    <string name="stock_adjust_field_open_remaining">Open container remaining</string>
+    <string name="stock_adjust_field_received">Received this time</string>
+    <string name="stock_adjust_field_sealed_received">Sealed received</string>
+    <string name="stock_adjust_field_discard_pool">Discard</string>
+    <string name="stock_adjust_field_discard_open">From open container</string>
+    <string name="stock_adjust_field_discard_sealed">From sealed</string>
+    <string name="stock_adjust_confirm">Confirm</string>
+
+    <!-- Warn-at sheet -->
+    <string name="stock_warnat_row_label">Warn at %1$d days left</string>
+    <string name="stock_warnat_sheet_title">Warn at how many days remaining?</string>
+    <string name="stock_warnat_chip_days">%1$d days</string>
+
+    <!-- Disable confirmation -->
+    <string name="stock_disable_button">Turn off stock tracking</string>
+    <string name="stock_disable_title">Turn off stock tracking?</string>
+    <string name="stock_disable_body">You can turn it back on later and continue from your current count.</string>
+    <string name="stock_disable_confirm">Turn off</string>
+    <string name="stock_cancel">Cancel</string>
+
+    <!-- Discovery prompt -->
+    <string name="stock_intro_prompt_title">Track stock for these medicines?</string>
+    <string name="stock_intro_prompt_body">Enter how many you have for any medicine you want to track. Skip the rest.</string>
+    <string name="stock_intro_prompt_hint">e.g. 60</string>
+    <string name="stock_intro_prompt_done">Done</string>
+    <string name="stock_intro_prompt_not_now">Not now</string>
 </resources>

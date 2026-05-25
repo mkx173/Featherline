@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.catalog
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
@@ -67,12 +69,18 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.StockDiscard
+import com.mkx.hrttracker.data.repository.StockReceived
+import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
+import com.mkx.hrttracker.ui.catalog.stock.StockSection
+import com.mkx.hrttracker.ui.catalog.stock.WarnAtThresholdSheet
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
@@ -153,6 +161,18 @@ fun MedicineDetailScreen(
         onSaveAll = { preparation, unit ->
             viewModel.saveAll(preparation, unit)
         },
+        onOpenAdjustSheet = viewModel::openAdjustSheet,
+        onOpenOptIn = viewModel::openOptIn,
+        onCloseAdjustSheet = viewModel::closeAdjustSheet,
+        onOpenWarnAtSheet = viewModel::openWarnAtSheet,
+        onCloseWarnAtSheet = viewModel::closeWarnAtSheet,
+        onOpenDisableConfirmation = viewModel::openDisableConfirmation,
+        onCloseDisableConfirmation = viewModel::closeDisableConfirmation,
+        onSubmitRecount = { recount -> viewModel.submitRecount(recount) },
+        onSubmitReceived = { received -> viewModel.submitReceived(received) },
+        onSubmitDiscard = { discard -> viewModel.submitDiscard(discard) },
+        onSubmitWarnAt = { days -> viewModel.submitWarnAt(days) },
+        onConfirmDisableTracking = { viewModel.confirmDisableTracking() },
         onArchive = { viewModel.archive() },
         modifier = modifier,
     )
@@ -166,6 +186,18 @@ private fun MedicineDetailScreenContent(
     onGroupClick: (UUID) -> Unit,
     onDisplayNameChange: (String) -> Unit,
     onSaveAll: (MedicinePreparation?, MedicineDisplayDoseUnit?) -> Unit,
+    onOpenAdjustSheet: (AdjustSheetTab) -> Unit,
+    onOpenOptIn: () -> Unit,
+    onCloseAdjustSheet: () -> Unit,
+    onOpenWarnAtSheet: () -> Unit,
+    onCloseWarnAtSheet: () -> Unit,
+    onOpenDisableConfirmation: () -> Unit,
+    onCloseDisableConfirmation: () -> Unit,
+    onSubmitRecount: (StockRecount) -> Unit,
+    onSubmitReceived: (StockReceived) -> Unit,
+    onSubmitDiscard: (StockDiscard) -> Unit,
+    onSubmitWarnAt: (Int) -> Unit,
+    onConfirmDisableTracking: () -> Unit,
     onArchive: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -179,6 +211,7 @@ private fun MedicineDetailScreenContent(
     val scope = rememberCoroutineScope()
     var editSheetOpen by remember { mutableStateOf(false) }
     var archiveConfirmOpen by remember { mutableStateOf(false) }
+    val stockProjection = uiState.stockProjection
 
     val appLocale = rememberAppLocale()
     val today = remember { LocalDate.now() }
@@ -255,6 +288,33 @@ private fun MedicineDetailScreenContent(
                     )
                 }
 
+                if (!isPatchOff && stockProjection != null) {
+                    item(key = "medicine-stock") {
+                        Column {
+                            StockSection(
+                                projection = stockProjection,
+                                onAdjustClick = { onOpenAdjustSheet(AdjustSheetTab.RECOUNT) },
+                                onOptInClick = onOpenOptIn,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            if (stockProjection.medicine.stock.trackingEnabled) {
+                                Spacer(Modifier.height(4.dp))
+                                ListItem(
+                                    headlineContent = {
+                                        Text(
+                                            stringResource(
+                                                R.string.stock_warnat_row_label,
+                                                stockProjection.medicine.stock.warnAtDaysRemaining,
+                                            )
+                                        )
+                                    },
+                                    modifier = Modifier.clickable(onClick = onOpenWarnAtSheet),
+                                )
+                            }
+                        }
+                    }
+                }
+
                 item(key = "linked-groups") {
                     Column {
                         SectionHeader(text = stringResource(R.string.medicine_linked_groups))
@@ -306,6 +366,12 @@ private fun MedicineDetailScreenContent(
                             SectionHeader(
                                 text = stringResource(R.string.group_danger_zone_title),
                             )
+                            if (stockProjection?.medicine?.stock?.trackingEnabled == true) {
+                                TextButton(onClick = onOpenDisableConfirmation) {
+                                    Text(stringResource(R.string.stock_disable_button))
+                                }
+                                Spacer(Modifier.height(4.dp))
+                            }
                             ArchiveAction(
                                 canArchive = uiState.linkedActiveSlots.isEmpty(),
                                 linkedActiveGroupCount = uiState.linkedActiveSlots
@@ -318,6 +384,44 @@ private fun MedicineDetailScreenContent(
                 }
             }
         }
+    }
+
+    if (uiState.showAdjustSheet && stockProjection != null) {
+        AdjustStockSheet(
+            projection = stockProjection,
+            initialTab = uiState.adjustSheetActiveTab,
+            receivedOnly = uiState.pendingEnableTracking,
+            onRecount = onSubmitRecount,
+            onReceived = onSubmitReceived,
+            onDiscard = onSubmitDiscard,
+            onDismissRequest = onCloseAdjustSheet,
+        )
+    }
+
+    if (uiState.showWarnAtSheet && stockProjection != null) {
+        WarnAtThresholdSheet(
+            initialValue = stockProjection.medicine.stock.warnAtDaysRemaining,
+            onSubmit = onSubmitWarnAt,
+            onDismissRequest = onCloseWarnAtSheet,
+        )
+    }
+
+    if (uiState.showDisableConfirmation) {
+        AlertDialog(
+            onDismissRequest = onCloseDisableConfirmation,
+            title = { Text(stringResource(R.string.stock_disable_title)) },
+            text = { Text(stringResource(R.string.stock_disable_body)) },
+            confirmButton = {
+                TextButton(onClick = onConfirmDisableTracking) {
+                    Text(stringResource(R.string.stock_disable_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onCloseDisableConfirmation) {
+                    Text(stringResource(R.string.stock_cancel))
+                }
+            },
+        )
     }
 
     if (editSheetOpen) {

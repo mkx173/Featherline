@@ -8,12 +8,17 @@ import com.mkx.hrttracker.data.repository.MedicineIdentityCollisionException
 import com.mkx.hrttracker.data.repository.MedicineLockedException
 import com.mkx.hrttracker.data.repository.MedicineReferencedByActiveGroupException
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.data.repository.StockDiscard
+import com.mkx.hrttracker.data.repository.StockReceived
+import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
 import com.mkx.hrttracker.util.systemLocale
@@ -48,6 +53,7 @@ import javax.inject.Inject
 class MedicineDetailViewModel @Inject constructor(
     private val medicineRepository: MedicineRepository,
     medicationGroupRepository: MedicationGroupRepository,
+    private val stockRepository: MedicineStockRepository,
     settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -85,13 +91,20 @@ class MedicineDetailViewModel @Inject constructor(
                     archiveResultFlow,
                     saveResultFlow,
                     settingsRepository.settingsState,
-                ) { displayNameDraft, archiveResult, saveResult, settingsState ->
+                    stockRepository.observeProjections()
+                        .map { projections ->
+                            projections.firstOrNull { projection ->
+                                projection.medicine.uuid == medicineUuid
+                            }
+                        },
+                ) { displayNameDraft, archiveResult, saveResult, settingsState, stockProjection ->
                     ResultsAndSettings(
                         displayNameDraft = displayNameDraft,
                         archiveResult = archiveResult,
                         saveResult = saveResult,
                         firstDayOfWeek = settingsState.firstDayOfWeekOption
                             .resolve(systemLocale()),
+                        stockProjection = stockProjection,
                     )
                 },
             ) { active, archived, groups, isLocked, derived ->
@@ -104,12 +117,20 @@ class MedicineDetailViewModel @Inject constructor(
                     archiveResult = derived.archiveResult,
                     saveResult = derived.saveResult,
                     firstDayOfWeek = derived.firstDayOfWeek,
+                    stockProjection = derived.stockProjection,
                 )
             }.collect { state ->
                 _uiState.update { current ->
                     // Preserve preparationDraft from the UI side; nothing
                     // upstream owns it.
-                    state.copy(preparationDraft = current.preparationDraft)
+                    state.copy(
+                        preparationDraft = current.preparationDraft,
+                        showAdjustSheet = current.showAdjustSheet,
+                        showWarnAtSheet = current.showWarnAtSheet,
+                        showDisableConfirmation = current.showDisableConfirmation,
+                        adjustSheetActiveTab = current.adjustSheetActiveTab,
+                        pendingEnableTracking = current.pendingEnableTracking,
+                    )
                 }
             }
         }
@@ -138,6 +159,139 @@ class MedicineDetailViewModel @Inject constructor(
 
     fun setPreparationDraft(draft: MedicinePreparationDraftUiState?) {
         _uiState.update { it.copy(preparationDraft = draft) }
+    }
+
+    fun openAdjustSheet(initialTab: AdjustSheetTab = AdjustSheetTab.RECOUNT) {
+        _uiState.update {
+            it.copy(
+                showAdjustSheet = true,
+                adjustSheetActiveTab = initialTab,
+                pendingEnableTracking = false,
+            )
+        }
+    }
+
+    fun closeAdjustSheet() {
+        _uiState.update {
+            it.copy(
+                showAdjustSheet = false,
+                pendingEnableTracking = false,
+            )
+        }
+    }
+
+    fun openOptIn() {
+        _uiState.update {
+            it.copy(
+                showAdjustSheet = true,
+                adjustSheetActiveTab = AdjustSheetTab.RECEIVED,
+                pendingEnableTracking = true,
+            )
+        }
+    }
+
+    fun openWarnAtSheet() {
+        _uiState.update { it.copy(showWarnAtSheet = true) }
+    }
+
+    fun closeWarnAtSheet() {
+        _uiState.update { it.copy(showWarnAtSheet = false) }
+    }
+
+    fun openDisableConfirmation() {
+        _uiState.update { it.copy(showDisableConfirmation = true) }
+    }
+
+    fun closeDisableConfirmation() {
+        _uiState.update { it.copy(showDisableConfirmation = false) }
+    }
+
+    fun confirmDisableTracking(): Job = viewModelScope.launch {
+        medicineRepository.disableTracking(medicineUuid)
+        _uiState.update { it.copy(showDisableConfirmation = false) }
+    }
+
+    fun confirmEnableTracking(
+        unitsRemaining: Double?,
+        openContainerAmount: Double?,
+        unitsLastTotal: Double?,
+    ): Job = viewModelScope.launch {
+        medicineRepository.enableTracking(
+            uuid = medicineUuid,
+            initialUnitsRemaining = unitsRemaining,
+            initialOpenContainerAmount = openContainerAmount,
+            initialUnitsLastTotal = unitsLastTotal,
+        )
+    }
+
+    fun submitWarnAt(days: Int): Job = viewModelScope.launch {
+        medicineRepository.updateWarnAtDaysRemaining(medicineUuid, days)
+        _uiState.update { it.copy(showWarnAtSheet = false) }
+    }
+
+    fun submitRecount(recount: StockRecount): Job = viewModelScope.launch {
+        if (closePendingEnableAdjustSheet()) return@launch
+        medicineRepository.applyRecount(medicineUuid, recount)
+        _uiState.update { it.copy(showAdjustSheet = false) }
+    }
+
+    fun submitReceived(received: StockReceived): Job = viewModelScope.launch {
+        if (_uiState.value.pendingEnableTracking) {
+            val projection = _uiState.value.stockProjection
+            val medicine = projection?.medicine
+            val initialUnitsRemaining: Double?
+            val initialOpenContainerAmount: Double?
+            val initialUnitsLastTotal: Double?
+            if (
+                medicine?.preparation is MedicinePreparation.InjectionMultiUseVial ||
+                medicine?.preparation is MedicinePreparation.GelContainer
+            ) {
+                val containerSize = medicine.preparation.containerSizeUnits()
+                initialUnitsRemaining = (medicine.stock.unitsRemaining ?: 0.0) +
+                    received.unitsReceived
+                initialOpenContainerAmount = received.openContainerAmount
+                    ?.coerceIn(0.0, containerSize)
+                    ?: medicine.stock.openContainerAmount?.coerceIn(0.0, containerSize)
+                initialUnitsLastTotal = null
+            } else {
+                initialUnitsRemaining = (medicine?.stock?.unitsRemaining ?: 0.0) +
+                    received.unitsReceived
+                initialOpenContainerAmount = null
+                initialUnitsLastTotal = initialUnitsRemaining
+            }
+            medicineRepository.enableTracking(
+                uuid = medicineUuid,
+                initialUnitsRemaining = initialUnitsRemaining,
+                initialOpenContainerAmount = initialOpenContainerAmount,
+                initialUnitsLastTotal = initialUnitsLastTotal,
+            )
+            _uiState.update {
+                it.copy(
+                    showAdjustSheet = false,
+                    pendingEnableTracking = false,
+                )
+            }
+        } else {
+            medicineRepository.applyReceived(medicineUuid, received)
+            _uiState.update { it.copy(showAdjustSheet = false) }
+        }
+    }
+
+    fun submitDiscard(discard: StockDiscard): Job = viewModelScope.launch {
+        if (closePendingEnableAdjustSheet()) return@launch
+        medicineRepository.applyDiscard(medicineUuid, discard)
+        _uiState.update { it.copy(showAdjustSheet = false) }
+    }
+
+    private fun closePendingEnableAdjustSheet(): Boolean {
+        if (!_uiState.value.pendingEnableTracking) return false
+        _uiState.update {
+            it.copy(
+                showAdjustSheet = false,
+                pendingEnableTracking = false,
+            )
+        }
+        return true
     }
 
     fun saveDisplayName(): Job = viewModelScope.launch {
@@ -248,6 +402,7 @@ class MedicineDetailViewModel @Inject constructor(
         archiveResult: MedicineArchiveResult?,
         saveResult: MedicineDetailSaveResult?,
         firstDayOfWeek: DayOfWeek,
+        stockProjection: MedicineStockProjection?,
     ): MedicineDetailUiState {
         val medicine = (active + archived).firstOrNull { it.uuid == medicineUuid }
         val linkedActiveSlots = if (medicine == null) {
@@ -282,6 +437,7 @@ class MedicineDetailViewModel @Inject constructor(
             archiveResult = archiveResult,
             saveResult = saveResult,
             firstDayOfWeek = firstDayOfWeek,
+            stockProjection = stockProjection,
         )
     }
 
@@ -290,10 +446,19 @@ class MedicineDetailViewModel @Inject constructor(
         val archiveResult: MedicineArchiveResult?,
         val saveResult: MedicineDetailSaveResult?,
         val firstDayOfWeek: DayOfWeek,
+        val stockProjection: MedicineStockProjection?,
     )
 
     companion object {
         const val MEDICINE_ID_ARG = "medicineId"
+    }
+}
+
+private fun MedicinePreparation.containerSizeUnits(): Double {
+    return when (this) {
+        is MedicinePreparation.InjectionMultiUseVial -> vialVolumeMl
+        is MedicinePreparation.GelContainer -> containerWeightGrams
+        else -> 0.0
     }
 }
 
@@ -306,7 +471,19 @@ data class MedicineDetailUiState(
     val archiveResult: MedicineArchiveResult? = null,
     val saveResult: MedicineDetailSaveResult? = null,
     val firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
+    val stockProjection: MedicineStockProjection? = null,
+    val showAdjustSheet: Boolean = false,
+    val showWarnAtSheet: Boolean = false,
+    val showDisableConfirmation: Boolean = false,
+    val adjustSheetActiveTab: AdjustSheetTab = AdjustSheetTab.RECOUNT,
+    val pendingEnableTracking: Boolean = false,
 )
+
+enum class AdjustSheetTab {
+    RECOUNT,
+    RECEIVED,
+    DISCARD,
+}
 
 data class LinkedSlotRow(
     val group: MedicationGroup,

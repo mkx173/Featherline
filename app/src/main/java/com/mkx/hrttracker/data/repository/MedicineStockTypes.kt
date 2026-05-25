@@ -13,7 +13,7 @@ internal data class MedicationLogStockSnapshot(
 )
 
 /** Recount: absolute correction. Bumps stockGeneration. */
-internal data class StockRecount(
+data class StockRecount(
     /** Pool: "Now have"; Container: sealed count. */
     val unitsRemaining: Double,
     /** Pool: "Out of total" (defaults to unitsRemaining if null); Container: ignored. */
@@ -23,7 +23,7 @@ internal data class StockRecount(
 )
 
 /** Received: incremental top-up. Does not bump stockGeneration. */
-internal data class StockReceived(
+data class StockReceived(
     /** Pool: amount received; Container: sealed units received. */
     val unitsReceived: Double,
     /** Container only: optional "open container remaining" to declare in same gesture. */
@@ -31,7 +31,7 @@ internal data class StockReceived(
 )
 
 /** Discard: incremental reduction. Does not bump stockGeneration. */
-internal sealed interface StockDiscard {
+sealed interface StockDiscard {
     /** Pool: amount to subtract. */
     data class FromPool(val units: Double) : StockDiscard
 

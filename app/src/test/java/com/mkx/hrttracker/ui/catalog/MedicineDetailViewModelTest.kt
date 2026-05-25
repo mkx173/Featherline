@@ -6,10 +6,17 @@ import com.mkx.hrttracker.data.repository.MedicineIdentityCollisionException
 import com.mkx.hrttracker.data.repository.MedicineLockedException
 import com.mkx.hrttracker.data.repository.MedicineReferencedByActiveGroupException
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.data.repository.StockDiscard
+import com.mkx.hrttracker.data.repository.StockReceived
+import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -42,12 +49,14 @@ class MedicineDetailViewModelTest {
 
     private val medicineRepository: MedicineRepository = mockk()
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
+    private val stockRepository: MedicineStockRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        every { stockRepository.observeProjections() } returns flowOf(emptyList())
         every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
     }
 
@@ -75,6 +84,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
             settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
@@ -134,6 +144,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
             settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
@@ -177,6 +188,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
             settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
@@ -224,6 +236,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
             settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
@@ -256,6 +269,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
             settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
@@ -290,6 +304,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
             settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
@@ -324,6 +339,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
             settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
@@ -354,6 +370,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
             settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
@@ -392,6 +409,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
             settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
@@ -426,6 +444,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
             settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
@@ -466,6 +485,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
             settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
@@ -496,6 +516,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
             settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
@@ -505,5 +526,288 @@ class MedicineDetailViewModelTest {
 
         assertTrue(viewModel.uiState.value.isLocked)
         assertNotNull(viewModel.uiState.value.medicine)
+    }
+
+    @Test
+    fun stockProjectionForCurrentMedicineIsExposed() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000011")
+        val medicine = testMedicine(uuid = medicineUuid)
+        val projection = MedicineStockProjection(
+            medicine = medicine,
+            dosesPerDayMagnitude = 1.0,
+            totalStockUnits = 30.0,
+            runwayDays = 30.0,
+            state = MedicineStockState.HEALTHY,
+        )
+        val otherProjection = projection.copy(
+            medicine = testMedicine(uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000012")),
+        )
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { stockRepository.observeProjections() } returns flowOf(listOf(otherProjection, projection))
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(projection, viewModel.uiState.value.stockProjection)
+    }
+
+    @Test
+    fun optInReceivedSubmissionEnablesTrackingInsteadOfApplyingReceived() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000013")
+        val medicine = testMedicine(uuid = medicineUuid)
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+        coEvery {
+            medicineRepository.enableTracking(
+                medicineUuid,
+                60.0,
+                null,
+                60.0,
+                any(),
+            )
+        } just Runs
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.openOptIn()
+        assertEquals(true, viewModel.uiState.value.showAdjustSheet)
+        assertEquals(AdjustSheetTab.RECEIVED, viewModel.uiState.value.adjustSheetActiveTab)
+        assertEquals(true, viewModel.uiState.value.pendingEnableTracking)
+
+        viewModel.submitReceived(
+            StockReceived(
+                unitsReceived = 60.0,
+                openContainerAmount = 3.0,
+            )
+        )
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            medicineRepository.enableTracking(
+                medicineUuid,
+                60.0,
+                null,
+                60.0,
+                any(),
+            )
+        }
+        coVerify(exactly = 0) { medicineRepository.applyReceived(any(), any(), any()) }
+        assertEquals(false, viewModel.uiState.value.showAdjustSheet)
+        assertEquals(false, viewModel.uiState.value.pendingEnableTracking)
+    }
+
+    @Test
+    fun optInReceivedSubmissionAddsToPreservedDisabledStock() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000014")
+        val medicine = testMedicine(
+            uuid = medicineUuid,
+            stock = MedicineStock(
+                trackingEnabled = false,
+                unitsRemaining = 60.0,
+                unitsLastTotal = 60.0,
+            ),
+        )
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { stockRepository.observeProjections() } returns flowOf(
+            listOf(
+                MedicineStockProjection(
+                    medicine = medicine,
+                    dosesPerDayMagnitude = 0.0,
+                    totalStockUnits = 0.0,
+                    runwayDays = null,
+                    state = MedicineStockState.UNTRACKED,
+                )
+            )
+        )
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+        coEvery {
+            medicineRepository.enableTracking(
+                medicineUuid,
+                65.0,
+                null,
+                65.0,
+                any(),
+            )
+        } just Runs
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.openOptIn()
+        viewModel.submitReceived(StockReceived(unitsReceived = 5.0))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            medicineRepository.enableTracking(
+                medicineUuid,
+                65.0,
+                null,
+                65.0,
+                any(),
+            )
+        }
+    }
+
+    @Test
+    fun optInRecountSubmissionDoesNotMutateStock() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000015")
+        val medicine = testMedicine(uuid = medicineUuid)
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.openOptIn()
+        viewModel.submitRecount(StockRecount(unitsRemaining = 10.0))
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { medicineRepository.applyRecount(any(), any(), any()) }
+        coVerify(exactly = 0) { medicineRepository.enableTracking(any(), any(), any(), any(), any()) }
+        assertEquals(false, viewModel.uiState.value.showAdjustSheet)
+        assertEquals(false, viewModel.uiState.value.pendingEnableTracking)
+    }
+
+    @Test
+    fun optInDiscardSubmissionDoesNotMutateStock() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000016")
+        val medicine = testMedicine(uuid = medicineUuid)
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.openOptIn()
+        viewModel.submitDiscard(StockDiscard.FromPool(units = 4.0))
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { medicineRepository.applyDiscard(any(), any(), any()) }
+        coVerify(exactly = 0) { medicineRepository.enableTracking(any(), any(), any(), any(), any()) }
+        assertEquals(false, viewModel.uiState.value.showAdjustSheet)
+        assertEquals(false, viewModel.uiState.value.pendingEnableTracking)
+    }
+
+    @Test
+    fun containerOptInReceivedSubmissionClampsOpenAmountToContainerSize() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000017")
+        val medicine = testMedicine(
+            uuid = medicineUuid,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 10.0,
+                vialVolumeMl = 5.0,
+            ),
+            stock = MedicineStock(
+                trackingEnabled = false,
+                unitsRemaining = 1.0,
+                openContainerAmount = 2.0,
+            ),
+        )
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { stockRepository.observeProjections() } returns flowOf(
+            listOf(
+                MedicineStockProjection(
+                    medicine = medicine,
+                    dosesPerDayMagnitude = 0.0,
+                    totalStockUnits = 0.0,
+                    runwayDays = null,
+                    state = MedicineStockState.UNTRACKED,
+                )
+            )
+        )
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+        coEvery {
+            medicineRepository.enableTracking(
+                medicineUuid,
+                3.0,
+                5.0,
+                null,
+                any(),
+            )
+        } just Runs
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.openOptIn()
+        viewModel.submitReceived(
+            StockReceived(
+                unitsReceived = 2.0,
+                openContainerAmount = 10.0,
+            )
+        )
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            medicineRepository.enableTracking(
+                medicineUuid,
+                3.0,
+                5.0,
+                null,
+                any(),
+            )
+        }
     }
 }
