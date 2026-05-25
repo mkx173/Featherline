@@ -436,6 +436,8 @@ fun MedicationGroupEditorScreen(
         onArchiveConfirm = viewModel::archiveGroup,
         onArchiveMedicationGroupResultConsumed = viewModel::consumeArchiveMedicationGroupResult,
         onDuplicateArchivedGroupClick = viewModel::duplicateArchivedGroup,
+        onDuplicateArchivedGroupResultConsumed =
+            viewModel::consumeDuplicateArchivedGroupResult,
         onArchiveAndRecreateConfirm = viewModel::archiveAndRecreateGroup,
         onArchiveAndRecreateMedicationGroupResultConsumed =
             viewModel::consumeArchiveAndRecreateMedicationGroupResult,
@@ -502,6 +504,7 @@ private fun MedicationGroupEditorScreenContent(
     onArchiveConfirm: () -> Unit,
     onArchiveMedicationGroupResultConsumed: () -> Unit,
     onDuplicateArchivedGroupClick: () -> Unit,
+    onDuplicateArchivedGroupResultConsumed: () -> Unit,
     onArchiveAndRecreateConfirm: () -> Unit,
     onArchiveAndRecreateMedicationGroupResultConsumed: () -> Unit,
     onDeleteClick: () -> Unit,
@@ -766,6 +769,20 @@ private fun MedicationGroupEditorScreenContent(
 
             null -> Unit
         }
+    }
+
+    LaunchedEffect(uiState.duplicateArchivedGroupSkippedCount) {
+        val skipped = uiState.duplicateArchivedGroupSkippedCount ?: return@LaunchedEffect
+        Toast.makeText(
+            context,
+            context.resources.getQuantityString(
+                R.plurals.duplicate_group_archived_medicines_skipped,
+                skipped,
+                skipped,
+            ),
+            Toast.LENGTH_LONG,
+        ).show()
+        onDuplicateArchivedGroupResultConsumed()
     }
 
     pendingSinceDate?.let { initialSinceDate ->
@@ -1273,6 +1290,8 @@ private fun MedicationGroupEditorScreenContent(
                                     medication.applicationType,
                                 )
                                 val medicationEditable = !areFieldsRenderedLocked
+                                val isMedicineArchived =
+                                    medication.resolvedMedicine?.isArchived == true
                                 MedicationCard(
                                     medicine = medication.resolvedMedicine,
                                     doseInstruction = medication.doseInstruction,
@@ -1293,6 +1312,25 @@ private fun MedicationGroupEditorScreenContent(
                                             pendingMedicationRemoval = MedicationRemovalRequest(
                                                 localId = medication.localId,
                                                 medicationName = medicationName
+                                            )
+                                        }
+                                    } else {
+                                        null
+                                    },
+                                    // When the group itself is archived, flag
+                                    // any medicine that's also archived — the
+                                    // duplicate flow skips those slots since
+                                    // saving them would silently revive the
+                                    // archived medicine.
+                                    trailingContent = if (uiState.isArchived && isMedicineArchived) {
+                                        {
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_archive),
+                                                contentDescription = stringResource(
+                                                    R.string.medication_archived_indicator_cd,
+                                                ),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp),
                                             )
                                         }
                                     } else {
@@ -2303,6 +2341,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onArchiveConfirm = { },
             onArchiveMedicationGroupResultConsumed = { },
             onDuplicateArchivedGroupClick = { },
+            onDuplicateArchivedGroupResultConsumed = { },
             onArchiveAndRecreateConfirm = { },
             onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
@@ -2378,6 +2417,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onArchiveConfirm = { },
             onArchiveMedicationGroupResultConsumed = { },
             onDuplicateArchivedGroupClick = { },
+            onDuplicateArchivedGroupResultConsumed = { },
             onArchiveAndRecreateConfirm = { },
             onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
@@ -2494,6 +2534,7 @@ private fun MedicationGroupEditorPreviewContent(
         onArchiveConfirm = { },
         onArchiveMedicationGroupResultConsumed = { },
         onDuplicateArchivedGroupClick = { },
+        onDuplicateArchivedGroupResultConsumed = { },
         onArchiveAndRecreateConfirm = { },
         onArchiveAndRecreateMedicationGroupResultConsumed = { },
         onDeleteClick = { },

@@ -257,6 +257,10 @@
     <plurals name="archive_medication_group_current_or_future_planned_slots_block">
         <item quantity="other">已有 %1$d 个当前或未来计划时段有记录，因此无法归档</item>
     </plurals>
+    <string name="medication_archived_indicator_cd">已归档的药物</string>
+    <plurals name="duplicate_group_archived_medicines_skipped">
+        <item quantity="other">已跳过 %1$d 个已归档的药物</item>
+    </plurals>
     <string name="archive_create_active_copy">归档后创建副本</string>
     <string name="duplicate_medication_group">复制为新分组</string>
     <string name="archive_and_recreate_medication_group_success">已归档</string>

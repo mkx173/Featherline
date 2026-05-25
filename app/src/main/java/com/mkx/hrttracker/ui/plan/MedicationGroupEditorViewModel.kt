@@ -1076,17 +1076,34 @@ class MedicationGroupEditorViewModel @Inject constructor(
             seed = UUID.randomUUID().hashCode(),
         )
         val duplicateScheduleStartDate = currentMinute.value.toLocalDate()
+        // Drop slots whose resolved medicine is archived. The save path's
+        // findOrCreate would silently revive a matching archived medicine,
+        // which is too lossy for a user who explicitly archived it. Skip
+        // these slots and toast the count so the user can re-add them
+        // intentionally.
+        val activeMedications = currentState.medications.filterNot {
+            it.resolvedMedicine?.isArchived == true
+        }
+        val skippedArchivedCount = currentState.medications.size - activeMedications.size
+        val sourceForCopy = currentState.copy(medications = activeMedications)
 
         _uiState.update {
-            currentState.toUnsavedDuplicatedGroupState(
+            sourceForCopy.toUnsavedDuplicatedGroupState(
                 resolvedGroupName = resolvedGroupName,
                 defaultGroupName = currentState.defaultGroupName,
                 colorKey = colorKey,
                 scheduleStartDate = duplicateScheduleStartDate,
             ).copy(
                 scrollToTopRequestVersion = it.scrollToTopRequestVersion + 1,
+                duplicateArchivedGroupSkippedCount = skippedArchivedCount.takeIf { count ->
+                    count > 0
+                },
             )
         }
+    }
+
+    fun consumeDuplicateArchivedGroupResult() {
+        _uiState.update { it.copy(duplicateArchivedGroupSkippedCount = null) }
     }
 
     fun archiveGroup() {
@@ -2046,6 +2063,12 @@ data class MedicationGroupEditorUiState(
     val archiveAndRecreateMedicationGroupResult: ArchiveAndRecreateMedicationGroupResult? = null,
     val deleteRelatedEntriesResult: DeleteRelatedEntriesResult? = null,
     val deleteMedicationGroupResult: DeleteMedicationGroupResult? = null,
+    // Set by duplicateArchivedGroup() to the count of archived-medicine slots
+    // that were dropped from the duplicated copy. We skip those slots because
+    // including them would silently revive archived medicines via the save-
+    // path's findOrCreate. The screen reads this to toast the count, then
+    // calls consumeDuplicateArchivedGroupResult().
+    val duplicateArchivedGroupSkippedCount: Int? = null,
     val scrollToTopRequestVersion: Int = 0,
 ) {
     val isEditing: Boolean

@@ -266,6 +266,11 @@
         <item quantity="one">Archive is blocked because 1 current or upcoming planned slot already has a record.</item>
         <item quantity="other">Archive is blocked because %1$d current or upcoming planned slots already have records.</item>
     </plurals>
+    <string name="medication_archived_indicator_cd">Archived medicine</string>
+    <plurals name="duplicate_group_archived_medicines_skipped">
+        <item quantity="one">Skipped 1 archived medicine.</item>
+        <item quantity="other">Skipped %1$d archived medicines.</item>
+    </plurals>
     <string name="archive_create_active_copy">Create copy after archive</string>
     <string name="duplicate_medication_group">Duplicate as new group</string>
     <string name="archive_and_recreate_medication_group_success">Archived.</string>
