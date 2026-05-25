@@ -62,11 +62,11 @@ import com.mkx.hrttracker.ui.log.AddEntryQuickLogRequest
 import com.mkx.hrttracker.ui.log.AddEntryScreen
 import com.mkx.hrttracker.ui.main.MainEditEntryRequest
 import com.mkx.hrttracker.ui.main.MainScreen
-import com.mkx.hrttracker.ui.medicine.MedicineDetailScreen
-import com.mkx.hrttracker.ui.medicine.MedicineDetailViewModel
-import com.mkx.hrttracker.ui.medicine.MedicineManagerLaunchMode
-import com.mkx.hrttracker.ui.medicine.MedicinesScreen
-import com.mkx.hrttracker.ui.medicine.medicineManagerLaunchMode
+import com.mkx.hrttracker.ui.catalog.MedicineDetailScreen
+import com.mkx.hrttracker.ui.catalog.MedicineDetailViewModel
+import com.mkx.hrttracker.ui.catalog.MedicineManagerLaunchMode
+import com.mkx.hrttracker.ui.catalog.MedicinesScreen
+import com.mkx.hrttracker.ui.catalog.medicineManagerLaunchMode
 import com.mkx.hrttracker.ui.plan.ArchivedMedicationGroupsScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
@@ -875,7 +875,7 @@ fun HrtTrackerNavHost(
                         val key = pendingResultKey ?: return@LaunchedEffect
                         val localId = pendingSlotLocalId ?: return@LaunchedEffect
                         val bundle = groupSlotResultBundle ?: return@LaunchedEffect
-                        com.mkx.hrttracker.ui.medicine.MedicineSlotResult.fromBundle(bundle)
+                        com.mkx.hrttracker.ui.catalog.MedicineSlotResult.fromBundle(bundle)
                             ?.let { slotResult ->
                                 groupEditorViewModel.addCompletedMedicationSlot(
                                     localId = localId,

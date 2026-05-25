@@ -1,8 +1,7 @@
-package com.mkx.hrttracker.ui.medicine
+package com.mkx.hrttracker.ui.catalog
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth

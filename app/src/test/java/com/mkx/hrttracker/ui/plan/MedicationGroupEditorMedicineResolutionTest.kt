@@ -395,7 +395,7 @@ class MedicationGroupEditorMedicineResolutionTest {
         val slotLocalId = UUID.randomUUID().toString()
         viewModel.addCompletedMedicationSlot(
             localId = slotLocalId,
-            slot = com.mkx.hrttracker.ui.medicine.MedicineSlotResult(
+            slot = com.mkx.hrttracker.ui.catalog.MedicineSlotResult(
                 medicineUuid = medicine.uuid,
                 applicationType = MedicationApplicationType.SUBLINGUAL,
                 doseInstruction = com.mkx.hrttracker.model.medication.DoseInstruction

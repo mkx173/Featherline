@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.ui.medicine
+package com.mkx.hrttracker.ui.catalog
 
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicineIdentityCollisionException

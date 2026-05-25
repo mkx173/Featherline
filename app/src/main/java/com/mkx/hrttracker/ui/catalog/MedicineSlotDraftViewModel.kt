@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.ui.medicine
+package com.mkx.hrttracker.ui.catalog
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

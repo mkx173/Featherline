@@ -102,10 +102,10 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.hideBottomSheet
-import com.mkx.hrttracker.ui.medicine.NewMedicineSlotSheet
-import com.mkx.hrttracker.ui.medicine.NewMedicineSlotSheetMode
-import com.mkx.hrttracker.ui.medicine.NewMedicineSlotViewModel
-import com.mkx.hrttracker.ui.medicine.canHideNewMedicineSlotSheet
+import com.mkx.hrttracker.ui.catalog.NewMedicineSlotSheet
+import com.mkx.hrttracker.ui.catalog.NewMedicineSlotSheetMode
+import com.mkx.hrttracker.ui.catalog.NewMedicineSlotViewModel
+import com.mkx.hrttracker.ui.catalog.canHideNewMedicineSlotSheet
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterTransition
 import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
@@ -460,7 +460,7 @@ private fun OnboardingNewMedicineSlotHost(
     onDismiss: () -> Unit,
     onSlotResolved: (
         localId: String,
-        slot: com.mkx.hrttracker.ui.medicine.MedicineSlotResult,
+        slot: com.mkx.hrttracker.ui.catalog.MedicineSlotResult,
     ) -> Unit,
 ) {
     if (pendingLocalId == null) return

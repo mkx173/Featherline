@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.ui.medicine
+package com.mkx.hrttracker.ui.catalog
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement

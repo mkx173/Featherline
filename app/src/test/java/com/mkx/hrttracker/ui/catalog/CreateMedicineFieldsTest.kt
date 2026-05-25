@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.ui.medicine
+package com.mkx.hrttracker.ui.catalog
 
 import androidx.compose.material3.TextFieldLabelPosition
 import androidx.compose.ui.text.input.ImeAction

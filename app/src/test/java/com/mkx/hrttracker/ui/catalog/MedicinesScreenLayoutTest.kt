@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.ui.medicine
+package com.mkx.hrttracker.ui.catalog
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

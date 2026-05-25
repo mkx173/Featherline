@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.ui.medicine
+package com.mkx.hrttracker.ui.catalog
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel

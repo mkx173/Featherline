@@ -615,7 +615,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     // slot id from the "+ Add medication" tap.
     fun addCompletedMedicationSlot(
         localId: String,
-        slot: com.mkx.hrttracker.ui.medicine.MedicineSlotResult,
+        slot: com.mkx.hrttracker.ui.catalog.MedicineSlotResult,
     ) {
         val currentState = _uiState.value
         if (currentState.areMedicationsLocked) return
@@ -636,7 +636,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private fun applyCompletedMedicationSlot(
         localId: String,
         medicine: Medicine,
-        slot: com.mkx.hrttracker.ui.medicine.MedicineSlotResult,
+        slot: com.mkx.hrttracker.ui.catalog.MedicineSlotResult,
     ) {
         _uiState.update { state ->
             if (state.areMedicationsLocked) return@update state
