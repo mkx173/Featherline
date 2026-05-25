@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
@@ -49,10 +48,11 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
-import com.mkx.hrttracker.ui.medication.medicinePreparationIconRes
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
+import com.mkx.hrttracker.ui.medication.medicinePreparationIconRes
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.labelRes
 
 internal const val MedicationCardLeadingIconTestTag = "medication-card-leading-icon"
 

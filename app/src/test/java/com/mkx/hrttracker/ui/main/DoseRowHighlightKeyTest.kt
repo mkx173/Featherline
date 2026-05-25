@@ -3,11 +3,11 @@ package com.mkx.hrttracker.ui.main
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
-import java.time.LocalDateTime
-import java.util.UUID
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDateTime
+import java.util.UUID
 
 class DoseRowHighlightKeyTest {
 

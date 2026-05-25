@@ -1,9 +1,9 @@
 package com.mkx.hrttracker.util
 
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import java.util.Locale
 import kotlin.math.round
 import kotlin.math.roundToLong
-import java.util.Locale
 
 fun calibrationUnitLabel(unit: BloodUnitKey): String {
     return formatCalibrationUnitLabel(unit.storageValue)

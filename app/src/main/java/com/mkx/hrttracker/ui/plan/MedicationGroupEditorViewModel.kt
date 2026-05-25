@@ -32,9 +32,9 @@ import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
-import com.mkx.hrttracker.ui.medication.requiresCustomName
 import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import com.mkx.hrttracker.ui.medication.parseMedicationCountText
+import com.mkx.hrttracker.ui.medication.requiresCustomName
 import com.mkx.hrttracker.ui.medication.resolveMedicationCountTextAfterDraftChange
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave

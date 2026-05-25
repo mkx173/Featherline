@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
-import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
@@ -9,6 +8,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
 import androidx.datastore.core.DataStore
 import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
@@ -18,19 +18,15 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
-import androidx.glance.preview.ExperimentalGlancePreviewApi
-import androidx.glance.preview.Preview as GlancePreview
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.PreviewSizeMode
 import androidx.glance.appwidget.SizeMode
-import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityFromIntent
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.itemsIndexed
 import androidx.glance.appwidget.provideContent
-import androidx.glance.appwidget.updateAll as glanceUpdateAll
 import androidx.glance.background
 import androidx.glance.currentState
 import androidx.glance.layout.Alignment
@@ -45,6 +41,7 @@ import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.layout.wrapContentHeight
+import androidx.glance.preview.ExperimentalGlancePreviewApi
 import androidx.glance.state.GlanceStateDefinition
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
@@ -60,7 +57,9 @@ import java.io.File
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
-import androidx.core.content.edit
+import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityFromIntent
+import androidx.glance.appwidget.updateAll as glanceUpdateAll
+import androidx.glance.preview.Preview as GlancePreview
 
 
 // ── Widget ────────────────────────────────────────────────────────────────────

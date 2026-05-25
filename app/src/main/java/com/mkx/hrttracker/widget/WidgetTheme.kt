@@ -5,14 +5,13 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.glance.color.ColorProvider as DayNightColorProvider
 import androidx.glance.unit.ColorProvider
 import com.materialkolor.dynamicColorScheme
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.theme.MedicationGroupPalettes
-import com.mkx.hrttracker.ui.theme.onPrimaryDark
 import com.mkx.hrttracker.ui.theme.onPrimaryContainerDark
 import com.mkx.hrttracker.ui.theme.onPrimaryContainerLight
+import com.mkx.hrttracker.ui.theme.onPrimaryDark
 import com.mkx.hrttracker.ui.theme.onPrimaryLight
 import com.mkx.hrttracker.ui.theme.onSecondaryContainerDark
 import com.mkx.hrttracker.ui.theme.onSecondaryContainerLight
@@ -44,6 +43,7 @@ import com.mkx.hrttracker.ui.theme.surfaceVariantDark
 import com.mkx.hrttracker.ui.theme.surfaceVariantLight
 import com.mkx.hrttracker.ui.theme.tertiaryContainerDark
 import com.mkx.hrttracker.ui.theme.tertiaryContainerLight
+import androidx.glance.color.ColorProvider as DayNightColorProvider
 
 internal data class WidgetColorScheme(
     val primary: ColorProvider,

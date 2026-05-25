@@ -1,11 +1,11 @@
 package com.mkx.hrttracker.model.medication
 
-import java.time.Instant
-import java.util.UUID
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Instant
+import java.util.UUID
 
 class MedicationCompatibilityTest {
     @Test

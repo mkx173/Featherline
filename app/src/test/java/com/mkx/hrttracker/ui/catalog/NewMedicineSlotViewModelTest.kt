@@ -11,9 +11,9 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.changeForm
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
-import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk

@@ -2,7 +2,6 @@ package com.mkx.hrttracker.widget
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
@@ -12,6 +11,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.createBitmap
 import androidx.core.net.toUri
 import androidx.glance.ColorFilter
 import androidx.glance.GlanceModifier
@@ -22,7 +22,6 @@ import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.action.actionRunCallback
-import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityFromIntent
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.background
 import androidx.glance.layout.Alignment
@@ -40,6 +39,7 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
 import com.mkx.hrttracker.EXTRA_HIGHLIGHT_ENTRY_UUID
 import com.mkx.hrttracker.EXTRA_HIGHLIGHT_GROUP_UUID
 import com.mkx.hrttracker.EXTRA_HIGHLIGHT_KIND
@@ -50,8 +50,7 @@ import com.mkx.hrttracker.HIGHLIGHT_KIND_MANUAL
 import com.mkx.hrttracker.HIGHLIGHT_KIND_SCHEDULED
 import com.mkx.hrttracker.MainActivity
 import com.mkx.hrttracker.R
-import androidx.core.graphics.createBitmap
-import androidx.glance.unit.ColorProvider
+import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityFromIntent
 
 internal fun isEmptySetup(snapshot: WidgetSnapshotRecord?): Boolean =
     snapshot == null || !snapshot.hasActiveGroups

@@ -32,8 +32,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
@@ -62,11 +62,8 @@ import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
 import com.mkx.hrttracker.ui.medication.activeDoseAssistPresets
-import com.mkx.hrttracker.ui.medication.medicinePreparationFormIconRes
-import com.mkx.hrttracker.ui.medication.applyDoseAssistPreset
-import com.mkx.hrttracker.ui.medication.shortLabelRes
-import com.mkx.hrttracker.ui.medication.showsCustomDoseUnitPicker
 import com.mkx.hrttracker.ui.medication.ambiguousPreparationTypes
+import com.mkx.hrttracker.ui.medication.applyDoseAssistPreset
 import com.mkx.hrttracker.ui.medication.availableCatalogKeys
 import com.mkx.hrttracker.ui.medication.changeCategory
 import com.mkx.hrttracker.ui.medication.changeForm
@@ -74,9 +71,12 @@ import com.mkx.hrttracker.ui.medication.changeMedicationKey
 import com.mkx.hrttracker.ui.medication.changePreparationType
 import com.mkx.hrttracker.ui.medication.editorMedicationCategories
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
+import com.mkx.hrttracker.ui.medication.medicinePreparationFormIconRes
 import com.mkx.hrttracker.ui.medication.preparationTypeLabelRes
 import com.mkx.hrttracker.ui.medication.requiresCustomName
 import com.mkx.hrttracker.ui.medication.requiresPreparationTypeSelection
+import com.mkx.hrttracker.ui.medication.shortLabelRes
+import com.mkx.hrttracker.ui.medication.showsCustomDoseUnitPicker
 import com.mkx.hrttracker.ui.medication.supportsCatalogSelection
 import com.mkx.hrttracker.util.labelRes
 import java.util.UUID

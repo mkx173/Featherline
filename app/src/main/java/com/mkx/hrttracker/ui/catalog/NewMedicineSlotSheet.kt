@@ -23,8 +23,8 @@ import com.mkx.hrttracker.ui.medication.MedicationLogAppliedAtFields
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
 import com.mkx.hrttracker.ui.medication.requiresEditableDoseInstructionForm
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
-import com.mkx.hrttracker.ui.medication.supportsMedicationCountEditor
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
+import com.mkx.hrttracker.ui.medication.supportsMedicationCountEditor
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter

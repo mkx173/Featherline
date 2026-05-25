@@ -2,7 +2,6 @@ package com.mkx.hrttracker.data.repository
 
 import android.database.sqlite.SQLiteConstraintException
 import com.mkx.hrttracker.data.local.DatabaseHolder
-import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.model.medication.MedicationCategory

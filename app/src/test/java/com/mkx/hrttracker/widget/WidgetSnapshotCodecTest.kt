@@ -1,7 +1,10 @@
 package com.mkx.hrttracker.widget
 
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.time.LocalDateTime

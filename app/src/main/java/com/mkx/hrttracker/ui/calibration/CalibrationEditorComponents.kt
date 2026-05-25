@@ -72,8 +72,8 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.util.calibrationUnitLabel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.calibrationUnitLabel
 
 @Composable
 internal fun CalibrationEditorCard(
