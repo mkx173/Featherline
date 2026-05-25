@@ -320,7 +320,7 @@
     </plurals>
     <string name="medicine_archive_failure">Unable to archive this medicine.</string>
     <string name="medicine_patch_off_name">Patch off</string>
-    <string name="medicine_patch_off_detail_summary">Logging this entry removes any currently-applied estradiol patch.</string>
+    <string name="medicine_patch_off_detail_summary">Logging this entry removes any currently applied estradiol patch.</string>
     <string name="medicine_save_failure">Unable to save this medicine.</string>
     <string name="medicine_already_exists">Medicine already exists.</string>
     <string name="dose_type_mg_as_medicine">Dose in mg</string>

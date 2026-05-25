@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.catalog
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,13 +29,18 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -87,6 +93,7 @@ import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.UUID
 
@@ -248,12 +255,6 @@ private fun MedicineDetailScreenContent(
                     )
                 }
 
-                if (isPatchOff) {
-                    item(key = "patch-off-summary") {
-                        PatchOffSummarySection()
-                    }
-                }
-
                 item(key = "linked-groups") {
                     Column {
                         SectionHeader(text = stringResource(R.string.medicine_linked_groups))
@@ -371,6 +372,31 @@ private fun MedicineHeaderCard(
     medicine: Medicine,
     onEditClick: (() -> Unit)?,
 ) {
+    val trailingContent: (@Composable () -> Unit)? =
+        if (medicine.selection is MedicineSelection.PatchOff) {
+            val message = stringResource(R.string.medicine_patch_off_detail_summary)
+            val content: @Composable () -> Unit = {
+                PatchOffInfoTooltipIcon(message = message)
+            }
+            content
+        } else {
+            onEditClick?.let { editClick ->
+                val content: @Composable () -> Unit = {
+                    CompositionLocalProvider(
+                        LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+                    ) {
+                        IconButton(onClick = editClick) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_edit),
+                                contentDescription = stringResource(R.string.medicine_edit_action),
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                }
+                content
+            }
+        }
     MedicationCard(
         medicine = medicine,
         doseInstruction = com.mkx.hrttracker.model.medication.DoseInstruction.Noop,
@@ -385,35 +411,53 @@ private fun MedicineHeaderCard(
         // for multi-use vials via doseInstructionSummary).
         supportingTextOverride = medicinePreparationSummary(medicine),
         leadingIconAsForm = true,
-        trailingContent = onEditClick?.let { editClick ->
-            {
-                CompositionLocalProvider(
-                    LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
-                ) {
-                    IconButton(onClick = editClick) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_edit),
-                            contentDescription = stringResource(R.string.medicine_edit_action),
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                }
-            }
-        },
+        trailingContent = trailingContent,
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PatchOffSummarySection() {
-    // Static read-only blurb for the immutable PATCH_OFF singleton — no
-    // display-name field, no preparation editor, no archive button.
-    Column {
-        SectionHeader(text = stringResource(R.string.medicine_preparation))
-        Text(
-            text = stringResource(R.string.medicine_patch_off_detail_summary),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+private fun PatchOffInfoTooltipIcon(message: String) {
+    val tooltipState = rememberTooltipState(isPersistent = true)
+    val scope = rememberCoroutineScope()
+    BackHandler(enabled = tooltipState.isVisible) {
+        tooltipState.dismiss()
+    }
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+    ) {
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                TooltipAnchorPosition.Below,
+            ),
+            tooltip = {
+                RichTooltip {
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
+                }
+            },
+            state = tooltipState,
+        ) {
+            IconButton(
+                onClick = {
+                    if (tooltipState.isVisible) {
+                        tooltipState.dismiss()
+                    } else {
+                        scope.launch { tooltipState.show() }
+                    }
+                },
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_info),
+                    contentDescription = message,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
     }
 }
 
