@@ -180,4 +180,42 @@ interface MedicineDao {
         """
     )
     suspend fun deleteAll()
+
+    @Query(
+        """
+        UPDATE medicines SET
+            trackingEnabled = :trackingEnabled,
+            stockUnitsRemaining = :stockUnitsRemaining,
+            stockUnitsLastTotal = :stockUnitsLastTotal,
+            openContainerAmount = :openContainerAmount,
+            warnAtDaysRemaining = :warnAtDaysRemaining,
+            stockGeneration = :stockGeneration,
+            updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE uuid = :uuid
+        """
+    )
+    suspend fun updateStockFields(
+        uuid: String,
+        trackingEnabled: Boolean,
+        stockUnitsRemaining: Double?,
+        stockUnitsLastTotal: Double?,
+        openContainerAmount: Double?,
+        warnAtDaysRemaining: Int,
+        stockGeneration: Long,
+        updatedAtEpochMillis: Long,
+    )
+
+    @Query(
+        """
+        UPDATE medicines SET
+            warnAtDaysRemaining = :warnAtDaysRemaining,
+            updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE uuid = :uuid
+        """
+    )
+    suspend fun updateWarnAtDaysRemaining(
+        uuid: String,
+        warnAtDaysRemaining: Int,
+        updatedAtEpochMillis: Long,
+    )
 }

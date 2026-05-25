@@ -173,4 +173,18 @@ interface MedicationLogDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntries(entries: List<MedicationLogEntryEntity>)
+
+    @Query(
+        """
+        UPDATE medication_log_entries SET
+            stockDeductionUnits = :stockDeductionUnits,
+            stockGeneration = :stockGeneration
+        WHERE uuid = :uuid
+        """
+    )
+    suspend fun updateStockFields(
+        uuid: String,
+        stockDeductionUnits: Double?,
+        stockGeneration: Long?,
+    )
 }
