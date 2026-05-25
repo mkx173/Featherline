@@ -72,7 +72,6 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.MedicationCard
-import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -81,10 +80,14 @@ import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
 import com.mkx.hrttracker.ui.medication.hasRawMassDoseField
-import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
 import com.mkx.hrttracker.ui.medication.medicinePreparationSummary
 import com.mkx.hrttracker.ui.medication.shortLabelRes
+import com.mkx.hrttracker.ui.plan.RegimenGroupCard
+import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.labelRes
+import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
+import java.time.LocalDate
 import java.util.UUID
 
 @Composable
@@ -168,6 +171,13 @@ private fun MedicineDetailScreenContent(
     val scope = rememberCoroutineScope()
     var editSheetOpen by remember { mutableStateOf(false) }
     var archiveConfirmOpen by remember { mutableStateOf(false) }
+
+    val appLocale = rememberAppLocale()
+    val today = remember { LocalDate.now() }
+    val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
+    val dateFormatter = remember(appLocale, today) {
+        dateLabelFormatter(appLocale, today)
+    }
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -257,14 +267,30 @@ private fun MedicineDetailScreenContent(
                         )
                     }
                 } else {
-                    uiState.linkedActiveSlots.forEachIndexed { index, row ->
-                        item(key = "linked-slot-${row.group.uuid}-${row.applicationType}-$index") {
-                            LinkedSlotListItem(
-                                row = row,
-                                medicine = medicine,
-                                onClick = { onGroupClick(row.group.uuid) },
+                    // Same medicine can appear in multiple slots of one group;
+                    // collapse to one card per group so the screen shows the
+                    // group context rather than repeated rows.
+                    val linkedGroups = uiState.linkedActiveSlots
+                        .distinctBy { it.group.uuid }
+                        .map { it.group }
+                    linkedGroups.forEachIndexed { index, group ->
+                        item(key = "linked-group-${group.uuid}") {
+                            RegimenGroupCard(
+                                group = group,
+                                remindersEnabled = false,
+                                hasNotificationAccess = false,
+                                appLocale = appLocale,
+                                dateFormatter = dateFormatter,
+                                timeFormatter = timeFormatter,
+                                upcomingOccurrences = emptyList(),
+                                today = today,
+                                onClick = { onGroupClick(group.uuid) },
                                 index = index,
-                                itemCount = uiState.linkedActiveSlots.size,
+                                itemCount = linkedGroups.size,
+                                showNotificationIcon = false,
+                                showChevron = true,
+                                showUpcomingSection = false,
+                                firstDayOfWeek = uiState.firstDayOfWeek,
                             )
                             Spacer(
                                 modifier = Modifier.height(
@@ -337,30 +363,6 @@ private fun MedicineDetailScreenContent(
             },
         )
     }
-}
-
-@Composable
-private fun LinkedSlotListItem(
-    row: LinkedSlotRow,
-    medicine: Medicine,
-    onClick: () -> Unit,
-    index: Int,
-    itemCount: Int,
-    modifier: Modifier = Modifier,
-) {
-    PreferenceSegmentedListItem(
-        title = row.group.name,
-        supportingText = medicationEntrySupportingText(
-            medicine = medicine,
-            doseInstruction = row.doseInstruction,
-            applicationType = row.applicationType,
-            count = row.count,
-        ),
-        index = index,
-        count = itemCount,
-        onClick = onClick,
-        modifier = modifier,
-    )
 }
 
 @Composable

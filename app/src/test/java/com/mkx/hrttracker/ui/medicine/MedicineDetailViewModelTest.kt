@@ -6,11 +6,13 @@ import com.mkx.hrttracker.data.repository.MedicineIdentityCollisionException
 import com.mkx.hrttracker.data.repository.MedicineLockedException
 import com.mkx.hrttracker.data.repository.MedicineReferencedByActiveGroupException
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -19,6 +21,7 @@ import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -39,11 +42,13 @@ class MedicineDetailViewModelTest {
 
     private val medicineRepository: MedicineRepository = mockk()
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
+    private val settingsRepository: SettingsRepository = mockk()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
     }
 
     @After
@@ -70,6 +75,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -128,6 +134,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -170,6 +177,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -216,6 +224,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -247,6 +256,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -280,6 +290,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -313,6 +324,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -342,6 +354,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -379,6 +392,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -412,6 +426,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -451,6 +466,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -480,6 +496,7 @@ class MedicineDetailViewModelTest {
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),

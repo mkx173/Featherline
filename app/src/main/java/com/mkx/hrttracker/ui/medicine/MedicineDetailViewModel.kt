@@ -8,6 +8,7 @@ import com.mkx.hrttracker.data.repository.MedicineIdentityCollisionException
 import com.mkx.hrttracker.data.repository.MedicineLockedException
 import com.mkx.hrttracker.data.repository.MedicineReferencedByActiveGroupException
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -15,6 +16,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
+import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +26,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 import java.util.UUID
 import javax.inject.Inject
 
@@ -45,6 +48,7 @@ import javax.inject.Inject
 class MedicineDetailViewModel @Inject constructor(
     private val medicineRepository: MedicineRepository,
     medicationGroupRepository: MedicationGroupRepository,
+    settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -80,18 +84,26 @@ class MedicineDetailViewModel @Inject constructor(
                     displayNameTextFlow,
                     archiveResultFlow,
                     saveResultFlow,
-                ) { displayNameDraft, archiveResult, saveResult ->
-                    Triple(displayNameDraft, archiveResult, saveResult)
+                    settingsRepository.settingsState,
+                ) { displayNameDraft, archiveResult, saveResult, settingsState ->
+                    ResultsAndSettings(
+                        displayNameDraft = displayNameDraft,
+                        archiveResult = archiveResult,
+                        saveResult = saveResult,
+                        firstDayOfWeek = settingsState.firstDayOfWeekOption
+                            .resolve(systemLocale()),
+                    )
                 },
-            ) { active, archived, groups, isLocked, triple ->
+            ) { active, archived, groups, isLocked, derived ->
                 buildState(
                     active = active,
                     archived = archived,
                     groups = groups,
                     isLocked = isLocked,
-                    displayNameDraft = triple.first,
-                    archiveResult = triple.second,
-                    saveResult = triple.third,
+                    displayNameDraft = derived.displayNameDraft,
+                    archiveResult = derived.archiveResult,
+                    saveResult = derived.saveResult,
+                    firstDayOfWeek = derived.firstDayOfWeek,
                 )
             }.collect { state ->
                 _uiState.update { current ->
@@ -235,6 +247,7 @@ class MedicineDetailViewModel @Inject constructor(
         displayNameDraft: String?,
         archiveResult: MedicineArchiveResult?,
         saveResult: MedicineDetailSaveResult?,
+        firstDayOfWeek: DayOfWeek,
     ): MedicineDetailUiState {
         val medicine = (active + archived).firstOrNull { it.uuid == medicineUuid }
         val linkedActiveSlots = if (medicine == null) {
@@ -268,8 +281,16 @@ class MedicineDetailViewModel @Inject constructor(
             displayNameText = displayName,
             archiveResult = archiveResult,
             saveResult = saveResult,
+            firstDayOfWeek = firstDayOfWeek,
         )
     }
+
+    private data class ResultsAndSettings(
+        val displayNameDraft: String?,
+        val archiveResult: MedicineArchiveResult?,
+        val saveResult: MedicineDetailSaveResult?,
+        val firstDayOfWeek: DayOfWeek,
+    )
 
     companion object {
         const val MEDICINE_ID_ARG = "medicineId"
@@ -284,6 +305,7 @@ data class MedicineDetailUiState(
     val preparationDraft: MedicinePreparationDraftUiState? = null,
     val archiveResult: MedicineArchiveResult? = null,
     val saveResult: MedicineDetailSaveResult? = null,
+    val firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
 )
 
 data class LinkedSlotRow(
