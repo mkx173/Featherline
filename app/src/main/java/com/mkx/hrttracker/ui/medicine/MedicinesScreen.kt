@@ -1,10 +1,8 @@
 package com.mkx.hrttracker.ui.medicine
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,8 +13,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -207,7 +203,6 @@ internal fun MedicinesScreen(
                 is MedicineManagerAddNewTarget.NewMedicineSlot -> showNewMedicineSlotSheet = true
             }
         },
-        onToggleArchivedExpanded = viewModel::toggleArchivedExpanded,
         modifier = modifier,
     )
 
@@ -340,7 +335,7 @@ private fun MedicinesUiState.findMedicineByUuid(
     activeSections.forEach { section ->
         section.medicines.firstOrNull { it.medicine.uuid == uuid }?.let { return it.medicine }
     }
-    return archivedMedicines.firstOrNull { it.uuid == uuid }
+    return null
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -350,7 +345,6 @@ private fun MedicinesScreenContent(
     onNavigateBack: () -> Unit,
     onMedicineClick: (UUID) -> Unit,
     onAddNewMedicine: () -> Unit,
-    onToggleArchivedExpanded: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -405,7 +399,7 @@ private fun MedicinesScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValues(),
             ) {
-                if (uiState.activeSections.isEmpty() && uiState.archivedMedicines.isEmpty()) {
+                if (uiState.activeSections.isEmpty()) {
                     item(key = "empty-state") {
                         SupportMessageListItem(
                             text = stringResource(R.string.medicines_empty_state),
@@ -414,9 +408,7 @@ private fun MedicinesScreenContent(
                     }
                 }
 
-                var renderedSectionIndex = 0
-                uiState.activeSections.forEach { section ->
-                    val sectionIndex = renderedSectionIndex++
+                uiState.activeSections.forEachIndexed { sectionIndex, section ->
                     item(key = "header-${section.category.name}") {
                         MedicineManagerSectionTopSpacing(sectionIndex = sectionIndex)
                         MedicineManagerSectionTitle(
@@ -435,37 +427,6 @@ private fun MedicinesScreenContent(
                                 index = index,
                                 itemCount = section.medicines.size,
                             )
-                        }
-                    }
-                }
-
-                if (uiState.archivedMedicines.isNotEmpty()) {
-                    val sectionIndex = renderedSectionIndex++
-                    item(key = "archived-header") {
-                        ArchivedSectionHeader(
-                            sectionIndex = sectionIndex,
-                            expanded = uiState.archivedExpanded,
-                            count = uiState.archivedMedicines.size,
-                            onClick = onToggleArchivedExpanded,
-                        )
-                    }
-                    if (uiState.archivedExpanded) {
-                        uiState.archivedMedicines.forEachIndexed { index, medicine ->
-                            item(key = "archived-medicine-${medicine.uuid}") {
-                                MedicineRow(
-                                    item = MedicineListItem(
-                                        medicine = medicine,
-                                        activeGroupReferenceCount = 0,
-                                    ),
-                                    index = index,
-                                    itemCount = uiState.archivedMedicines.size,
-                                    onClick = { onMedicineClick(medicine.uuid) },
-                                )
-                                MedicineManagerRowBottomGap(
-                                    index = index,
-                                    itemCount = uiState.archivedMedicines.size,
-                                )
-                            }
                         }
                     }
                 }
@@ -579,46 +540,6 @@ private fun ReferenceCountChip(count: Int) {
     }
 }
 
-@Composable
-private fun ArchivedSectionHeader(
-    sectionIndex: Int,
-    expanded: Boolean,
-    count: Int,
-    onClick: () -> Unit,
-) {
-    MedicineManagerSectionTopSpacing(sectionIndex = sectionIndex)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                top = MedicineManagerSectionHeaderTopPaddingDp.dp,
-                bottom = MedicineManagerSectionHeaderBottomPaddingDp.dp,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = stringResource(R.string.medicine_archived_section).uppercase(),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        IconButton(onClick = onClick) {
-            Icon(
-                imageVector = if (expanded) {
-                    Icons.Rounded.ExpandLess
-                } else {
-                    Icons.Rounded.ExpandMore
-                },
-                contentDescription = if (expanded) {
-                    stringResource(R.string.medicines_archived_collapse)
-                } else {
-                    stringResource(R.string.medicines_archived_expand, count)
-                },
-            )
-        }
-    }
-}
-
 /**
  * The list view shows one row per medicine, so we pick a single representative
  * application type for the row icon. Catalog medicines have a canonical route
@@ -673,7 +594,6 @@ private fun MedicinesScreenPreview() {
             onNavigateBack = { },
             onMedicineClick = { },
             onAddNewMedicine = { },
-            onToggleArchivedExpanded = { },
         )
     }
 }

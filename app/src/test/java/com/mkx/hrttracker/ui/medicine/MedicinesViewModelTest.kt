@@ -61,7 +61,7 @@ class MedicinesViewModelTest {
     // ordering across category buckets) silently regresses navigation. The
     // assertion pins both the partition AND the enum-declaration order.
     @Test
-    fun listGroupsActiveMedicinesByCategoryAndKeepsArchivedCollapsed() = runTest {
+    fun listGroupsActiveMedicinesByCategory() = runTest {
         val estradiol = testMedicine(
             uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
             key = MedicationKey.ESTRADIOL,
@@ -70,13 +70,7 @@ class MedicinesViewModelTest {
             uuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000000"),
             key = MedicationKey.SPIRONOLACTONE,
         )
-        val archived = testMedicine(
-            uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000000"),
-            key = MedicationKey.ESTRADIOL_VALERATE,
-            archivedAt = Instant.parse("2026-05-21T00:00:00Z"),
-        )
         every { medicineRepository.observeAllActive() } returns flowOf(listOf(estradiol, blocker))
-        every { medicineRepository.observeAllArchived() } returns flowOf(listOf(archived))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
         val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
@@ -100,8 +94,6 @@ class MedicinesViewModelTest {
                 .first { it.category == MedicationCategory.ANTIANDROGEN }
                 .medicines.map { it.medicine.uuid },
         )
-        assertEquals(listOf(archived.uuid), state.archivedMedicines.map { it.uuid })
-        assertFalse(state.archivedExpanded)
         collectJob.cancel()
     }
 
@@ -125,7 +117,6 @@ class MedicinesViewModelTest {
             slotMultiplicity = 2,
         )
         every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(
             listOf(groupReferencing, groupReferencingTwice),
         )
@@ -152,7 +143,6 @@ class MedicinesViewModelTest {
             archivedAt = Instant.parse("2026-04-01T00:00:00Z"),
         )
         every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(archivedGroup))
 
         val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
@@ -185,7 +175,6 @@ class MedicinesViewModelTest {
         )
         // Emit reversed so the sort, not the input order, controls the result.
         every { medicineRepository.observeAllActive() } returns flowOf(listOf(second, first))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
         val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
@@ -203,35 +192,6 @@ class MedicinesViewModelTest {
     }
 
     @Test
-    fun archivedMedicinesRemainSeparateFromActiveMedicines() = runTest {
-        val active = testMedicine(
-            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000013"),
-            key = MedicationKey.ESTRADIOL,
-        )
-        val archived = testMedicine(
-            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000014"),
-            key = MedicationKey.ESTRADIOL,
-            archivedAt = Instant.parse("2026-05-10T00:00:00Z"),
-        )
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(active))
-        every { medicineRepository.observeAllArchived() } returns flowOf(listOf(archived))
-        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
-
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
-        val collectJob = startUiStateCollection(viewModel)
-        advanceUntilIdle()
-
-        assertEquals(
-            listOf(active.uuid),
-            viewModel.uiState.value.activeSections.single().medicines.map { it.medicine.uuid },
-        )
-        assertEquals(listOf(archived.uuid), viewModel.uiState.value.archivedMedicines.map { it.uuid })
-        collectJob.cancel()
-    }
-
-    // Why this matters: the archived list is collapsed by default; the
-    // expand toggle must flip in the state so the UI can render the rows.
-    @Test
     fun displayNameUpdatePropagatesToActiveMedicineList() = runTest {
         val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000003")
         val original = testMedicine(
@@ -241,7 +201,6 @@ class MedicinesViewModelTest {
         )
         val activeMedicines = MutableStateFlow(listOf(original))
         every { medicineRepository.observeAllActive() } returns activeMedicines
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery {
             medicineRepository.setDisplayName(
@@ -289,7 +248,6 @@ class MedicinesViewModelTest {
         )
         every { medicineRepository.observeAllActive() } returns
             flowOf(listOf(patchMedicine, patchOff))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
         val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
@@ -305,26 +263,6 @@ class MedicinesViewModelTest {
         collectJob.cancel()
     }
 
-    @Test
-    fun toggleArchivedExpandedFlipsState() = runTest {
-        every { medicineRepository.observeAllActive() } returns flowOf(emptyList())
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
-        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
-
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
-        val collectJob = startUiStateCollection(viewModel)
-        advanceUntilIdle()
-
-        assertFalse(viewModel.uiState.value.archivedExpanded)
-        viewModel.toggleArchivedExpanded()
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.archivedExpanded)
-        viewModel.toggleArchivedExpanded()
-        advanceUntilIdle()
-        assertFalse(viewModel.uiState.value.archivedExpanded)
-        collectJob.cancel()
-    }
-
     // Why this matters: without a distinct loading state, the manager flashes
     // the "no medicines yet" empty state while repository flows are still
     // warming up. The initial state must be loading, and the first combined
@@ -332,7 +270,6 @@ class MedicinesViewModelTest {
     @Test
     fun uiStateStartsLoadingAndClearsAfterRepositoryEmission() = runTest {
         every { medicineRepository.observeAllActive() } returns flowOf(emptyList())
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
         val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)

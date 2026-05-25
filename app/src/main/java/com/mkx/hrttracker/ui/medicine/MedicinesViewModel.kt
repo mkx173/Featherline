@@ -9,24 +9,21 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.isArchived
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 
 /**
  * Plan tab → "Medicines" overflow action surface.
  *
- * Surfaces every active and archived [Medicine] partitioned by
- * [MedicationCategory], each row decorated with a count of active
- * [MedicationGroup]s that reference the medicine (the value the detail screen
- * uses to gate archive). The list pulls live data from the two repositories
- * directly; there is no in-VM cache, so an upstream emission immediately
- * reshapes the on-screen list.
+ * Surfaces every active [Medicine] partitioned by [MedicationCategory], each
+ * row decorated with a count of active [MedicationGroup]s that reference the
+ * medicine (the value the detail screen uses to gate archive). The list pulls
+ * live data from the two repositories directly; there is no in-VM cache, so an
+ * upstream emission immediately reshapes the on-screen list.
  *
  * PATCH_OFF carries no medicine, so a patch-off slot/log never produces a row
  * here — the list shows only medicines, not application events.
@@ -37,21 +34,15 @@ class MedicinesViewModel @Inject constructor(
     medicationGroupRepository: MedicationGroupRepository,
 ) : ViewModel() {
 
-    private val archivedExpanded = MutableStateFlow(false)
-
     val uiState: StateFlow<MedicinesUiState> = combine(
         medicineRepository.observeAllActive(),
-        medicineRepository.observeAllArchived(),
         medicationGroupRepository.observeGroups().map { it.orEmpty() },
-        archivedExpanded,
-    ) { activeMedicines, archivedMedicines, groups, isArchivedExpanded ->
+    ) { activeMedicines, groups ->
         MedicinesUiState(
             activeSections = buildSections(
                 activeMedicines = activeMedicines,
                 referenceCounts = activeGroupReferenceCounts(groups),
             ),
-            archivedMedicines = archivedMedicines,
-            archivedExpanded = isArchivedExpanded,
             isLoading = false,
         )
     }.stateIn(
@@ -59,10 +50,6 @@ class MedicinesViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
         initialValue = MedicinesUiState(),
     )
-
-    fun toggleArchivedExpanded() {
-        archivedExpanded.update { !it }
-    }
 
     private fun buildSections(
         activeMedicines: List<Medicine>,
@@ -120,8 +107,6 @@ class MedicinesViewModel @Inject constructor(
 
 data class MedicinesUiState(
     val activeSections: List<MedicineCategorySection> = emptyList(),
-    val archivedMedicines: List<Medicine> = emptyList(),
-    val archivedExpanded: Boolean = false,
     val isLoading: Boolean = true,
 )
 
