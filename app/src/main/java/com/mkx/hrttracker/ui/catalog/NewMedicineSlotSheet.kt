@@ -10,6 +10,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -20,6 +21,7 @@ import com.mkx.hrttracker.ui.medication.DoseInstructionForm
 import com.mkx.hrttracker.ui.medication.MedicationCountTextField
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicationLogAppliedAtFields
+import com.mkx.hrttracker.ui.medication.doseInstructionHasTextField
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
 import com.mkx.hrttracker.ui.medication.requiresEditableDoseInstructionForm
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
@@ -103,6 +105,12 @@ fun NewMedicineSlotSheet(
         },
     ) {
         CreateMedicineResultText(saveResult = uiState.createSaveResult)
+        // The dose instruction form may render a text field (volumeMl /
+        // weightGrams) just below the create-medicine fields. When it does,
+        // share a FocusRequester so the create form's last IME Next jumps
+        // into that field instead of dismissing the keyboard.
+        val doseFollowUpRequester = remember { FocusRequester() }
+        val extendImeChainIntoDoseForm = doseInstructionHasTextField(activePreparationType)
         // Controls stay visually enabled while a save is in flight; the VM
         // ignores draft mutations during the lock, text fields stay read-
         // only to avoid input flicker, and the sheet's dismissal lock keeps
@@ -112,6 +120,7 @@ fun NewMedicineSlotSheet(
             onMedicineDraftChange = viewModel::updateMedicineDraft,
             errorMessageRes = uiState.errorMessageRes,
             readOnly = isSheetLocked,
+            followUpFocusRequester = doseFollowUpRequester.takeIf { extendImeChainIntoDoseForm },
         )
 
         if (
@@ -124,6 +133,7 @@ fun NewMedicineSlotSheet(
                 activePreparationType = activePreparationType,
                 onDoseInstructionDraftChange = viewModel::updateDoseInstructionDraft,
                 errorMessageRes = uiState.errorMessageRes,
+                textFieldFocusRequester = doseFollowUpRequester.takeIf { extendImeChainIntoDoseForm },
             )
         }
 

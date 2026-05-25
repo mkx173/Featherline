@@ -724,6 +724,27 @@ internal fun requiresEditableDoseInstructionForm(
     }
 }
 
+// Of the routes that requiresEditableDoseInstructionForm() returns true for,
+// only MULTI_USE_VIAL (volumeMl) and GEL_CONTAINER (weightGrams) render a text
+// field — PILL uses a fraction slider. Callers use this to decide whether to
+// extend the IME Next chain into the dose form.
+internal fun doseInstructionHasTextField(
+    preparationType: MedicinePreparationType?,
+): Boolean {
+    return when (preparationType) {
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+        MedicinePreparationType.GEL_CONTAINER -> true
+
+        MedicinePreparationType.PILL,
+        MedicinePreparationType.CAPSULE,
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.GEL_SACHET,
+        MedicinePreparationType.PATCH,
+        MedicinePreparationType.PATCH_OFF,
+        null -> false
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Conversion helpers
 // ---------------------------------------------------------------------------

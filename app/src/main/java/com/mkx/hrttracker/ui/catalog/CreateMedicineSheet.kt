@@ -165,6 +165,7 @@ internal fun CreateMedicineForm(
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     errorMessageRes: Int?,
     readOnly: Boolean,
+    followUpFocusRequester: FocusRequester? = null,
 ) {
     val focusManager = LocalFocusManager.current
     // One requester per slot in CreateMedicineField; the set is fixed so the
@@ -288,6 +289,7 @@ internal fun CreateMedicineForm(
         readOnly = readOnly,
         focusRequesters = focusRequesters,
         editableFields = editableFields,
+        followUpFocusRequester = followUpFocusRequester,
     )
 }
 
@@ -367,13 +369,27 @@ private fun NewMedicinePreparationForm(
     readOnly: Boolean,
     focusRequesters: Map<CreateMedicineField, FocusRequester>,
     editableFields: List<CreateMedicineField>,
+    followUpFocusRequester: FocusRequester? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val onImeNextFor: (CreateMedicineField) -> () -> Unit = { field ->
         {
-            nextField(editableFields, field)
-                ?.let { focusRequesters.getValue(it).requestFocus() }
-                ?: focusManager.clearFocus()
+            val nextInForm = nextField(editableFields, field)
+            when {
+                nextInForm != null -> focusRequesters.getValue(nextInForm).requestFocus()
+                followUpFocusRequester != null -> followUpFocusRequester.requestFocus()
+                else -> focusManager.clearFocus()
+            }
+        }
+    }
+    // The IME action chain extends past the form boundary when a follow-up
+    // requester is supplied (e.g. a dose instruction text field rendered just
+    // below this form), so the last editable field shows Next instead of Done.
+    val imeActionForField: (CreateMedicineField) -> ImeAction = { field ->
+        if (nextField(editableFields, field) == null && followUpFocusRequester == null) {
+            ImeAction.Done
+        } else {
+            ImeAction.Next
         }
     }
     if (medicineDraft.requiresPreparationTypeSelection()) {
@@ -423,7 +439,7 @@ private fun NewMedicinePreparationForm(
                     onMedicineDraftChange { it.copy(pillStrengthMg = value) }
                 },
                 focusRequester = focusRequesters.getValue(CreateMedicineField.PILL_STRENGTH),
-                imeAction = imeActionFor(editableFields, CreateMedicineField.PILL_STRENGTH),
+                imeAction = imeActionForField(CreateMedicineField.PILL_STRENGTH),
                 onImeNext = onImeNextFor(CreateMedicineField.PILL_STRENGTH),
             )
             DoseAssistPresetRow(
@@ -453,7 +469,7 @@ private fun NewMedicinePreparationForm(
                     onMedicineDraftChange { it.copy(singleUseVialStrengthMg = value) }
                 },
                 focusRequester = focusRequesters.getValue(CreateMedicineField.VIAL_STRENGTH),
-                imeAction = imeActionFor(editableFields, CreateMedicineField.VIAL_STRENGTH),
+                imeAction = imeActionForField(CreateMedicineField.VIAL_STRENGTH),
                 onImeNext = onImeNextFor(CreateMedicineField.VIAL_STRENGTH),
             )
             DoseAssistPresetRow(
@@ -483,7 +499,7 @@ private fun NewMedicinePreparationForm(
                     onMedicineDraftChange { it.copy(concentrationMgPerMl = value) }
                 },
                 focusRequester = focusRequesters.getValue(CreateMedicineField.CONCENTRATION_MG_PER_ML),
-                imeAction = imeActionFor(editableFields, CreateMedicineField.CONCENTRATION_MG_PER_ML),
+                imeAction = imeActionForField(CreateMedicineField.CONCENTRATION_MG_PER_ML),
                 onImeNext = onImeNextFor(CreateMedicineField.CONCENTRATION_MG_PER_ML),
             )
             DoseAssistPresetRow(
@@ -507,7 +523,7 @@ private fun NewMedicinePreparationForm(
                     onMedicineDraftChange { it.copy(vialVolumeMl = value) }
                 },
                 focusRequester = focusRequesters.getValue(CreateMedicineField.VIAL_VOLUME_ML),
-                imeAction = imeActionFor(editableFields, CreateMedicineField.VIAL_VOLUME_ML),
+                imeAction = imeActionForField(CreateMedicineField.VIAL_VOLUME_ML),
                 onImeNext = onImeNextFor(CreateMedicineField.VIAL_VOLUME_ML),
             )
             DoseAssistPresetRow(
@@ -533,7 +549,7 @@ private fun NewMedicinePreparationForm(
                     onMedicineDraftChange { it.copy(gelConcentrationPercent = value) }
                 },
                 focusRequester = focusRequesters.getValue(CreateMedicineField.GEL_PERCENT),
-                imeAction = imeActionFor(editableFields, CreateMedicineField.GEL_PERCENT),
+                imeAction = imeActionForField(CreateMedicineField.GEL_PERCENT),
                 onImeNext = onImeNextFor(CreateMedicineField.GEL_PERCENT),
             )
             DoseAssistPresetRow(
@@ -557,7 +573,7 @@ private fun NewMedicinePreparationForm(
                     onMedicineDraftChange { it.copy(sachetWeightGrams = value) }
                 },
                 focusRequester = focusRequesters.getValue(CreateMedicineField.SACHET_WEIGHT),
-                imeAction = imeActionFor(editableFields, CreateMedicineField.SACHET_WEIGHT),
+                imeAction = imeActionForField(CreateMedicineField.SACHET_WEIGHT),
                 onImeNext = onImeNextFor(CreateMedicineField.SACHET_WEIGHT),
             )
             DoseAssistPresetRow(
@@ -583,7 +599,7 @@ private fun NewMedicinePreparationForm(
                     onMedicineDraftChange { it.copy(gelConcentrationPercent = value) }
                 },
                 focusRequester = focusRequesters.getValue(CreateMedicineField.GEL_PERCENT),
-                imeAction = imeActionFor(editableFields, CreateMedicineField.GEL_PERCENT),
+                imeAction = imeActionForField(CreateMedicineField.GEL_PERCENT),
                 onImeNext = onImeNextFor(CreateMedicineField.GEL_PERCENT),
             )
             DoseAssistPresetRow(
@@ -607,7 +623,7 @@ private fun NewMedicinePreparationForm(
                     onMedicineDraftChange { it.copy(containerWeightGrams = value) }
                 },
                 focusRequester = focusRequesters.getValue(CreateMedicineField.CONTAINER_WEIGHT),
-                imeAction = imeActionFor(editableFields, CreateMedicineField.CONTAINER_WEIGHT),
+                imeAction = imeActionForField(CreateMedicineField.CONTAINER_WEIGHT),
                 onImeNext = onImeNextFor(CreateMedicineField.CONTAINER_WEIGHT),
             )
             DoseAssistPresetRow(
@@ -652,7 +668,7 @@ private fun NewMedicinePreparationForm(
                             onMedicineDraftChange { it.copy(patchTotalMg = value) }
                         },
                         focusRequester = focusRequesters.getValue(CreateMedicineField.PATCH_TOTAL_MG),
-                        imeAction = imeActionFor(editableFields, CreateMedicineField.PATCH_TOTAL_MG),
+                        imeAction = imeActionForField(CreateMedicineField.PATCH_TOTAL_MG),
                         onImeNext = onImeNextFor(CreateMedicineField.PATCH_TOTAL_MG),
                     )
                     DoseAssistPresetRow(
@@ -685,7 +701,7 @@ private fun NewMedicinePreparationForm(
                             onMedicineDraftChange { it.copy(patchReleaseRateMcgPerDay = value) }
                         },
                         focusRequester = focusRequesters.getValue(CreateMedicineField.PATCH_RELEASE_RATE),
-                        imeAction = imeActionFor(editableFields, CreateMedicineField.PATCH_RELEASE_RATE),
+                        imeAction = imeActionForField(CreateMedicineField.PATCH_RELEASE_RATE),
                         onImeNext = onImeNextFor(CreateMedicineField.PATCH_RELEASE_RATE),
                     )
                     DoseAssistPresetRow(

@@ -62,6 +62,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -643,6 +645,7 @@ internal fun DoseInstructionForm(
     activePreparationType: MedicinePreparationType = doseInstructionDraft.preparationType,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
     errorMessageRes: Int?,
+    textFieldFocusRequester: FocusRequester? = null,
 ) {
     if (activePreparationType == MedicinePreparationType.PILL) {
         val availableRoutes = MedicationCatalog.tabletRoutesFor(medicineDraft.category)
@@ -744,6 +747,7 @@ internal fun DoseInstructionForm(
             onValueChange = { value ->
                 onDoseInstructionDraftChange { it.copy(volumeMl = value) }
             },
+            focusRequester = textFieldFocusRequester,
         )
 
         MedicinePreparationType.GEL_CONTAINER -> {
@@ -761,6 +765,7 @@ internal fun DoseInstructionForm(
                 onValueChange = { value ->
                     onDoseInstructionDraftChange { it.copy(weightGrams = value) }
                 },
+                focusRequester = textFieldFocusRequester,
             )
             DoseAssistPresetRow(
                 presets = activeDoseAssistPresets(
@@ -1133,8 +1138,14 @@ private fun NumericField(
     showWarningIcon: Boolean = false,
     enabled: Boolean = true,
     readOnly: Boolean = false,
+    focusRequester: FocusRequester? = null,
 ) {
     val focusManager = LocalFocusManager.current
+    val fieldModifier = if (focusRequester != null) {
+        modifier.fillMaxWidth().focusRequester(focusRequester)
+    } else {
+        modifier.fillMaxWidth()
+    }
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -1171,7 +1182,7 @@ private fun NumericField(
                 )
             }
         },
-        modifier = modifier.fillMaxWidth(),
+        modifier = fieldModifier,
         singleLine = true,
         keyboardOptions = KeyboardOptions(
             keyboardType = keyboardType,
