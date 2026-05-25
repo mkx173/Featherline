@@ -319,7 +319,7 @@
         <item quantity="other">%1$d active groups are using this medicine.</item>
     </plurals>
     <string name="medicine_archive_failure">Unable to archive this medicine.</string>
-    <string name="medicine_patch_off_name">Patch off</string>
+    <string name="medicine_patch_off_name">Remove patch</string>
     <string name="medicine_patch_off_detail_summary">Logging this entry removes any currently applied estradiol patch.</string>
     <string name="medicine_save_failure">Unable to save this medicine.</string>
     <string name="medicine_already_exists">Medicine already exists.</string>
@@ -343,9 +343,9 @@
     <string name="validation_concentration_required">Enter a valid concentration.</string>
     <string name="validation_vial_volume_required">Enter a valid vial volume.</string>
     <string name="validation_gel_concentration_required">Enter a valid gel concentration.</string>
-    <string name="validation_sachet_weight_required">Enter a valid sachet weight.</string>
-    <string name="validation_container_weight_required">Enter a valid container weight.</string>
-    <string name="validation_patch_total_required">Enter a valid patch dosage.</string>
+    <string name="validation_sachet_weight_required">Enter a valid amount per sachet.</string>
+    <string name="validation_container_weight_required">Enter a valid total gel amount.</string>
+    <string name="validation_patch_total_required">Enter a valid total patch amount.</string>
     <string name="validation_dose_volume_required">Enter a valid volume.</string>
     <string name="validation_dose_weight_required">Enter a valid weight.</string>
     <string name="validation_dose_tablet_fraction_required">Enter a valid tablet amount.</string>
@@ -358,12 +358,12 @@
     <string name="field_concentration_mg_per_ml">Concentration</string>
     <string name="field_vial_volume_ml">Vial volume</string>
     <string name="field_gel_concentration_percent">Gel concentration</string>
-    <string name="field_sachet_weight_grams">Sachet weight</string>
-    <string name="field_container_weight_grams">Container weight</string>
+    <string name="field_sachet_weight_grams">Amount per sachet</string>
+    <string name="field_container_weight_grams">Total gel amount</string>
     <string name="field_patch_spec_kind">Patch specification</string>
     <string name="field_patch_spec_total_mg">Total dose</string>
     <string name="field_patch_spec_release_rate">Release rate</string>
-    <string name="field_patch_total_dosage_mg">Patch dosage</string>
+    <string name="field_patch_total_dosage_mg">Total amount in patch</string>
     <string name="field_patch_release_rate">Patch release rate</string>
     <string name="field_dose_volume_ml">Volume per dose</string>
     <string name="field_dose_weight_grams">Weight per dose</string>
@@ -375,8 +375,8 @@
     <string name="medicine_preparation_form_patch">Patch</string>
     <string name="preparation_type_pill">Tablet</string>
     <string name="preparation_type_capsule">Capsule</string>
-    <string name="preparation_type_injection_single_use_vial">Single-use vial</string>
-    <string name="preparation_type_injection_multi_use_vial">Multi-use vial</string>
+    <string name="preparation_type_injection_single_use_vial">Single-dose vial</string>
+    <string name="preparation_type_injection_multi_use_vial">Multi-dose vial</string>
     <string name="preparation_type_gel_sachet">Single-use sachet</string>
     <string name="preparation_type_gel_container">Multi-use container</string>
     <string name="preparation_type_patch">Patch</string>
@@ -389,9 +389,9 @@
     <string name="medication_preparation_summary_pill_with_unit">Tablet · %1$s %2$s</string>
     <string name="medication_preparation_summary_capsule">Capsule · %1$s mg</string>
     <string name="medication_preparation_summary_capsule_with_unit">Capsule · %1$s %2$s</string>
-    <string name="medication_preparation_summary_single_use_vial">Injection · Single-use vial · %1$s mg</string>
-    <string name="medication_preparation_summary_single_use_vial_with_unit">Injection · Single-use vial · %1$s %2$s</string>
-    <string name="medication_preparation_summary_multi_use_vial">Injection · Multi-use vial · %1$s mg/mL · %2$s mL</string>
+    <string name="medication_preparation_summary_single_use_vial">Injection · Single-dose vial · %1$s mg</string>
+    <string name="medication_preparation_summary_single_use_vial_with_unit">Injection · Single-dose vial · %1$s %2$s</string>
+    <string name="medication_preparation_summary_multi_use_vial">Injection · Multi-dose vial · %1$s mg/mL · %2$s mL</string>
     <string name="medication_preparation_summary_gel_sachet">Gel · Single-use sachet · %1$s%% · %2$s g</string>
     <string name="medication_preparation_summary_gel_container">Gel · Multi-use container · %1$s%% · %2$s g</string>
     <string name="medication_preparation_summary_patch_total">Patch · %1$s mg</string>
@@ -427,8 +427,8 @@
     <string name="medication_application_gel">Gel</string>
     <string name="field_gel_application_area">Application area</string>
     <string name="medication_gel_application_area_default">Default</string>
-    <string name="medication_application_patch_on">Patch on</string>
-    <string name="medication_application_patch_off">Patch off</string>
+    <string name="medication_application_patch_on">Apply patch</string>
+    <string name="medication_application_patch_off">Remove patch</string>
     <string name="medication_name_estradiol">Estradiol</string>
     <string name="medication_name_estradiol_valerate">Estradiol valerate</string>
     <string name="medication_name_estradiol_benzoate">Estradiol benzoate</string>
