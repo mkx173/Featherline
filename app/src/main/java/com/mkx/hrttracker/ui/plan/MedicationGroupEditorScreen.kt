@@ -1279,10 +1279,14 @@ private fun MedicationGroupEditorScreenContent(
                                     applicationType = medication.applicationType,
                                     medicationCount = medication.count,
                                     groupColorKey = uiState.groupColorKey,
-                                    onClick = {
-                                        if (medicationEditable) {
-                                            openMedicationEditor(medication.localId)
-                                        }
+                                    // Null onClick drops the ripple on
+                                    // medication cards while the group is
+                                    // archived / locked, since tapping does
+                                    // nothing in that state.
+                                    onClick = if (medicationEditable) {
+                                        { openMedicationEditor(medication.localId) }
+                                    } else {
+                                        null
                                     },
                                     onDeleteClick = if (medicationEditable) {
                                         {
