@@ -20,7 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -70,7 +69,7 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
-import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.DangerZoneListItem
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
@@ -234,6 +233,7 @@ private fun MedicineDetailScreenContent(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValues(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item(key = "medicine-header") {
                     MedicineHeaderCard(
@@ -244,74 +244,74 @@ private fun MedicineDetailScreenContent(
                             null
                         },
                     )
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                 }
 
                 if (isPatchOff) {
                     item(key = "patch-off-summary") {
                         PatchOffSummarySection()
-                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                     }
                 }
 
-                item(key = "linked-groups-header") {
-                    SectionHeader(text = stringResource(R.string.medicine_linked_groups))
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-                }
-
-                if (uiState.linkedActiveSlots.isEmpty()) {
-                    item(key = "linked-groups-empty") {
-                        SupportMessageListItem(
-                            text = stringResource(R.string.medicine_linked_groups_empty),
-                            painter = painterResource(R.drawable.ic_info),
-                        )
-                    }
-                } else {
-                    // Same medicine can appear in multiple slots of one group;
-                    // collapse to one card per group so the screen shows the
-                    // group context rather than repeated rows.
-                    val linkedGroups = uiState.linkedActiveSlots
-                        .distinctBy { it.group.uuid }
-                        .map { it.group }
-                    linkedGroups.forEachIndexed { index, group ->
-                        item(key = "linked-group-${group.uuid}") {
-                            RegimenGroupCard(
-                                group = group,
-                                remindersEnabled = false,
-                                hasNotificationAccess = false,
-                                appLocale = appLocale,
-                                dateFormatter = dateFormatter,
-                                timeFormatter = timeFormatter,
-                                upcomingOccurrences = emptyList(),
-                                today = today,
-                                onClick = { onGroupClick(group.uuid) },
-                                index = index,
-                                itemCount = linkedGroups.size,
-                                showNotificationIcon = false,
-                                showChevron = true,
-                                showUpcomingSection = false,
-                                firstDayOfWeek = uiState.firstDayOfWeek,
+                item(key = "linked-groups") {
+                    Column {
+                        SectionHeader(text = stringResource(R.string.medicine_linked_groups))
+                        if (uiState.linkedActiveSlots.isEmpty()) {
+                            SupportMessageListItem(
+                                text = stringResource(R.string.medicine_linked_groups_empty),
+                                painter = painterResource(R.drawable.ic_info),
                             )
-                            Spacer(
-                                modifier = Modifier.height(
+                        } else {
+                            // Same medicine can appear in multiple slots of one
+                            // group; collapse to one card per group so the
+                            // screen shows the group context rather than
+                            // repeated rows.
+                            val linkedGroups = uiState.linkedActiveSlots
+                                .distinctBy { it.group.uuid }
+                                .map { it.group }
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(
                                     dimensionResource(R.dimen.list_segment_gap),
                                 ),
-                            )
+                            ) {
+                                linkedGroups.forEachIndexed { index, group ->
+                                    RegimenGroupCard(
+                                        group = group,
+                                        remindersEnabled = false,
+                                        hasNotificationAccess = false,
+                                        appLocale = appLocale,
+                                        dateFormatter = dateFormatter,
+                                        timeFormatter = timeFormatter,
+                                        upcomingOccurrences = emptyList(),
+                                        today = today,
+                                        onClick = { onGroupClick(group.uuid) },
+                                        index = index,
+                                        itemCount = linkedGroups.size,
+                                        showNotificationIcon = false,
+                                        showChevron = true,
+                                        showUpcomingSection = false,
+                                        firstDayOfWeek = uiState.firstDayOfWeek,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
                 if (!isPatchOff) {
-                    item(key = "archive-action") {
-                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_large)))
-                        ArchiveAction(
-                            isArchived = medicine.isArchived,
-                            canArchive = uiState.linkedActiveSlots.isEmpty(),
-                            linkedActiveGroupCount = uiState.linkedActiveSlots
-                                .distinctBy { it.group.uuid }
-                                .size,
-                            onArchiveClick = { archiveConfirmOpen = true },
-                        )
+                    item(key = "danger-zone") {
+                        Column {
+                            SectionHeader(
+                                text = stringResource(R.string.group_danger_zone_title),
+                            )
+                            ArchiveAction(
+                                isArchived = medicine.isArchived,
+                                canArchive = uiState.linkedActiveSlots.isEmpty(),
+                                linkedActiveGroupCount = uiState.linkedActiveSlots
+                                    .distinctBy { it.group.uuid }
+                                    .size,
+                                onArchiveClick = { archiveConfirmOpen = true },
+                            )
+                        }
                     }
                 }
             }
@@ -408,7 +408,6 @@ private fun PatchOffSummarySection() {
     // display-name field, no preparation editor, no archive button.
     Column {
         SectionHeader(text = stringResource(R.string.medicine_preparation))
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         Text(
             text = stringResource(R.string.medicine_patch_off_detail_summary),
             style = MaterialTheme.typography.bodyMedium,
@@ -432,36 +431,37 @@ private fun ArchiveAction(
         )
         return
     }
-    if (!canArchive) {
-        Text(
-            text = stringResource(
-                R.string.medicine_archive_blocked_count,
-                linkedActiveGroupCount,
-            ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+    val supportText = if (!canArchive) {
+        stringResource(R.string.medicine_archive_blocked_count, linkedActiveGroupCount)
+    } else {
+        null
     }
-    HrtButton(
-        text = stringResource(R.string.medicine_archive_action),
-        onClick = onArchiveClick,
-        modifier = Modifier.fillMaxWidth(),
+    DangerZoneListItem(
+        label = stringResource(R.string.medicine_archive_action),
         enabled = canArchive,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        ),
+        onClick = onArchiveClick,
+        iconPainter = painterResource(R.drawable.ic_archive),
+        supportText = supportText,
     )
 }
 
+// Matches MedicationGroupEditorScreen.EditorSectionHeader so the medicine
+// detail page shares the same vertical rhythm as the group editor.
 @Composable
 private fun SectionHeader(text: String) {
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text.uppercase(),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(4.dp),
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
