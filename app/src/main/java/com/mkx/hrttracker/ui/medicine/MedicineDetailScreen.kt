@@ -304,7 +304,6 @@ private fun MedicineDetailScreenContent(
                                 text = stringResource(R.string.group_danger_zone_title),
                             )
                             ArchiveAction(
-                                isArchived = medicine.isArchived,
                                 canArchive = uiState.linkedActiveSlots.isEmpty(),
                                 linkedActiveGroupCount = uiState.linkedActiveSlots
                                     .distinctBy { it.group.uuid }
@@ -418,19 +417,15 @@ private fun PatchOffSummarySection() {
 
 @Composable
 private fun ArchiveAction(
-    isArchived: Boolean,
     canArchive: Boolean,
     linkedActiveGroupCount: Int,
     onArchiveClick: () -> Unit,
 ) {
-    if (isArchived) {
-        Text(
-            text = stringResource(R.string.medicine_already_archived),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        return
-    }
+    // No "already archived" branch on purpose: after a successful archive
+    // the medicine briefly emits isArchived=true before the screen pops, and
+    // swapping the button for a notice in that window causes a visible
+    // flash. The detail page is only opened for active medicines, so the
+    // post-archive transient is the only path that would have rendered it.
     val supportText = if (!canArchive) {
         stringResource(R.string.medicine_archive_blocked_count, linkedActiveGroupCount)
     } else {

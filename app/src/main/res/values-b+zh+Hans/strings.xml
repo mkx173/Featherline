@@ -302,7 +302,6 @@
     <string name="medicine_archive_blocked_by_groups">请先从活跃分组中移除此药物再归档</string>
     <string name="medicine_archive_blocked_count">%1$d 个活跃分组引用了此药物</string>
     <string name="medicine_archive_failure">无法归档此药物</string>
-    <string name="medicine_already_archived">已经归档过了</string>
     <string name="medicine_patch_off_name">贴片取下</string>
     <string name="medicine_patch_off_detail_summary">记录此条目会取下所有雌二醇贴片</string>
     <string name="medicine_save_success">已保存</string>
