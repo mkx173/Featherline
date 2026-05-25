@@ -47,10 +47,9 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
-import com.mkx.hrttracker.model.medication.form
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
-import com.mkx.hrttracker.ui.medication.medicinePreparationFormIconRes
+import com.mkx.hrttracker.ui.medication.medicinePreparationIconRes
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
@@ -208,7 +207,7 @@ internal fun MedicationCard(
                     } else if (leadingIconAsForm && medicine != null) {
                         Icon(
                             painter = painterResource(
-                                medicinePreparationFormIconRes(medicine.preparation.type.form()),
+                                medicinePreparationIconRes(medicine.preparation),
                             ),
                             contentDescription = leadingIconContentDescription ?: applicationTypeLabel,
                             modifier = Modifier.size(20.dp),

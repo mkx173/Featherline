@@ -12,7 +12,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationForm
+import com.mkx.hrttracker.model.medication.form
 
 @Composable
 internal fun rememberMedicationApplicationIcons(
@@ -86,7 +88,21 @@ internal fun medicinePreparationFormIconRes(form: MedicinePreparationForm): Int 
         MedicinePreparationForm.CAPSULE -> R.drawable.ic_pill
         MedicinePreparationForm.INJECTION -> R.drawable.ic_syringe
         MedicinePreparationForm.GEL -> R.drawable.ic_water_drops
-        MedicinePreparationForm.PATCH -> R.drawable.ic_sticker_add
+        // Preparation form is the medicine identity, not the "applying"
+        // action — the plus-decorated sticker is reserved for PATCH_ON.
+        MedicinePreparationForm.PATCH -> R.drawable.ic_sticker
+    }
+}
+
+// Preparation-keyed glyph used by the medicine card's leading icon. Mirrors
+// medicinePreparationFormIconRes for ordinary preparations and routes the
+// PATCH_OFF singleton to its own close-tab glyph so the medicine manager
+// distinguishes it from a real patch medicine.
+@DrawableRes
+internal fun medicinePreparationIconRes(preparation: MedicinePreparation): Int {
+    return when (preparation) {
+        is MedicinePreparation.PatchOff -> R.drawable.ic_tab_close_inactive
+        else -> medicinePreparationFormIconRes(preparation.type.form())
     }
 }
 
