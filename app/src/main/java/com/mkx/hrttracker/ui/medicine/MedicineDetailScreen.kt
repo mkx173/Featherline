@@ -502,19 +502,21 @@ private fun MedicineEditSheet(
             onSave(preparationToSave, draft.displayDoseUnit)
         },
     ) {
+        if (isLocked) {
+            SupportMessageListItem(
+                text = stringResource(R.string.medicine_locked_by_logs),
+                painter = painterResource(R.drawable.ic_lock),
+                leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                titleColor = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+        }
         if (medicine.selection is MedicineSelection.Catalog) {
             EditDisplayNameField(
                 catalogSelection = medicine.selection,
                 displayName = displayName,
                 onDisplayNameChange = onDisplayNameChange,
-            )
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-        }
-        if (isLocked) {
-            Text(
-                text = stringResource(R.string.medicine_locked_by_logs),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         }

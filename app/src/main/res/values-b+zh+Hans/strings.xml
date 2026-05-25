@@ -288,7 +288,7 @@
     <string name="create_medicine_title">新建药物</string>
     <string name="create_medicine_action">创建</string>
     <string name="medicine_detail_title">药物详情</string>
-    <string name="medicine_locked_by_logs">此药物已被历史记录引用，因此无法编辑。</string>
+    <string name="medicine_locked_by_logs">这个药物已有相关的记录，因此您无法更改部分内容</string>
     <string name="medicine_display_name">显示名称</string>
     <string name="medicine_display_name_hint">可选。此药物出现的位置都会使用该名称。</string>
     <string name="medicine_preparation">制剂</string>

@@ -297,7 +297,7 @@
     <string name="create_medicine_title">Create medicine</string>
     <string name="create_medicine_action">Create</string>
     <string name="medicine_detail_title">Medicine details</string>
-    <string name="medicine_locked_by_logs">This medicine is locked because logged entries reference it.</string>
+    <string name="medicine_locked_by_logs">This medicine already has related records, so some fields can’t be changed.</string>
     <string name="medicine_display_name">Display name</string>
     <string name="medicine_display_name_hint">Optional. Used wherever this medicine appears.</string>
     <string name="medicine_preparation">Preparation</string>
