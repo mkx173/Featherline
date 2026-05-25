@@ -140,6 +140,11 @@ class BackupRestoreService @Inject constructor(
         } finally {
             passwordChars.fill(' ')
         }
+        val snapshotVersion = BackupSnapshotJsonCodec.peekSnapshotVersion(json)
+            ?: throw IOException("Unable to decode the selected backup file.")
+        require(snapshotVersion in MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION) {
+            "Unsupported backup snapshot version: $snapshotVersion."
+        }
         val snapshot = BackupSnapshotJsonCodec.decode(json)
             ?: throw IOException("Unable to decode the selected backup file.")
         val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = context.packageName)
