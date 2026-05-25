@@ -1,19 +1,20 @@
 package com.mkx.hrttracker.ui.main
 
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSelection
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkDoseMarker
 import com.mkx.hrttracker.model.pk.PkTrendResult
@@ -32,14 +33,26 @@ import java.util.UUID
 class MainUiModelsTest {
     private val testZoneId: ZoneId = ZoneId.systemDefault()
 
+    // Shared estradiol medicine with a fixed UUID. Slot fulfillment matches a
+    // logged entry to a planned slot by MedicationSignature (which keys on
+    // medicineUuid), so the default group medication and the entries used to
+    // fulfil it must reference the same medicine instance.
+    private val defaultEstradiolMedicine = testMedicine(
+        uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000001"),
+        key = MedicationKey.ESTRADIOL,
+    )
+
     @Test
     fun buildMainE2Hero_uses_pk_trend_and_latest_actual_estradiol_dose() {
         val latestEstradiolDoseTime = LocalDateTime.of(2026, 4, 18, 20, 5)
-        val latestEstradiolDoseDetails = testCatalogMedicationDetails(
+        val latestEstradiolMedicine = testMedicine(
             key = MedicationKey.ESTRADIOL_VALERATE,
-            applicationType = MedicationApplicationType.INJECTION,
-            dose = MedicationDose.MgAsMedicine(5.0)
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 10.0,
+                vialVolumeMl = 5.0,
+            ),
         )
+        val latestEstradiolDoseInstruction = DoseInstruction.VolumeMl(0.5)
         val trendResult = PkTrendResult(
             currentConcentration = 160.4,
             previousDayConcentration = 151.1,
@@ -51,19 +64,18 @@ class MainUiModelsTest {
             entries = listOf(
                 testMedicationLogEntry(
                     uuid = UUID.randomUUID(),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.SPIRONOLACTONE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(100.0)
-                    ),
-                    dosageMgAsEstradiol = null,
+                    medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
+                    applicationType = MedicationApplicationType.ORAL,
+                    equivalentE2Mg = null,
                     sourceGroupUuid = null,
                     appliedAt = testInstant(LocalDateTime.of(2026, 4, 18, 8, 0))
                 ),
                 testMedicationLogEntry(
                     uuid = UUID.randomUUID(),
-                    details = latestEstradiolDoseDetails,
-                    dosageMgAsEstradiol = 3.82,
+                    medicine = latestEstradiolMedicine,
+                    applicationType = MedicationApplicationType.INJECTION,
+                    doseInstruction = latestEstradiolDoseInstruction,
+                    equivalentE2Mg = 3.82,
                     sourceGroupUuid = UUID.randomUUID(),
                     appliedAt = testInstant(latestEstradiolDoseTime)
                 )
@@ -78,7 +90,9 @@ class MainUiModelsTest {
         assertEquals(200.0, hero.targetMax, 1e-9)
         assertEquals("pg/mL", hero.unit)
         assertEquals(latestEstradiolDoseTime, hero.lastDoseAt)
-        assertEquals(latestEstradiolDoseDetails, hero.lastDoseDetails)
+        assertEquals(latestEstradiolMedicine, hero.lastDose?.medicine)
+        assertEquals(MedicationApplicationType.INJECTION, hero.lastDose?.applicationType)
+        assertEquals(latestEstradiolDoseInstruction, hero.lastDose?.doseInstruction)
     }
 
     @Test
@@ -301,6 +315,16 @@ class MainUiModelsTest {
 
     @Test
     fun buildMainAntiandrogenCards_returns_one_card_per_antiandrogen_with_real_last_and_next_values() {
+        // Shared medicine instances: the antiandrogen card matches a logged
+        // entry to its planned medication by medicineUuid.
+        val spiroMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000010"),
+            key = MedicationKey.SPIRONOLACTONE,
+        )
+        val cyproMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000011"),
+            key = MedicationKey.CYPROTERONE_ACETATE,
+        )
         val antiandrogenGroup = MedicationGroup(
             uuid = UUID.fromString("efea64bc-0f6d-4813-a39d-428bdce6fd6a"),
             name = "Daily antiandrogen",
@@ -315,19 +339,13 @@ class MainUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("96f31e44-2059-4f89-a3f4-5477cbbce4b3"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.SPIRONOLACTONE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(100.0)
-                    )
+                    medicine = spiroMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
                 ),
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("e1a7c6d6-6ef2-4c8b-9a56-3a4f4f1298ce"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.CYPROTERONE_ACETATE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(12.5)
-                    )
+                    medicine = cyproMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
@@ -336,31 +354,29 @@ class MainUiModelsTest {
         val now = LocalDateTime.of(2026, 4, 18, 11, 0)
         val spiroLastDoseTime = LocalDateTime.of(2026, 4, 18, 8, 4)
         val cyproLastDoseTime = LocalDateTime.of(2026, 4, 17, 20, 2)
-        val spiroActualDose = testCatalogMedicationDetails(
-            key = MedicationKey.SPIRONOLACTONE,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(50.0)
-        )
+        // The logged spiro dose differs from the planned one (half a tablet).
+        val spiroActualDoseInstruction = DoseInstruction.TabletFraction(1, 2)
+        val cyproDoseInstruction = DoseInstruction.TabletFraction(1, 4)
 
         val cards = buildMainAntiandrogenCards(
             groups = listOf(antiandrogenGroup),
             entries = listOf(
                 testMedicationLogEntry(
                     uuid = UUID.randomUUID(),
-                    details = spiroActualDose,
-                    dosageMgAsEstradiol = null,
+                    medicine = spiroMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = spiroActualDoseInstruction,
+                    equivalentE2Mg = null,
                     sourceGroupUuid = antiandrogenGroup.uuid,
                     appliedAt = testInstant(spiroLastDoseTime),
                     scheduledFor = LocalDateTime.of(2026, 4, 18, 8, 0)
                 ),
                 testMedicationLogEntry(
                     uuid = UUID.randomUUID(),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.CYPROTERONE_ACETATE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(12.5)
-                    ),
-                    dosageMgAsEstradiol = null,
+                    medicine = cyproMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = cyproDoseInstruction,
+                    equivalentE2Mg = null,
                     sourceGroupUuid = antiandrogenGroup.uuid,
                     appliedAt = testInstant(cyproLastDoseTime),
                     scheduledFor = LocalDateTime.of(2026, 4, 17, 20, 0)
@@ -372,16 +388,16 @@ class MainUiModelsTest {
 
         assertEquals(2, cards.size)
         assertEquals(
-            listOf(MedicationSelection.Catalog(MedicationKey.SPIRONOLACTONE), MedicationSelection.Catalog(MedicationKey.CYPROTERONE_ACETATE)),
-            cards.map { it.medication.selection }
+            listOf(
+                MedicineSelection.Catalog(MedicationKey.SPIRONOLACTONE),
+                MedicineSelection.Catalog(MedicationKey.CYPROTERONE_ACETATE),
+            ),
+            cards.map { it.medication.medicine?.selection }
         )
         assertEquals(listOf(spiroLastDoseTime, cyproLastDoseTime), cards.map { it.lastDoseAt })
         assertEquals(
-            listOf(
-                MedicationDose.MgAsMedicine(50.0),
-                MedicationDose.MgAsMedicine(12.5)
-            ),
-            cards.map { it.lastDoseDetails?.dose }
+            listOf(spiroActualDoseInstruction, cyproDoseInstruction),
+            cards.map { it.lastDose?.doseInstruction }
         )
         assertEquals(
             listOf(
@@ -509,11 +525,7 @@ class MainUiModelsTest {
 
     @Test
     fun buildMainAntiandrogenCards_collapses_duplicate_matching_rows_into_one_counted_card() {
-        val sharedDetails = testCatalogMedicationDetails(
-            key = MedicationKey.SPIRONOLACTONE,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(50.0)
-        )
+        val sharedMedicine = testMedicine(key = MedicationKey.SPIRONOLACTONE)
         val antiandrogenGroup = MedicationGroup(
             uuid = UUID.fromString("0f32c3be-a63a-4a2f-aebd-f9c9bc2df942"),
             name = "Night blocker",
@@ -528,11 +540,13 @@ class MainUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("725d4c60-1684-4c8f-b786-4d7df50a6400"),
-                    details = sharedDetails
+                    medicine = sharedMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
                 ),
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("74c29e3e-724d-4f3c-996f-6f4195ae7904"),
-                    details = sharedDetails
+                    medicine = sharedMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
@@ -565,11 +579,8 @@ class MainUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("bc722321-7c11-4318-a7d5-cbd712ad1621"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.SPIRONOLACTONE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(100.0)
-                    )
+                    medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
+                    applicationType = MedicationApplicationType.ORAL,
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z")
@@ -587,11 +598,8 @@ class MainUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("c6d2a3e6-5f5f-4cb7-9e5b-3e6634745f1b"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.CYPROTERONE_ACETATE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(12.5)
-                    )
+                    medicine = testMedicine(key = MedicationKey.CYPROTERONE_ACETATE),
+                    applicationType = MedicationApplicationType.ORAL,
                 )
             ),
             createdAt = Instant.parse("2026-04-10T00:00:00Z")
@@ -734,8 +742,10 @@ class MainUiModelsTest {
         )
         val entry = testMedicationLogEntry(
             uuid = entryUuid,
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = group.medications.single().medicine,
+            applicationType = group.medications.single().applicationType,
+            doseInstruction = group.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(scheduledFor.plusMinutes(5)),
             scheduledFor = scheduledFor,
@@ -777,19 +787,13 @@ class MainUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = olderFirstMedicationUuid,
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.SPIRONOLACTONE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(100.0)
-                    )
+                    medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
+                    applicationType = MedicationApplicationType.ORAL,
                 ),
                 testMedicationGroupMedication(
                     uuid = olderSecondMedicationUuid,
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z")
@@ -801,11 +805,8 @@ class MainUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = newerMedicationUuid,
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.CYPROTERONE_ACETATE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(12.5)
-                    )
+                    medicine = testMedicine(key = MedicationKey.CYPROTERONE_ACETATE),
+                    applicationType = MedicationApplicationType.ORAL,
                 )
             ),
             createdAt = Instant.parse("2026-04-02T00:00:00Z")
@@ -895,8 +896,10 @@ class MainUiModelsTest {
         )
         val crossZoneEntry = testMedicationLogEntry(
             uuid = UUID.fromString("b2a83c9e-6d1f-4f6b-b9b3-5db5ee3b35b1"),
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = group.medications.single().medicine,
+            applicationType = group.medications.single().applicationType,
+            doseInstruction = group.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = scheduledFor.atZone(tokyo).toInstant(),
             appliedAtTimeZoneId = "Asia/Tokyo",
@@ -1219,19 +1222,13 @@ class MainUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = olderFirstMedicationUuid,
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.SPIRONOLACTONE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(100.0)
-                    )
+                    medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
+                    applicationType = MedicationApplicationType.ORAL,
                 ),
                 testMedicationGroupMedication(
                     uuid = olderSecondMedicationUuid,
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z")
@@ -1243,11 +1240,8 @@ class MainUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = newerMedicationUuid,
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.CYPROTERONE_ACETATE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(12.5)
-                    )
+                    medicine = testMedicine(key = MedicationKey.CYPROTERONE_ACETATE),
+                    applicationType = MedicationApplicationType.ORAL,
                 )
             ),
             createdAt = Instant.parse("2026-04-02T00:00:00Z")
@@ -1313,11 +1307,8 @@ class MainUiModelsTest {
         medications: List<com.mkx.hrttracker.model.medication.MedicationGroupMedication> = listOf(
             testMedicationGroupMedication(
                 uuid = UUID.randomUUID(),
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(2.0)
-                )
+                medicine = defaultEstradiolMedicine,
+                applicationType = MedicationApplicationType.ORAL,
             )
         ),
         createdAt: Instant = Instant.parse("2026-04-01T00:00:00Z")
@@ -1350,11 +1341,8 @@ class MainUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.randomUUID(),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.SPIRONOLACTONE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(100.0)
-                    )
+                    medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
+                    applicationType = MedicationApplicationType.ORAL,
                 )
             )
         )
@@ -1367,8 +1355,10 @@ class MainUiModelsTest {
     ): MedicationLogEntry {
         return testMedicationLogEntry(
             uuid = UUID.randomUUID(),
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = null,
+            medicine = group.medications.single().medicine,
+            applicationType = group.medications.single().applicationType,
+            doseInstruction = group.medications.single().doseInstruction,
+            equivalentE2Mg = null,
             sourceGroupUuid = group.uuid,
             appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor
@@ -1382,12 +1372,9 @@ class MainUiModelsTest {
     ): MedicationLogEntry {
         return testMedicationLogEntry(
             uuid = UUID.randomUUID(),
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
-            dosageMgAsEstradiol = 2.0,
+            medicine = defaultEstradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor
@@ -1401,12 +1388,9 @@ class MainUiModelsTest {
     ): MedicationLogEntry {
         return testMedicationLogEntry(
             uuid = uuid,
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
-            dosageMgAsEstradiol = 2.0,
+            medicine = defaultEstradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = null,
             appliedAt = testInstant(appliedAt),
             count = count

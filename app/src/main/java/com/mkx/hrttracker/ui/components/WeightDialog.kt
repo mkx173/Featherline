@@ -54,6 +54,9 @@ fun WeightDialog(
         }
     }
 
+    // Controls stay visually enabled while the weight save is in flight; the
+    // submit/onClear/onDismiss callbacks no-op so a second tap can't double-
+    // fire while we wait for the profile write to settle.
     AlertDialog(
         modifier = modifier,
         onDismissRequest = { if (!isInProgress) onDismiss() },
@@ -71,13 +74,13 @@ fun WeightDialog(
                     modifier = Modifier.fillMaxWidth(),
                     value = valueText,
                     onValueChange = {
+                        if (isInProgress) return@OutlinedTextField
                         valueText = it
                         showValidationError = false
                     },
                     label = {
                         Text(text = stringResource(R.string.personalization_weight_dialog_value_label))
                     },
-                    enabled = !isInProgress,
                     suffix = {
                         Text(text = stringResource(selectedUnit.shortLabelRes))
                     },
@@ -104,8 +107,7 @@ fun WeightDialog(
                         options = WeightUnit.entries,
                         selectedOption = selectedUnit,
                         optionLabel = { unit -> stringResource(unit.shortLabelRes) },
-                        onOptionSelected = { selectedUnit = it },
-                        enabled = !isInProgress,
+                        onOptionSelected = { if (!isInProgress) selectedUnit = it },
                         layout = ConnectedButtonGroupLayout.ROW,
                         colors = ToggleButtonDefaults.toggleButtonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -122,24 +124,15 @@ fun WeightDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 if (profile.weightOriginalValue != null) {
-                    TextButton(
-                        enabled = !isInProgress,
-                        onClick = onClear
-                    ) {
+                    TextButton(onClick = { if (!isInProgress) onClear() }) {
                         Text(text = stringResource(R.string.personalization_weight_dialog_clear))
                     }
                 }
                 Spacer(modifier = Modifier.weight(1f))
-                TextButton(
-                    enabled = !isInProgress,
-                    onClick = onDismiss,
-                ) {
+                TextButton(onClick = { if (!isInProgress) onDismiss() }) {
                     Text(text = stringResource(R.string.cancel))
                 }
-                TextButton(
-                    enabled = !isInProgress,
-                    onClick = { submit() },
-                ) {
+                TextButton(onClick = { submit() }) {
                     Text(text = stringResource(R.string.personalization_weight_dialog_save))
                 }
             }

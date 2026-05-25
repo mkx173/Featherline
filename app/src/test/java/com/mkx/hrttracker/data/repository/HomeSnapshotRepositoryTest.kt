@@ -7,13 +7,15 @@ import com.mkx.hrttracker.data.local.MedicationGroupEntity
 import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
+import com.mkx.hrttracker.data.local.MedicineDao
+import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.data.local.UserProfileDao
+import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -36,7 +38,6 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -47,7 +48,6 @@ import org.junit.Test
 import java.io.IOException
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
 
@@ -169,6 +169,60 @@ class HomeSnapshotRepositoryTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun runHomeDataMutation_rebuildContainsUpdatedDisplayNameForEveryGroupSlot() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val database: HrtTrackerDatabase = mockk()
+        val homeDao: HomeDao = mockk()
+        val medicineDao: MedicineDao = mockk()
+        val userProfileDao: UserProfileDao = mockk()
+        val writtenSnapshot = slot<HomeSnapshotRecord>()
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001")
+        var displayName: String? = null
+
+        coEvery { homeSnapshotStore.readSnapshot() } returns null
+        coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
+        coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
+        every { databaseHolder.get() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        every { database.userProfileDao() } returns userProfileDao
+        coEvery { homeDao.getActiveGroups() } returns listOf(
+            groupWithTwoSlotsReferencing(medicineUuid)
+        )
+        coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
+        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { userProfileDao.getProfile() } returns null
+        coEvery { medicineDao.getByUuids(listOf(medicineUuid.toString())) } coAnswers {
+            listOf(medicineEntity(uuid = medicineUuid, displayName = displayName))
+        }
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+        )
+
+        repository.runHomeDataMutation {
+            displayName = "Renamed"
+        }
+
+        assertTrue(writtenSnapshot.isCaptured)
+        assertEquals(
+            listOf("Renamed", "Renamed"),
+            writtenSnapshot.captured.activeGroups
+                .single()
+                .medications
+                .map { medication -> medication.medicine?.displayName },
+        )
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun runHomeDataMutation_runsCleanupAndRefreshEvenWhenBlockThrows() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val events = mutableListOf<String>()
@@ -200,7 +254,7 @@ class HomeSnapshotRepositoryTest {
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher + SupervisorJob()),
-            defaultDispatcher = dispatcher,
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
         )
 
         var caught: Throwable? = null
@@ -251,21 +305,17 @@ class HomeSnapshotRepositoryTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun runHomeDataMutation_delaysRefreshUntilAfterMutationCommit() = runTest {
-        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+    fun runHomeDataMutation_awaitsRefreshAfterMutationCommit() = runTest {
         val appDispatcher = StandardTestDispatcher()
         val database: HrtTrackerDatabase = mockk()
         val homeDao: HomeDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
-        val writeStarted = CompletableDeferred<Unit>()
         val mutationCommitted = CompletableDeferred<Unit>()
-        lateinit var refreshJob: kotlinx.coroutines.Job
 
         coEvery { homeSnapshotStore.readSnapshot() } returns null
         coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
         coEvery { homeSnapshotStore.writeSnapshot(any()) } coAnswers {
             assertTrue(mutationCommitted.isCompleted)
-            writeStarted.complete(Unit)
             Unit
         }
         every { databaseHolder.get() } returns database
@@ -287,13 +337,8 @@ class HomeSnapshotRepositoryTest {
         )
 
         repository.runHomeDataMutation {
-            refreshJob = launch {
-                repository.refreshHomeSnapshotIfNeeded(now = now, force = true)
-            }
-            assertNull(withTimeoutOrNull(250) { writeStarted.await() })
             mutationCommitted.complete(Unit)
         }
-        refreshJob.join()
 
         coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(any()) }
     }
@@ -627,6 +672,80 @@ class HomeSnapshotRepositoryTest {
             activeGroups = emptyList(),
             scheduleEntries = emptyList(),
             antiandrogenHistoryEntries = emptyList(),
+        )
+    }
+
+    private fun groupWithTwoSlotsReferencing(medicineUuid: UUID): MedicationGroupWithItemsEntity {
+        val groupUuid = UUID.fromString("44bff3cb-b4dd-4be4-9eda-442cf91185c1").toString()
+        return MedicationGroupWithItemsEntity(
+            group = MedicationGroupEntity(
+                uuid = groupUuid,
+                name = "Home estradiol",
+                colorKey = MedicationGroupColorKey.PLUM.name,
+                scheduleType = MedicationGroupScheduleType.DAILY.name,
+                scheduleInterval = 1,
+                scheduleSinceEpochDay = LocalDate.of(2026, 5, 1).toEpochDay(),
+                createdAtEpochMillis = 0L,
+                updatedAtEpochMillis = 0L,
+            ),
+            items = listOf(
+                UUID.fromString("79dfe41c-b684-4e48-858d-d47d369b5b30"),
+                UUID.fromString("79dfe41c-b684-4e48-858d-d47d369b5b31"),
+            ).mapIndexed { slotIndex, slotUuid ->
+                MedicationGroupItemEntity(
+                    uuid = slotUuid.toString(),
+                    groupUuid = groupUuid,
+                    sortOrder = slotIndex,
+                    count = 1,
+                    medicineUuid = medicineUuid.toString(),
+                    applicationType = MedicationApplicationType.ORAL.name,
+                    doseInstructionKind = DoseInstructionKind.TABLET_FRACTION.name,
+                    tabletFractionNumerator = 1,
+                    tabletFractionDenominator = 1,
+                    doseVolumeMl = null,
+                    doseWeightGrams = null,
+                )
+            },
+            scheduleTimes = listOf(
+                MedicationGroupScheduleTimeEntity(
+                    uuid = UUID.fromString("52d9acc8-11be-43ff-b6cb-035571ec0371").toString(),
+                    groupUuid = groupUuid,
+                    sortOrder = 0,
+                    hourOfDay = 8,
+                    minuteOfHour = 0,
+                    effectiveFromLocalIso = LocalDate.of(2026, 5, 1).atStartOfDay().toString(),
+                )
+            ),
+            weeklyDays = emptyList(),
+        )
+    }
+
+    private fun medicineEntity(
+        uuid: UUID,
+        displayName: String?,
+    ): MedicineEntity {
+        return MedicineEntity(
+            uuid = uuid.toString(),
+            selectionKind = "CATALOG",
+            medicationKey = MedicationKey.ESTRADIOL.name,
+            customMedicationName = null,
+            customMedicationNameNormalized = null,
+            category = MedicationCategory.ESTRADIOL.name,
+            preparationType = "PILL",
+            strengthMgPerTablet = 2.0,
+            strengthMgPerVial = null,
+            concentrationMgPerMl = null,
+            vialVolumeMl = null,
+            concentrationPercent = null,
+            sachetWeightGrams = null,
+            containerWeightGrams = null,
+            patchTotalMg = null,
+            patchReleaseRateMcgPerDay = null,
+            displayName = displayName,
+            identityKey = "C|ESTRADIOL|PILL|strengthMgPerTablet=2",
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 500L,
+            archivedAtEpochMillis = null,
         )
     }
 }

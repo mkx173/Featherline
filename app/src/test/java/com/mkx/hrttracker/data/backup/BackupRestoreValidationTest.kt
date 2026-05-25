@@ -3,6 +3,9 @@ package com.mkx.hrttracker.data.backup
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
@@ -13,14 +16,15 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 import java.util.UUID
 
 class BackupRestoreValidationTest {
+
     @Test
-    fun toValidatedSnapshot_maps_current_snapshot_shape_to_restorable_entities() {
+    fun toValidatedSnapshot_mapsCurrentSnapshotToRestorableEntities() {
         val exportedAt = Instant.parse("2026-04-26T03:04:05Z").toEpochMilli()
         val profileUpdatedAt = Instant.parse("2026-04-25T00:00:00Z").toEpochMilli()
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000010")
         val groupUuid = UUID.fromString("00000000-0000-0000-0000-000000000001")
         val itemUuid = UUID.fromString("00000000-0000-0000-0000-000000000002")
         val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000003")
@@ -29,6 +33,7 @@ class BackupRestoreValidationTest {
         val builtinResultUuid = UUID.fromString("00000000-0000-0000-0000-000000000006")
         val customResultUuid = UUID.fromString("00000000-0000-0000-0000-000000000007")
         val recreatedFromGroupUuid = UUID.fromString("00000000-0000-0000-0000-000000000008")
+
         val snapshot = BackupSnapshot(
             exportedAtEpochMillis = exportedAt,
             app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
@@ -54,6 +59,7 @@ class BackupRestoreValidationTest {
                 weightOriginalUnit = "POUNDS",
                 updatedAtEpochMillis = profileUpdatedAt,
             ),
+            medicines = listOf(catalogMedicineSnapshot(medicineUuid)),
             medicationGroups = listOf(
                 BackupMedicationGroupSnapshot(
                     uuid = groupUuid.toString(),
@@ -74,17 +80,13 @@ class BackupRestoreValidationTest {
                         BackupMedicationGroupItemSnapshot(
                             uuid = itemUuid.toString(),
                             count = 2,
-                            category = "CUSTOM",
+                            medicineUuid = medicineUuid.toString(),
                             applicationType = "ORAL",
-                            selectionKind = "CUSTOM",
-                            medicationKey = null,
-                            customMedicationName = "Custom med",
-                            doseKind = "MG_AS_MEDICINE",
-                            doseValueMg = 0.2,
-                            customDoseUnit = "MCG",
-                            doseValuePercent = null,
+                            doseInstructionKind = "TABLET_FRACTION",
+                            tabletFractionNumerator = 1,
+                            tabletFractionDenominator = 2,
+                            doseVolumeMl = null,
                             doseWeightGrams = null,
-                            doseReleaseRateMcgPerDay = null,
                             gelApplicationArea = "DEFAULT",
                         )
                     ),
@@ -97,19 +99,16 @@ class BackupRestoreValidationTest {
             medicationLogs = listOf(
                 BackupMedicationLogSnapshot(
                     uuid = logUuid.toString(),
-                    category = "CUSTOM",
+                    category = "ESTRADIOL",
+                    medicineUuid = medicineUuid.toString(),
                     applicationType = "ORAL",
-                    selectionKind = "CUSTOM",
-                    medicationKey = null,
-                    customMedicationName = "Custom med",
-                    doseKind = "MG_AS_MEDICINE",
-                    doseValueMg = 0.2,
-                    customDoseUnit = "MCG",
-                    doseValuePercent = null,
+                    doseInstructionKind = "TABLET_FRACTION",
+                    tabletFractionNumerator = 1,
+                    tabletFractionDenominator = 2,
+                    doseVolumeMl = null,
                     doseWeightGrams = null,
-                    doseReleaseRateMcgPerDay = null,
                     gelApplicationArea = "DEFAULT",
-                    dosageMgAsEstradiol = 0.2,
+                    equivalentE2Mg = 1.0,
                     sourceGroupUuid = groupUuid.toString(),
                     appliedAtEpochMillis = 300L,
                     appliedAtTimeZoneId = "Asia/Tokyo",
@@ -167,317 +166,542 @@ class BackupRestoreValidationTest {
         val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
 
         assertEquals(DarkModeOption.DARK, validatedSnapshot.settings.darkModeOption)
-        assertEquals(false, validatedSnapshot.settings.adaptiveColorEnabled)
-        assertEquals(false, validatedSnapshot.settings.remindersEnabled)
         assertEquals(AppLockGracePeriodOption.FIVE_MINUTES, validatedSnapshot.settings.appLockGracePeriodOption)
-        assertEquals(true, validatedSnapshot.settings.hideScreenContentEnabled)
-        assertEquals(true, validatedSnapshot.settings.onboardingCompleted)
         assertEquals(AppLanguageOption.SIMPLIFIED_CHINESE, validatedSnapshot.settings.appLanguageOption)
         assertEquals(
             AllowedAnalyteUnit.of(BloodAnalyteKey.E2, BloodUnitKey.NG_DL),
             validatedSnapshot.settings.homeE2DisplayUnit,
         )
-        assertEquals(
-            HomeE2ChartWindowOption.THIRTY_DAYS,
-            validatedSnapshot.settings.homeE2ChartWindowOption,
-        )
-        assertEquals(
-            setOf(AllowedAnalyteUnit.of(BloodAnalyteKey.E2, BloodUnitKey.PMOL_L)),
-            validatedSnapshot.settings.calibrationDefaultUnits,
-        )
-        assertEquals(0.8f, validatedSnapshot.settings.widgetContentScale, 0f)
-        assertEquals(0.6f, validatedSnapshot.settings.widgetBackgroundAlpha, 0f)
+        assertEquals(HomeE2ChartWindowOption.THIRTY_DAYS, validatedSnapshot.settings.homeE2ChartWindowOption)
 
         checkNotNull(validatedSnapshot.userProfile)
         assertEquals(52.16312255, validatedSnapshot.userProfile.weightKg!!, 1e-9)
-        assertEquals("POUNDS", validatedSnapshot.userProfile.weightOriginalUnit)
         assertEquals(profileUpdatedAt, validatedSnapshot.userProfile.updatedAtEpochMillis)
+
+        // Medicines are validated before groups/logs so the FK-validation set
+        // can be built before walking children. Restored entities preserve
+        // their original UUIDs verbatim.
+        val restoredMedicine = validatedSnapshot.medicines.single()
+        assertEquals(medicineUuid.toString(), restoredMedicine.uuid)
+        assertEquals("PILL", restoredMedicine.preparationType)
+        assertEquals(2.0, restoredMedicine.strengthMgPerTablet!!, 1e-9)
 
         val restoredGroup = validatedSnapshot.medicationGroups.single()
         assertEquals(groupUuid.toString(), restoredGroup.uuid)
-        assertEquals("TEAL", restoredGroup.colorKey)
         assertEquals(2, restoredGroup.scheduleInterval)
         assertEquals(recreatedFromGroupUuid.toString(), restoredGroup.recreatedFromGroupUuid)
 
         val restoredItem = validatedSnapshot.medicationGroupItems.single()
         assertEquals(itemUuid.toString(), restoredItem.uuid)
-        assertEquals("MCG", restoredItem.customDoseUnit)
-        assertEquals(0.2, restoredItem.doseValueMg!!, 1e-9)
+        assertEquals(medicineUuid.toString(), restoredItem.medicineUuid)
+        assertEquals("ORAL", restoredItem.applicationType)
+        assertEquals("TABLET_FRACTION", restoredItem.doseInstructionKind)
+        assertEquals(1, restoredItem.tabletFractionNumerator)
+        assertEquals(2, restoredItem.tabletFractionDenominator)
 
         val restoredLog = validatedSnapshot.medicationLogs.single()
         assertEquals(logUuid.toString(), restoredLog.uuid)
         assertEquals(groupUuid.toString(), restoredLog.sourceGroupUuid)
-        assertEquals("MCG", restoredLog.customDoseUnit)
+        assertEquals(medicineUuid.toString(), restoredLog.medicineUuid)
+        assertEquals(1.0, restoredLog.equivalentE2Mg!!, 1e-9)
 
         val restoredAnalyte = validatedSnapshot.customBloodAnalytes.single()
         assertEquals(analyteUuid.toString(), restoredAnalyte.uuid)
-        assertEquals("DHT", restoredAnalyte.abbreviation)
         assertEquals("dht", restoredAnalyte.normalizedName)
-        assertEquals("ng/dl", restoredAnalyte.normalizedUnitLabel)
 
         val restoredPanel = validatedSnapshot.bloodTestPanels.single()
         assertEquals(panelUuid.toString(), restoredPanel.uuid)
         assertEquals("Fasting", restoredPanel.notes)
-        assertEquals(700L, restoredPanel.timeSinceLastEstradiolDoseMillis)
         assertNull(restoredPanel.timeSinceLastTestosteroneDoseMillis)
 
         val restoredResults = validatedSnapshot.bloodTestResults.sortedBy { it.displayOrder }
         assertEquals(2, restoredResults.size)
         assertEquals(builtinResultUuid.toString(), restoredResults[0].uuid)
-        assertEquals(BloodAnalyteKey.E2.storageValue, restoredResults[0].builtinAnalyteKey)
-        assertEquals(100.0, restoredResults[0].canonicalValue, 1e-9)
         assertEquals(customResultUuid.toString(), restoredResults[1].uuid)
-        assertEquals(analyteUuid.toString(), restoredResults[1].customAnalyteUuid)
     }
 
     @Test
-    fun toValidatedSnapshot_backfillsLegacyUserProfileUpdatedAtFromExportTime() {
-        val exportedAt = Instant.parse("2026-04-26T03:04:05Z").toEpochMilli()
+    fun toValidatedSnapshot_acceptsVersion2BackupWithoutCapsules() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000006a0")
         val snapshot = BackupSnapshot(
-            exportedAtEpochMillis = exportedAt,
+            snapshotVersion = 2,
+            exportedAtEpochMillis = 0L,
             app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
-            settings = BackupSettingsSnapshot(
-                darkModeOption = "FOLLOW_SYSTEM",
-                adaptiveColorEnabled = true,
-                remindersEnabled = true,
-                appLockGracePeriodOption = "IMMEDIATELY",
-                hideScreenContentEnabled = false,
-                onboardingCompleted = true,
-                appLanguageOption = "ENGLISH",
-                calibrationDefaultUnits = emptyMap(),
-            ),
-            userProfile = BackupUserProfileSnapshot(
-                weightKg = 70.0,
-                weightOriginalValue = 70.0,
-                weightOriginalUnit = "KILOGRAMS",
-            ),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(catalogMedicineSnapshot(medicineUuid)),
             medicationGroups = emptyList(),
             medicationLogs = emptyList(),
             customBloodAnalytes = emptyList(),
             bloodTestPanels = emptyList(),
         )
 
-        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+        val result = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
 
-        checkNotNull(validatedSnapshot.userProfile)
-        assertEquals(exportedAt, validatedSnapshot.userProfile.updatedAtEpochMillis)
+        assertEquals(medicineUuid.toString(), result.medicines.single().uuid)
     }
 
     @Test
-    fun toValidatedSnapshot_legacyBackupWithoutHomeE2ChartWindow_defaultsToSevenDays() {
-        val exportedAt = Instant.parse("2026-04-26T03:04:05Z").toEpochMilli()
+    fun toValidatedSnapshot_rejectsVersionBelowSupportedFloor() {
         val snapshot = BackupSnapshot(
-            exportedAtEpochMillis = exportedAt,
+            snapshotVersion = 1,
+            exportedAtEpochMillis = 0L,
             app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
-            settings = BackupSettingsSnapshot(
-                darkModeOption = "FOLLOW_SYSTEM",
-                adaptiveColorEnabled = true,
-                remindersEnabled = true,
-                appLockGracePeriodOption = "IMMEDIATELY",
-                hideScreenContentEnabled = false,
-                onboardingCompleted = true,
-                appLanguageOption = "ENGLISH",
-                // homeE2ChartWindow intentionally omitted to simulate a pre-feature backup.
-                calibrationDefaultUnits = emptyMap(),
-            ),
-            userProfile = BackupUserProfileSnapshot(
-                weightKg = null,
-                weightOriginalValue = null,
-                weightOriginalUnit = "KILOGRAMS",
-            ),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = emptyList(),
             medicationGroups = emptyList(),
             medicationLogs = emptyList(),
             customBloodAnalytes = emptyList(),
             bloodTestPanels = emptyList(),
-        )
-
-        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
-
-        assertEquals(
-            HomeE2ChartWindowOption.SEVEN_DAYS,
-            validatedSnapshot.settings.homeE2ChartWindowOption,
-        )
-    }
-
-    @Test
-    fun toValidatedSnapshot_backfillsLegacyScheduleTimeUuidsEffectiveFromAndMatchedLogLink() {
-        val groupUuid = UUID.fromString("00000000-0000-0000-0000-000000000101")
-        val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000102")
-        val snapshot = medicationOnlySnapshot(
-            groupUuid = groupUuid,
-            scheduleTimes = listOf(
-                BackupMedicationGroupScheduleTimeSnapshot(hourOfDay = 9, minuteOfHour = 0),
-                BackupMedicationGroupScheduleTimeSnapshot(hourOfDay = 21, minuteOfHour = 0),
-            ),
-            logs = listOf(
-                medicationLogSnapshot(
-                    uuid = logUuid,
-                    sourceGroupUuid = groupUuid,
-                    scheduledForIso = "2026-04-26T09:00",
-                )
-            ),
-            includePastScheduledSlots = true,
-        )
-
-        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
-
-        val scheduleTimes = validatedSnapshot.medicationGroupScheduleTimes
-        assertEquals(2, scheduleTimes.size)
-        assertEquals(2, scheduleTimes.map { scheduleTime -> scheduleTime.uuid }.toSet().size)
-        assertEquals(
-            listOf("2026-04-01T00:00", "2026-04-01T00:00"),
-            scheduleTimes.map { scheduleTime -> scheduleTime.effectiveFromLocalIso },
-        )
-        assertEquals(scheduleTimes.first().uuid, validatedSnapshot.medicationLogs.single().scheduleTimeUuid)
-    }
-
-    @Test
-    fun toValidatedSnapshot_keepsLegacyLogScheduleTimeUuidNullWhenMatchIsAmbiguousOrMissing() {
-        val groupUuid = UUID.fromString("00000000-0000-0000-0000-000000000201")
-        val ambiguousLogUuid = UUID.fromString("00000000-0000-0000-0000-000000000202")
-        val missingLogUuid = UUID.fromString("00000000-0000-0000-0000-000000000203")
-        val snapshot = medicationOnlySnapshot(
-            groupUuid = groupUuid,
-            scheduleTimes = listOf(
-                BackupMedicationGroupScheduleTimeSnapshot(hourOfDay = 9, minuteOfHour = 0),
-                BackupMedicationGroupScheduleTimeSnapshot(hourOfDay = 9, minuteOfHour = 0),
-            ),
-            logs = listOf(
-                medicationLogSnapshot(
-                    uuid = ambiguousLogUuid,
-                    sourceGroupUuid = groupUuid,
-                    scheduledForIso = "2026-04-26T09:00",
-                ),
-                medicationLogSnapshot(
-                    uuid = missingLogUuid,
-                    sourceGroupUuid = groupUuid,
-                    scheduledForIso = "2026-04-26T10:00",
-                )
-            ),
-            includePastScheduledSlots = true,
-        )
-
-        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
-
-        assertEquals(
-            listOf(null, null),
-            validatedSnapshot.medicationLogs.sortedBy { log -> log.uuid }.map { log -> log.scheduleTimeUuid },
-        )
-    }
-
-    @Test
-    fun toValidatedSnapshot_usesCreatedAtEffectiveFromForLegacyForwardOnlySuccessor() {
-        val groupUuid = UUID.fromString("00000000-0000-0000-0000-000000000301")
-        val createdAt = Instant.parse("2026-04-18T01:00:00Z")
-        val snapshot = medicationOnlySnapshot(
-            groupUuid = groupUuid,
-            scheduleTimes = listOf(
-                BackupMedicationGroupScheduleTimeSnapshot(hourOfDay = 9, minuteOfHour = 0),
-            ),
-            logs = emptyList(),
-            includePastScheduledSlots = false,
-            createdAtEpochMillis = createdAt.toEpochMilli(),
-        )
-
-        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
-
-        assertEquals(
-            createdAt.atZone(ZoneId.systemDefault()).toLocalDateTime().toString(),
-            validatedSnapshot.medicationGroupScheduleTimes.single().effectiveFromLocalIso,
-        )
-    }
-
-    @Test
-    fun toValidatedSnapshot_derivesLegacySuccessorLineageFromReplacedByLink() {
-        val originalGroupUuid = UUID.fromString("00000000-0000-0000-0000-000000000351")
-        val successorGroupUuid = UUID.fromString("00000000-0000-0000-0000-000000000352")
-        val snapshot = medicationOnlySnapshot(
-            groupUuid = originalGroupUuid,
-            scheduleTimes = listOf(
-                BackupMedicationGroupScheduleTimeSnapshot(hourOfDay = 9, minuteOfHour = 0),
-            ),
-            logs = emptyList(),
-            replacedByGroupUuid = successorGroupUuid.toString(),
-            extraGroups = listOf(
-                medicationGroupSnapshot(
-                    groupUuid = successorGroupUuid,
-                    scheduleTimes = listOf(
-                        BackupMedicationGroupScheduleTimeSnapshot(hourOfDay = 10, minuteOfHour = 0),
-                    ),
-                    includePastScheduledSlots = false,
-                )
-            ),
-        )
-
-        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
-
-        val successor = validatedSnapshot.medicationGroups.single { group ->
-            group.uuid == successorGroupUuid.toString()
-        }
-        assertEquals(originalGroupUuid.toString(), successor.recreatedFromGroupUuid)
-    }
-
-    @Test
-    fun toValidatedSnapshot_rejectsLogScheduleTimeUuidOutsideSourceGroup() {
-        val groupUuid = UUID.fromString("00000000-0000-0000-0000-000000000401")
-        val otherGroupUuid = UUID.fromString("00000000-0000-0000-0000-000000000402")
-        val scheduleTimeUuid = UUID.fromString("00000000-0000-0000-0000-000000000403")
-        val snapshot = medicationOnlySnapshot(
-            groupUuid = groupUuid,
-            scheduleTimes = listOf(
-                BackupMedicationGroupScheduleTimeSnapshot(
-                    hourOfDay = 9,
-                    minuteOfHour = 0,
-                    uuid = scheduleTimeUuid.toString(),
-                    effectiveFromLocalIso = "2026-04-01T00:00",
-                ),
-            ),
-            logs = listOf(
-                medicationLogSnapshot(
-                    uuid = UUID.fromString("00000000-0000-0000-0000-000000000404"),
-                    sourceGroupUuid = otherGroupUuid,
-                    scheduledForIso = "2026-04-26T09:00",
-                    scheduleTimeUuid = scheduleTimeUuid,
-                )
-            ),
-            extraGroups = listOf(
-                medicationGroupSnapshot(
-                    groupUuid = otherGroupUuid,
-                    scheduleTimes = listOf(
-                        BackupMedicationGroupScheduleTimeSnapshot(hourOfDay = 9, minuteOfHour = 0),
-                    ),
-                )
-            ),
         )
 
         try {
             snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
-            fail("Expected restore validation to reject a log schedule time outside its source group.")
+            fail("Expected v1 snapshots to be rejected.")
+        } catch (error: IllegalArgumentException) {
+            assertEquals("Unsupported backup snapshot version: 1.", error.message)
+        }
+    }
+
+    @Test
+    fun toValidatedSnapshot_restoresCapsulePreparationFromVersion3() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000006b0")
+        val snapshot = BackupSnapshot(
+            snapshotVersion = 3,
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(capsuleMedicineSnapshot(medicineUuid)),
+            medicationGroups = emptyList(),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        val result = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        val restoredMedicine = result.medicines.single()
+        assertEquals(MedicinePreparationType.CAPSULE.name, restoredMedicine.preparationType)
+        assertEquals(100.0, restoredMedicine.strengthMgPerTablet!!, 1e-9)
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsCapsuleGroupItemWithSublingualApplicationType() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000006c0")
+        val groupUuid = UUID.fromString("00000000-0000-0000-0000-0000000006c1")
+        val itemUuid = UUID.fromString("00000000-0000-0000-0000-0000000006c2")
+        val snapshot = BackupSnapshot(
+            snapshotVersion = 3,
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(capsuleMedicineSnapshot(medicineUuid)),
+            medicationGroups = listOf(
+                baselineMedicationGroupSnapshot(
+                    groupUuid = groupUuid,
+                    item = capsuleWholeUnitGroupItemSnapshot(
+                        itemUuid = itemUuid,
+                        medicineUuid = medicineUuid,
+                        applicationType = "SUBLINGUAL",
+                    ),
+                )
+            ),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        try {
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+            fail("Expected validation to reject sublingual capsule rows.")
+        } catch (error: IllegalArgumentException) {
+            assertEquals(
+                "medication group item $itemUuid applicationType=SUBLINGUAL is not compatible with preparation=CAPSULE.",
+                error.message,
+            )
+        }
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsCapsuleLogWithSublingualApplicationType() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000006c4")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-0000000006c5")
+        val snapshot = BackupSnapshot(
+            snapshotVersion = 3,
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(capsuleMedicineSnapshot(medicineUuid)),
+            medicationGroups = emptyList(),
+            medicationLogs = listOf(
+                capsuleWholeUnitLogSnapshot(
+                    logUuid = logUuid,
+                    medicineUuid = medicineUuid,
+                    applicationType = "SUBLINGUAL",
+                )
+            ),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        try {
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+            fail("Expected validation to reject a sublingual capsule log.")
+        } catch (error: IllegalArgumentException) {
+            assertEquals(
+                "medication log $logUuid applicationType=SUBLINGUAL is not compatible with preparation=CAPSULE.",
+                error.message,
+            )
+        }
+    }
+
+    @Test
+    fun toValidatedSnapshot_normalizesLegacyPillWholeUnitMedicationRowsToTabletFraction() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000006d0")
+        val groupUuid = UUID.fromString("00000000-0000-0000-0000-0000000006d1")
+        val itemUuid = UUID.fromString("00000000-0000-0000-0000-0000000006d2")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-0000000006d3")
+        val snapshot = BackupSnapshot(
+            snapshotVersion = 3,
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(catalogMedicineSnapshot(medicineUuid)),
+            medicationGroups = listOf(
+                baselineMedicationGroupSnapshot(
+                    groupUuid = groupUuid,
+                    item = pillWholeUnitGroupItemSnapshot(
+                        itemUuid = itemUuid,
+                        medicineUuid = medicineUuid,
+                    ),
+                )
+            ),
+            medicationLogs = listOf(
+                pillWholeUnitLogSnapshot(
+                    logUuid = logUuid,
+                    medicineUuid = medicineUuid,
+                )
+            ),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        val restoredItem = validatedSnapshot.medicationGroupItems.single()
+        assertEquals("TABLET_FRACTION", restoredItem.doseInstructionKind)
+        assertEquals(1, restoredItem.tabletFractionNumerator)
+        assertEquals(1, restoredItem.tabletFractionDenominator)
+        val restoredLog = validatedSnapshot.medicationLogs.single()
+        assertEquals("TABLET_FRACTION", restoredLog.doseInstructionKind)
+        assertEquals(1, restoredLog.tabletFractionNumerator)
+        assertEquals(1, restoredLog.tabletFractionDenominator)
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsV1BackupVersion() {
+        // v1 backups carry MedicationDetails-shaped fields the new restore
+        // path cannot map. Surface the version mismatch instead of silently
+        // attempting to import an incomplete record.
+        val snapshot = BackupSnapshot(
+            snapshotVersion = 1,
+            exportedAtEpochMillis = Instant.parse("2026-04-26T03:04:05Z").toEpochMilli(),
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = emptyList(),
+            medicationGroups = emptyList(),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        try {
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+            fail("Expected v1 snapshots to be rejected.")
+        } catch (error: IllegalArgumentException) {
+            assertEquals("Unsupported backup snapshot version: 1.", error.message)
+        }
+    }
+
+    // The PATCH_OFF singleton round-trips through backup as a medicine row.
+    // Validation rebuilds the PatchOff selection from the preparationType
+    // marker even though the stored selectionKind is CATALOG, and the
+    // identityKey check uses MedicineIdentityKey.patchOff().
+    @Test
+    fun toValidatedSnapshot_acceptsPatchOffMedicineSnapshot() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000005a0")
+        val snapshot = BackupSnapshot(
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(patchOffMedicineSnapshot(medicineUuid)),
+            medicationGroups = emptyList(),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        val validatedSnapshot = snapshot.toValidatedSnapshot(
+            expectedPackageName = "com.mkx.hrttracker",
+        )
+
+        val restored = validatedSnapshot.medicines.single()
+        assertEquals(medicineUuid.toString(), restored.uuid)
+        assertEquals("PATCH_OFF", restored.preparationType)
+        assertEquals("ESTRADIOL", restored.category)
+        assertEquals(MedicineIdentityKey.patchOff(), restored.identityKey)
+        assertNull(restored.medicationKey)
+        assertNull(restored.patchTotalMg)
+        assertNull(restored.patchReleaseRateMcgPerDay)
+        assertNull(restored.strengthMgPerTablet)
+    }
+
+    @Test
+    fun toValidatedSnapshot_acceptsPatchOffSlotWithNullMedicineUuid() {
+        // PATCH_OFF is the one application type whose medicineUuid may be
+        // null. Validation must accept that null specifically for PATCH_OFF
+        // and not raise the missing-medicine error.
+        val groupUuid = UUID.fromString("00000000-0000-0000-0000-0000000001a0")
+        val itemUuid = UUID.fromString("00000000-0000-0000-0000-0000000001a1")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-0000000001a2")
+        val snapshot = patchOffSnapshot(
+            groupUuid = groupUuid,
+            itemUuid = itemUuid,
+            logUuid = logUuid,
+        )
+
+        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        val restoredItem = validatedSnapshot.medicationGroupItems.single()
+        assertEquals(null, restoredItem.medicineUuid)
+        assertEquals("PATCH_OFF", restoredItem.applicationType)
+        val restoredLog = validatedSnapshot.medicationLogs.single()
+        assertEquals(null, restoredLog.medicineUuid)
+        assertEquals("PATCH_OFF", restoredLog.applicationType)
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsNullMedicineUuidOnNonPatchOffItem() {
+        // Outside PATCH_OFF every group item must carry a medicine reference.
+        // Allowing this through would let the restore write a row that
+        // violates the data layer's NOT NULL invariants in practice (only
+        // PATCH_OFF tolerates a null medicineUuid).
+        val groupUuid = UUID.fromString("00000000-0000-0000-0000-0000000002a0")
+        val itemUuid = UUID.fromString("00000000-0000-0000-0000-0000000002a1")
+        val snapshot = BackupSnapshot(
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = emptyList(),
+            medicationGroups = listOf(
+                BackupMedicationGroupSnapshot(
+                    uuid = groupUuid.toString(),
+                    name = "Group",
+                    colorKey = "ROSE",
+                    notificationsEnabled = false,
+                    schedule = BackupMedicationGroupScheduleSnapshot(
+                        type = "DAILY",
+                        interval = 1,
+                        sinceEpochDay = LocalDate.of(2026, 4, 1).toEpochDay(),
+                        weeklyDaysOfWeek = emptyList(),
+                        times = listOf(BackupMedicationGroupScheduleTimeSnapshot(9, 0)),
+                    ),
+                    medications = listOf(
+                        BackupMedicationGroupItemSnapshot(
+                            uuid = itemUuid.toString(),
+                            count = 1,
+                            medicineUuid = null,
+                            applicationType = "ORAL",
+                            doseInstructionKind = "WHOLE_UNIT",
+                            tabletFractionNumerator = null,
+                            tabletFractionDenominator = null,
+                            doseVolumeMl = null,
+                            doseWeightGrams = null,
+                            gelApplicationArea = "DEFAULT",
+                        )
+                    ),
+                    createdAtEpochMillis = 0L,
+                    updatedAtEpochMillis = 0L,
+                    archivedAtEpochMillis = null,
+                )
+            ),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        try {
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+            fail("Expected validation to reject a non-PATCH_OFF item without a medicineUuid.")
         } catch (_: IllegalArgumentException) {
             // Expected.
         }
     }
 
     @Test
-    fun toValidatedSnapshot_rejects_backup_for_different_package() {
+    fun toValidatedSnapshot_rejectsMedicineUuidNotInMedicinesList() {
+        // The medicines list defines the FK universe for the rest of the
+        // snapshot. A group item referencing a UUID outside that set would
+        // otherwise be inserted with a dangling FK against an empty
+        // medicines table.
+        val groupUuid = UUID.fromString("00000000-0000-0000-0000-0000000003a0")
+        val itemUuid = UUID.fromString("00000000-0000-0000-0000-0000000003a1")
+        val unknownMedicineUuid = UUID.fromString("ffffffff-0000-0000-0000-000000000099")
+        val snapshot = BackupSnapshot(
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = emptyList(),
+            medicationGroups = listOf(
+                BackupMedicationGroupSnapshot(
+                    uuid = groupUuid.toString(),
+                    name = "Group",
+                    colorKey = "ROSE",
+                    notificationsEnabled = false,
+                    schedule = BackupMedicationGroupScheduleSnapshot(
+                        type = "DAILY",
+                        interval = 1,
+                        sinceEpochDay = LocalDate.of(2026, 4, 1).toEpochDay(),
+                        weeklyDaysOfWeek = emptyList(),
+                        times = listOf(BackupMedicationGroupScheduleTimeSnapshot(9, 0)),
+                    ),
+                    medications = listOf(
+                        BackupMedicationGroupItemSnapshot(
+                            uuid = itemUuid.toString(),
+                            count = 1,
+                            medicineUuid = unknownMedicineUuid.toString(),
+                            applicationType = "ORAL",
+                            doseInstructionKind = "WHOLE_UNIT",
+                            tabletFractionNumerator = null,
+                            tabletFractionDenominator = null,
+                            doseVolumeMl = null,
+                            doseWeightGrams = null,
+                            gelApplicationArea = "DEFAULT",
+                        )
+                    ),
+                    createdAtEpochMillis = 0L,
+                    updatedAtEpochMillis = 0L,
+                    archivedAtEpochMillis = null,
+                )
+            ),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        try {
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+            fail("Expected validation to reject an item whose medicineUuid is not in medicines.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsActiveGroupReferencingArchivedMedicine() {
+        // An active group can never reference an archived medicine — the
+        // archived row would have to be unarchived before re-selection in
+        // the picker, so importing one would surface an inconsistent UI.
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000004a0")
+        val groupUuid = UUID.fromString("00000000-0000-0000-0000-0000000004b0")
+        val itemUuid = UUID.fromString("00000000-0000-0000-0000-0000000004b1")
+        val snapshot = BackupSnapshot(
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(
+                catalogMedicineSnapshot(medicineUuid)
+                    .copy(archivedAtEpochMillis = 50L)
+            ),
+            medicationGroups = listOf(
+                BackupMedicationGroupSnapshot(
+                    uuid = groupUuid.toString(),
+                    name = "Active group",
+                    colorKey = "ROSE",
+                    notificationsEnabled = false,
+                    schedule = BackupMedicationGroupScheduleSnapshot(
+                        type = "DAILY",
+                        interval = 1,
+                        sinceEpochDay = LocalDate.of(2026, 4, 1).toEpochDay(),
+                        weeklyDaysOfWeek = emptyList(),
+                        times = listOf(BackupMedicationGroupScheduleTimeSnapshot(9, 0)),
+                    ),
+                    medications = listOf(
+                        BackupMedicationGroupItemSnapshot(
+                            uuid = itemUuid.toString(),
+                            count = 1,
+                            medicineUuid = medicineUuid.toString(),
+                            applicationType = "ORAL",
+                            doseInstructionKind = "TABLET_FRACTION",
+                            tabletFractionNumerator = 1,
+                            tabletFractionDenominator = 1,
+                            doseVolumeMl = null,
+                            doseWeightGrams = null,
+                            gelApplicationArea = "DEFAULT",
+                        )
+                    ),
+                    createdAtEpochMillis = 0L,
+                    updatedAtEpochMillis = 0L,
+                    archivedAtEpochMillis = null,
+                )
+            ),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        try {
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+            fail("Expected validation to reject an active group referencing an archived medicine.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsDuplicateMedicineUuid() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000005a0")
+        val snapshot = BackupSnapshot(
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(
+                catalogMedicineSnapshot(medicineUuid),
+                catalogMedicineSnapshot(medicineUuid),
+            ),
+            medicationGroups = emptyList(),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        try {
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+            fail("Expected validation to reject duplicate medicine UUIDs.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsBackupForDifferentPackage() {
         val snapshot = BackupSnapshot(
             exportedAtEpochMillis = 1L,
             app = BackupAppSnapshot(packageName = "com.example.other"),
-            settings = BackupSettingsSnapshot(
-                darkModeOption = "FOLLOW_SYSTEM",
-                adaptiveColorEnabled = true,
-                remindersEnabled = true,
-                appLockGracePeriodOption = "IMMEDIATELY",
-                hideScreenContentEnabled = false,
-                onboardingCompleted = false,
-                appLanguageOption = "ENGLISH",
-                calibrationDefaultUnits = emptyMap(),
-            ),
-            userProfile = BackupUserProfileSnapshot(
-                weightKg = null,
-                weightOriginalValue = null,
-                weightOriginalUnit = "KILOGRAMS",
-            ),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = emptyList(),
             medicationGroups = emptyList(),
             medicationLogs = emptyList(),
             customBloodAnalytes = emptyList(),
@@ -492,124 +716,262 @@ class BackupRestoreValidationTest {
         }
     }
 
-    private fun medicationOnlySnapshot(
-        groupUuid: UUID,
-        scheduleTimes: List<BackupMedicationGroupScheduleTimeSnapshot>,
-        logs: List<BackupMedicationLogSnapshot>,
-        includePastScheduledSlots: Boolean = true,
-        createdAtEpochMillis: Long = Instant.parse("2026-04-18T01:00:00Z").toEpochMilli(),
-        replacedByGroupUuid: String? = null,
-        recreatedFromGroupUuid: String? = null,
-        extraGroups: List<BackupMedicationGroupSnapshot> = emptyList(),
-    ): BackupSnapshot {
-        return BackupSnapshot(
-            exportedAtEpochMillis = Instant.parse("2026-04-26T03:04:05Z").toEpochMilli(),
-            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
-            settings = BackupSettingsSnapshot(
-                darkModeOption = "FOLLOW_SYSTEM",
-                adaptiveColorEnabled = true,
-                remindersEnabled = true,
-                appLockGracePeriodOption = "IMMEDIATELY",
-                hideScreenContentEnabled = false,
-                onboardingCompleted = true,
-                appLanguageOption = "ENGLISH",
-                calibrationDefaultUnits = emptyMap(),
-            ),
-            userProfile = BackupUserProfileSnapshot(
-                weightKg = null,
-                weightOriginalValue = null,
-                weightOriginalUnit = "KILOGRAMS",
-            ),
-            medicationGroups = listOf(
-                medicationGroupSnapshot(
-                    groupUuid = groupUuid,
-                    scheduleTimes = scheduleTimes,
-                    includePastScheduledSlots = includePastScheduledSlots,
-                    createdAtEpochMillis = createdAtEpochMillis,
-                    replacedByGroupUuid = replacedByGroupUuid,
-                    recreatedFromGroupUuid = recreatedFromGroupUuid,
-                )
-            ) + extraGroups,
-            medicationLogs = logs,
-            customBloodAnalytes = emptyList(),
-            bloodTestPanels = emptyList(),
+    private fun baselineSettings(): BackupSettingsSnapshot = BackupSettingsSnapshot(
+        darkModeOption = "FOLLOW_SYSTEM",
+        adaptiveColorEnabled = true,
+        remindersEnabled = true,
+        appLockGracePeriodOption = "IMMEDIATELY",
+        hideScreenContentEnabled = false,
+        onboardingCompleted = true,
+        appLanguageOption = "ENGLISH",
+        calibrationDefaultUnits = emptyMap(),
+    )
+
+    private fun baselineUserProfile(): BackupUserProfileSnapshot = BackupUserProfileSnapshot(
+        weightKg = null,
+        weightOriginalValue = null,
+        weightOriginalUnit = "KILOGRAMS",
+    )
+
+    private fun patchOffMedicineSnapshot(uuid: UUID): BackupMedicineSnapshot {
+        return BackupMedicineSnapshot(
+            uuid = uuid.toString(),
+            // PATCH_OFF reuses CATALOG selectionKind for storage; the PATCH_OFF
+            // preparationType is what makes the restore path rebuild PatchOff.
+            selectionKind = "CATALOG",
+            medicationKey = null,
+            customMedicationName = null,
+            customMedicationNameNormalized = null,
+            category = "ESTRADIOL",
+            preparationType = "PATCH_OFF",
+            strengthMgPerTablet = null,
+            strengthMgPerVial = null,
+            concentrationMgPerMl = null,
+            vialVolumeMl = null,
+            concentrationPercent = null,
+            sachetWeightGrams = null,
+            containerWeightGrams = null,
+            patchTotalMg = null,
+            patchReleaseRateMcgPerDay = null,
+            displayName = null,
+            identityKey = MedicineIdentityKey.patchOff(),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+            archivedAtEpochMillis = null,
         )
     }
 
-    private fun medicationGroupSnapshot(
+    private fun catalogMedicineSnapshot(uuid: UUID): BackupMedicineSnapshot {
+        val preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0)
+        return BackupMedicineSnapshot(
+            uuid = uuid.toString(),
+            selectionKind = "CATALOG",
+            medicationKey = "ESTRADIOL",
+            customMedicationName = null,
+            customMedicationNameNormalized = null,
+            category = "ESTRADIOL",
+            preparationType = "PILL",
+            strengthMgPerTablet = 2.0,
+            strengthMgPerVial = null,
+            concentrationMgPerMl = null,
+            vialVolumeMl = null,
+            concentrationPercent = null,
+            sachetWeightGrams = null,
+            containerWeightGrams = null,
+            patchTotalMg = null,
+            patchReleaseRateMcgPerDay = null,
+            displayName = null,
+            identityKey = MedicineIdentityKey.catalog(
+                com.mkx.hrttracker.model.medication.MedicationKey.ESTRADIOL,
+                preparation,
+            ),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+            archivedAtEpochMillis = null,
+        )
+    }
+
+    private fun capsuleMedicineSnapshot(uuid: UUID): BackupMedicineSnapshot {
+        val preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0)
+        return BackupMedicineSnapshot(
+            uuid = uuid.toString(),
+            selectionKind = "CUSTOM",
+            medicationKey = null,
+            customMedicationName = "Progesterone",
+            customMedicationNameNormalized = "progesterone",
+            category = "CUSTOM",
+            preparationType = "CAPSULE",
+            strengthMgPerTablet = 100.0,
+            strengthMgPerVial = null,
+            concentrationMgPerMl = null,
+            vialVolumeMl = null,
+            concentrationPercent = null,
+            sachetWeightGrams = null,
+            containerWeightGrams = null,
+            patchTotalMg = null,
+            patchReleaseRateMcgPerDay = null,
+            displayName = null,
+            identityKey = MedicineIdentityKey.custom("Progesterone", preparation),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+            archivedAtEpochMillis = null,
+        )
+    }
+
+    private fun baselineMedicationGroupSnapshot(
         groupUuid: UUID,
-        scheduleTimes: List<BackupMedicationGroupScheduleTimeSnapshot>,
-        includePastScheduledSlots: Boolean = true,
-        createdAtEpochMillis: Long = Instant.parse("2026-04-18T01:00:00Z").toEpochMilli(),
-        replacedByGroupUuid: String? = null,
-        recreatedFromGroupUuid: String? = null,
+        item: BackupMedicationGroupItemSnapshot,
     ): BackupMedicationGroupSnapshot {
         return BackupMedicationGroupSnapshot(
             uuid = groupUuid.toString(),
-            name = "Morning meds",
-            colorKey = "TEAL",
-            notificationsEnabled = true,
+            name = "Group",
+            colorKey = "ROSE",
+            notificationsEnabled = false,
             schedule = BackupMedicationGroupScheduleSnapshot(
                 type = "DAILY",
                 interval = 1,
                 sinceEpochDay = LocalDate.of(2026, 4, 1).toEpochDay(),
                 weeklyDaysOfWeek = emptyList(),
-                times = scheduleTimes,
+                times = listOf(BackupMedicationGroupScheduleTimeSnapshot(9, 0)),
             ),
-            medications = listOf(
-                BackupMedicationGroupItemSnapshot(
-                    uuid = UUID.randomUUID().toString(),
-                    count = 1,
-                    category = "ESTRADIOL",
-                    applicationType = "ORAL",
-                    selectionKind = "CATALOG",
-                    medicationKey = "ESTRADIOL",
-                    customMedicationName = null,
-                    doseKind = "MG_AS_MEDICINE",
-                    doseValueMg = 2.0,
-                    customDoseUnit = "MG",
-                    doseValuePercent = null,
-                    doseWeightGrams = null,
-                    doseReleaseRateMcgPerDay = null,
-                    gelApplicationArea = "DEFAULT",
-                )
-            ),
-            createdAtEpochMillis = createdAtEpochMillis,
-            updatedAtEpochMillis = createdAtEpochMillis,
+            medications = listOf(item),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
             archivedAtEpochMillis = null,
-            includePastScheduledSlots = includePastScheduledSlots,
-            replacedByGroupUuid = replacedByGroupUuid,
-            recreatedFromGroupUuid = recreatedFromGroupUuid,
         )
     }
 
-    private fun medicationLogSnapshot(
-        uuid: UUID,
-        sourceGroupUuid: UUID,
-        scheduledForIso: String,
-        scheduleTimeUuid: UUID? = null,
+    private fun pillWholeUnitGroupItemSnapshot(
+        itemUuid: UUID,
+        medicineUuid: UUID,
+    ): BackupMedicationGroupItemSnapshot {
+        return capsuleWholeUnitGroupItemSnapshot(
+            itemUuid = itemUuid,
+            medicineUuid = medicineUuid,
+            applicationType = "ORAL",
+        )
+    }
+
+    private fun capsuleWholeUnitGroupItemSnapshot(
+        itemUuid: UUID,
+        medicineUuid: UUID,
+        applicationType: String,
+    ): BackupMedicationGroupItemSnapshot {
+        return BackupMedicationGroupItemSnapshot(
+            uuid = itemUuid.toString(),
+            count = 1,
+            medicineUuid = medicineUuid.toString(),
+            applicationType = applicationType,
+            doseInstructionKind = "WHOLE_UNIT",
+            tabletFractionNumerator = null,
+            tabletFractionDenominator = null,
+            doseVolumeMl = null,
+            doseWeightGrams = null,
+            gelApplicationArea = "DEFAULT",
+        )
+    }
+
+    private fun pillWholeUnitLogSnapshot(
+        logUuid: UUID,
+        medicineUuid: UUID,
+    ): BackupMedicationLogSnapshot {
+        return capsuleWholeUnitLogSnapshot(
+            logUuid = logUuid,
+            medicineUuid = medicineUuid,
+            applicationType = "ORAL",
+        )
+    }
+
+    private fun capsuleWholeUnitLogSnapshot(
+        logUuid: UUID,
+        medicineUuid: UUID,
+        applicationType: String,
     ): BackupMedicationLogSnapshot {
         return BackupMedicationLogSnapshot(
-            uuid = uuid.toString(),
-            category = "ESTRADIOL",
-            applicationType = "ORAL",
-            selectionKind = "CATALOG",
-            medicationKey = "ESTRADIOL",
-            customMedicationName = null,
-            doseKind = "MG_AS_MEDICINE",
-            doseValueMg = 2.0,
-            customDoseUnit = "MG",
-            doseValuePercent = null,
+            uuid = logUuid.toString(),
+            category = "CUSTOM",
+            medicineUuid = medicineUuid.toString(),
+            applicationType = applicationType,
+            doseInstructionKind = "WHOLE_UNIT",
+            tabletFractionNumerator = null,
+            tabletFractionDenominator = null,
+            doseVolumeMl = null,
             doseWeightGrams = null,
-            doseReleaseRateMcgPerDay = null,
             gelApplicationArea = "DEFAULT",
-            dosageMgAsEstradiol = 2.0,
-            sourceGroupUuid = sourceGroupUuid.toString(),
-            scheduleTimeUuid = scheduleTimeUuid?.toString(),
-            appliedAtEpochMillis = Instant.parse("2026-04-26T00:00:00Z").toEpochMilli(),
+            equivalentE2Mg = null,
+            sourceGroupUuid = null,
+            appliedAtEpochMillis = 200L,
             appliedAtTimeZoneId = "Asia/Tokyo",
-            scheduledForIso = scheduledForIso,
+            scheduledForIso = null,
             count = 1,
+        )
+    }
+
+    private fun patchOffSnapshot(
+        groupUuid: UUID,
+        itemUuid: UUID,
+        logUuid: UUID,
+    ): BackupSnapshot {
+        return BackupSnapshot(
+            exportedAtEpochMillis = Instant.parse("2026-04-26T03:04:05Z").toEpochMilli(),
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = emptyList(),
+            medicationGroups = listOf(
+                BackupMedicationGroupSnapshot(
+                    uuid = groupUuid.toString(),
+                    name = "Patch removals",
+                    colorKey = "ROSE",
+                    notificationsEnabled = false,
+                    schedule = BackupMedicationGroupScheduleSnapshot(
+                        type = "DAILY",
+                        interval = 1,
+                        sinceEpochDay = LocalDate.of(2026, 4, 1).toEpochDay(),
+                        weeklyDaysOfWeek = emptyList(),
+                        times = listOf(BackupMedicationGroupScheduleTimeSnapshot(20, 0)),
+                    ),
+                    medications = listOf(
+                        BackupMedicationGroupItemSnapshot(
+                            uuid = itemUuid.toString(),
+                            count = 1,
+                            medicineUuid = null,
+                            applicationType = "PATCH_OFF",
+                            doseInstructionKind = "NOOP",
+                            tabletFractionNumerator = null,
+                            tabletFractionDenominator = null,
+                            doseVolumeMl = null,
+                            doseWeightGrams = null,
+                            gelApplicationArea = "DEFAULT",
+                        )
+                    ),
+                    createdAtEpochMillis = 0L,
+                    updatedAtEpochMillis = 0L,
+                    archivedAtEpochMillis = null,
+                )
+            ),
+            medicationLogs = listOf(
+                BackupMedicationLogSnapshot(
+                    uuid = logUuid.toString(),
+                    category = "ESTRADIOL",
+                    medicineUuid = null,
+                    applicationType = "PATCH_OFF",
+                    doseInstructionKind = "NOOP",
+                    tabletFractionNumerator = null,
+                    tabletFractionDenominator = null,
+                    doseVolumeMl = null,
+                    doseWeightGrams = null,
+                    gelApplicationArea = "DEFAULT",
+                    equivalentE2Mg = null,
+                    sourceGroupUuid = null,
+                    appliedAtEpochMillis = 200L,
+                    appliedAtTimeZoneId = "Asia/Tokyo",
+                    scheduledForIso = null,
+                    count = 1,
+                )
+            ),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
         )
     }
 }

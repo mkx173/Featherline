@@ -5,7 +5,6 @@ import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
@@ -119,29 +118,30 @@ class HomeSnapshotRepository @Inject constructor(
     // All medication group, medication log, and profile writes that affect Home data
     // must go through this gate so stale snapshots are rejected before the DB changes.
     suspend fun <T> runHomeDataMutation(block: suspend () -> T): T {
-        return refreshMutex.withLock {
+        var generation = 0L
+        var mutationResult: Result<T>? = null
+        refreshMutex.withLock {
             diagnosticsLogger.info(TAG, "home_data_mutation_start")
-            val generation = homeSnapshotGenerationStore.incrementGeneration()
+            generation = homeSnapshotGenerationStore.incrementGeneration()
             diagnosticsLogger.info(
                 TAG,
                 "home_data_mutation_generation_incremented generation=$generation"
             )
-            try {
-                val result = block()
+            val result = runCatching { block() }
+            mutationResult = result
+            result.onSuccess {
                 diagnosticsLogger.info(TAG, "home_data_mutation_committed generation=$generation")
-                result
-            } finally {
-                // The generation has already been bumped, so observers will reject any
-                // stale snapshot. Run cleanup + refresh on every path so an exception
-                // inside block() doesn't leave the snapshot stale-flagged forever.
-                clearSnapshotBestEffort()
-                refreshHomeSnapshotAsync(force = true)
-                diagnosticsLogger.info(
-                    TAG,
-                    "home_data_mutation_snapshot_refresh_requested generation=$generation"
-                )
             }
+            // The generation has already been bumped, so observers will reject any
+            // stale snapshot. Clear while still serialized with other mutations.
+            clearSnapshotBestEffort()
+            refreshHomeSnapshotBestEffortLocked(force = true)
         }
+        diagnosticsLogger.info(
+            TAG,
+            "home_data_mutation_snapshot_refresh_completed generation=$generation"
+        )
+        return checkNotNull(mutationResult).getOrThrow()
     }
 
     fun isSnapshotUsable(
@@ -365,67 +365,145 @@ class HomeSnapshotRepository @Inject constructor(
         // that to keep mutation latency low (writes don't stall behind a PK
         // simulation + JSON encode + encrypted DataStore write).
         val refreshGeneration = refreshMutex.withLock {
-            val gen = homeSnapshotGenerationStore.readGeneration()
-            val existingSnapshot = homeSnapshotStore.readSnapshot()
+            refreshGenerationAfterSkipCheckLocked(
+                now = now,
+                zoneId = zoneId,
+                option = option,
+                force = force,
+            )
+        } ?: return
+
+        buildAndWriteHomeSnapshot(
+            refreshGeneration = refreshGeneration,
+            now = now,
+            zoneId = zoneId,
+            option = option,
+            cacheWindow = cacheWindow,
+            snapshotWindow = snapshotWindow,
+        )
+    }
+
+    private suspend fun refreshHomeSnapshotIfNeededLocked(
+        now: LocalDateTime = LocalDateTime.now(),
+        force: Boolean = false,
+    ) {
+        diagnosticsLogger.info(TAG, "home_snapshot_refresh_start force=$force now=$now")
+        val zoneId = ZoneId.systemDefault()
+        val option = settingsRepository.homeE2ChartWindowOptionFlow.first()
+        val cacheWindow = HomePkProjectionWindow.forNow(now = now, zoneId = zoneId, option = option)
+        val snapshotWindow = HomeSnapshotWindow.forNow(now = now, zoneId = zoneId)
+        val refreshGeneration = refreshGenerationAfterSkipCheckLocked(
+            now = now,
+            zoneId = zoneId,
+            option = option,
+            force = force,
+        ) ?: return
+
+        buildAndWriteHomeSnapshot(
+            refreshGeneration = refreshGeneration,
+            now = now,
+            zoneId = zoneId,
+            option = option,
+            cacheWindow = cacheWindow,
+            snapshotWindow = snapshotWindow,
+        )
+    }
+
+    private suspend fun refreshGenerationAfterSkipCheckLocked(
+        now: LocalDateTime,
+        zoneId: ZoneId,
+        option: HomeE2ChartWindowOption,
+        force: Boolean,
+    ): Long? {
+        val gen = homeSnapshotGenerationStore.readGeneration()
+        val existingSnapshot = homeSnapshotStore.readSnapshot()
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_refresh_verify_existing force=$force " +
+                "generation=$gen " +
+                "existing=${existingSnapshot?.diagnosticSummary() ?: "none"}"
+        )
+        val pkExpired = existingSnapshot?.pkProjection?.let { record ->
+            isPkProjectionExpired(record, now, zoneId)
+        } == true
+        if (
+            !force &&
+            existingSnapshot != null &&
+            existingSnapshot.generation >= gen &&
+            isSnapshotUsable(existingSnapshot, now, zoneId, option) &&
+            !pkExpired
+        ) {
             diagnosticsLogger.info(
                 TAG,
-                "home_snapshot_refresh_verify_existing force=$force " +
-                    "generation=$gen " +
-                    "existing=${existingSnapshot?.diagnosticSummary() ?: "none"}"
+                "home_snapshot_refresh_skipped reason=existing_usable " +
+                    "${existingSnapshot.diagnosticSummary()} now=$now"
             )
-            val pkExpired = existingSnapshot?.pkProjection?.let { record ->
-                isPkProjectionExpired(record, now, zoneId)
-            } == true
-            if (
-                !force &&
-                existingSnapshot != null &&
-                existingSnapshot.generation >= gen &&
-                isSnapshotUsable(existingSnapshot, now, zoneId, option) &&
-                !pkExpired
-            ) {
-                diagnosticsLogger.info(
-                    TAG,
-                    "home_snapshot_refresh_skipped reason=existing_usable " +
-                        "${existingSnapshot.diagnosticSummary()} now=$now"
-                )
-                return
-            }
-            if (pkExpired) {
-                diagnosticsLogger.info(
-                    TAG,
-                    "home_snapshot_refresh_continuing reason=pk_projection_expired " +
-                        "${existingSnapshot.diagnosticSummary()} now=$now"
-                )
-            }
-            gen
+            return null
         }
+        if (pkExpired) {
+            diagnosticsLogger.info(
+                TAG,
+                "home_snapshot_refresh_continuing reason=pk_projection_expired " +
+                    "${existingSnapshot.diagnosticSummary()} now=$now"
+            )
+        }
+        return gen
+    }
 
+    private suspend fun buildAndWriteHomeSnapshot(
+        refreshGeneration: Long,
+        now: LocalDateTime,
+        zoneId: ZoneId,
+        option: HomeE2ChartWindowOption,
+        cacheWindow: HomePkProjectionWindow,
+        snapshotWindow: HomeSnapshotWindow,
+    ) {
         val inputs = withContext(Dispatchers.IO) {
             val database = databaseHolder.get()
             val homeDao = database.homeDao()
-            val activeGroups = homeDao.getActiveGroups()
-                .map { group -> group.toMedicationGroupModel() }
-            val scheduleEntries = homeDao.getScheduleEntries(
+            val activeGroupEntities = homeDao.getActiveGroups()
+            val scheduleEntryEntities = homeDao.getScheduleEntries(
                 scheduledStartIso = snapshotWindow.bufferedScheduledStart.toString(),
                 scheduledEndIso = snapshotWindow.bufferedScheduledEnd.toString(),
                 manualStartEpochMillis = snapshotWindow.bufferedManualStartEpochMillis,
                 manualEndEpochMillis = snapshotWindow.bufferedManualEndEpochMillis,
-            ).map { entry -> entry.toMedicationLogEntryModel() }
-            val antiandrogenHistoryEntries = homeDao.getLatestAntiandrogenEntriesOnOrBefore(
+            )
+            val antiandrogenHistoryEntities = homeDao.getLatestAntiandrogenEntriesOnOrBefore(
                 onOrBeforeEpochMillis = snapshotWindow.onOrBeforeEpochMillis,
-            ).map { entry -> entry.toMedicationLogEntryModel() }
+            )
             val pkEntries = homeDao.getEstradiolPkEntries(
                 startEpochMillis = cacheWindow.inputStartEpochMillis,
                 endEpochMillis = cacheWindow.windowEndEpochMillis,
-            ).map { entry -> entry.toMedicationLogEntryModel() }
-            val latestEstradiolEntry = homeDao.getLatestEstradiolEntryOnOrBefore(
+            )
+            val latestEstradiolEntryEntity = homeDao.getLatestEstradiolEntryOnOrBefore(
                 onOrBeforeEpochMillis = cacheWindow.generatedAtEpochMillis,
-            )?.toMedicationLogEntryModel()
+            )
+
+            val groupMedicinesByUuid = database.resolveMedicinesForGroups(activeGroupEntities)
+            val entryMedicinesByUuid = database.resolveMedicinesForEntries(
+                scheduleEntryEntities + antiandrogenHistoryEntities + pkEntries +
+                    listOfNotNull(latestEstradiolEntryEntity)
+            )
+            val activeGroups = activeGroupEntities.map { group ->
+                group.toMedicationGroupModel(groupMedicinesByUuid)
+            }
+            val scheduleEntries = scheduleEntryEntities.map { entry ->
+                entry.toMedicationLogEntryModel(entryMedicinesByUuid)
+            }
+            val antiandrogenHistoryEntries = antiandrogenHistoryEntities.map { entry ->
+                entry.toMedicationLogEntryModel(entryMedicinesByUuid)
+            }
+            val pkEntryModels = pkEntries.map { entry ->
+                entry.toMedicationLogEntryModel(entryMedicinesByUuid)
+            }
+            val latestEstradiolEntry = latestEstradiolEntryEntity?.toMedicationLogEntryModel(
+                entryMedicinesByUuid
+            )
             HomeSnapshotBuildInputs(
                 activeGroups = activeGroups,
                 scheduleEntries = scheduleEntries,
                 antiandrogenHistoryEntries = antiandrogenHistoryEntries,
-                pkEntries = pkEntries,
+                pkEntries = pkEntryModels,
                 latestEstradiolEntry = latestEstradiolEntry,
                 profile = database.userProfileDao()
                     .getProfile()
@@ -720,6 +798,42 @@ class HomeSnapshotRepository @Inject constructor(
         }
     }
 
+    private suspend fun refreshHomeSnapshotBestEffort(
+        now: LocalDateTime = LocalDateTime.now(),
+        force: Boolean = false,
+    ) {
+        runCatching {
+            refreshHomeSnapshotIfNeeded(now = now, force = force)
+        }.onFailure { throwable ->
+            if (throwable is CancellationException) {
+                throw throwable
+            }
+            diagnosticsLogger.warning(
+                TAG,
+                "home_snapshot_refresh_failed force=$force now=$now",
+                throwable
+            )
+        }
+    }
+
+    private suspend fun refreshHomeSnapshotBestEffortLocked(
+        now: LocalDateTime = LocalDateTime.now(),
+        force: Boolean = false,
+    ) {
+        runCatching {
+            refreshHomeSnapshotIfNeededLocked(now = now, force = force)
+        }.onFailure { throwable ->
+            if (throwable is CancellationException) {
+                throw throwable
+            }
+            diagnosticsLogger.warning(
+                TAG,
+                "home_snapshot_refresh_failed force=$force now=$now",
+                throwable
+            )
+        }
+    }
+
 }
 
 private fun HomeSnapshotRecord.diagnosticSummary(): String {
@@ -733,7 +847,7 @@ private fun HomeSnapshotRecord.diagnosticSummary(): String {
         "hasPkProjection=${pkProjection != null}"
 }
 
-internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 6
+internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 7
 
 // Cache-input lookback past the visible chart window. 180 d is enough for
 // steady-state PK history regardless of option; the forward span is owned

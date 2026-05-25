@@ -203,21 +203,19 @@ fun BackupPasswordDialog(
                         )
                     }
                 }
+                // Buttons stay visually enabled while a restore/backup is in
+                // flight; the click handlers no-op so a double-tap can't fire
+                // a duplicate request or dismiss the encrypted buffer mid-
+                // decrypt (dialog dismissal is gated above).
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    TextButton(
-                        enabled = !isInProgress,
-                        onClick = onDismiss,
-                    ) {
+                    TextButton(onClick = { if (!isInProgress) onDismiss() }) {
                         Text(text = stringResource(R.string.cancel))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(
-                        enabled = !isInProgress,
-                        onClick = { submit() },
-                    ) {
+                    TextButton(onClick = { if (!isInProgress) submit() }) {
                         Text(text = confirmLabel)
                     }
                 }

@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.model.pk
 
+import com.mkx.hrttracker.data.repository.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -119,8 +120,18 @@ private fun MedicationGroup.virtualEntriesForOccurrence(
                 scheduledFor = occurrence.scheduledFor,
                 medicationUuid = templateMedication.uuid,
             ),
-            details = templateMedication.details,
-            dosageMgAsEstradiol = null,
+            medicine = templateMedication.medicine,
+            category = templateMedication.category,
+            applicationType = templateMedication.applicationType,
+            doseInstruction = templateMedication.doseInstruction,
+            // Snapshot per-unit E2 so non-patch planned doses match logged ones;
+            // patch doses re-derive from medicine.preparation in pkDoseAmounts.
+            equivalentE2Mg = templateMedication.medicine?.let { medicine ->
+                DoseInstructionCalculator.perUnitEquivalentE2Mg(
+                    medicine = medicine,
+                    doseInstruction = templateMedication.doseInstruction,
+                )
+            },
             sourceGroupUuid = uuid,
             appliedAt = appliedAt,
             appliedAtTimeZoneId = zoneId.id,

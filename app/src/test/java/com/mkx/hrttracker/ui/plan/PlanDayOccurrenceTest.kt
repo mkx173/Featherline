@@ -1,19 +1,20 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.isDueSoon
 import com.mkx.hrttracker.model.medication.isPastDue
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -233,19 +234,15 @@ class PlanDayOccurrenceTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = olderFirstMedicationUuid,
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.SPIRONOLACTONE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(100.0)
-                    )
+                    medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 ),
                 testMedicationGroupMedication(
                     uuid = olderSecondMedicationUuid,
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             )
         )
@@ -256,11 +253,9 @@ class PlanDayOccurrenceTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = newerMedicationUuid,
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.CYPROTERONE_ACETATE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(12.5)
-                    )
+                    medicine = testMedicine(key = MedicationKey.CYPROTERONE_ACETATE),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             )
         )
@@ -288,11 +283,7 @@ class PlanDayOccurrenceTest {
         val zoneId = ZoneId.of("UTC")
         val morningEntryUuid = UUID.fromString("81010725-e95a-4055-992d-5bb10e307e98")
         val eveningEntryUuid = UUID.fromString("e566ac73-c1f7-45e6-af71-cf5d8f511456")
-        val details = testCatalogMedicationDetails(
-            key = MedicationKey.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(2.0)
-        )
+        val sharedMedicine = testMedicine(key = MedicationKey.ESTRADIOL)
 
         val daySchedule = buildPlanDaySchedule(
             date = LocalDate.of(2026, 4, 18),
@@ -300,16 +291,20 @@ class PlanDayOccurrenceTest {
             entries = listOf(
                 com.mkx.hrttracker.model.medication.testMedicationLogEntry(
                     uuid = eveningEntryUuid,
-                    details = details,
-                    dosageMgAsEstradiol = 2.0,
+                    medicine = sharedMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    equivalentE2Mg = 2.0,
                     sourceGroupUuid = null,
                     appliedAt = LocalDateTime.of(2026, 4, 18, 21, 0).atZone(zoneId).toInstant(),
                     appliedAtTimeZoneId = zoneId.id,
                 ),
                 com.mkx.hrttracker.model.medication.testMedicationLogEntry(
                     uuid = morningEntryUuid,
-                    details = details,
-                    dosageMgAsEstradiol = 2.0,
+                    medicine = sharedMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    equivalentE2Mg = 2.0,
                     sourceGroupUuid = null,
                     appliedAt = LocalDateTime.of(2026, 4, 18, 8, 0).atZone(zoneId).toInstant(),
                     appliedAtTimeZoneId = zoneId.id,
@@ -344,8 +339,10 @@ class PlanDayOccurrenceTest {
             updatedAt = createdAt,
         )
         val loggedSlot = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = group.medications.single().medicine,
+            applicationType = group.medications.single().applicationType,
+            doseInstruction = group.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = LocalDateTime.of(2026, 4, 17, 9, 5)
                 .atZone(zoneId)
@@ -386,8 +383,10 @@ class PlanDayOccurrenceTest {
             )
         )
         val loggedSlot = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = group.medications.single().medicine,
+            applicationType = group.medications.single().applicationType,
+            doseInstruction = group.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = LocalDateTime.of(2026, 4, 18, 9, 5)
                 .atZone(ZoneId.systemDefault())
@@ -428,8 +427,10 @@ class PlanDayOccurrenceTest {
             )
         )
         val shiftedSlotLog = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = group.medications.single().medicine,
+            applicationType = group.medications.single().applicationType,
+            doseInstruction = group.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = LocalDateTime.of(2026, 4, 18, 8, 5)
                 .atZone(ZoneId.systemDefault())
@@ -464,8 +465,10 @@ class PlanDayOccurrenceTest {
         )
         val scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
         val fulfilledEntry = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = group.medications.single().medicine,
+            applicationType = group.medications.single().applicationType,
+            doseInstruction = group.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = scheduledFor.plusMinutes(3).toLocalDate().atTime(9, 3)
                 .atZone(java.time.ZoneId.systemDefault())
@@ -499,8 +502,10 @@ class PlanDayOccurrenceTest {
         )
         val scheduledFor = LocalDateTime.of(2026, 4, 18, 23, 0)
         val fulfilledEntry = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = group.medications.single().medicine,
+            applicationType = group.medications.single().applicationType,
+            doseInstruction = group.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = LocalDateTime.of(2026, 4, 19, 0, 15)
                 .atZone(java.time.ZoneId.systemDefault())
@@ -535,8 +540,10 @@ class PlanDayOccurrenceTest {
         )
         val scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
         val linkedEntry = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = group.medications.single().medicine,
+            applicationType = group.medications.single().applicationType,
+            doseInstruction = group.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = LocalDateTime.of(2026, 4, 18, 9, 4)
                 .atZone(java.time.ZoneId.systemDefault())
@@ -561,11 +568,7 @@ class PlanDayOccurrenceTest {
 
     @Test
     fun buildPlanDaySchedule_collapses_duplicate_matching_medications_into_one_counted_entry() {
-        val sharedDetails = testCatalogMedicationDetails(
-            key = MedicationKey.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(2.0)
-        )
+        val sharedMedicine: Medicine = testMedicine(key = MedicationKey.ESTRADIOL)
         val group = MedicationGroup(
             uuid = UUID.fromString("3ff64a14-e1fd-4900-b804-f298d9e5e504"),
             name = "Test group",
@@ -580,11 +583,15 @@ class PlanDayOccurrenceTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("43f8f777-86eb-4193-94b8-cf5a3441bc3f"),
-                    details = sharedDetails
+                    medicine = sharedMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 ),
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("37d67438-f3a9-42ba-a3b8-57a005063b0f"),
-                    details = sharedDetails
+                    medicine = sharedMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
@@ -618,11 +625,9 @@ class PlanDayOccurrenceTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("258ae865-c7d2-44ef-8cf2-3257451f57d1"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    ),
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                     count = 2
                 )
             ),
@@ -636,8 +641,10 @@ class PlanDayOccurrenceTest {
             entries = listOf(
                 com.mkx.hrttracker.model.medication.testMedicationLogEntry(
                     uuid = countedEntryId,
-                    details = group.medications.single().details,
-                    dosageMgAsEstradiol = 2.0,
+                    medicine = group.medications.single().medicine,
+                    applicationType = group.medications.single().applicationType,
+                    doseInstruction = group.medications.single().doseInstruction,
+                    equivalentE2Mg = 2.0,
                     sourceGroupUuid = group.uuid,
                     appliedAt = LocalDateTime.of(2026, 4, 18, 9, 3)
                         .atZone(java.time.ZoneId.systemDefault())
@@ -669,8 +676,10 @@ class PlanDayOccurrenceTest {
         )
         val scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
         val linkedEntry = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = group.medications.single().medicine,
+            applicationType = group.medications.single().applicationType,
+            doseInstruction = group.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = LocalDateTime.of(2026, 4, 18, 10, 1)
                 .atZone(ZoneId.systemDefault())
@@ -703,11 +712,9 @@ class PlanDayOccurrenceTest {
             scheduledTime = LocalTime.of(9, 0),
             medication = testMedicationGroupMedication(
                 uuid = UUID.fromString("258ae865-c7d2-44ef-8cf2-3257451f57d1"),
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(2.0)
-                ),
+                medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 count = 2
             ),
             fulfillingEntryUuids = listOf(countedEntryId),
@@ -730,11 +737,9 @@ class PlanDayOccurrenceTest {
             scheduledTime = LocalTime.of(9, 0),
             medication = testMedicationGroupMedication(
                 uuid = UUID.fromString("258ae865-c7d2-44ef-8cf2-3257451f57d1"),
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(2.0)
-                )
+                medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1)
             ),
             fulfillingEntryUuids = emptyList(),
             outsideScheduleWindowEntryUuids = listOf(outsideWindowEntryId),
@@ -755,11 +760,9 @@ class PlanDayOccurrenceTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("258ae865-c7d2-44ef-8cf2-3257451f57d1"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),

@@ -1,9 +1,8 @@
 package com.mkx.hrttracker.data.repository
 
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -12,7 +11,9 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.testCustomMedicine
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -29,15 +30,21 @@ import java.util.UUID
 class HomeSnapshotCodecTest {
     @Test
     fun encodeDecode_preservesHomeSnapshotPayload() {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
+            key = MedicationKey.ESTRADIOL,
+        )
+        val antiandrogenMedicine = testMedicine(
+            uuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
+            key = MedicationKey.SPIRONOLACTONE,
+        )
         val latestEntry = MedicationLogEntry(
             uuid = UUID.fromString("65c7a865-df3a-4ed3-9e60-1ae6af7b6bd3"),
-            details = MedicationDetails(
-                category = MedicationCategory.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL),
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
-            dosageMgAsEstradiol = 2.0,
+            medicine = medicine,
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 2),
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = UUID.fromString("4510ad0b-b565-43c7-b52f-3d8ab73873c1"),
             scheduleTimeUuid = UUID.fromString("56c99b34-6a42-42e0-b2cc-2c68a4c8e5f5"),
             appliedAt = Instant.ofEpochMilli(1_777_777L),
@@ -47,13 +54,10 @@ class HomeSnapshotCodecTest {
         )
         val antiandrogenEntry = latestEntry.copy(
             uuid = UUID.fromString("b14559ed-9f8a-4e81-8b63-e4e1ab9e1102"),
-            details = MedicationDetails(
-                category = MedicationCategory.ANTIANDROGEN,
-                applicationType = MedicationApplicationType.ORAL,
-                selection = MedicationSelection.Catalog(MedicationKey.SPIRONOLACTONE),
-                dose = MedicationDose.MgAsMedicine(100.0),
-            ),
-            dosageMgAsEstradiol = null,
+            medicine = antiandrogenMedicine,
+            category = MedicationCategory.ANTIANDROGEN,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            equivalentE2Mg = null,
         )
         val group = MedicationGroup(
             uuid = UUID.fromString("4510ad0b-b565-43c7-b52f-3d8ab73873c1"),
@@ -76,7 +80,9 @@ class HomeSnapshotCodecTest {
             medications = listOf(
                 MedicationGroupMedication(
                     uuid = UUID.fromString("d02c3d8a-76e4-4d48-a3c3-795c61a3cd17"),
-                    details = latestEntry.details,
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 2),
                     count = 2,
                 )
             ),
@@ -121,6 +127,128 @@ class HomeSnapshotCodecTest {
         val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
 
         assertEquals(record, decoded)
+        // Identity-level assertion: the round-trip preserves the medicine
+        // reference and the dose instruction's structured form (a stale
+        // codec that dropped these would still hit the data-class equals
+        // by coincidence, so spell out the load-bearing fields here).
+        val decodedMedication = decoded.activeGroups.single().medications.single()
+        assertEquals(medicine.uuid, decodedMedication.medicine?.uuid)
+        assertEquals(
+            DoseInstruction.TabletFraction(numerator = 1, denominator = 2),
+            decodedMedication.doseInstruction,
+        )
+        assertEquals(2.0, decoded.scheduleEntries.single().equivalentE2Mg!!, 0.000001)
+    }
+
+    @Test
+    fun encodeDecode_roundTripsPatchOffSlotWithNullMedicine() {
+        // A PATCH_OFF slot is the one application type whose medicine
+        // reference may be null. Without explicit nullable-medicine plumbing
+        // the codec would either NPE on encode or fail equals on decode.
+        val patchOffMedication = MedicationGroupMedication(
+            uuid = UUID.fromString("9aaaaaaa-0000-0000-0000-000000000001"),
+            medicine = null,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+            doseInstruction = DoseInstruction.Noop,
+            count = 1,
+        )
+        val patchOffLogEntry = MedicationLogEntry(
+            uuid = UUID.fromString("9aaaaaaa-0000-0000-0000-000000000002"),
+            medicine = null,
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+            doseInstruction = DoseInstruction.Noop,
+            equivalentE2Mg = null,
+            sourceGroupUuid = null,
+            appliedAt = Instant.ofEpochMilli(50L),
+        )
+        val record = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 1L,
+            generatedAtEpochMillis = 100L,
+            anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
+            zoneId = "Asia/Tokyo",
+            pkProjection = null,
+            activeGroups = listOf(
+                MedicationGroup(
+                    uuid = UUID.fromString("9aaaaaaa-0000-0000-0000-000000000010"),
+                    name = "Patch removals",
+                    colorKey = MedicationGroupColorKey.ROSE,
+                    schedule = MedicationGroupSchedule(
+                        type = MedicationGroupScheduleType.DAILY,
+                        interval = 1,
+                        since = LocalDate.of(2026, 5, 1),
+                        weeklyDaysOfWeek = emptySet(),
+                        times = listOf(LocalTime.of(20, 0)),
+                    ),
+                    medications = listOf(patchOffMedication),
+                    notificationsEnabled = false,
+                    createdAt = Instant.ofEpochMilli(0L),
+                    updatedAt = Instant.ofEpochMilli(0L),
+                )
+            ),
+            scheduleEntries = listOf(patchOffLogEntry),
+            antiandrogenHistoryEntries = emptyList(),
+        )
+
+        val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+
+        assertEquals(record, decoded)
+    }
+
+    @Test
+    fun encodeDecode_roundTripsCapsulePreparation() {
+        val capsuleMedicine = testCustomMedicine(
+            uuid = UUID.fromString("8aaaaaaa-0000-0000-0000-000000000001"),
+            medicationName = "Progesterone",
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+        )
+        val capsuleMedication = MedicationGroupMedication(
+            uuid = UUID.fromString("8aaaaaaa-0000-0000-0000-000000000002"),
+            medicine = capsuleMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.WholeUnit,
+            count = 1,
+        )
+        val record = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 1L,
+            generatedAtEpochMillis = 100L,
+            anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
+            zoneId = "Asia/Tokyo",
+            pkProjection = null,
+            activeGroups = listOf(
+                MedicationGroup(
+                    uuid = UUID.fromString("8aaaaaaa-0000-0000-0000-000000000010"),
+                    name = "Capsules",
+                    colorKey = MedicationGroupColorKey.TEAL,
+                    schedule = MedicationGroupSchedule(
+                        type = MedicationGroupScheduleType.DAILY,
+                        interval = 1,
+                        since = LocalDate.of(2026, 5, 1),
+                        weeklyDaysOfWeek = emptySet(),
+                        times = listOf(LocalTime.of(9, 0)),
+                    ),
+                    medications = listOf(capsuleMedication),
+                    notificationsEnabled = false,
+                    createdAt = Instant.ofEpochMilli(0L),
+                    updatedAt = Instant.ofEpochMilli(0L),
+                )
+            ),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+        )
+
+        val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+
+        val restoredPreparation = decoded.activeGroups.single()
+            .medications.single()
+            .medicine
+            ?.preparation
+        assertEquals(
+            MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+            restoredPreparation,
+        )
     }
 
     @Test
@@ -135,20 +263,20 @@ class HomeSnapshotCodecTest {
     }
 
     @Test
-    fun decode_rejectsVersionEightPayloadLayout_priorToFingerprintFields() {
-        // v8 omits the chartWindowHours / densePolicy / includesPostDoseOffsets
-        // fingerprint introduced in v9. The codec rejects v8 outright so stale
-        // caches on first launch after the bump trigger a one-time rebuild
-        // rather than mis-decoding.
+    fun decode_rejectsVersionTenPayloadLayout_priorToMedicineIdentity() {
+        // v10 stored MedicationDetails / MedicationDose blobs that no longer
+        // exist on the domain model. The codec rejects v10 outright so
+        // stale caches on first launch after the medicine-identity bump
+        // trigger a one-time rebuild rather than mis-decoding.
         val output = ByteArrayOutputStream()
         DataOutputStream(output).use { stream ->
-            stream.writeInt(8)
+            stream.writeInt(10)
             stream.writeInt(HOME_SNAPSHOT_SCHEMA_VERSION)
         }
         val exception = assertThrows(IllegalArgumentException::class.java) {
             HomeSnapshotCodec.decode(output.toByteArray())
         }
-        assertEquals("Unsupported Home snapshot version: 8.", exception.message)
+        assertEquals("Unsupported Home snapshot version: 10.", exception.message)
     }
 
     @Test

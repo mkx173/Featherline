@@ -13,9 +13,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -27,7 +26,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,6 +33,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ShowChart
@@ -50,7 +50,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -58,8 +57,6 @@ import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -115,29 +112,26 @@ import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.util.labelRes
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
+import com.mkx.hrttracker.ui.medication.doseInstructionSummary
 import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
-import com.mkx.hrttracker.ui.medication.medicationDisplayName
-import com.mkx.hrttracker.ui.medication.medicationDoseSupportingText
-import com.mkx.hrttracker.ui.medication.medicationDoseText
+import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
-import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
+import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -166,9 +160,9 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoZoomState
 import com.patrykandpatrick.vico.compose.common.Fill
+import com.patrykandpatrick.vico.compose.common.component.ShapeComponent
 import com.patrykandpatrick.vico.compose.common.data.CartesianLayerDrawingModelInterpolator
 import com.patrykandpatrick.vico.compose.common.data.ExtraStore
-import com.patrykandpatrick.vico.compose.common.component.ShapeComponent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -2631,14 +2625,21 @@ private fun MainAntiandrogenMedicationSubCard(
     timeFormatter: DateTimeFormatter,
     modifier: Modifier = Modifier
 ) {
-    val displayedDetails = card.lastDoseDetails ?: card.medication.details
+    // The last logged dose, if any, is the most accurate; else fall back to the
+    // slot definition. A null medicine means PATCH_OFF — no dose line.
+    val displayedMedicine = card.lastDose?.medicine ?: card.medication.medicine
+    val displayedApplicationType = card.lastDose?.applicationType
+        ?: card.medication.applicationType
+    val displayedDoseInstruction = card.lastDose?.doseInstruction
+        ?: card.medication.doseInstruction
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = card.groupColorKey)
-    val medicationName = medicationDisplayName(displayedDetails)
-    val routeLabel = stringResource(displayedDetails.applicationType.labelRes)
-    val summaryText = medicationDoseSupportingText(
-        details = displayedDetails,
-        medicationCount = card.medication.count,
-    )
+    val medicationName = medicationEntryTitle(displayedMedicine, displayedApplicationType)
+    val routeLabel = stringResource(displayedApplicationType.labelRes)
+    val doseSummary = displayedMedicine?.let { doseInstructionSummary(it, displayedDoseInstruction) }
+    val summaryText = listOfNotNull(
+        medicationCountIndicatorText(card.medication.count),
+        doseSummary,
+    ).joinToString(separator = " · ")
     val supportingText = listOfNotNull(
         routeLabel,
         summaryText.takeIf(String::isNotBlank)
@@ -2690,7 +2691,7 @@ private fun MainAntiandrogenMedicationSubCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 MainRouteIconSurface(
-                    applicationType = displayedDetails.applicationType,
+                    applicationType = displayedApplicationType,
                     groupColorScheme = groupColorScheme,
                 )
 
@@ -3038,13 +3039,14 @@ private fun MainTodayDoseRow(
         }
         onHighlightConsumed()
     }
-    val details = row.medication.details
+    val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
-    val headline = medicationDisplayName(details)
-    val routeLabel = stringResource(details.applicationType.labelRes)
-    val doseText = medicationDoseText(details)
+    val headline = medicationEntryTitle(medication.medicine, medication.applicationType)
+    val routeLabel = stringResource(medication.applicationType.labelRes)
+    val doseText = medication.medicine?.let { doseInstructionSummary(it, medication.doseInstruction) }
     val supportingText = listOfNotNull(
         routeLabel,
+        medicationCountIndicatorText(row.medication.count),
         doseText,
     ).joinToString(separator = " · ")
     val entryEditorIds = mainTodayEntryEditorIds(row)
@@ -3060,7 +3062,9 @@ private fun MainTodayDoseRow(
                     groupUuid = quickLogGroupUuid,
                     scheduleTimeUuid = row.scheduleTimeUuid,
                     scheduledAt = row.scheduledAt,
-                    medicationDetails = row.medication.details,
+                    medicine = row.medication.medicine,
+                    applicationType = row.medication.applicationType,
+                    doseInstruction = row.medication.doseInstruction,
                     medicationCount = remainingQuickLogCount(
                         totalCount = row.medication.count,
                         fulfilledCount = row.loggedCount
@@ -3088,14 +3092,6 @@ private fun MainTodayDoseRow(
             count = itemCount,
             onClick = onStatusClick,
             modifier = modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester),
-            trailingContent = {
-                MainTodayTrailingContent(
-                    row = row,
-                    now = now,
-                    timeFormatter = timeFormatter,
-                    onStatusClick = onStatusClick
-                )
-            }
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -3103,7 +3099,7 @@ private fun MainTodayDoseRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 MainRouteIconSurface(
-                    applicationType = details.applicationType,
+                    applicationType = medication.applicationType,
                     groupColorScheme = groupColorScheme,
                     outlinedIcon = routeIconOutlined
                 )
@@ -3137,11 +3133,16 @@ private fun MainTodayDoseRow(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Normal,
                             modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(supportingText),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
+
+                MainTodayTrailingContent(
+                    row = row,
+                    now = now,
+                    timeFormatter = timeFormatter,
+                    onStatusClick = onStatusClick
+                )
             }
         }
         if (flashAlpha > 0f) {
@@ -3191,15 +3192,15 @@ private fun MainUpcomingDoseRow(
         }
         onHighlightConsumed()
     }
-    val details = row.medication.details
+    val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
-    val headline = medicationDisplayName(details)
-    val routeLabel = stringResource(details.applicationType.labelRes)
-    val doseText = medicationDoseText(details)
+    val headline = medicationEntryTitle(medication.medicine, medication.applicationType)
+    val routeLabel = stringResource(medication.applicationType.labelRes)
+    val doseText = medication.medicine?.let { doseInstructionSummary(it, medication.doseInstruction) }
     val supportingText = listOfNotNull(
         routeLabel,
+        medicationCountIndicatorText(row.medication.count),
         doseText,
-        medicationCountIndicatorText(row.medication.count).takeIf { row.medication.count > 1 },
     ).joinToString(separator = " · ")
     val timeLabel = row.scheduledAt.toLocalTime().format(timeFormatter)
     val rowShape = segmentedListItemShape(index = index, count = itemCount)
@@ -3227,7 +3228,7 @@ private fun MainUpcomingDoseRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 MainRouteIconSurface(
-                    applicationType = details.applicationType,
+                    applicationType = medication.applicationType,
                     groupColorScheme = groupColorScheme,
                 )
 
@@ -4074,25 +4075,21 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
         uuid = "e0d4fc52-8a75-4cf5-9ab3-f28fbd9a5ea7",
         key = MedicationKey.ESTRADIOL,
         applicationType = MedicationApplicationType.ORAL,
-        dose = MedicationDose.MgAsMedicine(2.0)
     )
     val estradiolSublingual = previewMedication(
         uuid = "98f22e3e-ef38-4701-9f73-94a6b3430d9b",
         key = MedicationKey.ESTRADIOL_VALERATE,
         applicationType = MedicationApplicationType.SUBLINGUAL,
-        dose = MedicationDose.MgAsMedicine(1.0)
     )
     val estradiolPatch = previewMedication(
         uuid = "e483ee93-976d-445a-9b0d-78ee8753d59e",
         key = MedicationKey.ESTRADIOL_PATCH,
         applicationType = MedicationApplicationType.PATCH_ON,
-        dose = MedicationDose.PatchReleaseRateMcgPerDay(100.0)
     )
     val spironolactone = previewMedication(
         uuid = "be598126-5d8f-4daa-bdc6-54d45035f3f3",
         key = MedicationKey.SPIRONOLACTONE,
         applicationType = MedicationApplicationType.ORAL,
-        dose = MedicationDose.MgAsMedicine(100.0)
     )
 
     return MainUiState(
@@ -4102,7 +4099,7 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
             changeSinceYesterday = 8.0,
             targetMin = 100.0,
             targetMax = 200.0,
-            lastDoseDetails = estradiolTablet.details,
+            lastDose = estradiolTablet.toPreviewLastDose(),
             lastDoseAt = now.minusHours(2).minusMinutes(25)
         ),
         e2Chart = MainE2ChartUiState(
@@ -4115,7 +4112,7 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
                 groupName = "Antiandrogen",
                 groupColorKey = MedicationGroupColorKey.INDIGO,
                 medication = spironolactone,
-                lastDoseDetails = spironolactone.details,
+                lastDose = spironolactone.toPreviewLastDose(),
                 lastDoseAt = now.minusHours(1).minusMinutes(10),
                 nextDoseAt = now.plusHours(11).plusMinutes(30)
             )
@@ -4233,17 +4230,43 @@ private fun previewMedication(
     uuid: String,
     key: MedicationKey,
     applicationType: MedicationApplicationType,
-    dose: MedicationDose,
     count: Int = 1
 ): MedicationGroupMedication {
     return MedicationGroupMedication(
         uuid = UUID.fromString(uuid),
-        details = MedicationDetails(
-            category = key.category,
-            applicationType = applicationType,
-            selection = MedicationSelection.Catalog(key),
-            dose = dose
-        ),
+        medicine = previewMedicineFor(key),
+        applicationType = applicationType,
+        doseInstruction = DoseInstruction.TabletFraction(1, 1),
         count = count
+    )
+}
+
+private fun MedicationGroupMedication.toPreviewLastDose(): LastDoseDisplay {
+    return LastDoseDisplay(
+        medicine = medicine,
+        applicationType = applicationType,
+        doseInstruction = doseInstruction,
+    )
+}
+
+private fun previewMedicineFor(
+    key: MedicationKey,
+): com.mkx.hrttracker.model.medication.Medicine {
+    val selection = com.mkx.hrttracker.model.medication.MedicineSelection.Catalog(key)
+    val preparation = com.mkx.hrttracker.model.medication.MedicinePreparation.Pill(
+        strengthMgPerTablet = 2.0,
+    )
+    return com.mkx.hrttracker.model.medication.Medicine(
+        uuid = UUID.nameUUIDFromBytes("preview-${key.name}".toByteArray()),
+        selection = selection,
+        category = key.category,
+        preparation = preparation,
+        displayName = null,
+        identityKey = com.mkx.hrttracker.model.medication.MedicineIdentityKey.catalog(
+            key, preparation,
+        ),
+        createdAt = java.time.Instant.EPOCH,
+        updatedAt = java.time.Instant.EPOCH,
+        archivedAt = null,
     )
 }

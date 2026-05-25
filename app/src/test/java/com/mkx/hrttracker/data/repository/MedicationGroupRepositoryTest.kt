@@ -9,13 +9,17 @@ import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWeeklyDayEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
 import com.mkx.hrttracker.data.local.MedicationLogDao
+import com.mkx.hrttracker.data.local.MedicineDao
+import com.mkx.hrttracker.data.local.MedicineEntity
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -24,12 +28,16 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -45,6 +53,7 @@ class MedicationGroupRepositoryTest {
     private val database: HrtTrackerDatabase = mockk()
     private val medicationGroupDao: MedicationGroupDao = mockk(relaxed = true)
     private val medicationLogDao: MedicationLogDao = mockk(relaxed = true)
+    private val medicineDao: MedicineDao = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
 
     private lateinit var repository: MedicationGroupRepository
@@ -55,6 +64,16 @@ class MedicationGroupRepositoryTest {
         every { databaseHolder.get() } returns database
         every { database.medicationGroupDao() } returns medicationGroupDao
         every { database.medicationLogDao() } returns medicationLogDao
+        every { database.medicineDao() } returns medicineDao
+        coEvery { medicineDao.getByUuids(any()) } answers {
+            firstArg<List<String>>().map { uuid ->
+                testMedicineEntity(
+                    uuid = uuid,
+                    medicationKey = MedicationKey.ESTRADIOL,
+                    preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                )
+            }
+        }
         coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
             firstArg<suspend () -> Unit>().invoke()
         }
@@ -228,7 +247,9 @@ class MedicationGroupRepositoryTest {
             medications = listOf(
                 MedicationGroupMedicationInput(
                     uuid = null,
-                    details = testMedicationDetails(),
+                    medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                     count = 1,
                 )
             ),
@@ -262,6 +283,96 @@ class MedicationGroupRepositoryTest {
         assertEquals(savedGroupUuid.toString(), savedTimes.captured.single().groupUuid)
         assertEquals(now.atZone(ZoneId.systemDefault()).toLocalDateTime().toString(), savedTimes.captured.single().effectiveFromLocalIso)
         assertEquals(savedGroupUuid.toString(), savedWeeklyDays.captured.single().groupUuid)
+    }
+
+    @Test
+    fun saveGroup_rejectsIncompatibleApplicationTypeBeforeUpsert() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        coEvery { medicineDao.getByUuids(listOf(medicineUuid.toString())) } returns listOf(
+            testMedicineEntity(
+                uuid = medicineUuid.toString(),
+                medicationKey = MedicationKey.ESTRADIOL,
+                preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+            )
+        )
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+
+        val thrown = runCatching {
+            repository.saveGroup(
+                uuid = null,
+                name = "Group",
+                colorKey = MedicationGroupColorKey.ROSE,
+                schedule = MedicationGroupScheduleInput(
+                    type = MedicationGroupScheduleType.DAILY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 4, 1),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(8, 0)),
+                ),
+                medications = listOf(
+                    MedicationGroupMedicationInput(
+                        medicineUuid = medicineUuid,
+                        applicationType = MedicationApplicationType.SUBLINGUAL,
+                        doseInstruction = DoseInstruction.WholeUnit,
+                    )
+                ),
+            )
+        }.exceptionOrNull()
+
+        assertEquals(
+            "medication group item $medicineUuid applicationType=SUBLINGUAL is not compatible with preparation=CAPSULE.",
+            thrown?.message,
+        )
+        coVerify(exactly = 0) { medicationGroupDao.upsertGroupWithItems(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun saveGroup_rejectsPillWholeUnitBeforeUpsert() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        coEvery { medicineDao.getByUuids(listOf(medicineUuid.toString())) } returns listOf(
+            testMedicineEntity(
+                uuid = medicineUuid.toString(),
+                medicationKey = MedicationKey.ESTRADIOL,
+                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+            )
+        )
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+
+        val thrown = runCatching {
+            repository.saveGroup(
+                uuid = null,
+                name = "Group",
+                colorKey = MedicationGroupColorKey.ROSE,
+                schedule = MedicationGroupScheduleInput(
+                    type = MedicationGroupScheduleType.DAILY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 4, 1),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(8, 0)),
+                ),
+                medications = listOf(
+                    MedicationGroupMedicationInput(
+                        medicineUuid = medicineUuid,
+                        applicationType = MedicationApplicationType.ORAL,
+                        doseInstruction = DoseInstruction.WholeUnit,
+                    )
+                ),
+            )
+        }.exceptionOrNull()
+
+        assertEquals(
+            "medication group item $medicineUuid doseInstruction=WHOLE_UNIT is not compatible with preparation=PILL.",
+            thrown?.message,
+        )
+        coVerify(exactly = 0) { medicationGroupDao.upsertGroupWithItems(any(), any(), any(), any()) }
     }
 
     @Test
@@ -1102,6 +1213,58 @@ class MedicationGroupRepositoryTest {
         }
     }
 
+    @Test
+    fun saveGroup_rejectsMedicineUuidChangeWhenGroupHasLogs() = runTest {
+        val groupUuid = UUID.fromString("cccccccc-0000-0000-0000-000000000000")
+        val itemUuid = UUID.fromString("dddddddd-0000-0000-0000-000000000000")
+        val originalMedicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val replacementMedicineUuid = UUID.fromString("eeeeeeee-0000-0000-0000-000000000000")
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupWithItem(
+            groupUuid = groupUuid,
+            itemUuid = itemUuid,
+            medicineUuid = originalMedicineUuid,
+        )
+        coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 1
+
+        // The outer `runTest` already drives this coroutine; using
+        // `assertThrows { runTest { ... } }` here would start a *nested*
+        // TestScope and immediately fail with the "Only a single call to
+        // runTest" guard before the repository code can throw its
+        // LockedMedicationGroupSlotRepointException.
+        val thrown = runCatching {
+            repository.saveGroup(
+                uuid = groupUuid,
+                name = "Locked group",
+                colorKey = MedicationGroupColorKey.ROSE,
+                schedule = MedicationGroupScheduleInput(
+                    type = MedicationGroupScheduleType.WEEKLY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 5, 22),
+                    weeklyDaysOfWeek = setOf(java.time.DayOfWeek.FRIDAY),
+                    times = listOf(LocalTime.of(8, 0)),
+                ),
+                medications = listOf(
+                    MedicationGroupMedicationInput(
+                        uuid = itemUuid,
+                        medicineUuid = replacementMedicineUuid,
+                        applicationType = MedicationApplicationType.ORAL,
+                        doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                        count = 1,
+                    )
+                ),
+            )
+        }.exceptionOrNull()
+        assertTrue(
+            "Expected LockedMedicationGroupSlotRepointException but got $thrown",
+            thrown is LockedMedicationGroupSlotRepointException,
+        )
+    }
+
     private fun testGroupEntity(
         groupUuid: UUID,
         times: List<LocalTime>,
@@ -1154,33 +1317,149 @@ class MedicationGroupRepositoryTest {
     private fun testGroupItemEntity(
         uuid: String,
         groupUuid: String,
+        medicineUuid: String? = "aaaaaaaa-0000-0000-0000-000000000000",
     ): MedicationGroupItemEntity {
         return MedicationGroupItemEntity(
             uuid = uuid,
             groupUuid = groupUuid,
             sortOrder = 0,
             count = 1,
-            category = "ESTRADIOL",
+            medicineUuid = medicineUuid,
             applicationType = "ORAL",
-            selectionKind = "CATALOG",
-            medicationKey = "ESTRADIOL",
-            customMedicationName = null,
-            doseKind = "MG_AS_MEDICINE",
-            doseValueMg = 2.0,
-            customDoseUnit = "MG",
-            doseValuePercent = null,
+            doseInstructionKind = DoseInstructionKind.TABLET_FRACTION.name,
+            tabletFractionNumerator = 1,
+            tabletFractionDenominator = 1,
+            doseVolumeMl = null,
             doseWeightGrams = null,
-            doseReleaseRateMcgPerDay = null,
             gelApplicationArea = "DEFAULT",
         )
     }
 
-    private fun testMedicationDetails(): MedicationDetails {
-        return MedicationDetails(
-            category = MedicationKey.ESTRADIOL.category,
-            applicationType = MedicationApplicationType.ORAL,
-            selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL),
-            dose = MedicationDose.MgAsMedicine(2.0),
+    private fun testGroupWithItem(
+        groupUuid: UUID,
+        itemUuid: UUID,
+        medicineUuid: UUID,
+    ): MedicationGroupWithItemsEntity {
+        return testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(8, 0)),
+            items = listOf(
+                testGroupItemEntity(
+                    uuid = itemUuid.toString(),
+                    groupUuid = groupUuid.toString(),
+                    medicineUuid = medicineUuid.toString(),
+                ),
+            ),
+        )
+    }
+
+    private fun testMedicineEntity(
+        uuid: String,
+        medicationKey: MedicationKey,
+        preparation: MedicinePreparation,
+    ): MedicineEntity {
+        val fields = preparation.toStorageFields()
+        return MedicineEntity(
+            uuid = uuid,
+            selectionKind = MedicationSelectionKind.CATALOG.name,
+            medicationKey = medicationKey.name,
+            customMedicationName = null,
+            customMedicationNameNormalized = null,
+            category = medicationKey.category.name,
+            preparationType = fields.preparationType,
+            strengthMgPerTablet = fields.strengthMgPerTablet,
+            strengthMgPerVial = fields.strengthMgPerVial,
+            concentrationMgPerMl = fields.concentrationMgPerMl,
+            vialVolumeMl = fields.vialVolumeMl,
+            concentrationPercent = fields.concentrationPercent,
+            sachetWeightGrams = fields.sachetWeightGrams,
+            containerWeightGrams = fields.containerWeightGrams,
+            patchTotalMg = fields.patchTotalMg,
+            patchReleaseRateMcgPerDay = fields.patchReleaseRateMcgPerDay,
+            displayName = null,
+            identityKey = MedicineIdentityKey.catalog(medicationKey, preparation),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+            archivedAtEpochMillis = null,
+        )
+    }
+
+    // Regression: observeGroups() resolves Medicine references via a separate
+    // point-in-time fetch off the groups Flow, so a medicines-table change
+    // (displayName, archive, etc.) used to not re-emit until the groups table
+    // also changed — i.e., effectively only on app relaunch. The combined
+    // medicineDao.observeMedicineChangeVersion() signal forces re-resolution
+    // on any medicines mutation.
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeGroups_reEmitsWhenMedicineTableSignalChanges() = runTest {
+        val groupUuid = UUID.fromString("dddddddd-0000-0000-0000-000000000001")
+        val itemUuid = UUID.fromString("eeeeeeee-0000-0000-0000-000000000002")
+        val medicineUuid = UUID.fromString("ffffffff-0000-0000-0000-000000000003")
+
+        val medicineDao = mockk<com.mkx.hrttracker.data.local.MedicineDao>()
+        val groupsSource = MutableStateFlow(listOf(testGroupWithItem(groupUuid, itemUuid, medicineUuid)))
+        val medicineChangeVersion = MutableStateFlow(0)
+        val medicineState = MutableStateFlow(
+            com.mkx.hrttracker.data.local.MedicineEntity(
+                uuid = medicineUuid.toString(),
+                selectionKind = "CATALOG",
+                medicationKey = "ESTRADIOL",
+                customMedicationName = null,
+                customMedicationNameNormalized = null,
+                category = com.mkx.hrttracker.model.medication.MedicationCategory.ESTRADIOL.name,
+                preparationType = "PILL",
+                strengthMgPerTablet = 2.0,
+                strengthMgPerVial = null,
+                concentrationMgPerMl = null,
+                vialVolumeMl = null,
+                concentrationPercent = null,
+                sachetWeightGrams = null,
+                containerWeightGrams = null,
+                patchTotalMg = null,
+                patchReleaseRateMcgPerDay = null,
+                displayName = "Original",
+                identityKey = "C|ESTRADIOL|PILL|strengthMgPerTablet=2",
+                createdAtEpochMillis = 0,
+                updatedAtEpochMillis = 0,
+                archivedAtEpochMillis = null,
+            )
+        )
+
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { database.medicineDao() } returns medicineDao
+        every { medicationGroupDao.observeGroups() } returns groupsSource
+        every { medicineDao.observeMedicineChangeVersion() } returns medicineChangeVersion
+        coEvery { medicineDao.getByUuids(any()) } answers { listOf(medicineState.value) }
+
+        val freshRepository = MedicationGroupRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        advanceUntilIdle()
+        val before = freshRepository.observeGroups().first { it != null }
+        assertEquals(
+            "Original",
+            before?.first()?.medications?.first()?.medicine?.displayName,
+        )
+
+        medicineState.value = medicineState.value.copy(
+            displayName = "Renamed",
+            updatedAtEpochMillis = 500,
+        )
+        medicineChangeVersion.value = medicineChangeVersion.value + 1
+        advanceUntilIdle()
+
+        val after = freshRepository.observeGroups().first {
+            it?.firstOrNull()?.medications?.firstOrNull()?.medicine?.displayName == "Renamed"
+        }
+        assertEquals(
+            "Renamed",
+            after?.first()?.medications?.first()?.medicine?.displayName,
         )
     }
 }

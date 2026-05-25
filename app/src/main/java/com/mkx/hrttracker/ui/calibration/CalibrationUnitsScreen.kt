@@ -6,7 +6,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -82,8 +81,8 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
-import com.mkx.hrttracker.util.calibrationUnitLabel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.calibrationUnitLabel
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.util.UUID
@@ -347,7 +346,6 @@ private fun CalibrationUnitPreferenceItem(
         title = title,
         index = index,
         count = count,
-        onClick = {},
         titleTextStyle = MaterialTheme.typography.labelLarge,
         titleColor = MaterialTheme.colorScheme.onSurface,
         trailingContent = {
@@ -655,8 +653,7 @@ private fun CalibrationCustomAnalyteDialog(
                 ) {
                     customAnalyte?.let { existingAnalyte ->
                         TextButton(
-                            enabled = !isBusy,
-                            onClick = { isArchiveConfirmationVisible = true },
+                            onClick = { if (!isBusy) isArchiveConfirmationVisible = true },
                         ) {
                             Text(
                                 text = stringResource(R.string.archive),
@@ -665,16 +662,10 @@ private fun CalibrationCustomAnalyteDialog(
                         }
                     }
                     Spacer(modifier = Modifier.weight(1f))
-                    TextButton(
-                        enabled = !isBusy,
-                        onClick = onDismiss,
-                    ) {
+                    TextButton(onClick = { if (!isBusy) onDismiss() }) {
                         Text(text = stringResource(R.string.cancel))
                     }
-                    TextButton(
-                        enabled = !isBusy,
-                        onClick = { submit() },
-                    ) {
+                    TextButton(onClick = { if (!isBusy) submit() }) {
                         Text(text = stringResource(R.string.save))
                     }
                 }
@@ -706,8 +697,8 @@ private fun CalibrationCustomAnalyteDialog(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !isBusy,
                     onClick = {
+                        if (isBusy) return@TextButton
                         isArchiveConfirmationVisible = false
                         onArchive(customAnalyte.uuid)
                     },
@@ -717,8 +708,10 @@ private fun CalibrationCustomAnalyteDialog(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !isBusy,
-                    onClick = { isArchiveConfirmationVisible = false },
+                    onClick = {
+                        if (isBusy) return@TextButton
+                        isArchiveConfirmationVisible = false
+                    },
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }

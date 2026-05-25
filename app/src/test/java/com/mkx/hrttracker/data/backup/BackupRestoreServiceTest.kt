@@ -8,6 +8,7 @@ import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.MedicationGroupDao
 import com.mkx.hrttracker.data.local.MedicationLogDao
+import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.UserProfileDao
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
@@ -37,6 +38,7 @@ class BackupRestoreServiceTest {
     private val database: HrtTrackerDatabase = mockk()
     private val medicationLogDao: MedicationLogDao = mockk(relaxed = true)
     private val medicationGroupDao: MedicationGroupDao = mockk(relaxed = true)
+    private val medicineDao: MedicineDao = mockk(relaxed = true)
     private val bloodTestDao: BloodTestDao = mockk(relaxed = true)
     private val userProfileDao: UserProfileDao = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk(relaxed = true)
@@ -55,6 +57,7 @@ class BackupRestoreServiceTest {
         every { context.contentResolver } returns contentResolver
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.medicationGroupDao() } returns medicationGroupDao
+        every { database.medicineDao() } returns medicineDao
         every { database.bloodTestDao() } returns bloodTestDao
         every { database.userProfileDao() } returns userProfileDao
         coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
@@ -65,18 +68,10 @@ class BackupRestoreServiceTest {
         }
         coEvery {
             settingsRepository.restoreSettings(
-                any(),
-                any(),
-                any(),
-                any(),
-                any(),
-                any(),
-                any(),
-                any(),
-                any(),
-                any(),
-                any(),
-                any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(),
             )
         } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
@@ -166,6 +161,7 @@ class BackupRestoreServiceTest {
                 weightOriginalValue = null,
                 weightOriginalUnit = "KILOGRAMS",
             ),
+            medicines = emptyList(),
             medicationGroups = emptyList(),
             medicationLogs = emptyList(),
             customBloodAnalytes = emptyList(),

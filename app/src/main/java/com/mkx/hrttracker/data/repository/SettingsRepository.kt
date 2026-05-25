@@ -265,7 +265,11 @@ class SettingsRepository @Inject constructor(
         }
     }
 
-    suspend fun nextGroupNameIndex(): Int {
+    suspend fun peekNextGroupNameIndex(): Int {
+        return (activeDataStore().data.first()[groupNameCounterKey] ?: 0) + 1
+    }
+
+    suspend fun consumeNextGroupNameIndex(): Int {
         var result = 0
         activeDataStore().edit { preferences ->
             val next = (preferences[groupNameCounterKey] ?: 0) + 1

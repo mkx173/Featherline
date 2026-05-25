@@ -150,6 +150,24 @@ interface MedicationLogDao {
         newTimeIso: String,
     )
 
+    @Query(
+        """
+        UPDATE medication_log_entries
+        SET appliedAtEpochMillis = :appliedAtEpochMillis,
+            appliedAtTimeZoneId = :appliedAtTimeZoneId,
+            scheduledForIso = :scheduledForIso,
+            count = :count
+        WHERE uuid = :uuid
+        """
+    )
+    suspend fun updateEditableLogFields(
+        uuid: String,
+        appliedAtEpochMillis: Long,
+        appliedAtTimeZoneId: String,
+        scheduledForIso: String?,
+        count: Int,
+    )
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntry(entry: MedicationLogEntryEntity)
 

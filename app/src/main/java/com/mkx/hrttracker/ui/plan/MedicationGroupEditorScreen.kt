@@ -17,7 +17,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -26,22 +25,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -58,6 +54,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextFieldLabelPosition
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
@@ -76,13 +73,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -104,15 +102,12 @@ import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
@@ -133,21 +128,17 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDefinitionEditorSheet
-import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
-import com.mkx.hrttracker.ui.medication.changeApplicationType
-import com.mkx.hrttracker.ui.medication.changeCategory
-import com.mkx.hrttracker.ui.medication.changeCustomDoseUnit
-import com.mkx.hrttracker.ui.medication.changeDoseKind
-import com.mkx.hrttracker.ui.medication.changeMedicationKey
-import com.mkx.hrttracker.ui.medication.medicationDisplayName
+import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
+import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
-import kotlinx.coroutines.launch
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
+import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -162,7 +153,8 @@ fun MedicationGroupEditorScreen(
     onGroupSavedToPlan: () -> Unit = onGroupSaved,
     openedFromArchivedGroupsPage: Boolean = false,
     drawBehindNavigationBar: Boolean = false,
-    viewModel: MedicationGroupEditorViewModel = hiltViewModel()
+    viewModel: MedicationGroupEditorViewModel = hiltViewModel(),
+    onOpenMedicinePicker: (String) -> Unit = { _ -> },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentMinute by viewModel.currentMinute.collectAsStateWithLifecycle()
@@ -403,13 +395,19 @@ fun MedicationGroupEditorScreen(
         onAddDailyTime = viewModel::addDailyTime,
         onDailyTimeChange = viewModel::updateDailyTime,
         onRemoveDailyTime = viewModel::removeDailyTime,
-        onAddMedication = viewModel::showAddMedicationEditor,
+        // "+ Add medication" navigates straight to the medicine picker; the host
+        // generates a fresh slot localId per tap so the result wiring is unique.
+        // The editor sheet is opened pre-filled when the picker returns, via
+        // beginAddMedicationWithMedicine(localId, uuid) — see HrtTrackerNavHost.
+        onAddMedication = { onOpenMedicinePicker(UUID.randomUUID().toString()) },
         onMedicationClick = viewModel::showMedicationEditor,
         onRemoveMedication = viewModel::removeMedication,
         onDismissMedicationEditor = viewModel::dismissMedicationEditor,
         onConsumeMedicationEditorSaved = viewModel::consumeMedicationEditorSaved,
         onConsumeMedicationEditorInfoMessage = viewModel::consumeMedicationEditorInfoMessage,
-        onMedicationDraftChange = viewModel::updateEditingMedicationDraft,
+        onMedicineDraftChange = viewModel::updateEditingMedicineDraft,
+        onDoseInstructionDraftChange = viewModel::updateEditingDoseInstructionDraft,
+        onOpenMedicinePicker = onOpenMedicinePicker,
         onEditingMedicationCountTextChange = viewModel::updateEditingMedicationCountText,
         onDecreaseEditingMedicationCount = viewModel::decreaseEditingMedicationCount,
         onIncreaseEditingMedicationCount = viewModel::increaseEditingMedicationCount,
@@ -431,6 +429,8 @@ fun MedicationGroupEditorScreen(
         onArchiveConfirm = viewModel::archiveGroup,
         onArchiveMedicationGroupResultConsumed = viewModel::consumeArchiveMedicationGroupResult,
         onDuplicateArchivedGroupClick = viewModel::duplicateArchivedGroup,
+        onDuplicateArchivedGroupResultConsumed =
+            viewModel::consumeDuplicateArchivedGroupResult,
         onArchiveAndRecreateConfirm = viewModel::archiveAndRecreateGroup,
         onArchiveAndRecreateMedicationGroupResultConsumed =
             viewModel::consumeArchiveAndRecreateMedicationGroupResult,
@@ -478,7 +478,9 @@ private fun MedicationGroupEditorScreenContent(
     onDismissMedicationEditor: () -> Unit,
     onConsumeMedicationEditorSaved: () -> Unit,
     onConsumeMedicationEditorInfoMessage: () -> Unit,
-    onMedicationDraftChange: ((MedicationDraftUiState) -> MedicationDraftUiState) -> Unit,
+    onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
+    onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
+    onOpenMedicinePicker: (String) -> Unit,
     onEditingMedicationCountTextChange: (String) -> Unit,
     onDecreaseEditingMedicationCount: () -> Unit,
     onIncreaseEditingMedicationCount: () -> Unit,
@@ -495,6 +497,7 @@ private fun MedicationGroupEditorScreenContent(
     onArchiveConfirm: () -> Unit,
     onArchiveMedicationGroupResultConsumed: () -> Unit,
     onDuplicateArchivedGroupClick: () -> Unit,
+    onDuplicateArchivedGroupResultConsumed: () -> Unit,
     onArchiveAndRecreateConfirm: () -> Unit,
     onArchiveAndRecreateMedicationGroupResultConsumed: () -> Unit,
     onDeleteClick: () -> Unit,
@@ -563,9 +566,12 @@ private fun MedicationGroupEditorScreenContent(
     var pendingMedicationRemoval by remember { mutableStateOf<MedicationRemovalRequest?>(null) }
     var isMasterReminderRecoveryDialogVisible by remember { mutableStateOf(false) }
     val groupNameFocusRequester = remember { FocusRequester() }
-    val canSave = !shouldDisableMedicationGroupEditorSaveAction(
-        uiState = uiState,
-    )
+    // Form-validity gates only. Transient post-save / post-delete states
+    // keep the save button visually normal; the click handler no-ops via
+    // shouldDisableMedicationGroupEditorSaveAction below.
+    val canSave = hasSaveableMedicationGroupContent(uiState) &&
+        !uiState.scheduleTimeOrderError &&
+        !uiState.isArchived
     val shouldUseArchivedPresentation = shouldUseArchivedMedicationGroupEditorPresentation(
         uiState = uiState,
         openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
@@ -761,6 +767,20 @@ private fun MedicationGroupEditorScreenContent(
         }
     }
 
+    LaunchedEffect(uiState.duplicateArchivedGroupSkippedCount) {
+        val skipped = uiState.duplicateArchivedGroupSkippedCount ?: return@LaunchedEffect
+        Toast.makeText(
+            context,
+            context.resources.getQuantityString(
+                R.plurals.duplicate_group_archived_medicines_skipped,
+                skipped,
+                skipped,
+            ),
+            Toast.LENGTH_LONG,
+        ).show()
+        onDuplicateArchivedGroupResultConsumed()
+    }
+
     pendingSinceDate?.let { initialSinceDate ->
         DatePickerModal(
             onDateSelected = onSinceDateChange,
@@ -864,17 +884,17 @@ private fun MedicationGroupEditorScreenContent(
                             index = 0,
                             count = 1,
                             onClick = {
+                                if (uiState.isDeleting) return@PreferenceSegmentedListItem
                                 shouldDeleteRelatedEntriesWithGroup =
                                     !shouldDeleteRelatedEntriesWithGroup
                             },
-                            enabled = !uiState.isDeleting,
                             trailingContent = {
                                 Checkbox(
                                     checked = shouldDeleteRelatedEntriesWithGroup,
                                     onCheckedChange = {
+                                        if (uiState.isDeleting) return@Checkbox
                                         shouldDeleteRelatedEntriesWithGroup = it
                                     },
-                                    enabled = !uiState.isDeleting,
                                 )
                             },
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -884,8 +904,8 @@ private fun MedicationGroupEditorScreenContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !uiState.isDeleting,
                     onClick = {
+                        if (uiState.isDeleting) return@TextButton
                         if (hasRelatedEntries && shouldDeleteRelatedEntriesWithGroup) {
                             onDeleteWithRecordsConfirm()
                         } else {
@@ -901,8 +921,7 @@ private fun MedicationGroupEditorScreenContent(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !uiState.isDeleting,
-                    onClick = onDeleteDismiss,
+                    onClick = { if (!uiState.isDeleting) onDeleteDismiss() },
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
@@ -946,15 +965,17 @@ private fun MedicationGroupEditorScreenContent(
                         index = 0,
                         count = 2,
                         onClick = {
+                            if (isArchiveActionInProgress) return@PreferenceSegmentedListItem
                             shouldCreateActiveCopyAfterArchive =
                                 !shouldCreateActiveCopyAfterArchive
                         },
-                        enabled = !isArchiveActionInProgress,
                         trailingContent = {
                             Checkbox(
                                 checked = shouldCreateActiveCopyAfterArchive,
-                                onCheckedChange = { shouldCreateActiveCopyAfterArchive = it },
-                                enabled = !isArchiveActionInProgress
+                                onCheckedChange = {
+                                    if (isArchiveActionInProgress) return@Checkbox
+                                    shouldCreateActiveCopyAfterArchive = it
+                                },
                             )
                         },
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -967,15 +988,17 @@ private fun MedicationGroupEditorScreenContent(
                         index = 1,
                         count = 2,
                         onClick = {
+                            if (isArchiveActionInProgress) return@PreferenceSegmentedListItem
                             hasAcknowledgedArchiveIsPermanent =
                                 !hasAcknowledgedArchiveIsPermanent
                         },
-                        enabled = !isArchiveActionInProgress,
                         trailingContent = {
                             Checkbox(
                                 checked = hasAcknowledgedArchiveIsPermanent,
-                                onCheckedChange = { hasAcknowledgedArchiveIsPermanent = it },
-                                enabled = !isArchiveActionInProgress
+                                onCheckedChange = {
+                                    if (isArchiveActionInProgress) return@Checkbox
+                                    hasAcknowledgedArchiveIsPermanent = it
+                                },
                             )
                         },
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -983,11 +1006,15 @@ private fun MedicationGroupEditorScreenContent(
                 }
             },
             confirmButton = {
+                // Semantic enable kept (acknowledgement + no-blocking-slots) so
+                // the user can't fire archive without meeting the gates. The
+                // in-progress lock is enforced as a click no-op so the button
+                // stays visually normal while ROOM is writing.
                 TextButton(
-                    enabled = !isArchiveActionInProgress &&
-                        hasAcknowledgedArchiveIsPermanent &&
+                    enabled = hasAcknowledgedArchiveIsPermanent &&
                         !isArchiveBlockedByCurrentOrFuturePlannedSlots,
                     onClick = {
+                        if (isArchiveActionInProgress) return@TextButton
                         runArchiveConfirmationAction(
                             shouldCreateActiveCopyAfterArchive =
                                 shouldCreateActiveCopyAfterArchive,
@@ -1008,8 +1035,7 @@ private fun MedicationGroupEditorScreenContent(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !isArchiveActionInProgress,
-                    onClick = onArchiveDismiss,
+                    onClick = { if (!isArchiveActionInProgress) onArchiveDismiss() },
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
@@ -1038,8 +1064,9 @@ private fun MedicationGroupEditorScreenContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingRelatedEntries,
-                    onClick = onDeleteRelatedEntriesConfirm,
+                    onClick = {
+                        if (!uiState.isDeletingRelatedEntries) onDeleteRelatedEntriesConfirm()
+                    },
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
@@ -1049,8 +1076,9 @@ private fun MedicationGroupEditorScreenContent(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingRelatedEntries,
-                    onClick = onDeleteRelatedEntriesDismiss,
+                    onClick = {
+                        if (!uiState.isDeletingRelatedEntries) onDeleteRelatedEntriesDismiss()
+                    },
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
@@ -1181,7 +1209,13 @@ private fun MedicationGroupEditorScreenContent(
                     if (!shouldUseArchivedPresentation) {
                         HrtButton(
                             text = stringResource(R.string.save),
-                            onClick = onSaveClick,
+                            onClick = {
+                                if (shouldDisableMedicationGroupEditorSaveAction(
+                                        uiState = uiState,
+                                    )
+                                ) return@HrtButton
+                                onSaveClick()
+                            },
                             enabled = canSave,
                             modifier = Modifier.padding(end = 8.dp),
                         )
@@ -1225,54 +1259,17 @@ private fun MedicationGroupEditorScreenContent(
             }
 
             item {
-                val focusManager = LocalFocusManager.current
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedTextField(
-                        value = uiState.groupName,
-                        onValueChange = onGroupNameChange,
-                        label = { Text(text = stringResource(R.string.field_medication_group_name)) },
-                        leadingIcon = {
-                            MedicationGroupColorPickerLeadingIcon(
-                                selectedColorKey = uiState.groupColorKey,
-                                enabled = !uiState.isArchived,
-                                onColorSelected = onGroupColorChange,
-                            )
-                        },
-                        trailingIcon = if (
-                            !uiState.isArchived &&
-                            shouldShowGroupNameClearAction(uiState.groupName)
-                        ) {
-                            {
-                                IconButton(
-                                    onClick = {
-                                        onGroupNameChange("")
-                                        groupNameFocusRequester.requestFocus()
-                                    }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Close,
-                                        contentDescription = stringResource(
-                                            R.string.clear_group_name
-                                        )
-                                    )
-                                }
-                            }
-                        } else {
-                            null
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(groupNameFocusRequester),
-                        enabled = !uiState.isArchived,
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(
-                            onDone = { focusManager.clearFocus() }
-                        )
-                    )
-                }
+                MedicationGroupNameField(
+                    groupName = uiState.groupName,
+                    defaultGroupName = uiState.defaultGroupName,
+                    isEditing = uiState.isEditing,
+                    isFinishingAfterSave = uiState.isFinishingAfterSave,
+                    selectedColorKey = uiState.groupColorKey,
+                    enabled = !uiState.isArchived,
+                    focusRequester = groupNameFocusRequester,
+                    onGroupNameChange = onGroupNameChange,
+                    onColorSelected = onGroupColorChange,
+                )
             }
 
             item {
@@ -1290,22 +1287,52 @@ private fun MedicationGroupEditorScreenContent(
                             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
                         ) {
                             uiState.medications.forEachIndexed { index, medication ->
-                                val medicationName = medicationDisplayName(medication.details)
+                                val medicationName = medicationEntryTitle(
+                                    medication.resolvedMedicine,
+                                    medication.applicationType,
+                                )
                                 val medicationEditable = !areFieldsRenderedLocked
+                                val isMedicineArchived =
+                                    medication.resolvedMedicine?.isArchived == true
                                 MedicationCard(
-                                    details = medication.details,
+                                    medicine = medication.resolvedMedicine,
+                                    doseInstruction = medication.doseInstruction,
+                                    applicationType = medication.applicationType,
                                     medicationCount = medication.count,
                                     groupColorKey = uiState.groupColorKey,
-                                    onClick = {
-                                        if (medicationEditable) {
-                                            openMedicationEditor(medication.localId)
-                                        }
+                                    // Null onClick drops the ripple on
+                                    // medication cards while the group is
+                                    // archived / locked, since tapping does
+                                    // nothing in that state.
+                                    onClick = if (medicationEditable) {
+                                        { openMedicationEditor(medication.localId) }
+                                    } else {
+                                        null
                                     },
                                     onDeleteClick = if (medicationEditable) {
                                         {
                                             pendingMedicationRemoval = MedicationRemovalRequest(
                                                 localId = medication.localId,
                                                 medicationName = medicationName
+                                            )
+                                        }
+                                    } else {
+                                        null
+                                    },
+                                    // When the group itself is archived, flag
+                                    // any medicine that's also archived — the
+                                    // duplicate flow skips those slots since
+                                    // saving them would silently revive the
+                                    // archived medicine.
+                                    trailingContent = if (uiState.isArchived && isMedicineArchived) {
+                                        {
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_archive),
+                                                contentDescription = stringResource(
+                                                    R.string.medication_archived_indicator_cd,
+                                                ),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp),
                                             )
                                         }
                                     } else {
@@ -1604,6 +1631,8 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     uiState.editingMedication?.let { medication ->
+        val isEditingExistingMedication = uiState.medications.any { it.localId == medication.localId }
+        val canEditMedicationIdentity = !areFieldsRenderedLocked && !isEditingExistingMedication
         MedicationDefinitionEditorSheet(
             modifier = Modifier,
             title = stringResource(
@@ -1619,37 +1648,15 @@ private fun MedicationGroupEditorScreenContent(
             onCloseClick = {
                 hideBottomSheet(scope, sheetState, onDismissMedicationEditor)
             },
-            draft = medication.draft,
-            onCategoryChange = { category ->
-                onMedicationDraftChange { draft -> draft.changeCategory(category) }
-            },
-            onApplicationTypeChange = { applicationType ->
-                onMedicationDraftChange { draft -> draft.changeApplicationType(applicationType) }
-            },
-            onMedicationKeyChange = { medicationKey ->
-                onMedicationDraftChange { draft -> draft.changeMedicationKey(medicationKey) }
-            },
-            onCustomMedicationNameChange = { medicationName ->
-                onMedicationDraftChange { draft -> draft.copy(customMedicationName = medicationName) }
-            },
-            onDoseKindChange = { doseKind ->
-                onMedicationDraftChange { draft -> draft.changeDoseKind(doseKind) }
-            },
-            onCustomDoseUnitChange = { customDoseUnit ->
-                onMedicationDraftChange { draft -> draft.changeCustomDoseUnit(customDoseUnit) }
-            },
-            onDoseMgChange = { doseMg ->
-                onMedicationDraftChange { draft -> draft.copy(doseMg = doseMg) }
-            },
-            onGelPercentChange = { gelPercent ->
-                onMedicationDraftChange { draft -> draft.copy(gelPercent = gelPercent) }
-            },
-            onGelWeightChange = { gelWeight ->
-                onMedicationDraftChange { draft -> draft.copy(gelWeightGrams = gelWeight) }
-            },
-            onPatchReleaseRateChange = { releaseRate ->
-                onMedicationDraftChange { draft ->
-                    draft.copy(patchReleaseRateMcgPerDay = releaseRate)
+            medicineDraft = medication.medicineDraft,
+            doseInstructionDraft = medication.doseInstructionDraft,
+            resolvedMedicine = medication.resolvedMedicine,
+            canEditMedicationIdentity = canEditMedicationIdentity,
+            onMedicineDraftChange = onMedicineDraftChange,
+            onDoseInstructionDraftChange = onDoseInstructionDraftChange,
+            onOpenMedicinePicker = {
+                if (canEditMedicationIdentity) {
+                    onOpenMedicinePicker(medication.localId)
                 }
             },
             countText = medication.countText,
@@ -2022,7 +2029,89 @@ internal fun shouldEnableGroupNotifications(
 ): Boolean = pendingNotificationEnableRequest == GROUP_ONLY_NOTIFICATION_ENABLE_REQUEST ||
     pendingNotificationEnableRequest == MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST
 
-internal fun shouldShowGroupNameClearAction(groupName: String): Boolean = groupName.isNotBlank()
+@Composable
+internal fun MedicationGroupNameField(
+    groupName: String,
+    defaultGroupName: String,
+    isEditing: Boolean,
+    isFinishingAfterSave: Boolean,
+    selectedColorKey: MedicationGroupColorKey,
+    enabled: Boolean,
+    focusRequester: FocusRequester,
+    onGroupNameChange: (String) -> Unit,
+    onColorSelected: (MedicationGroupColorKey) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val focusManager = LocalFocusManager.current
+    val groupNameState = rememberTextFieldState(initialText = groupName)
+    val currentGroupName by rememberUpdatedState(groupName)
+    val currentOnGroupNameChange by rememberUpdatedState(onGroupNameChange)
+
+    LaunchedEffect(groupNameState, groupName) {
+        if (groupNameState.text.toString() != groupName) {
+            groupNameState.setTextAndPlaceCursorAtEnd(groupName)
+        }
+    }
+
+    LaunchedEffect(groupNameState) {
+        snapshotFlow { groupNameState.text.toString() }.collect { value ->
+            if (value != currentGroupName) {
+                currentOnGroupNameChange(value)
+            }
+        }
+    }
+
+    val groupNamePlaceholder = medicationGroupNamePlaceholder(
+        defaultGroupName = defaultGroupName,
+        isEditing = isEditing,
+        isFinishingAfterSave = isFinishingAfterSave,
+    )
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        OutlinedTextField(
+            state = groupNameState,
+            labelPosition = medicationGroupNameFieldLabelPosition(),
+            label = { Text(text = stringResource(R.string.field_medication_group_name)) },
+            placeholder = {
+                if (groupNamePlaceholder != null) {
+                    Text(text = groupNamePlaceholder)
+                }
+            },
+            leadingIcon = {
+                MedicationGroupColorPickerLeadingIcon(
+                    selectedColorKey = selectedColorKey,
+                    enabled = enabled,
+                    onColorSelected = onColorSelected,
+                )
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester),
+            enabled = enabled,
+            lineLimits = TextFieldLineLimits.SingleLine,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            onKeyboardAction = { focusManager.clearFocus() },
+        )
+    }
+}
+
+internal fun medicationGroupNamePlaceholder(
+    defaultGroupName: String,
+    isEditing: Boolean,
+    isFinishingAfterSave: Boolean,
+): String? {
+    // isFinishingAfterSave bridges the one-frame gap where the snapshot has
+    // already flipped isEditing=true but the TextFieldState hasn't synced the
+    // resolved groupName yet, which would otherwise flash an empty field.
+    val suppress = isEditing && !isFinishingAfterSave
+    return defaultGroupName.takeIf { !suppress && it.isNotBlank() }
+}
+
+internal fun medicationGroupNameFieldLabelPosition(): TextFieldLabelPosition {
+    return TextFieldLabelPosition.Attached(alwaysMinimize = true)
+}
 
 private fun maybeRequestExactAlarmAccess(
     context: android.content.Context,
@@ -2235,7 +2324,9 @@ private fun MedicationGroupEditorDailyPreview() {
             onDismissMedicationEditor = { },
             onConsumeMedicationEditorSaved = { },
             onConsumeMedicationEditorInfoMessage = { },
-            onMedicationDraftChange = { },
+            onMedicineDraftChange = { },
+            onDoseInstructionDraftChange = { },
+            onOpenMedicinePicker = { _ -> },
             onEditingMedicationCountTextChange = { },
             onDecreaseEditingMedicationCount = { },
             onIncreaseEditingMedicationCount = { },
@@ -2252,6 +2343,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onArchiveConfirm = { },
             onArchiveMedicationGroupResultConsumed = { },
             onDuplicateArchivedGroupClick = { },
+            onDuplicateArchivedGroupResultConsumed = { },
             onArchiveAndRecreateConfirm = { },
             onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
@@ -2308,7 +2400,9 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onDismissMedicationEditor = { },
             onConsumeMedicationEditorSaved = { },
             onConsumeMedicationEditorInfoMessage = { },
-            onMedicationDraftChange = { },
+            onMedicineDraftChange = { },
+            onDoseInstructionDraftChange = { },
+            onOpenMedicinePicker = { _ -> },
             onEditingMedicationCountTextChange = { },
             onDecreaseEditingMedicationCount = { },
             onIncreaseEditingMedicationCount = { },
@@ -2325,6 +2419,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onArchiveConfirm = { },
             onArchiveMedicationGroupResultConsumed = { },
             onDuplicateArchivedGroupClick = { },
+            onDuplicateArchivedGroupResultConsumed = { },
             onArchiveAndRecreateConfirm = { },
             onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
@@ -2422,7 +2517,9 @@ private fun MedicationGroupEditorPreviewContent(
         onDismissMedicationEditor = { },
         onConsumeMedicationEditorSaved = { },
         onConsumeMedicationEditorInfoMessage = { },
-        onMedicationDraftChange = { },
+        onMedicineDraftChange = { },
+            onDoseInstructionDraftChange = { },
+            onOpenMedicinePicker = { _ -> },
         onEditingMedicationCountTextChange = { },
         onDecreaseEditingMedicationCount = { },
         onIncreaseEditingMedicationCount = { },
@@ -2439,6 +2536,7 @@ private fun MedicationGroupEditorPreviewContent(
         onArchiveConfirm = { },
         onArchiveMedicationGroupResultConsumed = { },
         onDuplicateArchivedGroupClick = { },
+        onDuplicateArchivedGroupResultConsumed = { },
         onArchiveAndRecreateConfirm = { },
         onArchiveAndRecreateMedicationGroupResultConsumed = { },
         onDeleteClick = { },
@@ -2490,35 +2588,41 @@ private fun buildMedicationGroupEditorPreviewUiState(
             MedicationGroupMedicationItemUiState(
                 localId = "med-1",
                 persistedMedicationId = UUID.fromString("a5a8da0b-2510-4f7c-8bf3-fbc74b409321").toString(),
-                details = MedicationDetails(
-                    category = MedicationCategory.ESTRADIOL,
-                    applicationType = if (scheduleType == MedicationGroupScheduleType.WEEKLY) {
-                        MedicationApplicationType.INJECTION
-                    } else {
-                        MedicationApplicationType.ORAL
-                    },
-                    selection = MedicationSelection.Catalog(
-                        if (scheduleType == MedicationGroupScheduleType.WEEKLY) {
-                            MedicationKey.ESTRADIOL_VALERATE
-                        } else {
-                            MedicationKey.ESTRADIOL
-                        }
-                    ),
-                    dose = MedicationDose.MgAsMedicine(
-                        if (scheduleType == MedicationGroupScheduleType.WEEKLY) 5.0 else 2.0
-                    )
-                )
+                resolvedMedicine = previewEditorMedicine(MedicationKey.ESTRADIOL),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                count = 1,
             ),
             MedicationGroupMedicationItemUiState(
                 localId = "med-2",
                 persistedMedicationId = UUID.fromString("73ceca25-8547-43cf-8517-0d1e46a95d56").toString(),
-                details = MedicationDetails(
-                    category = MedicationCategory.ANTIANDROGEN,
-                    applicationType = MedicationApplicationType.ORAL,
-                    selection = MedicationSelection.Catalog(MedicationKey.SPIRONOLACTONE),
-                    dose = MedicationDose.MgAsMedicine(50.0)
-                )
+                resolvedMedicine = previewEditorMedicine(MedicationKey.SPIRONOLACTONE),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                count = 1,
             )
         )
+    )
+}
+
+private fun previewEditorMedicine(
+    medicationKey: MedicationKey,
+): com.mkx.hrttracker.model.medication.Medicine {
+    val selection = com.mkx.hrttracker.model.medication.MedicineSelection.Catalog(medicationKey)
+    val preparation = com.mkx.hrttracker.model.medication.MedicinePreparation.Pill(
+        strengthMgPerTablet = 2.0,
+    )
+    return com.mkx.hrttracker.model.medication.Medicine(
+        uuid = UUID.fromString("00000000-0000-0000-0000-000000000002"),
+        selection = selection,
+        category = medicationKey.category,
+        preparation = preparation,
+        displayName = null,
+        identityKey = com.mkx.hrttracker.model.medication.MedicineIdentityKey.catalog(
+            medicationKey, preparation,
+        ),
+        createdAt = java.time.Instant.EPOCH,
+        updatedAt = java.time.Instant.EPOCH,
+        archivedAt = null,
     )
 }

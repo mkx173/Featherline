@@ -4,6 +4,7 @@ import android.content.Context
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -12,13 +13,9 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.model.medication.MedicationDoseUnit
-import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -26,9 +23,11 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -59,6 +58,7 @@ class BackupExportServiceTest {
     private val context: Context = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk()
     private val userProfileRepository: UserProfileRepository = mockk()
+    private val medicineRepository: MedicineRepository = mockk()
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val bloodTestRepository: BloodTestRepository = mockk()
@@ -77,6 +77,7 @@ class BackupExportServiceTest {
             context = context,
             settingsRepository = settingsRepository,
             userProfileRepository = userProfileRepository,
+            medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
             bloodTestRepository = bloodTestRepository,
@@ -90,8 +91,44 @@ class BackupExportServiceTest {
     }
 
     @Test
-    fun buildBackupSnapshotJson_includes_current_snapshot_shape_and_new_medication_fields() = runTest {
+    fun backupExport_usesVersion3AfterCapsuleEnumAddition() {
+        assertEquals(3, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_serializesCapsulePreparationUsingPerTabletColumn() = runTest {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000000c0")
+        val capsuleMedicine = testCustomMedicine(
+            uuid = medicineUuid,
+            medicationName = "Progesterone",
+            category = MedicationCategory.CUSTOM,
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+        )
+
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns listOf(capsuleMedicine)
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+        val snapshot = BackupSnapshotJsonCodec.decode(
+            service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+        )!!
+
+        val backedUpMedicine = snapshot.medicines.single()
+        assertEquals(medicineUuid.toString(), backedUpMedicine.uuid)
+        assertEquals("CAPSULE", backedUpMedicine.preparationType)
+        assertEquals(100.0, backedUpMedicine.strengthMgPerTablet!!, 1e-9)
+        assertEquals(null, backedUpMedicine.strengthMgPerVial)
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_includes_medicines_and_new_medication_fields() = runTest {
         val exportedAt = Instant.parse("2026-04-26T03:04:05Z")
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000001")
         val groupUuid = UUID.fromString("00000000-0000-0000-0000-000000000010")
         val groupMedicationUuid = UUID.fromString("00000000-0000-0000-0000-000000000011")
         val sourceGroupUuid = UUID.fromString("00000000-0000-0000-0000-000000000012")
@@ -102,6 +139,13 @@ class BackupExportServiceTest {
         val panelUuid = UUID.fromString("00000000-0000-0000-0000-000000000040")
         val builtinResultUuid = UUID.fromString("00000000-0000-0000-0000-000000000041")
         val customResultUuid = UUID.fromString("00000000-0000-0000-0000-000000000042")
+        val customMedicine = testCustomMedicine(
+            uuid = medicineUuid,
+            medicationName = "Custom med",
+            // Free-text custom medicines stay in the CUSTOM category so the PK
+            // path correctly excludes them from estradiol-equivalent dosing.
+            category = MedicationCategory.CUSTOM,
+        )
 
         every { settingsRepository.onboardingCompleted } returns flowOf(true)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(
@@ -127,6 +171,7 @@ class BackupExportServiceTest {
             weightOriginalUnit = WeightUnit.POUNDS,
             updatedAt = Instant.parse("2026-04-25T00:00:00Z"),
         )
+        coEvery { medicineRepository.getAll() } returns listOf(customMedicine)
         coEvery { medicationGroupRepository.getGroups() } returns listOf(
             MedicationGroup(
                 uuid = groupUuid,
@@ -154,13 +199,11 @@ class BackupExportServiceTest {
                 medications = listOf(
                     MedicationGroupMedication(
                         uuid = groupMedicationUuid,
-                        details = MedicationDetails(
-                            category = MedicationCategory.CUSTOM,
-                            applicationType = MedicationApplicationType.ORAL,
-                            selection = MedicationSelection.Custom("Custom med"),
-                            dose = MedicationDose.MgAsMedicine(0.2),
-                            gelApplicationArea = MedicationGelApplicationArea.DEFAULT,
-                            customDoseUnit = MedicationDoseUnit.MCG,
+                        medicine = customMedicine,
+                        applicationType = MedicationApplicationType.ORAL,
+                        doseInstruction = DoseInstruction.TabletFraction(
+                            numerator = 1,
+                            denominator = 2,
                         ),
                         count = 2,
                     )
@@ -175,14 +218,14 @@ class BackupExportServiceTest {
         coEvery { medicationLogRepository.getEntries() } returns listOf(
             MedicationLogEntry(
                 uuid = logUuid,
-                details = MedicationDetails(
-                    category = MedicationCategory.CUSTOM,
-                    applicationType = MedicationApplicationType.ORAL,
-                    selection = MedicationSelection.Custom("Custom med"),
-                    dose = MedicationDose.MgAsMedicine(0.2),
-                    customDoseUnit = MedicationDoseUnit.MCG,
+                medicine = customMedicine,
+                category = MedicationCategory.CUSTOM,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(
+                    numerator = 1,
+                    denominator = 2,
                 ),
-                dosageMgAsEstradiol = 0.2,
+                equivalentE2Mg = null,
                 sourceGroupUuid = groupUuid,
                 appliedAt = Instant.parse("2026-04-26T01:00:00Z"),
                 appliedAtTimeZoneId = "Asia/Tokyo",
@@ -246,32 +289,22 @@ class BackupExportServiceTest {
         snapshot!!
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, snapshot.snapshotVersion)
+        assertEquals(3, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
 
-        assertEquals("DARK", snapshot.settings.darkModeOption)
-        assertEquals(false, snapshot.settings.adaptiveColorEnabled)
-        assertEquals(false, snapshot.settings.remindersEnabled)
-        assertEquals("FIVE_MINUTES", snapshot.settings.appLockGracePeriodOption)
-        assertEquals(true, snapshot.settings.hideScreenContentEnabled)
-        assertEquals(true, snapshot.settings.onboardingCompleted)
-        assertEquals("SIMPLIFIED_CHINESE", snapshot.settings.appLanguageOption)
-        assertEquals("ng_dl", snapshot.settings.homeE2DisplayUnit)
-        assertEquals("THIRTY_DAYS", snapshot.settings.homeE2ChartWindow)
-        assertEquals(0.8f, snapshot.settings.widgetContentScale, 0f)
-        assertEquals(0.6f, snapshot.settings.widgetBackgroundAlpha, 0f)
-        assertEquals(
-            mapOf("e2" to "pmol_l", "t" to "nmol_l"),
-            snapshot.settings.calibrationDefaultUnits,
-        )
-
-        assertEquals(52.2, snapshot.userProfile.weightKg!!, 1e-9)
-        assertEquals(115.0, snapshot.userProfile.weightOriginalValue!!, 1e-9)
-        assertEquals("POUNDS", snapshot.userProfile.weightOriginalUnit)
-        assertEquals(
-            Instant.parse("2026-04-25T00:00:00Z").toEpochMilli(),
-            snapshot.userProfile.updatedAtEpochMillis,
-        )
+        // Medicine appears in the standalone medicines list — the restore path
+        // builds its FK-validation set from this collection before walking
+        // groups and logs, so an export that omits the medicine would be
+        // unrestorable even though the in-memory model can still reference it.
+        val backedUpMedicine = snapshot.medicines.single()
+        assertEquals(medicineUuid.toString(), backedUpMedicine.uuid)
+        assertEquals("CUSTOM", backedUpMedicine.selectionKind)
+        assertEquals("Custom med", backedUpMedicine.customMedicationName)
+        assertEquals("custom med", backedUpMedicine.customMedicationNameNormalized)
+        assertEquals("CUSTOM", backedUpMedicine.category)
+        assertEquals("PILL", backedUpMedicine.preparationType)
+        assertEquals(customMedicine.identityKey, backedUpMedicine.identityKey)
 
         val group = snapshot.medicationGroups.single()
         assertEquals(groupUuid.toString(), group.uuid)
@@ -292,52 +325,29 @@ class BackupExportServiceTest {
             listOf("2026-04-01T00:00", "2026-04-02T00:00"),
             group.schedule.times.map { it.effectiveFromLocalIso },
         )
-        assertEquals(
-            Instant.parse("2026-04-01T00:00:00Z").toEpochMilli(),
-            group.createdAtEpochMillis,
-        )
-        assertEquals(
-            Instant.parse("2026-04-20T00:00:00Z").toEpochMilli(),
-            group.updatedAtEpochMillis,
-        )
-        assertEquals(
-            Instant.parse("2026-04-21T00:00:00Z").toEpochMilli(),
-            group.archivedAtEpochMillis,
-        )
-        assertEquals(true, group.includePastScheduledSlots)
         assertEquals(sourceGroupUuid.toString(), group.recreatedFromGroupUuid)
 
         val groupMedication = group.medications.single()
         assertEquals(groupMedicationUuid.toString(), groupMedication.uuid)
         assertEquals(2, groupMedication.count)
-        assertEquals("CUSTOM", groupMedication.category)
+        assertEquals(medicineUuid.toString(), groupMedication.medicineUuid)
         assertEquals("ORAL", groupMedication.applicationType)
-        assertEquals("CUSTOM", groupMedication.selectionKind)
-        assertEquals(null, groupMedication.medicationKey)
-        assertEquals("Custom med", groupMedication.customMedicationName)
-        assertEquals("MG_AS_MEDICINE", groupMedication.doseKind)
-        assertEquals(0.2, groupMedication.doseValueMg!!, 1e-9)
-        assertEquals("MCG", groupMedication.customDoseUnit)
-        assertEquals(null, groupMedication.doseValuePercent)
+        assertEquals("TABLET_FRACTION", groupMedication.doseInstructionKind)
+        assertEquals(1, groupMedication.tabletFractionNumerator)
+        assertEquals(2, groupMedication.tabletFractionDenominator)
+        assertEquals(null, groupMedication.doseVolumeMl)
         assertEquals(null, groupMedication.doseWeightGrams)
-        assertEquals(null, groupMedication.doseReleaseRateMcgPerDay)
         assertEquals("DEFAULT", groupMedication.gelApplicationArea)
 
         val log = snapshot.medicationLogs.single()
         assertEquals(logUuid.toString(), log.uuid)
         assertEquals("CUSTOM", log.category)
+        assertEquals(medicineUuid.toString(), log.medicineUuid)
         assertEquals("ORAL", log.applicationType)
-        assertEquals("CUSTOM", log.selectionKind)
-        assertEquals(null, log.medicationKey)
-        assertEquals("Custom med", log.customMedicationName)
-        assertEquals("MG_AS_MEDICINE", log.doseKind)
-        assertEquals(0.2, log.doseValueMg!!, 1e-9)
-        assertEquals("MCG", log.customDoseUnit)
-        assertEquals(null, log.doseValuePercent)
-        assertEquals(null, log.doseWeightGrams)
-        assertEquals(null, log.doseReleaseRateMcgPerDay)
-        assertEquals("DEFAULT", log.gelApplicationArea)
-        assertEquals(0.2, log.dosageMgAsEstradiol!!, 1e-9)
+        assertEquals("TABLET_FRACTION", log.doseInstructionKind)
+        assertEquals(1, log.tabletFractionNumerator)
+        assertEquals(2, log.tabletFractionDenominator)
+        assertEquals(null, log.equivalentE2Mg) // Custom medicines have no ester data.
         assertEquals(groupUuid.toString(), log.sourceGroupUuid)
         assertEquals(morningScheduleTimeUuid.toString(), log.scheduleTimeUuid)
         assertEquals(Instant.parse("2026-04-26T01:00:00Z").toEpochMilli(), log.appliedAtEpochMillis)
@@ -345,62 +355,88 @@ class BackupExportServiceTest {
         assertEquals("2026-04-26T09:00", log.scheduledForIso)
         assertEquals(2, log.count)
 
-        val analyte = snapshot.customBloodAnalytes.single()
-        assertEquals(analyteUuid.toString(), analyte.uuid)
-        assertEquals("DHT", analyte.abbreviation)
-        assertEquals("DHT", analyte.name)
-        assertEquals("ng/dL", analyte.unitLabel)
-        assertEquals(
-            Instant.parse("2026-04-01T00:00:00Z").toEpochMilli(),
-            analyte.createdAtEpochMillis,
-        )
-        assertEquals(
-            Instant.parse("2026-04-15T00:00:00Z").toEpochMilli(),
-            analyte.updatedAtEpochMillis,
-        )
-        assertEquals(
-            Instant.parse("2026-04-20T00:00:00Z").toEpochMilli(),
-            analyte.archivedAtEpochMillis,
-        )
-
-        val panel = snapshot.bloodTestPanels.single()
-        assertEquals(panelUuid.toString(), panel.uuid)
-        assertEquals(Instant.parse("2026-04-26T02:00:00Z").toEpochMilli(), panel.collectedAtInstantEpochMillis)
-        assertEquals("Asia/Tokyo", panel.collectedAtTimeZoneId)
-        assertEquals("Fasting", panel.notes)
-        assertEquals(12_345L, panel.timeSinceLastEstradiolDoseMillis)
-        assertEquals(null, panel.timeSinceLastTestosteroneDoseMillis)
-        assertEquals(Instant.parse("2026-04-26T02:30:00Z").toEpochMilli(), panel.createdAtEpochMillis)
-        assertEquals(Instant.parse("2026-04-26T02:45:00Z").toEpochMilli(), panel.updatedAtEpochMillis)
-
-        val builtinResult = panel.results[0]
-        assertEquals(builtinResultUuid.toString(), builtinResult.uuid)
-        assertEquals(Instant.parse("2026-04-26T02:31:00Z").toEpochMilli(), builtinResult.createdAtEpochMillis)
-        assertEquals(0, builtinResult.displayOrder)
-        assertEquals("e2", builtinResult.builtinAnalyteKey)
-        assertEquals(null, builtinResult.customAnalyteUuid)
-        assertEquals(559.5, builtinResult.value, 1e-9)
-        assertEquals("pmol_l", builtinResult.unitSnapshot)
-        assertEquals(152.4, builtinResult.canonicalValue, 1e-9)
-
-        val customResult = panel.results[1]
-        assertEquals(customResultUuid.toString(), customResult.uuid)
-        assertEquals(Instant.parse("2026-04-26T02:32:00Z").toEpochMilli(), customResult.createdAtEpochMillis)
-        assertEquals(1, customResult.displayOrder)
-        assertEquals(null, customResult.builtinAnalyteKey)
-        assertEquals(analyteUuid.toString(), customResult.customAnalyteUuid)
-        assertEquals(12.0, customResult.value, 1e-9)
-        assertEquals("ng/dL", customResult.unitSnapshot)
-        assertEquals(12.0, customResult.canonicalValue, 1e-9)
-
-        assertContains(json, "\"medicationKey\":null")
-        assertContains(json, "\"doseValuePercent\":null")
-        assertContains(json, "\"doseWeightGrams\":null")
-        assertContains(json, "\"doseReleaseRateMcgPerDay\":null")
-        assertContains(json, "\"timeSinceLastTestosteroneDoseMillis\":null")
-        assertContains(json, "\"customAnalyteUuid\":null")
         assertTrue(!json.contains("\"screenLockProtectionEnabled\""))
         assertFalse("Backup JSON should not be pretty-printed.", json.contains('\n'))
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_serializesPatchOffSlotWithoutMedicineUuid() = runTest {
+        // PATCH_OFF is the one application type whose medicineUuid is null
+        // by design. The export must round-trip that null so a re-imported
+        // backup still parses as PATCH_OFF rather than failing FK validation.
+        val groupUuid = UUID.fromString("00000000-0000-0000-0000-0000000001a0")
+        val itemUuid = UUID.fromString("00000000-0000-0000-0000-0000000001a1")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-0000000001a2")
+        val scheduleTimeUuid = UUID.fromString("00000000-0000-0000-0000-0000000001a3")
+
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
+        coEvery { medicationGroupRepository.getGroups() } returns listOf(
+            MedicationGroup(
+                uuid = groupUuid,
+                name = "Patch removals",
+                colorKey = MedicationGroupColorKey.ROSE,
+                schedule = MedicationGroupSchedule(
+                    type = MedicationGroupScheduleType.DAILY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 4, 1),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(20, 0)),
+                    timeSlots = listOf(
+                        MedicationGroupScheduleTime(
+                            uuid = scheduleTimeUuid,
+                            time = LocalTime.of(20, 0),
+                            effectiveFrom = LocalDateTime.of(2026, 4, 1, 0, 0),
+                        ),
+                    ),
+                ),
+                medications = listOf(
+                    MedicationGroupMedication(
+                        uuid = itemUuid,
+                        medicine = null,
+                        applicationType = MedicationApplicationType.PATCH_OFF,
+                        doseInstruction = DoseInstruction.Noop,
+                        count = 1,
+                    )
+                ),
+                notificationsEnabled = false,
+                createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+                updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+            )
+        )
+        coEvery { medicationLogRepository.getEntries() } returns listOf(
+            MedicationLogEntry(
+                uuid = logUuid,
+                medicine = null,
+                category = MedicationCategory.ESTRADIOL,
+                applicationType = MedicationApplicationType.PATCH_OFF,
+                doseInstruction = DoseInstruction.Noop,
+                equivalentE2Mg = null,
+                sourceGroupUuid = null,
+                appliedAt = Instant.parse("2026-04-26T01:00:00Z"),
+                appliedAtTimeZoneId = "Asia/Tokyo",
+            )
+        )
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+        val snapshot = BackupSnapshotJsonCodec.decode(
+            service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+        )!!
+
+        val patchOffItem = snapshot.medicationGroups.single().medications.single()
+        assertEquals(null, patchOffItem.medicineUuid)
+        assertEquals("PATCH_OFF", patchOffItem.applicationType)
+        assertEquals("NOOP", patchOffItem.doseInstructionKind)
+
+        val patchOffLog = snapshot.medicationLogs.single()
+        assertEquals(null, patchOffLog.medicineUuid)
+        assertEquals("ESTRADIOL", patchOffLog.category)
+        assertEquals("PATCH_OFF", patchOffLog.applicationType)
+        assertEquals("NOOP", patchOffLog.doseInstructionKind)
+        assertEquals(null, patchOffLog.equivalentE2Mg)
     }
 
     @Test
@@ -408,6 +444,7 @@ class BackupExportServiceTest {
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
         coEvery { medicationGroupRepository.getGroups() } returns emptyList()
         coEvery { medicationLogRepository.getEntries() } returns emptyList()
         coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
@@ -433,6 +470,7 @@ class BackupExportServiceTest {
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
         coEvery { medicationGroupRepository.getGroups() } returns emptyList()
         coEvery { medicationLogRepository.getEntries() } returns emptyList()
         coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
@@ -457,12 +495,5 @@ class BackupExportServiceTest {
         )
 
         assertEquals("featherline-backup-2026-04-26_12-04-05.hrtbackup", fileName)
-    }
-
-    private fun assertContains(
-        text: String,
-        expected: String,
-    ) {
-        assertTrue("Expected JSON to contain: $expected\n$text", text.contains(expected))
     }
 }

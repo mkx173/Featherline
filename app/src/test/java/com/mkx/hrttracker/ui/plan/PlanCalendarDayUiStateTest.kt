@@ -1,9 +1,8 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
@@ -11,12 +10,14 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.isEntryWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.planCalendarDate
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
-import com.mkx.hrttracker.model.medication.testCustomMedicationDetails
+import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testInstant
+import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -587,12 +588,14 @@ class PlanCalendarDayUiStateTest {
             medications = listOf(
                 MedicationGroupMedication(
                     uuid = UUID.fromString("3de7dca1-d35f-48e9-a6d0-f1ba2e7fe41a"),
-                    details = MedicationDetails(
-                        category = MedicationCategory.ESTRADIOL,
-                        applicationType = MedicationApplicationType.PATCH_ON,
-                        selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL_PATCH),
-                        dose = MedicationDose.PatchReleaseRateMcgPerDay(100.0)
-                    )
+                    medicine = testMedicine(
+                        key = MedicationKey.ESTRADIOL_PATCH,
+                        preparation = MedicinePreparation.Patch(
+                            specification = MedicinePreparation.PatchSpecification.TotalMg(valueMg = 4.0),
+                        ),
+                    ),
+                    applicationType = MedicationApplicationType.PATCH_ON,
+                    doseInstruction = DoseInstruction.WholeUnit,
                 )
             )
         )
@@ -600,15 +603,15 @@ class PlanCalendarDayUiStateTest {
         val dayStates = buildPlanCalendarDayUiState(
             groups = listOf(group),
             entries = listOf(
+                // PATCH_OFF carries medicine = null and the noop instruction;
+                // this is the one "remove all patches" event the schema allows.
                 MedicationLogEntry(
                     uuid = UUID.fromString("711ef972-70f4-4fd6-b186-391e1ffb3c29"),
-                    details = MedicationDetails(
-                        category = MedicationCategory.ESTRADIOL,
-                        applicationType = MedicationApplicationType.PATCH_OFF,
-                        selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL_PATCH),
-                        dose = MedicationDose.None
-                    ),
-                    dosageMgAsEstradiol = null,
+                    medicine = null,
+                    category = MedicationCategory.ESTRADIOL,
+                    applicationType = MedicationApplicationType.PATCH_OFF,
+                    doseInstruction = DoseInstruction.Noop,
+                    equivalentE2Mg = null,
                     sourceGroupUuid = group.uuid,
                     appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0)
                         .atZone(ZoneId.systemDefault())
@@ -702,10 +705,14 @@ class PlanCalendarDayUiStateTest {
             )
         )
 
+        val singleMedication = group.medications.single()
         val entry = MedicationLogEntry(
             uuid = UUID.randomUUID(),
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = singleMedication.medicine,
+            category = singleMedication.medicine?.category ?: MedicationCategory.ESTRADIOL,
+            applicationType = singleMedication.applicationType,
+            doseInstruction = singleMedication.doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = appliedAtTokyo,
             appliedAtTimeZoneId = tokyoZone.id,
@@ -749,10 +756,14 @@ class PlanCalendarDayUiStateTest {
             )
         )
 
+        val singleMedication = group.medications.single()
         val entry = MedicationLogEntry(
             uuid = UUID.randomUUID(),
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = singleMedication.medicine,
+            category = singleMedication.medicine?.category ?: MedicationCategory.ESTRADIOL,
+            applicationType = singleMedication.applicationType,
+            doseInstruction = singleMedication.doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = appliedAtLate,
             appliedAtTimeZoneId = tokyoZone.id,
@@ -770,13 +781,17 @@ class PlanCalendarDayUiStateTest {
     @Test
     fun planCalendarDate_for_manual_entry_uses_entry_zone() {
         val pdt = ZoneId.of("America/Los_Angeles")
+        val details = estradiolDetails(
+            applicationType = MedicationApplicationType.ORAL,
+            dose = 2.0,
+        )
         val entry = MedicationLogEntry(
             uuid = UUID.randomUUID(),
-            details = estradiolDetails(
-                applicationType = MedicationApplicationType.ORAL,
-                dose = 2.0,
-            ),
-            dosageMgAsEstradiol = 2.0,
+            medicine = details.medicine,
+            category = details.medicine?.category ?: MedicationCategory.ESTRADIOL,
+            applicationType = details.applicationType,
+            doseInstruction = details.doseInstruction,
+            equivalentE2Mg = details.equivalentE2Mg,
             sourceGroupUuid = null,
             appliedAt = LocalDateTime.of(2026, 5, 8, 9, 0).atZone(pdt).toInstant(),
             appliedAtTimeZoneId = "America/Los_Angeles",
@@ -789,13 +804,17 @@ class PlanCalendarDayUiStateTest {
     @Test
     fun planCalendarDate_for_linked_entry_uses_scheduledFor_date() {
         val pdt = ZoneId.of("America/Los_Angeles")
+        val details = estradiolDetails(
+            applicationType = MedicationApplicationType.ORAL,
+            dose = 2.0,
+        )
         val entry = MedicationLogEntry(
             uuid = UUID.randomUUID(),
-            details = estradiolDetails(
-                applicationType = MedicationApplicationType.ORAL,
-                dose = 2.0,
-            ),
-            dosageMgAsEstradiol = 2.0,
+            medicine = details.medicine,
+            category = details.medicine?.category ?: MedicationCategory.ESTRADIOL,
+            applicationType = details.applicationType,
+            doseInstruction = details.doseInstruction,
+            equivalentE2Mg = details.equivalentE2Mg,
             sourceGroupUuid = UUID.randomUUID(),
             appliedAt = LocalDateTime.of(2026, 5, 8, 9, 0).atZone(pdt).toInstant(),
             appliedAtTimeZoneId = "America/Los_Angeles",
@@ -820,17 +839,54 @@ class PlanCalendarDayUiStateTest {
         )
     }
 
+    // Test-local "details" holder. The production model split MedicationDetails
+    // into (medicine, applicationType, doseInstruction); this triple keeps the
+    // test's existing call sites concise while bridging that split.
+    private data class TestMedicationDetails(
+        val medicine: Medicine?,
+        val applicationType: MedicationApplicationType,
+        val doseInstruction: DoseInstruction,
+        val equivalentE2Mg: Double?,
+    )
+
+    private val MedicationGroupMedication.details: TestMedicationDetails
+        get() = TestMedicationDetails(
+            medicine = medicine,
+            applicationType = applicationType,
+            doseInstruction = doseInstruction,
+            // Best-effort PK-equivalent reconstruction for tests that thread a
+            // group's "details" into a fulfillment entry. Mirrors the original
+            // estradiolEquivalent helper but operates on the new identity model.
+            equivalentE2Mg = when {
+                medicine == null -> null
+                medicine.category != MedicationCategory.ESTRADIOL -> null
+                else -> when (val s = medicine.selection) {
+                    is MedicineSelection.Catalog -> when (s.medicationKey) {
+                        MedicationKey.ESTRADIOL,
+                        MedicationKey.ESTRADIOL_GEL,
+                        MedicationKey.ESTRADIOL_VALERATE -> 2.0
+                        else -> null
+                    }
+                    is MedicineSelection.Custom -> null
+                    is MedicineSelection.PatchOff -> null
+                }
+            },
+        )
+
     private fun groupEntry(
         groupUuid: UUID,
-        details: MedicationDetails,
+        details: TestMedicationDetails,
         appliedAt: LocalDateTime,
         scheduledFor: LocalDateTime? = null,
         count: Int = 1
     ): MedicationLogEntry {
         return MedicationLogEntry(
             uuid = UUID.randomUUID(),
-            details = details,
-            dosageMgAsEstradiol = estradiolEquivalent(details),
+            medicine = details.medicine,
+            category = details.medicine?.category ?: MedicationCategory.ESTRADIOL,
+            applicationType = details.applicationType,
+            doseInstruction = details.doseInstruction,
+            equivalentE2Mg = details.equivalentE2Mg,
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor,
@@ -839,14 +895,17 @@ class PlanCalendarDayUiStateTest {
     }
 
     private fun manualEntry(
-        details: MedicationDetails,
+        details: TestMedicationDetails,
         appliedAt: LocalDateTime,
         count: Int = 1
     ): MedicationLogEntry {
         return MedicationLogEntry(
             uuid = UUID.randomUUID(),
-            details = details,
-            dosageMgAsEstradiol = estradiolEquivalent(details),
+            medicine = details.medicine,
+            category = details.medicine?.category ?: MedicationCategory.ESTRADIOL,
+            applicationType = details.applicationType,
+            doseInstruction = details.doseInstruction,
+            equivalentE2Mg = details.equivalentE2Mg,
             sourceGroupUuid = null,
             appliedAt = testInstant(appliedAt),
             count = count
@@ -855,54 +914,76 @@ class PlanCalendarDayUiStateTest {
 
     private fun medication(
         uuid: UUID,
-        details: MedicationDetails,
+        details: TestMedicationDetails,
         count: Int = 1,
     ): MedicationGroupMedication {
         return MedicationGroupMedication(
             uuid = uuid,
-            details = details,
+            medicine = details.medicine,
+            applicationType = details.applicationType,
+            doseInstruction = details.doseInstruction,
             count = count
         )
     }
+
+    // Stable per-key medicine UUIDs so two estradiolDetails() calls produce
+    // signature-equal medicines. Random per-call UUIDs would break the
+    // (medicineUuid, applicationType, doseInstruction) match used by the
+    // fulfillment grouping.
+    private val medicineUuidsByKey: MutableMap<MedicationKey, UUID> = mutableMapOf()
+    private val progesteroneMedicineUuid = UUID.fromString("22222222-2222-2222-2222-222222222222")
 
     private fun estradiolDetails(
         applicationType: MedicationApplicationType,
         dose: Double,
         key: MedicationKey = MedicationKey.ESTRADIOL,
-    ): MedicationDetails {
-        return testCatalogMedicationDetails(
-            key = key,
-            applicationType = applicationType,
-            dose = MedicationDose.MgAsMedicine(dose)
-        )
-    }
-
-    private fun progesteroneDetails(dose: Double): MedicationDetails {
-        return testCustomMedicationDetails(
-            medicationName = "Progesterone",
-            dose = MedicationDose.MgAsMedicine(dose)
-        )
-    }
-
-    private fun estradiolEquivalent(details: MedicationDetails): Double? {
-        return when (details.selection) {
-            is MedicationSelection.Catalog -> when (details.selection.medicationKey) {
-                MedicationKey.ESTRADIOL,
-                MedicationKey.ESTRADIOL_GEL -> when (val dose = details.dose) {
-                    is MedicationDose.MgAsMedicine -> dose.valueMg
-                    is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
-                    else -> null
-                }
-
-                MedicationKey.ESTRADIOL_VALERATE -> when (val dose = details.dose) {
-                    is MedicationDose.MgAsMedicine -> dose.valueMg
-                    else -> null
-                }
-
-                else -> null
-            }
-
-            is MedicationSelection.Custom -> null
+    ): TestMedicationDetails {
+        // The fixture's equivalentE2Mg mimics the prior `estradiolEquivalent`
+        // helper: only catalog estradiol species expose an estradiol-mg figure
+        // (everything else, including custom medicines, was returning null).
+        val equivalent = when (key) {
+            MedicationKey.ESTRADIOL,
+            MedicationKey.ESTRADIOL_GEL,
+            MedicationKey.ESTRADIOL_VALERATE -> dose
+            else -> null
         }
+        val uuid = medicineUuidsByKey.getOrPut(key) { UUID.randomUUID() }
+        val preparation = when (applicationType) {
+            MedicationApplicationType.INJECTION -> MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 10.0,
+                vialVolumeMl = 5.0,
+            )
+            else -> MedicinePreparation.Pill(strengthMgPerTablet = dose)
+        }
+        val doseInstruction = when (applicationType) {
+            MedicationApplicationType.INJECTION -> DoseInstruction.VolumeMl(valueMl = dose)
+            else -> DoseInstruction.TabletFraction(1, 1)
+        }
+        return TestMedicationDetails(
+            medicine = testMedicine(uuid = uuid, key = key, preparation = preparation),
+            applicationType = applicationType,
+            doseInstruction = doseInstruction,
+            equivalentE2Mg = equivalent,
+        )
     }
+
+    private fun progesteroneDetails(dose: Double): TestMedicationDetails {
+        return TestMedicationDetails(
+            medicine = testCustomMedicine(
+                uuid = progesteroneMedicineUuid,
+                medicationName = "Progesterone",
+                category = MedicationCategory.CUSTOM,
+            ),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            // Custom medicines have no PK ester data, so equivalent stays null
+            // here regardless of the requested dose; the parameter is kept for
+            // call-site symmetry with estradiolDetails.
+            equivalentE2Mg = null.also { @Suppress("UNUSED_EXPRESSION") dose },
+        )
+    }
+
+    @Suppress("unused")
+    private fun customMedicineSelection(name: String): MedicineSelection =
+        MedicineSelection.Custom(medicationName = name)
 }

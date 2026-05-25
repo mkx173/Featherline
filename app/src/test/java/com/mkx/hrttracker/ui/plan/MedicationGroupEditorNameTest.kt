@@ -1,12 +1,14 @@
 package com.mkx.hrttracker.ui.plan
 
+import androidx.compose.material3.TextFieldLabelPosition
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -38,14 +40,15 @@ class MedicationGroupEditorNameTest {
     }
 
     @Test
-    fun applyDefaultGroupNameToEditorState_sets_initial_name_for_new_group() {
+    fun applyDefaultGroupNameToEditorState_stores_default_name_as_placeholder_for_new_group() {
         val updated = applyDefaultGroupNameToEditorState(
             currentState = MedicationGroupEditorUiState(),
             defaultGroupName = "Group 3"
         )
 
-        assertEquals("Group 3", updated.groupName)
+        assertEquals("", updated.groupName)
         assertEquals("Group 3", updated.defaultGroupName)
+        assertTrue(updated.hasResolvedInitialGroupName)
     }
 
     @Test
@@ -64,19 +67,17 @@ class MedicationGroupEditorNameTest {
     }
 
     @Test
-    fun hasSaveableMedicationGroupContent_rejects_blank_group_name_even_with_default_name() {
-        assertFalse(
+    fun hasSaveableMedicationGroupContent_accepts_blank_new_group_name_with_default_name() {
+        assertTrue(
             hasSaveableMedicationGroupContent(
                 MedicationGroupEditorUiState(
                     groupName = "   ",
                     defaultGroupName = "Group 1",
                     medications = listOf(
                         MedicationGroupMedicationItemUiState(
-                            details = testCatalogMedicationDetails(
-                                key = MedicationKey.ESTRADIOL,
-                                applicationType = MedicationApplicationType.ORAL,
-                                dose = MedicationDose.MgAsMedicine(2.0)
-                            )
+                            resolvedMedicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                            applicationType = MedicationApplicationType.ORAL,
+                            doseInstruction = DoseInstruction.TabletFraction(1, 1),
                         )
                     )
                 )
@@ -85,13 +86,69 @@ class MedicationGroupEditorNameTest {
     }
 
     @Test
-    fun shouldShowGroupNameClearAction_returns_true_for_non_blank_name() {
-        assertTrue(shouldShowGroupNameClearAction("Morning meds"))
+    fun hasSaveableMedicationGroupContent_rejects_blank_edit_group_name_even_with_default_name() {
+        assertFalse(
+            hasSaveableMedicationGroupContent(
+                MedicationGroupEditorUiState(
+                    editingGroupId = "group-id",
+                    groupName = "   ",
+                    defaultGroupName = "Group 1",
+                    medications = listOf(
+                        MedicationGroupMedicationItemUiState(
+                            resolvedMedicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                            applicationType = MedicationApplicationType.ORAL,
+                            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                        )
+                    )
+                )
+            )
+        )
     }
 
     @Test
-    fun shouldShowGroupNameClearAction_returns_false_for_blank_name() {
-        assertFalse(shouldShowGroupNameClearAction("   "))
+    fun medicationGroupNamePlaceholder_uses_default_name_for_new_group() {
+        assertEquals(
+            "Group 3",
+            medicationGroupNamePlaceholder(
+                defaultGroupName = "Group 3",
+                isEditing = false,
+                isFinishingAfterSave = false,
+            )
+        )
+    }
+
+    @Test
+    fun medicationGroupNamePlaceholder_suppressed_while_editing_existing_group() {
+        assertNull(
+            medicationGroupNamePlaceholder(
+                defaultGroupName = "Morning meds",
+                isEditing = true,
+                isFinishingAfterSave = false,
+            )
+        )
+    }
+
+    @Test
+    fun medicationGroupNamePlaceholder_kept_alive_during_finish_after_save() {
+        // Bridges the one-frame gap where isEditing flips true alongside the
+        // resolved groupName but the TextFieldState hasn't synced yet, which
+        // would otherwise flash an empty field as the editor closes.
+        assertEquals(
+            "Group 3",
+            medicationGroupNamePlaceholder(
+                defaultGroupName = "Group 3",
+                isEditing = true,
+                isFinishingAfterSave = true,
+            )
+        )
+    }
+
+    @Test
+    fun medicationGroupNameFieldLabelPosition_keepsPlaceholderVisibleWhenEmpty() {
+        val position = medicationGroupNameFieldLabelPosition()
+
+        assertTrue(position is TextFieldLabelPosition.Attached)
+        assertTrue((position as TextFieldLabelPosition.Attached).alwaysMinimize)
     }
 
     @Test

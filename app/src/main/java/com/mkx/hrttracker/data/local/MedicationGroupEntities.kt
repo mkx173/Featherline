@@ -35,26 +35,28 @@ data class MedicationGroupEntity(
             parentColumns = ["uuid"],
             childColumns = ["groupUuid"],
             onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = MedicineEntity::class,
+            parentColumns = ["uuid"],
+            childColumns = ["medicineUuid"],
+            onDelete = ForeignKey.RESTRICT,
         )
     ],
-    indices = [Index("groupUuid")]
+    indices = [Index("groupUuid"), Index("medicineUuid")]
 )
 data class MedicationGroupItemEntity(
     @PrimaryKey val uuid: String,
     val groupUuid: String,
     val sortOrder: Int,
     val count: Int,
-    val category: String,
+    val medicineUuid: String?,
     val applicationType: String,
-    val selectionKind: String,
-    val medicationKey: String?,
-    val customMedicationName: String?,
-    val doseKind: String,
-    val doseValueMg: Double?,
-    val customDoseUnit: String = "MG",
-    val doseValuePercent: Double?,
+    val doseInstructionKind: String,
+    val tabletFractionNumerator: Int?,
+    val tabletFractionDenominator: Int?,
+    val doseVolumeMl: Double?,
     val doseWeightGrams: Double?,
-    val doseReleaseRateMcgPerDay: Double?,
     val gelApplicationArea: String = "DEFAULT",
 )
 

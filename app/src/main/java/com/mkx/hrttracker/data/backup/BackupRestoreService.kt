@@ -11,6 +11,7 @@ import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWeeklyDayEntity
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
+import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.data.local.UserProfileEntity
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
@@ -18,26 +19,33 @@ import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDoseKind
-import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
-import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.isCompatibleWith
+import com.mkx.hrttracker.model.medication.normalizeCustomMedicationName
 import com.mkx.hrttracker.model.personalization.WeightUnit
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
-import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
-import dagger.hilt.android.qualifiers.ApplicationContext
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -130,7 +138,12 @@ class BackupRestoreService @Inject constructor(
                 password = passwordChars,
             )
         } finally {
-            passwordChars.fill('\u0000')
+            passwordChars.fill(' ')
+        }
+        val snapshotVersion = BackupSnapshotJsonCodec.peekSnapshotVersion(json)
+            ?: throw IOException("Unable to decode the selected backup file.")
+        require(snapshotVersion in MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION) {
+            "Unsupported backup snapshot version: $snapshotVersion."
         }
         val snapshot = BackupSnapshotJsonCodec.decode(json)
             ?: throw IOException("Unable to decode the selected backup file.")
@@ -143,8 +156,12 @@ class BackupRestoreService @Inject constructor(
 
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.runTransaction { database ->
+                // Delete order: logs and group items (children) before medicines
+                // (parents) so the medicines table can be wiped without
+                // tripping the RESTRICT foreign-key constraint.
                 database.medicationLogDao().deleteAllEntries()
                 database.medicationGroupDao().deleteAllGroups()
+                database.medicineDao().deleteAll()
                 database.bloodTestDao().deleteAllResults()
                 database.bloodTestDao().deleteAllPanels()
                 database.bloodTestDao().deleteAllCustomAnalytes()
@@ -158,6 +175,13 @@ class BackupRestoreService @Inject constructor(
                 }
                 if (validatedSnapshot.bloodTestResults.isNotEmpty()) {
                     database.bloodTestDao().insertResults(validatedSnapshot.bloodTestResults)
+                }
+                // Medicines must be written before any group item or log that
+                // references them; RESTRICT foreign keys would otherwise
+                // reject the insert. The validator already proved that every
+                // referenced medicineUuid is present in this list.
+                if (validatedSnapshot.medicines.isNotEmpty()) {
+                    database.medicineDao().insertAll(validatedSnapshot.medicines)
                 }
                 if (validatedSnapshot.medicationGroups.isNotEmpty()) {
                     database.medicationGroupDao().insertGroups(validatedSnapshot.medicationGroups)
@@ -253,7 +277,7 @@ class BackupRestoreService @Inject constructor(
 internal fun BackupSnapshot.toValidatedSnapshot(
     expectedPackageName: String,
 ): ValidatedBackupSnapshot {
-    require(snapshotVersion == CURRENT_BACKUP_SNAPSHOT_VERSION) {
+    require(snapshotVersion in MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION) {
         "Unsupported backup snapshot version: $snapshotVersion."
     }
     require(app.packageName == expectedPackageName) {
@@ -272,6 +296,30 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         require(normalizedCustomPairs.add(entity.normalizedName to entity.normalizedUnitLabel)) {
             "Duplicate custom analyte name/unit pair in backup."
         }
+    }
+
+    // Validate medicines before any item/log so the FK-validation set is
+    // known up front. Restored medicines preserve their original UUIDs so
+    // foreign keys from items and logs land on the right rows.
+    val medicineEntities = mutableListOf<MedicineEntity>()
+    val seenMedicineUuids = mutableSetOf<String>()
+    val seenMedicineIdentityKeys = mutableSetOf<String>()
+    medicines.forEach { medicine ->
+        val entity = medicine.toValidatedEntity()
+        require(seenMedicineUuids.add(entity.uuid)) {
+            "Duplicate medicine UUID ${entity.uuid} in backup."
+        }
+        require(seenMedicineIdentityKeys.add(entity.identityKey)) {
+            "Duplicate medicine identity ${entity.identityKey} in backup."
+        }
+        medicineEntities += entity
+    }
+    val medicineEntitiesByUuid = medicineEntities.associateBy(MedicineEntity::uuid)
+    val medicinePreparationTypesByUuid = medicineEntitiesByUuid.mapValues { (_, entity) ->
+        requireEnumName<MedicinePreparationType>(
+            entity.preparationType,
+            "medicine ${entity.uuid} preparation type",
+        )
     }
 
     val groupEntities = mutableListOf<MedicationGroupEntity>()
@@ -395,25 +443,37 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             require(medication.count > 0) {
                 "Medication group item ${medication.uuid} must have a positive count."
             }
-            val validatedMedication = medication.toValidatedMedicationData(
+            val validatedMedication = medication.toValidatedItemData(
                 fieldPrefix = "medication group item ${medication.uuid}",
+                medicinePreparationTypesByUuid = medicinePreparationTypesByUuid,
             )
+            // Active groups must not reference archived medicines — the active
+            // catalog would otherwise show an archived row that cannot be
+            // re-selected without unarchiving. Skip the check for PATCH_OFF
+            // (medicineUuid == null) and for groups that are themselves
+            // archived (history-only).
+            if (
+                group.archivedAtEpochMillis == null &&
+                validatedMedication.medicineUuid != null
+            ) {
+                val referenced = medicineEntitiesByUuid[validatedMedication.medicineUuid]
+                require(referenced?.archivedAtEpochMillis == null) {
+                    "Active medication group ${group.uuid} references archived medicine " +
+                        "${validatedMedication.medicineUuid}."
+                }
+            }
             groupItemEntities += MedicationGroupItemEntity(
                 uuid = itemUuid,
                 groupUuid = groupUuid,
                 sortOrder = index,
                 count = medication.count,
-                category = validatedMedication.category.name,
+                medicineUuid = validatedMedication.medicineUuid,
                 applicationType = validatedMedication.applicationType.name,
-                selectionKind = validatedMedication.selectionKind.name,
-                medicationKey = validatedMedication.medicationKey?.name,
-                customMedicationName = validatedMedication.customMedicationName,
-                doseKind = validatedMedication.doseKind.name,
-                doseValueMg = validatedMedication.doseValueMg,
-                customDoseUnit = validatedMedication.customDoseUnit.storageValue,
-                doseValuePercent = validatedMedication.doseValuePercent,
+                doseInstructionKind = validatedMedication.doseInstructionKind.name,
+                tabletFractionNumerator = validatedMedication.tabletFractionNumerator,
+                tabletFractionDenominator = validatedMedication.tabletFractionDenominator,
+                doseVolumeMl = validatedMedication.doseVolumeMl,
                 doseWeightGrams = validatedMedication.doseWeightGrams,
-                doseReleaseRateMcgPerDay = validatedMedication.doseReleaseRateMcgPerDay,
                 gelApplicationArea = validatedMedication.gelApplicationArea.name,
             )
         }
@@ -441,8 +501,9 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 "Grouped medication logs must reference a restored medication group."
             }
         }
-        val validatedMedication = log.toValidatedMedicationData(
+        val validatedMedication = log.toValidatedLogData(
             fieldPrefix = "medication log ${log.uuid}",
+            medicinePreparationTypesByUuid = medicinePreparationTypesByUuid,
         )
         val scheduledForIso = log.scheduledForIso?.let { value ->
             LocalDateTime.parse(value)
@@ -476,21 +537,18 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 "Medication log ${log.uuid} references a schedule time outside its source group."
             }
         }
-        log.dosageMgAsEstradiol?.requirePositiveFinite("medication log estradiol-equivalent dose")
+        log.equivalentE2Mg?.requirePositiveFinite("medication log estradiol-equivalent dose")
         logEntities += MedicationLogEntryEntity(
             uuid = logUuid,
             category = validatedMedication.category.name,
+            medicineUuid = validatedMedication.medicineUuid,
             applicationType = validatedMedication.applicationType.name,
-            selectionKind = validatedMedication.selectionKind.name,
-            medicationKey = validatedMedication.medicationKey?.name,
-            customMedicationName = validatedMedication.customMedicationName,
-            doseKind = validatedMedication.doseKind.name,
-            doseValueMg = validatedMedication.doseValueMg,
-            customDoseUnit = validatedMedication.customDoseUnit.storageValue,
-            doseValuePercent = validatedMedication.doseValuePercent,
+            doseInstructionKind = validatedMedication.doseInstructionKind.name,
+            tabletFractionNumerator = validatedMedication.tabletFractionNumerator,
+            tabletFractionDenominator = validatedMedication.tabletFractionDenominator,
+            doseVolumeMl = validatedMedication.doseVolumeMl,
             doseWeightGrams = validatedMedication.doseWeightGrams,
-            doseReleaseRateMcgPerDay = validatedMedication.doseReleaseRateMcgPerDay,
-            dosageMgAsEstradiol = log.dosageMgAsEstradiol,
+            equivalentE2Mg = log.equivalentE2Mg,
             sourceGroupUuid = sourceGroupUuid,
             scheduleTimeUuid = resolvedScheduleTimeUuid,
             appliedAtEpochMillis = log.appliedAtEpochMillis,
@@ -598,6 +656,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
     return ValidatedBackupSnapshot(
         settings = validatedSettings,
         userProfile = validatedUserProfile,
+        medicines = medicineEntities,
         medicationGroups = groupEntitiesWithLineage,
         medicationGroupItems = groupItemEntities,
         medicationGroupScheduleTimes = groupScheduleTimeEntities,
@@ -626,6 +685,8 @@ private fun List<MedicationGroupEntity>.withDerivedRecreatedFromGroupUuids(): Li
         }
     }
 }
+
+private const val MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2
 
 private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSettings {
     val darkModeOption = requireEnumName<DarkModeOption>(
@@ -738,49 +799,285 @@ private fun BackupCustomBloodAnalyteSnapshot.toValidatedEntity(): CustomBloodAna
     )
 }
 
-private fun BackupMedicationGroupItemSnapshot.toValidatedMedicationData(
-    fieldPrefix: String,
-): ValidatedMedicationData {
-    return ValidatedMedicationData.fromSnapshot(
-        categoryValue = category,
-        applicationTypeValue = applicationType,
-        selectionKindValue = selectionKind,
-        medicationKeyValue = medicationKey,
-        customMedicationNameValue = customMedicationName,
-        doseKindValue = doseKind,
-        doseValueMg = doseValueMg,
-        customDoseUnitValue = customDoseUnit,
-        doseValuePercent = doseValuePercent,
-        doseWeightGrams = doseWeightGrams,
-        doseReleaseRateMcgPerDay = doseReleaseRateMcgPerDay,
-        gelApplicationAreaValue = gelApplicationArea,
-        fieldPrefix = fieldPrefix,
+private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
+    val medicineUuid = uuid.parseUuid("medicine UUID").toString()
+    val selectionKind = requireEnumName<MedicationSelectionKind>(
+        selectionKind,
+        "medicine selection kind",
+    )
+    val category = requireEnumName<MedicationCategory>(
+        category,
+        "medicine category",
+    )
+    val preparationType = requireEnumName<MedicinePreparationType>(
+        preparationType,
+        "medicine preparation type",
+    )
+
+    val resolvedSelection: MedicineSelection = when {
+        // PATCH_OFF preparation always implies the singleton selection,
+        // regardless of stored selectionKind. The singleton is keyed by its
+        // identityKey alone; medicationKey / customName must be empty.
+        preparationType == MedicinePreparationType.PATCH_OFF -> {
+            require(medicationKey == null) {
+                "PATCH_OFF medicine $uuid must not carry a catalog medicationKey."
+            }
+            require(customMedicationName == null && customMedicationNameNormalized == null) {
+                "PATCH_OFF medicine $uuid must not carry a custom medication name."
+            }
+            require(category == MedicationCategory.ESTRADIOL) {
+                "PATCH_OFF medicine $uuid must be in the ESTRADIOL category."
+            }
+            MedicineSelection.PatchOff
+        }
+        selectionKind == MedicationSelectionKind.CATALOG -> {
+            require(customMedicationName == null && customMedicationNameNormalized == null) {
+                "Catalog medicine $uuid must not carry a custom name."
+            }
+            val key = checkNotNull(MedicationKey.fromStorageValue(medicationKey)) {
+                "Unsupported catalog medication key $medicationKey for medicine $uuid."
+            }
+            require(key.category == category) {
+                "Catalog medicine $uuid medication key $key does not match category $category."
+            }
+            MedicineSelection.Catalog(medicationKey = key)
+        }
+        else -> {
+            require(medicationKey == null) {
+                "Custom medicine $uuid must not carry a catalog medication key."
+            }
+            val name = customMedicationName
+                ?.trim()
+                ?.takeUnless(String::isEmpty)
+                ?: throw IllegalArgumentException(
+                    "Custom medicine $uuid must include a non-blank custom medication name."
+                )
+            val expectedNormalized = normalizeCustomMedicationName(name)
+            val storedNormalized = customMedicationNameNormalized
+                ?.takeUnless(String::isBlank)
+                ?: throw IllegalArgumentException(
+                    "Custom medicine $uuid must include its normalized custom medication name."
+                )
+            require(storedNormalized == expectedNormalized) {
+                "Custom medicine $uuid normalized name $storedNormalized does not match $expectedNormalized."
+            }
+            MedicineSelection.Custom(medicationName = name)
+        }
+    }
+
+    val resolvedPreparation = preparationType.toValidatedPreparation(
+        medicineUuid = medicineUuid,
+        strengthMgPerTablet = strengthMgPerTablet,
+        strengthMgPerVial = strengthMgPerVial,
+        concentrationMgPerMl = concentrationMgPerMl,
+        vialVolumeMl = vialVolumeMl,
+        concentrationPercent = concentrationPercent,
+        sachetWeightGrams = sachetWeightGrams,
+        containerWeightGrams = containerWeightGrams,
+        patchTotalMg = patchTotalMg,
+        patchReleaseRateMcgPerDay = patchReleaseRateMcgPerDay,
+    )
+
+    val expectedIdentityKey = when (resolvedSelection) {
+        is MedicineSelection.Catalog ->
+            MedicineIdentityKey.catalog(resolvedSelection.medicationKey, resolvedPreparation)
+        is MedicineSelection.Custom ->
+            MedicineIdentityKey.custom(resolvedSelection.medicationName, resolvedPreparation)
+        is MedicineSelection.PatchOff -> MedicineIdentityKey.patchOff()
+    }
+    require(identityKey == expectedIdentityKey) {
+        "Medicine $uuid identityKey does not match its selection and preparation."
+    }
+
+    require(createdAtEpochMillis >= 0) {
+        "Medicine $uuid createdAt must not be negative."
+    }
+    require(updatedAtEpochMillis >= createdAtEpochMillis) {
+        "Medicine $uuid updatedAt $updatedAtEpochMillis predates createdAt $createdAtEpochMillis."
+    }
+    if (archivedAtEpochMillis != null) {
+        require(archivedAtEpochMillis >= createdAtEpochMillis) {
+            "Medicine $uuid archivedAt predates createdAt."
+        }
+    }
+
+    return MedicineEntity(
+        uuid = medicineUuid,
+        selectionKind = selectionKind.name,
+        medicationKey = (resolvedSelection as? MedicineSelection.Catalog)?.medicationKey?.name,
+        customMedicationName = (resolvedSelection as? MedicineSelection.Custom)?.medicationName,
+        customMedicationNameNormalized = (resolvedSelection as? MedicineSelection.Custom)
+            ?.normalizedMedicationName,
+        category = category.name,
+        preparationType = preparationType.name,
+        strengthMgPerTablet = strengthMgPerTablet,
+        strengthMgPerVial = strengthMgPerVial,
+        concentrationMgPerMl = concentrationMgPerMl,
+        vialVolumeMl = vialVolumeMl,
+        concentrationPercent = concentrationPercent,
+        sachetWeightGrams = sachetWeightGrams,
+        containerWeightGrams = containerWeightGrams,
+        patchTotalMg = patchTotalMg,
+        patchReleaseRateMcgPerDay = patchReleaseRateMcgPerDay,
+        displayName = displayName?.takeUnless(String::isBlank),
+        identityKey = identityKey,
+        createdAtEpochMillis = createdAtEpochMillis,
+        updatedAtEpochMillis = updatedAtEpochMillis,
+        archivedAtEpochMillis = archivedAtEpochMillis,
+        // Backups exported before this column existed simply omit it; default
+        // to MG (matches both pre-picker behavior and the model default).
+        displayDoseUnit = MedicineDisplayDoseUnit.fromStorageValue(displayDoseUnit).name,
     )
 }
 
-private fun BackupMedicationLogSnapshot.toValidatedMedicationData(
+private fun MedicinePreparationType.toValidatedPreparation(
+    medicineUuid: String,
+    strengthMgPerTablet: Double?,
+    strengthMgPerVial: Double?,
+    concentrationMgPerMl: Double?,
+    vialVolumeMl: Double?,
+    concentrationPercent: Double?,
+    sachetWeightGrams: Double?,
+    containerWeightGrams: Double?,
+    patchTotalMg: Double?,
+    patchReleaseRateMcgPerDay: Double?,
+): MedicinePreparation {
+    fun requireFieldsOnly(vararg requiredNames: String) {
+        val required = requiredNames.toSet()
+        val fields = listOf(
+            "strengthMgPerTablet" to strengthMgPerTablet,
+            "strengthMgPerVial" to strengthMgPerVial,
+            "concentrationMgPerMl" to concentrationMgPerMl,
+            "vialVolumeMl" to vialVolumeMl,
+            "concentrationPercent" to concentrationPercent,
+            "sachetWeightGrams" to sachetWeightGrams,
+            "containerWeightGrams" to containerWeightGrams,
+            "patchTotalMg" to patchTotalMg,
+            "patchReleaseRateMcgPerDay" to patchReleaseRateMcgPerDay,
+        )
+        fields.forEach { (name, value) ->
+            if (name in required) {
+                require(value != null) {
+                    "Medicine $medicineUuid $this is missing $name."
+                }
+            } else {
+                require(value == null) {
+                    "Medicine $medicineUuid $this has unexpected $name."
+                }
+            }
+        }
+    }
+    return when (this) {
+        MedicinePreparationType.PILL -> {
+            requireFieldsOnly("strengthMgPerTablet")
+            MedicinePreparation.Pill(strengthMgPerTablet = checkNotNull(strengthMgPerTablet))
+        }
+        MedicinePreparationType.CAPSULE -> {
+            requireFieldsOnly("strengthMgPerTablet")
+            MedicinePreparation.Capsule(strengthMgPerCapsule = checkNotNull(strengthMgPerTablet))
+        }
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> {
+            requireFieldsOnly("strengthMgPerVial")
+            MedicinePreparation.InjectionSingleUseVial(
+                strengthMgPerVial = checkNotNull(strengthMgPerVial)
+            )
+        }
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
+            requireFieldsOnly("concentrationMgPerMl", "vialVolumeMl")
+            MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = checkNotNull(concentrationMgPerMl),
+                vialVolumeMl = checkNotNull(vialVolumeMl),
+            )
+        }
+        MedicinePreparationType.GEL_SACHET -> {
+            requireFieldsOnly("concentrationPercent", "sachetWeightGrams")
+            MedicinePreparation.GelSachet(
+                concentrationPercent = checkNotNull(concentrationPercent),
+                sachetWeightGrams = checkNotNull(sachetWeightGrams),
+            )
+        }
+        MedicinePreparationType.GEL_CONTAINER -> {
+            requireFieldsOnly("concentrationPercent", "containerWeightGrams")
+            MedicinePreparation.GelContainer(
+                concentrationPercent = checkNotNull(concentrationPercent),
+                containerWeightGrams = checkNotNull(containerWeightGrams),
+            )
+        }
+        MedicinePreparationType.PATCH -> {
+            val patchFields = listOfNotNull(patchTotalMg, patchReleaseRateMcgPerDay)
+            require(patchFields.size == 1) {
+                "Medicine $medicineUuid PATCH must specify exactly one of patchTotalMg or patchReleaseRateMcgPerDay."
+            }
+            // No other preparation field may be set.
+            require(strengthMgPerTablet == null) {
+                "Medicine $medicineUuid PATCH has unexpected strengthMgPerTablet."
+            }
+            require(strengthMgPerVial == null) {
+                "Medicine $medicineUuid PATCH has unexpected strengthMgPerVial."
+            }
+            require(concentrationMgPerMl == null && vialVolumeMl == null) {
+                "Medicine $medicineUuid PATCH has unexpected injection fields."
+            }
+            require(concentrationPercent == null && sachetWeightGrams == null && containerWeightGrams == null) {
+                "Medicine $medicineUuid PATCH has unexpected gel fields."
+            }
+            MedicinePreparation.Patch(
+                specification = patchTotalMg?.let(MedicinePreparation.PatchSpecification::TotalMg)
+                    ?: MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                        valueMcgPerDay = checkNotNull(patchReleaseRateMcgPerDay)
+                    )
+            )
+        }
+
+        MedicinePreparationType.PATCH_OFF -> {
+            requireFieldsOnly()
+            MedicinePreparation.PatchOff
+        }
+    }
+}
+
+private fun BackupMedicationGroupItemSnapshot.toValidatedItemData(
     fieldPrefix: String,
+    medicinePreparationTypesByUuid: Map<String, MedicinePreparationType>,
 ): ValidatedMedicationData {
     return ValidatedMedicationData.fromSnapshot(
-        categoryValue = category,
+        category = null,
+        medicineUuidValue = medicineUuid,
         applicationTypeValue = applicationType,
-        selectionKindValue = selectionKind,
-        medicationKeyValue = medicationKey,
-        customMedicationNameValue = customMedicationName,
-        doseKindValue = doseKind,
-        doseValueMg = doseValueMg,
-        customDoseUnitValue = customDoseUnit,
-        doseValuePercent = doseValuePercent,
+        doseInstructionKindValue = doseInstructionKind,
+        tabletFractionNumerator = tabletFractionNumerator,
+        tabletFractionDenominator = tabletFractionDenominator,
+        doseVolumeMl = doseVolumeMl,
         doseWeightGrams = doseWeightGrams,
-        doseReleaseRateMcgPerDay = doseReleaseRateMcgPerDay,
         gelApplicationAreaValue = gelApplicationArea,
         fieldPrefix = fieldPrefix,
+        medicinePreparationTypesByUuid = medicinePreparationTypesByUuid,
+    )
+}
+
+private fun BackupMedicationLogSnapshot.toValidatedLogData(
+    fieldPrefix: String,
+    medicinePreparationTypesByUuid: Map<String, MedicinePreparationType>,
+): ValidatedMedicationData {
+    return ValidatedMedicationData.fromSnapshot(
+        category = category,
+        medicineUuidValue = medicineUuid,
+        applicationTypeValue = applicationType,
+        doseInstructionKindValue = doseInstructionKind,
+        tabletFractionNumerator = tabletFractionNumerator,
+        tabletFractionDenominator = tabletFractionDenominator,
+        doseVolumeMl = doseVolumeMl,
+        doseWeightGrams = doseWeightGrams,
+        gelApplicationAreaValue = gelApplicationArea,
+        fieldPrefix = fieldPrefix,
+        medicinePreparationTypesByUuid = medicinePreparationTypesByUuid,
     )
 }
 
 internal data class ValidatedBackupSnapshot(
     val settings: ValidatedBackupSettings,
     val userProfile: UserProfileEntity?,
+    val medicines: List<MedicineEntity>,
     val medicationGroups: List<MedicationGroupEntity>,
     val medicationGroupItems: List<MedicationGroupItemEntity>,
     val medicationGroupScheduleTimes: List<MedicationGroupScheduleTimeEntity>,
@@ -814,109 +1111,158 @@ internal data class ValidatedBackupSettings(
 )
 
 private data class ValidatedMedicationData(
+    // For group items the category is computed from the referenced medicine
+    // (or defaulted for PATCH_OFF), so the item path passes `null` to the
+    // factory. Log entries carry their own historical category and must
+    // surface it verbatim.
     val category: MedicationCategory,
+    val medicineUuid: String?,
     val applicationType: MedicationApplicationType,
-    val selectionKind: MedicationSelectionKind,
-    val medicationKey: MedicationKey?,
-    val customMedicationName: String?,
-    val doseKind: MedicationDoseKind,
-    val doseValueMg: Double?,
-    val customDoseUnit: MedicationDoseUnit,
-    val doseValuePercent: Double?,
+    val doseInstructionKind: DoseInstructionKind,
+    val tabletFractionNumerator: Int?,
+    val tabletFractionDenominator: Int?,
+    val doseVolumeMl: Double?,
     val doseWeightGrams: Double?,
-    val doseReleaseRateMcgPerDay: Double?,
     val gelApplicationArea: MedicationGelApplicationArea,
 ) {
     companion object {
         fun fromSnapshot(
-            categoryValue: String,
+            category: String?,
+            medicineUuidValue: String?,
             applicationTypeValue: String,
-            selectionKindValue: String,
-            medicationKeyValue: String?,
-            customMedicationNameValue: String?,
-            doseKindValue: String,
-            doseValueMg: Double?,
-            customDoseUnitValue: String,
-            doseValuePercent: Double?,
+            doseInstructionKindValue: String,
+            tabletFractionNumerator: Int?,
+            tabletFractionDenominator: Int?,
+            doseVolumeMl: Double?,
             doseWeightGrams: Double?,
-            doseReleaseRateMcgPerDay: Double?,
             gelApplicationAreaValue: String,
             fieldPrefix: String,
+            medicinePreparationTypesByUuid: Map<String, MedicinePreparationType>,
         ): ValidatedMedicationData {
-            val category = requireEnumName<MedicationCategory>(
-                categoryValue,
-                "$fieldPrefix category",
-            )
             val applicationType = requireEnumName<MedicationApplicationType>(
                 applicationTypeValue,
                 "$fieldPrefix application type",
             )
-            val selectionKind = requireEnumName<MedicationSelectionKind>(
-                selectionKindValue,
-                "$fieldPrefix selection kind",
-            )
-            val doseKind = requireEnumName<MedicationDoseKind>(
-                doseKindValue,
-                "$fieldPrefix dose kind",
-            )
-            val customDoseUnit = requireEnumName<MedicationDoseUnit>(
-                customDoseUnitValue,
-                "$fieldPrefix custom dose unit",
+            val doseInstructionKind = requireEnumName<DoseInstructionKind>(
+                doseInstructionKindValue,
+                "$fieldPrefix dose instruction kind",
             )
             val gelApplicationArea = requireEnumName<MedicationGelApplicationArea>(
                 gelApplicationAreaValue,
                 "$fieldPrefix gel application area",
             )
 
-            val resolvedMedicationKey = when (selectionKind) {
-                MedicationSelectionKind.CATALOG -> {
-                    require(customMedicationNameValue == null) {
-                        "$fieldPrefix must not provide a custom medication name for catalog selection."
-                    }
-                    checkNotNull(MedicationKey.fromStorageValue(medicationKeyValue)) {
-                        "Unsupported $fieldPrefix medication key $medicationKeyValue."
-                    }.also { medicationKey ->
-                        require(medicationKey.category == category) {
-                            "$fieldPrefix medication key $medicationKey does not match category $category."
-                        }
-                    }
+            val resolvedMedicineUuid = if (medicineUuidValue != null) {
+                val parsed = medicineUuidValue.parseUuid("$fieldPrefix medicine UUID").toString()
+                require(parsed in medicinePreparationTypesByUuid) {
+                    "$fieldPrefix references a missing medicine $parsed."
                 }
+                parsed
+            } else {
+                require(applicationType == MedicationApplicationType.PATCH_OFF) {
+                    "$fieldPrefix has no medicine but is not a patch-off."
+                }
+                null
+            }
+            val preparationType = resolvedMedicineUuid?.let(medicinePreparationTypesByUuid::get)
 
-                MedicationSelectionKind.CUSTOM -> {
-                    require(medicationKeyValue == null) {
-                        "$fieldPrefix must not provide a medication key for custom selection."
+            val resolvedCategory: MedicationCategory = if (category != null) {
+                requireEnumName(category, "$fieldPrefix category")
+            } else {
+                // Group items derive their category from the referenced
+                // medicine; PATCH_OFF falls back to ESTRADIOL because the
+                // catalog only ships the estradiol patch.
+                MedicationCategory.ESTRADIOL
+            }
+
+            // Dose-instruction shape must match its kind. Reject orphaned
+            // numerator/denominator/volume/weight so a backup can't
+            // smuggle inconsistent state past validation.
+            val doseInstruction = when (doseInstructionKind) {
+                DoseInstructionKind.TABLET_FRACTION -> {
+                    val numerator = tabletFractionNumerator
+                        ?: throw IllegalArgumentException(
+                            "$fieldPrefix TABLET_FRACTION must provide tabletFractionNumerator."
+                        )
+                    val denominator = tabletFractionDenominator
+                        ?: throw IllegalArgumentException(
+                            "$fieldPrefix TABLET_FRACTION must provide tabletFractionDenominator."
+                        )
+                    require(numerator > 0 && denominator > 0) {
+                        "$fieldPrefix TABLET_FRACTION must have positive numerator and denominator."
                     }
-                    null
+                    require(doseVolumeMl == null && doseWeightGrams == null) {
+                        "$fieldPrefix TABLET_FRACTION must not carry volume or weight."
+                    }
+                    DoseInstruction.TabletFraction(
+                        numerator = numerator,
+                        denominator = denominator,
+                    )
+                }
+                DoseInstructionKind.WHOLE_UNIT -> {
+                    require(
+                        tabletFractionNumerator == null &&
+                            tabletFractionDenominator == null &&
+                            doseVolumeMl == null &&
+                            doseWeightGrams == null
+                    ) {
+                        "$fieldPrefix WHOLE_UNIT must not carry tablet fraction or volume/weight fields."
+                    }
+                    DoseInstruction.WholeUnit
+                }
+                DoseInstructionKind.VOLUME_ML -> {
+                    val volumeMl = doseVolumeMl.requirePositiveFinite("$fieldPrefix dose volume")
+                    require(
+                        tabletFractionNumerator == null &&
+                            tabletFractionDenominator == null &&
+                            doseWeightGrams == null
+                    ) {
+                        "$fieldPrefix VOLUME_ML must not carry tablet fraction or weight."
+                    }
+                    DoseInstruction.VolumeMl(volumeMl)
+                }
+                DoseInstructionKind.WEIGHT_GRAMS -> {
+                    val weightGrams = doseWeightGrams.requirePositiveFinite("$fieldPrefix dose weight")
+                    require(
+                        tabletFractionNumerator == null &&
+                            tabletFractionDenominator == null &&
+                            doseVolumeMl == null
+                    ) {
+                        "$fieldPrefix WEIGHT_GRAMS must not carry tablet fraction or volume."
+                    }
+                    DoseInstruction.WeightGrams(weightGrams)
+                }
+                DoseInstructionKind.NOOP -> {
+                    require(applicationType == MedicationApplicationType.PATCH_OFF) {
+                        "$fieldPrefix NOOP dose instruction is only valid for PATCH_OFF."
+                    }
+                    require(
+                        tabletFractionNumerator == null &&
+                            tabletFractionDenominator == null &&
+                            doseVolumeMl == null &&
+                            doseWeightGrams == null
+                    ) {
+                        "$fieldPrefix NOOP must not carry dose fields."
+                    }
+                    DoseInstruction.Noop
                 }
             }
-            val resolvedCustomMedicationName = when (selectionKind) {
-                MedicationSelectionKind.CATALOG -> null
-                MedicationSelectionKind.CUSTOM -> customMedicationNameValue
-                    ?.trim()
-                    ?.takeUnless(String::isEmpty)
-                    ?: throw IllegalArgumentException("$fieldPrefix custom medication name must not be blank.")
+            val normalizedDoseInstruction = if (
+                preparationType == MedicinePreparationType.PILL &&
+                doseInstruction == DoseInstruction.WholeUnit
+            ) {
+                DoseInstruction.TabletFraction(numerator = 1, denominator = 1)
+            } else {
+                doseInstruction
             }
+            val normalizedDoseFields = normalizedDoseInstruction.toBackupStorageFields()
 
-            val compatibleDoseKinds = when (applicationType) {
-                MedicationApplicationType.ORAL,
-                MedicationApplicationType.SUBLINGUAL,
-                MedicationApplicationType.INJECTION,
-                -> setOf(MedicationDoseKind.MG_AS_MEDICINE)
-
-                MedicationApplicationType.GEL -> setOf(
-                    MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG,
-                    MedicationDoseKind.GEL_PERCENT_AND_WEIGHT,
-                )
-
-                MedicationApplicationType.PATCH_ON -> setOf(
-                    MedicationDoseKind.PATCH_TOTAL_MG,
-                    MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY,
-                )
-
-                MedicationApplicationType.PATCH_OFF -> setOf(MedicationDoseKind.NONE)
+            require(applicationType.isCompatibleWith(preparationType)) {
+                "$fieldPrefix applicationType=$applicationType is not compatible with preparation=$preparationType."
             }
-            require(doseKind in compatibleDoseKinds) {
-                "$fieldPrefix dose kind $doseKind is not supported for $applicationType."
+            require(normalizedDoseInstruction.isCompatibleWith(preparationType)) {
+                "$fieldPrefix doseInstruction=${normalizedDoseInstruction.kind} " +
+                    "is not compatible with preparation=$preparationType."
             }
 
             if (applicationType != MedicationApplicationType.GEL) {
@@ -925,85 +1271,38 @@ private data class ValidatedMedicationData(
                 }
             }
 
-            val resolvedDoseValueMg = when (doseKind) {
-                MedicationDoseKind.MG_AS_MEDICINE,
-                MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG,
-                MedicationDoseKind.PATCH_TOTAL_MG,
-                -> doseValueMg.requirePositiveFinite("$fieldPrefix mg dose")
-
-                MedicationDoseKind.GEL_PERCENT_AND_WEIGHT,
-                MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY,
-                MedicationDoseKind.NONE,
-                -> {
-                    require(doseValueMg == null) {
-                        "$fieldPrefix must not provide doseValueMg for $doseKind."
-                    }
-                    null
-                }
-            }
-            val resolvedDoseValuePercent = when (doseKind) {
-                MedicationDoseKind.GEL_PERCENT_AND_WEIGHT ->
-                    doseValuePercent.requirePositiveFinite("$fieldPrefix gel percent")
-
-                else -> {
-                    require(doseValuePercent == null) {
-                        "$fieldPrefix must not provide doseValuePercent for $doseKind."
-                    }
-                    null
-                }
-            }
-            val resolvedDoseWeightGrams = when (doseKind) {
-                MedicationDoseKind.GEL_PERCENT_AND_WEIGHT ->
-                    doseWeightGrams.requirePositiveFinite("$fieldPrefix gel weight")
-
-                else -> {
-                    require(doseWeightGrams == null) {
-                        "$fieldPrefix must not provide doseWeightGrams for $doseKind."
-                    }
-                    null
-                }
-            }
-            val resolvedDoseReleaseRateMcgPerDay = when (doseKind) {
-                MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY ->
-                    doseReleaseRateMcgPerDay.requirePositiveFinite("$fieldPrefix patch release rate")
-
-                else -> {
-                    require(doseReleaseRateMcgPerDay == null) {
-                        "$fieldPrefix must not provide doseReleaseRateMcgPerDay for $doseKind."
-                    }
-                    null
-                }
-            }
-
-            val resolvedCustomDoseUnit = if (
-                selectionKind == MedicationSelectionKind.CUSTOM &&
-                doseKind == MedicationDoseKind.MG_AS_MEDICINE
-            ) {
-                customDoseUnit
-            } else {
-                require(customDoseUnit == MedicationDoseUnit.MG) {
-                    "$fieldPrefix custom dose unit is only valid for custom mg medications."
-                }
-                MedicationDoseUnit.MG
-            }
-
             return ValidatedMedicationData(
-                category = category,
+                category = resolvedCategory,
+                medicineUuid = resolvedMedicineUuid,
                 applicationType = applicationType,
-                selectionKind = selectionKind,
-                medicationKey = resolvedMedicationKey,
-                customMedicationName = resolvedCustomMedicationName,
-                doseKind = doseKind,
-                doseValueMg = resolvedDoseValueMg,
-                customDoseUnit = resolvedCustomDoseUnit,
-                doseValuePercent = resolvedDoseValuePercent,
-                doseWeightGrams = resolvedDoseWeightGrams,
-                doseReleaseRateMcgPerDay = resolvedDoseReleaseRateMcgPerDay,
+                doseInstructionKind = normalizedDoseFields.doseInstructionKind,
+                tabletFractionNumerator = normalizedDoseFields.tabletFractionNumerator,
+                tabletFractionDenominator = normalizedDoseFields.tabletFractionDenominator,
+                doseVolumeMl = normalizedDoseFields.doseVolumeMl,
+                doseWeightGrams = normalizedDoseFields.doseWeightGrams,
                 gelApplicationArea = gelApplicationArea,
             )
         }
     }
 }
+
+private fun DoseInstruction.toBackupStorageFields(): BackupDoseInstructionStorageFields {
+    return BackupDoseInstructionStorageFields(
+        doseInstructionKind = kind,
+        tabletFractionNumerator = (this as? DoseInstruction.TabletFraction)?.numerator,
+        tabletFractionDenominator = (this as? DoseInstruction.TabletFraction)?.denominator,
+        doseVolumeMl = (this as? DoseInstruction.VolumeMl)?.valueMl,
+        doseWeightGrams = (this as? DoseInstruction.WeightGrams)?.valueGrams,
+    )
+}
+
+private data class BackupDoseInstructionStorageFields(
+    val doseInstructionKind: DoseInstructionKind,
+    val tabletFractionNumerator: Int?,
+    val tabletFractionDenominator: Int?,
+    val doseVolumeMl: Double?,
+    val doseWeightGrams: Double?,
+)
 
 private inline fun <reified T : Enum<T>> requireEnumName(
     value: String,

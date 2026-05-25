@@ -7,18 +7,19 @@ import android.provider.DocumentsContract
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationDoseUnit
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.util.backupFileNameTimestampFormatter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +37,7 @@ class BackupExportService @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val userProfileRepository: UserProfileRepository,
+    private val medicineRepository: MedicineRepository,
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
     private val bloodTestRepository: BloodTestRepository,
@@ -58,7 +60,7 @@ class BackupExportService @Inject constructor(
                 password = passwordChars,
             )
         } finally {
-            passwordChars.fill('\u0000')
+            passwordChars.fill(Char.MIN_VALUE)
         }
     }
 
@@ -156,6 +158,10 @@ class BackupExportService @Inject constructor(
         val settings = settingsRepository.getCurrentSettings()
         val onboardingCompleted = settingsRepository.onboardingCompleted.first()
         val userProfile = userProfileRepository.getCurrentProfile()
+        // Pulled before groups/logs so the importer can build its valid-medicine
+        // set up front and reject any item or log that references a row absent
+        // from this list.
+        val medicines = medicineRepository.getAll()
         val medicationGroups = medicationGroupRepository.getGroups()
         val medicationLogs = medicationLogRepository.getEntries()
         val customBloodAnalytes = bloodTestRepository.getCustomAnalytes()
@@ -197,6 +203,7 @@ class BackupExportService @Inject constructor(
                 weightOriginalUnit = userProfile.weightOriginalUnit.name,
                 updatedAtEpochMillis = userProfile.updatedAt?.toEpochMilli(),
             ),
+            medicines = medicines.map { medicine -> medicine.toBackupSnapshot() },
             medicationGroups = medicationGroups.map { group -> group.toBackupSnapshot() },
             medicationLogs = medicationLogs.map { entry -> entry.toBackupSnapshot() },
             customBloodAnalytes = customBloodAnalytes.map { analyte ->
@@ -211,6 +218,50 @@ class BackupExportService @Inject constructor(
                 )
             },
             bloodTestPanels = bloodTestPanels.map { panel -> panel.toBackupSnapshot() },
+        )
+    }
+
+    private fun Medicine.toBackupSnapshot(): BackupMedicineSnapshot {
+        val storageFields = preparation.toBackupStorageFields()
+        return BackupMedicineSnapshot(
+            uuid = uuid.toString(),
+            selectionKind = selection.kind.name,
+            // PATCH_OFF singleton reuses the CATALOG selectionKind for storage
+            // (kind is CATALOG) but has no medicationKey / customName; the
+            // preparationType PATCH_OFF marker rebuilds the PatchOff selection
+            // on restore. Mirrors MedicineEntityMappers.toEntity.
+            medicationKey = when (val currentSelection = selection) {
+                is MedicineSelection.Catalog -> currentSelection.medicationKey.name
+                is MedicineSelection.Custom -> null
+                is MedicineSelection.PatchOff -> null
+            },
+            customMedicationName = when (val currentSelection = selection) {
+                is MedicineSelection.Catalog -> null
+                is MedicineSelection.Custom -> currentSelection.medicationName
+                is MedicineSelection.PatchOff -> null
+            },
+            customMedicationNameNormalized = when (val currentSelection = selection) {
+                is MedicineSelection.Catalog -> null
+                is MedicineSelection.Custom -> currentSelection.normalizedMedicationName
+                is MedicineSelection.PatchOff -> null
+            },
+            category = category.name,
+            preparationType = storageFields.preparationType,
+            strengthMgPerTablet = storageFields.strengthMgPerTablet,
+            strengthMgPerVial = storageFields.strengthMgPerVial,
+            concentrationMgPerMl = storageFields.concentrationMgPerMl,
+            vialVolumeMl = storageFields.vialVolumeMl,
+            concentrationPercent = storageFields.concentrationPercent,
+            sachetWeightGrams = storageFields.sachetWeightGrams,
+            containerWeightGrams = storageFields.containerWeightGrams,
+            patchTotalMg = storageFields.patchTotalMg,
+            patchReleaseRateMcgPerDay = storageFields.patchReleaseRateMcgPerDay,
+            displayName = displayName,
+            identityKey = identityKey,
+            createdAtEpochMillis = createdAt.toEpochMilli(),
+            updatedAtEpochMillis = updatedAt.toEpochMilli(),
+            archivedAtEpochMillis = archivedAt?.toEpochMilli(),
+            displayDoseUnit = displayDoseUnit.name,
         )
     }
 
@@ -248,42 +299,35 @@ class BackupExportService @Inject constructor(
     }
 
     private fun MedicationGroupMedication.toBackupSnapshot(): BackupMedicationGroupItemSnapshot {
-        val fields = details.toBackupFields()
+        val instructionFields = doseInstruction.toBackupFields()
         return BackupMedicationGroupItemSnapshot(
             uuid = uuid.toString(),
             count = count,
-            category = fields.category,
-            applicationType = fields.applicationType,
-            selectionKind = fields.selectionKind,
-            medicationKey = fields.medicationKey,
-            customMedicationName = fields.customMedicationName,
-            doseKind = fields.doseKind,
-            doseValueMg = fields.doseValueMg,
-            customDoseUnit = fields.customDoseUnit,
-            doseValuePercent = fields.doseValuePercent,
-            doseWeightGrams = fields.doseWeightGrams,
-            doseReleaseRateMcgPerDay = fields.doseReleaseRateMcgPerDay,
-            gelApplicationArea = fields.gelApplicationArea,
+            medicineUuid = medicineUuid?.toString(),
+            applicationType = applicationType.name,
+            doseInstructionKind = instructionFields.kind,
+            tabletFractionNumerator = instructionFields.tabletFractionNumerator,
+            tabletFractionDenominator = instructionFields.tabletFractionDenominator,
+            doseVolumeMl = instructionFields.doseVolumeMl,
+            doseWeightGrams = instructionFields.doseWeightGrams,
+            gelApplicationArea = "DEFAULT",
         )
     }
 
     private fun MedicationLogEntry.toBackupSnapshot(): BackupMedicationLogSnapshot {
-        val fields = details.toBackupFields()
+        val instructionFields = doseInstruction.toBackupFields()
         return BackupMedicationLogSnapshot(
             uuid = uuid.toString(),
-            category = fields.category,
-            applicationType = fields.applicationType,
-            selectionKind = fields.selectionKind,
-            medicationKey = fields.medicationKey,
-            customMedicationName = fields.customMedicationName,
-            doseKind = fields.doseKind,
-            doseValueMg = fields.doseValueMg,
-            customDoseUnit = fields.customDoseUnit,
-            doseValuePercent = fields.doseValuePercent,
-            doseWeightGrams = fields.doseWeightGrams,
-            doseReleaseRateMcgPerDay = fields.doseReleaseRateMcgPerDay,
-            gelApplicationArea = fields.gelApplicationArea,
-            dosageMgAsEstradiol = dosageMgAsEstradiol,
+            category = category.name,
+            medicineUuid = medicineUuid?.toString(),
+            applicationType = applicationType.name,
+            doseInstructionKind = instructionFields.kind,
+            tabletFractionNumerator = instructionFields.tabletFractionNumerator,
+            tabletFractionDenominator = instructionFields.tabletFractionDenominator,
+            doseVolumeMl = instructionFields.doseVolumeMl,
+            doseWeightGrams = instructionFields.doseWeightGrams,
+            gelApplicationArea = "DEFAULT",
+            equivalentE2Mg = equivalentE2Mg,
             sourceGroupUuid = sourceGroupUuid?.toString(),
             scheduleTimeUuid = scheduleTimeUuid?.toString(),
             appliedAtEpochMillis = appliedAt.toEpochMilli(),
@@ -293,46 +337,61 @@ class BackupExportService @Inject constructor(
         )
     }
 
-    private fun MedicationDetails.toBackupFields(): BackupMedicationFields {
-        return BackupMedicationFields(
-            category = category.name,
-            applicationType = applicationType.name,
-            selectionKind = selection.kind.name,
-            medicationKey = when (val currentSelection = selection) {
-                is MedicationSelection.Catalog -> currentSelection.medicationKey.name
-                is MedicationSelection.Custom -> null
-            },
-            customMedicationName = when (val currentSelection = selection) {
-                is MedicationSelection.Catalog -> null
-                is MedicationSelection.Custom -> currentSelection.medicationName
-            },
-            doseKind = dose.kind.name,
-            doseValueMg = when (val currentDose = dose) {
-                is MedicationDose.MgAsMedicine -> currentDose.valueMg
-                is MedicationDose.GelEquivalentEstradiolMg -> currentDose.valueMg
-                is MedicationDose.PatchTotalMg -> currentDose.valueMg
-                else -> null
-            },
-            customDoseUnit = when {
-                selection is MedicationSelection.Custom && dose is MedicationDose.MgAsMedicine ->
-                    customDoseUnit.storageValue
-
-                else -> MedicationDoseUnit.MG.storageValue
-            },
-            doseValuePercent = when (val currentDose = dose) {
-                is MedicationDose.GelPercentAndWeight -> currentDose.percent
-                else -> null
-            },
-            doseWeightGrams = when (val currentDose = dose) {
-                is MedicationDose.GelPercentAndWeight -> currentDose.weightGrams
-                else -> null
-            },
-            doseReleaseRateMcgPerDay = when (val currentDose = dose) {
-                is MedicationDose.PatchReleaseRateMcgPerDay -> currentDose.valueMcgPerDay
-                else -> null
-            },
-            gelApplicationArea = gelApplicationArea.name,
+    private fun DoseInstruction.toBackupFields(): BackupDoseInstructionFields {
+        return BackupDoseInstructionFields(
+            kind = kind.name,
+            tabletFractionNumerator = (this as? DoseInstruction.TabletFraction)?.numerator,
+            tabletFractionDenominator = (this as? DoseInstruction.TabletFraction)?.denominator,
+            doseVolumeMl = (this as? DoseInstruction.VolumeMl)?.valueMl,
+            doseWeightGrams = (this as? DoseInstruction.WeightGrams)?.valueGrams,
         )
+    }
+
+    private fun MedicinePreparation.toBackupStorageFields(): BackupMedicineStorageFields {
+        return when (this) {
+            is MedicinePreparation.Pill -> BackupMedicineStorageFields(
+                preparationType = type.name,
+                strengthMgPerTablet = strengthMgPerTablet,
+            )
+            is MedicinePreparation.Capsule -> BackupMedicineStorageFields(
+                preparationType = type.name,
+                strengthMgPerTablet = strengthMgPerCapsule,
+            )
+            is MedicinePreparation.InjectionSingleUseVial -> BackupMedicineStorageFields(
+                preparationType = type.name,
+                strengthMgPerVial = strengthMgPerVial,
+            )
+            is MedicinePreparation.InjectionMultiUseVial -> BackupMedicineStorageFields(
+                preparationType = type.name,
+                concentrationMgPerMl = concentrationMgPerMl,
+                vialVolumeMl = vialVolumeMl,
+            )
+            is MedicinePreparation.GelSachet -> BackupMedicineStorageFields(
+                preparationType = type.name,
+                concentrationPercent = concentrationPercent,
+                sachetWeightGrams = sachetWeightGrams,
+            )
+            is MedicinePreparation.GelContainer -> BackupMedicineStorageFields(
+                preparationType = type.name,
+                concentrationPercent = concentrationPercent,
+                containerWeightGrams = containerWeightGrams,
+            )
+            is MedicinePreparation.Patch -> when (val currentSpecification = specification) {
+                is MedicinePreparation.PatchSpecification.TotalMg -> BackupMedicineStorageFields(
+                    preparationType = type.name,
+                    patchTotalMg = currentSpecification.valueMg,
+                )
+                is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay -> BackupMedicineStorageFields(
+                    preparationType = type.name,
+                    patchReleaseRateMcgPerDay = currentSpecification.valueMcgPerDay,
+                )
+            }
+
+            // No numeric columns; the preparationType marker is the whole payload.
+            is MedicinePreparation.PatchOff -> BackupMedicineStorageFields(
+                preparationType = type.name,
+            )
+        }
     }
 
     private fun BloodTestPanel.toBackupSnapshot(): BackupBloodTestPanelSnapshot {
@@ -416,17 +475,23 @@ data class PreparedBackupExport(
     val tempFilePath: String,
 )
 
-private data class BackupMedicationFields(
-    val category: String,
-    val applicationType: String,
-    val selectionKind: String,
-    val medicationKey: String?,
-    val customMedicationName: String?,
-    val doseKind: String,
-    val doseValueMg: Double?,
-    val customDoseUnit: String,
-    val doseValuePercent: Double?,
+private data class BackupDoseInstructionFields(
+    val kind: String,
+    val tabletFractionNumerator: Int?,
+    val tabletFractionDenominator: Int?,
+    val doseVolumeMl: Double?,
     val doseWeightGrams: Double?,
-    val doseReleaseRateMcgPerDay: Double?,
-    val gelApplicationArea: String,
+)
+
+private data class BackupMedicineStorageFields(
+    val preparationType: String,
+    val strengthMgPerTablet: Double? = null,
+    val strengthMgPerVial: Double? = null,
+    val concentrationMgPerMl: Double? = null,
+    val vialVolumeMl: Double? = null,
+    val concentrationPercent: Double? = null,
+    val sachetWeightGrams: Double? = null,
+    val containerWeightGrams: Double? = null,
+    val patchTotalMg: Double? = null,
+    val patchReleaseRateMcgPerDay: Double? = null,
 )

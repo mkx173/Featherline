@@ -109,22 +109,34 @@ should read the upstream README and its `pk_research/` workspace.
   with its own expiry check on the widget render path. Upstream has
   no equivalent because it has no persistent home snapshot.
 - **Active-mg conversion on the data path.** Upstream resolves dose
-  events directly inside its simulator. Featherline keeps the active-mg
-  conversion in `toEstradiolPkDoseEvent` and
-  [`activeEstradiolDoseMg()`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1136),
-  pulling per-compound `activeFactor` from `PkCatalog.compounds`
-  (active-vs-prodrug molecular-weight ratios) and passing already-mg-as-E2
-  values into the engine. All routes including injections use
-  `activeEstradiolDoseMg()`; the engine's `formationFraction` values are
-  calibrated against active-E2 input, matching upstream's convention.
+  events directly inside its simulator. Featherline computes the
+  per-event active-mg-as-E2 upstream of the simulator in
+  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt),
+  which resolves a `Medicine`'s `MedicinePreparation` +
+  `DoseInstruction` into mg-as-E2 using the calculator's own
+  per-compound molecular-weight constants and persists it on the log
+  row as `equivalentE2Mg`. Inside the simulator,
+  [`pkDoseAmounts`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1106)
+  prefers the snapshotted value for non-patch routes (falling back to
+  `DoseInstructionCalculator.perUnitEquivalentE2Mg` for planned
+  entries or legacy rows that have no snapshot) and reads the patch
+  specification directly for `PATCH_APPLY` / `PATCH_REMOVE`; the
+  engine's `formationFraction` values are calibrated against
+  active-E2 input, matching upstream's convention. `PkCatalog`'s
+  per-compound `activeFactor` is *not* applied at dose-event
+  construction or in the current runtime simulation path; equivalent-E2
+  input comes from the snapshotted value or `DoseInstructionCalculator`.
 - **Duplicated molecular-weight constants.** Estradiol
   molecular-weight constants live in `PkCatalog.compounds` and again
   in
-  [`EstradiolEquivalentCalculator`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/data/repository/EstradiolEquivalentCalculator.kt),
-  which the medication UI uses to show dose-equivalence outside of
-  any PK simulation. The two copies disagree at the second decimal
+  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt),
+  which log creation uses to snapshot `equivalentE2Mg` and planned PK
+  entries use to rederive it when no snapshot exists. Medication UI
+  code also uses the calculator for raw dose amount and patch
+  release-rate display, but not for a dose-equivalence label. The two
+  copies disagree at the second decimal
   (`PkCatalog` uses 272.38 / 376.5 / 356.5 / 396.58 / 384.56;
-  `EstradiolEquivalentCalculator` uses 272.4 / 376.4 / 356.5 / 396.6 /
+  `DoseInstructionCalculator` uses 272.4 / 376.4 / 356.5 / 396.6 /
   384.5). The disagreement is below the resolution any user cares
   about, but the redundancy is flagged — both copies collapse into
   the planned PK engine.
@@ -156,7 +168,7 @@ The PK engine swap gates three deferred refactors, all enumerated in
 
 - Consolidate the fragmented PK math (constants, three-compartment
   simulation, dose-equivalence) so `PkCatalog` and
-  [`EstradiolEquivalentCalculator`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/data/repository/EstradiolEquivalentCalculator.kt)'s
+  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt)'s
   overlapping molecular-weight constants collapse into one source of
   truth.
 - Untangle the projection cache from `HomeSnapshotRepository` so PK

@@ -8,14 +8,13 @@ import com.mkx.hrttracker.data.repository.HomePkProjectionDoseMarkerRecord
 import com.mkx.hrttracker.data.repository.HomePkProjectionRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.every
@@ -55,6 +54,8 @@ class WidgetSnapshotBuilderTest {
 
         val todayRow = snapshot.doseRows.first { row -> row.contextChip == null && !row.isManualRecord }
         assertEquals("Bicalutamide", todayRow.medicationName)
+        // Pill at count=1 with TabletFraction(1, 1): "1 tablet" portion suppressed; only active mg shown.
+        assertEquals("2 mg", todayRow.doseText)
         assertEquals(1, snapshot.totalCount)
         assertEquals(0, snapshot.doneCount)
         assertEquals(now.toLocalDate().toEpochDay(), snapshot.anchorDateEpochDay)
@@ -130,8 +131,8 @@ class WidgetSnapshotBuilderTest {
         every { context.getString(R.string.medication_application_oral) } returns "Oral"
         every { context.getString(R.string.unit_mg) } returns "mg"
         every {
-            context.getString(R.string.medication_dose_with_unit, any(), any())
-        } returns "25 mg"
+            context.getString(R.string.dose_instruction_summary_active_amount, any(), any())
+        } returns "2 mg"
         every { context.getString(R.string.plan_entry_label_manual) } returns "Manual"
     }
 
@@ -154,11 +155,8 @@ class WidgetSnapshotBuilderTest {
             ),
             medications = listOf(
                 testMedicationGroupMedication(
-                    details = testCatalogMedicationDetails(
-                        key = medicationKey,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(25.0),
-                    ),
+                    medicine = testMedicine(key = medicationKey),
+                    applicationType = MedicationApplicationType.ORAL,
                 )
             ),
             createdAt = Instant.parse("2026-05-01T00:00:00Z"),

@@ -1,72 +1,103 @@
 package com.mkx.hrttracker.model.medication
 
+import java.util.UUID
+
 // Identity used to match planned and logged doses across the Plan UI and PK
 // projection. Two medications with the same signature are considered "the
-// same dose" — same category/route/selection/dose. Counts are tracked
-// separately (e.g., logged count toward required count).
+// same dose" — same medicine, route, and dose instruction. Counts are tracked
+// separately (e.g., logged count toward required count). A PATCH_OFF slot or
+// log collapses to a global "remove all patches" signature keyed on route
+// alone, since it carries no medicine.
 data class MedicationSignature(
-    val category: String,
+    val medicineUuid: String?,
     val applicationType: String,
-    val selectionKind: String,
-    val medicationKey: String?,
-    val normalizedCustomMedicationName: String?,
-    val customDoseUnit: String?,
-    val doseKind: String,
-    val doseValueMg: Double?,
-    val doseValuePercent: Double?,
+    val doseInstructionKind: String?,
+    val tabletFractionNumerator: Int?,
+    val tabletFractionDenominator: Int?,
+    val doseVolumeMl: Double?,
     val doseWeightGrams: Double?,
-    val doseReleaseRateMcgPerDay: Double?,
 ) {
     companion object {
         fun fromGroupMedication(medication: MedicationGroupMedication): MedicationSignature {
-            return fromMedicationDetails(medication.details)
+            return fromValues(
+                medicineUuid = medication.medicineUuid,
+                applicationType = medication.applicationType,
+                doseInstruction = medication.doseInstruction,
+            )
         }
 
         fun fromLogEntry(entry: MedicationLogEntry): MedicationSignature {
-            return fromMedicationDetails(entry.details)
-        }
-
-        fun fromMedicationDetails(details: MedicationDetails): MedicationSignature {
-            val selection = details.selection
-            val dose = details.dose
-            return MedicationSignature(
-                category = details.category.name,
-                applicationType = details.applicationType.name,
-                selectionKind = selection.kind.name,
-                medicationKey = when (selection) {
-                    is MedicationSelection.Catalog -> selection.medicationKey.name
-                    is MedicationSelection.Custom -> null
-                },
-                normalizedCustomMedicationName = when (selection) {
-                    is MedicationSelection.Catalog -> null
-                    is MedicationSelection.Custom -> selection.medicationName.trim().lowercase()
-                },
-                customDoseUnit = when {
-                    selection is MedicationSelection.Custom &&
-                        dose is MedicationDose.MgAsMedicine -> details.customDoseUnit.storageValue
-
-                    else -> null
-                },
-                doseKind = dose.kind.name,
-                doseValueMg = when (dose) {
-                    is MedicationDose.MgAsMedicine -> dose.valueMg
-                    is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
-                    is MedicationDose.PatchTotalMg -> dose.valueMg
-                    else -> null
-                },
-                doseValuePercent = when (dose) {
-                    is MedicationDose.GelPercentAndWeight -> dose.percent
-                    else -> null
-                },
-                doseWeightGrams = when (dose) {
-                    is MedicationDose.GelPercentAndWeight -> dose.weightGrams
-                    else -> null
-                },
-                doseReleaseRateMcgPerDay = when (dose) {
-                    is MedicationDose.PatchReleaseRateMcgPerDay -> dose.valueMcgPerDay
-                    else -> null
-                },
+            return fromValues(
+                medicineUuid = entry.medicineUuid,
+                applicationType = entry.applicationType,
+                doseInstruction = entry.doseInstruction,
             )
         }
+
+        fun patchOff(): MedicationSignature {
+            return MedicationSignature(
+                medicineUuid = null,
+                applicationType = MedicationApplicationType.PATCH_OFF.name,
+                doseInstructionKind = null,
+                tabletFractionNumerator = null,
+                tabletFractionDenominator = null,
+                doseVolumeMl = null,
+                doseWeightGrams = null,
+            )
+        }
+
+        private fun fromValues(
+            medicineUuid: UUID?,
+            applicationType: MedicationApplicationType,
+            doseInstruction: DoseInstruction,
+        ): MedicationSignature {
+            // PATCH_OFF carries no medicine — collapse before dereferencing it.
+            if (applicationType == MedicationApplicationType.PATCH_OFF) {
+                return patchOff()
+            }
+            return MedicationSignature(
+                medicineUuid = medicineUuid?.toString(),
+                applicationType = applicationType.name,
+                doseInstructionKind = doseInstruction.kind.name,
+                tabletFractionNumerator = (doseInstruction as? DoseInstruction.TabletFraction)?.numerator,
+                tabletFractionDenominator = (doseInstruction as? DoseInstruction.TabletFraction)?.denominator,
+                doseVolumeMl = (doseInstruction as? DoseInstruction.VolumeMl)?.valueMl,
+                doseWeightGrams = (doseInstruction as? DoseInstruction.WeightGrams)?.valueGrams,
+            )
+        }
+
+        // Pipe-delimited 7-field encoding used to ship signatures across
+        // process boundaries (PendingIntent extras). Empty fields stand in
+        // for null. Pipe is safe: enum names, UUIDs, doubles, and integers
+        // never produce one.
+        internal fun fromStorageValue(value: String): MedicationSignature? {
+            val parts = value.split("|", limit = 7)
+            if (parts.size != 7) {
+                return null
+            }
+            return runCatching {
+                MedicationSignature(
+                    medicineUuid = parts[0].takeIf(String::isNotEmpty),
+                    applicationType = parts[1],
+                    doseInstructionKind = parts[2].takeIf(String::isNotEmpty),
+                    tabletFractionNumerator = parts[3].takeIf(String::isNotEmpty)?.toInt(),
+                    tabletFractionDenominator = parts[4].takeIf(String::isNotEmpty)?.toInt(),
+                    doseVolumeMl = parts[5].takeIf(String::isNotEmpty)?.toDouble(),
+                    doseWeightGrams = parts[6].takeIf(String::isNotEmpty)?.toDouble(),
+                )
+            }.getOrNull()
+        }
     }
+}
+
+internal fun MedicationSignature.toStorageValue(): String {
+    return listOf(
+        medicineUuid.orEmpty(),
+        applicationType,
+        doseInstructionKind.orEmpty(),
+        tabletFractionNumerator?.toString().orEmpty(),
+        tabletFractionDenominator?.toString().orEmpty(),
+        doseVolumeMl?.toString().orEmpty(),
+        doseWeightGrams?.toString().orEmpty(),
+    ).joinToString(separator = "|")
 }

@@ -29,6 +29,8 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -37,23 +39,28 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationDoseKind
-import com.mkx.hrttracker.model.medication.MedicationDoseUnit
-import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
-import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
 import com.mkx.hrttracker.ui.calibration.CalibrationScreen
 import com.mkx.hrttracker.ui.calibration.CalibrationUnitsScreen
+import com.mkx.hrttracker.ui.catalog.MedicineDetailScreen
+import com.mkx.hrttracker.ui.catalog.MedicineDetailViewModel
+import com.mkx.hrttracker.ui.catalog.MedicineManagerLaunchMode
+import com.mkx.hrttracker.ui.catalog.MedicinesScreen
+import com.mkx.hrttracker.ui.catalog.medicineManagerLaunchMode
+import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.AddEntryEditSnapshot
 import com.mkx.hrttracker.ui.log.AddEntryQuickLogRequest
@@ -146,6 +153,52 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
             } else {
                 "$baseRoute?${CalibrationEditorViewModel.PANEL_ID_ARG}=$panelId&$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
             }
+        }
+    }
+
+    data object Medicines : Screen(
+        "medicines/{$TOP_LEVEL_PARENT_ARG}?" +
+            "$SLOT_RESULT_KEY_ARG={$SLOT_RESULT_KEY_ARG}",
+        R.string.medicines_title,
+    ) {
+        const val baseRoute = "medicines"
+        // Route template stripped of its query string — matches what
+        // NavigationTransitions.normalizeNavigationRoute() yields.
+        const val motionRoute = "$baseRoute/{$TOP_LEVEL_PARENT_ARG}"
+
+        // `slotResultKey` carries a complete slot Bundle
+        // (medicine + dose + count + applicationType) back to the caller via
+        // the previous back-stack entry's savedStateHandle.
+        fun createRoute(
+            topLevelParentRoute: String = Plan.route,
+            slotResultKey: String? = null,
+        ): String {
+            return buildString {
+                append(baseRoute)
+                append("/")
+                append(topLevelParentRoute)
+                if (slotResultKey != null) {
+                    append("?$SLOT_RESULT_KEY_ARG=$slotResultKey")
+                }
+            }
+        }
+    }
+
+    data object MedicineDetail : Screen(
+        "medicine_detail/{${MedicineDetailViewModel.MEDICINE_ID_ARG}}?" +
+                "$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.medicine_detail_title,
+    ) {
+        const val baseRoute = "medicine_detail"
+        // Route template stripped of its query string — matches what
+        // NavigationTransitions.normalizeNavigationRoute() yields.
+        const val motionRoute = "$baseRoute/{${MedicineDetailViewModel.MEDICINE_ID_ARG}}"
+
+        fun createRoute(
+            medicineId: String,
+            topLevelParentRoute: String = Plan.route,
+        ): String {
+            return "$baseRoute/$medicineId?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
         }
     }
 
@@ -297,7 +350,6 @@ fun HrtTrackerNavHost(
     val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
     val explicitParentRoute = currentBackStackEntry?.arguments?.getString(TOP_LEVEL_PARENT_ARG)
-
     val selectedBottomScreen =
         Screen.topLevelScreenForRoute(explicitParentRoute)
             ?: topLevelNavigationItems.firstOrNull { navItem ->
@@ -420,7 +472,7 @@ fun HrtTrackerNavHost(
                                 )
                             ) {
                                 TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
-                                    navController.popBackStack(navItem.screen.route, false)
+                                    navController.popBackStackSafely(navItem.screen.route, inclusive = false)
                                 }
 
                                 TopLevelNavigationTapAction.SCROLL_TO_TOP -> {
@@ -476,7 +528,14 @@ fun HrtTrackerNavHost(
                             )
                         },
                         onAddEntryClick = {
-                            addEntrySheetRequest = AddEntrySheetRequest(entryIds = emptyList())
+                            // Jump straight to the manager; its dose sheet saves
+                            // the manual log directly in manual-log mode.
+                            navController.navigate(
+                                Screen.Medicines.createRoute(
+                                    topLevelParentRoute = selectedBottomScreen.route,
+                                    slotResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
+                                ),
+                            )
                         },
                         onQuickLogDoseClick = { request ->
                             if (request.medicationCount > 0) {
@@ -485,7 +544,9 @@ fun HrtTrackerNavHost(
                                         groupId = request.groupUuid,
                                         scheduleTimeUuid = request.scheduleTimeUuid,
                                         scheduledFor = request.scheduledAt,
-                                        medicationDetails = request.medicationDetails,
+                                        medicine = request.medicine,
+                                        applicationType = request.applicationType,
+                                        doseInstruction = request.doseInstruction,
                                         medicationCount = request.medicationCount,
                                         sourceGroupName = request.sourceGroupName,
                                         sourceGroupColorKey = request.sourceGroupColorKey,
@@ -514,14 +575,16 @@ fun HrtTrackerNavHost(
                                 entryIds = entryIds.map(UUID::toString)
                             )
                         },
-                        onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medicationDetails, medicationCount ->
+                        onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medication, medicationCount ->
                             if (medicationCount > 0) {
                                 addEntrySheetRequest = AddEntrySheetRequest(
                                     quickLogRequest = AddEntryQuickLogRequest(
                                         groupId = groupId,
                                         scheduleTimeUuid = scheduleTimeUuid,
                                         scheduledFor = scheduledAt,
-                                        medicationDetails = medicationDetails,
+                                        medicine = medication.medicine,
+                                        applicationType = medication.applicationType,
+                                        doseInstruction = medication.doseInstruction,
                                         medicationCount = medicationCount
                                     )
                                 )
@@ -548,6 +611,11 @@ fun HrtTrackerNavHost(
                             navController.navigate(Screen.PlanArchivedGroups.createRoute(Screen.Plan.route)) {
                                 launchSingleTop = true
                             }
+                        },
+                        onMedicinesClick = {
+                            navController.navigate(Screen.Medicines.createRoute(Screen.Plan.route)) {
+                                launchSingleTop = true
+                            }
                         }
                     )
                 }
@@ -562,7 +630,7 @@ fun HrtTrackerNavHost(
                 ) {
                     PlanBatchAddScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
                     )
                 }
                 composable(
@@ -576,7 +644,7 @@ fun HrtTrackerNavHost(
                 ) {
                     ArchivedMedicationGroupsScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
                         onGroupClick = { groupId ->
                             navController.navigate(
                                 Screen.EditMedicationGroup.createRoute(
@@ -599,7 +667,7 @@ fun HrtTrackerNavHost(
                 ) {
                     HistoryScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
                         onEntryClick = { entryIds ->
                             addEntrySheetRequest = AddEntrySheetRequest(
                                 entryIds = entryIds.map(UUID::toString)
@@ -629,7 +697,7 @@ fun HrtTrackerNavHost(
                 ) {
                     CalibrationScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
                         onUnitsClick = {
                             navController.navigate(
                                 Screen.SettingsCalibrationUnits.createRoute(Screen.Settings.route)
@@ -661,7 +729,7 @@ fun HrtTrackerNavHost(
                 ) {
                     CalibrationUnitsScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
                     )
                 }
                 composable(
@@ -680,8 +748,87 @@ fun HrtTrackerNavHost(
                 ) {
                     CalibrationEditorScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
-                        onSaved = { navController.popBackStack() }
+                        onNavigateBack = { navController.popBackStackSafely() },
+                        onSaved = { navController.popBackStackSafely() }
+                    )
+                }
+                composable(
+                    route = Screen.Medicines.route,
+                    arguments = listOf(
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Plan.route
+                        },
+                        navArgument(SLOT_RESULT_KEY_ARG) {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val topLevelParentRoute =
+                        backStackEntry.arguments?.getString(TOP_LEVEL_PARENT_ARG)
+                            ?: Screen.Plan.route
+                    val slotResultKey =
+                        backStackEntry.arguments?.getString(SLOT_RESULT_KEY_ARG)
+                    val launchMode = medicineManagerLaunchMode(
+                        slotResultKey = slotResultKey,
+                        manualLogResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
+                    )
+                    MedicinesScreen(
+                        modifier = modifier,
+                        onNavigateBack = { navController.popBackStackSafely() },
+                        onMedicineClick = { medicineId ->
+                            // Slot-result mode: MedicinesScreen hosts the dose
+                            // sheet itself and returns the completed slot via
+                            // onSlotResolved below — don't open the detail
+                            // screen in that case.
+                            if (launchMode == MedicineManagerLaunchMode.Manager) {
+                                navController.navigate(
+                                    Screen.MedicineDetail.createRoute(
+                                        medicineId = medicineId.toString(),
+                                        topLevelParentRoute = topLevelParentRoute,
+                                    ),
+                                )
+                            }
+                        },
+                        launchMode = launchMode,
+                        onSlotResolved = { slotResult ->
+                            val groupSlotMode = launchMode as? MedicineManagerLaunchMode.GroupSlot
+                                ?: return@MedicinesScreen
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set(groupSlotMode.resultKey, slotResult.toBundle())
+                            navController.popBackStackSafely()
+                        },
+                        onManualLogSaved = {
+                            navController.popBackStackSafely()
+                        },
+                    )
+                }
+                composable(
+                    route = Screen.MedicineDetail.route,
+                    arguments = listOf(
+                        navArgument(MedicineDetailViewModel.MEDICINE_ID_ARG) {
+                            type = NavType.StringType
+                        },
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Plan.route
+                        },
+                    ),
+                ) {
+                    MedicineDetailScreen(
+                        modifier = modifier,
+                        onNavigateBack = { navController.popBackStackSafely() },
+                        onGroupClick = { groupId ->
+                            navController.navigate(
+                                Screen.EditMedicationGroup.createRoute(
+                                    topLevelParentRoute = Screen.Plan.route,
+                                    groupId = groupId.toString(),
+                                ),
+                            )
+                        },
                     )
                 }
                 composable(
@@ -705,18 +852,68 @@ fun HrtTrackerNavHost(
                     val openedFromArchivedGroupsPage =
                         backStackEntry.arguments?.getString(MEDICATION_GROUP_EDITOR_SOURCE_ARG) ==
                                 MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS
+                    val topLevelParentRoute =
+                        backStackEntry.arguments?.getString(TOP_LEVEL_PARENT_ARG)
+                            ?: Screen.Plan.route
+                    val groupEditorViewModel: MedicationGroupEditorViewModel =
+                        hiltViewModel(backStackEntry)
+                    var pendingSlotResultKey by rememberSaveable {
+                        mutableStateOf<String?>(null)
+                    }
+                    var pendingSlotLocalId by rememberSaveable {
+                        mutableStateOf<String?>(null)
+                    }
+                    val pendingResultKey = pendingSlotResultKey
+                    val groupSlotResultBundle by if (pendingResultKey != null) {
+                        backStackEntry.savedStateHandle
+                            .getStateFlow<android.os.Bundle?>(pendingResultKey, null)
+                            .collectAsStateWithLifecycle()
+                    } else {
+                        remember { mutableStateOf<android.os.Bundle?>(null) }
+                    }
+                    LaunchedEffect(pendingResultKey, groupSlotResultBundle) {
+                        val key = pendingResultKey ?: return@LaunchedEffect
+                        val localId = pendingSlotLocalId ?: return@LaunchedEffect
+                        val bundle = groupSlotResultBundle ?: return@LaunchedEffect
+                        com.mkx.hrttracker.ui.catalog.MedicineSlotResult.fromBundle(bundle)
+                            ?.let { slotResult ->
+                                groupEditorViewModel.addCompletedMedicationSlot(
+                                    localId = localId,
+                                    slot = slotResult,
+                                )
+                            }
+                        backStackEntry.savedStateHandle.remove<android.os.Bundle>(key)
+                        pendingSlotResultKey = null
+                        pendingSlotLocalId = null
+                    }
                     MedicationGroupEditorScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
-                        onGroupSaved = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
+                        onGroupSaved = { navController.popBackStackSafely() },
                         onGroupSavedToPlan = {
-                            if (!navController.popBackStack(Screen.Plan.route, inclusive = false)) {
+                            if (!navController.popBackStackSafely(Screen.Plan.route, inclusive = false)) {
                                 navController.navigate(Screen.Plan.route) {
                                     launchSingleTop = true
                                 }
                             }
                         },
                         openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+                        viewModel = groupEditorViewModel,
+                        // The screen still asks the host to "open the picker"
+                        // with a slot localId; the host now navigates to the
+                        // manager with a slotResultKey so the manager hosts the
+                        // dose sheet and returns a complete slot Bundle.
+                        onOpenMedicinePicker = { localId ->
+                            val resultKey = "$GROUP_SLOT_MEDICINE_RESULT_KEY_PREFIX$localId"
+                            pendingSlotResultKey = resultKey
+                            pendingSlotLocalId = localId
+                            navController.navigate(
+                                Screen.Medicines.createRoute(
+                                    topLevelParentRoute = topLevelParentRoute,
+                                    slotResultKey = resultKey,
+                                ),
+                            )
+                        },
                     )
                 }
             }
@@ -728,10 +925,38 @@ fun HrtTrackerNavHost(
             entryIds = request.entryIds,
             quickLogRequest = request.quickLogRequest,
             editSnapshot = request.editSnapshot,
+            // Direct manual logs now save from the medicine manager's slot
+            // sheet. Existing AddEntry usages are edit/quick-log flows, where
+            // medicine identity is locked, so there is no routed picker here.
+            onOpenMedicinePicker = { },
             onDismissRequest = { addEntrySheetRequest = null },
             onEntrySaved = { addEntrySheetRequest = null }
         )
     }
+}
+
+// Tap-debounced popBackStack: only fires while the current entry is RESUMED.
+// Compose Navigation drops the outgoing entry's lifecycle to STARTED the
+// moment a pop begins, so a rapid second tap on the same back button sees a
+// non-RESUMED state and is dropped. Without this guard the second tap pops
+// past the destination, leaving the previous screen blank.
+private fun NavHostController.popBackStackSafely(): Boolean {
+    val entry = currentBackStackEntry ?: return false
+    if (!entry.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+        return false
+    }
+    return popBackStack()
+}
+
+private fun NavHostController.popBackStackSafely(
+    route: String,
+    inclusive: Boolean,
+): Boolean {
+    val entry = currentBackStackEntry ?: return false
+    if (!entry.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+        return false
+    }
+    return popBackStack(route = route, inclusive = inclusive)
 }
 
 private fun NavHostController.navigateToTopLevelScreen(
@@ -753,7 +978,10 @@ private fun NavHostController.navigateToTopLevelScreen(
     }
 }
 
-private const val TOP_LEVEL_PARENT_ARG = "topLevelParent"
+internal const val TOP_LEVEL_PARENT_ARG = "topLevelParent"
+private const val SLOT_RESULT_KEY_ARG = "slotResultKey"
+private const val ADD_ENTRY_SLOT_RESULT_KEY = "addEntrySlotResult"
+private const val GROUP_SLOT_MEDICINE_RESULT_KEY_PREFIX = "groupSlot_"
 private const val MEDICATION_GROUP_EDITOR_SOURCE_ARG = "source"
 private const val MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS = "archivedGroups"
 
@@ -809,7 +1037,10 @@ private fun saveQuickLogRequest(request: AddEntryQuickLogRequest): ArrayList<Any
         request.groupId.toString(),
         request.scheduleTimeUuid?.toString(),
         request.scheduledFor.toString(),
-        saveMedicationDetails(request.medicationDetails),
+        // medicine is null for a PATCH_OFF quick-log; the Saver carries that null.
+        request.medicine?.let(::saveMedicine),
+        request.applicationType.name,
+        saveDoseInstruction(request.doseInstruction),
         request.medicationCount,
         request.sourceGroupName,
         request.sourceGroupColorKey?.name,
@@ -825,12 +1056,14 @@ private fun restoreQuickLogRequest(saved: Any): AddEntryQuickLogRequest {
         groupId = UUID.fromString(list[0] as String),
         scheduleTimeUuid = (list[1] as? String)?.let(UUID::fromString),
         scheduledFor = LocalDateTime.parse(list[2] as String),
-        medicationDetails = restoreMedicationDetails(list[3]!!),
-        medicationCount = list[4] as Int,
-        sourceGroupName = list.getOrNull(5) as? String,
-        sourceGroupColorKey = (list.getOrNull(6) as? String)?.let(::restoreMedicationGroupColorKey),
-        sourceGroupPreviousScheduledFor = (list.getOrNull(7) as? String)?.let(LocalDateTime::parse),
-        sourceGroupNextScheduledFor = (list.getOrNull(8) as? String)?.let(LocalDateTime::parse),
+        medicine = list[3]?.let(::restoreMedicine),
+        applicationType = MedicationApplicationType.fromStorageValue(list[4] as String),
+        doseInstruction = restoreDoseInstruction(list[5]!!),
+        medicationCount = list[6] as Int,
+        sourceGroupName = list.getOrNull(7) as? String,
+        sourceGroupColorKey = (list.getOrNull(8) as? String)?.let(::restoreMedicationGroupColorKey),
+        sourceGroupPreviousScheduledFor = (list.getOrNull(9) as? String)?.let(LocalDateTime::parse),
+        sourceGroupNextScheduledFor = (list.getOrNull(10) as? String)?.let(LocalDateTime::parse),
     )
 }
 
@@ -864,8 +1097,12 @@ private fun restoreEditSnapshot(saved: Any): AddEntryEditSnapshot {
 private fun saveMedicationLogEntry(entry: MedicationLogEntry): ArrayList<Any?> {
     return arrayListOf(
         entry.uuid.toString(),
-        saveMedicationDetails(entry.details),
-        entry.dosageMgAsEstradiol,
+        // medicine is null for a PATCH_OFF log.
+        entry.medicine?.let(::saveMedicine),
+        entry.category.name,
+        entry.applicationType.name,
+        saveDoseInstruction(entry.doseInstruction),
+        entry.equivalentE2Mg,
         entry.sourceGroupUuid?.toString(),
         entry.appliedAt.toEpochMilli(),
         entry.appliedAtTimeZoneId,
@@ -875,89 +1112,186 @@ private fun saveMedicationLogEntry(entry: MedicationLogEntry): ArrayList<Any?> {
     )
 }
 
+@Suppress("UNCHECKED_CAST")
 private fun restoreMedicationLogEntry(saved: Any): MedicationLogEntry {
     val list = saved as ArrayList<Any?>
     return MedicationLogEntry(
         uuid = UUID.fromString(list[0] as String),
-        details = restoreMedicationDetails(list[1]!!),
-        dosageMgAsEstradiol = list[2] as? Double,
-        sourceGroupUuid = (list[3] as? String)?.let(UUID::fromString),
-        appliedAt = Instant.ofEpochMilli(list[4] as Long),
-        appliedAtTimeZoneId = list[5] as String,
-        scheduledFor = (list[6] as? String)?.let(LocalDateTime::parse),
-        count = list[7] as Int,
-        scheduleTimeUuid = (list[8] as? String)?.let(UUID::fromString),
+        medicine = list[1]?.let(::restoreMedicine),
+        category = MedicationCategory.fromStorageValue(list[2] as String),
+        applicationType = MedicationApplicationType.fromStorageValue(list[3] as String),
+        doseInstruction = restoreDoseInstruction(list[4]!!),
+        equivalentE2Mg = list[5] as? Double,
+        sourceGroupUuid = (list[6] as? String)?.let(UUID::fromString),
+        appliedAt = Instant.ofEpochMilli(list[7] as Long),
+        appliedAtTimeZoneId = list[8] as String,
+        scheduledFor = (list[9] as? String)?.let(LocalDateTime::parse),
+        count = list[10] as Int,
+        scheduleTimeUuid = (list[11] as? String)?.let(UUID::fromString),
     )
 }
 
-private fun saveMedicationDetails(details: MedicationDetails): ArrayList<Any?> {
+// Serializes a Medicine for nav-arg Savers. A medicine is a finite value type;
+// carrying it whole survives process death without a repository round-trip.
+private fun saveMedicine(medicine: Medicine): ArrayList<Any?> {
     return arrayListOf(
-        details.category.name,
-        details.applicationType.name,
-        saveMedicationSelection(details.selection),
-        saveMedicationDose(details.dose),
-        details.gelApplicationArea.name,
-        details.customDoseUnit.name,
+        medicine.uuid.toString(),
+        medicine.selection.kind.name,
+        (medicine.selection as? MedicineSelection.Catalog)?.medicationKey?.name,
+        (medicine.selection as? MedicineSelection.Custom)?.medicationName,
+        medicine.category.name,
+        savePreparation(medicine.preparation),
+        medicine.displayName,
+        medicine.identityKey,
+        medicine.createdAt.toEpochMilli(),
+        medicine.updatedAt.toEpochMilli(),
+        medicine.archivedAt?.toEpochMilli(),
     )
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun restoreMedicationDetails(saved: Any): MedicationDetails {
+private fun restoreMedicine(saved: Any): Medicine {
     val list = saved as ArrayList<Any?>
-    return MedicationDetails(
-        category = MedicationCategory.fromStorageValue(list[0] as String),
-        applicationType = MedicationApplicationType.fromStorageValue(list[1] as String),
-        selection = restoreMedicationSelection(list[2]!!),
-        dose = restoreMedicationDose(list[3]!!),
-        gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(list[4] as String),
-        customDoseUnit = MedicationDoseUnit.fromStorageValue(list[5] as String),
+    val preparation = restorePreparation(list[5]!!)
+    // PATCH_OFF reuses CATALOG selectionKind for storage; the preparation type
+    // is the discriminator on the way back in. Mirrors MedicineEntityMappers.
+    val selection = if (preparation is MedicinePreparation.PatchOff) {
+        MedicineSelection.PatchOff
+    } else {
+        when (MedicationSelectionKind.fromStorageValue(list[1] as String)) {
+            MedicationSelectionKind.CATALOG -> MedicineSelection.Catalog(
+                medicationKey = MedicationKey.fromStorageValue(list[2] as String)
+                    ?: error("Unknown medication key: ${list[2]}"),
+            )
+
+            MedicationSelectionKind.CUSTOM -> MedicineSelection.Custom(
+                medicationName = list[3] as String,
+            )
+        }
+    }
+    return Medicine(
+        uuid = UUID.fromString(list[0] as String),
+        selection = selection,
+        category = MedicationCategory.fromStorageValue(list[4] as String),
+        preparation = preparation,
+        displayName = list[6] as? String,
+        identityKey = list[7] as String,
+        createdAt = Instant.ofEpochMilli(list[8] as Long),
+        updatedAt = Instant.ofEpochMilli(list[9] as Long),
+        archivedAt = (list[10] as? Long)?.let(Instant::ofEpochMilli),
     )
 }
 
-private fun saveMedicationSelection(selection: MedicationSelection): ArrayList<Any?> {
-    return when (selection) {
-        is MedicationSelection.Catalog -> arrayListOf(selection.kind.name, selection.medicationKey.name)
-        is MedicationSelection.Custom -> arrayListOf(selection.kind.name, selection.medicationName)
+private fun savePreparation(preparation: MedicinePreparation): ArrayList<Any?> {
+    return when (preparation) {
+        is MedicinePreparation.Pill ->
+            arrayListOf(preparation.type.name, preparation.strengthMgPerTablet)
+
+        is MedicinePreparation.Capsule ->
+            arrayListOf(preparation.type.name, preparation.strengthMgPerCapsule)
+
+        is MedicinePreparation.InjectionSingleUseVial ->
+            arrayListOf(preparation.type.name, preparation.strengthMgPerVial)
+
+        is MedicinePreparation.InjectionMultiUseVial -> arrayListOf(
+            preparation.type.name,
+            preparation.concentrationMgPerMl,
+            preparation.vialVolumeMl,
+        )
+
+        is MedicinePreparation.GelSachet -> arrayListOf(
+            preparation.type.name,
+            preparation.concentrationPercent,
+            preparation.sachetWeightGrams,
+        )
+
+        is MedicinePreparation.GelContainer -> arrayListOf(
+            preparation.type.name,
+            preparation.concentrationPercent,
+            preparation.containerWeightGrams,
+        )
+
+        is MedicinePreparation.Patch -> when (val spec = preparation.specification) {
+            is MedicinePreparation.PatchSpecification.TotalMg ->
+                arrayListOf(preparation.type.name, "TOTAL", spec.valueMg)
+
+            is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay ->
+                arrayListOf(preparation.type.name, "RATE", spec.valueMcgPerDay)
+        }
+
+        // PATCH_OFF carries no numeric fields; the type tag is the whole payload.
+        is MedicinePreparation.PatchOff -> arrayListOf(preparation.type.name)
     }
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun restoreMedicationSelection(saved: Any): MedicationSelection {
+private fun restorePreparation(saved: Any): MedicinePreparation {
     val list = saved as ArrayList<Any?>
-    return when (MedicationSelectionKind.fromStorageValue(list[0] as String)) {
-        MedicationSelectionKind.CATALOG -> MedicationSelection.Catalog(
-            medicationKey = MedicationKey.fromStorageValue(list[1] as String)
-                ?: error("Unknown medication key: ${list[1]}")
+    return when (MedicinePreparationType.fromStorageValue(list[0] as String)) {
+        MedicinePreparationType.PILL ->
+            MedicinePreparation.Pill(strengthMgPerTablet = list[1] as Double)
+
+        MedicinePreparationType.CAPSULE ->
+            MedicinePreparation.Capsule(strengthMgPerCapsule = list[1] as Double)
+
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
+            MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = list[1] as Double)
+
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = list[1] as Double,
+            vialVolumeMl = list[2] as Double,
         )
-        MedicationSelectionKind.CUSTOM -> MedicationSelection.Custom(
-            medicationName = list[1] as String
+
+        MedicinePreparationType.GEL_SACHET -> MedicinePreparation.GelSachet(
+            concentrationPercent = list[1] as Double,
+            sachetWeightGrams = list[2] as Double,
         )
+
+        MedicinePreparationType.GEL_CONTAINER -> MedicinePreparation.GelContainer(
+            concentrationPercent = list[1] as Double,
+            containerWeightGrams = list[2] as Double,
+        )
+
+        MedicinePreparationType.PATCH -> MedicinePreparation.Patch(
+            specification = if (list[1] == "TOTAL") {
+                MedicinePreparation.PatchSpecification.TotalMg(valueMg = list[2] as Double)
+            } else {
+                MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                    valueMcgPerDay = list[2] as Double,
+                )
+            },
+        )
+
+        MedicinePreparationType.PATCH_OFF -> MedicinePreparation.PatchOff
     }
 }
 
-private fun saveMedicationDose(dose: MedicationDose): ArrayList<Any?> {
-    return when (dose) {
-        is MedicationDose.MgAsMedicine -> arrayListOf(dose.kind.name, dose.valueMg)
-        is MedicationDose.GelEquivalentEstradiolMg -> arrayListOf(dose.kind.name, dose.valueMg)
-        is MedicationDose.GelPercentAndWeight -> arrayListOf(dose.kind.name, dose.percent, dose.weightGrams)
-        is MedicationDose.PatchTotalMg -> arrayListOf(dose.kind.name, dose.valueMg)
-        is MedicationDose.PatchReleaseRateMcgPerDay -> arrayListOf(dose.kind.name, dose.valueMcgPerDay)
-        MedicationDose.None -> arrayListOf(dose.kind.name)
+private fun saveDoseInstruction(instruction: DoseInstruction): ArrayList<Any?> {
+    return when (instruction) {
+        is DoseInstruction.TabletFraction ->
+            arrayListOf(instruction.kind.name, instruction.numerator, instruction.denominator)
+
+        DoseInstruction.WholeUnit -> arrayListOf(instruction.kind.name)
+        is DoseInstruction.VolumeMl -> arrayListOf(instruction.kind.name, instruction.valueMl)
+        is DoseInstruction.WeightGrams ->
+            arrayListOf(instruction.kind.name, instruction.valueGrams)
+        DoseInstruction.Noop -> arrayListOf(instruction.kind.name)
     }
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun restoreMedicationDose(saved: Any): MedicationDose {
+private fun restoreDoseInstruction(saved: Any): DoseInstruction {
     val list = saved as ArrayList<Any?>
-    return when (MedicationDoseKind.fromStorageValue(list[0] as String)) {
-        MedicationDoseKind.MG_AS_MEDICINE -> MedicationDose.MgAsMedicine(list[1] as Double)
-        MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG ->
-            MedicationDose.GelEquivalentEstradiolMg(list[1] as Double)
-        MedicationDoseKind.GEL_PERCENT_AND_WEIGHT ->
-            MedicationDose.GelPercentAndWeight(list[1] as Double, list[2] as Double)
-        MedicationDoseKind.PATCH_TOTAL_MG -> MedicationDose.PatchTotalMg(list[1] as Double)
-        MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY ->
-            MedicationDose.PatchReleaseRateMcgPerDay(list[1] as Double)
-        MedicationDoseKind.NONE -> MedicationDose.None
+    return when (DoseInstructionKind.fromStorageValue(list[0] as String)) {
+        DoseInstructionKind.TABLET_FRACTION -> DoseInstruction.TabletFraction(
+            numerator = list[1] as Int,
+            denominator = list[2] as Int,
+        )
+
+        DoseInstructionKind.WHOLE_UNIT -> DoseInstruction.WholeUnit
+        DoseInstructionKind.VOLUME_ML -> DoseInstruction.VolumeMl(valueMl = list[1] as Double)
+        DoseInstructionKind.WEIGHT_GRAMS ->
+            DoseInstruction.WeightGrams(valueGrams = list[1] as Double)
+        DoseInstructionKind.NOOP -> DoseInstruction.Noop
     }
 }

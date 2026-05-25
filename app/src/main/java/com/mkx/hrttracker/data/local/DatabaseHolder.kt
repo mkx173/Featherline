@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
-import com.mkx.hrttracker.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -72,24 +71,7 @@ class DatabaseHolder @Inject constructor(
             DATABASE_NAME
         )
             .openHelperFactory(openHelperFactory)
-            .addMigrations(
-                MIGRATION_19_20,
-                MIGRATION_20_21,
-                MIGRATION_21_22,
-                MIGRATION_22_23,
-                MIGRATION_23_24,
-                MIGRATION_24_25,
-                MIGRATION_25_26,
-                MIGRATION_26_27,
-                MIGRATION_27_28,
-                MIGRATION_28_29,
-            )
-        if (BuildConfig.DEBUG) {
-            // Debug-only: side-loading older APKs is common during development.
-            // Release builds intentionally crash on a missing migration so silent
-            // data loss surfaces in stability metrics rather than wiping users.
-            builder.fallbackToDestructiveMigration(dropAllTables = true)
-        }
+            .addMigrations(MIGRATION_1_2)
         return builder.build()
     }
 

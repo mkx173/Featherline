@@ -29,42 +29,30 @@ data class MedicationGroup(
 
 data class MedicationGroupMedication(
     val uuid: UUID,
-    val details: MedicationDetails,
+    val medicine: Medicine?,
+    val applicationType: MedicationApplicationType,
+    val doseInstruction: DoseInstruction,
     val count: Int = 1,
 ) {
     init {
         require(count > 0) { "Medication count must be at least 1." }
+        require(medicine != null || applicationType == MedicationApplicationType.PATCH_OFF) {
+            "Only a PATCH_OFF slot may omit its medicine."
+        }
+        require(applicationType.isCompatibleWith(medicine?.preparation?.type)) {
+            "applicationType=$applicationType is not compatible with preparation=${medicine?.preparation?.type}"
+        }
+        require(doseInstruction.isCompatibleWith(medicine?.preparation?.type)) {
+            "doseInstruction=${doseInstruction.kind} is not compatible with preparation=${medicine?.preparation?.type}"
+        }
     }
 
+    val medicineUuid: UUID?
+        get() = medicine?.uuid
+
+    // PATCH_OFF slots carry no medicine; the catalog has only the estradiol patch.
     val category: MedicationCategory
-        get() = details.category
-
-    val applicationType: MedicationApplicationType
-        get() = details.applicationType
-
-    val selection: MedicationSelection
-        get() = details.selection
-
-    val dose: MedicationDose
-        get() = details.dose
-}
-
-data class MedicationGroupMedicationInstance(
-    val groupMedicationUuid: UUID,
-    val details: MedicationDetails,
-)
-
-fun MedicationGroupMedication.expandedInstances(): List<MedicationGroupMedicationInstance> {
-    return List(count) {
-        MedicationGroupMedicationInstance(
-            groupMedicationUuid = uuid,
-            details = details
-        )
-    }
-}
-
-fun Iterable<MedicationGroupMedication>.expandedInstances(): List<MedicationGroupMedicationInstance> {
-    return flatMap(MedicationGroupMedication::expandedInstances)
+        get() = medicine?.category ?: MedicationCategory.ESTRADIOL
 }
 
 fun Iterable<MedicationGroupMedication>.totalMedicationCount(): Int {

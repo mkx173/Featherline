@@ -118,11 +118,7 @@ class ReminderNotificationManager @Inject constructor(
                     if (hideMedicationDetails) {
                         bundle.items.joinToString(separator = " · ") { it.groupName }
                     } else {
-                        bundle.items.joinToString(separator = "\n") { item ->
-                            item.medications.joinToString(separator = "\n") { medication ->
-                                medicationDetailLine(context, item.groupName, medication)
-                            }
-                        }
+                        buildExpandedNotificationBody(context, bundle.items)
                     }
                 )
             )
@@ -244,6 +240,15 @@ class ReminderNotificationManager @Inject constructor(
                 EXTRA_REMINDER_SLOTS,
                 ArrayList(bundle.slots.map(MedicationReminderSlot::toStorageValue)),
             )
+            // Log-now uses targets to restrict writes to medications shown in
+            // the notification body. Snooze / remind-later operate at slot
+            // level, so targets would just be dead weight.
+            if (action == ACTION_MEDICATION_REMINDER_LOG_NOW) {
+                putStringArrayListExtra(
+                    EXTRA_REMINDER_LOG_TARGETS,
+                    ArrayList(bundle.logTargets.map(MedicationReminderLogTarget::toStorageValue)),
+                )
+            }
             putExtra(EXTRA_NOTIFICATION_TAG, notificationTag)
         }
 
@@ -276,6 +281,28 @@ class ReminderNotificationManager @Inject constructor(
     private fun showToast(message: String) {
         Handler(Looper.getMainLooper()).post {
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+
+private fun buildExpandedNotificationBody(
+    context: Context,
+    items: List<MedicationReminderBundleItem>,
+): String {
+    val expanded = buildExpandedDetailLines(items) { groupName, medication ->
+        medicationDetailLine(context, groupName, medication)
+    }
+    return buildString {
+        append(expanded.visibleLines.joinToString(separator = "\n"))
+        if (expanded.hiddenCount > 0) {
+            if (expanded.visibleLines.isNotEmpty()) append('\n')
+            append(
+                context.resources.getQuantityString(
+                    R.plurals.reminder_notification_more_medications,
+                    expanded.hiddenCount,
+                    expanded.hiddenCount,
+                )
+            )
         }
     }
 }

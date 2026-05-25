@@ -79,13 +79,13 @@ import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
+import com.mkx.hrttracker.util.calibrationUnitLabel
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.formatEditorZoneLabel
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
-import com.mkx.hrttracker.util.calibrationUnitLabel
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -211,10 +211,10 @@ fun CalibrationEditorScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        if (uiState.isDeleting) return@TextButton
                         isDeleteDialogVisible = false
                         viewModel.delete()
                     },
-                    enabled = !uiState.isDeleting,
                 ) {
                     Text(text = stringResource(R.string.delete_entries_confirm))
                 }
@@ -222,7 +222,6 @@ fun CalibrationEditorScreen(
             dismissButton = {
                 TextButton(
                     onClick = { isDeleteDialogVisible = false },
-                    enabled = !uiState.isDeleting,
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
@@ -251,7 +250,10 @@ fun CalibrationEditorScreen(
                 addAnalyteSheetOptions = calibrationAddAnalyteOptions(uiState)
             }
         },
-        onDeleteClick = { isDeleteDialogVisible = true },
+        onDeleteClick = {
+            if (isCalibrationEditorBusy(uiState)) return@CalibrationEditorScreenContent
+            isDeleteDialogVisible = true
+        },
         onSaveClick = { notes ->
             viewModel.updateNotes(notes)
             viewModel.save()
@@ -301,8 +303,9 @@ private fun CalibrationEditorScreenContent(
     val addAnalyteOptions = remember(uiState.drafts, uiState.customAnalytes) {
         calibrationAddAnalyteOptions(uiState)
     }
-    val canSave = canSaveCalibrationEditorState(uiState) &&
-        !isCalibrationEditorBusy(uiState)
+    // Form-validity gate only. Busy state keeps the save button visually
+    // normal; the click handler no-ops while ROOM is writing.
+    val canSave = canSaveCalibrationEditorState(uiState)
     val remainingAnalyteCount = addAnalyteOptions.size
     var notesDraft by rememberSaveable { mutableStateOf(uiState.notes) }
     val analyteFocusRequesters = remember(uiState.drafts.map { it.draftKey }) {
@@ -357,7 +360,10 @@ private fun CalibrationEditorScreenContent(
                 actions = {
                     HrtButton(
                         text = stringResource(R.string.save),
-                        onClick = { onSaveClick(notesDraft) },
+                        onClick = {
+                            if (isCalibrationEditorBusy(uiState)) return@HrtButton
+                            onSaveClick(notesDraft)
+                        },
                         enabled = canSave,
                         modifier = Modifier.padding(end = 8.dp),
                     )
@@ -532,7 +538,6 @@ private fun CalibrationEditorScreenContent(
                     HrtButton(
                         text = stringResource(R.string.delete_entries_confirm),
                         onClick = onDeleteClick,
-                        enabled = !isCalibrationEditorBusy(uiState),
                         modifier = Modifier.fillMaxWidth(),
                         icon = Icons.Rounded.Delete,
                         iconModifier = Modifier.size(

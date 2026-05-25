@@ -3,16 +3,16 @@ package com.mkx.hrttracker.ui.plan
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.FakeAppTimeSource
@@ -168,8 +168,10 @@ class PlanViewModelTest {
             archivedAt = Instant.parse("2026-04-18T09:00:00Z"),
         )
         val archivedEntry = testMedicationLogEntry(
-            details = archivedGroup.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = archivedGroup.medications.single().medicine,
+            applicationType = archivedGroup.medications.single().applicationType,
+            doseInstruction = archivedGroup.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = archivedGroup.uuid,
             appliedAt = Instant.parse("2026-04-18T00:05:00Z"),
             scheduledFor = LocalDateTime.of(2026, 4, 18, 8, 0),
@@ -208,8 +210,10 @@ class PlanViewModelTest {
             archivedAt = Instant.parse("2026-04-18T09:00:00Z"),
         )
         val archivedEntry = testMedicationLogEntry(
-            details = archivedGroup.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = archivedGroup.medications.single().medicine,
+            applicationType = archivedGroup.medications.single().applicationType,
+            doseInstruction = archivedGroup.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = archivedGroup.uuid,
             appliedAt = Instant.parse("2026-04-18T00:05:00Z"),
             scheduledFor = LocalDateTime.of(2026, 4, 18, 8, 0),
@@ -304,8 +308,10 @@ class PlanViewModelTest {
             includePastScheduledSlots = false,
         )
         val fulfilledOriginalSlot = testMedicationLogEntry(
-            details = archivedOriginalGroup.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = archivedOriginalGroup.medications.single().medicine,
+            applicationType = archivedOriginalGroup.medications.single().applicationType,
+            doseInstruction = archivedOriginalGroup.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = originalGroupUuid,
             appliedAt = LocalDateTime.of(2026, 4, 18, 9, 5)
                 .atZone(zoneId)
@@ -362,11 +368,9 @@ class PlanViewModelTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("3f7a3c0b-c104-45cf-a0c1-ea95fd9871a8"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0),
-                    )
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),

@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -26,10 +27,7 @@ class MedicationGroupSlotFulfillmentTest {
             medications = listOf(
                 medication(
                     uuid = UUID.fromString("e5f15765-159c-4c25-bffd-73a198a0f932"),
-                    details = estradiolDetails(
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = 2.0
-                    ),
+                    medicine = estradiolMedicine(dose = 2.0),
                     count = 2
                 )
             )
@@ -37,19 +35,13 @@ class MedicationGroupSlotFulfillmentTest {
         val scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
         val firstEntry = groupEntry(
             groupUuid = group.uuid,
-            details = estradiolDetails(
-                applicationType = MedicationApplicationType.ORAL,
-                dose = 2.0
-            ),
+            medicine = estradiolMedicine(dose = 2.0),
             appliedAt = scheduledFor.plusMinutes(2),
             scheduledFor = scheduledFor
         )
         val secondEntry = groupEntry(
             groupUuid = group.uuid,
-            details = estradiolDetails(
-                applicationType = MedicationApplicationType.ORAL,
-                dose = 2.0
-            ),
+            medicine = estradiolMedicine(dose = 2.0),
             appliedAt = scheduledFor.plusMinutes(5),
             scheduledFor = scheduledFor
         )
@@ -88,10 +80,7 @@ class MedicationGroupSlotFulfillmentTest {
             medications = listOf(
                 medication(
                     uuid = UUID.fromString("2f81db0f-22d8-4326-8667-fbf27d6560f8"),
-                    details = estradiolDetails(
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = 2.0
-                    ),
+                    medicine = estradiolMedicine(dose = 2.0),
                     count = 2
                 )
             )
@@ -107,7 +96,7 @@ class MedicationGroupSlotFulfillmentTest {
                 entries = listOf(
                     groupEntry(
                         groupUuid = group.uuid,
-                        details = group.medications.single().details,
+                        medicine = group.medications.single().medicine,
                         appliedAt = scheduledFor.plusMinutes(2),
                         scheduledFor = scheduledFor,
                         count = 1
@@ -124,7 +113,7 @@ class MedicationGroupSlotFulfillmentTest {
                 entries = listOf(
                     groupEntry(
                         groupUuid = group.uuid,
-                        details = group.medications.single().details,
+                        medicine = group.medications.single().medicine,
                         appliedAt = scheduledFor.plusMinutes(2),
                         scheduledFor = scheduledFor,
                         count = 2
@@ -148,10 +137,7 @@ class MedicationGroupSlotFulfillmentTest {
             medications = listOf(
                 medication(
                     uuid = UUID.fromString("3334cfa5-a2e8-4f82-889f-4f9a7d45e6b7"),
-                    details = estradiolDetails(
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = 2.0
-                    )
+                    medicine = estradiolMedicine(dose = 2.0)
                 )
             )
         )
@@ -166,7 +152,7 @@ class MedicationGroupSlotFulfillmentTest {
                 entries = listOf(
                     groupEntry(
                         groupUuid = group.uuid,
-                        details = group.medications.single().details,
+                        medicine = group.medications.single().medicine,
                         appliedAt = scheduledFor.plusHours(1),
                         scheduledFor = scheduledFor
                     )
@@ -182,7 +168,7 @@ class MedicationGroupSlotFulfillmentTest {
                 entries = listOf(
                     groupEntry(
                         groupUuid = group.uuid,
-                        details = group.medications.single().details,
+                        medicine = group.medications.single().medicine,
                         appliedAt = scheduledFor.plusHours(1).minusSeconds(1),
                         scheduledFor = scheduledFor
                     )
@@ -198,7 +184,7 @@ class MedicationGroupSlotFulfillmentTest {
                 entries = listOf(
                     groupEntry(
                         groupUuid = group.uuid,
-                        details = group.medications.single().details,
+                        medicine = group.medications.single().medicine,
                         appliedAt = scheduledFor.minusHours(1),
                         scheduledFor = scheduledFor
                     )
@@ -214,7 +200,7 @@ class MedicationGroupSlotFulfillmentTest {
                 entries = listOf(
                     groupEntry(
                         groupUuid = group.uuid,
-                        details = group.medications.single().details,
+                        medicine = group.medications.single().medicine,
                         appliedAt = scheduledFor.minusHours(1).plusSeconds(1),
                         scheduledFor = scheduledFor
                     )
@@ -230,7 +216,7 @@ class MedicationGroupSlotFulfillmentTest {
                 entries = listOf(
                     groupEntry(
                         groupUuid = group.uuid,
-                        details = group.medications.single().details,
+                        medicine = group.medications.single().medicine,
                         appliedAt = scheduledFor.minusHours(1).minusMinutes(1),
                         scheduledFor = scheduledFor
                     )
@@ -246,7 +232,7 @@ class MedicationGroupSlotFulfillmentTest {
                 entries = listOf(
                     groupEntry(
                         groupUuid = group.uuid,
-                        details = group.medications.single().details,
+                        medicine = group.medications.single().medicine,
                         appliedAt = scheduledFor.plusHours(1).plusMinutes(1),
                         scheduledFor = scheduledFor
                     )
@@ -274,18 +260,19 @@ class MedicationGroupSlotFulfillmentTest {
             medications = listOf(
                 medication(
                     uuid = UUID.fromString("cfdee6a7-89a6-4592-b581-19677f58e5e4"),
-                    details = estradiolDetails(
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = 2.0
-                    )
+                    medicine = estradiolMedicine(dose = 2.0)
                 )
             )
         )
 
+        val medication = group.medications.single()
         val entry = MedicationLogEntry(
             uuid = UUID.randomUUID(),
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = medication.medicine,
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = medication.applicationType,
+            doseInstruction = medication.doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = appliedAtTokyo,
             appliedAtTimeZoneId = tokyoZone.id,
@@ -322,18 +309,19 @@ class MedicationGroupSlotFulfillmentTest {
             medications = listOf(
                 medication(
                     uuid = UUID.fromString("22ff3796-065b-4d46-973a-3b4ea9da6b90"),
-                    details = estradiolDetails(
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = 2.0
-                    )
+                    medicine = estradiolMedicine(dose = 2.0)
                 )
             )
         )
 
+        val medication = group.medications.single()
         val entry = MedicationLogEntry(
             uuid = UUID.randomUUID(),
-            details = group.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = medication.medicine,
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = medication.applicationType,
+            doseInstruction = medication.doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = appliedAtLate,
             appliedAtTimeZoneId = tokyoZone.id,
@@ -367,15 +355,18 @@ class MedicationGroupSlotFulfillmentTest {
 
     private fun groupEntry(
         groupUuid: UUID,
-        details: MedicationDetails,
+        medicine: Medicine?,
         appliedAt: LocalDateTime,
         scheduledFor: LocalDateTime? = null,
         count: Int = 1
     ): MedicationLogEntry {
         return MedicationLogEntry(
             uuid = UUID.randomUUID(),
-            details = details,
-            dosageMgAsEstradiol = estradiolEquivalent(details),
+            medicine = medicine,
+            category = medicine?.category ?: MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            equivalentE2Mg = null,
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor,
@@ -385,47 +376,31 @@ class MedicationGroupSlotFulfillmentTest {
 
     private fun medication(
         uuid: UUID,
-        details: MedicationDetails,
+        medicine: Medicine,
         count: Int = 1,
     ): MedicationGroupMedication {
         return MedicationGroupMedication(
             uuid = uuid,
-            details = details,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             count = count
         )
     }
 
-    private fun estradiolDetails(
-        applicationType: MedicationApplicationType,
+    // Deterministic uuid keyed on (key, dose) so two medicines with the same
+    // strength share a uuid and thus produce an equal MedicationSignature.
+    private fun estradiolMedicine(
         dose: Double,
         key: MedicationKey = MedicationKey.ESTRADIOL,
-    ): MedicationDetails {
-        return testCatalogMedicationDetails(
+    ): Medicine {
+        val preparation = MedicinePreparation.Pill(strengthMgPerTablet = dose)
+        return testMedicine(
+            uuid = UUID.nameUUIDFromBytes(
+                "medicine:${key.name}:$dose".toByteArray(StandardCharsets.UTF_8)
+            ),
             key = key,
-            applicationType = applicationType,
-            dose = MedicationDose.MgAsMedicine(dose)
+            preparation = preparation,
         )
-    }
-
-    private fun estradiolEquivalent(details: MedicationDetails): Double? {
-        return when (details.selection) {
-            is MedicationSelection.Catalog -> when (details.selection.medicationKey) {
-                MedicationKey.ESTRADIOL,
-                MedicationKey.ESTRADIOL_GEL -> when (val dose = details.dose) {
-                    is MedicationDose.MgAsMedicine -> dose.valueMg
-                    is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
-                    else -> null
-                }
-
-                MedicationKey.ESTRADIOL_VALERATE -> when (val dose = details.dose) {
-                    is MedicationDose.MgAsMedicine -> dose.valueMg
-                    else -> null
-                }
-
-                else -> null
-            }
-
-            is MedicationSelection.Custom -> null
-        }
     }
 }

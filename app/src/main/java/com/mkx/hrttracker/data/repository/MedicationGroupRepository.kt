@@ -1,36 +1,29 @@
 package com.mkx.hrttracker.data.repository
+
 import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.MedicationGroupEntity
 import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWeeklyDayEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
 import com.mkx.hrttracker.di.AppScope
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationDoseKind
-import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
-import com.mkx.hrttracker.model.medication.MedicationGroupMedication
-import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
-import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
-import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelection
-import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.time.DayOfWeek
 import java.time.Instant
@@ -56,10 +49,17 @@ class MedicationGroupRepository @Inject constructor(
                 if (database == null) {
                     flowOf<List<MedicationGroup>?>(null)
                 } else {
-                    database.medicationGroupDao().observeGroups()
-                        .map<List<MedicationGroupWithItemsEntity>, List<MedicationGroup>?> { groups ->
-                            groups.map { it.toModel() }
-                        }
+                    // resolveMedicinesForGroups is a separate point-in-time read,
+                    // so a medicines-table mutation (displayName, archive, etc.)
+                    // wouldn't re-trigger this map on its own. Combine with the
+                    // change-only signal so any medicine edit re-resolves slots.
+                    combine<List<MedicationGroupWithItemsEntity>, Int, List<MedicationGroup>?>(
+                        database.medicationGroupDao().observeGroups(),
+                        database.medicineDao().observeMedicineChangeVersion(),
+                    ) { groups, _ ->
+                        val medicinesByUuid = database.resolveMedicinesForGroups(groups)
+                        groups.map { it.toMedicationGroupModel(medicinesByUuid) }
+                    }
                         .catch { emit(emptyList()) }
                 }
             }
@@ -76,11 +76,17 @@ class MedicationGroupRepository @Inject constructor(
     }
 
     suspend fun getGroups(): List<MedicationGroup> {
-        return databaseHolder.get().medicationGroupDao().getGroups().map { it.toModel() }
+        val database = databaseHolder.get()
+        val groups = database.medicationGroupDao().getGroups()
+        val medicinesByUuid = database.resolveMedicinesForGroups(groups)
+        return groups.map { it.toMedicationGroupModel(medicinesByUuid) }
     }
 
     suspend fun getGroup(uuid: UUID): MedicationGroup? {
-        return databaseHolder.get().medicationGroupDao().getGroup(uuid.toString())?.toModel()
+        val database = databaseHolder.get()
+        val group = database.medicationGroupDao().getGroup(uuid.toString()) ?: return null
+        val medicinesByUuid = database.resolveMedicinesForGroups(listOf(group))
+        return group.toMedicationGroupModel(medicinesByUuid)
     }
 
     suspend fun deleteGroup(uuid: UUID) {
@@ -217,6 +223,23 @@ class MedicationGroupRepository @Inject constructor(
                 val isExistingRecreatedGroup = existingGroupRow?.recreatedFromGroupUuid != null
                 val hasExistingRecords = existingGroupRow != null &&
                     database.medicationLogDao().getEntryCountForGroup(groupUuid.toString()) > 0
+                if (hasExistingRecords) {
+                    val lockedExistingGroup = checkNotNull(existingGroup)
+                    val existingMedicineUuidsByItemUuid = lockedExistingGroup.items.associate { item ->
+                        item.uuid to item.medicineUuid
+                    }
+                    medications.forEach { medication ->
+                        val itemUuid = medication.uuid?.toString() ?: return@forEach
+                        if (itemUuid !in existingMedicineUuidsByItemUuid) {
+                            return@forEach
+                        }
+                        // Two null medicineUuids (patch-off slots) compare equal.
+                        val previousMedicineUuid = existingMedicineUuidsByItemUuid[itemUuid]
+                        if (previousMedicineUuid != medication.medicineUuid?.toString()) {
+                            throw LockedMedicationGroupSlotRepointException(groupUuid)
+                        }
+                    }
+                }
                 val isExistingRecordlessRecreatedGroup =
                     isExistingRecreatedGroup && !hasExistingRecords
                 val resolvedIncludePastScheduledSlots = when {
@@ -242,6 +265,9 @@ class MedicationGroupRepository @Inject constructor(
                     ?.scheduleTimes
                     ?.associateBy(MedicationGroupScheduleTimeEntity::uuid)
                     .orEmpty()
+                val preparationTypesByMedicineUuid = database.resolvePreparationTypesByMedicineUuid(
+                    medications = medications,
+                )
 
                 dao.upsertGroupWithItems(
                     group = MedicationGroupEntity(
@@ -261,49 +287,28 @@ class MedicationGroupRepository @Inject constructor(
                         recreatedFromGroupUuid = resolvedRecreatedFromGroupUuid,
                     ),
                     items = medications.mapIndexed { index, medication ->
+                        val preparationType = medication.medicineUuid
+                            ?.let(preparationTypesByMedicineUuid::get)
+                        validateMedicationCompatibility(
+                            fieldPrefix = "medication group item ${medication.medicineUuid}",
+                            applicationType = medication.applicationType,
+                            doseInstruction = medication.doseInstruction,
+                            preparationType = preparationType,
+                        )
+                        val doseInstructionFields = medication.doseInstruction.toStorageFields()
                         MedicationGroupItemEntity(
                             uuid = (medication.uuid ?: UUID.randomUUID()).toString(),
                             groupUuid = groupUuid.toString(),
                             sortOrder = index,
                             count = medication.count,
-                            category = medication.details.category.name,
-                            applicationType = medication.details.applicationType.name,
-                            selectionKind = medication.details.selection.kind.name,
-                            medicationKey = when (val selection = medication.details.selection) {
-                                is MedicationSelection.Catalog -> selection.medicationKey.name
-                                is MedicationSelection.Custom -> null
-                            },
-                            customMedicationName = when (val selection = medication.details.selection) {
-                                is MedicationSelection.Catalog -> null
-                                is MedicationSelection.Custom -> selection.medicationName
-                            },
-                            doseKind = medication.details.dose.kind.name,
-                            doseValueMg = when (val dose = medication.details.dose) {
-                                is MedicationDose.MgAsMedicine -> dose.valueMg
-                                is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
-                                is MedicationDose.PatchTotalMg -> dose.valueMg
-                                else -> null
-                            },
-                            customDoseUnit = when {
-                                medication.details.selection is MedicationSelection.Custom &&
-                                    medication.details.dose is MedicationDose.MgAsMedicine ->
-                                    medication.details.customDoseUnit.storageValue
-
-                                else -> MedicationDoseUnit.MG.storageValue
-                            },
-                            doseValuePercent = when (val dose = medication.details.dose) {
-                                is MedicationDose.GelPercentAndWeight -> dose.percent
-                                else -> null
-                            },
-                            doseWeightGrams = when (val dose = medication.details.dose) {
-                                is MedicationDose.GelPercentAndWeight -> dose.weightGrams
-                                else -> null
-                            },
-                            doseReleaseRateMcgPerDay = when (val dose = medication.details.dose) {
-                                is MedicationDose.PatchReleaseRateMcgPerDay -> dose.valueMcgPerDay
-                                else -> null
-                            },
-                            gelApplicationArea = medication.details.gelApplicationArea.name,
+                            medicineUuid = medication.medicineUuid?.toString(),
+                            applicationType = medication.applicationType.name,
+                            doseInstructionKind = doseInstructionFields.doseInstructionKind,
+                            tabletFractionNumerator = doseInstructionFields.tabletFractionNumerator,
+                            tabletFractionDenominator = doseInstructionFields.tabletFractionDenominator,
+                            doseVolumeMl = doseInstructionFields.doseVolumeMl,
+                            doseWeightGrams = doseInstructionFields.doseWeightGrams,
+                            gelApplicationArea = MedicationGelApplicationArea.DEFAULT.name,
                         )
                     },
                     scheduleTimes = schedule.timeSlots.mapIndexed { index, scheduleTime ->
@@ -370,91 +375,25 @@ class MedicationGroupRepository @Inject constructor(
         return groupUuid
     }
 
-    private fun MedicationGroupWithItemsEntity.toModel(): MedicationGroup {
-        val scheduleTimeSlots = scheduleTimes.sortedBy(MedicationGroupScheduleTimeEntity::sortOrder)
-            .map { time ->
-                MedicationGroupScheduleTime(
-                    uuid = UUID.fromString(time.uuid),
-                    time = LocalTime.of(time.hourOfDay, time.minuteOfHour),
-                    effectiveFrom = LocalDateTime.parse(time.effectiveFromLocalIso),
-                )
+    private suspend fun HrtTrackerDatabase.resolvePreparationTypesByMedicineUuid(
+        medications: List<MedicationGroupMedicationInput>,
+    ): Map<UUID, MedicinePreparationType> {
+        val medicineUuids = medications
+            .mapNotNull(MedicationGroupMedicationInput::medicineUuid)
+            .distinct()
+        if (medicineUuids.isEmpty()) {
+            return emptyMap()
+        }
+
+        val medicineEntitiesByUuid = medicineDao()
+            .getByUuids(medicineUuids.map(UUID::toString))
+            .associateBy { entity -> entity.uuid }
+        return medicineUuids.associateWith { uuid ->
+            val entity = checkNotNull(medicineEntitiesByUuid[uuid.toString()]) {
+                "Medicine $uuid was not found."
             }
-        return MedicationGroup(
-            uuid = UUID.fromString(group.uuid),
-            name = group.name,
-            colorKey = MedicationGroupColorKey.fromStorageValue(group.colorKey),
-            schedule = MedicationGroupSchedule(
-                type = MedicationGroupScheduleType.fromStorageValue(group.scheduleType),
-                interval = group.scheduleInterval,
-                since = LocalDate.ofEpochDay(group.scheduleSinceEpochDay),
-                weeklyDaysOfWeek = weeklyDays
-                    .map { weeklyDay -> DayOfWeek.of(weeklyDay.dayOfWeek) }
-                    .toSet(),
-                times = scheduleTimeSlots.map(MedicationGroupScheduleTime::time),
-                timeSlots = scheduleTimeSlots,
-            ),
-            medications = items.sortedBy(MedicationGroupItemEntity::sortOrder).map { item ->
-                MedicationGroupMedication(
-                    uuid = UUID.fromString(item.uuid),
-                    details = item.toMedicationDetails(),
-                    count = item.count.coerceAtLeast(1)
-                )
-            },
-            notificationsEnabled = group.notificationsEnabled,
-            createdAt = Instant.ofEpochMilli(group.createdAtEpochMillis),
-            updatedAt = Instant.ofEpochMilli(group.updatedAtEpochMillis),
-            archivedAt = group.archivedAtEpochMillis?.let(Instant::ofEpochMilli),
-            archivedAtLocal = group.archivedAtLocalIso?.let(LocalDateTime::parse),
-            includePastScheduledSlots = group.includePastScheduledSlots,
-            replacedByGroupUuid = group.replacedByGroupUuid?.let(UUID::fromString),
-            recreatedFromGroupUuid = group.recreatedFromGroupUuid?.let(UUID::fromString),
-        )
-    }
-
-    private fun MedicationGroupItemEntity.toMedicationDetails(): MedicationDetails {
-        val selection = when (MedicationSelectionKind.fromStorageValue(selectionKind)) {
-            MedicationSelectionKind.CATALOG -> MedicationSelection.Catalog(
-                medicationKey = checkNotNull(MedicationKey.fromStorageValue(medicationKey))
-            )
-
-            MedicationSelectionKind.CUSTOM -> MedicationSelection.Custom(
-                medicationName = customMedicationName.orEmpty()
-            )
+            enumValueOf<MedicinePreparationType>(entity.preparationType)
         }
-
-        val dose = when (MedicationDoseKind.fromStorageValue(doseKind)) {
-            MedicationDoseKind.MG_AS_MEDICINE -> MedicationDose.MgAsMedicine(
-                valueMg = checkNotNull(doseValueMg)
-            )
-
-            MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> MedicationDose.GelEquivalentEstradiolMg(
-                valueMg = checkNotNull(doseValueMg)
-            )
-
-            MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> MedicationDose.GelPercentAndWeight(
-                percent = checkNotNull(doseValuePercent),
-                weightGrams = checkNotNull(doseWeightGrams)
-            )
-
-            MedicationDoseKind.PATCH_TOTAL_MG -> MedicationDose.PatchTotalMg(
-                valueMg = checkNotNull(doseValueMg)
-            )
-
-            MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> MedicationDose.PatchReleaseRateMcgPerDay(
-                valueMcgPerDay = checkNotNull(doseReleaseRateMcgPerDay)
-            )
-
-            MedicationDoseKind.NONE -> MedicationDose.None
-        }
-
-        return MedicationDetails(
-            category = MedicationCategory.fromStorageValue(category),
-            applicationType = MedicationApplicationType.fromStorageValue(applicationType),
-            selection = selection,
-            dose = dose,
-            gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(gelApplicationArea),
-            customDoseUnit = MedicationDoseUnit.fromStorageValue(customDoseUnit),
-        )
     }
 
     private suspend fun deleteGroupInternal(
@@ -493,6 +432,12 @@ class ScheduleTimeDuplicateException : IllegalArgumentException(
     "Schedule times must be unique."
 )
 
+class LockedMedicationGroupSlotRepointException(
+    uuid: UUID,
+) : IllegalStateException(
+    "Medication group $uuid has logs and cannot change a slot medicine in place."
+)
+
 internal fun validateScheduleTimeMigration(
     oldTimes: List<LocalTime>,
     newTimes: List<LocalTime>,
@@ -512,11 +457,16 @@ private fun LocalTime.toScheduleTimeIso(): String {
 
 data class MedicationGroupMedicationInput(
     val uuid: UUID? = null,
-    val details: MedicationDetails,
+    val medicineUuid: UUID?,
+    val applicationType: MedicationApplicationType,
+    val doseInstruction: DoseInstruction,
     val count: Int = 1,
 ) {
     init {
         require(count > 0) { "Medication count must be at least 1." }
+        require(medicineUuid != null || applicationType == MedicationApplicationType.PATCH_OFF) {
+            "Only a PATCH_OFF slot may omit its medicine."
+        }
     }
 }
 

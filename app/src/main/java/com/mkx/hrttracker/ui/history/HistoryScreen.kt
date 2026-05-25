@@ -102,10 +102,8 @@ import com.kizitonwose.calendar.core.CalendarMonth
 import com.kizitonwose.calendar.core.DayPosition
 import com.kizitonwose.calendar.core.OutDateStyle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.util.labelRes
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -113,18 +111,19 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.MedicationCard
+import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
-import com.mkx.hrttracker.ui.medication.medicationDoseText
+import com.mkx.hrttracker.ui.medication.doseInstructionSummary
+import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
@@ -133,6 +132,7 @@ import com.mkx.hrttracker.util.formatEntryWallTime
 import com.mkx.hrttracker.util.historyEntryGroupDateFormatter
 import com.mkx.hrttracker.util.historyMonthLabelFormatter
 import com.mkx.hrttracker.util.isCrossZone
+import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.swmansion.kmpwheelpicker.WheelPicker
@@ -558,16 +558,18 @@ private fun HistoryScreenContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingSelectedEntries,
-                    onClick = onDeleteConfirm,
+                    onClick = {
+                        if (!uiState.isDeletingSelectedEntries) onDeleteConfirm()
+                    },
                 ) {
                     Text(text = stringResource(R.string.delete_entries_confirm))
                 }
             },
             dismissButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingSelectedEntries,
-                    onClick = onDeleteDismiss,
+                    onClick = {
+                        if (!uiState.isDeletingSelectedEntries) onDeleteDismiss()
+                    },
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
@@ -610,8 +612,8 @@ private fun HistoryScreenContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingAllEntries,
                     onClick = {
+                        if (uiState.isDeletingAllEntries) return@TextButton
                         isDeleteAllConfirmationVisible = false
                         onDeleteAllClick()
                     }
@@ -621,8 +623,10 @@ private fun HistoryScreenContent(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingAllEntries,
-                    onClick = { isDeleteAllConfirmationVisible = false }
+                    onClick = {
+                        if (uiState.isDeletingAllEntries) return@TextButton
+                        isDeleteAllConfirmationVisible = false
+                    }
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
@@ -2061,9 +2065,16 @@ private fun HistoryEntryCard(
     }
 
     MedicationCard(
-        details = entry.details,
+        medicine = entry.medicine,
+        doseInstruction = entry.doseInstruction,
+        applicationType = entry.applicationType,
         medicationCount = entry.count,
         groupColorKey = groupColorKey,
+        // Manual entries have no source group; render the leading icon in
+        // the neutral group palette to match other manual-log surfaces
+        // instead of falling through to secondaryContainer.
+        missingGroupColorTreatment =
+            MedicationCardMissingGroupColorTreatment.NEUTRAL_GROUP_PALETTE,
         extraSupportingText = groupName,
         onClick = onClick,
         onLongClick = onLongClick,
@@ -2135,31 +2146,30 @@ private fun buildHistoryEntrySupportingText(
     count: Int,
     groupName: String?
 ): String {
-    val doseText = medicationDoseText(entry.details)
-    val fallbackText = stringResource(entry.details.applicationType.labelRes)
+    val doseText = entry.medicine?.let { doseInstructionSummary(it, entry.doseInstruction) }
+    val countText = medicationCountIndicatorText(count)
+    val fallbackText = stringResource(entry.applicationType.labelRes)
     return historyEntrySupportingText(
         primaryText = doseText ?: fallbackText,
-        count = count,
+        countText = countText,
         groupName = groupName
     )
 }
 
 internal fun historyEntrySupportingText(
     primaryText: String,
-    count: Int,
+    countText: String?,
     groupName: String?
 ): String {
     val parts = buildList {
+        countText?.let(::add)
         add(primaryText)
-        historyEntryCountText(count)?.let(::add)
         if (!groupName.isNullOrBlank()) {
             add(groupName)
         }
     }
     return parts.joinToString(" \u00B7 ")
 }
-
-internal fun historyEntryCountText(count: Int): String? = count.takeIf { it > 1 }?.let { "${it}x" }
 
 @Preview(
     name = "History Month",
@@ -2279,60 +2289,45 @@ private fun buildHistoryPreviewUiState(
     val nightlyGroupId = UUID.fromString("a563870c-7f67-4c29-83d3-7592f40e5845")
 
     val entries = listOf(
-        MedicationLogEntry(
-            uuid = UUID.fromString("f16ec8a7-5115-410a-b12d-f376fdb6f76b"),
-            details = previewCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL_VALERATE,
-                applicationType = MedicationApplicationType.INJECTION,
-                dose = MedicationDose.MgAsMedicine(5.0)
-            ),
-            dosageMgAsEstradiol = 3.82,
+        previewLogEntry(
+            uuid = "f16ec8a7-5115-410a-b12d-f376fdb6f76b",
+            key = MedicationKey.ESTRADIOL_VALERATE,
+            applicationType = MedicationApplicationType.ORAL,
+            equivalentE2Mg = 3.82,
             sourceGroupUuid = null,
             appliedAt = previewInstant(today, LocalTime.of(8, 30), zoneId)
         ),
-        MedicationLogEntry(
-            uuid = UUID.fromString("9b9a1efe-6df3-43da-871d-9584370fbca8"),
-            details = previewCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
-            dosageMgAsEstradiol = 2.0,
+        previewLogEntry(
+            uuid = "9b9a1efe-6df3-43da-871d-9584370fbca8",
+            key = MedicationKey.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = oralGroupId,
             appliedAt = previewInstant(today.minusDays(1), LocalTime.of(22, 0), zoneId)
         ),
-        MedicationLogEntry(
-            uuid = UUID.fromString("611d7af2-6108-45ab-a320-4064e0dd1233"),
-            details = previewCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.SUBLINGUAL,
-                dose = MedicationDose.MgAsMedicine(1.0)
-            ),
-            dosageMgAsEstradiol = 1.0,
+        previewLogEntry(
+            uuid = "611d7af2-6108-45ab-a320-4064e0dd1233",
+            key = MedicationKey.ESTRADIOL,
+            applicationType = MedicationApplicationType.SUBLINGUAL,
+            equivalentE2Mg = 1.0,
             sourceGroupUuid = nightlyGroupId,
             appliedAt = previewInstant(today, LocalTime.of(19, 0), zoneId),
             scheduledFor = LocalDateTime.of(today, LocalTime.of(19, 0))
         ),
-        MedicationLogEntry(
-            uuid = UUID.fromString("0a9d4c97-0b4c-49db-ae37-dbc1b18b8fdd"),
-            details = previewCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.SUBLINGUAL,
-                dose = MedicationDose.MgAsMedicine(1.0)
-            ),
-            dosageMgAsEstradiol = 1.0,
+        previewLogEntry(
+            uuid = "0a9d4c97-0b4c-49db-ae37-dbc1b18b8fdd",
+            key = MedicationKey.ESTRADIOL,
+            applicationType = MedicationApplicationType.SUBLINGUAL,
+            equivalentE2Mg = 1.0,
             sourceGroupUuid = nightlyGroupId,
             appliedAt = previewInstant(today, LocalTime.of(19, 0), zoneId),
             scheduledFor = LocalDateTime.of(today, LocalTime.of(19, 0))
         ),
-        MedicationLogEntry(
-            uuid = UUID.fromString("0db2cb5b-bf7b-45aa-9f42-d1bddcb00c88"),
-            details = previewCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL_GEL,
-                applicationType = MedicationApplicationType.GEL,
-                dose = MedicationDose.GelEquivalentEstradiolMg(1.5)
-            ),
-            dosageMgAsEstradiol = 1.5,
+        previewLogEntry(
+            uuid = "0db2cb5b-bf7b-45aa-9f42-d1bddcb00c88",
+            key = MedicationKey.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            equivalentE2Mg = 1.5,
             sourceGroupUuid = oralGroupId,
             appliedAt = previewInstant(today.minusDays(3), LocalTime.of(7, 45), zoneId),
             scheduledFor = LocalDateTime.of(today.minusDays(3), LocalTime.of(7, 30))
@@ -2353,11 +2348,9 @@ private fun buildHistoryPreviewUiState(
             medications = listOf(
                 MedicationGroupMedication(
                     uuid = UUID.fromString("c6ebfec7-5412-49a6-9040-a845cd5dd9f3"),
-                    details = previewCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    medicine = previewMedicine(MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             notificationsEnabled = true,
@@ -2377,11 +2370,9 @@ private fun buildHistoryPreviewUiState(
             medications = listOf(
                 MedicationGroupMedication(
                     uuid = UUID.fromString("b08dbe5d-f225-491f-b2b0-07beb7fe47f3"),
-                    details = previewCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.SUBLINGUAL,
-                        dose = MedicationDose.MgAsMedicine(1.0)
-                    )
+                    medicine = previewMedicine(MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.SUBLINGUAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             notificationsEnabled = false,
@@ -2402,16 +2393,47 @@ private fun buildHistoryPreviewUiState(
     )
 }
 
-private fun previewCatalogMedicationDetails(
+private fun previewMedicine(
+    key: MedicationKey,
+): com.mkx.hrttracker.model.medication.Medicine {
+    val selection = com.mkx.hrttracker.model.medication.MedicineSelection.Catalog(key)
+    val preparation = com.mkx.hrttracker.model.medication.MedicinePreparation.Pill(
+        strengthMgPerTablet = 2.0,
+    )
+    return com.mkx.hrttracker.model.medication.Medicine(
+        uuid = UUID.nameUUIDFromBytes("history-preview-${key.name}".toByteArray()),
+        selection = selection,
+        category = key.category,
+        preparation = preparation,
+        displayName = null,
+        identityKey = com.mkx.hrttracker.model.medication.MedicineIdentityKey.catalog(
+            key, preparation,
+        ),
+        createdAt = Instant.EPOCH,
+        updatedAt = Instant.EPOCH,
+        archivedAt = null,
+    )
+}
+
+private fun previewLogEntry(
+    uuid: String,
     key: MedicationKey,
     applicationType: MedicationApplicationType,
-    dose: MedicationDose,
-): MedicationDetails {
-    return MedicationDetails(
+    equivalentE2Mg: Double?,
+    sourceGroupUuid: UUID?,
+    appliedAt: Instant,
+    scheduledFor: LocalDateTime? = null,
+): MedicationLogEntry {
+    return MedicationLogEntry(
+        uuid = UUID.fromString(uuid),
+        medicine = previewMedicine(key),
         category = key.category,
         applicationType = applicationType,
-        selection = MedicationSelection.Catalog(key),
-        dose = dose
+        doseInstruction = DoseInstruction.TabletFraction(1, 1),
+        equivalentE2Mg = equivalentE2Mg,
+        sourceGroupUuid = sourceGroupUuid,
+        appliedAt = appliedAt,
+        scheduledFor = scheduledFor,
     )
 }
 

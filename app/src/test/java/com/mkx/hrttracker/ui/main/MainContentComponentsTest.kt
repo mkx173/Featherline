@@ -1,8 +1,7 @@
 package com.mkx.hrttracker.ui.main
 
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.testCustomMedicationDetails
+import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import org.junit.Assert.assertEquals
@@ -374,10 +373,7 @@ class MainContentComponentsTest {
         scheduledAt = scheduledAt,
         medication = testMedicationGroupMedication(
             uuid = medicationUuid,
-            details = testCustomMedicationDetails(
-                medicationName = "Estradiol",
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
+            medicine = testCustomMedicine(medicationName = "Estradiol"),
         ),
         status = MainTodayDoseStatus.DUE_SOON,
     )

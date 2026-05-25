@@ -16,8 +16,8 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
@@ -244,22 +244,42 @@ class HomeRepository @Inject constructor(
                 val pkEndEpochMillis = pkHorizon.atZone(zoneId).toInstant().toEpochMilli()
 
                 flow {
-                    val homeDao = databaseHolder.get().homeDao()
+                    val database = databaseHolder.get()
+                    val homeDao = database.homeDao()
+                    val medicineDao = database.medicineDao()
+                    // Bound to each Home-table observation so medicine edits
+                    // (displayName, archive, etc.) re-resolve the joined
+                    // Medicine projection without waiting for the primary
+                    // table to also change.
+                    val medicineChangeVersion = medicineDao.observeMedicineChangeVersion()
                     val basicsFlow = combine(
-                        homeDao.observeActiveGroups()
-                            .map { groups -> groups.map { it.toMedicationGroupModel() } },
-                        homeDao.observeScheduleEntries(
-                            scheduledStartIso = scheduledStartIso,
-                            scheduledEndIso = scheduledEndIso,
-                            manualStartEpochMillis = manualStartEpochMillis,
-                            manualEndEpochMillis = manualEndEpochMillis,
-                        ).map { entries ->
-                            entries.map { it.toMedicationLogEntryModel() }
+                        combine(
+                            homeDao.observeActiveGroups(),
+                            medicineChangeVersion,
+                        ) { groups, _ ->
+                            val medicinesByUuid = database.resolveMedicinesForGroups(groups)
+                            groups.map { it.toMedicationGroupModel(medicinesByUuid) }
                         },
-                        homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
-                            onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
-                        ).map { entries ->
-                            entries.map { it.toMedicationLogEntryModel() }
+                        combine(
+                            homeDao.observeScheduleEntries(
+                                scheduledStartIso = scheduledStartIso,
+                                scheduledEndIso = scheduledEndIso,
+                                manualStartEpochMillis = manualStartEpochMillis,
+                                manualEndEpochMillis = manualEndEpochMillis,
+                            ),
+                            medicineChangeVersion,
+                        ) { entries, _ ->
+                            val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                            entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
+                        },
+                        combine(
+                            homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
+                                onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
+                            ),
+                            medicineChangeVersion,
+                        ) { entries, _ ->
+                            val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                            entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
                         },
                         homeDao.observeProfile().map { profile ->
                             profile?.toUserProfileModel() ?: UserProfile()
@@ -282,16 +302,26 @@ class HomeRepository @Inject constructor(
                     emitAll(
                         combine(
                             basicsFlow,
-                            homeDao.observeEstradiolPkEntries(
-                                startEpochMillis = pkStartEpochMillis,
-                                endEpochMillis = pkEndEpochMillis,
-                            ).map { entries ->
-                                entries.map { it.toMedicationLogEntryModel() }
+                            combine(
+                                homeDao.observeEstradiolPkEntries(
+                                    startEpochMillis = pkStartEpochMillis,
+                                    endEpochMillis = pkEndEpochMillis,
+                                ),
+                                medicineChangeVersion,
+                            ) { entries, _ ->
+                                val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                                entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
                             },
-                            homeDao.observeLatestEstradiolEntryOnOrBefore(
-                                onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
-                            ).map { entry ->
-                                entry?.toMedicationLogEntryModel()
+                            combine(
+                                homeDao.observeLatestEstradiolEntryOnOrBefore(
+                                    onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
+                                ),
+                                medicineChangeVersion,
+                            ) { entry, _ ->
+                                val medicinesByUuid = database.resolveMedicinesForEntries(
+                                    listOfNotNull(entry)
+                                )
+                                entry?.toMedicationLogEntryModel(medicinesByUuid)
                             },
                         ) { basics, realPkEntries, latestEstradiolEntry ->
                             val simulationEntries = buildEstradiolPkSimulationEntries(

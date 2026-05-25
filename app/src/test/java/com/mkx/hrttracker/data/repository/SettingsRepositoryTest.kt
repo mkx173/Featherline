@@ -5,7 +5,6 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
-import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.util.currentAppLocale
 import io.mockk.every
@@ -93,6 +92,18 @@ class SettingsRepositoryTest {
             FirstDayOfWeekOption.FOLLOW_SYSTEM,
             settingsRepository.getCurrentSettings().firstDayOfWeekOption,
         )
+    }
+
+    @Test
+    fun `group name counter peek is stable and consume advances`() = runTest(testDispatcher) {
+        assertEquals(1, settingsRepository.peekNextGroupNameIndex())
+        assertEquals(1, settingsRepository.peekNextGroupNameIndex())
+
+        assertEquals(1, settingsRepository.consumeNextGroupNameIndex())
+
+        assertEquals(2, settingsRepository.peekNextGroupNameIndex())
+        assertEquals(2, settingsRepository.consumeNextGroupNameIndex())
+        assertEquals(3, settingsRepository.peekNextGroupNameIndex())
     }
 
     @Test

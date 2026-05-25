@@ -1,18 +1,18 @@
 package com.mkx.hrttracker.ui.history
 
 import com.kizitonwose.calendar.core.DayPosition
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
 import com.mkx.hrttracker.util.historyEntryGroupDateFormatter
@@ -29,6 +29,12 @@ import java.util.Locale
 import java.util.UUID
 
 class HistoryUiModelsTest {
+    // Shared so the (medicineUuid, applicationType, doseInstruction) signature
+    // matches between scheduled group slots and the log entries used to
+    // fulfill them. A random per-call UUID would mean no entry ever matches
+    // its slot, and the fulfillment-status assertions would all degrade to
+    // MISSED.
+    private val estradiolMedicineUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
     @Test
     fun historyEntryGroupDayFormatter_uses_compact_chinese_month_day_format() {
         assertEquals(
@@ -170,24 +176,24 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun historyEntrySupportingText_includes_plain_count_text_between_primary_text_and_group_name() {
+    fun historyEntrySupportingText_renders_count_before_primary_text() {
         assertEquals(
-            "1mg \u00B7 2x \u00B7 Nightly estradiol",
+            "2x \u00B7 1mg \u00B7 Nightly estradiol",
             historyEntrySupportingText(
                 primaryText = "1mg",
-                count = 2,
+                countText = "2x",
                 groupName = "Nightly estradiol"
             )
         )
     }
 
     @Test
-    fun historyEntrySupportingText_omits_count_when_single_entry() {
+    fun historyEntrySupportingText_omits_count_when_null() {
         assertEquals(
             "1mg \u00B7 Nightly estradiol",
             historyEntrySupportingText(
                 primaryText = "1mg",
-                count = 1,
+                countText = null,
                 groupName = "Nightly estradiol"
             )
         )
@@ -684,11 +690,9 @@ class HistoryUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("88ceb348-79c3-42e8-b7ca-d7db366d51d8"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = testInstant(LocalDateTime.of(2026, 4, 1, 0, 0)),
@@ -700,12 +704,10 @@ class HistoryUiModelsTest {
             entries = listOf(
                 testMedicationLogEntry(
                     uuid = UUID.fromString("9c6b8810-0f6a-49ec-b4c1-d6777f5f3d91"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    ),
-                    dosageMgAsEstradiol = 2.0,
+                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    equivalentE2Mg = 2.0,
                     sourceGroupUuid = group.uuid,
                     appliedAt = testInstant(LocalDateTime.of(2026, 4, 10, 8, 0)),
                     scheduledFor = LocalDateTime.of(2026, 4, 10, 8, 0)
@@ -742,11 +744,9 @@ class HistoryUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("9bd71b0c-a8f6-4660-a67e-ec0b7d082be4"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = testInstant(LocalDateTime.of(2026, 4, 1, 0, 0)),
@@ -758,8 +758,10 @@ class HistoryUiModelsTest {
             entries = listOf(
                 testMedicationLogEntry(
                     uuid = UUID.fromString("50a94865-4686-4f35-9291-42f4f8ed9d16"),
-                    details = group.medications.single().details,
-                    dosageMgAsEstradiol = 2.0,
+                    medicine = group.medications.single().medicine,
+                    applicationType = group.medications.single().applicationType,
+                    doseInstruction = group.medications.single().doseInstruction,
+                    equivalentE2Mg = 2.0,
                     sourceGroupUuid = group.uuid,
                     appliedAt = testInstant(LocalDateTime.of(2026, 4, 17, 0, 15)),
                     scheduledFor = LocalDateTime.of(2026, 4, 16, 23, 0)
@@ -803,11 +805,9 @@ class HistoryUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("44ad043e-d440-40ef-b20d-2d265cb08d58"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = testInstant(LocalDateTime.of(2026, 4, 1, 0, 0)),
@@ -819,8 +819,10 @@ class HistoryUiModelsTest {
             entries = listOf(
                 testMedicationLogEntry(
                     uuid = UUID.fromString("0e0d2d8c-3cdd-4747-8bcc-cc1de4f00809"),
-                    details = group.medications.single().details,
-                    dosageMgAsEstradiol = 2.0,
+                    medicine = group.medications.single().medicine,
+                    applicationType = group.medications.single().applicationType,
+                    doseInstruction = group.medications.single().doseInstruction,
+                    equivalentE2Mg = 2.0,
                     sourceGroupUuid = group.uuid,
                     appliedAt = testInstant(LocalDateTime.of(2026, 5, 1, 12, 0)),
                     scheduledFor = LocalDateTime.of(2026, 5, 2, 17, 0)
@@ -863,11 +865,9 @@ class HistoryUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("9fc1bb97-6f3e-4e91-bf30-c757e43de714"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = testInstant(LocalDateTime.of(2026, 4, 1, 0, 0)),
@@ -880,8 +880,10 @@ class HistoryUiModelsTest {
             entries = listOf(
                 testMedicationLogEntry(
                     uuid = UUID.fromString("cc49561d-efb0-476e-8499-f6f11c3bc3ee"),
-                    details = archivedGroup.medications.single().details,
-                    dosageMgAsEstradiol = 2.0,
+                    medicine = archivedGroup.medications.single().medicine,
+                    applicationType = archivedGroup.medications.single().applicationType,
+                    doseInstruction = archivedGroup.medications.single().doseInstruction,
+                    equivalentE2Mg = 2.0,
                     sourceGroupUuid = archivedGroup.uuid,
                     appliedAt = testInstant(LocalDateTime.of(2026, 4, 10, 8, 3)),
                     scheduledFor = LocalDateTime.of(2026, 4, 10, 8, 0)
@@ -923,11 +925,9 @@ class HistoryUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("d2f9a642-05d7-4935-94e2-92ec5f55fc28"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = testInstant(LocalDateTime.of(2026, 4, 1, 0, 0)),
@@ -940,8 +940,10 @@ class HistoryUiModelsTest {
             entries = listOf(
                 testMedicationLogEntry(
                     uuid = UUID.fromString("9dfc0850-a576-459c-ace3-e189b71105d8"),
-                    details = archivedGroup.medications.single().details,
-                    dosageMgAsEstradiol = 2.0,
+                    medicine = archivedGroup.medications.single().medicine,
+                    applicationType = archivedGroup.medications.single().applicationType,
+                    doseInstruction = archivedGroup.medications.single().doseInstruction,
+                    equivalentE2Mg = 2.0,
                     sourceGroupUuid = archivedGroup.uuid,
                     appliedAt = testInstant(LocalDateTime.of(2026, 4, 10, 20, 5)),
                     scheduledFor = LocalDateTime.of(2026, 4, 10, 20, 0)
@@ -983,11 +985,9 @@ class HistoryUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("50edcf50-76aa-4ced-aab1-1fa19ff52860"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = testInstant(LocalDateTime.of(2026, 4, 18, 10, 0)),
@@ -999,8 +999,10 @@ class HistoryUiModelsTest {
             entries = listOf(
                 testMedicationLogEntry(
                     uuid = UUID.fromString("eaa0a6ba-577a-4f65-839b-927dbd2d1179"),
-                    details = group.medications.single().details,
-                    dosageMgAsEstradiol = 2.0,
+                    medicine = group.medications.single().medicine,
+                    applicationType = group.medications.single().applicationType,
+                    doseInstruction = group.medications.single().doseInstruction,
+                    equivalentE2Mg = 2.0,
                     sourceGroupUuid = group.uuid,
                     appliedAt = testInstant(LocalDateTime.of(2026, 4, 17, 8, 3)),
                     scheduledFor = LocalDateTime.of(2026, 4, 17, 8, 0)
@@ -1025,12 +1027,10 @@ class HistoryUiModelsTest {
             entries = listOf(
                 testMedicationLogEntry(
                     uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    ),
-                    dosageMgAsEstradiol = 2.0,
+                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    equivalentE2Mg = 2.0,
                     sourceGroupUuid = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                     appliedAt = testInstant(LocalDateTime.of(2026, 4, 10, 8, 0)),
                     scheduledFor = LocalDateTime.of(2026, 4, 10, 8, 0),
@@ -1395,12 +1395,13 @@ class HistoryUiModelsTest {
     private fun entryAt(dateTime: LocalDateTime): MedicationLogEntry {
         return testMedicationLogEntry(
             uuid = UUID.randomUUID(),
-            details = testCatalogMedicationDetails(
+            medicine = testMedicine(
+                uuid = estradiolMedicineUuid,
                 key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
             ),
-            dosageMgAsEstradiol = 2.0,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = null,
             appliedAt = testInstant(dateTime)
         )

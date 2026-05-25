@@ -1,15 +1,17 @@
 package com.mkx.hrttracker.model.pk
 
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
-import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testInstant
+import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -123,11 +125,9 @@ class PkPlannedEntriesTest {
         val fulfilledSlot = LocalDateTime.of(2026, 5, 7, 8, 0)
         val real = listOf(
             testMedicationLogEntry(
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(2.0),
-                ),
+                medicine = estradiolMedicine(),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 sourceGroupUuid = group.uuid,
                 appliedAt = testInstant(fulfilledSlot.plusMinutes(5)),
                 scheduledFor = fulfilledSlot,
@@ -165,11 +165,9 @@ class PkPlannedEntriesTest {
         // not suppress the May 7 8am virtual.
         val real = listOf(
             testMedicationLogEntry(
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(2.0),
-                ),
+                medicine = estradiolMedicine(),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 sourceGroupUuid = group.uuid,
                 appliedAt = testInstant(now.minusHours(2)),
                 scheduledFor = LocalDateTime.of(2026, 5, 6, 8, 0),
@@ -201,11 +199,9 @@ class PkPlannedEntriesTest {
         // Manual entry — no sourceGroupUuid, no scheduleTimeUuid, no scheduledFor.
         val real = listOf(
             testMedicationLogEntry(
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(2.0),
-                ),
+                medicine = estradiolMedicine(),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 sourceGroupUuid = null,
                 appliedAt = testInstant(now.minusHours(2)),
                 scheduledFor = null,
@@ -240,13 +236,11 @@ class PkPlannedEntriesTest {
                 times = listOf(LocalTime.of(8, 0)),
             ),
             medications = listOf(
-                MedicationGroupMedication(
+                testMedicationGroupMedication(
                     uuid = UUID.fromString("0b0d3c8f-1d11-4d10-9c9c-e51d9b09a222"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.SPIRONOLACTONE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(100.0),
-                    ),
+                    medicine = spironolactoneMedicine(),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 ),
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
@@ -271,21 +265,17 @@ class PkPlannedEntriesTest {
         // into a single virtual entry whose count equals the summed plan.
         val now = LocalDateTime.of(2026, 5, 6, 10, 0)
         val horizon = LocalDateTime.of(2026, 5, 8, 0, 0)
-        val medA = MedicationGroupMedication(
+        val medA = testMedicationGroupMedication(
             uuid = UUID.fromString("aaa3c8f0-1d11-4d10-9c9c-e51d9b09a000"),
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.SUBLINGUAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
+            medicine = estradiolMedicine(),
+            applicationType = MedicationApplicationType.SUBLINGUAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
         )
-        val medB = MedicationGroupMedication(
+        val medB = testMedicationGroupMedication(
             uuid = UUID.fromString("bbb3c8f0-1d11-4d10-9c9c-e51d9b09a000"),
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.SUBLINGUAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
+            medicine = estradiolMedicine(),
+            applicationType = MedicationApplicationType.SUBLINGUAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
         )
         val group = MedicationGroup(
             uuid = UUID.fromString("ccc3c8f0-1d11-4d10-9c9c-e51d9b09a000"),
@@ -325,21 +315,17 @@ class PkPlannedEntriesTest {
         val now = LocalDateTime.of(2026, 5, 6, 10, 0)
         val horizon = LocalDateTime.of(2026, 5, 8, 0, 0)
         val groupUuid = UUID.fromString("ccc3c8f0-1d11-4d10-9c9c-e51d9b09a000")
-        val oralMed = MedicationGroupMedication(
+        val oralMed = testMedicationGroupMedication(
             uuid = UUID.fromString("11111111-1d11-4d10-9c9c-e51d9b09a000"),
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
+            medicine = estradiolMedicine(),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
         )
-        val sublingualMed = MedicationGroupMedication(
+        val sublingualMed = testMedicationGroupMedication(
             uuid = UUID.fromString("22222222-1d11-4d10-9c9c-e51d9b09a000"),
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.SUBLINGUAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
+            medicine = estradiolMedicine(),
+            applicationType = MedicationApplicationType.SUBLINGUAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
         )
         val group = MedicationGroup(
             uuid = groupUuid,
@@ -361,7 +347,9 @@ class PkPlannedEntriesTest {
         val fulfilledSlot = LocalDateTime.of(2026, 5, 7, 8, 0)
         val real = listOf(
             testMedicationLogEntry(
-                details = oralMed.details,
+                medicine = oralMed.medicine,
+                applicationType = oralMed.applicationType,
+                doseInstruction = oralMed.doseInstruction,
                 sourceGroupUuid = group.uuid,
                 appliedAt = testInstant(fulfilledSlot),
                 scheduledFor = fulfilledSlot,
@@ -466,11 +454,9 @@ class PkPlannedEntriesTest {
         val fulfilledSlot = LocalDateTime.of(2026, 5, 7, 8, 0)
         val real = listOf(
             testMedicationLogEntry(
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(2.0),
-                ),
+                medicine = estradiolMedicine(),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 sourceGroupUuid = group.uuid,
                 appliedAt = testInstant(fulfilledSlot),
                 scheduledFor = fulfilledSlot,
@@ -540,11 +526,9 @@ class PkPlannedEntriesTest {
 
     private fun realPastOralEntry(appliedAt: LocalDateTime) =
         testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
+            medicine = estradiolMedicine(),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = testInstant(appliedAt),
         )
@@ -564,17 +548,37 @@ class PkPlannedEntriesTest {
                 times = listOf(time),
             ),
             medications = listOf(
-                MedicationGroupMedication(
+                testMedicationGroupMedication(
                     uuid = UUID.fromString("66666666-7777-8888-9999-aaaaaaaaaaaa"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0),
-                    ),
+                    medicine = estradiolMedicine(),
+                    applicationType = MedicationApplicationType.ORAL,
+                    // Pills carry their dose via TabletFraction;
+                    // DoseInstructionCalculator returns null mg for
+                    // Pill + WholeUnit, which would flatten the PK projection
+                    // to zero and the integration assertions would fail.
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 ),
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
             updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+        )
+    }
+
+    // Single shared estradiol medicine with a stable uuid so equal medicines
+    // across fixtures produce equal MedicationSignatures.
+    private fun estradiolMedicine(): Medicine {
+        return testMedicine(
+            uuid = UUID.fromString("e2e2e2e2-0000-0000-0000-000000000000"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+    }
+
+    private fun spironolactoneMedicine(): Medicine {
+        return testMedicine(
+            uuid = UUID.fromString("5a5a5a5a-0000-0000-0000-000000000000"),
+            key = MedicationKey.SPIRONOLACTONE,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 100.0),
         )
     }
 }

@@ -1,11 +1,11 @@
 package com.mkx.hrttracker.util
 
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -17,11 +17,9 @@ class EntryDisplayZoneTest {
     @Test
     fun displayZoneOf_returns_entry_zone_when_valid() {
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
             appliedAtTimeZoneId = "Asia/Tokyo"
@@ -32,11 +30,9 @@ class EntryDisplayZoneTest {
     @Test
     fun displayZoneOf_falls_back_to_device_zone_when_entry_zone_invalid() {
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
             appliedAtTimeZoneId = "Not/A_Zone"
@@ -48,11 +44,9 @@ class EntryDisplayZoneTest {
     @Test
     fun isCrossZone_false_when_same_zone() {
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
             appliedAtTimeZoneId = "Asia/Tokyo"
@@ -64,11 +58,9 @@ class EntryDisplayZoneTest {
     fun isCrossZone_false_when_aliased_zones_share_offset() {
         // America/Toronto and America/New_York share -05:00 / -04:00 rules.
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
             appliedAtTimeZoneId = "America/Toronto"
@@ -79,11 +71,9 @@ class EntryDisplayZoneTest {
     @Test
     fun isCrossZone_true_when_offsets_differ_at_entry_instant() {
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = LocalDateTime.of(2026, 4, 15, 9, 0)
                 .atZone(ZoneId.of("Asia/Tokyo"))
@@ -96,11 +86,9 @@ class EntryDisplayZoneTest {
     @Test
     fun isCrossZone_falls_back_to_false_when_entry_zone_invalid() {
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
             appliedAtTimeZoneId = "Not/A_Zone"
@@ -114,11 +102,9 @@ class EntryDisplayZoneTest {
             .atZone(ZoneId.of("Asia/Tokyo"))
             .toInstant()
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = instant,
             appliedAtTimeZoneId = "Asia/Tokyo"
@@ -135,11 +121,9 @@ class EntryDisplayZoneTest {
             .atZone(ZoneId.of("Asia/Tokyo"))
             .toInstant()
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = instant,
             appliedAtTimeZoneId = "Asia/Tokyo"
@@ -198,11 +182,9 @@ class EntryDisplayZoneTest {
         val tokyo = ZoneId.of("Asia/Tokyo")
         val scheduledFor = LocalDateTime.of(2026, 4, 15, 9, 0)
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = LocalDateTime.of(2026, 4, 15, 9, 5).atZone(tokyo).toInstant(),
             appliedAtTimeZoneId = "Asia/Tokyo",

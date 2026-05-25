@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.components
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
@@ -10,7 +9,6 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
@@ -49,7 +47,7 @@ fun SupportMessageListItem(
             supportingText = supportingText,
             index = index,
             count = count,
-            onClick = onClick ?: {},
+            onClick = onClick,
             modifier = modifier.wrapContentHeight(),
             enabled = enabled,
             leadingContent = when {

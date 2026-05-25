@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -92,12 +91,12 @@ import com.mkx.hrttracker.util.CalibrationPanelDateTimeLabels
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.calibrationMonthHeaderFormatter
 import com.mkx.hrttracker.util.calibrationPanelDateTimeFormatters
-import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.calibrationUnitLabel
+import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.formatCalibrationConvertedValue
 import com.mkx.hrttracker.util.formatCalibrationNumericValue
-import com.mkx.hrttracker.util.formatCalibrationUnitLabel
 import com.mkx.hrttracker.util.formatCalibrationPanelDateTimeLabels
+import com.mkx.hrttracker.util.formatCalibrationUnitLabel
 import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
@@ -108,7 +107,6 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.util.Locale
 import java.util.UUID
-import kotlin.math.round
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -374,8 +372,8 @@ private fun CalibrationScreenContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingAllEntries,
                     onClick = {
+                        if (uiState.isDeletingAllEntries) return@TextButton
                         isDeleteAllEntriesConfirmationVisible = false
                         onDeleteAllCalibrationEntries()
                     }
@@ -385,8 +383,10 @@ private fun CalibrationScreenContent(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !uiState.isDeletingAllEntries,
-                    onClick = { isDeleteAllEntriesConfirmationVisible = false }
+                    onClick = {
+                        if (uiState.isDeletingAllEntries) return@TextButton
+                        isDeleteAllEntriesConfirmationVisible = false
+                    }
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }

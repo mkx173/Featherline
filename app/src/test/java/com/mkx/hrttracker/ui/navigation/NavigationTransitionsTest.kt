@@ -215,6 +215,47 @@ class NavigationTransitionsTest {
         )
     }
 
+    // Regression guards for the three medicine routes: they were missing from
+    // navigationRouteContextFor so transitions to/from them resolved to NONE
+    // (no animation). Each test uses the full route template, which is what
+    // Compose Navigation supplies as destination.route.
+    @Test
+    fun resolveNavigationMotionPattern_returnsNestedForward_for_medicines_navigation() {
+        assertEquals(
+            NavigationMotionPattern.NESTED_FORWARD,
+            resolveNavigationMotionPattern(
+                initialRoute = Screen.Plan.route,
+                targetRoute = Screen.Medicines.route,
+                isPop = false,
+            )
+        )
+    }
+
+    @Test
+    fun resolveNavigationMotionPattern_returnsNestedForward_for_home_medicines_navigation() {
+        assertEquals(
+            NavigationMotionPattern.NESTED_FORWARD,
+            resolveNavigationMotionPattern(
+                initialRoute = Screen.Main.route,
+                targetRoute = Screen.Medicines.route,
+                isPop = false,
+                targetTopLevelParentRoute = Screen.Main.route,
+            )
+        )
+    }
+
+    @Test
+    fun resolveNavigationMotionPattern_returnsNestedForward_for_medicineDetail_navigation() {
+        assertEquals(
+            NavigationMotionPattern.NESTED_FORWARD,
+            resolveNavigationMotionPattern(
+                initialRoute = Screen.Medicines.route,
+                targetRoute = Screen.MedicineDetail.route,
+                isPop = false,
+            )
+        )
+    }
+
     @Test
     fun resolveNavigationMotionPattern_returnsNone_for_unknown_destination() {
         assertEquals(

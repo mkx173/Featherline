@@ -20,7 +20,9 @@ fun PreferenceSegmentedListItem(
     title: String,
     index: Int,
     count: Int,
-    onClick: () -> Unit,
+    // Null onClick renders a non-clickable static row (no ripple), matching
+    // the static path EditorSegmentedListItem supports.
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,

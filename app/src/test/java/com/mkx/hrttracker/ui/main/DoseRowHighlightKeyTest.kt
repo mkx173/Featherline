@@ -1,14 +1,13 @@
 package com.mkx.hrttracker.ui.main
 
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
-import com.mkx.hrttracker.model.medication.testCustomMedicationDetails
+import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
-import java.time.LocalDateTime
-import java.util.UUID
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDateTime
+import java.util.UUID
 
 class DoseRowHighlightKeyTest {
 
@@ -18,10 +17,7 @@ class DoseRowHighlightKeyTest {
     private val entryUuid = UUID.fromString("44444444-0000-0000-0000-000000000000")
     private val scheduledAt = LocalDateTime.of(2026, 5, 20, 8, 0)
 
-    private val details = testCustomMedicationDetails(
-        medicationName = "Estradiol",
-        dose = MedicationDose.MgAsMedicine(2.0),
-    )
+    private val medicine = testCustomMedicine(medicationName = "Estradiol")
 
     private fun scheduledTodayRow(
         groupUuid: UUID = this.groupUuid,
@@ -34,7 +30,7 @@ class DoseRowHighlightKeyTest {
         groupColorKey = null,
         scheduleTimeUuid = scheduleTimeUuid,
         scheduledAt = scheduledAt,
-        medication = testMedicationGroupMedication(uuid = medicationUuid, details = details),
+        medication = testMedicationGroupMedication(uuid = medicationUuid, medicine = medicine),
         status = MainTodayDoseStatus.DUE_SOON,
     )
 
@@ -45,7 +41,7 @@ class DoseRowHighlightKeyTest {
             groupColorKey = null,
             scheduleTimeUuid = null,
             scheduledAt = scheduledAt,
-            medication = testMedicationGroupMedication(uuid = UUID.randomUUID(), details = details),
+            medication = testMedicationGroupMedication(uuid = UUID.randomUUID(), medicine = medicine),
             status = MainTodayDoseStatus.DONE,
             isManualRecord = true,
             fulfillingEntryUuids = listOf(entryUuid),
@@ -62,7 +58,7 @@ class DoseRowHighlightKeyTest {
         groupColorKey = MedicationGroupColorKey.ROSE,
         scheduleTimeUuid = scheduleTimeUuid,
         scheduledAt = scheduledAt,
-        medication = testMedicationGroupMedication(uuid = medicationUuid, details = details),
+        medication = testMedicationGroupMedication(uuid = medicationUuid, medicine = medicine),
     )
 
     // -- Scheduled matches today row --

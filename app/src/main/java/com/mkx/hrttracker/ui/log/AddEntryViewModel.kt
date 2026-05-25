@@ -4,27 +4,36 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
-import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.isWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSlot
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
-import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
-import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
+import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
+import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
+import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
+import com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction
+import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
-import com.mkx.hrttracker.ui.medication.medicationDraftFromDetails
+import com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine
 import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import com.mkx.hrttracker.ui.medication.parseMedicationCountText
 import com.mkx.hrttracker.ui.medication.resolveMedicationCountTextAfterDraftChange
+import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
 import com.mkx.hrttracker.ui.medication.sanitizeMedicationCountText
+import com.mkx.hrttracker.ui.medication.selectedMedicineValidationErrorRes
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
-import com.mkx.hrttracker.ui.medication.toMedicationDetails
+import com.mkx.hrttracker.ui.medication.toDoseInstruction
+import com.mkx.hrttracker.ui.medication.toDoseInstructionDraft
 import com.mkx.hrttracker.ui.medication.validationErrorRes
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.displayZoneOf
@@ -50,14 +59,22 @@ import javax.inject.Inject
 class AddEntryViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val medicationGroupRepository: MedicationGroupRepository,
+    private val medicineRepository: MedicineRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AddEntryUiState())
     val uiState: StateFlow<AddEntryUiState> = _uiState.asStateFlow()
     private var loadEntryJob: Job? = null
     private var pendingSave: PendingSaveRequest? = null
     private var pendingDelete: PendingDeleteRequest? = null
+
+    init {
+        viewModelScope.launch {
+            medicineRepository.observeAllActive().collect { medicines ->
+                _uiState.update { current -> current.copy(activeMedicines = medicines) }
+            }
+        }
+    }
 
     fun initialize(
         entryIds: List<String>,
@@ -89,7 +106,9 @@ class AddEntryViewModel @Inject constructor(
         groupId: UUID,
         scheduleTimeUuid: UUID? = null,
         scheduledFor: LocalDateTime,
-        medicationDetails: MedicationDetails,
+        medicine: Medicine?,
+        applicationType: MedicationApplicationType,
+        doseInstruction: DoseInstruction,
         medicationCount: Int,
         sourceGroupName: String? = null,
         sourceGroupColorKey: MedicationGroupColorKey? = null,
@@ -106,7 +125,9 @@ class AddEntryViewModel @Inject constructor(
             group = cachedGroup,
             scheduleTimeUuid = scheduleTimeUuid,
             scheduledFor = scheduledFor,
-            medicationDetails = medicationDetails,
+            medicine = medicine,
+            applicationType = applicationType,
+            doseInstruction = doseInstruction,
             medicationCount = medicationCount,
             sourceGroupName = sourceGroupName,
             sourceGroupColorKey = sourceGroupColorKey,
@@ -162,20 +183,48 @@ class AddEntryViewModel @Inject constructor(
         }
     }
 
-    fun updateMedicationDraft(
-        transform: (MedicationDraftUiState) -> MedicationDraftUiState
+    fun updateMedicineDraft(
+        transform: (MedicinePickerUiState) -> MedicinePickerUiState
     ) {
         _uiState.update { currentState ->
-            val updatedDraft = transform(currentState.medicationDraft)
+            val updatedDraft = transform(currentState.medicineDraft)
+            val shouldResetDoseDraft =
+                currentState.medicineDraft.inferredOrSelectedPreparationType() !=
+                    updatedDraft.inferredOrSelectedPreparationType()
             currentState.copy(
-                medicationDraft = updatedDraft,
+                medicineDraft = updatedDraft,
+                resolvedMedicine = if (updatedDraft.selectedMedicineUuid == null) {
+                    null
+                } else {
+                    currentState.resolvedMedicine
+                },
+                doseInstructionDraft = if (shouldResetDoseDraft) {
+                    updatedDraft.toDoseInstructionDraft()
+                } else {
+                    currentState.doseInstructionDraft.copy(
+                        preparationType = updatedDraft.inferredOrSelectedPreparationType()
+                            ?: currentState.doseInstructionDraft.preparationType,
+                    )
+                },
                 countText = resolveMedicationCountTextAfterDraftChange(
-                    previousDraft = currentState.medicationDraft,
+                    previousDraft = currentState.medicineDraft,
                     updatedDraft = updatedDraft,
                     currentCountText = currentState.countText
                 ),
                 errorMessageRes = null,
                 isScheduleFulfillmentWarningVisible = false
+            )
+        }
+    }
+
+    fun updateDoseInstructionDraft(
+        transform: (DoseInstructionDraftUiState) -> DoseInstructionDraftUiState
+    ) {
+        _uiState.update { currentState ->
+            currentState.copy(
+                doseInstructionDraft = transform(currentState.doseInstructionDraft),
+                errorMessageRes = null,
+                isScheduleFulfillmentWarningVisible = false,
             )
         }
     }
@@ -194,9 +243,10 @@ class AddEntryViewModel @Inject constructor(
         _uiState.update { currentState ->
             currentState.copy(
                 countText = stepMedicationCount(
-                    applicationType = currentState.medicationDraft.applicationType,
+                    applicationType = resolvedApplicationType(currentState),
                     countText = currentState.countText,
-                    delta = -1
+                    delta = -1,
+                    preparationType = resolvedPreparationType(currentState),
                 ).toString(),
                 errorMessageRes = null,
                 isScheduleFulfillmentWarningVisible = false
@@ -208,9 +258,10 @@ class AddEntryViewModel @Inject constructor(
         _uiState.update { currentState ->
             currentState.copy(
                 countText = stepMedicationCount(
-                    applicationType = currentState.medicationDraft.applicationType,
+                    applicationType = resolvedApplicationType(currentState),
                     countText = currentState.countText,
-                    delta = 1
+                    delta = 1,
+                    preparationType = resolvedPreparationType(currentState),
                 ).toString(),
                 errorMessageRes = null,
                 isScheduleFulfillmentWarningVisible = false
@@ -263,10 +314,14 @@ class AddEntryViewModel @Inject constructor(
         )
         val appliedAt = appliedAtLocal.atZone(currentState.appliedZoneId).toInstant()
         val appliedAtTimeZoneId = currentState.appliedZoneId.id
-        val errorRes = currentState.medicationDraft.validationErrorRes()
+        val applicationType = resolvedApplicationType(currentState)
+        val preparationType = resolvedPreparationType(currentState)
+        val errorRes = currentState.medicineDraft.selectedMedicineValidationErrorRes()
+            ?: currentState.doseInstructionDraft.validationErrorRes()
             ?: medicationCountValidationErrorRes(
-                applicationType = currentState.medicationDraft.applicationType,
-                countText = currentState.countText
+                applicationType = applicationType,
+                countText = currentState.countText,
+                preparationType = preparationType,
             )
 
         if (errorRes != null) {
@@ -291,9 +346,26 @@ class AddEntryViewModel @Inject constructor(
             return
         }
 
+        val isPatchOff = applicationType == MedicationApplicationType.PATCH_OFF
         val request = PendingSaveRequest(
             editingEntryUuids = currentState.editingEntryIds.map(UUID::fromString),
-            medicationDetails = currentState.medicationDraft.toMedicationDetails(),
+            // Identity is locked on edit; carry the locked medicine straight through.
+            // On a new log, resolve the picker draft into a Medicine at save time.
+            lockedMedicineUuid = if (currentState.isEditing) {
+                currentState.resolvedMedicine?.uuid
+            } else {
+                null
+            },
+            selectedMedicineUuid = currentState.resolvedMedicine?.uuid
+                ?: currentState.medicineDraft.selectedMedicineUuid,
+            medicineDraft = currentState.medicineDraft,
+            applicationType = applicationType,
+            doseInstruction = if (isPatchOff) {
+                DoseInstruction.Noop
+            } else {
+                currentState.doseInstructionDraft.toDoseInstruction()
+            },
+            isEditing = currentState.isEditing,
             sourceGroupUuid = currentState.sourceGroupUuid,
             scheduleTimeUuid = currentState.scheduleTimeUuid,
             appliedAt = appliedAt,
@@ -301,8 +373,9 @@ class AddEntryViewModel @Inject constructor(
             appliedZoneId = currentState.appliedZoneId,
             scheduledFor = currentState.scheduledFor,
             count = resolvedMedicationCountForSave(
-                applicationType = currentState.medicationDraft.applicationType,
+                applicationType = applicationType,
                 countText = currentState.countText,
+                preparationType = preparationType,
             ),
         )
 
@@ -328,10 +401,19 @@ class AddEntryViewModel @Inject constructor(
     private fun performSave(request: PendingSaveRequest) {
         viewModelScope.launch {
             val saveResult = runCatching {
+                // On edit the repository ignores medicine identity (locked); on a
+                // new log the routed picker already resolved a Medicine UUID.
+                val medicineUuid = if (request.isEditing) {
+                    request.lockedMedicineUuid
+                } else {
+                    request.selectedMedicineUuid
+                }
                 if (request.editingEntryUuids.size > 1) {
                     medicationLogRepository.saveEntries(
                         uuids = request.editingEntryUuids,
-                        medication = request.medicationDetails,
+                        medicineUuid = medicineUuid,
+                        applicationType = request.applicationType,
+                        doseInstruction = request.doseInstruction,
                         sourceGroupUuid = request.sourceGroupUuid,
                         scheduleTimeUuid = request.scheduleTimeUuid,
                         appliedAt = request.appliedAt,
@@ -342,7 +424,9 @@ class AddEntryViewModel @Inject constructor(
                 } else {
                     medicationLogRepository.saveEntry(
                         uuid = request.editingEntryUuids.firstOrNull(),
-                        medication = request.medicationDetails,
+                        medicineUuid = medicineUuid,
+                        applicationType = request.applicationType,
+                        doseInstruction = request.doseInstruction,
                         sourceGroupUuid = request.sourceGroupUuid,
                         scheduleTimeUuid = request.scheduleTimeUuid,
                         appliedAt = request.appliedAt,
@@ -382,24 +466,6 @@ class AddEntryViewModel @Inject constructor(
 
             if (isSaved) {
                 withContext(NonCancellable) {
-                    // Mirror the notification action-handler path: when a manual log
-                    // satisfies a planned slot, clear the matching snooze so we don't
-                    // wake the device for a record the user has already filed.
-                    val groupUuid = request.sourceGroupUuid
-                    val scheduledFor = request.scheduledFor
-                    if (groupUuid != null && scheduledFor != null) {
-                        runCatching {
-                            medicationReminderSnoozeScheduler.clearSnoozesForSlots(
-                                listOf(
-                                    MedicationReminderSlot(
-                                        groupUuid = groupUuid,
-                                        scheduledAt = scheduledFor,
-                                        scheduleTimeUuid = request.scheduleTimeUuid,
-                                    )
-                                )
-                            )
-                        }
-                    }
                     runCatching { medicationReminderScheduler.rescheduleAll() }
                 }
             }
@@ -436,27 +502,6 @@ class AddEntryViewModel @Inject constructor(
 
     private fun performDelete(request: PendingDeleteRequest) {
         viewModelScope.launch {
-            // Capture each entry's slot identity before delete so we can mirror the
-            // notification-action-handler path: when the entry being removed was
-            // fulfilling a snoozed slot, clear that snooze. After deleteEntries
-            // succeeds the rows are gone and we can no longer derive the slots.
-            val slotsToClear = runCatching {
-                medicationLogRepository.getEntries(request.editingEntryUuids)
-            }.getOrDefault(emptyList())
-                .mapNotNull { entry ->
-                    val groupUuid = entry.sourceGroupUuid
-                    val scheduledFor = entry.scheduledFor
-                    if (groupUuid != null && scheduledFor != null) {
-                        MedicationReminderSlot(
-                            groupUuid = groupUuid,
-                            scheduledAt = scheduledFor,
-                            scheduleTimeUuid = entry.scheduleTimeUuid,
-                        )
-                    } else {
-                        null
-                    }
-                }
-
             val result = runCatching {
                 medicationLogRepository.deleteEntries(request.editingEntryUuids)
             }.fold(
@@ -477,11 +522,6 @@ class AddEntryViewModel @Inject constructor(
 
             if (isDeleted) {
                 withContext(NonCancellable) {
-                    if (slotsToClear.isNotEmpty()) {
-                        runCatching {
-                            medicationReminderSnoozeScheduler.clearSnoozesForSlots(slotsToClear)
-                        }
-                    }
                     runCatching { medicationReminderScheduler.rescheduleAll() }
                 }
             }
@@ -502,6 +542,18 @@ class AddEntryViewModel @Inject constructor(
 
     fun consumeCrossZoneToast() {
         _uiState.update { it.copy(savedCrossZoneZoneText = null) }
+    }
+
+    private fun resolvedApplicationType(state: AddEntryUiState): MedicationApplicationType {
+        return resolvedApplicationTypeForDose(
+            preparationType = resolvedPreparationType(state),
+            doseInstructionDraft = state.doseInstructionDraft,
+        )
+    }
+
+    private fun resolvedPreparationType(state: AddEntryUiState): MedicinePreparationType {
+        return state.resolvedMedicine?.preparation?.type
+            ?: state.doseInstructionDraft.preparationType
     }
 
     private fun loadEntriesForEditing(
@@ -566,7 +618,11 @@ class AddEntryViewModel @Inject constructor(
 
 data class AddEntryUiState(
     val editingEntryIds: List<String> = emptyList(),
-    val medicationDraft: MedicationDraftUiState = defaultMedicationDraft(),
+    val medicineDraft: MedicinePickerUiState = defaultMedicineDraft(),
+    val doseInstructionDraft: DoseInstructionDraftUiState =
+        defaultMedicineDraft().toDoseInstructionDraft(),
+    val resolvedMedicine: Medicine? = null,
+    val activeMedicines: List<Medicine> = emptyList(),
     val sourceGroupUuid: UUID? = null,
     val scheduleTimeUuid: UUID? = null,
     val sourceGroupName: String? = null,
@@ -597,8 +653,12 @@ data class AddEntryUiState(
     val isBulkEditing: Boolean
         get() = editingEntryIds.size > 1
 
+    // Identity is editable only for fresh, free-form manual entries:
+    // - Editing an existing entry (any number) preserves its medicine identity.
+    // - Quick-log entries are bound to a group slot's medicine; users change
+    //   what's in the slot via the group editor, not the log editor.
     val canEditMedicationIdentity: Boolean
-        get() = sourceGroupUuid == null
+        get() = !isEditing && sourceGroupUuid == null
 
     val canDelete: Boolean
         get() = isEditing
@@ -618,7 +678,10 @@ data class AddEntryQuickLogRequest(
     val groupId: UUID,
     val scheduleTimeUuid: UUID? = null,
     val scheduledFor: LocalDateTime,
-    val medicationDetails: MedicationDetails,
+    // A quick-logged PATCH_OFF slot has no medicine — see the PATCH_OFF rule.
+    val medicine: Medicine?,
+    val applicationType: MedicationApplicationType,
+    val doseInstruction: DoseInstruction,
     val medicationCount: Int,
     val sourceGroupName: String? = null,
     val sourceGroupColorKey: MedicationGroupColorKey? = null,
@@ -636,7 +699,12 @@ data class AddEntryEditSnapshot(
 
 private data class PendingSaveRequest(
     val editingEntryUuids: List<UUID>,
-    val medicationDetails: MedicationDetails,
+    val lockedMedicineUuid: UUID?,
+    val selectedMedicineUuid: UUID?,
+    val medicineDraft: MedicinePickerUiState,
+    val applicationType: MedicationApplicationType,
+    val doseInstruction: DoseInstruction,
+    val isEditing: Boolean,
     val sourceGroupUuid: UUID?,
     val scheduleTimeUuid: UUID?,
     val appliedAt: Instant,
@@ -690,7 +758,9 @@ internal fun buildEditingUiState(
 
     return AddEntryUiState(
         editingEntryIds = editableEntries.map { entry -> entry.uuid.toString() },
-        medicationDraft = medicationDraftFromDetails(representativeEntry.details),
+        medicineDraft = medicineDraftForEntry(representativeEntry),
+        doseInstructionDraft = doseInstructionDraftForEntry(representativeEntry),
+        resolvedMedicine = representativeEntry.medicine,
         sourceGroupUuid = representativeEntry.sourceGroupUuid,
         scheduleTimeUuid = representativeEntry.scheduleTimeUuid,
         sourceGroupName = matchingSourceGroup?.name
@@ -707,13 +777,53 @@ internal fun buildEditingUiState(
                 ?: sourceGroupNextScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
         },
         countText = normalizeMedicationCount(
-            representativeEntry.details.applicationType,
-            representativeEntry.count
+            applicationType = representativeEntry.applicationType,
+            count = representativeEntry.count,
+            preparationType = representativeEntry.medicine?.preparation?.type,
         ).toString(),
         appliedZoneId = displayZoneOf(representativeEntry),
         appliedDate = appliedAtLocal.toLocalDate(),
         appliedTime = appliedAtLocal.toLocalTime().withSecond(0).withNano(0)
     )
+}
+
+// Builds a picker draft from a logged entry. A PATCH_OFF log has no medicine;
+// its draft keeps the PATCH_OFF route and resolves no medicine.
+internal fun medicineDraftForEntry(entry: MedicationLogEntry): MedicinePickerUiState {
+    val medicine = entry.medicine
+    return if (medicine != null) {
+        medicineDraftFromMedicine(medicine, entry.applicationType)
+    } else {
+        defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+        )
+    }
+}
+
+internal fun doseInstructionDraftForEntry(entry: MedicationLogEntry): DoseInstructionDraftUiState {
+    return doseInstructionDraftFromInstruction(
+        applicationType = entry.applicationType,
+        preparationType = preparationTypeForNullableMedicine(
+            medicine = entry.medicine,
+            applicationType = entry.applicationType,
+        ),
+        doseInstruction = entry.doseInstruction,
+    )
+}
+
+private fun medicineDraftForQuickLog(
+    medicine: Medicine?,
+    applicationType: MedicationApplicationType,
+): MedicinePickerUiState {
+    return if (medicine != null) {
+        medicineDraftFromMedicine(medicine, applicationType)
+    } else {
+        defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+        )
+    }
 }
 
 private fun AddEntryEditSnapshot.matchingEntries(entryUuids: List<UUID>): AddEntryEditSnapshot? {
@@ -741,7 +851,9 @@ internal fun buildQuickLogUiState(
     group: MedicationGroup?,
     scheduleTimeUuid: UUID? = null,
     scheduledFor: LocalDateTime,
-    medicationDetails: MedicationDetails,
+    medicine: Medicine?,
+    applicationType: MedicationApplicationType,
+    doseInstruction: DoseInstruction,
     medicationCount: Int,
     sourceGroupName: String? = null,
     sourceGroupColorKey: MedicationGroupColorKey? = null,
@@ -751,7 +863,16 @@ internal fun buildQuickLogUiState(
     isLoading: Boolean = false,
 ): AddEntryUiState {
     return AddEntryUiState(
-        medicationDraft = medicationDraftFromDetails(medicationDetails),
+        medicineDraft = medicineDraftForQuickLog(medicine, applicationType),
+        doseInstructionDraft = doseInstructionDraftFromInstruction(
+            applicationType = applicationType,
+            preparationType = preparationTypeForNullableMedicine(
+                medicine = medicine,
+                applicationType = applicationType,
+            ),
+            doseInstruction = doseInstruction,
+        ),
+        resolvedMedicine = medicine,
         sourceGroupUuid = groupId,
         scheduleTimeUuid = scheduleTimeUuid,
         sourceGroupName = group?.name ?: sourceGroupName,
@@ -762,13 +883,28 @@ internal fun buildQuickLogUiState(
         sourceGroupNextScheduledFor = group?.nextScheduledForAfter(scheduledFor)
             ?: sourceGroupNextScheduledFor,
         countText = normalizeMedicationCount(
-            medicationDetails.applicationType,
-            medicationCount
+            applicationType = applicationType,
+            count = medicationCount,
+            preparationType = medicine?.preparation?.type,
         ).toString(),
         appliedDate = appliedAt.toLocalDate(),
         appliedTime = appliedAt.toLocalTime().withSecond(0).withNano(0),
         isLoading = isLoading,
     )
+}
+
+private fun preparationTypeForNullableMedicine(
+    medicine: Medicine?,
+    applicationType: MedicationApplicationType,
+): MedicinePreparationType {
+    return medicine?.preparation?.type ?: when (applicationType) {
+        MedicationApplicationType.PATCH_OFF -> MedicinePreparationType.PATCH_OFF
+        MedicationApplicationType.ORAL,
+        MedicationApplicationType.SUBLINGUAL,
+        MedicationApplicationType.INJECTION,
+        MedicationApplicationType.GEL,
+        MedicationApplicationType.PATCH_ON -> MedicinePreparationType.PILL
+    }
 }
 
 internal fun canBulkEditTogether(entries: List<MedicationLogEntry>): Boolean {
@@ -778,7 +914,9 @@ internal fun canBulkEditTogether(entries: List<MedicationLogEntry>): Boolean {
 
     val firstEntry = entries.first()
     return entries.all { entry ->
-        entry.details == firstEntry.details &&
+        entry.medicineUuid == firstEntry.medicineUuid &&
+            entry.applicationType == firstEntry.applicationType &&
+            entry.doseInstruction == firstEntry.doseInstruction &&
             entry.sourceGroupUuid == firstEntry.sourceGroupUuid &&
             entry.scheduleTimeUuid == firstEntry.scheduleTimeUuid &&
             entry.appliedAt == firstEntry.appliedAt &&

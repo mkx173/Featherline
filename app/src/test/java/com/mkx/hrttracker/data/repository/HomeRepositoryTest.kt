@@ -8,15 +8,20 @@ import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
+import com.mkx.hrttracker.data.local.MedicineDao
+import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.data.local.UserProfileEntity
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -38,6 +43,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -54,6 +60,15 @@ class HomeRepositoryTest {
     private val homeSnapshotGenerationStore: HomeSnapshotGenerationStore = mockk()
     private val database: HrtTrackerDatabase = mockk()
     private val homeDao: HomeDao = mockk()
+    private val medicineDao: MedicineDao = mockk(relaxed = true)
+
+    @Before
+    fun stubMedicineChangeVersion() {
+        // observeHomeStartupInputs now combines each Home-table observation with
+        // this signal so medicines edits propagate without an app restart;
+        // mockk's relaxed default emits no value, which would deadlock combine.
+        every { medicineDao.observeMedicineChangeVersion() } returns MutableStateFlow(0)
+    }
 
     @Test
     fun observeHomeStartupInputs_usesBoundedScheduleWindow() = runTest {
@@ -73,6 +88,8 @@ class HomeRepositoryTest {
 
         every { databaseHolder.get() } returns database
         every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        coEvery { medicineDao.getByUuids(any()) } returns medicineEntities()
         every { homeDao.observeActiveGroups() } returns flowOf(listOf(groupWithItems()))
         every {
             homeDao.observeScheduleEntries(
@@ -148,6 +165,9 @@ class HomeRepositoryTest {
             category = MedicationCategory.ANTIANDROGEN,
             medicationKey = MedicationKey.SPIRONOLACTONE,
         )
+        val medicinesByUuid = medicineEntities().associate { entity ->
+            entity.uuid to entity.toMedicineModel()
+        }
         val pkSnapshot = HomePkProjectionRecord(
             generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
             windowStartEpochMillis = LocalDate.of(2026, 5, 1)
@@ -166,7 +186,7 @@ class HomeRepositoryTest {
             timeH = emptyList(),
             concentrations = emptyList(),
             doseMarkers = emptyList(),
-            latestEstradiolEntry = pkEntry.toMedicationLogEntryModel(),
+            latestEstradiolEntry = pkEntry.toMedicationLogEntryModel(medicinesByUuid),
             chartWindowHours = 168,
             densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
             includesPostDoseOffsets = false,
@@ -177,9 +197,11 @@ class HomeRepositoryTest {
             anchorDateEpochDay = now.toLocalDate().toEpochDay(),
             zoneId = ZoneId.systemDefault().id,
             pkProjection = pkSnapshot,
-            activeGroups = listOf(groupWithItems().toMedicationGroupModel()),
-            scheduleEntries = listOf(scheduleEntry.toMedicationLogEntryModel()),
-            antiandrogenHistoryEntries = listOf(antiandrogenHistoryEntry.toMedicationLogEntryModel()),
+            activeGroups = listOf(groupWithItems().toMedicationGroupModel(medicinesByUuid)),
+            scheduleEntries = listOf(scheduleEntry.toMedicationLogEntryModel(medicinesByUuid)),
+            antiandrogenHistoryEntries = listOf(
+                antiandrogenHistoryEntry.toMedicationLogEntryModel(medicinesByUuid)
+            ),
         )
 
         every { homeSnapshotStore.observeSnapshot() } returns flowOf(snapshot)
@@ -230,6 +252,8 @@ class HomeRepositoryTest {
 
         every { databaseHolder.get() } returns database
         every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        coEvery { medicineDao.getByUuids(any()) } returns medicineEntities()
         every { homeDao.observeActiveGroups() } returns flowOf(listOf(groupWithItems()))
         every { homeDao.observeScheduleEntries(any(), any(), any(), any()) } returns flowOf(emptyList())
         every { homeDao.observeLatestAntiandrogenEntriesOnOrBefore(any()) } returns flowOf(emptyList())
@@ -291,6 +315,8 @@ class HomeRepositoryTest {
 
         every { databaseHolder.get() } returns database
         every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        coEvery { medicineDao.getByUuids(any()) } returns medicineEntities()
         every { homeDao.observeActiveGroups() } returns flowOf(listOf(groupWithItems()))
         every { homeDao.observeScheduleEntries(any(), any(), any(), any()) } returns flowOf(emptyList())
         every { homeDao.observeLatestAntiandrogenEntriesOnOrBefore(any()) } returns flowOf(emptyList())
@@ -374,6 +400,8 @@ class HomeRepositoryTest {
 
         every { databaseHolder.get() } returns database
         every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        coEvery { medicineDao.getByUuids(any()) } returns medicineEntities()
         every { homeDao.observeActiveGroups() } returns flowOf(emptyList())
         every { homeDao.observeScheduleEntries(any(), any(), any(), any()) } returns flowOf(emptyList())
         every { homeDao.observeLatestAntiandrogenEntriesOnOrBefore(any()) } returns flowOf(emptyList())
@@ -464,16 +492,13 @@ class HomeRepositoryTest {
                     groupUuid = groupUuid,
                     sortOrder = 0,
                     count = 1,
-                    category = MedicationCategory.ESTRADIOL.name,
+                    medicineUuid = ESTRADIOL_MEDICINE_UUID,
                     applicationType = MedicationApplicationType.ORAL.name,
-                    selectionKind = MedicationSelectionKind.CATALOG.name,
-                    medicationKey = MedicationKey.ESTRADIOL.name,
-                    customMedicationName = null,
-                    doseKind = MedicationDoseKind.MG_AS_MEDICINE.name,
-                    doseValueMg = 2.0,
-                    doseValuePercent = null,
+                    doseInstructionKind = DoseInstructionKind.TABLET_FRACTION.name,
+                    tabletFractionNumerator = 1,
+                    tabletFractionDenominator = 1,
+                    doseVolumeMl = null,
                     doseWeightGrams = null,
-                    doseReleaseRateMcgPerDay = null,
                 )
             ),
             scheduleTimes = listOf(
@@ -500,16 +525,17 @@ class HomeRepositoryTest {
         return MedicationLogEntryEntity(
             uuid = uuid.toString(),
             category = category.name,
+            medicineUuid = when (medicationKey) {
+                MedicationKey.SPIRONOLACTONE -> SPIRONOLACTONE_MEDICINE_UUID
+                else -> ESTRADIOL_MEDICINE_UUID
+            },
             applicationType = MedicationApplicationType.ORAL.name,
-            selectionKind = MedicationSelectionKind.CATALOG.name,
-            medicationKey = medicationKey.name,
-            customMedicationName = null,
-            doseKind = MedicationDoseKind.MG_AS_MEDICINE.name,
-            doseValueMg = 2.0,
-            doseValuePercent = null,
+            doseInstructionKind = DoseInstructionKind.TABLET_FRACTION.name,
+            tabletFractionNumerator = 1,
+            tabletFractionDenominator = 1,
+            doseVolumeMl = null,
             doseWeightGrams = null,
-            doseReleaseRateMcgPerDay = null,
-            dosageMgAsEstradiol = 2.0,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = null,
             appliedAtEpochMillis = appliedAt
                 .atZone(ZoneId.systemDefault())
@@ -517,5 +543,44 @@ class HomeRepositoryTest {
                 .toEpochMilli(),
             scheduledForIso = scheduledFor?.toString(),
         )
+    }
+
+    private fun medicineEntities(): List<MedicineEntity> {
+        return listOf(
+            medicineEntity(ESTRADIOL_MEDICINE_UUID, MedicationKey.ESTRADIOL),
+            medicineEntity(SPIRONOLACTONE_MEDICINE_UUID, MedicationKey.SPIRONOLACTONE),
+        )
+    }
+
+    private fun medicineEntity(uuid: String, key: MedicationKey): MedicineEntity {
+        val preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0)
+        return MedicineEntity(
+            uuid = uuid,
+            selectionKind = MedicationSelectionKind.CATALOG.name,
+            medicationKey = key.name,
+            customMedicationName = null,
+            customMedicationNameNormalized = null,
+            category = key.category.name,
+            preparationType = MedicinePreparationType.PILL.name,
+            strengthMgPerTablet = 2.0,
+            strengthMgPerVial = null,
+            concentrationMgPerMl = null,
+            vialVolumeMl = null,
+            concentrationPercent = null,
+            sachetWeightGrams = null,
+            containerWeightGrams = null,
+            patchTotalMg = null,
+            patchReleaseRateMcgPerDay = null,
+            displayName = null,
+            identityKey = MedicineIdentityKey.catalog(key, preparation),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+            archivedAtEpochMillis = null,
+        )
+    }
+
+    private companion object {
+        const val ESTRADIOL_MEDICINE_UUID = "e2e2e2e2-0000-0000-0000-000000000000"
+        const val SPIRONOLACTONE_MEDICINE_UUID = "5a5a5a5a-0000-0000-0000-000000000000"
     }
 }

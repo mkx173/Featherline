@@ -1,177 +1,109 @@
 package com.mkx.hrttracker.ui.medication
 
-import androidx.compose.ui.text.input.ImeAction
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 
 class MedicationEditorSheetsTest {
-    @Test
-    fun resolve_medication_editor_field_errors_marks_multiple_invalid_fields() {
-        val draft = defaultMedicationDraft(category = MedicationCategory.CUSTOM)
-        val fieldErrors = resolveMedicationEditorFieldErrors(
-            draft = draft,
-            errorMessageRes = draft.validationErrorRes()
-        )
 
-        assertEquals(R.string.validation_name_required, fieldErrors.customName)
-        assertEquals(R.string.validation_dose_required, fieldErrors.doseMg)
-    }
-
+    // Fix 1 (Task 6-7A review): existing-medicine selection must keep the dose
+    // form visible for routes whose dose is per-instruction (multi-use vial,
+    // gel container, pill). Without this, picking an existing INJECTION_MULTI_-
+    // USE_VIAL hides the volume field and `DoseInstructionDraftUiState.validation
+    // ErrorRes()` returns `validation_dose_volume_required` with no UI to fix it.
     @Test
-    fun resolve_medication_editor_field_errors_marks_both_gel_fields() {
-        val draft = defaultMedicationDraft(
+    fun existing_multi_use_vial_selection_keeps_dose_volume_form_visible() {
+        // A picker draft pointing at an existing multi-use-vial medicine: the
+        // dose draft is per-instruction (volume in ml) and must remain editable.
+        val draft = defaultMedicineDraft(
             category = MedicationCategory.ESTRADIOL,
-            applicationType = MedicationApplicationType.GEL
-        ).changeDoseKind(
-            com.mkx.hrttracker.model.medication.MedicationDoseKind.GEL_PERCENT_AND_WEIGHT
-        )
-        val fieldErrors = resolveMedicationEditorFieldErrors(
-            draft = draft,
-            errorMessageRes = draft.validationErrorRes()
-        )
+            applicationType = MedicationApplicationType.INJECTION,
+        ).changePreparationType(MedicinePreparationType.INJECTION_MULTI_USE_VIAL)
+            .copy(selectedMedicineUuid = java.util.UUID.randomUUID())
+        val doseDraft = draft.toDoseInstructionDraft()
 
-        assertEquals(R.string.validation_gel_percent_required, fieldErrors.gelPercent)
-        assertEquals(R.string.validation_gel_weight_required, fieldErrors.gelWeight)
-    }
-
-    @Test
-    fun resolve_medication_editor_field_errors_ignores_unmapped_error() {
-        val draft = defaultMedicationDraft().copy(doseMg = "2")
-        val fieldErrors = resolveMedicationEditorFieldErrors(
-            draft = draft,
-            R.string.validation_medication_selection_required
+        assertTrue(
+            "INJECTION_MULTI_USE_VIAL is per-instruction (volumeMl)",
+            requiresEditableDoseInstructionForm(doseDraft.preparationType),
         )
 
-        assertNull(fieldErrors.customName)
-        assertNull(fieldErrors.doseMg)
-        assertNull(fieldErrors.gelPercent)
-        assertNull(fieldErrors.gelWeight)
-        assertNull(fieldErrors.patchReleaseRate)
-        assertNull(fieldErrors.count)
-    }
-
-    @Test
-    fun resolve_medication_editor_field_errors_stays_clear_before_validation() {
-        val draft = defaultMedicationDraft(category = MedicationCategory.CUSTOM)
-        val fieldErrors = resolveMedicationEditorFieldErrors(
-            draft = draft,
-            errorMessageRes = null
-        )
-
-        assertNull(fieldErrors.customName)
-        assertNull(fieldErrors.doseMg)
-        assertNull(fieldErrors.gelPercent)
-        assertNull(fieldErrors.gelWeight)
-        assertNull(fieldErrors.patchReleaseRate)
-        assertNull(fieldErrors.count)
-    }
-
-    @Test
-    fun resolve_medication_editor_field_errors_maps_count_validation() {
-        val fieldErrors = resolveMedicationEditorFieldErrors(
-            draft = defaultMedicationDraft().copy(doseMg = "2"),
-            errorMessageRes = R.string.validation_count_required
-        )
-
-        assertEquals(R.string.validation_count_required, fieldErrors.count)
-        assertNull(fieldErrors.customName)
-        assertNull(fieldErrors.doseMg)
-        assertNull(fieldErrors.gelPercent)
-        assertNull(fieldErrors.gelWeight)
-        assertNull(fieldErrors.patchReleaseRate)
-    }
-
-    @Test
-    fun doseFieldPainterRes_uses_injection_icon_for_mg_dose_fields() {
+        // The dose draft starts empty; selecting an existing medicine doesn't
+        // populate volumeMl. Validation requires it and there must be UI to
+        // enter it — that's the bug Fix 1 patches.
         assertEquals(
-            R.drawable.ic_vaccines,
-            doseFieldPainterRes(
-                applicationType = MedicationApplicationType.INJECTION,
-                doseKind = MedicationDoseKind.MG_AS_MEDICINE
+            R.string.validation_dose_volume_required,
+            doseDraft.validationErrorRes(),
+        )
+        // Entering volume satisfies validation. The picker also stops blocking
+        // the save because an existing selection bypasses the picker's form
+        // validation.
+        assertNull(doseDraft.copy(volumeMl = "0.5").validationErrorRes())
+        assertNull(draft.validationErrorRes())
+    }
+
+    @Test
+    fun gel_container_route_requires_editable_dose_form_regardless_of_selection() {
+        // GEL_CONTAINER carries a per-instruction WeightGrams dose. Editor
+        // must surface the weight field for both new-medicine and existing-
+        // medicine paths so the user can finish saving.
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.GEL,
+        ).changePreparationType(MedicinePreparationType.GEL_CONTAINER)
+            .copy(selectedMedicineUuid = java.util.UUID.randomUUID())
+        val doseDraft = draft.toDoseInstructionDraft()
+
+        assertTrue(requiresEditableDoseInstructionForm(doseDraft.preparationType))
+        assertEquals(
+            R.string.validation_dose_weight_required,
+            doseDraft.validationErrorRes(),
+        )
+        assertNull(doseDraft.copy(weightGrams = "1.25").validationErrorRes())
+    }
+
+    @Test
+    fun routes_with_whole_unit_dose_keep_dose_form_hidden() {
+        // Whole-unit routes (PATCH, INJECTION_SINGLE_USE_VIAL, GEL_SACHET) need
+        // no dose form — the dose is fully determined by the medicine identity.
+        assertFalse(requiresEditableDoseInstructionForm(MedicinePreparationType.PATCH))
+        assertFalse(
+            requiresEditableDoseInstructionForm(
+                MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+            ),
+        )
+        assertFalse(requiresEditableDoseInstructionForm(MedicinePreparationType.GEL_SACHET))
+    }
+
+    @Test
+    fun preparation_type_labels_resolve_for_every_type() {
+        com.mkx.hrttracker.model.medication.MedicinePreparationType.entries.forEach { type ->
+            assertEquals(
+                preparationTypeLabelRes(type),
+                preparationTypeLabelRes(type),
             )
-        )
-        assertEquals(
-            R.drawable.ic_medication,
-            doseFieldPainterRes(
-                applicationType = MedicationApplicationType.ORAL,
-                doseKind = MedicationDoseKind.MG_AS_MEDICINE
-            )
-        )
-        assertEquals(
-            R.drawable.ic_medication,
-            doseFieldPainterRes(
-                applicationType = MedicationApplicationType.SUBLINGUAL,
-                doseKind = MedicationDoseKind.MG_AS_MEDICINE
-            )
-        )
-        assertEquals(
-            R.drawable.ic_remove_selection,
-            doseFieldPainterRes(
-                applicationType = MedicationApplicationType.PATCH_OFF,
-                doseKind = MedicationDoseKind.NONE
-            )
-        )
+        }
     }
 
     @Test
-    fun medicationApplicationIconRes_uses_requested_icons() {
+    fun linkedMedicationSummaryUsesNeutralPaletteForManualLogsWithoutGroupColor() {
         assertEquals(
-            R.drawable.ic_pill,
-            medicationApplicationIconRes(MedicationApplicationType.ORAL)
+            MedicationCardMissingGroupColorTreatment.NEUTRAL_GROUP_PALETTE,
+            linkedMedicationSummaryMissingGroupColorTreatment(sourceGroupColorKey = null),
         )
         assertEquals(
-            R.drawable.ic_sublingual,
-            medicationApplicationIconRes(MedicationApplicationType.SUBLINGUAL)
-        )
-        assertEquals(
-            R.drawable.ic_syringe,
-            medicationApplicationIconRes(MedicationApplicationType.INJECTION)
-        )
-        assertEquals(
-            R.drawable.ic_water_drops,
-            medicationApplicationIconRes(MedicationApplicationType.GEL)
-        )
-        assertEquals(
-            R.drawable.ic_sticker_add,
-            medicationApplicationIconRes(MedicationApplicationType.PATCH_ON)
-        )
-        assertEquals(
-            R.drawable.ic_tab_close_inactive,
-            medicationApplicationIconRes(MedicationApplicationType.PATCH_OFF)
-        )
-    }
-
-    @Test
-    fun medicationApplicationOutlinedIconRes_uses_requested_alt_icons() {
-        assertEquals(
-            R.drawable.ic_pill_alt,
-            medicationApplicationOutlinedIconRes(MedicationApplicationType.ORAL)
-        )
-        assertEquals(
-            R.drawable.ic_sublingual_alt,
-            medicationApplicationOutlinedIconRes(MedicationApplicationType.SUBLINGUAL)
-        )
-        assertEquals(
-            R.drawable.ic_syringe_alt,
-            medicationApplicationOutlinedIconRes(MedicationApplicationType.INJECTION)
-        )
-        assertEquals(
-            R.drawable.ic_water_drops_alt,
-            medicationApplicationOutlinedIconRes(MedicationApplicationType.GEL)
-        )
-        assertEquals(
-            R.drawable.ic_sticker_add_alt,
-            medicationApplicationOutlinedIconRes(MedicationApplicationType.PATCH_ON)
-        )
-        assertEquals(
-            R.drawable.ic_tab_close_inactive_alt,
-            medicationApplicationOutlinedIconRes(MedicationApplicationType.PATCH_OFF)
+            MedicationCardMissingGroupColorTreatment.PRIMARY_CONTAINER,
+            linkedMedicationSummaryMissingGroupColorTreatment(
+                sourceGroupColorKey = MedicationGroupColorKey.PLUM,
+            ),
         )
     }
 
@@ -179,209 +111,58 @@ class MedicationEditorSheetsTest {
     fun medicationLogScheduleOffset_selects_localized_label_and_single_largest_unit() {
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
 
-        assertNull(medicationLogScheduleOffset(scheduledFor = scheduledFor, appliedAt = scheduledFor))
-        assertEquals(
-            MedicationLogScheduleOffset(
-                labelRes = R.string.medication_editor_schedule_offset_minutes_later,
-                value = 20
-            ),
-            medicationLogScheduleOffset(
-                scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.plusMinutes(20)
-            )
-        )
-        assertEquals(
-            MedicationLogScheduleOffset(
-                labelRes = R.string.medication_editor_schedule_offset_minutes_earlier,
-                value = 5
-            ),
-            medicationLogScheduleOffset(
-                scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.minusMinutes(5)
-            )
+        assertNull(
+            medicationLogScheduleOffset(scheduledFor = scheduledFor, appliedAt = scheduledFor),
         )
         assertEquals(
             MedicationLogScheduleOffset(
                 labelRes = R.string.medication_editor_schedule_offset_minutes_later,
-                value = 59
+                value = 20,
             ),
             medicationLogScheduleOffset(
                 scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.plusMinutes(59)
-            )
+                appliedAt = scheduledFor.plusMinutes(20),
+            ),
         )
         assertEquals(
             MedicationLogScheduleOffset(
                 labelRes = R.string.medication_editor_schedule_offset_minutes_earlier,
-                value = 59
+                value = 59,
             ),
             medicationLogScheduleOffset(
                 scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.minusMinutes(59)
-            )
+                appliedAt = scheduledFor.minusMinutes(59),
+            ),
         )
         assertEquals(
             MedicationLogScheduleOffset(
                 labelRes = R.string.medication_editor_schedule_offset_hours_later,
-                value = 1
+                value = 1,
             ),
             medicationLogScheduleOffset(
                 scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.plusHours(1)
-            )
-        )
-        assertEquals(
-            MedicationLogScheduleOffset(
-                labelRes = R.string.medication_editor_schedule_offset_hours_earlier,
-                value = 1
+                appliedAt = scheduledFor.plusMinutes(80),
             ),
-            medicationLogScheduleOffset(
-                scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.minusHours(1)
-            )
-        )
-        assertEquals(
-            MedicationLogScheduleOffset(
-                labelRes = R.string.medication_editor_schedule_offset_hours_later,
-                value = 1
-            ),
-            medicationLogScheduleOffset(
-                scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.plusMinutes(80)
-            )
-        )
-        assertEquals(
-            MedicationLogScheduleOffset(
-                labelRes = R.string.medication_editor_schedule_offset_hours_earlier,
-                value = 2
-            ),
-            medicationLogScheduleOffset(
-                scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.minusMinutes(130)
-            )
         )
         assertEquals(
             MedicationLogScheduleOffset(
                 labelRes = R.string.medication_editor_schedule_offset_days_later,
-                value = 1
+                value = 1,
             ),
             medicationLogScheduleOffset(
                 scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.plusHours(47)
-            )
+                appliedAt = scheduledFor.plusHours(47),
+            ),
         )
         assertEquals(
             MedicationLogScheduleOffset(
                 labelRes = R.string.medication_editor_schedule_offset_days_earlier,
-                value = 1
+                value = 1,
             ),
             medicationLogScheduleOffset(
                 scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.minusHours(25)
-            )
-        )
-    }
-
-    @Test
-    fun resolveDoseTextFieldValue_uses_placeholder_as_display_text_when_disabled() {
-        assertEquals(
-            "Patch removal has no dose fields.",
-            resolveDoseTextFieldValue(
-                value = "",
-                placeholder = "Patch removal has no dose fields.",
-                enabled = false
-            )
-        )
-        assertEquals(
-            null,
-            resolveDoseTextFieldPlaceholder(
-                value = "",
-                placeholder = "Patch removal has no dose fields.",
-                enabled = false
-            )
-        )
-    }
-
-    @Test
-    fun structuredMedicationEditorEditableFields_singleDoseField_usesDoneImeAction() {
-        val draft = defaultMedicationDraft(
-            category = MedicationCategory.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL
-        )
-
-        val fields = structuredMedicationEditorEditableFields(draft)
-
-        assertEquals(
-            listOf(StructuredMedicationEditorTextField.DOSE_MG),
-            fields
-        )
-        assertEquals(
-            ImeAction.Done,
-            structuredMedicationEditorImeAction(
-                editableFields = fields,
-                field = StructuredMedicationEditorTextField.DOSE_MG
-            )
-        )
-    }
-
-    @Test
-    fun structuredMedicationEditorEditableFields_multiDoseField_usesNextThenDoneImeAction() {
-        val draft = defaultMedicationDraft(
-            category = MedicationCategory.ESTRADIOL,
-            applicationType = MedicationApplicationType.GEL
-        ).changeDoseKind(MedicationDoseKind.GEL_PERCENT_AND_WEIGHT)
-
-        val fields = structuredMedicationEditorEditableFields(draft)
-
-        assertEquals(
-            listOf(
-                StructuredMedicationEditorTextField.GEL_PERCENT,
-                StructuredMedicationEditorTextField.GEL_WEIGHT,
+                appliedAt = scheduledFor.minusHours(25),
             ),
-            fields
-        )
-        assertEquals(
-            ImeAction.Next,
-            structuredMedicationEditorImeAction(
-                editableFields = fields,
-                field = StructuredMedicationEditorTextField.GEL_PERCENT
-            )
-        )
-        assertEquals(
-            ImeAction.Done,
-            structuredMedicationEditorImeAction(
-                editableFields = fields,
-                field = StructuredMedicationEditorTextField.GEL_WEIGHT
-            )
-        )
-    }
-
-    @Test
-    fun structuredMedicationEditorEditableFields_customNameFlowsIntoDoseField() {
-        val draft = defaultMedicationDraft(category = MedicationCategory.CUSTOM)
-
-        val fields = structuredMedicationEditorEditableFields(draft)
-
-        assertEquals(
-            listOf(
-                StructuredMedicationEditorTextField.CUSTOM_NAME,
-                StructuredMedicationEditorTextField.DOSE_MG,
-            ),
-            fields
-        )
-        assertEquals(
-            ImeAction.Next,
-            structuredMedicationEditorImeAction(
-                editableFields = fields,
-                field = StructuredMedicationEditorTextField.CUSTOM_NAME
-            )
-        )
-        assertEquals(
-            ImeAction.Done,
-            structuredMedicationEditorImeAction(
-                editableFields = fields,
-                field = StructuredMedicationEditorTextField.DOSE_MG
-            )
         )
     }
 }

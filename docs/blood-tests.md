@@ -33,17 +33,18 @@ The builtin catalog pins one canonical unit per analyte:
 | `LH` | `MIU_ML` | `IU_L` |
 
 The factor-table mappings live only in the catalog. Adding a new
-**unit** for an existing analyte really is a single-place change —
-extend the `BloodUnitKey` enum and add one row to the analyte's
-`factorsToCanonical` map. Adding a new **analyte** is larger:
-beyond the catalog `definitions` map and the `BloodAnalyteKey` enum,
+**unit** for an existing analyte means extending the `BloodUnitKey`
+enum, adding one row to the analyte's `factorsToCanonical` map, and
+adding a display-label case in `formatCalibrationUnitLabel` so the
+unit picker can render it. Adding a new **analyte** is larger: beyond
+the catalog `definitions` map and the `BloodAnalyteKey` enum,
 `CalibrationEditorViewModel` declares the ordered analyte list,
 `CalibrationScreen` maps each analyte to its display-name string
-resource and to a `CalibrationCanonicalTarget`, and the calibration
-default-unit maps are duplicated across `CalibrationScreen` /
-`CalibrationEditorScreen` / `CalibrationUnitsScreen`. Each touch is
-mechanical, but "single place" is true only for unit additions; treat
-the calibration UI surfaces as the second seat.
+resource (and to a `CalibrationCanonicalTarget` if a reference range
+applies — today only `E2` and `T` declare one), and default-unit
+persistence/resolution runs through `SettingsRepository` and
+`SettingsState.calibrationDefaultUnitFor`. Each touch is mechanical;
+include the calibration UI surfaces as a second seat.
 
 ## Factor-table pattern
 

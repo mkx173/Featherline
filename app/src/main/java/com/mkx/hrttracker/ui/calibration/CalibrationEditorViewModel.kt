@@ -282,7 +282,6 @@ class CalibrationEditorViewModel @Inject constructor(
                 _uiState.update { state ->
                     state.copy(
                         panelUuid = savedPanelUuid.toString(),
-                        isEditing = true,
                         isSaving = false,
                         isSaved = true,
                         savedCrossZoneZoneText = crossZoneText,

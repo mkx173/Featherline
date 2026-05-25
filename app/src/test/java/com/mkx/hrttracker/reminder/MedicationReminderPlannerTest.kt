@@ -1,16 +1,16 @@
 package com.mkx.hrttracker.reminder
 
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.Instant
@@ -20,6 +20,11 @@ import java.time.LocalTime
 import java.util.UUID
 
 class MedicationReminderPlannerTest {
+    // Shared so the planner's fulfillment signature matches between scheduled
+    // group slots and the seeded log entries — random per-call UUIDs would
+    // always mismatch and the test would never exercise the "skip fulfilled"
+    // or "scan further" branches.
+    private val estradiolMedicineUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
     @Test
     fun buildNextMedicationReminderPlans_returns_next_plan_for_enabled_groups() {
         val firstGroup = medicationGroup(
@@ -166,11 +171,12 @@ class MedicationReminderPlannerTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("56f1a6b4-dcdb-448b-8f08-9cb5746206d5"),
-                    details = testCatalogMedicationDetails(
+                    medicine = testMedicine(
+                        uuid = estradiolMedicineUuid,
                         key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    ),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             notificationsEnabled = true,
@@ -209,11 +215,12 @@ class MedicationReminderPlannerTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("56f1a6b4-dcdb-448b-8f08-9cb5746206d5"),
-                    details = testCatalogMedicationDetails(
+                    medicine = testMedicine(
+                        uuid = estradiolMedicineUuid,
                         key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    ),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             notificationsEnabled = notificationsEnabled,
@@ -229,12 +236,13 @@ class MedicationReminderPlannerTest {
     ): MedicationLogEntry {
         return testMedicationLogEntry(
             uuid = UUID.randomUUID(),
-            details = testCatalogMedicationDetails(
+            medicine = testMedicine(
+                uuid = estradiolMedicineUuid,
                 key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
             ),
-            dosageMgAsEstradiol = 2.0,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor

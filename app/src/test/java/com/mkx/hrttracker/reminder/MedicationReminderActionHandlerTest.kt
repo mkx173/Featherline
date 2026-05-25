@@ -4,17 +4,18 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogEntryInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.Runs
@@ -96,6 +97,7 @@ class MedicationReminderActionHandlerTest {
 
         actionHandler.logNow(
             slots = listOf(firstSlot, secondSlot),
+            logTargets = null,
             notificationTag = "bundle-tag",
             now = LocalDateTime.of(2026, 4, 20, 9, 10),
         )
@@ -126,6 +128,115 @@ class MedicationReminderActionHandlerTest {
                 }
             )
         }
+    }
+
+    @Test
+    fun logNow_with_logTargets_only_writes_signatures_present_in_targets() = runTest {
+        // Scenario: group has [Estradiol, Spiro] at 9am. User logs Estradiol
+        // at 8:50am — notification at 9am ships only Spiro as a log target.
+        // User deletes the Estradiol log, then taps "Log all". The handler
+        // must NOT re-log Estradiol because it was never displayed.
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = MedicationGroup(
+            uuid = UUID.fromString("ddddd111-0000-0000-0000-000000000000"),
+            name = "Morning",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                ),
+                testMedicationGroupMedication(
+                    medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                ),
+            ),
+            notificationsEnabled = true,
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+        )
+        val slot = group.toReminderSlot(scheduledAt)
+        val spiroMedication = group.medications[1]
+        val savedEntries = slot<Collection<MedicationLogEntryInput>>()
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        // Mirror "user deleted the Estradiol log" — DB has no entries for the slot.
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } just Runs
+
+        actionHandler.logNow(
+            slots = listOf(slot),
+            logTargets = listOf(
+                MedicationReminderLogTarget(
+                    slot = slot,
+                    signature = MedicationSignature.fromGroupMedication(spiroMedication),
+                ),
+            ),
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(10),
+        )
+
+        assertEquals(1, savedEntries.captured.size)
+        assertEquals(
+            spiroMedication.medicineUuid,
+            savedEntries.captured.single().medicineUuid,
+        )
+    }
+
+    @Test
+    fun logNow_with_logTargets_missing_slot_writes_nothing_for_that_slot() = runTest {
+        // A current-format payload (non-null logTargets) that contains no
+        // entry for a slot must restrict that slot to nothing, not silently
+        // fall through to the legacy "log everything missing" path — that
+        // would re-introduce the very race the targets exist to prevent.
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val firstGroup = medicationGroup(
+            uuid = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val secondGroup = medicationGroup(
+            uuid = UUID.fromString("ffffffff-1111-2222-3333-444444444444"),
+            name = "Spiro",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.SPIRONOLACTONE,
+            medicationCount = 1,
+        )
+        val firstSlot = firstGroup.toReminderSlot(scheduledAt)
+        val secondSlot = secondGroup.toReminderSlot(scheduledAt)
+        val savedEntries = slot<Collection<MedicationLogEntryInput>>()
+        coEvery { groupRepository.getGroup(firstGroup.uuid) } returns firstGroup
+        coEvery { groupRepository.getGroup(secondGroup.uuid) } returns secondGroup
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } just Runs
+
+        // logTargets present but only references firstSlot. secondSlot has no
+        // surviving entry — simulates every target for it failing to parse.
+        actionHandler.logNow(
+            slots = listOf(firstSlot, secondSlot),
+            logTargets = listOf(
+                MedicationReminderLogTarget(
+                    slot = firstSlot,
+                    signature = MedicationSignature.fromGroupMedication(firstGroup.medications.single()),
+                ),
+            ),
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(10),
+        )
+
+        assertEquals(
+            listOf(firstGroup.uuid),
+            savedEntries.captured.map { entry -> entry.sourceGroupUuid }
+        )
     }
 
     @Test
@@ -301,11 +412,9 @@ class MedicationReminderActionHandlerTest {
             ),
             medications = listOf(
                 testMedicationGroupMedication(
-                    details = testCatalogMedicationDetails(
-                        key = medicationKey,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0),
-                    ),
+                    medicine = testMedicine(key = medicationKey),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                     count = medicationCount,
                 )
             ),
@@ -329,8 +438,11 @@ class MedicationReminderActionHandlerTest {
         scheduledFor: LocalDateTime,
         count: Int,
     ): MedicationLogEntry {
+        val templateMedication = group.medications.first()
         return testMedicationLogEntry(
-            details = group.medications.first().details,
+            medicine = templateMedication.medicine,
+            applicationType = templateMedication.applicationType,
+            doseInstruction = templateMedication.doseInstruction,
             sourceGroupUuid = group.uuid,
             appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor,

@@ -13,23 +13,27 @@ import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWeeklyDayEntity
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
+import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.data.local.UserProfileEntity
-import com.mkx.hrttracker.data.repository.EstradiolEquivalentCalculator
+import com.mkx.hrttracker.data.repository.DoseInstructionCalculator
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.data.repository.toEntity
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationDoseUnit
-import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.DoseInstructionKind
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -100,11 +104,18 @@ class StartupFixtureActivity : AppCompatActivity() {
         val zoneId = ZoneId.systemDefault()
         val createdAt = today.minusDays(220).atStartOfDay(zoneId).toInstant()
         val archivedAt = today.minusDays(30).atTime(12, 0).atZone(zoneId).toInstant()
-        val groups = benchmarkGroups(today = today, createdAt = createdAt, archivedAt = archivedAt)
+        val medicines = benchmarkMedicines(createdAt = createdAt)
+        val groups = benchmarkGroups(
+            today = today,
+            createdAt = createdAt,
+            archivedAt = archivedAt,
+            medicines = medicines,
+        )
         val entries = benchmarkEntries(
             today = today,
             zoneId = zoneId,
             groups = groups,
+            medicines = medicines,
         )
 
         settingsRepository.restoreSettings(
@@ -119,12 +130,14 @@ class StartupFixtureActivity : AppCompatActivity() {
             appLanguageOption = AppLanguageOption.ENGLISH,
             calibrationDefaultUnits = emptySet(),
             homeE2DisplayUnit = AllowedAnalyteUnit.of(BloodAnalyteKey.E2, BloodUnitKey.PG_ML),
+            homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
         )
         settingsRepository.setScreenLockProtectionEnabled(false)
 
         databaseHolder.runTransaction { database ->
             database.medicationLogDao().deleteAllEntries()
             database.medicationGroupDao().deleteAllGroups()
+            database.medicineDao().deleteAll()
             database.userProfileDao().deleteProfile()
             database.bloodTestDao().deleteAllResults()
             database.bloodTestDao().deleteAllPanels()
@@ -138,6 +151,7 @@ class StartupFixtureActivity : AppCompatActivity() {
                     updatedAtEpochMillis = createdAt.toEpochMilli(),
                 )
             )
+            database.medicineDao().insertAll(medicines.values.map { it.toEntity() })
             database.medicationGroupDao().insertGroups(groups.map(BenchmarkGroup::group))
             database.medicationGroupDao().insertItems(groups.flatMap(BenchmarkGroup::items))
             database.medicationGroupDao().insertScheduleTimes(groups.flatMap(BenchmarkGroup::scheduleTimes))
@@ -151,10 +165,82 @@ class StartupFixtureActivity : AppCompatActivity() {
         )
     }
 
+    /** One representative medicine per benchmark group; keyed by group key. */
+    private fun benchmarkMedicines(createdAt: Instant): Map<String, Medicine> {
+        return mapOf(
+            "oral-e2" to catalogMedicine(
+                key = "oral-e2",
+                medicationKey = MedicationKey.ESTRADIOL,
+                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                createdAt = createdAt,
+            ),
+            "injection-e2" to catalogMedicine(
+                key = "injection-e2",
+                medicationKey = MedicationKey.ESTRADIOL_VALERATE,
+                preparation = MedicinePreparation.InjectionMultiUseVial(
+                    concentrationMgPerMl = 10.0,
+                    vialVolumeMl = 20.0,
+                ),
+                createdAt = createdAt.plusSeconds(30),
+            ),
+            "patch-e2" to catalogMedicine(
+                key = "patch-e2",
+                medicationKey = MedicationKey.ESTRADIOL_PATCH,
+                preparation = MedicinePreparation.Patch(
+                    specification = MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                        valueMcgPerDay = 100.0,
+                    ),
+                ),
+                createdAt = createdAt.plusSeconds(60),
+            ),
+            "spiro" to catalogMedicine(
+                key = "spiro",
+                medicationKey = MedicationKey.SPIRONOLACTONE,
+                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 100.0),
+                createdAt = createdAt.plusSeconds(90),
+            ),
+            "archived" to catalogMedicine(
+                key = "archived",
+                medicationKey = MedicationKey.BICALUTAMIDE,
+                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 25.0),
+                createdAt = createdAt.plusSeconds(120),
+            ),
+            "gel" to catalogMedicine(
+                key = "gel",
+                medicationKey = MedicationKey.ESTRADIOL_GEL,
+                preparation = MedicinePreparation.GelContainer(
+                    concentrationPercent = 0.06,
+                    containerWeightGrams = 80.0,
+                ),
+                createdAt = createdAt.plusSeconds(150),
+            ),
+        )
+    }
+
+    private fun catalogMedicine(
+        key: String,
+        medicationKey: MedicationKey,
+        preparation: MedicinePreparation,
+        createdAt: Instant,
+    ): Medicine {
+        return Medicine(
+            uuid = uuid("medicine:$key"),
+            selection = MedicineSelection.Catalog(medicationKey),
+            category = medicationKey.category,
+            preparation = preparation,
+            displayName = null,
+            identityKey = MedicineIdentityKey.catalog(medicationKey, preparation),
+            createdAt = createdAt,
+            updatedAt = createdAt,
+            archivedAt = null,
+        )
+    }
+
     private fun benchmarkGroups(
         today: LocalDate,
         createdAt: Instant,
         archivedAt: Instant,
+        medicines: Map<String, Medicine>,
     ): List<BenchmarkGroup> {
         return listOf(
             benchmarkGroup(
@@ -165,14 +251,9 @@ class StartupFixtureActivity : AppCompatActivity() {
                 interval = 1,
                 since = today.minusDays(180),
                 times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
-                medications = listOf(
-                    MedicationDetails(
-                        category = MedicationCategory.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL),
-                        dose = MedicationDose.MgAsMedicine(2.0),
-                    )
-                ),
+                medicine = medicines.getValue("oral-e2"),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 1),
                 createdAt = createdAt,
             ),
             benchmarkGroup(
@@ -184,14 +265,9 @@ class StartupFixtureActivity : AppCompatActivity() {
                 since = today.minusDays(175),
                 weeklyDaysOfWeek = setOf(today.dayOfWeek),
                 times = listOf(LocalTime.of(21, 0)),
-                medications = listOf(
-                    MedicationDetails(
-                        category = MedicationCategory.ESTRADIOL,
-                        applicationType = MedicationApplicationType.INJECTION,
-                        selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),
-                        dose = MedicationDose.MgAsMedicine(5.0),
-                    )
-                ),
+                medicine = medicines.getValue("injection-e2"),
+                applicationType = MedicationApplicationType.INJECTION,
+                doseInstruction = DoseInstruction.VolumeMl(valueMl = 0.5),
                 createdAt = createdAt.plusSeconds(60),
             ),
             benchmarkGroup(
@@ -202,14 +278,9 @@ class StartupFixtureActivity : AppCompatActivity() {
                 interval = 4,
                 since = today.minusDays(180),
                 times = listOf(LocalTime.of(9, 0)),
-                medications = listOf(
-                    MedicationDetails(
-                        category = MedicationCategory.ESTRADIOL,
-                        applicationType = MedicationApplicationType.PATCH_ON,
-                        selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL_PATCH),
-                        dose = MedicationDose.PatchReleaseRateMcgPerDay(100.0),
-                    )
-                ),
+                medicine = medicines.getValue("patch-e2"),
+                applicationType = MedicationApplicationType.PATCH_ON,
+                doseInstruction = DoseInstruction.WholeUnit,
                 createdAt = createdAt.plusSeconds(120),
             ),
             benchmarkGroup(
@@ -220,14 +291,9 @@ class StartupFixtureActivity : AppCompatActivity() {
                 interval = 1,
                 since = today.minusDays(180),
                 times = listOf(LocalTime.of(22, 0)),
-                medications = listOf(
-                    MedicationDetails(
-                        category = MedicationCategory.ANTIANDROGEN,
-                        applicationType = MedicationApplicationType.ORAL,
-                        selection = MedicationSelection.Catalog(MedicationKey.SPIRONOLACTONE),
-                        dose = MedicationDose.MgAsMedicine(100.0),
-                    )
-                ),
+                medicine = medicines.getValue("spiro"),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 1),
                 createdAt = createdAt.plusSeconds(180),
             ),
             benchmarkGroup(
@@ -238,14 +304,9 @@ class StartupFixtureActivity : AppCompatActivity() {
                 interval = 1,
                 since = today.minusDays(210),
                 times = listOf(LocalTime.of(7, 30)),
-                medications = listOf(
-                    MedicationDetails(
-                        category = MedicationCategory.ANTIANDROGEN,
-                        applicationType = MedicationApplicationType.ORAL,
-                        selection = MedicationSelection.Catalog(MedicationKey.BICALUTAMIDE),
-                        dose = MedicationDose.MgAsMedicine(25.0),
-                    )
-                ),
+                medicine = medicines.getValue("archived"),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 1),
                 createdAt = createdAt.minusSeconds(60),
                 archivedAt = archivedAt,
             ),
@@ -261,7 +322,9 @@ class StartupFixtureActivity : AppCompatActivity() {
         since: LocalDate,
         weeklyDaysOfWeek: Set<DayOfWeek> = emptySet(),
         times: List<LocalTime>,
-        medications: List<MedicationDetails>,
+        medicine: Medicine,
+        applicationType: MedicationApplicationType,
+        doseInstruction: DoseInstruction,
         createdAt: Instant,
         archivedAt: Instant? = null,
     ): BenchmarkGroup {
@@ -292,13 +355,16 @@ class StartupFixtureActivity : AppCompatActivity() {
                 archivedAtLocalIso = archivedAt?.atZone(ZoneId.systemDefault())?.toLocalDateTime()?.toString(),
                 includePastScheduledSlots = true,
             ),
-            items = medications.mapIndexed { index, medication ->
-                medication.toGroupItemEntity(
-                    uuid = uuid("group-item:$key:$index"),
+            items = listOf(
+                groupItemEntity(
+                    uuid = uuid("group-item:$key:0"),
                     groupUuid = groupUuid,
-                    sortOrder = index,
-                )
-            },
+                    sortOrder = 0,
+                    medicine = medicine,
+                    applicationType = applicationType,
+                    doseInstruction = doseInstruction,
+                ),
+            ),
             scheduleTimes = timeEntities,
             weeklyDays = weeklyDaysOfWeek.map { dayOfWeek ->
                 MedicationGroupWeeklyDayEntity(
@@ -309,10 +375,34 @@ class StartupFixtureActivity : AppCompatActivity() {
         )
     }
 
+    private fun groupItemEntity(
+        uuid: UUID,
+        groupUuid: UUID,
+        sortOrder: Int,
+        medicine: Medicine,
+        applicationType: MedicationApplicationType,
+        doseInstruction: DoseInstruction,
+    ): MedicationGroupItemEntity {
+        return MedicationGroupItemEntity(
+            uuid = uuid.toString(),
+            groupUuid = groupUuid.toString(),
+            sortOrder = sortOrder,
+            count = 1,
+            medicineUuid = medicine.uuid.toString(),
+            applicationType = applicationType.name,
+            doseInstructionKind = doseInstruction.kind.name,
+            tabletFractionNumerator = (doseInstruction as? DoseInstruction.TabletFraction)?.numerator,
+            tabletFractionDenominator = (doseInstruction as? DoseInstruction.TabletFraction)?.denominator,
+            doseVolumeMl = (doseInstruction as? DoseInstruction.VolumeMl)?.valueMl,
+            doseWeightGrams = (doseInstruction as? DoseInstruction.WeightGrams)?.valueGrams,
+        )
+    }
+
     private fun benchmarkEntries(
         today: LocalDate,
         zoneId: ZoneId,
         groups: List<BenchmarkGroup>,
+        medicines: Map<String, Medicine>,
     ): List<MedicationLogEntryEntity> {
         val groupsByKey = groups.associateBy(BenchmarkGroup::key)
         val entries = mutableListOf<MedicationLogEntryEntity>()
@@ -320,52 +410,54 @@ class StartupFixtureActivity : AppCompatActivity() {
         generateSequence(startDate) { date -> date.plusDays(1) }
             .takeWhile { date -> !date.isAfter(today) }
             .forEach { date ->
-                entries += scheduledEntriesForDate(groupsByKey.getValue("oral-e2"), date, zoneId)
-                entries += scheduledEntriesForDate(groupsByKey.getValue("spiro"), date, zoneId)
+                entries += scheduledEntriesForDate(groupsByKey.getValue("oral-e2"), medicines.getValue("oral-e2"), date, zoneId)
+                entries += scheduledEntriesForDate(groupsByKey.getValue("spiro"), medicines.getValue("spiro"), date, zoneId)
                 if (daysBetween(groupsByKey.getValue("patch-e2"), date) % 4L == 0L) {
-                    entries += scheduledEntriesForDate(groupsByKey.getValue("patch-e2"), date, zoneId)
+                    entries += scheduledEntriesForDate(groupsByKey.getValue("patch-e2"), medicines.getValue("patch-e2"), date, zoneId)
                 }
                 if (date.dayOfWeek == today.dayOfWeek) {
-                    entries += scheduledEntriesForDate(groupsByKey.getValue("injection-e2"), date, zoneId)
+                    entries += scheduledEntriesForDate(groupsByKey.getValue("injection-e2"), medicines.getValue("injection-e2"), date, zoneId)
                 }
             }
 
         entries += manualEntry(
             key = "manual-yesterday-e2",
-            details = MedicationDetails(
-                category = MedicationCategory.ESTRADIOL,
-                applicationType = MedicationApplicationType.GEL,
-                selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL_GEL),
-                dose = MedicationDose.GelEquivalentEstradiolMg(0.75),
-            ),
+            medicine = medicines.getValue("gel"),
+            applicationType = MedicationApplicationType.GEL,
+            doseInstruction = DoseInstruction.WeightGrams(valueGrams = 1.25),
             appliedAt = today.minusDays(1).atTime(12, 20).atZone(zoneId).toInstant(),
             zoneId = zoneId,
         )
         entries += manualEntry(
             key = "manual-today-spiro",
-            details = MedicationDetails(
-                category = MedicationCategory.ANTIANDROGEN,
-                applicationType = MedicationApplicationType.ORAL,
-                selection = MedicationSelection.Catalog(MedicationKey.SPIRONOLACTONE),
-                dose = MedicationDose.MgAsMedicine(50.0),
-            ),
+            medicine = medicines.getValue("spiro"),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 2),
             appliedAt = today.atTime(7, 45).atZone(zoneId).toInstant(),
             zoneId = zoneId,
         )
-        entries += scheduledEntriesForDate(groupsByKey.getValue("oral-e2"), today.plusDays(1), zoneId)
+        entries += scheduledEntriesForDate(
+            group = groupsByKey.getValue("oral-e2"),
+            medicine = medicines.getValue("oral-e2"),
+            date = today.plusDays(1),
+            zoneId = zoneId,
+        )
 
         return entries.distinctBy(MedicationLogEntryEntity::uuid)
     }
 
     private fun scheduledEntriesForDate(
         group: BenchmarkGroup,
+        medicine: Medicine,
         date: LocalDate,
         zoneId: ZoneId,
     ): List<MedicationLogEntryEntity> {
         return group.scheduleTimes.flatMapIndexed { timeIndex, time ->
             val scheduledFor = LocalDateTime.of(date, LocalTime.of(time.hourOfDay, time.minuteOfHour))
             group.items.mapIndexed { medicationIndex, item ->
-                item.toLogEntryEntity(
+                logEntryFromGroupItem(
+                    item = item,
+                    medicine = medicine,
                     uuid = uuid("entry:${group.key}:${date}:$timeIndex:$medicationIndex"),
                     sourceGroupUuid = group.group.uuid,
                     scheduleTimeUuid = time.uuid,
@@ -379,12 +471,18 @@ class StartupFixtureActivity : AppCompatActivity() {
 
     private fun manualEntry(
         key: String,
-        details: MedicationDetails,
+        medicine: Medicine,
+        applicationType: MedicationApplicationType,
+        doseInstruction: DoseInstruction,
         appliedAt: Instant,
         zoneId: ZoneId,
     ): MedicationLogEntryEntity {
-        return details.toLogEntryEntity(
+        return logEntry(
             uuid = uuid("entry:$key"),
+            medicine = medicine,
+            applicationType = applicationType,
+            doseInstruction = doseInstruction,
+            count = 1,
             sourceGroupUuid = null,
             scheduleTimeUuid = null,
             scheduledFor = null,
@@ -393,33 +491,37 @@ class StartupFixtureActivity : AppCompatActivity() {
         )
     }
 
-    private fun MedicationDetails.toGroupItemEntity(
+    private fun logEntryFromGroupItem(
+        item: MedicationGroupItemEntity,
+        medicine: Medicine,
         uuid: UUID,
-        groupUuid: UUID,
-        sortOrder: Int,
-    ): MedicationGroupItemEntity {
-        return MedicationGroupItemEntity(
-            uuid = uuid.toString(),
-            groupUuid = groupUuid.toString(),
-            sortOrder = sortOrder,
-            count = 1,
-            category = category.name,
-            applicationType = applicationType.name,
-            selectionKind = selection.kind.name,
-            medicationKey = (selection as? MedicationSelection.Catalog)?.medicationKey?.name,
-            customMedicationName = (selection as? MedicationSelection.Custom)?.medicationName,
-            doseKind = dose.kind.name,
-            doseValueMg = doseValueMg,
-            customDoseUnit = resolvedCustomDoseUnit,
-            doseValuePercent = (dose as? MedicationDose.GelPercentAndWeight)?.percent,
-            doseWeightGrams = (dose as? MedicationDose.GelPercentAndWeight)?.weightGrams,
-            doseReleaseRateMcgPerDay = (dose as? MedicationDose.PatchReleaseRateMcgPerDay)?.valueMcgPerDay,
-            gelApplicationArea = gelApplicationArea.name,
+        sourceGroupUuid: String,
+        scheduleTimeUuid: String,
+        scheduledFor: LocalDateTime,
+        appliedAt: Instant,
+        zoneId: ZoneId,
+    ): MedicationLogEntryEntity {
+        val doseInstruction = item.toDoseInstruction()
+        return logEntry(
+            uuid = uuid,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.fromStorageValue(item.applicationType),
+            doseInstruction = doseInstruction,
+            count = item.count,
+            sourceGroupUuid = sourceGroupUuid,
+            scheduleTimeUuid = scheduleTimeUuid,
+            scheduledFor = scheduledFor,
+            appliedAt = appliedAt,
+            zoneId = zoneId,
         )
     }
 
-    private fun MedicationDetails.toLogEntryEntity(
+    private fun logEntry(
         uuid: UUID,
+        medicine: Medicine,
+        applicationType: MedicationApplicationType,
+        doseInstruction: DoseInstruction,
+        count: Int,
         sourceGroupUuid: String?,
         scheduleTimeUuid: String?,
         scheduledFor: LocalDateTime?,
@@ -428,104 +530,40 @@ class StartupFixtureActivity : AppCompatActivity() {
     ): MedicationLogEntryEntity {
         return MedicationLogEntryEntity(
             uuid = uuid.toString(),
-            category = category.name,
+            category = medicine.category.name,
+            medicineUuid = medicine.uuid.toString(),
             applicationType = applicationType.name,
-            selectionKind = selection.kind.name,
-            medicationKey = (selection as? MedicationSelection.Catalog)?.medicationKey?.name,
-            customMedicationName = (selection as? MedicationSelection.Custom)?.medicationName,
-            doseKind = dose.kind.name,
-            doseValueMg = doseValueMg,
-            customDoseUnit = resolvedCustomDoseUnit,
-            doseValuePercent = (dose as? MedicationDose.GelPercentAndWeight)?.percent,
-            doseWeightGrams = (dose as? MedicationDose.GelPercentAndWeight)?.weightGrams,
-            doseReleaseRateMcgPerDay = (dose as? MedicationDose.PatchReleaseRateMcgPerDay)?.valueMcgPerDay,
-            dosageMgAsEstradiol = EstradiolEquivalentCalculator.calculate(this),
+            doseInstructionKind = doseInstruction.kind.name,
+            tabletFractionNumerator = (doseInstruction as? DoseInstruction.TabletFraction)?.numerator,
+            tabletFractionDenominator = (doseInstruction as? DoseInstruction.TabletFraction)?.denominator,
+            doseVolumeMl = (doseInstruction as? DoseInstruction.VolumeMl)?.valueMl,
+            doseWeightGrams = (doseInstruction as? DoseInstruction.WeightGrams)?.valueGrams,
+            equivalentE2Mg = DoseInstructionCalculator.perUnitEquivalentE2Mg(medicine, doseInstruction),
             sourceGroupUuid = sourceGroupUuid,
             scheduleTimeUuid = scheduleTimeUuid,
             appliedAtEpochMillis = appliedAt.toEpochMilli(),
             appliedAtTimeZoneId = zoneId.id,
             scheduledForIso = scheduledFor?.toString(),
-            count = 1,
-            gelApplicationArea = gelApplicationArea.name,
-        )
-    }
-
-    private fun MedicationGroupItemEntity.toLogEntryEntity(
-        uuid: UUID,
-        sourceGroupUuid: String,
-        scheduleTimeUuid: String,
-        scheduledFor: LocalDateTime,
-        appliedAt: Instant,
-        zoneId: ZoneId,
-    ): MedicationLogEntryEntity {
-        return MedicationLogEntryEntity(
-            uuid = uuid.toString(),
-            category = category,
-            applicationType = applicationType,
-            selectionKind = selectionKind,
-            medicationKey = medicationKey,
-            customMedicationName = customMedicationName,
-            doseKind = doseKind,
-            doseValueMg = doseValueMg,
-            customDoseUnit = customDoseUnit,
-            doseValuePercent = doseValuePercent,
-            doseWeightGrams = doseWeightGrams,
-            doseReleaseRateMcgPerDay = doseReleaseRateMcgPerDay,
-            dosageMgAsEstradiol = EstradiolEquivalentCalculator.calculate(toMedicationDetails()),
-            sourceGroupUuid = sourceGroupUuid,
-            scheduleTimeUuid = scheduleTimeUuid,
-            appliedAtEpochMillis = appliedAt.toEpochMilli(),
-            appliedAtTimeZoneId = zoneId.id,
-            scheduledForIso = scheduledFor.toString(),
             count = count,
-            gelApplicationArea = gelApplicationArea,
         )
     }
 
-    private fun MedicationGroupItemEntity.toMedicationDetails(): MedicationDetails {
-        val selection = when (selectionKind) {
-            "CATALOG" -> MedicationSelection.Catalog(
-                medicationKey = requireNotNull(MedicationKey.fromStorageValue(medicationKey))
+    private fun MedicationGroupItemEntity.toDoseInstruction(): DoseInstruction {
+        return when (DoseInstructionKind.fromStorageValue(doseInstructionKind)) {
+            DoseInstructionKind.TABLET_FRACTION -> DoseInstruction.TabletFraction(
+                numerator = requireNotNull(tabletFractionNumerator),
+                denominator = requireNotNull(tabletFractionDenominator),
             )
-            else -> MedicationSelection.Custom(customMedicationName.orEmpty())
+            DoseInstructionKind.VOLUME_ML -> DoseInstruction.VolumeMl(
+                valueMl = requireNotNull(doseVolumeMl),
+            )
+            DoseInstructionKind.WEIGHT_GRAMS -> DoseInstruction.WeightGrams(
+                valueGrams = requireNotNull(doseWeightGrams),
+            )
+            DoseInstructionKind.NOOP -> DoseInstruction.Noop
+            DoseInstructionKind.WHOLE_UNIT -> DoseInstruction.WholeUnit
         }
-        val dose = when (doseKind) {
-            "MG_AS_MEDICINE" -> MedicationDose.MgAsMedicine(requireNotNull(doseValueMg))
-            "GEL_EQUIVALENT_ESTRADIOL_MG" -> MedicationDose.GelEquivalentEstradiolMg(requireNotNull(doseValueMg))
-            "GEL_PERCENT_AND_WEIGHT" -> MedicationDose.GelPercentAndWeight(
-                percent = requireNotNull(doseValuePercent),
-                weightGrams = requireNotNull(doseWeightGrams),
-            )
-            "PATCH_TOTAL_MG" -> MedicationDose.PatchTotalMg(requireNotNull(doseValueMg))
-            "PATCH_RELEASE_RATE_MCG_DAY" -> MedicationDose.PatchReleaseRateMcgPerDay(
-                valueMcgPerDay = requireNotNull(doseReleaseRateMcgPerDay)
-            )
-            else -> MedicationDose.None
-        }
-        return MedicationDetails(
-            category = MedicationCategory.fromStorageValue(category),
-            applicationType = MedicationApplicationType.fromStorageValue(applicationType),
-            selection = selection,
-            dose = dose,
-            gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(gelApplicationArea),
-            customDoseUnit = MedicationDoseUnit.fromStorageValue(customDoseUnit),
-        )
     }
-
-    private val MedicationDetails.doseValueMg: Double?
-        get() = when (val resolvedDose = dose) {
-            is MedicationDose.MgAsMedicine -> resolvedDose.valueMg
-            is MedicationDose.GelEquivalentEstradiolMg -> resolvedDose.valueMg
-            is MedicationDose.PatchTotalMg -> resolvedDose.valueMg
-            else -> null
-        }
-
-    private val MedicationDetails.resolvedCustomDoseUnit: String
-        get() = if (selection is MedicationSelection.Custom && dose is MedicationDose.MgAsMedicine) {
-            customDoseUnit.storageValue
-        } else {
-            MedicationDoseUnit.MG.storageValue
-        }
 
     private fun daysBetween(group: BenchmarkGroup, date: LocalDate): Long {
         return date.toEpochDay() - group.group.scheduleSinceEpochDay
