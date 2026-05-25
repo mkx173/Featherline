@@ -187,7 +187,8 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
 
     data object MedicineDetail : Screen(
         "medicine_detail/{${MedicineDetailViewModel.MEDICINE_ID_ARG}}?" +
-                "$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+                "$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}" +
+                "&${MedicineDetailViewModel.OPEN_OPT_IN_ARG}={${MedicineDetailViewModel.OPEN_OPT_IN_ARG}}",
         R.string.medicine_detail_title,
     ) {
         const val baseRoute = "medicine_detail"
@@ -198,8 +199,17 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
         fun createRoute(
             medicineId: String,
             topLevelParentRoute: String = Plan.route,
+            openOptIn: Boolean = false,
         ): String {
-            return "$baseRoute/$medicineId?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+            return buildString {
+                append(baseRoute)
+                append("/")
+                append(medicineId)
+                append("?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute")
+                if (openOptIn) {
+                    append("&${MedicineDetailViewModel.OPEN_OPT_IN_ARG}=true")
+                }
+            }
         }
     }
 
@@ -793,6 +803,17 @@ fun HrtTrackerNavHost(
                                 )
                             }
                         },
+                        onTrackClick = { medicineId ->
+                            if (launchMode == MedicineManagerLaunchMode.Manager) {
+                                navController.navigate(
+                                    Screen.MedicineDetail.createRoute(
+                                        medicineId = medicineId.toString(),
+                                        topLevelParentRoute = topLevelParentRoute,
+                                        openOptIn = true,
+                                    ),
+                                )
+                            }
+                        },
                         launchMode = launchMode,
                         onSlotResolved = { slotResult ->
                             val groupSlotMode = launchMode as? MedicineManagerLaunchMode.GroupSlot
@@ -816,6 +837,10 @@ fun HrtTrackerNavHost(
                         navArgument(TOP_LEVEL_PARENT_ARG) {
                             type = NavType.StringType
                             defaultValue = Screen.Plan.route
+                        },
+                        navArgument(MedicineDetailViewModel.OPEN_OPT_IN_ARG) {
+                            type = NavType.BoolType
+                            defaultValue = false
                         },
                     ),
                 ) {

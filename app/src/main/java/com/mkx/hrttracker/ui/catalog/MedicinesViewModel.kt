@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.isArchived
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,16 +35,19 @@ import javax.inject.Inject
 class MedicinesViewModel @Inject constructor(
     medicineRepository: MedicineRepository,
     medicationGroupRepository: MedicationGroupRepository,
+    stockRepository: MedicineStockRepository,
 ) : ViewModel() {
 
     val uiState: StateFlow<MedicinesUiState> = combine(
         medicineRepository.observeAllActive(),
         medicationGroupRepository.observeGroups().map { it.orEmpty() },
-    ) { activeMedicines, groups ->
+        stockRepository.observeProjections(),
+    ) { activeMedicines, groups, stockProjections ->
         MedicinesUiState(
             activeSections = buildSections(
                 activeMedicines = activeMedicines,
                 referenceCounts = activeGroupReferenceCounts(groups),
+                stockProjections = stockProjections.associateBy { it.medicine.uuid },
             ),
             isLoading = false,
         )
@@ -55,6 +60,7 @@ class MedicinesViewModel @Inject constructor(
     private fun buildSections(
         activeMedicines: List<Medicine>,
         referenceCounts: Map<java.util.UUID, Int>,
+        stockProjections: Map<java.util.UUID, MedicineStockProjection>,
     ): List<MedicineCategorySection> {
         val visibleMedicines = activeMedicines.visibleInMedicineManager()
         if (visibleMedicines.isEmpty()) {
@@ -80,6 +86,7 @@ class MedicinesViewModel @Inject constructor(
                         MedicineListItem(
                             medicine = medicine,
                             activeGroupReferenceCount = referenceCounts[medicine.uuid] ?: 0,
+                            stockProjection = stockProjections[medicine.uuid],
                         )
                     },
             )
@@ -130,4 +137,5 @@ data class MedicineCategorySection(
 data class MedicineListItem(
     val medicine: Medicine,
     val activeGroupReferenceCount: Int,
+    val stockProjection: MedicineStockProjection? = null,
 )

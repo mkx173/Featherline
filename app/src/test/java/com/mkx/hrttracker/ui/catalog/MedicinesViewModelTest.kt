@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.catalog
 
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -9,6 +10,8 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.testDoseInstruction
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.medication.testPatchOffMedicine
@@ -44,11 +47,13 @@ class MedicinesViewModelTest {
 
     private val medicineRepository: MedicineRepository = mockk()
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
+    private val stockRepository: MedicineStockRepository = mockk()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        every { stockRepository.observeProjections() } returns flowOf(emptyList())
     }
 
     @After
@@ -73,7 +78,7 @@ class MedicinesViewModelTest {
         every { medicineRepository.observeAllActive() } returns flowOf(listOf(estradiol, blocker))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -121,7 +126,7 @@ class MedicinesViewModelTest {
             listOf(groupReferencing, groupReferencingTwice),
         )
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -145,7 +150,7 @@ class MedicinesViewModelTest {
         every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(archivedGroup))
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -177,7 +182,7 @@ class MedicinesViewModelTest {
         every { medicineRepository.observeAllActive() } returns flowOf(listOf(second, first))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -212,7 +217,7 @@ class MedicinesViewModelTest {
             activeMedicines.value = listOf(original.copy(displayName = "Renamed"))
         }
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -245,7 +250,7 @@ class MedicinesViewModelTest {
             flowOf(listOf(estradiolTablet, patchOff))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -280,7 +285,7 @@ class MedicinesViewModelTest {
             flowOf(listOf(patchMedicine, patchOff))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -317,7 +322,7 @@ class MedicinesViewModelTest {
             flowOf(listOf(patchOff, patchMedicine))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -339,13 +344,44 @@ class MedicinesViewModelTest {
         every { medicineRepository.observeAllActive() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         assertTrue(viewModel.uiState.value.isLoading)
 
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.isLoading)
+        collectJob.cancel()
+    }
+
+    @Test
+    fun medicineRowsCarryMatchingStockProjection() = runTest {
+        val medicine = testMedicine(uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000021"))
+        val otherMedicine = testMedicine(
+            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000022"),
+            key = MedicationKey.SPIRONOLACTONE,
+        )
+        val projection = MedicineStockProjection(
+            medicine = medicine,
+            dosesPerDayMagnitude = 1.0,
+            totalStockUnits = 10.0,
+            runwayDays = 10.0,
+            state = MedicineStockState.HEALTHY,
+        )
+        val otherProjection = projection.copy(medicine = otherMedicine)
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { stockRepository.observeProjections() } returns flowOf(listOf(otherProjection, projection))
+
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
+        val collectJob = startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val item = viewModel.uiState.value.activeSections
+            .single { it.category == MedicationCategory.ESTRADIOL }
+            .medicines
+            .single()
+        assertEquals(projection, item.stockProjection)
         collectJob.cancel()
     }
 

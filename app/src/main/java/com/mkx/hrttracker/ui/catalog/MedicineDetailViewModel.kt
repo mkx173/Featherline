@@ -55,7 +55,7 @@ class MedicineDetailViewModel @Inject constructor(
     medicationGroupRepository: MedicationGroupRepository,
     private val stockRepository: MedicineStockRepository,
     settingsRepository: SettingsRepository,
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val medicineUuid: UUID = run {
@@ -123,7 +123,7 @@ class MedicineDetailViewModel @Inject constructor(
                 _uiState.update { current ->
                     // Preserve preparationDraft from the UI side; nothing
                     // upstream owns it.
-                    state.copy(
+                    val preservedState = state.copy(
                         preparationDraft = current.preparationDraft,
                         showAdjustSheet = current.showAdjustSheet,
                         showWarnAtSheet = current.showWarnAtSheet,
@@ -131,6 +131,7 @@ class MedicineDetailViewModel @Inject constructor(
                         adjustSheetActiveTab = current.adjustSheetActiveTab,
                         pendingEnableTracking = current.pendingEnableTracking,
                     )
+                    consumeOpenOptInRequestIfReady(preservedState)
                 }
             }
         }
@@ -294,6 +295,21 @@ class MedicineDetailViewModel @Inject constructor(
         return true
     }
 
+    private fun consumeOpenOptInRequestIfReady(
+        state: MedicineDetailUiState,
+    ): MedicineDetailUiState {
+        if (savedStateHandle.get<Boolean>(OPEN_OPT_IN_ARG) != true) return state
+        val projection = state.stockProjection ?: return state
+        savedStateHandle[OPEN_OPT_IN_ARG] = false
+        if (projection.medicine.stock.trackingEnabled) return state
+        if (projection.medicine.preparation is MedicinePreparation.PatchOff) return state
+        return state.copy(
+            showAdjustSheet = true,
+            adjustSheetActiveTab = AdjustSheetTab.RECEIVED,
+            pendingEnableTracking = true,
+        )
+    }
+
     fun saveDisplayName(): Job = viewModelScope.launch {
         val draft = displayNameTextFlow.value ?: return@launch
         val sanitized = draft.trim().takeIf(String::isNotBlank)
@@ -451,6 +467,7 @@ class MedicineDetailViewModel @Inject constructor(
 
     companion object {
         const val MEDICINE_ID_ARG = "medicineId"
+        const val OPEN_OPT_IN_ARG = "openOptIn"
     }
 }
 

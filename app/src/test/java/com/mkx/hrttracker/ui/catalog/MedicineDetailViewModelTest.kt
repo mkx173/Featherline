@@ -810,4 +810,92 @@ class MedicineDetailViewModelTest {
             )
         }
     }
+
+    @Test
+    fun openOptInRouteFlagAutoOpensReceivedSheetForUntrackedMedicine() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000018")
+        val medicine = testMedicine(uuid = medicineUuid)
+        val savedStateHandle = SavedStateHandle(
+            mapOf(
+                MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString(),
+                MedicineDetailViewModel.OPEN_OPT_IN_ARG to true,
+            ),
+        )
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { stockRepository.observeProjections() } returns flowOf(
+            listOf(
+                MedicineStockProjection(
+                    medicine = medicine,
+                    dosesPerDayMagnitude = 0.0,
+                    totalStockUnits = 0.0,
+                    runwayDays = null,
+                    state = MedicineStockState.UNTRACKED,
+                )
+            )
+        )
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = savedStateHandle,
+        )
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.showAdjustSheet)
+        assertEquals(AdjustSheetTab.RECEIVED, viewModel.uiState.value.adjustSheetActiveTab)
+        assertEquals(true, viewModel.uiState.value.pendingEnableTracking)
+        assertEquals(false, savedStateHandle[MedicineDetailViewModel.OPEN_OPT_IN_ARG])
+    }
+
+    @Test
+    fun openOptInRouteFlagDoesNotAutoOpenForTrackedMedicine() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000019")
+        val medicine = testMedicine(
+            uuid = medicineUuid,
+            stock = MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 10.0,
+                unitsLastTotal = 10.0,
+            ),
+        )
+        val savedStateHandle = SavedStateHandle(
+            mapOf(
+                MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString(),
+                MedicineDetailViewModel.OPEN_OPT_IN_ARG to true,
+            ),
+        )
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { stockRepository.observeProjections() } returns flowOf(
+            listOf(
+                MedicineStockProjection(
+                    medicine = medicine,
+                    dosesPerDayMagnitude = 0.0,
+                    totalStockUnits = 10.0,
+                    runwayDays = null,
+                    state = MedicineStockState.NO_RUNWAY,
+                )
+            )
+        )
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = savedStateHandle,
+        )
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.uiState.value.showAdjustSheet)
+        assertEquals(false, viewModel.uiState.value.pendingEnableTracking)
+        assertEquals(false, savedStateHandle[MedicineDetailViewModel.OPEN_OPT_IN_ARG])
+    }
 }

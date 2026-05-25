@@ -1,5 +1,9 @@
 package com.mkx.hrttracker.ui.catalog
 
+import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -73,4 +77,61 @@ class MedicinesScreenLayoutTest {
             medicineManagerAddNewTarget(MedicineManagerLaunchMode.ManualLog),
         )
     }
+
+    @Test
+    fun medicineManagerFuelGaugeShownOnlyForTrackedRunwayStates() {
+        assertFalse(medicineManagerShowsFuelGauge(testProjection(MedicineStockState.UNTRACKED)))
+        assertFalse(medicineManagerShowsFuelGauge(testProjection(MedicineStockState.NO_RUNWAY)))
+        assertTrue(medicineManagerShowsFuelGauge(testProjection(MedicineStockState.OUT)))
+        assertTrue(medicineManagerShowsFuelGauge(testProjection(MedicineStockState.LOW)))
+        assertTrue(medicineManagerShowsFuelGauge(testProjection(MedicineStockState.HEALTHY)))
+    }
+
+    @Test
+    fun medicineManagerFuelGaugeProgressUsesWarnBuffer() {
+        assertEquals(
+            0.5f,
+            medicineManagerFuelGaugeProgress(
+                testProjection(
+                    state = MedicineStockState.HEALTHY,
+                    runwayDays = 21.0,
+                    warnAtDaysRemaining = 14,
+                )
+            ),
+        )
+        assertEquals(
+            1.0f,
+            medicineManagerFuelGaugeProgress(
+                testProjection(
+                    state = MedicineStockState.HEALTHY,
+                    runwayDays = 99.0,
+                    warnAtDaysRemaining = 14,
+                )
+            ),
+        )
+        assertEquals(
+            0.0f,
+            medicineManagerFuelGaugeProgress(testProjection(MedicineStockState.NO_RUNWAY)),
+        )
+    }
+}
+
+private fun testProjection(
+    state: MedicineStockState,
+    runwayDays: Double? = 7.0,
+    warnAtDaysRemaining: Int = 14,
+): MedicineStockProjection {
+    val medicine = testMedicine(
+        stock = MedicineStock(
+            trackingEnabled = state != MedicineStockState.UNTRACKED,
+            warnAtDaysRemaining = warnAtDaysRemaining,
+        )
+    )
+    return MedicineStockProjection(
+        medicine = medicine,
+        dosesPerDayMagnitude = 1.0,
+        totalStockUnits = 7.0,
+        runwayDays = runwayDays,
+        state = state,
+    )
 }
