@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.data.repository
 
+import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.MedicineDao
@@ -10,14 +12,21 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.util.ToastManager
+import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkObject
 import io.mockk.slot
+import io.mockk.unmockkObject
+import io.mockk.verify
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -30,15 +39,22 @@ import java.time.Instant
 import java.util.UUID
 
 class MedicineRepositoryTest {
+    private val context: Context = mockk()
     private val databaseHolder: DatabaseHolder = mockk()
     private val database: HrtTrackerDatabase = mockk()
     private val dao: MedicineDao = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
+    private val duplicateMedicineMessage = "Medicine already exists."
 
     private lateinit var repository: MedicineRepository
 
     @Before
     fun setUp() {
+        mockkObject(ToastManager)
+        every { ToastManager.showMessage(any()) } just Runs
+
+        every { context.getString(R.string.medicine_already_exists) } returns
+            duplicateMedicineMessage
         every { databaseHolder.databaseFlow } returns MutableStateFlow(null)
         every { databaseHolder.get() } returns database
         every { database.medicineDao() } returns dao
@@ -50,9 +66,15 @@ class MedicineRepositoryTest {
         }
 
         repository = MedicineRepository(
+            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
         )
+    }
+
+    @After
+    fun tearDown() {
+        unmockkObject(ToastManager)
     }
 
     @Test
@@ -74,6 +96,20 @@ class MedicineRepositoryTest {
     }
 
     @Test
+    fun findOrCreateForCatalog_showsToastWhenActiveMedicineWithMatchingIdentityExists() = runTest {
+        val entity = medicineEntity(archivedAtEpochMillis = null)
+        coEvery { dao.getByIdentityKey("C|ESTRADIOL|PILL|strengthMgPerTablet=2") } returns entity
+
+        repository.findOrCreateForCatalog(
+            medicationKey = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(2.0),
+            now = Instant.ofEpochMilli(500),
+        )
+
+        verify(exactly = 1) { ToastManager.showMessage(duplicateMedicineMessage) }
+    }
+
+    @Test
     fun findOrCreateForCatalog_revivesArchivedMedicine() = runTest {
         val now = Instant.ofEpochMilli(500)
         val entity = medicineEntity(archivedAtEpochMillis = 300)
@@ -91,6 +127,22 @@ class MedicineRepositoryTest {
         assertEquals(now, medicine.updatedAt)
         coVerify(exactly = 1) { dao.unarchive(entity.uuid, now.toEpochMilli()) }
         coVerify(exactly = 0) { dao.insert(any()) }
+    }
+
+    @Test
+    fun findOrCreateForCatalog_doesNotShowToastWhenMatchingMedicineIsArchived() = runTest {
+        val now = Instant.ofEpochMilli(500)
+        val entity = medicineEntity(archivedAtEpochMillis = 300)
+        coEvery { dao.getByIdentityKey("C|ESTRADIOL|PILL|strengthMgPerTablet=2") } returns entity
+        coEvery { dao.unarchive(entity.uuid, now.toEpochMilli()) } returns Unit
+
+        repository.findOrCreateForCatalog(
+            medicationKey = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(2.0),
+            now = now,
+        )
+
+        verify(exactly = 0) { ToastManager.showMessage(any()) }
     }
 
     @Test

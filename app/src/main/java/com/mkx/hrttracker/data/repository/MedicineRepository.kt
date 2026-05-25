@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.data.repository
 
+import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
@@ -12,6 +14,8 @@ import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.normalizeCustomMedicationName
+import com.mkx.hrttracker.util.ToastManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -24,6 +28,7 @@ import javax.inject.Singleton
 
 @Singleton
 class MedicineRepository @Inject constructor(
+    @param:ApplicationContext private val context: Context,
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotRepository: HomeSnapshotRepository,
 ) {
@@ -142,6 +147,7 @@ class MedicineRepository @Inject constructor(
             identityKey = MedicineIdentityKey.patchOff(),
             displayDoseUnit = MedicineDisplayDoseUnit.MG,
             now = now,
+            notifyOnActiveExisting = false,
         )
     }
 
@@ -283,13 +289,16 @@ class MedicineRepository @Inject constructor(
         identityKey: String,
         displayDoseUnit: MedicineDisplayDoseUnit,
         now: Instant,
+        notifyOnActiveExisting: Boolean = true,
     ): Medicine {
         val nowEpochMillis = now.toEpochMilli()
-        return homeSnapshotRepository.runHomeDataMutation {
+        var activeExistingMedicineFound = false
+        val medicine = homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
                 val dao = database.medicineDao()
                 val existing = dao.getByIdentityKey(identityKey)
                 if (existing != null) {
+                    activeExistingMedicineFound = existing.archivedAtEpochMillis == null
                     return@withTransaction dao.activateExisting(existing, nowEpochMillis)
                 }
 
@@ -310,10 +319,17 @@ class MedicineRepository @Inject constructor(
                     medicine
                 } catch (exception: SQLiteConstraintException) {
                     val raced = dao.getByIdentityKey(identityKey) ?: throw exception
+                    activeExistingMedicineFound = raced.archivedAtEpochMillis == null
                     dao.activateExisting(raced, nowEpochMillis)
                 }
             }
         }
+        if (notifyOnActiveExisting && activeExistingMedicineFound) {
+            ToastManager.showMessage(
+                context.getString(R.string.medicine_already_exists),
+            )
+        }
+        return medicine
     }
 
     private suspend fun MedicineDao.activateExisting(

@@ -143,7 +143,7 @@ private fun CreateMedicineSheetContent(
 internal fun CreateMedicineResultText(saveResult: CreateMedicineSaveResult?) {
     val messageRes = when (saveResult) {
         CreateMedicineSaveResult.FAILURE_IDENTITY_COLLISION ->
-            R.string.medicine_save_identity_collision
+            R.string.medicine_already_exists
 
         CreateMedicineSaveResult.FAILURE_OTHER -> R.string.medicine_save_failure
         CreateMedicineSaveResult.SUCCESS,

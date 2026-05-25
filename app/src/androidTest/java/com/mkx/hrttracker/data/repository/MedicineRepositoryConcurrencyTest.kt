@@ -51,6 +51,7 @@ class MedicineRepositoryConcurrencyTest {
         }
 
         repository = MedicineRepository(
+            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
         )

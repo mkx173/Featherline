@@ -100,9 +100,8 @@ fun MedicineDetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    val saveSuccessMessage = stringResource(R.string.medicine_save_success)
     val saveLockedMessage = stringResource(R.string.medicine_locked_by_logs)
-    val saveCollisionMessage = stringResource(R.string.medicine_save_identity_collision)
+    val saveCollisionMessage = stringResource(R.string.medicine_already_exists)
     val saveFailureMessage = stringResource(R.string.medicine_save_failure)
     val archiveBlockedMessage = stringResource(R.string.medicine_archive_blocked_by_groups)
     val archiveFailureMessage = stringResource(R.string.medicine_archive_failure)
@@ -110,12 +109,14 @@ fun MedicineDetailScreen(
     LaunchedEffect(uiState.saveResult) {
         val result = uiState.saveResult ?: return@LaunchedEffect
         val message = when (result) {
-            MedicineDetailSaveResult.SUCCESS -> saveSuccessMessage
+            MedicineDetailSaveResult.SUCCESS -> null
             MedicineDetailSaveResult.FAILURE_LOCKED -> saveLockedMessage
             MedicineDetailSaveResult.FAILURE_IDENTITY_COLLISION -> saveCollisionMessage
             MedicineDetailSaveResult.FAILURE_OTHER -> saveFailureMessage
         }
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        if (message != null) {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
         viewModel.clearSaveResult()
     }
 
