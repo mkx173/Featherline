@@ -2,21 +2,26 @@
 
 How Featherline exports user data to a single encrypted file and how
 that file is read back. The whole subsystem lives in
-[`data/backup/`](https://github.com/mkx173/Featherline/tree/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup)
-(five files, ~2 100 LOC).
+[`data/backup/`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup)
+(five files, ~2 600 LOC).
 
 ## Two version numbers
 
 - **Envelope format version** —
-  [`CURRENT_BACKUP_CONTAINER_VERSION = 3`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L399).
+  [`CURRENT_BACKUP_CONTAINER_VERSION = 3`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L399).
   Describes the on-disk byte layout. Bumps are rare and crypto-
   breaking — they cover changes to the framing or to the
   cryptographic primitives.
 - **Snapshot JSON version** —
-  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 1`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt#L158).
+  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 3`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt#L213).
   Describes the plaintext payload — the `BackupSnapshot` data-class
   tree serialized as JSON. Bumps are reserved for renames, removals,
-  or semantic changes to existing fields.
+  or semantic changes to existing fields. The restore path also
+  enforces a floor of
+  [`MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt#L684):
+  v1 files are rejected with no migration path, because the medicine-
+  identity refactor renamed and removed denormalized fields on group
+  items and log entries (see "Cross-version restore matrix" below).
 
 The envelope reader still accepts a legacy v2 envelope: same framing
 without the compression byte or uncompressed-length field, payload
@@ -26,9 +31,9 @@ stored as-is. Writers only emit version `3`.
 
 One contiguous byte sequence: a 65-byte header followed by AES-GCM
 ciphertext with its 16-byte tag appended. Built by
-[`buildArgon2Header`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L202)
+[`buildArgon2Header`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L202)
 and parsed by
-[`parseContainer`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L226):
+[`parseContainer`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L226):
 
 ```text
 offset  size  field
@@ -55,18 +60,18 @@ The full 65-byte header is fed to AES-GCM as Additional Authenticated
 Data, so tampering with any declared parameter fails the auth check at
 decrypt time. Salt and nonce lengths are read from the header rather
 than assumed, so differently-sized envelopes still parse.
-[`FIXED_HEADER_LENGTH_V3 = 37`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L415)
+[`FIXED_HEADER_LENGTH_V3 = 37`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L415)
 gates the minimum-bytes check; the legacy v2 header was 28 bytes.
 
 ## Encryption
 
 ### Key derivation
 
-[`BackupArgon2KeyDeriver`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L427)
+[`BackupArgon2KeyDeriver`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L427)
 wraps the [argon2kt][argon2kt] library and calls `Argon2Mode.ARGON2_ID`
 with the parameters read from the header and a 16-byte random salt.
 Defaults from
-[`DEFAULT_ARGON2_PARAMETERS`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L400):
+[`DEFAULT_ARGON2_PARAMETERS`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L400):
 time cost `3` iterations, memory cost `65 536` KiB (64 MiB),
 parallelism `1` lane, hash length `32` bytes (matches AES-256 key
 length), mode Argon2id. Storing parameters in the envelope rather than
@@ -83,7 +88,7 @@ not a defence against an in-process attacker.
 ### Symmetric encryption
 
 `AES/GCM/NoPadding` via platform JCA in
-[`encryptWithAesGcm`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L174):
+[`encryptWithAesGcm`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L174):
 32-byte key from Argon2; 12-byte nonce fresh per export from
 `SecureRandom`, never reused; 128-bit auth tag appended to the
 ciphertext by JCA. The full 65-byte header is the AAD, so tampering
@@ -95,28 +100,31 @@ distinguished externally.
 The plaintext fed into AES-GCM is `gzip(json)`, not the JSON. The
 header's uncompressed-length field is the pre-gzip JSON byte count;
 gunzip refuses payloads that don't match or that exceed the
-[`MAX_BACKUP_JSON_BYTES = 128 MiB`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L416)
+[`MAX_BACKUP_JSON_BYTES = 128 MiB`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L416)
 cap (decompression-bomb defence).
 
 ## Snapshot tree
 
-Twelve `@JsonClass` data classes in
-[`BackupSnapshot.kt`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt).
+Thirteen `@JsonClass` data classes in
+[`BackupSnapshot.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt).
 The tree is the wire-format mirror of the Room schema documented in
 [`data-model.md`](data-model.md#entities); each row maps one
 snapshot class to its entity. Nested-in-line snapshots are children
 flattened into the parent's JSON.
 
 - `BackupSnapshot` — top-level: `snapshotVersion`,
-  `exportedAtEpochMillis`, plus the sub-snapshots below.
+  `exportedAtEpochMillis`, plus the sub-snapshots below. The
+  `medicines` list is positioned ahead of `medicationGroups` and
+  `medicationLogs` so the importer can build its valid-medicine FK set
+  before walking any item or log that references one.
 - `BackupAppSnapshot` — just `packageName`; restore rejects
   cross-app files.
 - `BackupSettingsSnapshot` — flat DataStore values (dark mode,
   adaptive color, reminders, archived-record visibility,
   reference-range visibility, app-lock grace period, hide-screen-content,
-  onboarding, language, home E2 display unit, home E2 chart window,
-  per-analyte calibration default units, last-seen time-zone,
-  `hideMedicationDetails`, the widget-only knobs
+  onboarding, language, `firstDayOfWeekOption`, home E2 display unit,
+  home E2 chart window, per-analyte calibration default units,
+  last-seen time-zone, `hideMedicationDetails`, the widget-only knobs
   `widgetContentScale` / `widgetBackgroundAlpha` /
   `widgetDarkModeOption`, and the `groupNameCounter` used to suffix
   default group names). `screenLockProtectionEnabled` is intentionally
@@ -124,6 +132,24 @@ flattened into the parent's JSON.
 - `BackupUserProfileSnapshot` →
   [`UserProfileEntity`](data-model.md#userprofileentity); carries
   `weightKg` plus the original value + unit for display round-trip.
+- `BackupMedicineSnapshot` →
+  [`MedicineEntity`](data-model.md#medicineentity); the canonical
+  identity row that most group items and log entries point at via
+  `medicineUuid` (normal app-created PATCH_OFF rows store `null`
+  instead and rely on `applicationType = PATCH_OFF`; restore also
+  accepts compatible backups whose PATCH_OFF rows point at the
+  singleton UUID). Carries the `selectionKind` discriminator plus
+  `medicationKey` (catalog selections) or
+  `customMedicationName` + `customMedicationNameNormalized` (custom
+  selections); `category`; the `preparationType` enum plus its
+  per-shape numeric strengths (`strengthMgPerTablet` — dual-purpose
+  for PILL and CAPSULE — `strengthMgPerVial`, `concentrationMgPerMl`,
+  `vialVolumeMl`, `concentrationPercent`, `sachetWeightGrams`,
+  `containerWeightGrams`, `patchTotalMg`,
+  `patchReleaseRateMcgPerDay`); optional `displayName`; `identityKey`
+  for duplicate detection; created/updated/archived timestamps; and an
+  optional `displayDoseUnit` (added when the custom-medicine unit
+  picker shipped; missing values default to `MG` on restore).
 - `BackupMedicationGroupSnapshot` →
   [`MedicationGroupEntity`](data-model.md#medicationgroupentity),
   with three child snapshots nested in-line:
@@ -132,12 +158,38 @@ flattened into the parent's JSON.
   [`MedicationGroupScheduleTimeEntity`](data-model.md#medicationgroupscheduletimeentity);
   `BackupMedicationGroupItemSnapshot` →
   [`MedicationGroupItemEntity`](data-model.md#medicationgroupitementity).
-  Weekly days are not a snapshot class — they reconstruct from
-  `schedule.weeklyDaysOfWeek`.
+  Group-item rows carry `count`, a nullable `medicineUuid` (PATCH_OFF
+  rows may omit it; restore also accepts a UUID pointing at the
+  PATCH_OFF sentinel), `applicationType`,
+  `doseInstructionKind`, and the dose-shape numerics matching that
+  kind (`tabletFractionNumerator` / `tabletFractionDenominator`,
+  `doseVolumeMl`, `doseWeightGrams`, `gelApplicationArea`). The
+  pre-refactor denormalized identity fields (`medicationKey`,
+  `customMedicationName`, `doseKind`, `doseValueMg`, `customDoseUnit`,
+  `doseValuePercent`, `doseReleaseRateMcgPerDay`) are gone — the
+  referenced `BackupMedicineSnapshot` owns identity and per-medicine
+  strength now. Weekly days are not a snapshot class — they
+  reconstruct from `schedule.weeklyDaysOfWeek`.
 - `BackupMedicationLogSnapshot` →
   [`MedicationLogEntryEntity`](data-model.md#medicationlogentryentity);
-  carries `dosageMgAsEstradiol` and the slot-fulfillment link
-  (`sourceGroupUuid` / `scheduleTimeUuid` / `scheduledForIso`).
+  carries the historical `category` (preserved so logs stay
+  classifiable even after the referenced medicine is archived or
+  recategorised), a nullable `medicineUuid` (PATCH_OFF logs may omit
+  it; restore also accepts a UUID pointing at the PATCH_OFF sentinel),
+  `applicationType`, `doseInstructionKind` plus matching
+  dose-shape numerics (`tabletFractionNumerator` /
+  `tabletFractionDenominator`, `doseVolumeMl`, `doseWeightGrams`,
+  `gelApplicationArea`), `equivalentE2Mg` (the snapshotted PK input —
+  nullable whenever `DoseInstructionCalculator` cannot derive a
+  catalog estradiol equivalent: non-estradiol categories, custom
+  medicines, all catalog estradiol patches, and PATCH_OFF), the
+  slot-fulfillment link
+  (`sourceGroupUuid` / `scheduleTimeUuid` / `scheduledForIso`),
+  applied time + zone, and `count`. The pre-refactor denormalized
+  identity fields (`selectionKind`, `medicationKey`,
+  `customMedicationName`, `doseKind`, `doseValueMg`, `customDoseUnit`,
+  `doseValuePercent`, `doseReleaseRateMcgPerDay`,
+  `dosageMgAsEstradiol`) were dropped in the same v1 → v2 cut.
 - `BackupCustomBloodAnalyteSnapshot` →
   [`CustomBloodAnalyteEntity`](data-model.md#custombloodanalyteentity).
 - `BackupBloodTestPanelSnapshot` →
@@ -149,13 +201,13 @@ flattened into the parent's JSON.
   (exclusive), `value` + `unitSnapshot`, and `canonicalValue`.
 
 Serialization is by Moshi via
-[`BackupSnapshotJsonCodec`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshotJsonCodec.kt)
+[`BackupSnapshotJsonCodec`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshotJsonCodec.kt)
 with `.serializeNulls()` enabled — `null` fields are written
 explicitly and distinguishable from missing-on-read.
 
 ## Export flow
 
-[`BackupExportService.kt`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupExportService.kt)
+[`BackupExportService.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupExportService.kt)
 runs on `Dispatchers.IO`:
 
 1. Read every backed-up table via its repository.
@@ -180,7 +232,7 @@ between them.
 
 ## Restore flow
 
-[`BackupRestoreService.kt`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt)
+[`BackupRestoreService.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt)
 runs on `Dispatchers.IO`. Validation is layered into four passes so
 incompatible files are rejected at the cheapest detection point.
 
@@ -188,14 +240,14 @@ incompatible files are rejected at the cheapest detection point.
    bytes are read into memory up front; later passes re-read the
    buffer.
 2. **Pass 1 — envelope shape.**
-   [`validateEncryptedBackupContainer`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L58)
+   [`validateEncryptedBackupContainer`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L58)
    parses magic, version, KDF / cipher / compression identifiers, and
    Argon2 parameters. Failures wrap as
    `IncompatibleBackupFileException` so the UI can distinguish "not a
    backup" from "wrong password". Runs before the password dialog
    opens.
 3. **Pass 2 — decrypt + auth-tag verify.**
-   [`decrypt`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L109)
+   [`decrypt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L109)
    derives the key from the entered password and the envelope's salt,
    runs AES-GCM with the header as AAD.
 4. **Pass 3 — decompress + JSON decode.** Gunzip refuses payloads
@@ -203,22 +255,34 @@ incompatible files are rejected at the cheapest detection point.
    the 128 MiB cap; `BackupSnapshotJsonCodec.decode` throws on
    missing required fields.
 5. **Pass 4 — semantic validation.**
-   [`toValidatedSnapshot`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt#L243)
+   [`toValidatedSnapshot`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt#L272)
    runs these checks:
-   - version + identity: `snapshotVersion`, `app.packageName`
+   - version + identity: `snapshotVersion` must fall in
+     `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION`
+     (currently `2..3`); v1 backups are rejected here with no
+     migration path because the medicine-identity refactor removed
+     the denormalized identity fields older payloads relied on.
+     `app.packageName` must match the running app.
    - parseability: enum-name resolution, UUID parsing, `DayOfWeek`
      and `ZoneId.of` round-trips
-   - value sanity: positive-finite doses
-   - FK consistency: every log's `sourceGroupUuid` references a
-     restored group; every custom-analyte-keyed result references a
-     custom analyte in the same snapshot; every `scheduleTimeUuid`
-     belongs to its log's source group
+   - value sanity: positive-finite doses, including `equivalentE2Mg`
+     on log entries when present
+   - FK consistency: the medicines section is consumed first, and the
+     resulting `{medicineUuid → MedicineEntity}` map is what every
+     subsequent group-item and log-entry check resolves against —
+     non-PATCH_OFF rows must point at a medicine present in this
+     backup, active groups must not reference an archived medicine,
+     and medicine identity keys must be unique within the file. After
+     that, every log's `sourceGroupUuid` must reference a restored
+     group; every custom-analyte-keyed result must reference a custom
+     analyte in the same snapshot; every `scheduleTimeUuid` must
+     belong to its log's source group.
    - canonical-value invariant: built-in results agree with
      `BloodTestCatalog.toCanonical` within `1e-6`; custom results
      have `value == canonicalValue`
 
    The settings sub-pass
-   [`toValidatedSettings`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt#L620)
+   [`toValidatedSettings`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt#L686)
    constructs each unit choice through `AllowedAnalyteUnit.of`, so an
    unsupported unit fails before the database is touched. It also
    parses `homeE2ChartWindow` as a `HomeE2ChartWindowOption`, so an
@@ -243,42 +307,59 @@ incompatible files are rejected at the cheapest detection point.
 
 ## Forward-compatibility policy
 
-**Adding fields at snapshot v1 without bumping anything.** New
+**Adding fields without bumping the snapshot version.** New
 `Backup*Snapshot` fields with a Kotlin default value at the
 declaration are forward-compatible: Moshi reads missing fields as the
 default. This is how `lastSeenTimeZoneId`, `hideReferenceRanges`,
 `homeE2ChartWindow`, `archivedAtLocalIso`,
-`includePastScheduledSlots`, `replacedByGroupUuid`, and
-`recreatedFromGroupUuid` shipped without a snapshot-version bump.
-Removing or renaming a field is *not* in this bucket.
+`includePastScheduledSlots`, `replacedByGroupUuid`,
+`recreatedFromGroupUuid`, and `BackupMedicineSnapshot.displayDoseUnit`
+shipped without a snapshot-version bump. Removing or renaming a field
+is *not* in this bucket.
 
 **Bumping the snapshot version (envelope unchanged).** Required when
 a field's *meaning* changes — a rename, removal, unit change, or a
-constraint that breaks older payloads. The validator gates on
-`snapshotVersion == CURRENT_BACKUP_SNAPSHOT_VERSION` exactly, so a
-bump is the moment to add cross-version reader logic.
+constraint that breaks older payloads. The medicine-identity refactor
+is a textbook case: `medicationKey` / `customMedicationName` and the
+old `doseKind` family on `BackupMedicationGroupItemSnapshot` /
+`BackupMedicationLogSnapshot` were *removed* (their data is now
+sourced from the new `BackupMedicineSnapshot` row via `medicineUuid`),
+`dosageMgAsEstradiol` was renamed to `equivalentE2Mg` with PK-input
+semantics, and a non-additive `BackupMedicineSnapshot` section was
+introduced — so v1 → v2 was mandatory. The v2 → v3 bump added
+`CAPSULE` to `preparationType`; older apps would coerce the unknown
+enum to `PILL` and silently misclassify capsules. The validator gates
+on `snapshotVersion in MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION`,
+so bumping `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION` is how we drop
+support for a version when carrying its reader logic is no longer
+worth it.
 
 **Bumping the envelope version (crypto break).** Required when framing
 or primitives change. KDF and cipher are recorded as identifier bytes
-([`KDF_ARGON2_ID = 2`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L409),
-[`CIPHER_AES_256_GCM = 1`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L410)),
+([`KDF_ARGON2_ID = 2`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L409),
+[`CIPHER_AES_256_GCM = 1`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L410)),
 so additions can extend the readable set without bumping. A bump is
 reserved for changes that break parser invariants — different field
 ordering, a different fixed-header length, a different AAD contract.
+The medicine-identity refactor did *not* touch the envelope; only the
+inner snapshot version moved.
 
 **Cross-version restore matrix:**
 
 | Envelope | Snapshot | Reader | Outcome |
 | --- | --- | --- | --- |
-| v2 | v1 | This version | Restores. Legacy framing, payload uncompressed. |
-| v3 | v1 | This version | Restores normally. |
-| v3 | v1 with omitted optional fields | This version | Restores; missing fields take their data-class defaults. |
+| v2 | v2 or v3 | This version | Restores. Legacy framing, payload uncompressed. |
+| v3 | v2 | This version | Restores normally. |
+| v3 | v3 | This version | Restores normally. |
+| v3 | v3 with omitted optional fields | This version | Restores; missing fields take their data-class defaults. |
+| Any | v1 | This version | Rejected by `toValidatedSnapshot`'s floor check — `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2`. No migration path: the medicine-identity refactor removed the denormalized fields v1 carried. |
 | Future | any | This version | Rejected at `parseContainer` (`IllegalArgumentException("Unsupported backup file version: …")`). |
-| v3 | Future snapshot version | This version | Rejected by `toValidatedSnapshot`'s `snapshotVersion` check. |
+| v3 | Future snapshot version | This version | Rejected by `toValidatedSnapshot`'s `snapshotVersion` range check. |
 
 Writers only emit current envelope + current snapshot version. The
-asymmetry — older-into-newer supported, newer-into-older rejected —
-is enforced by version-number checks, not heuristics.
+asymmetry — older-into-newer supported down to the declared floor,
+newer-into-older rejected — is enforced by version-number checks, not
+heuristics.
 
 ## Relation to Room migrations
 

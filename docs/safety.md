@@ -39,7 +39,7 @@ Blood tests, drawn at the appropriate time relative to your dosing and interpret
 
 - It does not recommend doses.
 - It does not interpret lab results.
-- It does not alert you to concerning trends, out-of-range values, or anomalies.
+- It does not alert you to concerning trends or anomalies. (The reference-range view does flag entered lab values as below / in / above range, but it does not diagnose anything or recommend actions from those classifications.)
 - It does not detect side effects.
 - It does not check for interactions with other medications.
 - It does not replace any clinical visit, lab draw, or in-person care.

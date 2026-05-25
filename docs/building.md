@@ -50,14 +50,14 @@ The output filename is set in the [`androidComponents`](https://github.com/mkx17
 
 ## Signing setup
 
-All built APKs go through the `release` signing config — including the debug build, which assigns it explicitly. Contributors therefore need *some* keystore on disk; the debug keystore workaround under [Quick start](#quick-start) is the cheapest path for non-maintainers.
+The `debug` and `release` build types both assign the `release` signing config explicitly. The `benchmark` build type, derived from `release` via `initWith`, overrides this to use the `debug` signing config — `:macrobenchmark` only needs a runnable APK. Contributors therefore still need *some* keystore on disk for normal debug and release builds; the debug keystore workaround under [Quick start](#quick-start) is the cheapest path for non-maintainers.
 
 Maintainers populate signing one of two ways:
 
 1. Create `keystore.properties` at the repo root (gitignored) with `storeFile`, `storePassword`, `keyAlias`, `keyPassword`.
 2. Set the environment variables `RELEASE_KEYSTORE_PATH`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD` (CI uses this path — see [release-process.md](release-process.md)).
 
-The [`signingValue(...)` helper](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/build.gradle.kts#L29-L32) checks `keystore.properties` first, falls back to env. If neither source supplies a `storeFile` path, the `release` signing config is *constructed* empty — but any build type that consumes it (debug, release, the benchmark type via `initWith(release)`) still fails at packaging with the missing-`storeFile` error. There is no truly unsigned build path today.
+The [`signingValue(...)` helper](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/build.gradle.kts#L29-L32) checks `keystore.properties` first, falls back to env. If neither source supplies a `storeFile` path, the `release` signing config is *constructed* empty — but any build type that consumes it (`debug` and `release`) still fails at packaging with the missing-`storeFile` error. The benchmark build type derives from `release`, then overrides signing to the debug config. There is no truly unsigned debug/release build path today.
 
 ## See also
 

@@ -4,8 +4,8 @@ How Featherline turns a medication schedule into a dose-reminder
 notification at the right wall-clock time, and how that pipeline
 survives reboots, time zone changes, and revoked permissions. The
 whole subsystem lives in
-[`reminder/`](https://github.com/mkx173/Featherline/tree/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder)
-(17 files, ~2 000 LOC). For where it sits in the layer map, see
+[`reminder/`](../app/src/main/java/com/mkx/hrttracker/reminder)
+(18 files, ~2 300 LOC). For where it sits in the layer map, see
 [architecture.md](architecture.md).
 
 ## Sequence
@@ -140,13 +140,22 @@ Each calls `goAsync()` and launches work on the application-scope
 [`MedicationReminderActionHandler.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderActionHandler.kt)
 implements the three user-facing actions:
 
-- `logNow(slots, notificationTag)` — re-checks fulfillment, writes
+- `logNow(slots, logTargets, notificationTag)` — re-checks fulfillment, writes
   missing `MedicationLogEntryInput` rows via
   `medicationLogRepository.saveNewEntries`, shows a localised "added N
   entries" toast (or "nothing to add" if a race already fulfilled the
   slot), clears any snooze records for the slots, cancels the
   notification, and asks the scheduler to reschedule each affected
-  group.
+  group. The write set is locked to the unfulfilled medications
+  represented in the reminder bundle at post time: the bundle filters
+  via `isSlotFulfilledForMedication` so already-logged medications
+  never enter the action payload, and the action `PendingIntent`
+  carries those `(slot, MedicationSignature)` pairs. The handler
+  intersects live unfulfilled slots with those signatures, so identity
+  edits made between display and tap (delete, dose change) drop out
+  naturally instead of re-logging a stale set. A slot that's missing
+  from the parsed target map restricts to nothing rather than falling
+  through to unrestricted behaviour.
 - `remindLater(slots, notificationTag)` — filters to the still-
   unfulfilled slots, hands them to
   `MedicationReminderSnoozeScheduler.snoozeSlots`, shows a "snoozed for

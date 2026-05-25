@@ -5,8 +5,8 @@ How Featherline turns the home-screen cache into two app-widget surfaces
 math on the widget thread, and how those surfaces stay current across
 home-data mutations, settings changes, alarms, time/date events, and
 quick-log taps. The whole subsystem lives in
-[`widget/`](https://github.com/mkx173/Featherline/tree/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget)
-(14 files). For where it sits in the layer map, see
+[`widget/`](../app/src/main/java/com/mkx/hrttracker/widget)
+(15 files). For where it sits in the layer map, see
 [architecture.md](architecture.md).
 
 ## Sequence
@@ -60,10 +60,12 @@ The builder is the only place the widget reads time-of-day cues:
 Each `WidgetDoseRow` carries the identity (`groupUuid`,
 `scheduleTimeUuid`, `medicationUuid`, `entryUuid`), the resolved status
 (`DONE` / `DUE_SOON` / `OVERDUE` / `UPCOMING` / `LOGGED_OUT_OF_WINDOW`),
-display strings, and a `MedicationGroupColorKey` for the accent. The PK
-projection is forwarded verbatim from the home snapshot as a
-`WidgetPkProjectionRecord` so the widget can render an E2 estimate
-without re-simulating.
+display strings, and a `MedicationGroupColorKey` for the accent.
+`medicationUuid` is the per-group slot id (`MedicationGroupMedication.uuid`)
+— the slot itself now FKs to a catalog `Medicine` via `medicineUuid`,
+which the widget does not carry. The PK projection is forwarded verbatim
+from the home snapshot as a `WidgetPkProjectionRecord` so the widget can
+render an E2 estimate without re-simulating.
 
 Manual (off-schedule) log entries take a separate path
 (`toManualWidgetDoseRow`); they intentionally land with
@@ -295,17 +297,20 @@ directly when the snapshot itself hasn't changed.
 is the `ActionCallback` wired to the medium widget's action button and
 the large widget's per-row log buttons. Its parameter contract is four
 keys: `GroupUuidKey`, `ScheduleTimeUuidKey` (nullable), `ScheduledAtKey`
-(serialized `LocalDateTime`), and `MedicationUuidKey` (nullable —
-present only when a single specific medication is being logged rather
-than a whole group).
+(serialized `LocalDateTime`), and `MedicationUuidKey` (empty/null for
+whole-group logging and set to the slot's
+`MedicationGroupMedication.uuid` for single-slot logging, not the
+catalog `Medicine.uuid`).
 
 The callback resolves the group via the
-[`WidgetEntryPoint`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetEntryPoint.kt)
+[`WidgetEntryPoint`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/widget/WidgetEntryPoint.kt)
 Hilt accessor (the standard pattern for getting Hilt-bound singletons
 from non-`@AndroidEntryPoint` receivers and callbacks), narrows the
-medication list when `MedicationUuidKey` is set, reuses the reminder
-subsystem's `buildMissingScheduledLogEntries` to materialise the
-needed logs, and writes them via `MedicationLogRepository.saveNewEntries`.
+medication list when `MedicationUuidKey` is set (matching against
+`group.medications.firstOrNull { it.uuid == medicationUuid }`), reuses
+the reminder subsystem's `buildMissingScheduledLogEntries` to materialise
+the needed logs, and writes them via
+`MedicationLogRepository.saveNewEntries`.
 Persisting goes through `HomeSnapshotRepository.runHomeDataMutation`,
 which means the home-snapshot observer in `HomeWidgetManager`
 re-derives the widget snapshot — the callback itself does not need to
