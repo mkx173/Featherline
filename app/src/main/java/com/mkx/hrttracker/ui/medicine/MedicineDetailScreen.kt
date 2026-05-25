@@ -367,7 +367,12 @@ private fun MedicineHeaderCard(
         medicationCount = 1,
         groupColorKey = null,
         onClick = null,
-        extraSupportingText = medicinePreparationSummary(medicine),
+        // Match the medicine manager row: the detail page describes the
+        // medicine, not an entry, so replace the default route/dose line
+        // with just the preparation summary. Appending it as extra text
+        // doubles the concentration (default already emits "40 mg/mL"
+        // for multi-use vials via doseInstructionSummary).
+        supportingTextOverride = medicinePreparationSummary(medicine),
         leadingIconAsForm = true,
         trailingContent = onEditClick?.let { editClick ->
             {
