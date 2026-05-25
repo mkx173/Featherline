@@ -8,11 +8,16 @@ import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.MedicationGroupDao
 import com.mkx.hrttracker.data.local.MedicationLogDao
+import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.data.local.MedicineDao
+import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.data.local.UserProfileDao
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
@@ -22,14 +27,18 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.IOException
+import java.util.UUID
 
 class BackupRestoreServiceTest {
     private val context: Context = mockk(relaxed = true)
@@ -141,6 +150,35 @@ class BackupRestoreServiceTest {
         )
     }
 
+    @Test
+    fun restoreBackupBytes_roundTripsStockFieldsIntoInsertedEntities() = runTest {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000710")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000711")
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(stockSnapshot(medicineUuid, logUuid)),
+            password = "password".toCharArray(),
+        )
+        val medicinesSlot = slot<List<MedicineEntity>>()
+        val logsSlot = slot<List<MedicationLogEntryEntity>>()
+
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
+
+        coVerify(exactly = 1) { medicineDao.insertAll(capture(medicinesSlot)) }
+        coVerify(exactly = 1) { medicationLogDao.insertEntries(capture(logsSlot)) }
+
+        val restoredMedicine = medicinesSlot.captured.single()
+        assertEquals(true, restoredMedicine.trackingEnabled)
+        assertEquals(30.0, restoredMedicine.stockUnitsRemaining!!, 1e-9)
+        assertEquals(45.0, restoredMedicine.stockUnitsLastTotal!!, 1e-9)
+        assertNull(restoredMedicine.openContainerAmount)
+        assertEquals(10, restoredMedicine.warnAtDaysRemaining)
+        assertEquals(3L, restoredMedicine.stockGeneration)
+
+        val restoredLog = logsSlot.captured.single()
+        assertEquals(0.5, restoredLog.stockDeductionUnits!!, 1e-9)
+        assertEquals(3L, restoredLog.stockGeneration)
+    }
+
     private fun emptySnapshot(): BackupSnapshot {
         return BackupSnapshot(
             exportedAtEpochMillis = 1_777_777_777_000L,
@@ -166,6 +204,70 @@ class BackupRestoreServiceTest {
             medicationLogs = emptyList(),
             customBloodAnalytes = emptyList(),
             bloodTestPanels = emptyList(),
+        )
+    }
+
+    private fun stockSnapshot(
+        medicineUuid: UUID,
+        logUuid: UUID,
+    ): BackupSnapshot {
+        val preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0)
+        return emptySnapshot().copy(
+            medicines = listOf(
+                BackupMedicineSnapshot(
+                    uuid = medicineUuid.toString(),
+                    selectionKind = "CATALOG",
+                    medicationKey = "ESTRADIOL",
+                    customMedicationName = null,
+                    customMedicationNameNormalized = null,
+                    category = "ESTRADIOL",
+                    preparationType = "PILL",
+                    strengthMgPerTablet = 2.0,
+                    strengthMgPerVial = null,
+                    concentrationMgPerMl = null,
+                    vialVolumeMl = null,
+                    concentrationPercent = null,
+                    sachetWeightGrams = null,
+                    containerWeightGrams = null,
+                    patchTotalMg = null,
+                    patchReleaseRateMcgPerDay = null,
+                    displayName = null,
+                    identityKey = MedicineIdentityKey.catalog(MedicationKey.ESTRADIOL, preparation),
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 100L,
+                    archivedAtEpochMillis = null,
+                    stock = BackupMedicineStockSnapshot(
+                        trackingEnabled = true,
+                        unitsRemaining = 30.0,
+                        unitsLastTotal = 45.0,
+                        openContainerAmount = null,
+                        warnAtDaysRemaining = 10,
+                        stockGeneration = 3L,
+                    ),
+                )
+            ),
+            medicationLogs = listOf(
+                BackupMedicationLogSnapshot(
+                    uuid = logUuid.toString(),
+                    category = "ESTRADIOL",
+                    medicineUuid = medicineUuid.toString(),
+                    applicationType = "ORAL",
+                    doseInstructionKind = "TABLET_FRACTION",
+                    tabletFractionNumerator = 1,
+                    tabletFractionDenominator = 1,
+                    doseVolumeMl = null,
+                    doseWeightGrams = null,
+                    gelApplicationArea = "DEFAULT",
+                    equivalentE2Mg = 2.0,
+                    sourceGroupUuid = null,
+                    appliedAtEpochMillis = 200L,
+                    appliedAtTimeZoneId = "Asia/Tokyo",
+                    scheduledForIso = null,
+                    count = 1,
+                    stockDeductionUnits = 0.5,
+                    stockGeneration = 3L,
+                )
+            ),
         )
     }
 }

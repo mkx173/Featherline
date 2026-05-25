@@ -288,6 +288,70 @@ class BackupRestoreValidationTest {
     }
 
     @Test
+    fun toValidatedSnapshot_restoresStockFieldsForMedicinesAndMedicationLogs() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000006b2")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-0000000006b3")
+        val snapshot = BackupSnapshot(
+            snapshotVersion = 3,
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(
+                catalogMedicineSnapshot(medicineUuid).copy(
+                    stock = BackupMedicineStockSnapshot(
+                        trackingEnabled = true,
+                        unitsRemaining = 87.5,
+                        unitsLastTotal = 120.0,
+                        openContainerAmount = null,
+                        warnAtDaysRemaining = 9,
+                        stockGeneration = 7L,
+                    )
+                )
+            ),
+            medicationGroups = emptyList(),
+            medicationLogs = listOf(
+                BackupMedicationLogSnapshot(
+                    uuid = logUuid.toString(),
+                    category = "ESTRADIOL",
+                    medicineUuid = medicineUuid.toString(),
+                    applicationType = "ORAL",
+                    doseInstructionKind = "TABLET_FRACTION",
+                    tabletFractionNumerator = 1,
+                    tabletFractionDenominator = 1,
+                    doseVolumeMl = null,
+                    doseWeightGrams = null,
+                    gelApplicationArea = "DEFAULT",
+                    equivalentE2Mg = 2.0,
+                    sourceGroupUuid = null,
+                    appliedAtEpochMillis = 200L,
+                    appliedAtTimeZoneId = "Asia/Tokyo",
+                    scheduledForIso = null,
+                    count = 1,
+                    stockDeductionUnits = 1.25,
+                    stockGeneration = 7L,
+                )
+            ),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        val result = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        val restoredMedicine = result.medicines.single()
+        assertEquals(true, restoredMedicine.trackingEnabled)
+        assertEquals(87.5, restoredMedicine.stockUnitsRemaining!!, 1e-9)
+        assertEquals(120.0, restoredMedicine.stockUnitsLastTotal!!, 1e-9)
+        assertNull(restoredMedicine.openContainerAmount)
+        assertEquals(9, restoredMedicine.warnAtDaysRemaining)
+        assertEquals(7L, restoredMedicine.stockGeneration)
+
+        val restoredLog = result.medicationLogs.single()
+        assertEquals(1.25, restoredLog.stockDeductionUnits!!, 1e-9)
+        assertEquals(7L, restoredLog.stockGeneration)
+    }
+
+    @Test
     fun toValidatedSnapshot_rejectsCapsuleGroupItemWithSublingualApplicationType() {
         val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000006c0")
         val groupUuid = UUID.fromString("00000000-0000-0000-0000-0000000006c1")

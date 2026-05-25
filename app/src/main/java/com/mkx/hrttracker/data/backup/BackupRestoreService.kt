@@ -556,6 +556,8 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             scheduledForIso = scheduledForIso,
             count = log.count,
             gelApplicationArea = validatedMedication.gelApplicationArea.name,
+            stockDeductionUnits = log.stockDeductionUnits,
+            stockGeneration = log.stockGeneration,
         )
     }
 
@@ -927,6 +929,12 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
         // Backups exported before this column existed simply omit it; default
         // to MG (matches both pre-picker behavior and the model default).
         displayDoseUnit = MedicineDisplayDoseUnit.fromStorageValue(displayDoseUnit).name,
+        trackingEnabled = stock?.trackingEnabled ?: false,
+        stockUnitsRemaining = stock?.unitsRemaining,
+        stockUnitsLastTotal = stock?.unitsLastTotal,
+        openContainerAmount = stock?.openContainerAmount,
+        warnAtDaysRemaining = stock?.warnAtDaysRemaining ?: 14,
+        stockGeneration = stock?.stockGeneration ?: 0L,
     )
 }
 

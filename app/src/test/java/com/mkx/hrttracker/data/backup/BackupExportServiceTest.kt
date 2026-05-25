@@ -24,6 +24,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
@@ -123,6 +124,64 @@ class BackupExportServiceTest {
         assertEquals("CAPSULE", backedUpMedicine.preparationType)
         assertEquals(100.0, backedUpMedicine.strengthMgPerTablet!!, 1e-9)
         assertEquals(null, backedUpMedicine.strengthMgPerVial)
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_exportsStockFields() = runTest {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000000d0")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-0000000000d1")
+        val medicine = testCustomMedicine(
+            uuid = medicineUuid,
+            medicationName = "Tracked med",
+            category = MedicationCategory.CUSTOM,
+            stock = MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 87.0,
+                unitsLastTotal = 120.0,
+                openContainerAmount = null,
+                warnAtDaysRemaining = 21,
+                generation = 5L,
+            ),
+        )
+
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns listOf(medicine)
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns listOf(
+            MedicationLogEntry(
+                uuid = logUuid,
+                medicine = medicine,
+                category = MedicationCategory.CUSTOM,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                equivalentE2Mg = null,
+                sourceGroupUuid = null,
+                appliedAt = Instant.parse("2026-04-26T01:00:00Z"),
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                stockDeductionUnits = 1.0,
+                stockGeneration = 5L,
+            )
+        )
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+        val snapshot = BackupSnapshotJsonCodec.decode(
+            service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+        )!!
+
+        val stock = snapshot.medicines.single().stock!!
+        assertEquals(true, stock.trackingEnabled)
+        assertEquals(87.0, stock.unitsRemaining!!, 1e-9)
+        assertEquals(120.0, stock.unitsLastTotal!!, 1e-9)
+        assertEquals(null, stock.openContainerAmount)
+        assertEquals(21, stock.warnAtDaysRemaining)
+        assertEquals(5L, stock.stockGeneration)
+
+        val log = snapshot.medicationLogs.single()
+        assertEquals(1.0, log.stockDeductionUnits!!, 1e-9)
+        assertEquals(5L, log.stockGeneration)
     }
 
     @Test
