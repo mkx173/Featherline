@@ -1,13 +1,17 @@
 package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
+import com.mkx.hrttracker.data.local.MedicationLogRefundCandidate
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.isCompatibleWith
 import kotlinx.coroutines.CoroutineScope
@@ -29,9 +33,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class MedicationLogRepository @Inject constructor(
+class MedicationLogRepository @Inject internal constructor(
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotRepository: HomeSnapshotRepository,
+    private val stockMutator: MedicineStockMutator,
     @AppScope appScope: CoroutineScope,
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -143,14 +148,31 @@ class MedicationLogRepository @Inject constructor(
         }
 
         homeSnapshotRepository.runHomeDataMutation {
-            databaseHolder.get().medicationLogDao().deleteEntries(uuids.map(UUID::toString))
+            databaseHolder.withTransaction { database ->
+                val uuidStrings = uuids.map(UUID::toString)
+                val candidates = database.medicationLogDao().getRefundCandidatesByIds(uuidStrings)
+                refundAndDelete(
+                    database = database,
+                    candidates = candidates,
+                    deleteByUuids = uuidStrings,
+                    deleteGroupUuid = null,
+                    deleteAll = false,
+                )
+            }
         }
     }
 
     suspend fun deleteAllEntries() {
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
-                database.medicationLogDao().deleteAllEntries()
+                val candidates = database.medicationLogDao().getAllRefundCandidates()
+                refundAndDelete(
+                    database = database,
+                    candidates = candidates,
+                    deleteByUuids = null,
+                    deleteGroupUuid = null,
+                    deleteAll = true,
+                )
             }
         }
     }
@@ -158,7 +180,15 @@ class MedicationLogRepository @Inject constructor(
     suspend fun deleteEntriesForGroup(groupUuid: UUID) {
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
-                database.medicationLogDao().deleteEntriesForGroup(groupUuid.toString())
+                val groupUuidString = groupUuid.toString()
+                val candidates = database.medicationLogDao().getRefundCandidatesForGroup(groupUuidString)
+                refundAndDelete(
+                    database = database,
+                    candidates = candidates,
+                    deleteByUuids = null,
+                    deleteGroupUuid = groupUuidString,
+                    deleteAll = false,
+                )
             }
         }
     }
@@ -191,20 +221,49 @@ class MedicationLogRepository @Inject constructor(
         }
 
         homeSnapshotRepository.runHomeDataMutation {
-            databaseHolder.get().medicationLogDao().insertEntry(
-                buildEntryEntity(
-                    uuid = UUID.randomUUID(),
-                    medicineUuid = medicineUuid,
+            databaseHolder.withTransaction { database ->
+                val medicine = medicineUuid?.let { mu ->
+                    checkNotNull(database.medicineDao().getByUuid(mu.toString())) {
+                        "Medicine $mu was not found."
+                    }.toMedicineModel()
+                }
+                validateMedicationCompatibility(
+                    fieldPrefix = "medication log",
                     applicationType = applicationType,
                     doseInstruction = doseInstruction,
-                    sourceGroupUuid = sourceGroupUuid,
-                    scheduleTimeUuid = scheduleTimeUuid,
-                    appliedAt = appliedAt,
-                    scheduledFor = scheduledFor,
-                    count = count,
-                    appliedAtTimeZoneId = appliedAtTimeZoneId,
+                    preparationType = medicine?.preparation?.type,
                 )
-            )
+                val stockStamp = medicine?.let {
+                    val requested = resolveRequestedDoseForStock(
+                        preparation = it.preparation,
+                        doseInstruction = doseInstruction,
+                        count = count.coerceAtLeast(1),
+                    )
+                    requested?.let { requestedDose ->
+                        stockMutator.resolveDeductionForInsert(
+                            database = database,
+                            medicineUuid = it.uuid,
+                            requestedDose = requestedDose,
+                        )
+                    }
+                }
+
+                database.medicationLogDao().insertEntry(
+                    buildEntryEntity(
+                        uuid = UUID.randomUUID(),
+                        medicine = medicine,
+                        applicationType = applicationType,
+                        doseInstruction = doseInstruction,
+                        sourceGroupUuid = sourceGroupUuid,
+                        scheduleTimeUuid = scheduleTimeUuid,
+                        appliedAt = appliedAt,
+                        scheduledFor = scheduledFor,
+                        count = count.coerceAtLeast(1),
+                        appliedAtTimeZoneId = appliedAtTimeZoneId,
+                        stockStamp = stockStamp,
+                    )
+                )
+            }
         }
     }
 
@@ -238,11 +297,27 @@ class MedicationLogRepository @Inject constructor(
         }
 
         homeSnapshotRepository.runHomeDataMutation {
-            databaseHolder.get().medicationLogDao().insertEntries(
-                targetUuids.map { uuid ->
+            databaseHolder.withTransaction { database ->
+                val dao = database.medicationLogDao()
+                val priorStockByUuid = dao
+                    .getStockSnapshotsByIds(targetUuids.map(UUID::toString))
+                    .associateBy { it.uuid }
+                val medicine = medicineUuid?.let { mu ->
+                    checkNotNull(database.medicineDao().getByUuid(mu.toString())) {
+                        "Medicine $mu was not found."
+                    }.toMedicineModel()
+                }
+                val entities = targetUuids.map { uuid ->
+                    val prior = priorStockByUuid[uuid.toString()]
+                    val carriedStamp = prior?.stockDeductionUnits?.let { deductionUnits ->
+                        StockDeductionStamp(
+                            deductionUnits = deductionUnits,
+                            generation = prior.stockGeneration ?: 0L,
+                        )
+                    }
                     buildEntryEntity(
                         uuid = uuid,
-                        medicineUuid = medicineUuid,
+                        medicine = medicine,
                         applicationType = applicationType,
                         doseInstruction = doseInstruction,
                         sourceGroupUuid = sourceGroupUuid,
@@ -251,9 +326,11 @@ class MedicationLogRepository @Inject constructor(
                         scheduledFor = scheduledFor,
                         count = count,
                         appliedAtTimeZoneId = appliedAtTimeZoneId,
+                        stockStamp = carriedStamp,
                     )
                 }
-            )
+                dao.insertEntries(entities)
+            }
         }
     }
 
@@ -263,28 +340,60 @@ class MedicationLogRepository @Inject constructor(
         }
 
         homeSnapshotRepository.runHomeDataMutation {
-            databaseHolder.get().medicationLogDao().insertEntries(
-                entries.map { entry ->
+            databaseHolder.withTransaction { database ->
+                val medicineDao = database.medicineDao()
+                val medicineByUuid = mutableMapOf<UUID, Medicine>()
+                val entities = entries.map { entry ->
+                    val medicine = entry.medicineUuid?.let { mu ->
+                        medicineByUuid.getOrPut(mu) {
+                            checkNotNull(medicineDao.getByUuid(mu.toString())) {
+                                "Medicine $mu was not found."
+                            }.toMedicineModel()
+                        }
+                    }
+                    validateMedicationCompatibility(
+                        fieldPrefix = "medication log",
+                        applicationType = entry.applicationType,
+                        doseInstruction = entry.doseInstruction,
+                        preparationType = medicine?.preparation?.type,
+                    )
+                    val stockStamp = medicine?.let {
+                        val requested = resolveRequestedDoseForStock(
+                            preparation = it.preparation,
+                            doseInstruction = entry.doseInstruction,
+                            count = entry.count.coerceAtLeast(1),
+                        )
+                        requested?.let { requestedDose ->
+                            stockMutator.resolveDeductionForInsert(
+                                database = database,
+                                medicineUuid = it.uuid,
+                                requestedDose = requestedDose,
+                            )
+                        }
+                    }
+
                     buildEntryEntity(
                         uuid = UUID.randomUUID(),
-                        medicineUuid = entry.medicineUuid,
+                        medicine = medicine,
                         applicationType = entry.applicationType,
                         doseInstruction = entry.doseInstruction,
                         sourceGroupUuid = entry.sourceGroupUuid,
                         scheduleTimeUuid = entry.scheduleTimeUuid,
                         appliedAt = entry.appliedAt,
                         scheduledFor = entry.scheduledFor,
-                        count = entry.count,
+                        count = entry.count.coerceAtLeast(1),
                         appliedAtTimeZoneId = entry.appliedAtTimeZoneId,
+                        stockStamp = stockStamp,
                     )
                 }
-            )
+                database.medicationLogDao().insertEntries(entities)
+            }
         }
     }
 
-    private suspend fun buildEntryEntity(
+    private fun buildEntryEntity(
         uuid: UUID,
-        medicineUuid: UUID?,
+        medicine: Medicine?,
         applicationType: MedicationApplicationType,
         doseInstruction: DoseInstruction,
         sourceGroupUuid: UUID?,
@@ -293,14 +402,8 @@ class MedicationLogRepository @Inject constructor(
         scheduledFor: LocalDateTime?,
         count: Int,
         appliedAtTimeZoneId: String,
+        stockStamp: StockDeductionStamp?,
     ): MedicationLogEntryEntity {
-        // PATCH_OFF logs carry no medicine; snapshot category = ESTRADIOL (the
-        // only patch) and a null equivalentE2Mg without touching the DAO.
-        val medicine = medicineUuid?.let {
-            checkNotNull(databaseHolder.get().medicineDao().getByUuid(it.toString())) {
-                "Medicine $medicineUuid was not found."
-            }.toMedicineModel()
-        }
         validateMedicationCompatibility(
             fieldPrefix = "medication log",
             applicationType = applicationType,
@@ -333,7 +436,38 @@ class MedicationLogRepository @Inject constructor(
             scheduledForIso = scheduledFor?.toString(),
             count = count.coerceAtLeast(1),
             gelApplicationArea = MedicationGelApplicationArea.DEFAULT.name,
+            stockDeductionUnits = stockStamp?.deductionUnits,
+            stockGeneration = stockStamp?.generation,
         )
+    }
+
+    private suspend fun refundAndDelete(
+        database: HrtTrackerDatabase,
+        candidates: List<MedicationLogRefundCandidate>,
+        deleteByUuids: List<String>?,
+        deleteGroupUuid: String?,
+        deleteAll: Boolean,
+    ) {
+        val now = Instant.now()
+        for (candidate in candidates) {
+            val medicineUuidString = candidate.medicineUuid ?: continue
+            stockMutator.applyRefundForDelete(
+                database = database,
+                medicineUuid = UUID.fromString(medicineUuidString),
+                log = MedicationLogStockSnapshot(
+                    deductionUnits = candidate.stockDeductionUnits,
+                    generation = candidate.stockGeneration,
+                ),
+                now = now,
+            )
+        }
+
+        val dao = database.medicationLogDao()
+        when {
+            deleteAll -> dao.deleteAllEntries()
+            deleteByUuids != null -> dao.deleteEntries(deleteByUuids)
+            deleteGroupUuid != null -> dao.deleteEntriesForGroup(deleteGroupUuid)
+        }
     }
 }
 
@@ -349,6 +483,50 @@ internal fun validateMedicationCompatibility(
     require(doseInstruction.isCompatibleWith(preparationType)) {
         "$fieldPrefix doseInstruction=${doseInstruction.kind} is not compatible with preparation=$preparationType."
     }
+}
+
+internal fun resolveRequestedDoseForStock(
+    preparation: MedicinePreparation,
+    doseInstruction: DoseInstruction,
+    count: Int,
+): Double? {
+    val perAdministration = when (val dose = doseInstruction) {
+        is DoseInstruction.TabletFraction -> {
+            if (preparation is MedicinePreparation.Pill) {
+                dose.numerator.toDouble() / dose.denominator.toDouble()
+            } else {
+                return null
+            }
+        }
+
+        DoseInstruction.WholeUnit -> when (preparation) {
+            is MedicinePreparation.Capsule,
+            is MedicinePreparation.InjectionSingleUseVial,
+            is MedicinePreparation.GelSachet,
+            is MedicinePreparation.Patch -> 1.0
+
+            else -> return null
+        }
+
+        is DoseInstruction.VolumeMl -> {
+            if (preparation is MedicinePreparation.InjectionMultiUseVial) {
+                dose.valueMl
+            } else {
+                return null
+            }
+        }
+
+        is DoseInstruction.WeightGrams -> {
+            if (preparation is MedicinePreparation.GelContainer) {
+                dose.valueGrams
+            } else {
+                return null
+            }
+        }
+
+        DoseInstruction.Noop -> return null
+    }
+    return perAdministration * count.toDouble()
 }
 
 sealed interface ObservedEstradiolEntryLookup {

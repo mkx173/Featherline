@@ -1,0 +1,326 @@
+package com.mkx.hrttracker.data.repository
+
+import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.data.local.HrtTrackerDatabase
+import com.mkx.hrttracker.data.local.MedicationLogDao
+import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
+import com.mkx.hrttracker.data.local.MedicationLogRefundCandidate
+import com.mkx.hrttracker.data.local.MedicationLogStockProjection
+import com.mkx.hrttracker.data.local.MedicineDao
+import com.mkx.hrttracker.data.local.MedicineEntity
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.coVerifyOrder
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.slot
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Before
+import org.junit.Test
+import java.time.Instant
+import java.util.UUID
+
+class MedicationLogRepositoryStockTest {
+    private val databaseHolder: DatabaseHolder = mockk()
+    private val database: HrtTrackerDatabase = mockk()
+    private val medicineDao: MedicineDao = mockk(relaxed = true)
+    private val logDao: MedicationLogDao = mockk(relaxed = true)
+    private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
+    private val stockMutator: MedicineStockMutator = mockk(relaxed = true)
+
+    private lateinit var repository: MedicationLogRepository
+
+    private val medicineUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
+
+    @Before
+    fun setUp() {
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(null)
+        every { databaseHolder.get() } returns database
+        every { database.medicineDao() } returns medicineDao
+        every { database.medicationLogDao() } returns logDao
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+        }
+        coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+
+        repository = MedicationLogRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(StandardTestDispatcher()),
+        )
+    }
+
+    @Test
+    fun saveEntry_invokesMutatorAndStampsRow() = runTest {
+        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns pillEntity()
+        coEvery {
+            stockMutator.resolveDeductionForInsert(
+                database = database,
+                medicineUuid = medicineUuid,
+                requestedDose = 1.0,
+                now = any(),
+            )
+        } returns StockDeductionStamp(deductionUnits = 1.0, generation = 1L)
+
+        val captured = slot<MedicationLogEntryEntity>()
+        coEvery { logDao.insertEntry(capture(captured)) } returns Unit
+
+        repository.saveEntry(
+            uuid = null,
+            medicineUuid = medicineUuid,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = null,
+            appliedAt = Instant.ofEpochMilli(0L),
+        )
+
+        coVerifyOrder {
+            stockMutator.resolveDeductionForInsert(
+                database = database,
+                medicineUuid = medicineUuid,
+                requestedDose = 1.0,
+                now = any(),
+            )
+            logDao.insertEntry(any())
+        }
+        assertEquals(1.0, captured.captured.stockDeductionUnits!!, 0.0)
+        assertEquals(1L, captured.captured.stockGeneration)
+    }
+
+    @Test
+    fun saveNewEntries_invokesMutatorForEachEntryAndStampsRows() = runTest {
+        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns pillEntity()
+        coEvery {
+            stockMutator.resolveDeductionForInsert(
+                database = database,
+                medicineUuid = medicineUuid,
+                requestedDose = 1.0,
+                now = any(),
+            )
+        } returns StockDeductionStamp(deductionUnits = 1.0, generation = 1L)
+        coEvery {
+            stockMutator.resolveDeductionForInsert(
+                database = database,
+                medicineUuid = medicineUuid,
+                requestedDose = 2.0,
+                now = any(),
+            )
+        } returns StockDeductionStamp(deductionUnits = 2.0, generation = 1L)
+
+        val captured = slot<List<MedicationLogEntryEntity>>()
+        coEvery { logDao.insertEntries(capture(captured)) } returns Unit
+
+        repository.saveNewEntries(
+            listOf(
+                MedicationLogEntryInput(
+                    medicineUuid = medicineUuid,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    sourceGroupUuid = null,
+                    appliedAt = Instant.ofEpochMilli(0L),
+                    count = 1,
+                ),
+                MedicationLogEntryInput(
+                    medicineUuid = medicineUuid,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    sourceGroupUuid = null,
+                    appliedAt = Instant.ofEpochMilli(1L),
+                    count = 2,
+                ),
+            )
+        )
+
+        coVerify(exactly = 1) { medicineDao.getByUuid(medicineUuid.toString()) }
+        coVerifyOrder {
+            stockMutator.resolveDeductionForInsert(
+                database = database,
+                medicineUuid = medicineUuid,
+                requestedDose = 1.0,
+                now = any(),
+            )
+            stockMutator.resolveDeductionForInsert(
+                database = database,
+                medicineUuid = medicineUuid,
+                requestedDose = 2.0,
+                now = any(),
+            )
+            logDao.insertEntries(any())
+        }
+        assertEquals(listOf(1.0, 2.0), captured.captured.map { it.stockDeductionUnits })
+        assertEquals(listOf(1L, 1L), captured.captured.map { it.stockGeneration })
+    }
+
+    @Test
+    fun saveEntries_bulkEditPreservesStockMarkersAndDoesNotDeduct() = runTest {
+        val entryUuid = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns pillEntity()
+        coEvery {
+            logDao.getStockSnapshotsByIds(listOf(entryUuid.toString()))
+        } returns listOf(
+            MedicationLogStockProjection(
+                uuid = entryUuid.toString(),
+                stockDeductionUnits = 1.25,
+                stockGeneration = 9L,
+            )
+        )
+
+        val captured = slot<List<MedicationLogEntryEntity>>()
+        coEvery { logDao.insertEntries(capture(captured)) } returns Unit
+
+        repository.saveEntries(
+            uuids = listOf(entryUuid),
+            medicineUuid = medicineUuid,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = null,
+            appliedAt = Instant.ofEpochMilli(0L),
+        )
+
+        val replaced = captured.captured.single()
+        assertEquals(1.25, replaced.stockDeductionUnits!!, 0.0)
+        assertEquals(9L, replaced.stockGeneration)
+        coVerify(exactly = 0) {
+            stockMutator.resolveDeductionForInsert(any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun deleteEntries_invokesRefundForEachCandidateThenDeletes() = runTest {
+        val u1 = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        val u2 = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+        coEvery {
+            logDao.getRefundCandidatesByIds(listOf(u1, u2))
+        } returns listOf(
+            MedicationLogRefundCandidate(
+                uuid = u1,
+                medicineUuid = medicineUuid.toString(),
+                stockDeductionUnits = 1.0,
+                stockGeneration = 1L,
+            ),
+            MedicationLogRefundCandidate(
+                uuid = u2,
+                medicineUuid = medicineUuid.toString(),
+                stockDeductionUnits = null,
+                stockGeneration = null,
+            ),
+        )
+
+        repository.deleteEntries(listOf(UUID.fromString(u1), UUID.fromString(u2)))
+
+        coVerifyOrder {
+            stockMutator.applyRefundForDelete(
+                database = database,
+                medicineUuid = medicineUuid,
+                log = MedicationLogStockSnapshot(deductionUnits = 1.0, generation = 1L),
+                now = any(),
+            )
+            stockMutator.applyRefundForDelete(
+                database = database,
+                medicineUuid = medicineUuid,
+                log = MedicationLogStockSnapshot(deductionUnits = null, generation = null),
+                now = any(),
+            )
+            logDao.deleteEntries(listOf(u1, u2))
+        }
+    }
+
+    @Test
+    fun deleteEntriesForGroup_invokesRefundCandidatesThenDeletesGroup() = runTest {
+        val groupUuid = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc")
+        coEvery {
+            logDao.getRefundCandidatesForGroup(groupUuid.toString())
+        } returns listOf(
+            MedicationLogRefundCandidate(
+                uuid = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                medicineUuid = medicineUuid.toString(),
+                stockDeductionUnits = 0.5,
+                stockGeneration = 2L,
+            )
+        )
+
+        repository.deleteEntriesForGroup(groupUuid)
+
+        coVerifyOrder {
+            stockMutator.applyRefundForDelete(
+                database = database,
+                medicineUuid = medicineUuid,
+                log = MedicationLogStockSnapshot(deductionUnits = 0.5, generation = 2L),
+                now = any(),
+            )
+            logDao.deleteEntriesForGroup(groupUuid.toString())
+        }
+    }
+
+    @Test
+    fun deleteAllEntries_invokesRefundCandidatesThenDeletesAll() = runTest {
+        coEvery { logDao.getAllRefundCandidates() } returns listOf(
+            MedicationLogRefundCandidate(
+                uuid = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                medicineUuid = medicineUuid.toString(),
+                stockDeductionUnits = 0.25,
+                stockGeneration = 3L,
+            )
+        )
+
+        repository.deleteAllEntries()
+
+        coVerifyOrder {
+            stockMutator.applyRefundForDelete(
+                database = database,
+                medicineUuid = medicineUuid,
+                log = MedicationLogStockSnapshot(deductionUnits = 0.25, generation = 3L),
+                now = any(),
+            )
+            logDao.deleteAllEntries()
+        }
+    }
+
+    private fun pillEntity(): MedicineEntity {
+        val preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0)
+        return MedicineEntity(
+            uuid = medicineUuid.toString(),
+            selectionKind = "CATALOG",
+            medicationKey = MedicationKey.ESTRADIOL.name,
+            customMedicationName = null,
+            customMedicationNameNormalized = null,
+            category = MedicationCategory.ESTRADIOL.name,
+            preparationType = preparation.type.name,
+            strengthMgPerTablet = preparation.strengthMgPerTablet,
+            strengthMgPerVial = null,
+            concentrationMgPerMl = null,
+            vialVolumeMl = null,
+            concentrationPercent = null,
+            sachetWeightGrams = null,
+            containerWeightGrams = null,
+            patchTotalMg = null,
+            patchReleaseRateMcgPerDay = null,
+            displayName = null,
+            identityKey = MedicineIdentityKey.catalog(MedicationKey.ESTRADIOL, preparation),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+            archivedAtEpochMillis = null,
+            displayDoseUnit = MedicineDisplayDoseUnit.MG.name,
+            trackingEnabled = true,
+            stockUnitsRemaining = 30.0,
+            stockUnitsLastTotal = 30.0,
+            openContainerAmount = null,
+            warnAtDaysRemaining = 14,
+            stockGeneration = 1L,
+        )
+    }
+}
