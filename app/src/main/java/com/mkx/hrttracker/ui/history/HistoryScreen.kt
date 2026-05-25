@@ -117,6 +117,7 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.MedicationCard
+import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -2069,6 +2070,11 @@ private fun HistoryEntryCard(
         applicationType = entry.applicationType,
         medicationCount = entry.count,
         groupColorKey = groupColorKey,
+        // Manual entries have no source group; render the leading icon in
+        // the neutral group palette to match other manual-log surfaces
+        // instead of falling through to secondaryContainer.
+        missingGroupColorTreatment =
+            MedicationCardMissingGroupColorTreatment.NEUTRAL_GROUP_PALETTE,
         extraSupportingText = groupName,
         onClick = onClick,
         onLongClick = onLongClick,
