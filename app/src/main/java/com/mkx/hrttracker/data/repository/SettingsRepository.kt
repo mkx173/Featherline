@@ -82,6 +82,8 @@ class SettingsRepository @Inject constructor(
     private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val stockIntroPromptShownKey = booleanPreferencesKey("stock_intro_prompt_shown")
+    private val homeLowStockSectionExpandedKey =
+        booleanPreferencesKey("home_low_stock_section_expanded")
     private val lastSeenTimeZoneIdKey = stringPreferencesKey("last_seen_time_zone_id")
     private val hideMedicationDetailsKey = booleanPreferencesKey("hide_medication_details")
     private val widgetContentScaleKey = floatPreferencesKey("widget_content_scale")
@@ -113,6 +115,10 @@ class SettingsRepository @Inject constructor(
 
     val stockIntroPromptShownFlow: Flow<Boolean> = storedPreferences
         .map { it[stockIntroPromptShownKey] ?: false }
+        .distinctUntilChanged()
+
+    val homeLowStockSectionExpandedFlow: Flow<Boolean> = storedPreferences
+        .map { it[homeLowStockSectionExpandedKey] ?: true }
         .distinctUntilChanged()
 
     // Raw DataStore-backed flow that intentionally bypasses [settingsState]'s
@@ -191,6 +197,12 @@ class SettingsRepository @Inject constructor(
             } else {
                 preferences[homeE2ChartWindowKey] = option.name
             }
+        }
+    }
+
+    suspend fun setHomeLowStockSectionExpanded(expanded: Boolean) {
+        activeDataStore().edit { preferences ->
+            preferences[homeLowStockSectionExpandedKey] = expanded
         }
     }
 

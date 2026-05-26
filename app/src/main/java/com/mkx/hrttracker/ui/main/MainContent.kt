@@ -45,6 +45,7 @@ import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.zoneDisplayName
 import java.util.Locale
+import java.util.UUID
 
 @Composable
 fun MainContent(
@@ -56,8 +57,10 @@ fun MainContent(
     onHighlightConsumed: () -> Unit = { },
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
+    onMedicineDetailClick: (UUID) -> Unit = { },
     onDismissTimeZoneChangeNotice: () -> Unit = { },
     onE2ChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
+    onLowStockSectionExpandedChange: (Boolean) -> Unit = { },
 ) {
     val appLocale = rememberAppLocale()
     val today = uiState.now.toLocalDate()
@@ -81,6 +84,16 @@ fun MainContent(
                 onDismiss = onDismissTimeZoneChangeNotice,
             )
             Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        MainLowStockSection(
+            warnings = uiState.stockWarnings,
+            expanded = uiState.lowStockSectionExpanded,
+            onExpandedChange = onLowStockSectionExpandedChange,
+            onMedicineClick = onMedicineDetailClick,
+        )
+        if (uiState.stockWarnings.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
         MainE2HeroCard(

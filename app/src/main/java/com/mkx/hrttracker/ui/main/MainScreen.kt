@@ -52,6 +52,7 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.util.calibrationUnitLabel
 import kotlinx.coroutines.delay
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,6 +62,7 @@ fun MainScreen(
     highlightEffectsEnabled: Boolean = true,
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit = { },
     onEntryClick: (MainEditEntryRequest) -> Unit = { },
+    onMedicineDetailClick: (UUID) -> Unit = { },
     onAddEntryClick: () -> Unit = { },
     viewModel: MainViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
@@ -148,8 +150,10 @@ fun MainScreen(
                 onHighlightConsumed = viewModel::consumeHighlightRequest,
                 onQuickLogDoseClick = onQuickLogDoseClick,
                 onEntryClick = onEntryClick,
+                onMedicineDetailClick = onMedicineDetailClick,
                 onDismissTimeZoneChangeNotice = viewModel::dismissTimeZoneChangeNotice,
                 onE2ChartWindowOptionSelected = viewModel::setHomeE2ChartWindowOption,
+                onLowStockSectionExpandedChange = viewModel::setLowStockSectionExpanded,
                 modifier = Modifier.fillMaxSize(),
             )
         }

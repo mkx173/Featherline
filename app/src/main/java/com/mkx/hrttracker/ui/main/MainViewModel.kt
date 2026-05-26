@@ -10,6 +10,7 @@ import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.util.AppTimeSource
@@ -64,12 +65,18 @@ class MainViewModel @Inject constructor(
                 val anchorNow = currentDateTime.value
                 refreshHomeSnapshotForDateIfNeeded(anchorNow)
                 homeRepository.observeHomeInputs(anchorNow)
-            },
+        },
         currentDateTime,
         timeZoneChangeNoticeController.notice,
-    ) { inputs, now, timeZoneNotice ->
+        settingsRepository.homeLowStockSectionExpandedFlow,
+    ) { inputs, now, timeZoneNotice, lowStockSectionExpanded ->
         withContext(defaultDispatcher) {
-            buildHomeUiState(inputs = inputs, now = now, timeZoneNotice = timeZoneNotice)
+            buildHomeUiState(
+                inputs = inputs,
+                now = now,
+                timeZoneNotice = timeZoneNotice,
+                lowStockSectionExpanded = lowStockSectionExpanded,
+            )
         }
     }
         .stateIn(
@@ -112,6 +119,12 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun setLowStockSectionExpanded(expanded: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setHomeLowStockSectionExpanded(expanded)
+        }
+    }
+
     private companion object {
         const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
     }
@@ -129,6 +142,7 @@ class MainViewModel @Inject constructor(
         inputs: HomeInputs,
         now: LocalDateTime,
         timeZoneNotice: TimeZoneChangeNotice?,
+        lowStockSectionExpanded: Boolean,
     ): MainUiState {
         val homeE2DisplayUnit = inputs.settings.homeE2DisplayUnit
         val chartWindowOption = inputs.settings.homeE2ChartWindowOption
@@ -178,6 +192,8 @@ class MainViewModel @Inject constructor(
             homeE2DisplayUnit = homeE2DisplayUnit,
             homeE2ChartWindowOption = chartWindowOption,
             hideReferenceRanges = inputs.settings.hideReferenceRanges,
+            stockWarnings = inputs.stockWarnings,
+            lowStockSectionExpanded = lowStockSectionExpanded,
             e2Hero = buildMainE2Hero(
                 entries = listOfNotNull(inputs.latestEstradiolEntry),
                 trendResult = trendResult,
@@ -226,6 +242,8 @@ data class MainUiState(
     val homeE2DisplayUnit: BloodUnitKey = BloodUnitKey.PG_ML,
     val homeE2ChartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
     val hideReferenceRanges: Boolean = false,
+    val stockWarnings: List<MedicineStockProjection> = emptyList(),
+    val lowStockSectionExpanded: Boolean = true,
     val e2Hero: MainE2HeroUiState = MainE2HeroUiState(),
     val e2Chart: MainE2ChartUiState = MainE2ChartUiState(),
     val antiandrogenCards: List<MainAntiandrogenCardUiState> = emptyList(),

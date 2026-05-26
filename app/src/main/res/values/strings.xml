@@ -63,6 +63,10 @@
     <string name="main_relative_tomorrow">tomorrow</string>
     <string name="main_more_options">More options</string>
     <string name="main_display_unit">Display unit</string>
+    <string name="home_low_stock_title">Low stock</string>
+    <string name="home_low_stock_title_with_count">Low stock · %1$d</string>
+    <string name="home_low_stock_expanded_state">Expanded</string>
+    <string name="home_low_stock_collapsed_state">Collapsed</string>
     <string name="reminder_notification_channel_name">Dose reminders</string>
     <string name="reminder_notification_channel_description">Notifications for scheduled doses.</string>
     <string name="reminder_notification_single_title">Time for your dose</string>

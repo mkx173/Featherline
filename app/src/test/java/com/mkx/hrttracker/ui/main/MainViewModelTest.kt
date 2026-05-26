@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.main
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.data.repository.HomeInputs
 import com.mkx.hrttracker.data.repository.HomeRepository
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
@@ -14,6 +15,9 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -24,6 +28,8 @@ import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -64,6 +70,8 @@ class MainViewModelTest {
         Dispatchers.setMain(dispatcher)
         every { homeRepository.refreshHomeSnapshotAsync(any(), any()) } returns Unit
         every { timeZoneChangeNoticeController.notice } returns MutableStateFlow(null)
+        every { settingsRepository.homeLowStockSectionExpandedFlow } returns MutableStateFlow(true)
+        coEvery { settingsRepository.setHomeLowStockSectionExpanded(any()) } returns Unit
     }
 
     @After
@@ -410,6 +418,61 @@ class MainViewModelTest {
         assertEquals(0.0, viewModel.uiState.value.e2Hero.currentValue, 1e-9)
     }
 
+    @Test
+    fun stockWarningsAndFoldStateFlowIntoUiState() = runTest {
+        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val projection = stockWarningProjection()
+        val expandedFlow = MutableStateFlow(false)
+        val appTimeSource = FakeAppTimeSource(now)
+        every { settingsRepository.homeLowStockSectionExpandedFlow } returns expandedFlow
+        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+            homeInputs(
+                now = now,
+                stockWarnings = listOf(projection),
+            )
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(listOf(projection), viewModel.uiState.value.stockWarnings)
+        assertEquals(false, viewModel.uiState.value.lowStockSectionExpanded)
+
+        expandedFlow.value = true
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.lowStockSectionExpanded)
+    }
+
+    @Test
+    fun setLowStockSectionExpandedPersistsPreference() = runTest {
+        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val appTimeSource = FakeAppTimeSource(now)
+        every { homeRepository.observeHomeInputs(any()) } returns flowOf(homeInputs(now = now))
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+
+        viewModel.setLowStockSectionExpanded(false)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            settingsRepository.setHomeLowStockSectionExpanded(false)
+        }
+    }
+
     private fun TestScope.startUiStateCollection(viewModel: MainViewModel) {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect { }
@@ -431,6 +494,7 @@ class MainViewModelTest {
         latestEstradiolEntry: MedicationLogEntry? = null,
         estradiolPkEntries: List<MedicationLogEntry> = emptyList(),
         estradiolPkPlannedEntries: List<MedicationLogEntry> = emptyList(),
+        stockWarnings: List<MedicineStockProjection> = emptyList(),
         source: HomeInputSource = HomeInputSource.SNAPSHOT,
     ): HomeInputs {
         return HomeInputs(
@@ -444,6 +508,7 @@ class MainViewModelTest {
             latestEstradiolEntry = latestEstradiolEntry,
             estradiolPkEntries = estradiolPkEntries,
             estradiolPkPlannedEntries = estradiolPkPlannedEntries,
+            stockWarnings = stockWarnings,
             source = source,
             now = now,
         )
@@ -525,6 +590,25 @@ class MainViewModelTest {
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
             updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+        )
+    }
+
+    private fun stockWarningProjection(): MedicineStockProjection {
+        val medicine = testMedicine(
+            stock = MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 0.0,
+                unitsLastTotal = 10.0,
+            ),
+        )
+        return MedicineStockProjection(
+            medicine = medicine,
+            dosesPerDayMagnitude = 1.0,
+            totalStockUnits = 0.0,
+            runway = RunwayProjection.NoSchedule,
+            intervalDays = null,
+            maxPerAdministration = 1.0,
+            state = MedicineStockState.OUT,
         )
     }
 }

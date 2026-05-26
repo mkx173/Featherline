@@ -538,6 +538,14 @@ fun HrtTrackerNavHost(
                                 editSnapshot = request.toAddEntryEditSnapshot(),
                             )
                         },
+                        onMedicineDetailClick = { medicineId ->
+                            navController.navigate(
+                                Screen.MedicineDetail.createRoute(
+                                    medicineId = medicineId.toString(),
+                                    topLevelParentRoute = Screen.Main.route,
+                                ),
+                            )
+                        },
                         onAddEntryClick = {
                             // Jump straight to the manager; its dose sheet saves
                             // the manual log directly in manual-log mode.
