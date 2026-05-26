@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -13,6 +14,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.isWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
@@ -60,6 +62,7 @@ class AddEntryViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicineRepository: MedicineRepository,
+    private val medicineStockRepository: MedicineStockRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AddEntryUiState())
@@ -67,11 +70,18 @@ class AddEntryViewModel @Inject constructor(
     private var loadEntryJob: Job? = null
     private var pendingSave: PendingSaveRequest? = null
     private var pendingDelete: PendingDeleteRequest? = null
+    private var stockProjections: List<MedicineStockProjection> = emptyList()
 
     init {
         viewModelScope.launch {
             medicineRepository.observeAllActive().collect { medicines ->
                 _uiState.update { current -> current.copy(activeMedicines = medicines) }
+            }
+        }
+        viewModelScope.launch {
+            medicineStockRepository.observeProjections().collect { projections ->
+                stockProjections = projections
+                _uiState.update { current -> current.withSelectedStockProjection() }
             }
         }
     }
@@ -87,12 +97,13 @@ class AddEntryViewModel @Inject constructor(
         val normalizedEntryUuids = normalizedEntryIds.map(UUID::fromString)
         val matchingEditSnapshot = editSnapshot?.matchingEntries(normalizedEntryUuids)
         val initialEditingState = matchingEditSnapshot?.toEditingUiState()
-        _uiState.value = initialEditingState
+        val initialState = initialEditingState
             ?.copy(isLoading = normalizedEntryIds.isNotEmpty())
             ?: AddEntryUiState(
                 editingEntryIds = normalizedEntryIds,
                 isLoading = normalizedEntryIds.isNotEmpty()
             )
+        _uiState.value = initialState.withSelectedStockProjection()
 
         if (normalizedEntryIds.isNotEmpty()) {
             loadEntriesForEditing(
@@ -135,7 +146,7 @@ class AddEntryViewModel @Inject constructor(
             sourceGroupNextScheduledFor = sourceGroupNextScheduledFor,
             appliedAt = LocalDateTime.now(),
             isLoading = cachedGroup == null && !hasSourceGroupSnapshot,
-        )
+        ).withSelectedStockProjection()
 
         loadEntryJob = viewModelScope.launch {
             val group = cachedGroup ?: runCatching {
@@ -213,7 +224,7 @@ class AddEntryViewModel @Inject constructor(
                 ),
                 errorMessageRes = null,
                 isScheduleFulfillmentWarningVisible = false
-            )
+            ).withSelectedStockProjection()
         }
     }
 
@@ -611,6 +622,24 @@ class AddEntryViewModel @Inject constructor(
                 ?.toEditingUiState()
                 ?.copy(isLoading = false)
                 ?: AddEntryUiState()
+            _uiState.value = _uiState.value.withSelectedStockProjection()
+        }
+    }
+
+    private fun AddEntryUiState.withSelectedStockProjection(): AddEntryUiState {
+        val selectedMedicineUuid = selectedMedicineUuidForStock()
+        return copy(
+            selectedStockProjection = stockProjections.firstOrNull { projection ->
+                projection.medicine.uuid == selectedMedicineUuid
+            },
+        )
+    }
+
+    private fun AddEntryUiState.selectedMedicineUuidForStock(): UUID? {
+        return when {
+            isEditing -> resolvedMedicine?.uuid
+            sourceGroupUuid != null -> resolvedMedicine?.uuid
+            else -> medicineDraft.selectedMedicineUuid ?: resolvedMedicine?.uuid
         }
     }
 
@@ -623,6 +652,7 @@ data class AddEntryUiState(
         defaultMedicineDraft().toDoseInstructionDraft(),
     val resolvedMedicine: Medicine? = null,
     val activeMedicines: List<Medicine> = emptyList(),
+    val selectedStockProjection: MedicineStockProjection? = null,
     val sourceGroupUuid: UUID? = null,
     val scheduleTimeUuid: UUID? = null,
     val sourceGroupName: String? = null,

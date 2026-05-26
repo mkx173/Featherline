@@ -201,6 +201,7 @@ private fun AddEntryScreenContent(
         resolvedMedicine = uiState.resolvedMedicine,
         canEditMedicationIdentity = uiState.canEditMedicationIdentity,
         lockedMedicine = uiState.resolvedMedicine,
+        selectedStockProjection = uiState.selectedStockProjection,
         sourceGroupName = uiState.sourceGroupName,
         sourceGroupColorKey = uiState.sourceGroupColorKey,
         sourceGroupScheduledFor = uiState.scheduledFor,

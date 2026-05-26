@@ -87,6 +87,7 @@ import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
@@ -97,6 +98,7 @@ import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
+import com.mkx.hrttracker.ui.components.StockStatusIndicator
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -189,6 +191,7 @@ fun MedicationLogEntryEditorSheet(
     resolvedMedicine: Medicine?,
     canEditMedicationIdentity: Boolean,
     lockedMedicine: Medicine?,
+    selectedStockProjection: MedicineStockProjection? = null,
     sourceGroupName: String? = null,
     sourceGroupColorKey: MedicationGroupColorKey? = null,
     sourceGroupScheduledFor: LocalDateTime? = null,
@@ -260,6 +263,7 @@ fun MedicationLogEntryEditorSheet(
                 doseInstructionDraft = doseInstructionDraft,
                 resolvedMedicine = resolvedMedicine,
                 canEditMedicationIdentity = true,
+                selectedStockProjection = selectedStockProjection,
                 onMedicineDraftChange = onMedicineDraftChange,
                 onDoseInstructionDraftChange = onDoseInstructionDraftChange,
                 onOpenMedicinePicker = onOpenMedicinePicker,
@@ -287,6 +291,7 @@ fun MedicationLogEntryEditorSheet(
                 sourceGroupScheduleOffsetText = sourceGroupScheduleOffsetText,
                 sourceGroupScheduleOffsetOutsideFulfillmentWindow =
                     sourceGroupScheduleOffsetOutsideFulfillmentWindow,
+                selectedStockProjection = selectedStockProjection,
             )
         }
 
@@ -430,6 +435,7 @@ internal fun MedicationEditorContent(
     doseInstructionDraft: DoseInstructionDraftUiState?,
     resolvedMedicine: Medicine?,
     canEditMedicationIdentity: Boolean,
+    selectedStockProjection: MedicineStockProjection? = null,
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
     onOpenMedicinePicker: () -> Unit,
@@ -485,6 +491,7 @@ internal fun MedicationEditorContent(
             onOpenMedicinePicker = { if (!isSaving) onOpenMedicinePicker() },
             errorMessageRes = errorMessageRes,
         )
+        MedicationEditorStockStatus(projection = selectedStockProjection)
 
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         NumericField(
@@ -517,6 +524,7 @@ internal fun MedicationEditorContent(
         errorMessageRes = errorMessageRes,
         trailingIndicator = summaryTrailingIndicator,
     )
+    MedicationEditorStockStatus(projection = selectedStockProjection)
 
     // The dose instruction form must render whenever the route requires per-
     // instruction dose data (VolumeMl for INJECTION_MULTI_USE_VIAL,
@@ -564,6 +572,19 @@ private fun EditorSectionLabel(text: String) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
+    )
+}
+
+@Composable
+private fun MedicationEditorStockStatus(
+    projection: MedicineStockProjection?,
+) {
+    if (projection == null) return
+
+    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+    StockStatusIndicator(
+        projection = projection,
+        modifier = Modifier.fillMaxWidth(),
     )
 }
 
@@ -860,6 +881,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
     sourceGroupScheduledForText: String?,
     sourceGroupScheduleOffsetText: String?,
     sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean,
+    selectedStockProjection: MedicineStockProjection? = null,
 ) {
     val groupName = sourceGroupName?.takeIf(String::isNotBlank)
     val hasGroupInfo = groupName != null && sourceGroupScheduledForText != null
@@ -895,6 +917,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
         index = if (hasGroupInfo) 1 else 0,
         itemCount = if (hasGroupInfo) 2 else 1,
     )
+    MedicationEditorStockStatus(projection = selectedStockProjection)
 }
 
 internal fun linkedMedicationSummaryMissingGroupColorTreatment(
