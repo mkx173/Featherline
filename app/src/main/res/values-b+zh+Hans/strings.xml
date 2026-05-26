@@ -317,10 +317,10 @@
     <string name="field_patch_spec_release_rate">释放速率</string>
     <string name="preparation_type_pill">片剂</string>
     <string name="preparation_type_capsule">胶囊</string>
-    <string name="preparation_type_injection_single_use_vial">单剂量瓶</string>
-    <string name="preparation_type_injection_multi_use_vial">多剂量瓶</string>
-    <string name="preparation_type_gel_sachet">小袋装</string>
-    <string name="preparation_type_gel_container">多剂量容器</string>
+    <string name="preparation_type_injection_single_use_vial">安瓿</string>
+    <string name="preparation_type_injection_multi_use_vial">西林瓶</string>
+    <string name="preparation_type_gel_sachet">小袋</string>
+    <string name="preparation_type_gel_container">容器</string>
     <string name="preparation_type_patch">贴片</string>
     <string name="medicine_picker_select_medicine">选择药物</string>
     <string name="medicine_picker_change_medicine">更改药物</string>
@@ -340,7 +340,7 @@
     <string name="validation_preparation_type_required">请选择制剂类型</string>
     <string name="validation_pill_strength_required">请输入有效的每片含量</string>
     <string name="validation_capsule_strength_required">请输入有效的每粒含量</string>
-    <string name="validation_vial_strength_required">请输入有效的每瓶总量</string>
+    <string name="validation_vial_strength_required">请输入有效的每瓶含量</string>
     <string name="validation_concentration_required">请输入有效浓度</string>
     <string name="validation_vial_volume_required">请输入有效的药瓶容量</string>
     <string name="validation_gel_concentration_required">请输入有效的凝胶浓度</string>
@@ -378,11 +378,11 @@
     <string name="medication_preparation_summary_pill_with_unit">片剂 · %1$s %2$s</string>
     <string name="medication_preparation_summary_capsule">胶囊 · %1$s mg</string>
     <string name="medication_preparation_summary_capsule_with_unit">胶囊 · %1$s %2$s</string>
-    <string name="medication_preparation_summary_single_use_vial">注射 · 单剂量瓶 · %1$s mg</string>
-    <string name="medication_preparation_summary_single_use_vial_with_unit">注射 · 单剂量瓶 · %1$s %2$s</string>
-    <string name="medication_preparation_summary_multi_use_vial">注射 · 多剂量瓶 · %1$s mg/mL · %2$s mL</string>
-    <string name="medication_preparation_summary_gel_sachet">凝胶 · 小袋装 · %1$s%% · %2$s g</string>
-    <string name="medication_preparation_summary_gel_container">凝胶 · 多剂量容器 · %1$s%% · %2$s g</string>
+    <string name="medication_preparation_summary_single_use_vial">注射 · 安瓿 · %1$s mg</string>
+    <string name="medication_preparation_summary_single_use_vial_with_unit">注射 · 安瓿 · %1$s %2$s</string>
+    <string name="medication_preparation_summary_multi_use_vial">注射 · 西林瓶 · %1$s mg/mL · %2$s mL</string>
+    <string name="medication_preparation_summary_gel_sachet">凝胶 · 小袋 · %1$s%% · %2$s g</string>
+    <string name="medication_preparation_summary_gel_container">凝胶 · 容器 · %1$s%% · %2$s g</string>
     <string name="medication_preparation_summary_patch_total">贴片 · %1$s mg</string>
     <string name="medication_preparation_summary_patch_total_with_unit">贴片 · %1$s %2$s</string>
     <string name="medication_preparation_summary_patch_release_rate">贴片 · %1$s μg/天</string>
@@ -718,13 +718,13 @@
     <string name="stock_chip_low">不足</string>
     <string name="stock_chip_out">已用完</string>
     <string name="stock_runway_unknown_title">无法预估</string>
-    <string name="stock_runway_unknown_body">将此药品加入分组后即可预估剩余天数。</string>
+    <string name="stock_runway_unknown_body">将此药品加入分组后即可预估剩余天数</string>
     <string name="stock_runway_days_remaining">约剩 %1$d 天</string>
     <string name="stock_runway_days_remaining_combined">约剩 %1$d 天 · 合计</string>
     <string name="stock_no_schedule">无计划</string>
 
     <string name="stock_optin_title">追踪库存</string>
-    <string name="stock_optin_body">在此药品库存不足时收到提醒。</string>
+    <string name="stock_optin_body">在此药品库存不足时收到提醒</string>
     <string name="stock_optin_button">设置追踪</string>
     <string name="stock_manager_track_chip">+ 追踪</string>
 
@@ -776,12 +776,12 @@
 
     <string name="stock_disable_menu_action">关闭库存追踪</string>
     <string name="stock_disable_title">关闭库存追踪？</string>
-    <string name="stock_disable_body">可以稍后再开启，并从当前数量继续。</string>
+    <string name="stock_disable_body">可以稍后再开启，并从当前数量继续</string>
     <string name="stock_disable_confirm">关闭</string>
     <string name="stock_cancel">取消</string>
 
     <string name="stock_intro_prompt_title">为这些药品追踪库存？</string>
-    <string name="stock_intro_prompt_body">输入想追踪的药品数量，其余留空即可跳过。</string>
+    <string name="stock_intro_prompt_body">输入想追踪的药品数量，其余留空即可跳过</string>
     <string name="stock_intro_prompt_hint">例如 60</string>
     <string name="stock_intro_prompt_done">完成</string>
     <string name="stock_intro_prompt_not_now">暂不</string>

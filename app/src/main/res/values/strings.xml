@@ -375,10 +375,10 @@
     <string name="medicine_preparation_form_patch">Patch</string>
     <string name="preparation_type_pill">Tablet</string>
     <string name="preparation_type_capsule">Capsule</string>
-    <string name="preparation_type_injection_single_use_vial">Single-dose vial</string>
-    <string name="preparation_type_injection_multi_use_vial">Multi-dose vial</string>
+    <string name="preparation_type_injection_single_use_vial">Ampule</string>
+    <string name="preparation_type_injection_multi_use_vial">Vial</string>
     <string name="preparation_type_gel_sachet">Sachet</string>
-    <string name="preparation_type_gel_container">Multi-dose container</string>
+    <string name="preparation_type_gel_container">Container</string>
     <string name="preparation_type_patch">Patch</string>
     <string name="medication_picker_existing_medicines">Existing medicines</string>
     <string name="medication_picker_add_new">+ New</string>
@@ -389,11 +389,11 @@
     <string name="medication_preparation_summary_pill_with_unit">Tablet · %1$s %2$s</string>
     <string name="medication_preparation_summary_capsule">Capsule · %1$s mg</string>
     <string name="medication_preparation_summary_capsule_with_unit">Capsule · %1$s %2$s</string>
-    <string name="medication_preparation_summary_single_use_vial">Injection · Single-dose vial · %1$s mg</string>
-    <string name="medication_preparation_summary_single_use_vial_with_unit">Injection · Single-dose vial · %1$s %2$s</string>
-    <string name="medication_preparation_summary_multi_use_vial">Injection · Multi-dose vial · %1$s mg/mL · %2$s mL</string>
+    <string name="medication_preparation_summary_single_use_vial">Injection · Ampule · %1$s mg</string>
+    <string name="medication_preparation_summary_single_use_vial_with_unit">Injection · Ampule · %1$s %2$s</string>
+    <string name="medication_preparation_summary_multi_use_vial">Injection · Vial · %1$s mg/mL · %2$s mL</string>
     <string name="medication_preparation_summary_gel_sachet">Gel · Sachet · %1$s%% · %2$s g</string>
-    <string name="medication_preparation_summary_gel_container">Gel · Multi-dose container · %1$s%% · %2$s g</string>
+    <string name="medication_preparation_summary_gel_container">Gel · Container · %1$s%% · %2$s g</string>
     <string name="medication_preparation_summary_patch_total">Patch · %1$s mg</string>
     <string name="medication_preparation_summary_patch_total_with_unit">Patch · %1$s %2$s</string>
     <string name="medication_preparation_summary_patch_release_rate">Patch · %1$s μg/day</string>
@@ -775,7 +775,7 @@
 
     <!-- Stock consumption rate (subtitle of the runway sub-card) -->
     <string name="stock_rate_per_day">%1$s %2$s/day</string>
-    <string name="stock_rate_per_week">%1$s %2$s/wk</string>
+    <string name="stock_rate_per_week">%1$s %2$s/week</string>
     <string name="stock_unit_tablets">tablets</string>
     <string name="stock_unit_capsules">capsules</string>
     <string name="stock_unit_patches">patches</string>
