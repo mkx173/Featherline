@@ -54,9 +54,8 @@ class MedicineStockRepository @Inject constructor(
 
     suspend fun projectAllOnce(now: Instant = clock.instant()): List<MedicineStockProjection> {
         return projectAll(
-            medicines = medicineRepository.getAll().filter { medicine -> medicine.archivedAt == null },
-            activeGroups = medicationGroupRepository.getGroups()
-                .filter { group -> group.archivedAt == null },
+            medicines = medicineRepository.getAllActive(),
+            activeGroups = medicationGroupRepository.getActiveGroups(),
             logEntries = medicationLogRepository.getEntries(),
             now = now,
         )

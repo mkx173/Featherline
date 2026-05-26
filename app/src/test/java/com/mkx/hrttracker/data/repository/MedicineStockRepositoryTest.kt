@@ -17,7 +17,11 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -308,6 +312,7 @@ class MedicineStockRepositoryTest {
         assertEquals(RunwayProjection.Days(1, LocalDate.of(2026, 1, 2)), projection.runway)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun observeProjectionsCombinesMedicinesGroupsAndLogEntries() = runTest {
         val medicine = pill(
@@ -324,9 +329,9 @@ class MedicineStockRepositoryTest {
         val medicines = MutableStateFlow(listOf(medicine))
         val groups = MutableStateFlow<List<MedicationGroup>?>(listOf(group))
         val logs = MutableStateFlow<List<com.mkx.hrttracker.model.medication.MedicationLogEntry>?>(emptyList())
-        io.mockk.every { medicineRepository.observeAllActive() } returns medicines
-        io.mockk.every { medicationGroupRepository.observeGroups() } returns groups
-        io.mockk.every { medicationLogRepository.observeEntries() } returns logs
+        every { medicineRepository.observeAllActive() } returns medicines
+        every { medicationGroupRepository.observeGroups() } returns groups
+        every { medicationLogRepository.observeEntries() } returns logs
         val emissions = mutableListOf<List<com.mkx.hrttracker.model.medication.MedicineStockProjection>>()
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -338,6 +343,38 @@ class MedicineStockRepositoryTest {
 
         assertEquals(RunwayProjection.Days(1, LocalDate.of(2026, 1, 2)), emissions[0].single().runway)
         assertEquals(RunwayProjection.Days(2, LocalDate.of(2026, 1, 3)), emissions[1].single().runway)
+    }
+
+    @Test
+    fun projectAllOnceUsesOneShotActiveInputsAndLogEntries() = runTest {
+        val medicine = pill(
+            MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 2.0,
+                unitsLastTotal = 30.0,
+                openContainerAmount = null,
+                warnAtDaysRemaining = 0,
+                generation = 1L,
+            )
+        )
+        val group = dailyGroup(medicine)
+        val log = logForToday(group = group, medicine = medicine)
+        coEvery { medicineRepository.getAllActive() } returns listOf(medicine)
+        coEvery { medicationGroupRepository.getActiveGroups() } returns listOf(group)
+        coEvery { medicationLogRepository.getEntries() } returns listOf(log)
+
+        val oneShotProjection = repository.projectAllOnce(now = clock.instant())
+        val directProjection = repository.projectAll(
+            medicines = listOf(medicine),
+            activeGroups = listOf(group),
+            logEntries = listOf(log),
+            now = clock.instant(),
+        )
+
+        assertEquals(directProjection, oneShotProjection)
+        coVerify { medicineRepository.getAllActive() }
+        coVerify { medicationGroupRepository.getActiveGroups() }
+        coVerify { medicationLogRepository.getEntries() }
     }
 
     private fun pill(stock: MedicineStock): Medicine {

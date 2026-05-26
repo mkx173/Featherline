@@ -81,6 +81,10 @@ class MedicineRepository @Inject internal constructor(
             .map(MedicineEntity::toMedicineModel)
     }
 
+    suspend fun getAllActive(): List<Medicine> {
+        return getAll().filterNot(Medicine::isArchived)
+    }
+
     suspend fun getByUuid(uuid: UUID): Medicine? {
         return databaseHolder.get().medicineDao()
             .getByUuid(uuid.toString())

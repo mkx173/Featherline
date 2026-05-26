@@ -82,6 +82,10 @@ class MedicationGroupRepository @Inject constructor(
         return groups.map { it.toMedicationGroupModel(medicinesByUuid) }
     }
 
+    suspend fun getActiveGroups(): List<MedicationGroup> {
+        return getGroups().filter { group -> group.archivedAt == null }
+    }
+
     suspend fun getGroup(uuid: UUID): MedicationGroup? {
         val database = databaseHolder.get()
         val group = database.medicationGroupDao().getGroup(uuid.toString()) ?: return null

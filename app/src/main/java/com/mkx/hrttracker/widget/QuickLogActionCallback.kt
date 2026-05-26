@@ -7,6 +7,7 @@ import androidx.glance.appwidget.action.ActionCallback
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.reminder.MedicationReminderSlot
 import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
+import com.mkx.hrttracker.reminder.showPostLogToast
 import dagger.hilt.android.EntryPointAccessors
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -33,6 +34,8 @@ class QuickLogActionCallback : ActionCallback {
         )
         val groupRepository = entryPoint.medicationGroupRepository()
         val logRepository = entryPoint.medicationLogRepository()
+        val medicineStockRepository = entryPoint.medicineStockRepository()
+        val reminderNotificationManager = entryPoint.reminderNotificationManager()
         val diagnosticsLogger = entryPoint.diagnosticsLogger()
 
         val group = groupRepository.getGroup(groupUuid) ?: run {
@@ -87,6 +90,12 @@ class QuickLogActionCallback : ActionCallback {
             // snapshot. HomeWidgetManager's home-snapshot observer picks that up and
             // re-derives the widget snapshot — no explicit widget refresh needed.
             logRepository.saveNewEntries(missingEntries)
+            showPostLogToast(
+                entriesToSave = missingEntries,
+                now = appliedAt,
+                medicineStockRepository = medicineStockRepository,
+                reminderNotificationManager = reminderNotificationManager,
+            )
         } else {
             diagnosticsLogger.info(TAG, "widget_quick_log_already_fulfilled slot=$scheduledAt group=$groupUuid")
             updateAllHrtWidgets(context.applicationContext)
