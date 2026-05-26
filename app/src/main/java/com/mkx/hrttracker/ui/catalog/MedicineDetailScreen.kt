@@ -182,6 +182,13 @@ fun MedicineDetailScreen(
     )
 }
 
+internal fun showWarnAtBelowIntervalWarning(
+    warnAtDays: Int,
+    intervalDays: Int?,
+): Boolean {
+    return warnAtDays > 0 && intervalDays != null && warnAtDays < intervalDays
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MedicineDetailScreenContent(
@@ -332,13 +339,25 @@ private fun MedicineDetailScreenContent(
                                     var warnAtMenuExpanded by remember { mutableStateOf(false) }
                                     val warnAtDays =
                                         stockProjection.medicine.stock.warnAtDaysRemaining
-                                    val warnAtSupportingText = if (warnAtDays <= 0) {
+                                    val showWarnAtWarning = showWarnAtBelowIntervalWarning(
+                                        warnAtDays = warnAtDays,
+                                        intervalDays = stockProjection.intervalDays,
+                                    )
+                                    val warnAtValueText = if (warnAtDays <= 0) {
                                         stringResource(R.string.stock_warnat_value_off)
                                     } else {
                                         stringResource(
                                             R.string.stock_warnat_value_days,
                                             warnAtDays,
                                         )
+                                    }
+                                    val warnAtSupportingText = if (showWarnAtWarning) {
+                                        warnAtValueText + " · " +
+                                            stringResource(
+                                                R.string.stock_warnat_below_interval_supporting,
+                                            )
+                                    } else {
+                                        warnAtValueText
                                     }
                                     Box {
                                         PreferenceSegmentedListItem(
@@ -358,6 +377,22 @@ private fun MedicineDetailScreenContent(
                                                     tint = MaterialTheme.colorScheme
                                                         .onSurfaceVariant,
                                                 )
+                                            },
+                                            trailingContent = if (showWarnAtWarning) {
+                                                {
+                                                    Icon(
+                                                        painter = painterResource(
+                                                            R.drawable.ic_warning,
+                                                        ),
+                                                        contentDescription = stringResource(
+                                                            R.string.stock_warnat_below_interval_content_description,
+                                                        ),
+                                                        tint = MaterialTheme.colorScheme.tertiary,
+                                                        modifier = Modifier.size(20.dp),
+                                                    )
+                                                }
+                                            } else {
+                                                null
                                             },
                                         )
                                         HrtDropdownMenu(
