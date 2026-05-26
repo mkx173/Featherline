@@ -739,7 +739,7 @@ class MedicineDetailViewModelTest {
                 medicineUuid,
                 3.0,
                 null,
-                null,
+                3.0,
                 any(),
             )
         } just Runs
@@ -760,13 +760,15 @@ class MedicineDetailViewModelTest {
         advanceUntilIdle()
 
         // Container opt-in never seeds an open vial — the first deduction
-        // promotes a sealed vial via the deduction mutator instead.
+        // promotes a sealed vial via the deduction mutator instead. The
+        // sealed-row gauge baseline (initialUnitsLastTotal) snaps to the
+        // freshly counted sealed total.
         coVerify(exactly = 1) {
             medicineRepository.enableTracking(
                 medicineUuid,
                 3.0,
                 null,
-                null,
+                3.0,
                 any(),
             )
         }

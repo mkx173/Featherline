@@ -253,6 +253,10 @@ private fun StockRows(projection: MedicineStockProjection) {
                 trailingState = MedicineStockState.HEALTHY,
                 index = index++,
                 count = totalRows,
+                progress = computeProgress(
+                    numerator = stock.unitsRemaining,
+                    denominator = stock.unitsLastTotal,
+                ),
             )
             RunwayRowCard(
                 projection = projection,
@@ -290,6 +294,10 @@ private fun StockRows(projection: MedicineStockProjection) {
                 trailingState = MedicineStockState.HEALTHY,
                 index = index++,
                 count = totalRows,
+                progress = computeProgress(
+                    numerator = stock.unitsRemaining,
+                    denominator = stock.unitsLastTotal,
+                ),
             )
             RunwayRowCard(
                 projection = projection,

@@ -936,7 +936,7 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun recount_container_preservesExistingOpenContainer() = runTest {
+    fun recount_container_snapsSealedLastTotalAndPreservesOpen() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
 
@@ -952,7 +952,7 @@ class MedicineStockMutatorTest {
                 uuid = medicineUuid.toString(),
                 trackingEnabled = true,
                 stockUnitsRemaining = 3.0,
-                stockUnitsLastTotal = null,
+                stockUnitsLastTotal = 3.0,
                 openContainerAmount = 0.5,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 2L,
@@ -1020,7 +1020,7 @@ class MedicineStockMutatorTest {
                 uuid = medicineUuid.toString(),
                 trackingEnabled = true,
                 stockUnitsRemaining = 6.0,
-                stockUnitsLastTotal = null,
+                stockUnitsLastTotal = 6.0,
                 openContainerAmount = 0.4,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 3L,
@@ -1046,7 +1046,7 @@ class MedicineStockMutatorTest {
                 uuid = medicineUuid.toString(),
                 trackingEnabled = true,
                 stockUnitsRemaining = 5.0,
-                stockUnitsLastTotal = null,
+                stockUnitsLastTotal = 5.0,
                 openContainerAmount = null,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 1L,

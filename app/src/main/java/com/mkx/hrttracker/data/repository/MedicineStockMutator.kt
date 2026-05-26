@@ -203,20 +203,17 @@ internal class MedicineStockMutator @Inject constructor() {
         val prepType = MedicinePreparationType.fromStorageValue(entity.preparationType)
 
         val newOpen: Double?
-        val newLastTotal: Double?
         if (prepType.isContainerTopology()) {
             // Recount touches sealed count only; existing open vial is preserved.
             // Use the dedicated applySetOpenContainerAmount op to edit open volume.
             newOpen = entity.openContainerAmount
-            newLastTotal = null
         } else {
             newOpen = null
-            // Pool recount snaps the gauge denominator to the just-counted
-            // total. The "out of total" affordance is gone; the gauge now
-            // tracks consumption since the last recount/received instead of a
-            // user-declared batch baseline.
-            newLastTotal = maxOf(0.0, recount.unitsRemaining)
         }
+        // Snap the gauge denominator to the just-counted sealed/pool value so
+        // the sealed-row (container) or now-have-row (pool) gauge resets to
+        // full after a recount and depletes again as doses log.
+        val newLastTotal = maxOf(0.0, recount.unitsRemaining)
 
         dao.updateStockFields(
             uuid = entity.uuid,
@@ -248,7 +245,7 @@ internal class MedicineStockMutator @Inject constructor() {
                 uuid = entity.uuid,
                 trackingEnabled = true,
                 stockUnitsRemaining = newSealed,
-                stockUnitsLastTotal = null,
+                stockUnitsLastTotal = newSealed,
                 openContainerAmount = entity.openContainerAmount,
                 warnAtDaysRemaining = entity.warnAtDaysRemaining,
                 stockGeneration = entity.stockGeneration,

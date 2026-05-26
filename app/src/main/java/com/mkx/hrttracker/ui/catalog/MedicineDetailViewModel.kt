@@ -251,18 +251,17 @@ class MedicineDetailViewModel @Inject constructor(
     fun submitReceived(received: StockReceived): Job = viewModelScope.launch {
         if (_uiState.value.pendingEnableTracking) {
             val medicine = _uiState.value.stockProjection?.medicine
-            val isContainer = medicine?.preparation is MedicinePreparation.InjectionMultiUseVial ||
-                medicine?.preparation is MedicinePreparation.GelContainer
             val initialUnitsRemaining = (medicine?.stock?.unitsRemaining ?: 0.0) +
                 received.unitsReceived
             // Container opt-in always starts with everything sealed; a vial is
-            // promoted to "open" only when the first deduction happens. Pool
-            // preparations seed lastTotal so the runway rate has a baseline.
+            // promoted to "open" only when the first deduction happens. Both
+            // pool and container preparations seed unitsLastTotal so the
+            // sealed-row / now-have gauge has a snap-to-full baseline.
             medicineRepository.enableTracking(
                 uuid = medicineUuid,
                 initialUnitsRemaining = initialUnitsRemaining,
                 initialOpenContainerAmount = null,
-                initialUnitsLastTotal = if (isContainer) null else initialUnitsRemaining,
+                initialUnitsLastTotal = initialUnitsRemaining,
             )
             _uiState.update {
                 it.copy(
