@@ -42,6 +42,7 @@ import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.ui.components.HrtDropdownAnchor
@@ -624,4 +625,92 @@ private fun poolIconRes(preparation: MedicinePreparation): Int = when (preparati
 private fun editActionRes(preparation: MedicinePreparation): Int = when (preparation) {
     is MedicinePreparation.InjectionMultiUseVial -> R.string.stock_current_edit_action_vial
     else -> R.string.stock_current_edit_action_container
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 420)
+@Composable
+private fun StockSectionTrackedPillPreview() {
+    StockSectionPreviewContainer {
+        StockSection(
+            projection = previewProjection(
+                medicine = previewMedicine(
+                    preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                    stock = MedicineStock(
+                        trackingEnabled = true,
+                        unitsRemaining = 18.0,
+                        unitsLastTotal = 28.0,
+                    ),
+                ),
+                dosesPerDayMagnitude = 1.0,
+                totalStockUnits = 18.0,
+                runwayDays = 18.0,
+                state = MedicineStockState.HEALTHY,
+            ),
+            onOptInClick = {},
+            onEditOpenContainer = {},
+            onDisableTracking = {},
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 420)
+@Composable
+private fun StockSectionMultiUseVialLowPreview() {
+    val preparation = MedicinePreparation.InjectionMultiUseVial(
+        concentrationMgPerMl = 10.0,
+        vialVolumeMl = 5.0,
+    )
+    StockSectionPreviewContainer {
+        StockSection(
+            projection = previewProjection(
+                medicine = previewMedicine(
+                    preparation = preparation,
+                    stock = MedicineStock(
+                        trackingEnabled = true,
+                        unitsRemaining = 1.0,
+                        unitsLastTotal = 4.0,
+                        openContainerAmount = 1.5,
+                    ),
+                ),
+                dosesPerDayMagnitude = 0.2,
+                totalStockUnits = 6.5,
+                runwayDays = 32.5,
+                state = MedicineStockState.LOW,
+            ),
+            onOptInClick = {},
+            onEditOpenContainer = {},
+            onDisableTracking = {},
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 420)
+@Composable
+private fun StockSectionUntrackedPreview() {
+    StockSectionPreviewContainer {
+        StockSection(
+            projection = previewProjection(
+                medicine = previewMedicine(
+                    preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                    stock = MedicineStock(trackingEnabled = false),
+                ),
+                dosesPerDayMagnitude = 1.0,
+                totalStockUnits = 0.0,
+                runwayDays = null,
+                state = MedicineStockState.UNTRACKED,
+            ),
+            onOptInClick = {},
+            onEditOpenContainer = {},
+            onDisableTracking = {},
+        )
+    }
+}
+
+@Composable
+private fun StockSectionPreviewContainer(content: @Composable () -> Unit) {
+    com.mkx.hrttracker.ui.theme.HrtTrackerTheme(dynamicColor = false) {
+        Surface {
+            Column(modifier = Modifier.padding(16.dp)) { content() }
+        }
+    }
 }

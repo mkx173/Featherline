@@ -526,3 +526,100 @@ private fun Double?.toEditableCountOrEmpty(): String {
     val value = this ?: return ""
     return value.toLong().toString()
 }
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 420)
+@Composable
+private fun AdjustStockSheetPillRecountPreview() {
+    AdjustStockSheetPreviewContainer {
+        RecountForm(
+            projection = previewProjection(
+                medicine = previewMedicine(
+                    preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                    stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                        trackingEnabled = true,
+                        unitsRemaining = 18.0,
+                    ),
+                ),
+                dosesPerDayMagnitude = 1.0,
+                totalStockUnits = 18.0,
+                runwayDays = 18.0,
+                state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY,
+            ),
+            isContainer = false,
+            onSubmit = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 420)
+@Composable
+private fun AdjustStockSheetSingleUseVialReceivedPreview() {
+    AdjustStockSheetPreviewContainer {
+        ReceivedForm(
+            projection = previewProjection(
+                medicine = previewMedicine(
+                    preparation = MedicinePreparation.InjectionSingleUseVial(
+                        strengthMgPerVial = 5.0,
+                    ),
+                    stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                        trackingEnabled = true,
+                        unitsRemaining = 3.0,
+                    ),
+                ),
+                dosesPerDayMagnitude = 0.14,
+                totalStockUnits = 3.0,
+                runwayDays = 21.0,
+                state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY,
+            ),
+            isContainer = false,
+            onSubmit = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 420)
+@Composable
+private fun AdjustStockSheetMultiUseVialReceivedPreview() {
+    val preparation = MedicinePreparation.InjectionMultiUseVial(
+        concentrationMgPerMl = 10.0,
+        vialVolumeMl = 5.0,
+    )
+    AdjustStockSheetPreviewContainer {
+        ReceivedForm(
+            projection = previewProjection(
+                medicine = previewMedicine(
+                    preparation = preparation,
+                    stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                        trackingEnabled = true,
+                        unitsRemaining = 2.0,
+                        openContainerAmount = 2.5,
+                    ),
+                ),
+                dosesPerDayMagnitude = 0.2,
+                totalStockUnits = 12.5,
+                runwayDays = 62.5,
+                state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY,
+            ),
+            isContainer = true,
+            onSubmit = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Composable
+private fun AdjustStockSheetPreviewContainer(content: @Composable () -> Unit) {
+    com.mkx.hrttracker.ui.theme.HrtTrackerTheme(dynamicColor = false) {
+        androidx.compose.material3.Surface {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(dimensionResource(R.dimen.padding_large)),
+            ) {
+                content()
+            }
+        }
+    }
+}
