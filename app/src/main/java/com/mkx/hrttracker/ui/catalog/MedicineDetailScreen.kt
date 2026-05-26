@@ -312,7 +312,7 @@ private fun MedicineDetailScreenContent(
                                         title = stringResource(R.string.stock_adjust_row_label),
                                         index = 0,
                                         count = 2,
-                                        onClick = { onOpenAdjustSheet(AdjustSheetTab.RECOUNT) },
+                                        onClick = { onOpenAdjustSheet(AdjustSheetTab.RECEIVED) },
                                         leadingContent = {
                                             Icon(
                                                 painter = painterResource(R.drawable.ic_tune),

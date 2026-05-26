@@ -161,7 +161,7 @@ class MedicineDetailViewModel @Inject constructor(
         _uiState.update { it.copy(preparationDraft = draft) }
     }
 
-    fun openAdjustSheet(initialTab: AdjustSheetTab = AdjustSheetTab.RECOUNT) {
+    fun openAdjustSheet(initialTab: AdjustSheetTab = AdjustSheetTab.RECEIVED) {
         _uiState.update {
             it.copy(
                 showAdjustSheet = true,
@@ -477,13 +477,13 @@ data class MedicineDetailUiState(
     val showWarnAtSheet: Boolean = false,
     val showDisableConfirmation: Boolean = false,
     val showOpenContainerDialog: Boolean = false,
-    val adjustSheetActiveTab: AdjustSheetTab = AdjustSheetTab.RECOUNT,
+    val adjustSheetActiveTab: AdjustSheetTab = AdjustSheetTab.RECEIVED,
     val pendingEnableTracking: Boolean = false,
 )
 
 enum class AdjustSheetTab {
-    RECOUNT,
     RECEIVED,
+    RECOUNT,
 }
 
 data class LinkedSlotRow(

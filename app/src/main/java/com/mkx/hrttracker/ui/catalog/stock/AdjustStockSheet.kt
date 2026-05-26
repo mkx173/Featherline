@@ -48,7 +48,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
@@ -159,18 +158,19 @@ private fun RecountForm(
     onDismiss: () -> Unit,
 ) {
     val stock = projection.medicine.stock
-    var unitsRemainingText by remember(
-        projection.medicine.uuid,
-        stock.unitsRemaining,
-    ) { mutableStateOf(stock.unitsRemaining.toEditableCountOrEmpty()) }
+    val placeholderText = remember(stock.unitsRemaining) {
+        stock.unitsRemaining.toEditableCountOrEmpty().ifEmpty { "0" }
+    }
+    var unitsRemainingText by remember(projection.medicine.uuid) { mutableStateOf("") }
 
     val unitsRemaining = unitsRemainingText.toIntOrNull()
     val canConfirm = unitsRemaining != null && unitsRemaining >= 0
+    val effectiveSealed = unitsRemaining?.toDouble() ?: (stock.unitsRemaining ?: 0.0)
     val simulatedTotal = if (isContainer) {
         val containerSize = projection.medicine.preparation.containerSizeUnits()
-        (unitsRemaining ?: 0).toDouble() * containerSize
+        effectiveSealed * containerSize
     } else {
-        (unitsRemaining ?: 0).toDouble()
+        effectiveSealed
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -179,9 +179,13 @@ private fun RecountForm(
             value = unitsRemainingText,
             unit = adjustStockUnitLabel(projection.medicine.preparation),
             leadingIconRes = R.drawable.ic_inventory,
+            placeholder = placeholderText,
             onValueChange = { unitsRemainingText = it },
             onStep = { delta ->
-                unitsRemainingText = stepCountText(unitsRemainingText, delta)
+                unitsRemainingText = stepCountText(
+                    unitsRemainingText.ifEmpty { placeholderText },
+                    delta,
+                )
             },
         )
         AfterPreview(
@@ -322,8 +326,9 @@ private fun StockStepperCard(
     @DrawableRes leadingIconRes: Int,
     onValueChange: (String) -> Unit,
     onStep: (Int) -> Unit,
+    placeholder: String = "0",
 ) {
-    val currentCount = value.toIntOrNull() ?: 0
+    val effectiveCount = value.ifEmpty { placeholder }.toIntOrNull() ?: 0
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
@@ -353,7 +358,7 @@ private fun StockStepperCard(
             ) {
                 FilledTonalIconButton(
                     onClick = { onStep(-1) },
-                    enabled = currentCount > 0,
+                    enabled = effectiveCount > 0,
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Remove,
@@ -379,14 +384,13 @@ private fun StockStepperCard(
             val numberStyle = MaterialTheme.typography.headlineSmall.copy(
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
-                textDecoration = TextDecoration.Underline,
             )
             Box(modifier = Modifier.alignByBaseline()) {
                 // Invisible sizer (or hint placeholder when empty) — keeps the
                 // editable field's width tied to the typed text so the unit
                 // label can sit immediately next to the number.
                 Text(
-                    text = value.ifEmpty { "0" },
+                    text = value.ifEmpty { placeholder },
                     style = numberStyle,
                     color = if (value.isEmpty()) {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
