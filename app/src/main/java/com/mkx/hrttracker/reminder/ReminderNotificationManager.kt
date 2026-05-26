@@ -20,7 +20,9 @@ import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
 import com.mkx.hrttracker.MainActivity
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.medicineDisplayName
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -175,6 +177,51 @@ class ReminderNotificationManager @Inject constructor(
                 entryCount,
             )
         )
+    }
+
+    fun showStockOutToast(medicine: Medicine) {
+        diagnosticsLogger.info(TAG, "reminder_notification_stock_out_toast medicine=${medicine.uuid}")
+        showToast(
+            context.getString(
+                R.string.stock_toast_out_single,
+                medicineDisplayName(medicine, context),
+            )
+        )
+    }
+
+    fun showStockOutCountToast(count: Int) {
+        diagnosticsLogger.info(TAG, "reminder_notification_stock_out_count_toast count=$count")
+        showToast(context.getString(R.string.stock_toast_out_multiple, count))
+    }
+
+    fun showStockImminentToast(medicine: Medicine) {
+        diagnosticsLogger.info(TAG, "reminder_notification_stock_imminent_toast medicine=${medicine.uuid}")
+        showToast(
+            context.getString(
+                R.string.stock_toast_imminent_single,
+                medicineDisplayName(medicine, context),
+            )
+        )
+    }
+
+    fun showStockImminentCountToast(count: Int) {
+        diagnosticsLogger.info(TAG, "reminder_notification_stock_imminent_count_toast count=$count")
+        showToast(context.getString(R.string.stock_toast_imminent_multiple, count))
+    }
+
+    fun showStockUserLowToast(medicine: Medicine) {
+        diagnosticsLogger.info(TAG, "reminder_notification_stock_user_low_toast medicine=${medicine.uuid}")
+        showToast(
+            context.getString(
+                R.string.stock_toast_user_low_single,
+                medicineDisplayName(medicine, context),
+            )
+        )
+    }
+
+    fun showStockUserLowCountToast(count: Int) {
+        diagnosticsLogger.info(TAG, "reminder_notification_stock_user_low_count_toast count=$count")
+        showToast(context.getString(R.string.stock_toast_user_low_multiple, count))
     }
 
     fun showDoseReminderNothingToAddToast() {

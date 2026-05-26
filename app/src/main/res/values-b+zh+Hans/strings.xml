@@ -73,6 +73,12 @@
     <string name="reminder_notification_action_log_all">全部记录</string>
     <string name="reminder_notification_action_remind_later">稍后提醒</string>
     <string name="reminder_notification_snoozed">将在 %1$d 分钟后再次提醒您</string>
+    <string name="stock_toast_out_single">%1$s 已无库存</string>
+    <string name="stock_toast_out_multiple">%1$d 种药品已无库存</string>
+    <string name="stock_toast_imminent_single">%1$s 即将用完</string>
+    <string name="stock_toast_imminent_multiple">%1$d 种药品即将用完</string>
+    <string name="stock_toast_user_low_single">%1$s 库存不足</string>
+    <string name="stock_toast_user_low_multiple">%1$d 种药品库存不足</string>
     <string name="fab_add_entry">添加用药记录</string>
     <string name="plan_empty_state">暂无用药分组</string>
     <string name="plan_selected_day_records_empty">这一天暂无记录</string>

@@ -4,8 +4,14 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.Runs
 import io.mockk.every
@@ -25,6 +31,7 @@ import java.util.UUID
 class ReminderNotificationManagerTest {
     private val context: Context = mockk(relaxed = true)
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
+    private val toast: Toast = mockk(relaxed = true)
     private lateinit var notificationManager: ReminderNotificationManager
 
     @Before
@@ -32,12 +39,21 @@ class ReminderNotificationManagerTest {
         mockkStatic(NotificationManagerCompat::class)
         mockkStatic(PendingIntent::class)
         mockkStatic(Uri::class)
+        mockkStatic(Looper::class)
+        mockkStatic(Toast::class)
         mockkConstructor(NotificationCompat.Builder::class)
         mockkConstructor(Intent::class)
+        mockkConstructor(Handler::class)
 
         every { Uri.parse(any()) } returns mockk(relaxed = true)
         every { PendingIntent.getActivity(any(), any(), any(), any()) } returns mockk()
         every { PendingIntent.getBroadcast(any(), any(), any(), any<Int>()) } returns mockk()
+        every { Looper.getMainLooper() } returns mockk(relaxed = true)
+        every { anyConstructed<Handler>().post(any()) } answers {
+            firstArg<Runnable>().run()
+            true
+        }
+        every { Toast.makeText(any(), any<String>(), Toast.LENGTH_SHORT) } returns toast
 
         // Builder fluent chain — all mutators return self so chaining is preserved
         every { anyConstructed<NotificationCompat.Builder>().setSmallIcon(any<Int>()) } answers { self as NotificationCompat.Builder }
@@ -100,5 +116,44 @@ class ReminderNotificationManagerTest {
                 "reminder_notification_show_failed reason=security_exception tag=${bundle.notificationTag}",
             )
         }
+    }
+
+    @Test
+    fun stockWarningToasts_useMedicineDisplayNameAndCountTemplates() {
+        val medicine = testMedicine(
+            key = MedicationKey.ESTRADIOL,
+            displayName = null,
+        )
+        every { context.getString(R.string.medication_name_estradiol) } returns "Estradiol"
+        every {
+            context.getString(R.string.stock_toast_out_single, "Estradiol")
+        } returns "Out of stock: Estradiol"
+        every {
+            context.getString(R.string.stock_toast_imminent_single, "Estradiol")
+        } returns "Almost out: Estradiol"
+        every {
+            context.getString(R.string.stock_toast_user_low_single, "Estradiol")
+        } returns "Low stock: Estradiol"
+        every { context.getString(R.string.stock_toast_out_multiple, 2) } returns
+            "2 medicines out of stock"
+        every { context.getString(R.string.stock_toast_imminent_multiple, 2) } returns
+            "2 medicines almost out"
+        every { context.getString(R.string.stock_toast_user_low_multiple, 2) } returns
+            "2 medicines low on stock"
+
+        notificationManager.showStockOutToast(medicine)
+        notificationManager.showStockImminentToast(medicine)
+        notificationManager.showStockUserLowToast(medicine)
+        notificationManager.showStockOutCountToast(2)
+        notificationManager.showStockImminentCountToast(2)
+        notificationManager.showStockUserLowCountToast(2)
+
+        verify { Toast.makeText(context, "Out of stock: Estradiol", Toast.LENGTH_SHORT) }
+        verify { Toast.makeText(context, "Almost out: Estradiol", Toast.LENGTH_SHORT) }
+        verify { Toast.makeText(context, "Low stock: Estradiol", Toast.LENGTH_SHORT) }
+        verify { Toast.makeText(context, "2 medicines out of stock", Toast.LENGTH_SHORT) }
+        verify { Toast.makeText(context, "2 medicines almost out", Toast.LENGTH_SHORT) }
+        verify { Toast.makeText(context, "2 medicines low on stock", Toast.LENGTH_SHORT) }
+        verify(exactly = 6) { toast.show() }
     }
 }
