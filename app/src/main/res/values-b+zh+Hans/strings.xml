@@ -717,6 +717,8 @@
     <string name="stock_section_title">库存追踪</string>
     <string name="stock_chip_low">不足</string>
     <string name="stock_chip_out">已用完</string>
+    <string name="stock_chip_imminent">即将用完</string>
+    <string name="stock_chip_no_runway">未知</string>
     <string name="stock_runway_unknown_title">无法预估</string>
     <string name="stock_runway_unknown_body">将此药品加入分组后即可预估剩余天数</string>
     <string name="stock_runway_beyond_horizon">库存充足</string>

@@ -29,12 +29,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.takeOrElse
@@ -47,6 +45,7 @@ import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.ui.components.HrtDropdownAnchor
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.StockStatusIndicator
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import java.util.Locale
 
@@ -105,22 +104,10 @@ private fun SectionHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(4.dp),
             )
-            when (projection.state) {
-                MedicineStockState.USER_LOW,
-                MedicineStockState.IMMINENT -> StatusChip(
-                    label = stringResource(R.string.stock_chip_low),
-                    container = MaterialTheme.colorScheme.tertiaryContainer,
-                    content = MaterialTheme.colorScheme.onTertiaryContainer,
-                )
-
-                MedicineStockState.OUT -> StatusChip(
-                    label = stringResource(R.string.stock_chip_out),
-                    container = MaterialTheme.colorScheme.errorContainer,
-                    content = MaterialTheme.colorScheme.onErrorContainer,
-                )
-
-                else -> Unit
-            }
+            StockStatusIndicator(
+                projection = projection,
+                showGauge = false,
+            )
         }
         HeaderOverflowMenu(
             preparation = projection.medicine.preparation,
@@ -189,26 +176,6 @@ private fun HeaderOverflowMenu(
                     ),
                 )
             },
-        )
-    }
-}
-
-@Composable
-private fun StatusChip(
-    label: String,
-    container: Color,
-    content: Color,
-) {
-    Surface(
-        color = container,
-        contentColor = content,
-        shape = RoundedCornerShape(8.dp),
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
         )
     }
 }

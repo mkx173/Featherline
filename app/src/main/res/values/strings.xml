@@ -750,6 +750,8 @@
     <string name="stock_section_title">Stock tracking</string>
     <string name="stock_chip_low">LOW</string>
     <string name="stock_chip_out">OUT</string>
+    <string name="stock_chip_imminent">ALMOST OUT</string>
+    <string name="stock_chip_no_runway">UNKNOWN</string>
     <string name="stock_runway_unknown_title">Runway unknown</string>
     <string name="stock_runway_unknown_body">Add this medicine to a group to forecast.</string>
     <string name="stock_runway_beyond_horizon">Plenty in stock</string>

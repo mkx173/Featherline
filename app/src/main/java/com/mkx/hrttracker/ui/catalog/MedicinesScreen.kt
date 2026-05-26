@@ -22,7 +22,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -67,6 +66,7 @@ import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.StockStatusIndicator
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -578,7 +578,7 @@ private fun MedicineRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (stockProjection != null) {
-                    MedicineRowFuelGauge(
+                    StockStatusIndicator(
                         projection = stockProjection,
                         modifier = Modifier
                             .padding(top = 6.dp)
@@ -680,48 +680,6 @@ private fun MedicineRowTrailingStock(
             )
         }
     }
-}
-
-@Composable
-private fun MedicineRowFuelGauge(
-    projection: MedicineStockProjection,
-    modifier: Modifier = Modifier,
-) {
-    if (!medicineManagerShowsFuelGauge(projection)) return
-    val color = when (projection.state) {
-        MedicineStockState.OUT -> MaterialTheme.colorScheme.error
-        MedicineStockState.USER_LOW,
-        MedicineStockState.IMMINENT -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.primary
-    }
-    LinearProgressIndicator(
-        progress = { medicineManagerFuelGaugeProgress(projection) },
-        color = color,
-        modifier = modifier.height(4.dp),
-    )
-}
-
-internal fun medicineManagerShowsFuelGauge(projection: MedicineStockProjection): Boolean {
-    return when (projection.state) {
-        MedicineStockState.HEALTHY,
-        MedicineStockState.USER_LOW,
-        MedicineStockState.IMMINENT,
-        MedicineStockState.OUT -> true
-        MedicineStockState.UNTRACKED,
-        MedicineStockState.NO_RUNWAY -> false
-    }
-}
-
-internal fun medicineManagerFuelGaugeProgress(projection: MedicineStockProjection): Float {
-    if (!medicineManagerShowsFuelGauge(projection)) return 0f
-    val runwayDays = when (val runway = projection.runway) {
-        is RunwayProjection.Days -> runway.days.toDouble()
-        RunwayProjection.BeyondHorizon -> return 1f
-        RunwayProjection.NoSchedule -> return 0f
-    }
-    val buffer = projection.medicine.stock.warnAtDaysRemaining * 3.0
-    if (buffer <= 0.0) return 0f
-    return (runwayDays / buffer).toFloat().coerceIn(0f, 1f)
 }
 
 @Composable
