@@ -68,7 +68,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.data.repository.StockDiscard
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -78,6 +77,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
+import com.mkx.hrttracker.ui.catalog.stock.OpenContainerEditDialog
 import com.mkx.hrttracker.ui.catalog.stock.StockSection
 import com.mkx.hrttracker.ui.catalog.stock.WarnAtThresholdSheet
 import com.mkx.hrttracker.ui.components.AppContentContainer
@@ -166,11 +166,13 @@ fun MedicineDetailScreen(
         onCloseAdjustSheet = viewModel::closeAdjustSheet,
         onOpenWarnAtSheet = viewModel::openWarnAtSheet,
         onCloseWarnAtSheet = viewModel::closeWarnAtSheet,
+        onOpenOpenContainerDialog = viewModel::openOpenContainerDialog,
+        onCloseOpenContainerDialog = viewModel::closeOpenContainerDialog,
+        onSubmitOpenContainerAmount = { amount -> viewModel.submitOpenContainerAmount(amount) },
         onOpenDisableConfirmation = viewModel::openDisableConfirmation,
         onCloseDisableConfirmation = viewModel::closeDisableConfirmation,
         onSubmitRecount = { recount -> viewModel.submitRecount(recount) },
         onSubmitReceived = { received -> viewModel.submitReceived(received) },
-        onSubmitDiscard = { discard -> viewModel.submitDiscard(discard) },
         onSubmitWarnAt = { days -> viewModel.submitWarnAt(days) },
         onConfirmDisableTracking = { viewModel.confirmDisableTracking() },
         onArchive = { viewModel.archive() },
@@ -191,11 +193,13 @@ private fun MedicineDetailScreenContent(
     onCloseAdjustSheet: () -> Unit,
     onOpenWarnAtSheet: () -> Unit,
     onCloseWarnAtSheet: () -> Unit,
+    onOpenOpenContainerDialog: () -> Unit,
+    onCloseOpenContainerDialog: () -> Unit,
+    onSubmitOpenContainerAmount: (Double) -> Unit,
     onOpenDisableConfirmation: () -> Unit,
     onCloseDisableConfirmation: () -> Unit,
     onSubmitRecount: (StockRecount) -> Unit,
     onSubmitReceived: (StockReceived) -> Unit,
-    onSubmitDiscard: (StockDiscard) -> Unit,
     onSubmitWarnAt: (Int) -> Unit,
     onConfirmDisableTracking: () -> Unit,
     onArchive: () -> Unit,
@@ -295,6 +299,7 @@ private fun MedicineDetailScreenContent(
                                 projection = stockProjection,
                                 onAdjustClick = { onOpenAdjustSheet(AdjustSheetTab.RECOUNT) },
                                 onOptInClick = onOpenOptIn,
+                                onEditOpenContainer = onOpenOpenContainerDialog,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             if (stockProjection.medicine.stock.trackingEnabled) {
@@ -404,7 +409,6 @@ private fun MedicineDetailScreenContent(
             receivedOnly = uiState.pendingEnableTracking,
             onRecount = onSubmitRecount,
             onReceived = onSubmitReceived,
-            onDiscard = onSubmitDiscard,
             onDismissRequest = onCloseAdjustSheet,
         )
     }
@@ -414,6 +418,15 @@ private fun MedicineDetailScreenContent(
             initialValue = stockProjection.medicine.stock.warnAtDaysRemaining,
             onSubmit = onSubmitWarnAt,
             onDismissRequest = onCloseWarnAtSheet,
+        )
+    }
+
+    if (uiState.showOpenContainerDialog && stockProjection != null) {
+        OpenContainerEditDialog(
+            preparation = stockProjection.medicine.preparation,
+            currentAmount = stockProjection.medicine.stock.openContainerAmount,
+            onSubmit = onSubmitOpenContainerAmount,
+            onDismiss = onCloseOpenContainerDialog,
         )
     }
 

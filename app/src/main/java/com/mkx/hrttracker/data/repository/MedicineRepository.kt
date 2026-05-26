@@ -261,17 +261,17 @@ class MedicineRepository @Inject internal constructor(
         }
     }
 
-    internal suspend fun applyDiscard(
+    internal suspend fun applySetOpenContainerAmount(
         uuid: UUID,
-        discard: StockDiscard,
+        amount: Double,
         now: Instant = Instant.now(),
     ) {
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
-                stockMutator.applyDiscard(
+                stockMutator.applySetOpenContainerAmount(
                     database = database,
                     medicineUuid = uuid,
-                    discard = discard,
+                    amount = amount,
                     now = now,
                 )
             }

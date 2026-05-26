@@ -961,14 +961,14 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun recount_container_clampsOpenAtContainerSize() = runTest {
+    fun recount_container_preservesExistingOpenContainer() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
 
         mutator.applyRecount(
             database = database,
             medicineUuid = medicineUuid,
-            recount = StockRecount(unitsRemaining = 3.0, openContainerAmount = 1.5),
+            recount = StockRecount(unitsRemaining = 3.0),
             now = fixedNow,
         )
 
@@ -978,7 +978,7 @@ class MedicineStockMutatorTest {
                 trackingEnabled = true,
                 stockUnitsRemaining = 3.0,
                 stockUnitsLastTotal = null,
-                openContainerAmount = 1.0,
+                openContainerAmount = 0.5,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 2L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),
@@ -1029,14 +1029,14 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun received_container_addsSealedAndOptionallySetsOpen() = runTest {
+    fun received_container_addsToSealedAndPreservesOpen() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 1.0, open = 0.4, vialVolume = 1.0, stockGeneration = 3L)
 
         mutator.applyReceived(
             database = database,
             medicineUuid = medicineUuid,
-            received = StockReceived(unitsReceived = 5.0, openContainerAmount = 0.8),
+            received = StockReceived(unitsReceived = 5.0),
             now = fixedNow,
         )
 
@@ -1046,7 +1046,7 @@ class MedicineStockMutatorTest {
                 trackingEnabled = true,
                 stockUnitsRemaining = 6.0,
                 stockUnitsLastTotal = null,
-                openContainerAmount = 0.8,
+                openContainerAmount = 0.4,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 3L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),
@@ -1055,14 +1055,14 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun received_container_blankOpenLeavesExistingOpenAlone() = runTest {
+    fun received_container_preservesNullOpenWhenNeverPromoted() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 1.0, open = 0.4, vialVolume = 1.0)
+            vialRow(sealed = 2.0, open = null, vialVolume = 1.0)
 
         mutator.applyReceived(
             database = database,
             medicineUuid = medicineUuid,
-            received = StockReceived(unitsReceived = 2.0, openContainerAmount = null),
+            received = StockReceived(unitsReceived = 3.0),
             now = fixedNow,
         )
 
@@ -1070,9 +1070,9 @@ class MedicineStockMutatorTest {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
                 trackingEnabled = true,
-                stockUnitsRemaining = 3.0,
+                stockUnitsRemaining = 5.0,
                 stockUnitsLastTotal = null,
-                openContainerAmount = 0.4,
+                openContainerAmount = null,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 1L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),
@@ -1087,7 +1087,7 @@ class MedicineStockMutatorTest {
         mutator.applyReceived(
             database = database,
             medicineUuid = medicineUuid,
-            received = StockReceived(unitsReceived = 2.0, openContainerAmount = null),
+            received = StockReceived(unitsReceived = 2.0),
             now = fixedNow,
         )
 
@@ -1097,14 +1097,14 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun discard_pool_subtracts_clampedAtZero_lastTotalUnchanged() = runTest {
+    fun setOpenContainerAmount_clampsToContainerSizeAndPreservesEverythingElse() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockUnitsRemaining = 20.0, stockUnitsLastTotal = 30.0, stockGeneration = 2L)
+            vialRow(sealed = 4.0, open = 0.3, vialVolume = 1.0, stockGeneration = 7L)
 
-        mutator.applyDiscard(
+        mutator.applySetOpenContainerAmount(
             database = database,
             medicineUuid = medicineUuid,
-            discard = StockDiscard.FromPool(units = 5.0),
+            amount = 2.5,
             now = fixedNow,
         )
 
@@ -1112,77 +1112,25 @@ class MedicineStockMutatorTest {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
                 trackingEnabled = true,
-                stockUnitsRemaining = 15.0,
-                stockUnitsLastTotal = 30.0,
-                openContainerAmount = null,
+                stockUnitsRemaining = 4.0,
+                stockUnitsLastTotal = null,
+                openContainerAmount = 1.0,
                 warnAtDaysRemaining = 14,
-                stockGeneration = 2L,
+                stockGeneration = 7L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),
             )
         }
     }
 
     @Test
-    fun discard_pool_clampsAtZero() = runTest {
+    fun setOpenContainerAmount_clampsNegativeToZero() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockUnitsRemaining = 3.0, stockUnitsLastTotal = 30.0)
+            vialRow(sealed = 2.0, open = 0.4, vialVolume = 1.0)
 
-        mutator.applyDiscard(
+        mutator.applySetOpenContainerAmount(
             database = database,
             medicineUuid = medicineUuid,
-            discard = StockDiscard.FromPool(units = 10.0),
-            now = fixedNow,
-        )
-
-        coVerify {
-            medicineDao.updateStockFields(
-                uuid = medicineUuid.toString(),
-                trackingEnabled = true,
-                stockUnitsRemaining = 0.0,
-                stockUnitsLastTotal = 30.0,
-                openContainerAmount = null,
-                warnAtDaysRemaining = 14,
-                stockGeneration = 1L,
-                updatedAtEpochMillis = fixedNow.toEpochMilli(),
-            )
-        }
-    }
-
-    @Test
-    fun discard_pool_negativeUnitsDoesNotIncreaseStock() = runTest {
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockUnitsRemaining = 20.0, stockUnitsLastTotal = 30.0, stockGeneration = 2L)
-
-        mutator.applyDiscard(
-            database = database,
-            medicineUuid = medicineUuid,
-            discard = StockDiscard.FromPool(units = -5.0),
-            now = fixedNow,
-        )
-
-        coVerify {
-            medicineDao.updateStockFields(
-                uuid = medicineUuid.toString(),
-                trackingEnabled = true,
-                stockUnitsRemaining = 20.0,
-                stockUnitsLastTotal = 30.0,
-                openContainerAmount = null,
-                warnAtDaysRemaining = 14,
-                stockGeneration = 2L,
-                updatedAtEpochMillis = fixedNow.toEpochMilli(),
-            )
-        }
-    }
-
-    @Test
-    fun discard_container_fromOpenContainer() = runTest {
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
-
-        mutator.applyDiscard(
-            database = database,
-            medicineUuid = medicineUuid,
-            discard = StockDiscard.FromOpenContainer(amount = 0.3),
+            amount = -0.5,
             now = fixedNow,
         )
 
@@ -1192,7 +1140,7 @@ class MedicineStockMutatorTest {
                 trackingEnabled = true,
                 stockUnitsRemaining = 2.0,
                 stockUnitsLastTotal = null,
-                openContainerAmount = 0.2,
+                openContainerAmount = 0.0,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 1L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),
@@ -1201,91 +1149,13 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun discard_container_negativeOpenAmountDoesNotIncreaseOpen() = runTest {
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
-
-        mutator.applyDiscard(
-            database = database,
-            medicineUuid = medicineUuid,
-            discard = StockDiscard.FromOpenContainer(amount = -0.3),
-            now = fixedNow,
-        )
-
-        coVerify {
-            medicineDao.updateStockFields(
-                uuid = medicineUuid.toString(),
-                trackingEnabled = true,
-                stockUnitsRemaining = 2.0,
-                stockUnitsLastTotal = null,
-                openContainerAmount = 0.5,
-                warnAtDaysRemaining = 14,
-                stockGeneration = 1L,
-                updatedAtEpochMillis = fixedNow.toEpochMilli(),
-            )
-        }
-    }
-
-    @Test
-    fun discard_container_fromSealed() = runTest {
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
-
-        mutator.applyDiscard(
-            database = database,
-            medicineUuid = medicineUuid,
-            discard = StockDiscard.FromSealed(units = 1.0),
-            now = fixedNow,
-        )
-
-        coVerify {
-            medicineDao.updateStockFields(
-                uuid = medicineUuid.toString(),
-                trackingEnabled = true,
-                stockUnitsRemaining = 1.0,
-                stockUnitsLastTotal = null,
-                openContainerAmount = 0.5,
-                warnAtDaysRemaining = 14,
-                stockGeneration = 1L,
-                updatedAtEpochMillis = fixedNow.toEpochMilli(),
-            )
-        }
-    }
-
-    @Test
-    fun discard_container_negativeSealedUnitsDoesNotIncreaseSealed() = runTest {
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
-
-        mutator.applyDiscard(
-            database = database,
-            medicineUuid = medicineUuid,
-            discard = StockDiscard.FromSealed(units = -1.0),
-            now = fixedNow,
-        )
-
-        coVerify {
-            medicineDao.updateStockFields(
-                uuid = medicineUuid.toString(),
-                trackingEnabled = true,
-                stockUnitsRemaining = 2.0,
-                stockUnitsLastTotal = null,
-                openContainerAmount = 0.5,
-                warnAtDaysRemaining = 14,
-                stockGeneration = 1L,
-                updatedAtEpochMillis = fixedNow.toEpochMilli(),
-            )
-        }
-    }
-
-    @Test
-    fun discard_medicineMissing_noWrite() = runTest {
+    fun setOpenContainerAmount_medicineMissing_noWrite() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns null
 
-        mutator.applyDiscard(
+        mutator.applySetOpenContainerAmount(
             database = database,
             medicineUuid = medicineUuid,
-            discard = StockDiscard.FromPool(units = 5.0),
+            amount = 0.5,
             now = fixedNow,
         )
 
@@ -1293,4 +1163,5 @@ class MedicineStockMutatorTest {
             medicineDao.updateStockFields(any(), any(), any(), any(), any(), any(), any(), any())
         }
     }
+
 }

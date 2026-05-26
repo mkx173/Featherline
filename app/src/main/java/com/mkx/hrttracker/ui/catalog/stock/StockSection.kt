@@ -11,27 +11,42 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.takeOrElse
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.ui.components.HrtDropdownAnchor
+import com.mkx.hrttracker.ui.components.HrtDropdownMenu
+import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import java.util.Locale
 import kotlin.math.abs
@@ -42,6 +57,7 @@ fun StockSection(
     projection: MedicineStockProjection,
     onAdjustClick: () -> Unit,
     onOptInClick: () -> Unit,
+    onEditOpenContainer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (!projection.medicine.stock.trackingEnabled) {
@@ -49,74 +65,113 @@ fun StockSection(
         return
     }
 
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    Column(modifier = modifier) {
         SectionHeader(
-            state = projection.state,
-            onAdjustClick = onAdjustClick,
+            projection = projection,
+            onEditOpenContainer = onEditOpenContainer,
         )
         Column(
             verticalArrangement = Arrangement.spacedBy(
                 dimensionResource(R.dimen.list_segment_gap),
             ),
         ) {
-            StockRows(projection = projection)
+            StockRows(
+                projection = projection,
+                onAdjustClick = onAdjustClick,
+            )
         }
     }
 }
 
 @Composable
 private fun SectionHeader(
-    state: MedicineStockState,
-    onAdjustClick: () -> Unit,
+    projection: MedicineStockProjection,
+    onEditOpenContainer: () -> Unit,
 ) {
+    val showOverflow = projection.medicine.stock.openContainerAmount != null
+    // Matches MedicineDetailScreen.SectionHeader / EditorSectionHeader: 6dp
+    // bottom row padding + 4dp all-sides text padding for the same vertical
+    // rhythm across detail-page sections.
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(
-            modifier = Modifier.padding(start = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = stringResource(R.string.stock_section_title).uppercase(),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(4.dp),
             )
-            when (state) {
-                MedicineStockState.LOW -> {
-                    Spacer(Modifier.width(8.dp))
-                    StatusChip(
-                        label = stringResource(R.string.stock_chip_low),
-                        container = MaterialTheme.colorScheme.tertiaryContainer,
-                        content = MaterialTheme.colorScheme.onTertiaryContainer,
-                    )
-                }
+            when (projection.state) {
+                MedicineStockState.LOW -> StatusChip(
+                    label = stringResource(R.string.stock_chip_low),
+                    container = MaterialTheme.colorScheme.tertiaryContainer,
+                    content = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
 
-                MedicineStockState.OUT -> {
-                    Spacer(Modifier.width(8.dp))
-                    StatusChip(
-                        label = stringResource(R.string.stock_chip_out),
-                        container = MaterialTheme.colorScheme.errorContainer,
-                        content = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                }
+                MedicineStockState.OUT -> StatusChip(
+                    label = stringResource(R.string.stock_chip_out),
+                    container = MaterialTheme.colorScheme.errorContainer,
+                    content = MaterialTheme.colorScheme.onErrorContainer,
+                )
 
                 else -> Unit
             }
         }
-        FilledTonalButton(onClick = onAdjustClick) {
-            Icon(
-                painter = painterResource(R.drawable.ic_tune),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.stock_adjust_button))
+        if (showOverflow) {
+            HeaderOverflowMenu(onEditOpenContainer = onEditOpenContainer)
         }
+    }
+}
+
+@Composable
+private fun HeaderOverflowMenu(onEditOpenContainer: () -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val editOpenLabel = stringResource(R.string.stock_open_edit_action)
+    // Match the title text's vertical box (line-height + the 4.dp Text padding
+    // applied above/below) so the overflow doesn't make the header taller than
+    // it would be without one. Falls back to fontSize when lineHeight is
+    // Unspecified, and scales with the user's font-size setting.
+    val titleStyle = MaterialTheme.typography.titleSmall
+    val density = LocalDensity.current
+    val iconSize = with(density) {
+        titleStyle.lineHeight.takeOrElse { titleStyle.fontSize }.toDp()
+    }
+    val buttonSize = iconSize + 8.dp
+    Row {
+        CompositionLocalProvider(
+            LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+        ) {
+            IconButton(
+                onClick = { expanded = true },
+                modifier = Modifier.size(buttonSize),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.MoreVert,
+                    contentDescription = stringResource(R.string.stock_section_more_options),
+                    modifier = Modifier.size(iconSize),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        HrtDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            anchor = HrtDropdownAnchor.EndAlignedBelow,
+            items = listOf(
+                HrtDropdownMenuItem(
+                    text = editOpenLabel,
+                    onClick = onEditOpenContainer,
+                ),
+            ),
+        )
     }
 }
 
@@ -141,68 +196,91 @@ private fun StatusChip(
 }
 
 @Composable
-private fun StockRows(projection: MedicineStockProjection) {
+private fun StockRows(
+    projection: MedicineStockProjection,
+    onAdjustClick: () -> Unit,
+) {
     val preparation = projection.medicine.preparation
     val stock = projection.medicine.stock
 
     when (preparation) {
         is MedicinePreparation.InjectionMultiUseVial -> {
-            // Sealed row first (just count) then open row (with gauge + runway).
+            val showOpenRow = stock.openContainerAmount != null
+            val totalRows = if (showOpenRow) 3 else 2
+            var index = 0
+            if (showOpenRow) {
+                StockRowCard(
+                    iconRes = R.drawable.ic_humidity_mid,
+                    label = stringResource(R.string.stock_row_label_open_vial),
+                    trailingCount = stringResource(
+                        R.string.stock_row_count_volume_ml,
+                        formatCount(stock.openContainerAmount),
+                        formatCount(preparation.vialVolumeMl),
+                    ),
+                    trailingState = projection.state,
+                    index = index++,
+                    count = totalRows,
+                    progress = computeProgress(
+                        numerator = stock.openContainerAmount,
+                        denominator = preparation.vialVolumeMl,
+                    ),
+                )
+            }
             StockRowCard(
                 iconRes = R.drawable.ic_inventory_2,
                 label = stringResource(R.string.stock_row_label_sealed_vials),
                 trailingCount = formatCount(stock.unitsRemaining),
                 // The sealed count is just an integer; its color stays neutral
-                // even when the open container itself is low or out, otherwise
-                // the user reads a healthy "3" as if it were dangerous.
+                // even when overall stock is low or out, otherwise the user
+                // reads a healthy "3" as if it were dangerous. The runway row
+                // below carries the state coloring instead.
                 trailingState = MedicineStockState.HEALTHY,
-                index = 0,
-                count = 2,
+                index = index++,
+                count = totalRows,
             )
-            StockRowCard(
-                iconRes = R.drawable.ic_humidity_mid,
-                label = stringResource(R.string.stock_row_label_open_vial),
-                trailingCount = stringResource(
-                    R.string.stock_row_count_volume_ml,
-                    formatCount(stock.openContainerAmount),
-                    formatCount(preparation.vialVolumeMl),
-                ),
-                trailingState = projection.state,
-                index = 1,
-                count = 2,
-                progress = computeProgress(
-                    numerator = stock.openContainerAmount,
-                    denominator = preparation.vialVolumeMl,
-                ),
+            RunwayRowCard(
                 projection = projection,
+                onAdjustClick = onAdjustClick,
+                index = index,
+                count = totalRows,
             )
         }
 
         is MedicinePreparation.GelContainer -> {
+            val showOpenRow = stock.openContainerAmount != null
+            val totalRows = if (showOpenRow) 3 else 2
+            var index = 0
+            if (showOpenRow) {
+                StockRowCard(
+                    iconRes = R.drawable.ic_humidity_mid,
+                    label = stringResource(R.string.stock_row_label_open_pump),
+                    trailingCount = stringResource(
+                        R.string.stock_row_count_volume_g,
+                        formatCount(stock.openContainerAmount),
+                        formatCount(preparation.containerWeightGrams),
+                    ),
+                    trailingState = projection.state,
+                    index = index++,
+                    count = totalRows,
+                    progress = computeProgress(
+                        numerator = stock.openContainerAmount,
+                        denominator = preparation.containerWeightGrams,
+                    ),
+                )
+            }
             StockRowCard(
                 iconRes = R.drawable.ic_inventory_2,
                 label = stringResource(R.string.stock_row_label_sealed_pumps),
                 trailingCount = formatCount(stock.unitsRemaining),
                 trailingState = MedicineStockState.HEALTHY,
-                index = 0,
-                count = 2,
+                index = index++,
+                count = totalRows,
             )
-            StockRowCard(
-                iconRes = R.drawable.ic_humidity_mid,
-                label = stringResource(R.string.stock_row_label_open_pump),
-                trailingCount = stringResource(
-                    R.string.stock_row_count_volume_g,
-                    formatCount(stock.openContainerAmount),
-                    formatCount(preparation.containerWeightGrams),
-                ),
-                trailingState = projection.state,
-                index = 1,
-                count = 2,
-                progress = computeProgress(
-                    numerator = stock.openContainerAmount,
-                    denominator = preparation.containerWeightGrams,
-                ),
+            RunwayRowCard(
                 projection = projection,
+                onAdjustClick = onAdjustClick,
+                index = index,
+                count = totalRows,
             )
         }
 
@@ -213,12 +291,17 @@ private fun StockRows(projection: MedicineStockProjection) {
                 trailingCount = poolCountText(stock.unitsRemaining, stock.unitsLastTotal),
                 trailingState = projection.state,
                 index = 0,
-                count = 1,
+                count = 2,
                 progress = computeProgress(
                     numerator = stock.unitsRemaining,
                     denominator = stock.unitsLastTotal,
                 ),
+            )
+            RunwayRowCard(
                 projection = projection,
+                onAdjustClick = onAdjustClick,
+                index = 1,
+                count = 2,
             )
         }
     }
@@ -233,7 +316,6 @@ private fun StockRowCard(
     index: Int,
     count: Int,
     progress: Float? = null,
-    projection: MedicineStockProjection? = null,
 ) {
     val trailingColor = when (trailingState) {
         MedicineStockState.LOW -> MaterialTheme.colorScheme.tertiary
@@ -250,11 +332,10 @@ private fun StockRowCard(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
-            val (iconRef, labelRef, countRef, progressRef, runwayRef) = createRefs()
+            val (iconRef, labelRef, countRef, progressRef) = createRefs()
 
-            // Icon vertically centers against the label-and-gauge group (top
-            // row + gauge), so the runway sub-card sits below without
-            // dragging the icon down with it.
+            // Icon vertically centers against the label-and-gauge group so the
+            // gauge sits below the count without dragging the icon down with it.
             Icon(
                 painter = painterResource(iconRes),
                 contentDescription = null,
@@ -303,21 +384,6 @@ private fun StockRowCard(
                         width = Dimension.fillToConstraints
                     },
                 )
-
-                // Runway sub-card only renders alongside a gauge; that pairing
-                // is the design's contract — the runway always describes the
-                // inventory shown by the gauge directly above it.
-                if (projection != null) {
-                    RunwaySubCard(
-                        projection = projection,
-                        modifier = Modifier.constrainAs(runwayRef) {
-                            start.linkTo(labelRef.start)
-                            end.linkTo(parent.end)
-                            top.linkTo(progressRef.bottom, margin = 10.dp)
-                            width = Dimension.fillToConstraints
-                        },
-                    )
-                }
             }
         }
     }
@@ -342,14 +408,15 @@ private fun FuelGauge(
 }
 
 @Composable
-private fun RunwaySubCard(
+private fun RunwayRowCard(
     projection: MedicineStockProjection,
-    modifier: Modifier = Modifier,
+    onAdjustClick: () -> Unit,
+    index: Int,
+    count: Int,
 ) {
     val runwayDays = projection.runwayDays
     val isWarn = projection.state == MedicineStockState.LOW ||
         projection.state == MedicineStockState.OUT
-
     val titleColor = when {
         isWarn -> MaterialTheme.colorScheme.tertiary
         runwayDays == null -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -376,26 +443,28 @@ private fun RunwaySubCard(
     }
 
     Surface(
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(12.dp),
-        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = segmentedListItemShape(index = index, count = count),
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 painter = painterResource(iconRes),
                 contentDescription = null,
                 tint = iconColor,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(24.dp),
             )
-            Spacer(Modifier.width(10.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Spacer(Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
                 Text(
                     text = titleText,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = titleColor,
                     fontWeight = FontWeight.Medium,
                 )
@@ -406,6 +475,16 @@ private fun RunwaySubCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            Spacer(Modifier.width(8.dp))
+            FilledTonalButton(onClick = onAdjustClick) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_tune),
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.stock_adjust_button))
             }
         }
     }

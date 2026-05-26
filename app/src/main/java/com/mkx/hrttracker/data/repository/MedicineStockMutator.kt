@@ -205,11 +205,9 @@ internal class MedicineStockMutator @Inject constructor() {
         val newOpen: Double?
         val newLastTotal: Double?
         if (prepType.isContainerTopology()) {
-            val containerSize = entity.containerSizeOrNull()
-            newOpen = recount.openContainerAmount?.let { amount ->
-                val nonNegativeAmount = maxOf(0.0, amount)
-                containerSize?.let { minOf(it, nonNegativeAmount) } ?: nonNegativeAmount
-            }
+            // Recount touches sealed count only; existing open vial is preserved.
+            // Use the dedicated applySetOpenContainerAmount op to edit open volume.
+            newOpen = entity.openContainerAmount
             newLastTotal = null
         } else {
             newOpen = null
@@ -241,18 +239,13 @@ internal class MedicineStockMutator @Inject constructor() {
         val nowMs = now.toEpochMilli()
 
         if (prepType.isContainerTopology()) {
-            val containerSize = entity.containerSizeOrNull()
             val newSealed = (entity.stockUnitsRemaining ?: 0.0) + received.unitsReceived
-            val newOpen = received.openContainerAmount?.let { amount ->
-                val nonNegativeAmount = maxOf(0.0, amount)
-                containerSize?.let { minOf(it, nonNegativeAmount) } ?: nonNegativeAmount
-            } ?: entity.openContainerAmount
             dao.updateStockFields(
                 uuid = entity.uuid,
                 trackingEnabled = true,
                 stockUnitsRemaining = newSealed,
                 stockUnitsLastTotal = null,
-                openContainerAmount = newOpen,
+                openContainerAmount = entity.openContainerAmount,
                 warnAtDaysRemaining = entity.warnAtDaysRemaining,
                 stockGeneration = entity.stockGeneration,
                 updatedAtEpochMillis = nowMs,
@@ -272,48 +265,30 @@ internal class MedicineStockMutator @Inject constructor() {
         }
     }
 
-    /** Discard: incremental reduction. No generation bump. */
-    suspend fun applyDiscard(
+    /**
+     * Sets the open container amount directly. Container topology only — pool
+     * preparations have no open container. Clamps to [0, containerSize]. No
+     * generation bump: this edits the current vial, not the inventory snapshot.
+     */
+    suspend fun applySetOpenContainerAmount(
         database: HrtTrackerDatabase,
         medicineUuid: UUID,
-        discard: StockDiscard,
+        amount: Double,
         now: Instant = Instant.now(),
     ) {
         val dao = database.medicineDao()
         val entity = dao.getByUuid(medicineUuid.toString()) ?: return
-        val nowMs = now.toEpochMilli()
-
-        val newRemaining: Double?
-        val newOpen: Double?
-        when (discard) {
-            is StockDiscard.FromPool -> {
-                val units = discard.units.coerceAtLeast(0.0)
-                newRemaining = maxOf(0.0, (entity.stockUnitsRemaining ?: 0.0) - units)
-                newOpen = null
-            }
-
-            is StockDiscard.FromOpenContainer -> {
-                val amount = discard.amount.coerceAtLeast(0.0)
-                newRemaining = entity.stockUnitsRemaining
-                newOpen = maxOf(0.0, (entity.openContainerAmount ?: 0.0) - amount)
-            }
-
-            is StockDiscard.FromSealed -> {
-                val units = discard.units.coerceAtLeast(0.0)
-                newRemaining = maxOf(0.0, (entity.stockUnitsRemaining ?: 0.0) - units)
-                newOpen = entity.openContainerAmount
-            }
-        }
-
+        val containerSize = entity.containerSizeOrNull() ?: return
+        val clamped = amount.coerceIn(0.0, containerSize)
         dao.updateStockFields(
             uuid = entity.uuid,
             trackingEnabled = true,
-            stockUnitsRemaining = newRemaining,
+            stockUnitsRemaining = entity.stockUnitsRemaining,
             stockUnitsLastTotal = entity.stockUnitsLastTotal,
-            openContainerAmount = newOpen,
+            openContainerAmount = clamped,
             warnAtDaysRemaining = entity.warnAtDaysRemaining,
             stockGeneration = entity.stockGeneration,
-            updatedAtEpochMillis = nowMs,
+            updatedAtEpochMillis = now.toEpochMilli(),
         )
     }
 

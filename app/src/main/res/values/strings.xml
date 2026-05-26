@@ -795,19 +795,23 @@
     <string name="stock_adjust_title">Adjust stock</string>
     <string name="stock_adjust_tab_recount">Recount</string>
     <string name="stock_adjust_tab_received">Received</string>
-    <string name="stock_adjust_tab_discard">Discard</string>
     <string name="stock_adjust_after">After: %1$s</string>
     <string name="stock_adjust_after_with_runway">After: %1$s · %2$s</string>
     <string name="stock_adjust_field_now_have">Now have</string>
     <string name="stock_adjust_field_out_of_total">Out of total (optional)</string>
     <string name="stock_adjust_field_sealed">Sealed</string>
-    <string name="stock_adjust_field_open_remaining">Open container remaining</string>
     <string name="stock_adjust_field_received">Received this time</string>
     <string name="stock_adjust_field_sealed_received">Sealed received</string>
-    <string name="stock_adjust_field_discard_pool">Discard</string>
-    <string name="stock_adjust_field_discard_open">From open container</string>
-    <string name="stock_adjust_field_discard_sealed">From sealed</string>
     <string name="stock_adjust_confirm">Confirm</string>
+
+    <!-- Stock section overflow + open container edit dialog -->
+    <string name="stock_section_more_options">More options</string>
+    <string name="stock_open_edit_action">Edit open container</string>
+    <string name="stock_open_edit_dialog_title_vial">Set open vial</string>
+    <string name="stock_open_edit_dialog_title_pump">Set open pump</string>
+    <string name="stock_open_edit_dialog_body">Container holds %1$s %2$s when full.</string>
+    <string name="stock_open_edit_dialog_field">Remaining</string>
+    <string name="stock_open_edit_dialog_invalid">Enter a non-negative number.</string>
 
     <!-- Warn-at sheet -->
     <string name="stock_warnat_row_label">Warn at %1$d days left</string>

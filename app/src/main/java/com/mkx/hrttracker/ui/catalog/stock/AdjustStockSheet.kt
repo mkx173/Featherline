@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.catalog.stock
 
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,9 +14,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,16 +23,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.data.repository.StockDiscard
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
+import java.math.BigDecimal
 import java.util.Locale
 import kotlin.math.floor
 
@@ -48,7 +45,6 @@ fun AdjustStockSheet(
     receivedOnly: Boolean = false,
     onRecount: (StockRecount) -> Unit,
     onReceived: (StockReceived) -> Unit,
-    onDiscard: (StockDiscard) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
     val effectiveInitialTab = if (receivedOnly) AdjustSheetTab.RECEIVED else initialTab
@@ -63,17 +59,16 @@ fun AdjustStockSheet(
                 style = MaterialTheme.typography.titleLarge,
             )
             Spacer(Modifier.height(8.dp))
-            PrimaryTabRow(selectedTabIndex = activeTab.ordinal) {
-                AdjustSheetTab.entries.forEach { tab ->
-                    val enabled = !receivedOnly || tab == AdjustSheetTab.RECEIVED
-                    Tab(
-                        selected = tab == activeTab,
-                        onClick = { if (enabled) activeTab = tab },
-                        enabled = enabled,
-                        text = { Text(stringResource(tab.labelRes)) },
-                    )
-                }
-            }
+            ConnectedButtonGroup(
+                modifier = Modifier.fillMaxWidth(),
+                options = AdjustSheetTab.entries,
+                selectedOption = activeTab,
+                optionLabel = { tab -> stringResource(tab.labelRes) },
+                onOptionSelected = { tab -> activeTab = tab },
+                enabled = !receivedOnly,
+                layout = ConnectedButtonGroupLayout.ROW,
+                expandOptions = true,
+            )
             Spacer(Modifier.height(16.dp))
             when (activeTab) {
                 AdjustSheetTab.RECOUNT -> {
@@ -93,15 +88,6 @@ fun AdjustStockSheet(
                         onDismiss = onDismissRequest,
                     )
                 }
-
-                AdjustSheetTab.DISCARD -> {
-                    DiscardForm(
-                        projection = projection,
-                        isContainer = isContainer,
-                        onSubmit = onDiscard,
-                        onDismiss = onDismissRequest,
-                    )
-                }
             }
         }
     }
@@ -114,24 +100,26 @@ private fun RecountForm(
     onSubmit: (StockRecount) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var unitsRemainingText by remember { mutableStateOf("") }
-    var unitsLastTotalText by remember { mutableStateOf("") }
-    var openContainerText by remember { mutableStateOf("") }
+    val stock = projection.medicine.stock
+    var unitsRemainingText by remember(
+        projection.medicine.uuid,
+        stock.unitsRemaining,
+    ) { mutableStateOf(stock.unitsRemaining.toEditableTextOrEmpty()) }
+    var unitsLastTotalText by remember(
+        projection.medicine.uuid,
+        stock.unitsLastTotal,
+    ) { mutableStateOf(stock.unitsLastTotal.toEditableTextOrEmpty()) }
 
     val unitsRemaining = unitsRemainingText.toDoubleOrNull()
     val unitsLastTotal = unitsLastTotalText.optionalDoubleOrNull()
-    val openContainerAmount = openContainerText.optionalDoubleOrNull()
     val optionalPoolTotalValid = unitsLastTotalText.isBlankOrNonNegativeDecimal()
-    val optionalOpenAmountValid = openContainerText.isBlankOrNonNegativeDecimal()
     val canConfirm = unitsRemaining != null &&
         unitsRemaining >= 0.0 &&
-        optionalPoolTotalValid &&
-        optionalOpenAmountValid
+        optionalPoolTotalValid
     val simulatedTotal = if (isContainer) {
+        // Recount touches sealed only; existing open container is preserved.
         val containerSize = projection.medicine.preparation.containerSizeUnits()
-        val storedOpenAmount = openContainerAmount
-            ?.coerceIn(0.0, containerSize)
-            ?: 0.0
+        val storedOpenAmount = (stock.openContainerAmount ?: 0.0).coerceIn(0.0, containerSize)
         (unitsRemaining ?: 0.0) * containerSize + storedOpenAmount
     } else {
         unitsRemaining ?: 0.0
@@ -154,18 +142,7 @@ private fun RecountForm(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (isContainer) {
-            OutlinedTextField(
-                value = openContainerText,
-                onValueChange = { openContainerText = it },
-                label = {
-                    Text(stringResource(R.string.stock_adjust_field_open_remaining))
-                },
-                keyboardOptions = decimalKeyboardOptions(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
+        if (!isContainer) {
             OutlinedTextField(
                 value = unitsLastTotalText,
                 onValueChange = { unitsLastTotalText = it },
@@ -190,7 +167,6 @@ private fun RecountForm(
                     StockRecount(
                         unitsRemaining = resolvedUnitsRemaining,
                         unitsLastTotal = if (isContainer) null else unitsLastTotal,
-                        openContainerAmount = if (isContainer) openContainerAmount else null,
                     )
                 )
                 onDismiss()
@@ -222,21 +198,17 @@ private fun ReceivedForm(
         }
     }
     var receivedText by remember(initialReceivedText) { mutableStateOf(initialReceivedText) }
-    var openContainerText by remember { mutableStateOf("") }
 
     val received = receivedText.toDoubleOrNull()
-    val openContainerAmount = openContainerText.optionalDoubleOrNull()
-    val optionalOpenAmountValid = openContainerText.isBlankOrNonNegativeDecimal()
-    val canConfirm = received != null &&
-        received >= 0.0 &&
-        optionalOpenAmountValid
+    val canConfirm = received != null && received >= 0.0
     val simulatedTotal = if (isContainer) {
+        // Received tops up sealed; the existing open container carries over
+        // unchanged. Newly-tracked containers start with no open vial (null),
+        // so the simulated total is sealed-only at opt-in time.
         val containerSize = projection.medicine.preparation.containerSizeUnits()
         val sealed = (projection.medicine.stock.unitsRemaining ?: 0.0) + (received ?: 0.0)
-        val open = openContainerAmount
-            ?.coerceIn(0.0, containerSize)
-            ?: projection.medicine.stock.openContainerAmount?.coerceIn(0.0, containerSize)
-            ?: 0.0
+        val open = (projection.medicine.stock.openContainerAmount ?: 0.0)
+            .coerceIn(0.0, containerSize)
         sealed * containerSize + open
     } else {
         storedTotalUnits(projection) + (received ?: 0.0)
@@ -259,18 +231,6 @@ private fun ReceivedForm(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (isContainer) {
-            OutlinedTextField(
-                value = openContainerText,
-                onValueChange = { openContainerText = it },
-                label = {
-                    Text(stringResource(R.string.stock_adjust_field_open_remaining))
-                },
-                keyboardOptions = decimalKeyboardOptions(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
         AfterPreview(
             projection = projection,
             simulatedTotalUnits = simulatedTotal,
@@ -280,125 +240,10 @@ private fun ReceivedForm(
             onDismiss = onDismiss,
             onConfirm = {
                 val resolvedReceived = received ?: return@SheetActionRow
-                onSubmit(
-                    StockReceived(
-                        unitsReceived = resolvedReceived,
-                        openContainerAmount = if (isContainer) openContainerAmount else null,
-                    )
-                )
+                onSubmit(StockReceived(unitsReceived = resolvedReceived))
                 onDismiss()
             },
         )
-    }
-}
-
-@Composable
-private fun DiscardForm(
-    projection: MedicineStockProjection,
-    isContainer: Boolean,
-    onSubmit: (StockDiscard) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var discardText by remember { mutableStateOf("") }
-    var target by remember { mutableStateOf(DiscardTarget.OPEN_CONTAINER) }
-
-    val amount = discardText.toDoubleOrNull()
-    val canConfirm = amount != null && amount >= 0.0
-    val simulatedTotal = if (isContainer) {
-        val containerSize = projection.medicine.preparation.containerSizeUnits()
-        val currentSealed = projection.medicine.stock.unitsRemaining ?: 0.0
-        val currentOpen = projection.medicine.stock.openContainerAmount ?: 0.0
-        when (target) {
-            DiscardTarget.OPEN_CONTAINER -> {
-                currentSealed * containerSize + (currentOpen - (amount ?: 0.0)).coerceAtLeast(0.0)
-            }
-
-            DiscardTarget.SEALED -> {
-                (currentSealed - (amount ?: 0.0)).coerceAtLeast(0.0) * containerSize + currentOpen
-            }
-        }
-    } else {
-        (projection.medicine.stock.unitsRemaining ?: 0.0)
-            .minus(amount ?: 0.0)
-            .coerceAtLeast(0.0)
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (isContainer) {
-            DiscardTargetSelector(
-                selected = target,
-                onSelected = { target = it },
-            )
-        }
-        OutlinedTextField(
-            value = discardText,
-            onValueChange = { discardText = it },
-            label = {
-                Text(stringResource(R.string.stock_adjust_field_discard_pool))
-            },
-            keyboardOptions = decimalKeyboardOptions(),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        AfterPreview(
-            projection = projection,
-            simulatedTotalUnits = simulatedTotal,
-        )
-        SheetActionRow(
-            canConfirm = canConfirm,
-            onDismiss = onDismiss,
-            onConfirm = {
-                val resolvedAmount = amount ?: return@SheetActionRow
-                onSubmit(
-                    if (!isContainer) {
-                        StockDiscard.FromPool(units = resolvedAmount)
-                    } else {
-                        when (target) {
-                            DiscardTarget.OPEN_CONTAINER -> {
-                                StockDiscard.FromOpenContainer(amount = resolvedAmount)
-                            }
-
-                            DiscardTarget.SEALED -> {
-                                StockDiscard.FromSealed(units = resolvedAmount)
-                            }
-                        }
-                    }
-                )
-                onDismiss()
-            },
-        )
-    }
-}
-
-@Composable
-private fun DiscardTargetSelector(
-    selected: DiscardTarget,
-    onSelected: (DiscardTarget) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        DiscardTarget.entries.forEach { target ->
-            Row(
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .selectable(
-                        selected = selected == target,
-                        role = Role.RadioButton,
-                        onClick = { onSelected(target) },
-                    )
-                    .padding(vertical = 4.dp),
-            ) {
-                RadioButton(
-                    selected = selected == target,
-                    onClick = null,
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = stringResource(target.labelRes),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        }
     }
 }
 
@@ -508,16 +353,9 @@ private val AdjustSheetTab.labelRes: Int
     get() = when (this) {
         AdjustSheetTab.RECOUNT -> R.string.stock_adjust_tab_recount
         AdjustSheetTab.RECEIVED -> R.string.stock_adjust_tab_received
-        AdjustSheetTab.DISCARD -> R.string.stock_adjust_tab_discard
     }
 
-private enum class DiscardTarget {
-    OPEN_CONTAINER,
-    SEALED,
+private fun Double?.toEditableTextOrEmpty(): String {
+    val value = this ?: return ""
+    return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString()
 }
-
-private val DiscardTarget.labelRes: Int
-    get() = when (this) {
-        DiscardTarget.OPEN_CONTAINER -> R.string.stock_adjust_field_discard_open
-        DiscardTarget.SEALED -> R.string.stock_adjust_field_discard_sealed
-    }

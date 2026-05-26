@@ -757,19 +757,23 @@
     <string name="stock_adjust_title">调整库存</string>
     <string name="stock_adjust_tab_recount">盘点</string>
     <string name="stock_adjust_tab_received">收到</string>
-    <string name="stock_adjust_tab_discard">丢弃</string>
     <string name="stock_adjust_after">调整后：%1$s</string>
     <string name="stock_adjust_after_with_runway">调整后：%1$s · %2$s</string>
     <string name="stock_adjust_field_now_have">实际数量</string>
     <string name="stock_adjust_field_out_of_total">总数（可选）</string>
     <string name="stock_adjust_field_sealed">未拆封</string>
-    <string name="stock_adjust_field_open_remaining">已开容器剩余</string>
     <string name="stock_adjust_field_received">本次收到</string>
     <string name="stock_adjust_field_sealed_received">收到未拆封</string>
-    <string name="stock_adjust_field_discard_pool">丢弃数量</string>
-    <string name="stock_adjust_field_discard_open">从已开容器</string>
-    <string name="stock_adjust_field_discard_sealed">从未拆封</string>
     <string name="stock_adjust_confirm">确认</string>
+
+    <!-- Stock section overflow + open container edit dialog -->
+    <string name="stock_section_more_options">更多选项</string>
+    <string name="stock_open_edit_action">编辑已开容器</string>
+    <string name="stock_open_edit_dialog_title_vial">设置已开瓶</string>
+    <string name="stock_open_edit_dialog_title_pump">设置已开泵</string>
+    <string name="stock_open_edit_dialog_body">满容量为 %1$s %2$s。</string>
+    <string name="stock_open_edit_dialog_field">剩余量</string>
+    <string name="stock_open_edit_dialog_invalid">请输入非负数。</string>
 
     <string name="stock_warnat_row_label">剩余 %1$d 天时提醒</string>
     <string name="stock_warnat_sheet_title">剩余多少天时提醒？</string>

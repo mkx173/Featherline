@@ -8,7 +8,6 @@ import com.mkx.hrttracker.data.repository.MedicineReferencedByActiveGroupExcepti
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
-import com.mkx.hrttracker.data.repository.StockDiscard
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.DoseInstruction
@@ -596,12 +595,7 @@ class MedicineDetailViewModelTest {
         assertEquals(AdjustSheetTab.RECEIVED, viewModel.uiState.value.adjustSheetActiveTab)
         assertEquals(true, viewModel.uiState.value.pendingEnableTracking)
 
-        viewModel.submitReceived(
-            StockReceived(
-                unitsReceived = 60.0,
-                openContainerAmount = 3.0,
-            )
-        )
+        viewModel.submitReceived(StockReceived(unitsReceived = 60.0))
         advanceUntilIdle()
 
         coVerify(exactly = 1) {
@@ -711,37 +705,7 @@ class MedicineDetailViewModelTest {
     }
 
     @Test
-    fun optInDiscardSubmissionDoesNotMutateStock() = runTest {
-        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000016")
-        val medicine = testMedicine(uuid = medicineUuid)
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
-        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
-        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
-
-        val viewModel = MedicineDetailViewModel(
-            medicineRepository = medicineRepository,
-            medicationGroupRepository = medicationGroupRepository,
-            stockRepository = stockRepository,
-            settingsRepository = settingsRepository,
-            savedStateHandle = SavedStateHandle(
-                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
-            ),
-        )
-        advanceUntilIdle()
-
-        viewModel.openOptIn()
-        viewModel.submitDiscard(StockDiscard.FromPool(units = 4.0))
-        advanceUntilIdle()
-
-        coVerify(exactly = 0) { medicineRepository.applyDiscard(any(), any(), any()) }
-        coVerify(exactly = 0) { medicineRepository.enableTracking(any(), any(), any(), any(), any()) }
-        assertEquals(false, viewModel.uiState.value.showAdjustSheet)
-        assertEquals(false, viewModel.uiState.value.pendingEnableTracking)
-    }
-
-    @Test
-    fun containerOptInReceivedSubmissionClampsOpenAmountToContainerSize() = runTest {
+    fun containerOptInReceivedSubmissionAlwaysStartsSealedWithNullOpen() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000017")
         val medicine = testMedicine(
             uuid = medicineUuid,
@@ -774,7 +738,7 @@ class MedicineDetailViewModelTest {
             medicineRepository.enableTracking(
                 medicineUuid,
                 3.0,
-                5.0,
+                null,
                 null,
                 any(),
             )
@@ -792,19 +756,16 @@ class MedicineDetailViewModelTest {
         advanceUntilIdle()
 
         viewModel.openOptIn()
-        viewModel.submitReceived(
-            StockReceived(
-                unitsReceived = 2.0,
-                openContainerAmount = 10.0,
-            )
-        )
+        viewModel.submitReceived(StockReceived(unitsReceived = 2.0))
         advanceUntilIdle()
 
+        // Container opt-in never seeds an open vial — the first deduction
+        // promotes a sealed vial via the deduction mutator instead.
         coVerify(exactly = 1) {
             medicineRepository.enableTracking(
                 medicineUuid,
                 3.0,
-                5.0,
+                null,
                 null,
                 any(),
             )

@@ -10,7 +10,6 @@ import com.mkx.hrttracker.data.repository.MedicineReferencedByActiveGroupExcepti
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
-import com.mkx.hrttracker.data.repository.StockDiscard
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.DoseInstruction
@@ -199,6 +198,19 @@ class MedicineDetailViewModel @Inject constructor(
         _uiState.update { it.copy(showWarnAtSheet = false) }
     }
 
+    fun openOpenContainerDialog() {
+        _uiState.update { it.copy(showOpenContainerDialog = true) }
+    }
+
+    fun closeOpenContainerDialog() {
+        _uiState.update { it.copy(showOpenContainerDialog = false) }
+    }
+
+    fun submitOpenContainerAmount(amount: Double): Job = viewModelScope.launch {
+        medicineRepository.applySetOpenContainerAmount(medicineUuid, amount)
+        _uiState.update { it.copy(showOpenContainerDialog = false) }
+    }
+
     fun openDisableConfirmation() {
         _uiState.update { it.copy(showDisableConfirmation = true) }
     }
@@ -238,33 +250,19 @@ class MedicineDetailViewModel @Inject constructor(
 
     fun submitReceived(received: StockReceived): Job = viewModelScope.launch {
         if (_uiState.value.pendingEnableTracking) {
-            val projection = _uiState.value.stockProjection
-            val medicine = projection?.medicine
-            val initialUnitsRemaining: Double?
-            val initialOpenContainerAmount: Double?
-            val initialUnitsLastTotal: Double?
-            if (
-                medicine?.preparation is MedicinePreparation.InjectionMultiUseVial ||
+            val medicine = _uiState.value.stockProjection?.medicine
+            val isContainer = medicine?.preparation is MedicinePreparation.InjectionMultiUseVial ||
                 medicine?.preparation is MedicinePreparation.GelContainer
-            ) {
-                val containerSize = medicine.preparation.containerSizeUnits()
-                initialUnitsRemaining = (medicine.stock.unitsRemaining ?: 0.0) +
-                    received.unitsReceived
-                initialOpenContainerAmount = received.openContainerAmount
-                    ?.coerceIn(0.0, containerSize)
-                    ?: medicine.stock.openContainerAmount?.coerceIn(0.0, containerSize)
-                initialUnitsLastTotal = null
-            } else {
-                initialUnitsRemaining = (medicine?.stock?.unitsRemaining ?: 0.0) +
-                    received.unitsReceived
-                initialOpenContainerAmount = null
-                initialUnitsLastTotal = initialUnitsRemaining
-            }
+            val initialUnitsRemaining = (medicine?.stock?.unitsRemaining ?: 0.0) +
+                received.unitsReceived
+            // Container opt-in always starts with everything sealed; a vial is
+            // promoted to "open" only when the first deduction happens. Pool
+            // preparations seed lastTotal so the runway rate has a baseline.
             medicineRepository.enableTracking(
                 uuid = medicineUuid,
                 initialUnitsRemaining = initialUnitsRemaining,
-                initialOpenContainerAmount = initialOpenContainerAmount,
-                initialUnitsLastTotal = initialUnitsLastTotal,
+                initialOpenContainerAmount = null,
+                initialUnitsLastTotal = if (isContainer) null else initialUnitsRemaining,
             )
             _uiState.update {
                 it.copy(
@@ -276,12 +274,6 @@ class MedicineDetailViewModel @Inject constructor(
             medicineRepository.applyReceived(medicineUuid, received)
             _uiState.update { it.copy(showAdjustSheet = false) }
         }
-    }
-
-    fun submitDiscard(discard: StockDiscard): Job = viewModelScope.launch {
-        if (closePendingEnableAdjustSheet()) return@launch
-        medicineRepository.applyDiscard(medicineUuid, discard)
-        _uiState.update { it.copy(showAdjustSheet = false) }
     }
 
     private fun closePendingEnableAdjustSheet(): Boolean {
@@ -471,13 +463,6 @@ class MedicineDetailViewModel @Inject constructor(
     }
 }
 
-private fun MedicinePreparation.containerSizeUnits(): Double {
-    return when (this) {
-        is MedicinePreparation.InjectionMultiUseVial -> vialVolumeMl
-        is MedicinePreparation.GelContainer -> containerWeightGrams
-        else -> 0.0
-    }
-}
 
 data class MedicineDetailUiState(
     val medicine: Medicine? = null,
@@ -492,6 +477,7 @@ data class MedicineDetailUiState(
     val showAdjustSheet: Boolean = false,
     val showWarnAtSheet: Boolean = false,
     val showDisableConfirmation: Boolean = false,
+    val showOpenContainerDialog: Boolean = false,
     val adjustSheetActiveTab: AdjustSheetTab = AdjustSheetTab.RECOUNT,
     val pendingEnableTracking: Boolean = false,
 )
@@ -499,7 +485,6 @@ data class MedicineDetailUiState(
 enum class AdjustSheetTab {
     RECOUNT,
     RECEIVED,
-    DISCARD,
 }
 
 data class LinkedSlotRow(
