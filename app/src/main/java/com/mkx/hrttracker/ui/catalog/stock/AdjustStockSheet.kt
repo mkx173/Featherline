@@ -4,24 +4,32 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -33,6 +41,8 @@ import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
+import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import java.math.BigDecimal
 import java.util.Locale
 import kotlin.math.floor
@@ -52,13 +62,44 @@ fun AdjustStockSheet(
     val isContainer = projection.medicine.preparation is MedicinePreparation.InjectionMultiUseVial ||
         projection.medicine.preparation is MedicinePreparation.GelContainer
 
-    ModalBottomSheet(onDismissRequest = onDismissRequest) {
-        Column(Modifier.padding(16.dp)) {
-            Text(
-                text = stringResource(R.string.stock_adjust_title),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Spacer(Modifier.height(8.dp))
+    val density = LocalDensity.current
+    val navigationBarBottomPadding = with(density) {
+        WindowInsets.navigationBars.getBottom(this).toDp()
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
+        contentWindowInsets = { WindowInsets.systemBars.only(WindowInsetsSides.Top) },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    start = dimensionResource(R.dimen.padding_large),
+                    end = dimensionResource(R.dimen.padding_large),
+                    bottom = dimensionResource(R.dimen.padding_large) + navigationBarBottomPadding,
+                ),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.stock_adjust_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 10.dp, top = 4.dp),
+                )
+                HrtFilledTonalButton(
+                    text = stringResource(R.string.stock_cancel),
+                    onClick = onDismissRequest,
+                )
+            }
+
+            Spacer(Modifier.height(dimensionResource(R.dimen.padding_small)))
+
             ConnectedButtonGroup(
                 modifier = Modifier.fillMaxWidth(),
                 options = AdjustSheetTab.entries,
@@ -69,25 +110,23 @@ fun AdjustStockSheet(
                 layout = ConnectedButtonGroupLayout.ROW,
                 expandOptions = true,
             )
-            Spacer(Modifier.height(16.dp))
-            when (activeTab) {
-                AdjustSheetTab.RECOUNT -> {
-                    RecountForm(
-                        projection = projection,
-                        isContainer = isContainer,
-                        onSubmit = onRecount,
-                        onDismiss = onDismissRequest,
-                    )
-                }
 
-                AdjustSheetTab.RECEIVED -> {
-                    ReceivedForm(
-                        projection = projection,
-                        isContainer = isContainer,
-                        onSubmit = onReceived,
-                        onDismiss = onDismissRequest,
-                    )
-                }
+            Spacer(Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+            when (activeTab) {
+                AdjustSheetTab.RECOUNT -> RecountForm(
+                    projection = projection,
+                    isContainer = isContainer,
+                    onSubmit = onRecount,
+                    onDismiss = onDismissRequest,
+                )
+
+                AdjustSheetTab.RECEIVED -> ReceivedForm(
+                    projection = projection,
+                    isContainer = isContainer,
+                    onSubmit = onReceived,
+                    onDismiss = onDismissRequest,
+                )
             }
         }
     }
@@ -158,11 +197,11 @@ private fun RecountForm(
             projection = projection,
             simulatedTotalUnits = simulatedTotal,
         )
-        SheetActionRow(
-            canConfirm = canConfirm,
-            onDismiss = onDismiss,
-            onConfirm = {
-                val resolvedUnitsRemaining = unitsRemaining ?: return@SheetActionRow
+        HrtButton(
+            text = stringResource(R.string.stock_adjust_confirm),
+            enabled = canConfirm,
+            onClick = {
+                val resolvedUnitsRemaining = unitsRemaining ?: return@HrtButton
                 onSubmit(
                     StockRecount(
                         unitsRemaining = resolvedUnitsRemaining,
@@ -171,6 +210,9 @@ private fun RecountForm(
                 )
                 onDismiss()
             },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = dimensionResource(R.dimen.padding_xsmall)),
         )
     }
 }
@@ -235,14 +277,17 @@ private fun ReceivedForm(
             projection = projection,
             simulatedTotalUnits = simulatedTotal,
         )
-        SheetActionRow(
-            canConfirm = canConfirm,
-            onDismiss = onDismiss,
-            onConfirm = {
-                val resolvedReceived = received ?: return@SheetActionRow
+        HrtButton(
+            text = stringResource(R.string.stock_adjust_confirm),
+            enabled = canConfirm,
+            onClick = {
+                val resolvedReceived = received ?: return@HrtButton
                 onSubmit(StockReceived(unitsReceived = resolvedReceived))
                 onDismiss()
             },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = dimensionResource(R.dimen.padding_xsmall)),
         )
     }
 }
@@ -278,29 +323,6 @@ private fun AfterPreview(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-}
-
-@Composable
-private fun SheetActionRow(
-    canConfirm: Boolean,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    Row(
-        horizontalArrangement = Arrangement.End,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        TextButton(onClick = onDismiss) {
-            Text(stringResource(R.string.stock_cancel))
-        }
-        Spacer(Modifier.width(8.dp))
-        FilledTonalButton(
-            enabled = canConfirm,
-            onClick = onConfirm,
-        ) {
-            Text(stringResource(R.string.stock_adjust_confirm))
-        }
-    }
 }
 
 private fun decimalKeyboardOptions(): KeyboardOptions {
