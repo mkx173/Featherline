@@ -55,9 +55,9 @@ import kotlin.math.floor
 @Composable
 fun StockSection(
     projection: MedicineStockProjection,
-    onAdjustClick: () -> Unit,
     onOptInClick: () -> Unit,
     onEditOpenContainer: () -> Unit,
+    onDisableTracking: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (!projection.medicine.stock.trackingEnabled) {
@@ -69,16 +69,14 @@ fun StockSection(
         SectionHeader(
             projection = projection,
             onEditOpenContainer = onEditOpenContainer,
+            onDisableTracking = onDisableTracking,
         )
         Column(
             verticalArrangement = Arrangement.spacedBy(
                 dimensionResource(R.dimen.list_segment_gap),
             ),
         ) {
-            StockRows(
-                projection = projection,
-                onAdjustClick = onAdjustClick,
-            )
+            StockRows(projection = projection)
         }
     }
 }
@@ -87,8 +85,8 @@ fun StockSection(
 private fun SectionHeader(
     projection: MedicineStockProjection,
     onEditOpenContainer: () -> Unit,
+    onDisableTracking: () -> Unit,
 ) {
-    val showOverflow = projection.medicine.stock.openContainerAmount != null
     // Matches MedicineDetailScreen.SectionHeader / EditorSectionHeader: 6dp
     // bottom row padding + 4dp all-sides text padding for the same vertical
     // rhythm across detail-page sections.
@@ -125,22 +123,27 @@ private fun SectionHeader(
                 else -> Unit
             }
         }
-        if (showOverflow) {
-            HeaderOverflowMenu(
-                preparation = projection.medicine.preparation,
-                onEditOpenContainer = onEditOpenContainer,
-            )
-        }
+        HeaderOverflowMenu(
+            preparation = projection.medicine.preparation,
+            // Hide the edit-container item until a vial/container is open;
+            // before promotion there's nothing to edit. Disable tracking is
+            // always available while StockSection is rendered.
+            onEditOpenContainer = onEditOpenContainer
+                .takeIf { projection.medicine.stock.openContainerAmount != null },
+            onDisableTracking = onDisableTracking,
+        )
     }
 }
 
 @Composable
 private fun HeaderOverflowMenu(
     preparation: MedicinePreparation,
-    onEditOpenContainer: () -> Unit,
+    onEditOpenContainer: (() -> Unit)?,
+    onDisableTracking: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val editOpenLabel = stringResource(editActionRes(preparation))
+    val disableLabel = stringResource(R.string.stock_disable_menu_action)
     // Match the title text's vertical box (line-height + the 4.dp Text padding
     // applied above/below) so the overflow doesn't make the header taller than
     // it would be without one. Falls back to fontSize when lineHeight is
@@ -171,12 +174,22 @@ private fun HeaderOverflowMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             anchor = HrtDropdownAnchor.EndAlignedBelow,
-            items = listOf(
-                HrtDropdownMenuItem(
-                    text = editOpenLabel,
-                    onClick = onEditOpenContainer,
-                ),
-            ),
+            items = buildList {
+                if (onEditOpenContainer != null) {
+                    add(
+                        HrtDropdownMenuItem(
+                            text = editOpenLabel,
+                            onClick = onEditOpenContainer,
+                        ),
+                    )
+                }
+                add(
+                    HrtDropdownMenuItem(
+                        text = disableLabel,
+                        onClick = onDisableTracking,
+                    ),
+                )
+            },
         )
     }
 }
@@ -202,10 +215,7 @@ private fun StatusChip(
 }
 
 @Composable
-private fun StockRows(
-    projection: MedicineStockProjection,
-    onAdjustClick: () -> Unit,
-) {
+private fun StockRows(projection: MedicineStockProjection) {
     val preparation = projection.medicine.preparation
     val stock = projection.medicine.stock
 
@@ -246,7 +256,6 @@ private fun StockRows(
             )
             RunwayRowCard(
                 projection = projection,
-                onAdjustClick = onAdjustClick,
                 index = index,
                 count = totalRows,
             )
@@ -284,7 +293,6 @@ private fun StockRows(
             )
             RunwayRowCard(
                 projection = projection,
-                onAdjustClick = onAdjustClick,
                 index = index,
                 count = totalRows,
             )
@@ -305,7 +313,6 @@ private fun StockRows(
             )
             RunwayRowCard(
                 projection = projection,
-                onAdjustClick = onAdjustClick,
                 index = 1,
                 count = 2,
             )
@@ -416,7 +423,6 @@ private fun FuelGauge(
 @Composable
 private fun RunwayRowCard(
     projection: MedicineStockProjection,
-    onAdjustClick: () -> Unit,
     index: Int,
     count: Int,
 ) {
@@ -454,7 +460,7 @@ private fun RunwayRowCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -481,16 +487,6 @@ private fun RunwayRowCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-            Spacer(Modifier.width(8.dp))
-            FilledTonalButton(onClick = onAdjustClick) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_tune),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.stock_adjust_button))
             }
         }
     }

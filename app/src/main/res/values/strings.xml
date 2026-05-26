@@ -785,7 +785,7 @@
     <string name="stock_unit_g">g</string>
 
     <!-- Adjust sheet -->
-    <string name="stock_adjust_button">Adjust</string>
+    <string name="stock_adjust_row_label">Adjust stock</string>
     <string name="stock_adjust_title">Adjust stock</string>
     <string name="stock_adjust_tab_recount">Recount</string>
     <string name="stock_adjust_tab_received">Received</string>
@@ -814,7 +814,7 @@
     <string name="stock_warnat_chip_days">%1$d days</string>
 
     <!-- Disable confirmation -->
-    <string name="stock_disable_button">Turn off stock tracking</string>
+    <string name="stock_disable_menu_action">Turn off stock tracking</string>
     <string name="stock_disable_title">Turn off stock tracking?</string>
     <string name="stock_disable_body">You can turn it back on later and continue from your current count.</string>
     <string name="stock_disable_confirm">Turn off</string>

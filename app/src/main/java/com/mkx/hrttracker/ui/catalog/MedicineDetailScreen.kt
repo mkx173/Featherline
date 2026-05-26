@@ -83,7 +83,6 @@ import com.mkx.hrttracker.ui.catalog.stock.WarnAtThresholdSheet
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
-import com.mkx.hrttracker.ui.components.DangerZoneListItem
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
@@ -297,35 +296,60 @@ private fun MedicineDetailScreenContent(
                         Column {
                             StockSection(
                                 projection = stockProjection,
-                                onAdjustClick = { onOpenAdjustSheet(AdjustSheetTab.RECOUNT) },
                                 onOptInClick = onOpenOptIn,
                                 onEditOpenContainer = onOpenOpenContainerDialog,
+                                onDisableTracking = onOpenDisableConfirmation,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             if (stockProjection.medicine.stock.trackingEnabled) {
                                 Spacer(Modifier.height(8.dp))
-                                PreferenceSegmentedListItem(
-                                    title = stringResource(
-                                        R.string.stock_warnat_row_label,
-                                        stockProjection.medicine.stock.warnAtDaysRemaining,
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(
+                                        dimensionResource(R.dimen.list_segment_gap),
                                     ),
-                                    index = 0,
-                                    count = 1,
-                                    onClick = onOpenWarnAtSheet,
-                                    leadingContent = {
-                                        Icon(
-                                            painter = painterResource(R.drawable.ic_notifications),
-                                            contentDescription = null,
-                                        )
-                                    },
-                                    trailingContent = {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    },
-                                )
+                                ) {
+                                    PreferenceSegmentedListItem(
+                                        title = stringResource(R.string.stock_adjust_row_label),
+                                        index = 0,
+                                        count = 2,
+                                        onClick = { onOpenAdjustSheet(AdjustSheetTab.RECOUNT) },
+                                        leadingContent = {
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_tune),
+                                                contentDescription = null,
+                                            )
+                                        },
+                                        trailingContent = {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        },
+                                    )
+                                    PreferenceSegmentedListItem(
+                                        title = stringResource(
+                                            R.string.stock_warnat_row_label,
+                                            stockProjection.medicine.stock.warnAtDaysRemaining,
+                                        ),
+                                        index = 1,
+                                        count = 2,
+                                        onClick = onOpenWarnAtSheet,
+                                        leadingContent = {
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_notifications),
+                                                contentDescription = null,
+                                            )
+                                        },
+                                        trailingContent = {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
@@ -382,12 +406,6 @@ private fun MedicineDetailScreenContent(
                             SectionHeader(
                                 text = stringResource(R.string.group_danger_zone_title),
                             )
-                            if (stockProjection?.medicine?.stock?.trackingEnabled == true) {
-                                TextButton(onClick = onOpenDisableConfirmation) {
-                                    Text(stringResource(R.string.stock_disable_button))
-                                }
-                                Spacer(Modifier.height(4.dp))
-                            }
                             ArchiveAction(
                                 canArchive = uiState.linkedActiveSlots.isEmpty(),
                                 linkedActiveGroupCount = uiState.linkedActiveSlots
@@ -609,12 +627,31 @@ private fun ArchiveAction(
     } else {
         null
     }
-    DangerZoneListItem(
-        label = stringResource(R.string.medicine_archive_action),
+    // Matches the group editor's ArchiveMedicationGroupCard styling
+    // (onSurfaceVariant tint, no error-container background) — archiving
+    // here is a normal lifecycle action, not a destructive danger-zone op.
+    PreferenceSegmentedListItem(
+        title = stringResource(R.string.medicine_archive_action),
+        index = 0,
+        count = 1,
         enabled = canArchive,
         onClick = onArchiveClick,
-        iconPainter = painterResource(R.drawable.ic_archive),
-        supportText = supportText,
+        supportingText = supportText,
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.ic_archive),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
+        },
+        trailingContent = {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
     )
 }
 

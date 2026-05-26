@@ -655,10 +655,7 @@ private fun CalibrationCustomAnalyteDialog(
                         TextButton(
                             onClick = { if (!isBusy) isArchiveConfirmationVisible = true },
                         ) {
-                            Text(
-                                text = stringResource(R.string.archive),
-                                color = MaterialTheme.colorScheme.error
-                            )
+                            Text(text = stringResource(R.string.archive))
                         }
                     }
                     Spacer(modifier = Modifier.weight(1f))

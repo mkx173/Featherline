@@ -747,7 +747,7 @@
     <string name="stock_unit_ml">mL</string>
     <string name="stock_unit_g">g</string>
 
-    <string name="stock_adjust_button">调整</string>
+    <string name="stock_adjust_row_label">调整库存</string>
     <string name="stock_adjust_title">调整库存</string>
     <string name="stock_adjust_tab_recount">盘点</string>
     <string name="stock_adjust_tab_received">收到</string>
@@ -773,7 +773,7 @@
     <string name="stock_warnat_sheet_title">剩余多少天时提醒？</string>
     <string name="stock_warnat_chip_days">%1$d 天</string>
 
-    <string name="stock_disable_button">关闭库存追踪</string>
+    <string name="stock_disable_menu_action">关闭库存追踪</string>
     <string name="stock_disable_title">关闭库存追踪？</string>
     <string name="stock_disable_body">可以稍后再开启，并从当前数量继续。</string>
     <string name="stock_disable_confirm">关闭</string>
