@@ -744,6 +744,7 @@
     <string name="stock_unit_patches">贴</string>
     <string name="stock_unit_sachets">袋</string>
     <string name="stock_unit_vials">瓶</string>
+    <string name="stock_unit_containers">容器</string>
     <string name="stock_unit_ml">mL</string>
     <string name="stock_unit_g">g</string>
 
@@ -751,8 +752,7 @@
     <string name="stock_adjust_title">调整库存</string>
     <string name="stock_adjust_tab_recount">盘点</string>
     <string name="stock_adjust_tab_received">收到</string>
-    <string name="stock_adjust_after">调整后：%1$s</string>
-    <string name="stock_adjust_after_with_runway">调整后：%1$s · %2$s</string>
+    <string name="stock_adjust_after">调整后：%1$s %2$s</string>
     <string name="stock_adjust_field_now_have">实际数量</string>
     <string name="stock_adjust_field_sealed">未拆封</string>
     <string name="stock_adjust_field_received">本次收到</string>

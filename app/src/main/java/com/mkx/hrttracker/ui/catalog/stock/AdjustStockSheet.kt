@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -43,6 +44,7 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
+import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import java.math.BigDecimal
 import java.util.Locale
 import kotlin.math.floor
@@ -148,10 +150,8 @@ private fun RecountForm(
     val unitsRemaining = unitsRemainingText.toDoubleOrNull()
     val canConfirm = unitsRemaining != null && unitsRemaining >= 0.0
     val simulatedTotal = if (isContainer) {
-        // Recount touches sealed only; existing open container is preserved.
         val containerSize = projection.medicine.preparation.containerSizeUnits()
-        val storedOpenAmount = (stock.openContainerAmount ?: 0.0).coerceIn(0.0, containerSize)
-        (unitsRemaining ?: 0.0) * containerSize + storedOpenAmount
+        (unitsRemaining ?: 0.0) * containerSize
     } else {
         unitsRemaining ?: 0.0
     }
@@ -175,7 +175,7 @@ private fun RecountForm(
         )
         AfterPreview(
             projection = projection,
-            simulatedTotalUnits = simulatedTotal,
+            simulatedSealedUnits = simulatedTotal,
         )
         HrtButton(
             text = stringResource(R.string.stock_adjust_confirm),
@@ -219,14 +219,9 @@ private fun ReceivedForm(
     val received = receivedText.toDoubleOrNull()
     val canConfirm = received != null && received >= 0.0
     val simulatedTotal = if (isContainer) {
-        // Received tops up sealed; the existing open container carries over
-        // unchanged. Newly-tracked containers start with no open vial (null),
-        // so the simulated total is sealed-only at opt-in time.
         val containerSize = projection.medicine.preparation.containerSizeUnits()
         val sealed = (projection.medicine.stock.unitsRemaining ?: 0.0) + (received ?: 0.0)
-        val open = (projection.medicine.stock.openContainerAmount ?: 0.0)
-            .coerceIn(0.0, containerSize)
-        sealed * containerSize + open
+        sealed * containerSize
     } else {
         storedTotalUnits(projection) + (received ?: 0.0)
     }
@@ -250,7 +245,7 @@ private fun ReceivedForm(
         )
         AfterPreview(
             projection = projection,
-            simulatedTotalUnits = simulatedTotal,
+            simulatedSealedUnits = simulatedTotal,
         )
         HrtButton(
             text = stringResource(R.string.stock_adjust_confirm),
@@ -270,33 +265,54 @@ private fun ReceivedForm(
 @Composable
 private fun AfterPreview(
     projection: MedicineStockProjection,
-    simulatedTotalUnits: Double,
+    simulatedSealedUnits: Double,
 ) {
+    val preparation = projection.medicine.preparation
+    val runwayTotalUnits = when (preparation) {
+        is MedicinePreparation.InjectionMultiUseVial,
+        is MedicinePreparation.GelContainer -> {
+            val size = preparation.containerSizeUnits()
+            val open = (projection.medicine.stock.openContainerAmount ?: 0.0)
+                .coerceIn(0.0, size)
+            simulatedSealedUnits + open
+        }
+
+        else -> simulatedSealedUnits
+    }
     val rate = projection.dosesPerDayMagnitude
     val runway = if (rate > 0.0) {
         stringResource(
             R.string.stock_runway_days_remaining,
-            floor(simulatedTotalUnits / rate).toInt(),
+            floor(runwayTotalUnits / rate).toInt(),
         )
     } else {
         null
     }
-    val label = if (runway != null) {
-        stringResource(
-            R.string.stock_adjust_after_with_runway,
-            formatCount(simulatedTotalUnits),
-            runway,
-        )
-    } else {
-        stringResource(
-            R.string.stock_adjust_after,
-            formatCount(simulatedTotalUnits),
-        )
+    val displayCount = when (preparation) {
+        is MedicinePreparation.InjectionMultiUseVial,
+        is MedicinePreparation.GelContainer -> {
+            val size = preparation.containerSizeUnits()
+            if (size > 0.0) simulatedSealedUnits / size else 0.0
+        }
+
+        else -> simulatedSealedUnits
     }
-    Text(
-        text = label,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    val unitRes = when (preparation) {
+        is MedicinePreparation.InjectionMultiUseVial -> R.string.stock_unit_vials
+        is MedicinePreparation.GelContainer -> R.string.stock_unit_containers
+        else -> stockUnitRes(preparation)
+    }
+    val unitLabel = if (unitRes != null) stringResource(unitRes) else ""
+    val title = stringResource(
+        R.string.stock_adjust_after,
+        formatCount(displayCount),
+        unitLabel,
+    )
+    SupportMessageListItem(
+        text = title,
+        supportingText = runway,
+        painter = painterResource(R.drawable.ic_arrow_forward),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
     )
 }
 

@@ -29,9 +29,9 @@ class AdjustStockSheetTest {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Test
-    fun receivedPreviewPreservesOpenContainerInTotal() {
-        // Vial size 5 mL, 2 sealed, 2.5 mL open → 12.5 baseline.
-        // Receiving 3 more sealed should preview 12.5 + 15 = 27.5.
+    fun receivedPreviewShowsSealedVialCount() {
+        // Vial size 5 mL, 2 sealed + 3 received = 5 sealed.
+        // Open container is excluded from the preview total.
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val projection = MedicineStockProjection(
             medicine = containerMedicine(
@@ -65,7 +65,13 @@ class AdjustStockSheetTest {
             .performTextInput("3")
 
         composeRule
-            .onNodeWithText(context.getString(R.string.stock_adjust_after, "27.50"))
+            .onNodeWithText(
+                context.getString(
+                    R.string.stock_adjust_after,
+                    "5",
+                    context.getString(R.string.stock_unit_vials),
+                )
+            )
             .assertIsDisplayed()
     }
 }

@@ -550,7 +550,7 @@ private fun rateLabel(projection: MedicineStockProjection): String? {
     }
 }
 
-private fun stockUnitRes(preparation: MedicinePreparation): Int? = when (preparation) {
+internal fun stockUnitRes(preparation: MedicinePreparation): Int? = when (preparation) {
     is MedicinePreparation.Pill -> R.string.stock_unit_tablets
     is MedicinePreparation.Capsule -> R.string.stock_unit_capsules
     is MedicinePreparation.Patch -> R.string.stock_unit_patches
