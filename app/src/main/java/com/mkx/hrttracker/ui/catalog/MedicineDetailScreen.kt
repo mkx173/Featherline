@@ -317,6 +317,7 @@ private fun MedicineDetailScreenContent(
                                             Icon(
                                                 painter = painterResource(R.drawable.ic_tune),
                                                 contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         },
                                         trailingContent = {
@@ -339,6 +340,7 @@ private fun MedicineDetailScreenContent(
                                             Icon(
                                                 painter = painterResource(R.drawable.ic_notifications),
                                                 contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         },
                                         trailingContent = {

@@ -38,8 +38,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.takeOrElse
-import androidx.constraintlayout.compose.ConstraintLayout
-import androidx.constraintlayout.compose.Dimension
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
@@ -349,63 +347,41 @@ private fun StockRowCard(
         shape = segmentedListItemShape(index = index, count = count),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        ConstraintLayout(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            val (iconRef, labelRef, countRef, progressRef) = createRefs()
-
-            // Icon vertically centers against the label-and-gauge group so the
-            // gauge sits below the count without dragging the icon down with it.
             Icon(
                 painter = painterResource(iconRes),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .size(24.dp)
-                    .constrainAs(iconRef) {
-                        start.linkTo(parent.start)
-                        top.linkTo(labelRef.top)
-                        bottom.linkTo(
-                            if (progress != null) progressRef.bottom else labelRef.bottom,
-                        )
-                    },
+                modifier = Modifier.size(24.dp),
             )
-
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.constrainAs(labelRef) {
-                    start.linkTo(iconRef.end, margin = 12.dp)
-                    top.linkTo(parent.top)
-                    end.linkTo(countRef.start, margin = 12.dp)
-                    width = Dimension.fillToConstraints
-                },
-            )
-
-            Text(
-                text = trailingCount,
-                style = MaterialTheme.typography.titleMedium,
-                color = trailingColor,
-                modifier = Modifier.constrainAs(countRef) {
-                    end.linkTo(parent.end)
-                    top.linkTo(labelRef.top)
-                    bottom.linkTo(labelRef.bottom)
-                },
-            )
-
-            if (progress != null) {
-                FuelGauge(
-                    progress = progress,
-                    state = trailingState,
-                    modifier = Modifier.constrainAs(progressRef) {
-                        start.linkTo(labelRef.start)
-                        end.linkTo(parent.end)
-                        top.linkTo(labelRef.bottom, margin = 10.dp)
-                        width = Dimension.fillToConstraints
-                    },
-                )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = trailingCount,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = trailingColor,
+                    )
+                }
+                if (progress != null) {
+                    Spacer(Modifier.height(8.dp))
+                    FuelGauge(
+                        progress = progress,
+                        state = trailingState,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
     }
@@ -448,7 +424,7 @@ private fun RunwayRowCard(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val iconRes = if (runwayDays == null) R.drawable.ic_info else R.drawable.ic_schedule
+    val iconRes = if (runwayDays == null) R.drawable.ic_info else R.drawable.ic_insights
     val titleText = if (runwayDays == null) {
         stringResource(R.string.stock_runway_unknown_title)
     } else {

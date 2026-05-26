@@ -29,10 +29,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +53,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.StockReceived
@@ -64,6 +67,7 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.medication.activeDoseAssistPresets
 import java.util.Locale
 import kotlin.math.floor
 
@@ -120,18 +124,22 @@ fun AdjustStockSheet(
 
             Spacer(Modifier.height(dimensionResource(R.dimen.padding_small)))
 
-            ConnectedButtonGroup(
-                modifier = Modifier.fillMaxWidth(),
-                options = AdjustSheetTab.entries,
-                selectedOption = activeTab,
-                optionLabel = { tab -> stringResource(tab.labelRes) },
-                onOptionSelected = { tab -> activeTab = tab },
-                enabled = !receivedOnly,
-                layout = ConnectedButtonGroupLayout.ROW,
-                expandOptions = true,
-            )
+            CompositionLocalProvider(
+                LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+            ) {
+                ConnectedButtonGroup(
+                    modifier = Modifier.fillMaxWidth(),
+                    options = AdjustSheetTab.entries,
+                    selectedOption = activeTab,
+                    optionLabel = { tab -> stringResource(tab.labelRes) },
+                    onOptionSelected = { tab -> activeTab = tab },
+                    enabled = !receivedOnly,
+                    layout = ConnectedButtonGroupLayout.ROW,
+                    expandOptions = true,
+                )
+            }
 
-            Spacer(Modifier.height(dimensionResource(R.dimen.padding_medium)))
+            Spacer(Modifier.height(dimensionResource(R.dimen.padding_small)))
 
             when (activeTab) {
                 AdjustSheetTab.RECOUNT -> RecountForm(
@@ -182,7 +190,7 @@ private fun RecountForm(
         )
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column {
         StockStepperCard(
             label = stringResource(R.string.stock_adjust_field_current_stock),
             value = unitsRemainingText,
@@ -192,10 +200,15 @@ private fun RecountForm(
             onValueChange = { unitsRemainingText = it },
             onStep = stepRecount,
         )
-        QuickAddChips(
-            preparation = projection.medicine.preparation,
-            onAdd = stepRecount,
-        )
+        val presets = quickAddPresets(projection.medicine.preparation)
+        if (presets.isEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+        } else {
+            QuickAddChips(
+                presets = presets,
+                onAdd = stepRecount,
+            )
+        }
         AfterPreview(
             projection = projection,
             simulatedSealedUnits = simulatedTotal,
@@ -210,7 +223,7 @@ private fun RecountForm(
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = dimensionResource(R.dimen.padding_xsmall)),
+                .padding(top = dimensionResource(R.dimen.padding_small)),
         )
     }
 }
@@ -253,7 +266,7 @@ private fun ReceivedForm(
         receivedText = stepCountText(receivedText, delta)
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column {
         StockStepperCard(
             label = stringResource(R.string.stock_adjust_field_add_to_stock),
             value = receivedText,
@@ -262,10 +275,15 @@ private fun ReceivedForm(
             onValueChange = { receivedText = it },
             onStep = stepReceived,
         )
-        QuickAddChips(
-            preparation = projection.medicine.preparation,
-            onAdd = stepReceived,
-        )
+        val presets = quickAddPresets(projection.medicine.preparation)
+        if (presets.isEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+        } else {
+            QuickAddChips(
+                presets = presets,
+                onAdd = stepReceived,
+            )
+        }
         AfterPreview(
             projection = projection,
             simulatedSealedUnits = simulatedTotal,
@@ -280,7 +298,7 @@ private fun ReceivedForm(
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = dimensionResource(R.dimen.padding_xsmall)),
+                .padding(top = dimensionResource(R.dimen.padding_small)),
         )
     }
 }
@@ -442,11 +460,9 @@ private fun StockStepperCard(
 
 @Composable
 private fun QuickAddChips(
-    preparation: MedicinePreparation,
+    presets: List<Int>,
     onAdd: (Int) -> Unit,
 ) {
-    val presets = quickAddPresets(preparation)
-    if (presets.isEmpty()) return
     Row(
         modifier = Modifier
             .fillMaxWidth()
