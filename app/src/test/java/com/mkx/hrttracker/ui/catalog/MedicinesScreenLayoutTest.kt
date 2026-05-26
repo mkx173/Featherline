@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.catalog
 
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
@@ -8,6 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 
 class MedicinesScreenLayoutTest {
     @Test
@@ -83,7 +85,7 @@ class MedicinesScreenLayoutTest {
         assertFalse(medicineManagerShowsFuelGauge(testProjection(MedicineStockState.UNTRACKED)))
         assertFalse(medicineManagerShowsFuelGauge(testProjection(MedicineStockState.NO_RUNWAY)))
         assertTrue(medicineManagerShowsFuelGauge(testProjection(MedicineStockState.OUT)))
-        assertTrue(medicineManagerShowsFuelGauge(testProjection(MedicineStockState.LOW)))
+        assertTrue(medicineManagerShowsFuelGauge(testProjection(MedicineStockState.USER_LOW)))
         assertTrue(medicineManagerShowsFuelGauge(testProjection(MedicineStockState.HEALTHY)))
     }
 
@@ -131,7 +133,14 @@ private fun testProjection(
         medicine = medicine,
         dosesPerDayMagnitude = 1.0,
         totalStockUnits = 7.0,
-        runwayDays = runwayDays,
+        runway = runwayDays?.let { days ->
+            RunwayProjection.Days(
+                days = days.toInt(),
+                lastFulfillable = LocalDate.of(2026, 1, 1).plusDays(days.toLong()),
+            )
+        } ?: RunwayProjection.NoSchedule,
+        intervalDays = null,
+        maxPerAdministration = 1.0,
         state = state,
     )
 }

@@ -1,13 +1,18 @@
 package com.mkx.hrttracker.data.repository
 
-import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -15,16 +20,21 @@ import javax.inject.Singleton
 class MedicineStockRepository @Inject constructor(
     private val medicineRepository: MedicineRepository,
     private val medicationGroupRepository: MedicationGroupRepository,
+    private val medicationLogRepository: MedicationLogRepository,
+    private val clock: Clock = Clock.systemDefaultZone(),
 ) {
 
     fun observeProjections(): Flow<List<MedicineStockProjection>> {
         return combine(
             medicineRepository.observeAllActive(),
             medicationGroupRepository.observeGroups(),
-        ) { medicines, groups ->
+            medicationLogRepository.observeEntries(),
+        ) { medicines, groups, logEntries ->
             projectAll(
                 medicines = medicines,
                 activeGroups = groups.orEmpty().filter { group -> group.archivedAt == null },
+                logEntries = logEntries.orEmpty(),
+                now = clock.instant(),
             )
         }
     }
@@ -32,31 +42,67 @@ class MedicineStockRepository @Inject constructor(
     internal fun projectAll(
         medicines: List<Medicine>,
         activeGroups: List<MedicationGroup>,
+        logEntries: List<MedicationLogEntry> = emptyList(),
+        now: Instant = clock.instant(),
     ): List<MedicineStockProjection> {
+        val zoneId = scheduleZoneId()
+        val stockWindowLogEntries = stockWindowLogEntries(logEntries, now, zoneId)
         return medicines.map { medicine ->
-            project(medicine, activeGroups)
+            project(medicine, activeGroups, stockWindowLogEntries, now, zoneId)
         }
+    }
+
+    suspend fun projectAllOnce(now: Instant = clock.instant()): List<MedicineStockProjection> {
+        return projectAll(
+            medicines = medicineRepository.getAll().filter { medicine -> medicine.archivedAt == null },
+            activeGroups = medicationGroupRepository.getGroups()
+                .filter { group -> group.archivedAt == null },
+            logEntries = medicationLogRepository.getEntries(),
+            now = now,
+        )
     }
 
     private fun project(
         medicine: Medicine,
         activeGroups: List<MedicationGroup>,
+        logEntries: List<MedicationLogEntry>,
+        now: Instant,
+        zoneId: ZoneId,
     ): MedicineStockProjection {
         val total = computeTotalStock(medicine)
         val rate = computeDosesPerDayMagnitude(medicine, activeGroups)
-        val runway = if (medicine.stock.trackingEnabled && rate > 0.0) total / rate else null
+        val runway = ScheduledRunwayCalculator.computeScheduledRunway(
+            medicine = medicine,
+            activeGroups = activeGroups,
+            logEntries = logEntries,
+            now = now,
+            zoneId = zoneId,
+        )
+        val intervalDays = computeIntervalDays(medicine, activeGroups, now, zoneId)
+        val maxPerAdministration = ScheduledRunwayCalculator.maxPerAdministration(
+            medicine = medicine,
+            activeGroups = activeGroups,
+        )
+        val imminentDoseCount = simulateNDoses(
+            state = initialSimulatedStock(medicine),
+            n = 2,
+            perDose = maxPerAdministration,
+        )
         val state = MedicineStockStateResolver.resolveState(
             trackingEnabled = medicine.stock.trackingEnabled,
             totalStockUnits = total,
-            dosesPerDayMagnitude = rate,
-            runwayDays = runway,
+            runway = runway,
             warnAtDaysRemaining = medicine.stock.warnAtDaysRemaining,
+            imminentDoseCount = imminentDoseCount,
+            maxPerAdministration = maxPerAdministration,
         )
         return MedicineStockProjection(
             medicine = medicine,
             dosesPerDayMagnitude = rate,
             totalStockUnits = total,
-            runwayDays = runway,
+            runway = runway,
+            intervalDays = intervalDays,
+            maxPerAdministration = maxPerAdministration,
             state = state,
         )
     }
@@ -99,8 +145,8 @@ class MedicineStockRepository @Inject constructor(
             for (slot in group.medications) {
                 if (slot.medicine?.uuid != medicine.uuid) continue
                 val perAdministration = resolvePerAdministrationMagnitude(
-                    preparation = medicine.preparation,
-                    doseInstruction = slot.doseInstruction,
+                    medicine.preparation,
+                    slot.doseInstruction,
                 ) ?: continue
                 sum += slot.count.toDouble() * perAdministration * occurrencesPerDay
             }
@@ -108,45 +154,51 @@ class MedicineStockRepository @Inject constructor(
         return sum
     }
 
-    private fun resolvePerAdministrationMagnitude(
-        preparation: MedicinePreparation,
-        doseInstruction: DoseInstruction,
-    ): Double? {
-        return when (doseInstruction) {
-            is DoseInstruction.TabletFraction -> {
-                if (preparation is MedicinePreparation.Pill) {
-                    doseInstruction.numerator.toDouble() / doseInstruction.denominator.toDouble()
-                } else {
-                    null
-                }
+    private fun computeIntervalDays(
+        medicine: Medicine,
+        activeGroups: List<MedicationGroup>,
+        now: Instant,
+        zoneId: ZoneId,
+    ): Int? {
+        val nowLocal = now.atZone(zoneId).toLocalDateTime()
+        val horizonEnd = nowLocal.toLocalDate().plusDays(ScheduledRunwayCalculator.HORIZON_DAYS)
+        val dates = activeGroups
+            .asSequence()
+            .filter { group -> group.medications.any { slot -> slot.medicine?.uuid == medicine.uuid } }
+            .flatMap { group ->
+                group.occurrencesBetweenInPlanWindow(
+                    startDate = nowLocal.toLocalDate(),
+                    endDate = horizonEnd,
+                    zoneId = zoneId,
+                ).asSequence()
             }
+            .filter { occurrence -> !occurrence.scheduledFor.isBefore(nowLocal) }
+            .map { occurrence -> occurrence.scheduledFor.toLocalDate() }
+            .toSortedSet()
+            .toList()
+        if (dates.size < 2) return null
+        return dates
+            .zipWithNext { left, right -> ChronoUnit.DAYS.between(left, right).toInt() }
+            .maxOrNull()
+    }
 
-            DoseInstruction.WholeUnit -> when (preparation) {
-                is MedicinePreparation.Capsule,
-                is MedicinePreparation.InjectionSingleUseVial,
-                is MedicinePreparation.GelSachet,
-                is MedicinePreparation.Patch -> 1.0
-
-                else -> null
-            }
-
-            is DoseInstruction.VolumeMl -> {
-                if (preparation is MedicinePreparation.InjectionMultiUseVial) {
-                    doseInstruction.valueMl
-                } else {
-                    null
-                }
-            }
-
-            is DoseInstruction.WeightGrams -> {
-                if (preparation is MedicinePreparation.GelContainer) {
-                    doseInstruction.valueGrams
-                } else {
-                    null
-                }
-            }
-
-            DoseInstruction.Noop -> null
+    private fun stockWindowLogEntries(
+        logEntries: List<MedicationLogEntry>,
+        now: Instant,
+        zoneId: ZoneId,
+    ): List<MedicationLogEntry> {
+        val today = now.atZone(zoneId).toLocalDate()
+        val start = today.minusDays(1).atStartOfDay()
+        val end = today
+            .plusDays(ScheduledRunwayCalculator.HORIZON_DAYS)
+            .atTime(23, 59, 59)
+        return logEntries.filter { entry ->
+            val scheduledFor = entry.scheduledFor ?: return@filter false
+            entry.sourceGroupUuid != null &&
+                !scheduledFor.isBefore(start) &&
+                !scheduledFor.isAfter(end)
         }
     }
+
+    private fun scheduleZoneId(): ZoneId = ZoneId.systemDefault()
 }

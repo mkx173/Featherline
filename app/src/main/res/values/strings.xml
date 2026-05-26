@@ -752,6 +752,7 @@
     <string name="stock_chip_out">OUT</string>
     <string name="stock_runway_unknown_title">Runway unknown</string>
     <string name="stock_runway_unknown_body">Add this medicine to a group to forecast.</string>
+    <string name="stock_runway_beyond_horizon">Plenty in stock</string>
     <string name="stock_runway_days_remaining">~%1$d days remaining</string>
     <string name="stock_runway_days_remaining_combined">~%1$d days remaining · combined</string>
     <string name="stock_no_schedule">No schedule</string>

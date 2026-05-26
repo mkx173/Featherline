@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.catalog.stock
 
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
@@ -11,6 +12,7 @@ import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 // Fixtures backing @Preview composables in this package. Catalog-only so we
@@ -48,7 +50,16 @@ internal fun previewProjection(
         medicine = medicine,
         dosesPerDayMagnitude = dosesPerDayMagnitude,
         totalStockUnits = totalStockUnits,
-        runwayDays = runwayDays,
+        runway = if (runwayDays == null) {
+            RunwayProjection.NoSchedule
+        } else {
+            RunwayProjection.Days(
+                days = runwayDays.toInt(),
+                lastFulfillable = LocalDate.of(2026, 1, 1).plusDays(runwayDays.toLong()),
+            )
+        },
+        intervalDays = null,
+        maxPerAdministration = dosesPerDayMagnitude,
         state = state,
     )
 }

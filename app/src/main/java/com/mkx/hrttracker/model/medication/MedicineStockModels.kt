@@ -1,5 +1,7 @@
 package com.mkx.hrttracker.model.medication
 
+import com.mkx.hrttracker.data.repository.RunwayProjection
+
 /**
  * Stock state attached to a medicine when tracking is enabled.
  *
@@ -22,7 +24,8 @@ data class MedicineStock(
 
 enum class MedicineStockState {
     HEALTHY,
-    LOW,
+    USER_LOW,
+    IMMINENT,
     OUT,
     UNTRACKED,
     NO_RUNWAY,
@@ -35,7 +38,11 @@ data class MedicineStockProjection(
     val dosesPerDayMagnitude: Double,
     /** Total stock units across pool + open + sealed-times-containerSize. 0 when untracked. */
     val totalStockUnits: Double,
-    /** Stock-unit-aware "days remaining" or null when undefined (no rate, or untracked). */
-    val runwayDays: Double?,
+    /** Scheduled-dose-aware runway projection. */
+    val runway: RunwayProjection,
+    /** Largest date gap between upcoming scheduled administration dates inside the horizon. */
+    val intervalDays: Int?,
+    /** Largest stock-unit demand for one scheduled administration. */
+    val maxPerAdministration: Double,
     val state: MedicineStockState,
 )

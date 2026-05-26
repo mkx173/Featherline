@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.MedicineLockedException
 import com.mkx.hrttracker.data.repository.MedicineReferencedByActiveGroupException
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
@@ -41,6 +42,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -535,7 +537,9 @@ class MedicineDetailViewModelTest {
             medicine = medicine,
             dosesPerDayMagnitude = 1.0,
             totalStockUnits = 30.0,
-            runwayDays = 30.0,
+            runway = RunwayProjection.Days(days = 30, lastFulfillable = LocalDate.of(2026, 1, 31)),
+            intervalDays = null,
+            maxPerAdministration = 1.0,
             state = MedicineStockState.HEALTHY,
         )
         val otherProjection = projection.copy(
@@ -632,7 +636,9 @@ class MedicineDetailViewModelTest {
                     medicine = medicine,
                     dosesPerDayMagnitude = 0.0,
                     totalStockUnits = 0.0,
-                    runwayDays = null,
+                    runway = RunwayProjection.NoSchedule,
+                    intervalDays = null,
+                    maxPerAdministration = 0.0,
                     state = MedicineStockState.UNTRACKED,
                 )
             )
@@ -728,7 +734,9 @@ class MedicineDetailViewModelTest {
                     medicine = medicine,
                     dosesPerDayMagnitude = 0.0,
                     totalStockUnits = 0.0,
-                    runwayDays = null,
+                    runway = RunwayProjection.NoSchedule,
+                    intervalDays = null,
+                    maxPerAdministration = 0.0,
                     state = MedicineStockState.UNTRACKED,
                 )
             )
@@ -793,7 +801,9 @@ class MedicineDetailViewModelTest {
                     medicine = medicine,
                     dosesPerDayMagnitude = 0.0,
                     totalStockUnits = 0.0,
-                    runwayDays = null,
+                    runway = RunwayProjection.NoSchedule,
+                    intervalDays = null,
+                    maxPerAdministration = 0.0,
                     state = MedicineStockState.UNTRACKED,
                 )
             )
@@ -841,7 +851,9 @@ class MedicineDetailViewModelTest {
                     medicine = medicine,
                     dosesPerDayMagnitude = 0.0,
                     totalStockUnits = 10.0,
-                    runwayDays = null,
+                    runway = RunwayProjection.NoSchedule,
+                    intervalDays = null,
+                    maxPerAdministration = 0.0,
                     state = MedicineStockState.NO_RUNWAY,
                 )
             )

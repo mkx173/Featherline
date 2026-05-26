@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.takeOrElse
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
@@ -48,7 +49,6 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import java.util.Locale
-import kotlin.math.floor
 
 @Composable
 fun StockSection(
@@ -106,7 +106,8 @@ private fun SectionHeader(
                 modifier = Modifier.padding(4.dp),
             )
             when (projection.state) {
-                MedicineStockState.LOW -> StatusChip(
+                MedicineStockState.USER_LOW,
+                MedicineStockState.IMMINENT -> StatusChip(
                     label = stringResource(R.string.stock_chip_low),
                     container = MaterialTheme.colorScheme.tertiaryContainer,
                     content = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -337,7 +338,8 @@ private fun StockRowCard(
     progress: Float? = null,
 ) {
     val trailingColor = when (trailingState) {
-        MedicineStockState.LOW -> MaterialTheme.colorScheme.tertiary
+        MedicineStockState.USER_LOW,
+        MedicineStockState.IMMINENT -> MaterialTheme.colorScheme.tertiary
         MedicineStockState.OUT -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.onSurface
     }
@@ -393,7 +395,8 @@ private fun FuelGauge(
     modifier: Modifier = Modifier,
 ) {
     val color = when (state) {
-        MedicineStockState.LOW -> MaterialTheme.colorScheme.tertiary
+        MedicineStockState.USER_LOW,
+        MedicineStockState.IMMINENT -> MaterialTheme.colorScheme.tertiary
         MedicineStockState.OUT -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.primary
     }
@@ -410,8 +413,9 @@ private fun RunwayRowCard(
     index: Int,
     count: Int,
 ) {
-    val runwayDays = projection.runwayDays
-    val isWarn = projection.state == MedicineStockState.LOW ||
+    val runway = projection.runway
+    val isWarn = projection.state == MedicineStockState.USER_LOW ||
+        projection.state == MedicineStockState.IMMINENT ||
         projection.state == MedicineStockState.OUT
     val titleColor = when {
         isWarn -> MaterialTheme.colorScheme.tertiary
@@ -422,19 +426,23 @@ private fun RunwayRowCard(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val iconRes = if (runwayDays == null) R.drawable.ic_help else R.drawable.ic_insights
-    val titleText = if (runwayDays == null) {
-        stringResource(R.string.stock_runway_unknown_title)
-    } else {
-        stringResource(
-            R.string.stock_runway_days_remaining,
-            floor(runwayDays).toInt(),
-        )
+    val iconRes = when (runway) {
+        is RunwayProjection.Days,
+        RunwayProjection.BeyondHorizon -> R.drawable.ic_insights
+        RunwayProjection.NoSchedule -> R.drawable.ic_help
     }
-    val subtitleText = if (runwayDays == null) {
-        stringResource(R.string.stock_runway_unknown_body)
-    } else {
-        rateLabel(projection)
+    val titleText = when (runway) {
+        is RunwayProjection.Days -> stringResource(
+            R.string.stock_runway_days_remaining,
+            runway.days,
+        )
+        RunwayProjection.BeyondHorizon -> stringResource(R.string.stock_runway_beyond_horizon)
+        RunwayProjection.NoSchedule -> stringResource(R.string.stock_runway_unknown_title)
+    }
+    val subtitleText = when (runway) {
+        RunwayProjection.NoSchedule -> stringResource(R.string.stock_runway_unknown_body)
+        is RunwayProjection.Days,
+        RunwayProjection.BeyondHorizon -> rateLabel(projection)
     }
 
     Surface(
@@ -644,7 +652,7 @@ private fun StockSectionMultiUseVialLowPreview() {
                 dosesPerDayMagnitude = 0.2,
                 totalStockUnits = 6.5,
                 runwayDays = 32.5,
-                state = MedicineStockState.LOW,
+                state = MedicineStockState.USER_LOW,
             ),
             onOptInClick = {},
             onEditOpenContainer = {},

@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.catalog
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -365,7 +366,9 @@ class MedicinesViewModelTest {
             medicine = medicine,
             dosesPerDayMagnitude = 1.0,
             totalStockUnits = 10.0,
-            runwayDays = 10.0,
+            runway = RunwayProjection.Days(days = 10, lastFulfillable = LocalDate.of(2026, 1, 11)),
+            intervalDays = null,
+            maxPerAdministration = 1.0,
             state = MedicineStockState.HEALTHY,
         )
         val otherProjection = projection.copy(medicine = otherMedicine)

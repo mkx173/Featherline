@@ -719,6 +719,7 @@
     <string name="stock_chip_out">已用完</string>
     <string name="stock_runway_unknown_title">无法预估</string>
     <string name="stock_runway_unknown_body">将此药品加入分组后即可预估剩余天数</string>
+    <string name="stock_runway_beyond_horizon">库存充足</string>
     <string name="stock_runway_days_remaining">约剩 %1$d 天</string>
     <string name="stock_runway_days_remaining_combined">约剩 %1$d 天 · 合计</string>
     <string name="stock_no_schedule">无计划</string>

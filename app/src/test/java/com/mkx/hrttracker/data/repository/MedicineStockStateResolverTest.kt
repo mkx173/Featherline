@@ -3,78 +3,89 @@ package com.mkx.hrttracker.data.repository
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.LocalDate
 
 class MedicineStockStateResolverTest {
 
     @Test
     fun untracked_evenWithStock_returnsUntracked() {
-        val state = MedicineStockStateResolver.resolveState(
-            trackingEnabled = false,
-            totalStockUnits = 30.0,
-            dosesPerDayMagnitude = 1.0,
-            runwayDays = 30.0,
-            warnAtDaysRemaining = 14,
-        )
+        val state = resolve(trackingEnabled = false)
         assertEquals(MedicineStockState.UNTRACKED, state)
     }
 
     @Test
-    fun trackedNoGroups_returnsNoRunway() {
-        val state = MedicineStockStateResolver.resolveState(
-            trackingEnabled = true,
-            totalStockUnits = 30.0,
-            dosesPerDayMagnitude = 0.0,
-            runwayDays = null,
-            warnAtDaysRemaining = 14,
+    fun trackedNoSchedule_returnsNoRunway() {
+        val state = resolve(
+            runway = RunwayProjection.NoSchedule,
+            maxPerAdministration = 0.0,
+            imminentDoseCount = 0,
         )
         assertEquals(MedicineStockState.NO_RUNWAY, state)
     }
 
     @Test
-    fun zeroStockButTrackedWithRate_returnsOut() {
-        val state = MedicineStockStateResolver.resolveState(
-            trackingEnabled = true,
+    fun zeroStock_returnsOutBeforeNoRunway() {
+        val state = resolve(
             totalStockUnits = 0.0,
-            dosesPerDayMagnitude = 1.0,
-            runwayDays = 0.0,
-            warnAtDaysRemaining = 14,
+            runway = RunwayProjection.NoSchedule,
+            imminentDoseCount = 0,
         )
         assertEquals(MedicineStockState.OUT, state)
     }
 
     @Test
-    fun runwayBelowThreshold_returnsLow() {
-        val state = MedicineStockStateResolver.resolveState(
-            trackingEnabled = true,
-            totalStockUnits = 5.0,
-            dosesPerDayMagnitude = 1.0,
-            runwayDays = 5.0,
-            warnAtDaysRemaining = 14,
+    fun fewerThanTwoImminentDoses_returnsImminent() {
+        val state = resolve(
+            runway = RunwayProjection.Days(days = 5, lastFulfillable = LocalDate.of(2026, 1, 6)),
+            imminentDoseCount = 1,
+            maxPerAdministration = 1.0,
         )
-        assertEquals(MedicineStockState.LOW, state)
+        assertEquals(MedicineStockState.IMMINENT, state)
     }
 
     @Test
-    fun runwayAtThreshold_returnsLow() {
-        val state = MedicineStockStateResolver.resolveState(
-            trackingEnabled = true,
-            totalStockUnits = 14.0,
-            dosesPerDayMagnitude = 1.0,
-            runwayDays = 14.0,
-            warnAtDaysRemaining = 14,
+    fun runwayAtThreshold_returnsUserLow() {
+        val state = resolve(
+            runway = RunwayProjection.Days(days = 14, lastFulfillable = LocalDate.of(2026, 1, 15)),
+            imminentDoseCount = 2,
         )
-        assertEquals(MedicineStockState.LOW, state)
+        assertEquals(MedicineStockState.USER_LOW, state)
     }
 
     @Test
-    fun runwayAboveThreshold_returnsHealthy() {
-        val state = MedicineStockStateResolver.resolveState(
-            trackingEnabled = true,
-            totalStockUnits = 30.0,
-            dosesPerDayMagnitude = 1.0,
-            runwayDays = 30.0,
-            warnAtDaysRemaining = 14,
+    fun warningThresholdOffReturnsHealthyForDaysRunway() {
+        val state = resolve(
+            runway = RunwayProjection.Days(days = 1, lastFulfillable = LocalDate.of(2026, 1, 2)),
+            warnAtDaysRemaining = 0,
+            imminentDoseCount = 2,
         )
         assertEquals(MedicineStockState.HEALTHY, state)
+    }
+
+    @Test
+    fun beyondHorizon_returnsHealthy() {
+        val state = resolve(runway = RunwayProjection.BeyondHorizon)
+        assertEquals(MedicineStockState.HEALTHY, state)
+    }
+
+    private fun resolve(
+        trackingEnabled: Boolean = true,
+        totalStockUnits: Double = 30.0,
+        runway: RunwayProjection = RunwayProjection.Days(
+            days = 30,
+            lastFulfillable = LocalDate.of(2026, 1, 31),
+        ),
+        warnAtDaysRemaining: Int = 14,
+        imminentDoseCount: Int = 2,
+        maxPerAdministration: Double = 1.0,
+    ): MedicineStockState {
+        return MedicineStockStateResolver.resolveState(
+            trackingEnabled = trackingEnabled,
+            totalStockUnits = totalStockUnits,
+            runway = runway,
+            warnAtDaysRemaining = warnAtDaysRemaining,
+            imminentDoseCount = imminentDoseCount,
+            maxPerAdministration = maxPerAdministration,
+        )
     }
 }
