@@ -910,14 +910,14 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun recount_pool_bumpsGenerationAndSetsValues() = runTest {
+    fun recount_pool_snapsLastTotalToCurrentAndBumpsGeneration() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             pillRow(stockUnitsRemaining = 5.0, stockUnitsLastTotal = 30.0, stockGeneration = 1L)
 
         mutator.applyRecount(
             database = database,
             medicineUuid = medicineUuid,
-            recount = StockRecount(unitsRemaining = 20.0, unitsLastTotal = 60.0),
+            recount = StockRecount(unitsRemaining = 20.0),
             now = fixedNow,
         )
 
@@ -926,32 +926,7 @@ class MedicineStockMutatorTest {
                 uuid = medicineUuid.toString(),
                 trackingEnabled = true,
                 stockUnitsRemaining = 20.0,
-                stockUnitsLastTotal = 60.0,
-                openContainerAmount = null,
-                warnAtDaysRemaining = 14,
-                stockGeneration = 2L,
-                updatedAtEpochMillis = fixedNow.toEpochMilli(),
-            )
-        }
-    }
-
-    @Test
-    fun recount_pool_unitsLastTotalDefaultsToUnitsRemaining() = runTest {
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns pillRow()
-
-        mutator.applyRecount(
-            database = database,
-            medicineUuid = medicineUuid,
-            recount = StockRecount(unitsRemaining = 18.0, unitsLastTotal = null),
-            now = fixedNow,
-        )
-
-        coVerify {
-            medicineDao.updateStockFields(
-                uuid = medicineUuid.toString(),
-                trackingEnabled = true,
-                stockUnitsRemaining = 18.0,
-                stockUnitsLastTotal = 18.0,
+                stockUnitsLastTotal = 20.0,
                 openContainerAmount = null,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 2L,
@@ -993,7 +968,7 @@ class MedicineStockMutatorTest {
         mutator.applyRecount(
             database = database,
             medicineUuid = medicineUuid,
-            recount = StockRecount(unitsRemaining = 20.0, unitsLastTotal = 60.0),
+            recount = StockRecount(unitsRemaining = 20.0),
             now = fixedNow,
         )
 

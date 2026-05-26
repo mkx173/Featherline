@@ -16,8 +16,6 @@ internal data class MedicationLogStockSnapshot(
 data class StockRecount(
     /** Pool: "Now have"; Container: sealed count. */
     val unitsRemaining: Double,
-    /** Pool: "Out of total" (defaults to unitsRemaining if null); Container: ignored. */
-    val unitsLastTotal: Double? = null,
 )
 
 /** Received: incremental top-up. Does not bump stockGeneration. */

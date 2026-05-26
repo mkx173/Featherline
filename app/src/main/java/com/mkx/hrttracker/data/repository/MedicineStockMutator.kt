@@ -211,7 +211,11 @@ internal class MedicineStockMutator @Inject constructor() {
             newLastTotal = null
         } else {
             newOpen = null
-            newLastTotal = recount.unitsLastTotal ?: recount.unitsRemaining
+            // Pool recount snaps the gauge denominator to the just-counted
+            // total. The "out of total" affordance is gone; the gauge now
+            // tracks consumption since the last recount/received instead of a
+            // user-declared batch baseline.
+            newLastTotal = maxOf(0.0, recount.unitsRemaining)
         }
 
         dao.updateStockFields(

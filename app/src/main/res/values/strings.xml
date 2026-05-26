@@ -792,7 +792,6 @@
     <string name="stock_adjust_after">After: %1$s</string>
     <string name="stock_adjust_after_with_runway">After: %1$s · %2$s</string>
     <string name="stock_adjust_field_now_have">Now have</string>
-    <string name="stock_adjust_field_out_of_total">Out of total (optional)</string>
     <string name="stock_adjust_field_sealed">Sealed</string>
     <string name="stock_adjust_field_received">Received this time</string>
     <string name="stock_adjust_field_sealed_received">Sealed received</string>

@@ -144,17 +144,9 @@ private fun RecountForm(
         projection.medicine.uuid,
         stock.unitsRemaining,
     ) { mutableStateOf(stock.unitsRemaining.toEditableTextOrEmpty()) }
-    var unitsLastTotalText by remember(
-        projection.medicine.uuid,
-        stock.unitsLastTotal,
-    ) { mutableStateOf(stock.unitsLastTotal.toEditableTextOrEmpty()) }
 
     val unitsRemaining = unitsRemainingText.toDoubleOrNull()
-    val unitsLastTotal = unitsLastTotalText.optionalDoubleOrNull()
-    val optionalPoolTotalValid = unitsLastTotalText.isBlankOrNonNegativeDecimal()
-    val canConfirm = unitsRemaining != null &&
-        unitsRemaining >= 0.0 &&
-        optionalPoolTotalValid
+    val canConfirm = unitsRemaining != null && unitsRemaining >= 0.0
     val simulatedTotal = if (isContainer) {
         // Recount touches sealed only; existing open container is preserved.
         val containerSize = projection.medicine.preparation.containerSizeUnits()
@@ -181,18 +173,6 @@ private fun RecountForm(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (!isContainer) {
-            OutlinedTextField(
-                value = unitsLastTotalText,
-                onValueChange = { unitsLastTotalText = it },
-                label = {
-                    Text(stringResource(R.string.stock_adjust_field_out_of_total))
-                },
-                keyboardOptions = decimalKeyboardOptions(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
         AfterPreview(
             projection = projection,
             simulatedTotalUnits = simulatedTotal,
@@ -202,12 +182,7 @@ private fun RecountForm(
             enabled = canConfirm,
             onClick = {
                 val resolvedUnitsRemaining = unitsRemaining ?: return@HrtButton
-                onSubmit(
-                    StockRecount(
-                        unitsRemaining = resolvedUnitsRemaining,
-                        unitsLastTotal = if (isContainer) null else unitsLastTotal,
-                    )
-                )
+                onSubmit(StockRecount(unitsRemaining = resolvedUnitsRemaining))
                 onDismiss()
             },
             modifier = Modifier
@@ -327,17 +302,6 @@ private fun AfterPreview(
 
 private fun decimalKeyboardOptions(): KeyboardOptions {
     return KeyboardOptions(keyboardType = KeyboardType.Decimal)
-}
-
-private fun String.optionalDoubleOrNull(): Double? {
-    return trim().takeUnless(String::isEmpty)?.toDoubleOrNull()
-}
-
-private fun String.isBlankOrNonNegativeDecimal(): Boolean {
-    val trimmed = trim()
-    if (trimmed.isEmpty()) return true
-    val value = trimmed.toDoubleOrNull() ?: return false
-    return value >= 0.0
 }
 
 private fun MedicinePreparation.containerSizeUnits(): Double {

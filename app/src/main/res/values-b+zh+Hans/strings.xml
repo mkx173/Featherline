@@ -754,7 +754,6 @@
     <string name="stock_adjust_after">调整后：%1$s</string>
     <string name="stock_adjust_after_with_runway">调整后：%1$s · %2$s</string>
     <string name="stock_adjust_field_now_have">实际数量</string>
-    <string name="stock_adjust_field_out_of_total">总数（可选）</string>
     <string name="stock_adjust_field_sealed">未拆封</string>
     <string name="stock_adjust_field_received">本次收到</string>
     <string name="stock_adjust_field_sealed_received">收到未拆封</string>
