@@ -315,7 +315,7 @@ private fun MedicineDetailScreenContent(
                                         onClick = { onOpenAdjustSheet(AdjustSheetTab.RECEIVED) },
                                         leadingContent = {
                                             Icon(
-                                                painter = painterResource(R.drawable.ic_tune),
+                                                painter = painterResource(R.drawable.ic_box),
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )

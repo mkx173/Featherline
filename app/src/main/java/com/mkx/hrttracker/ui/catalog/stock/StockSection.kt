@@ -48,7 +48,6 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import java.util.Locale
-import kotlin.math.abs
 import kotlin.math.floor
 
 @Composable
@@ -416,7 +415,6 @@ private fun RunwayRowCard(
         projection.state == MedicineStockState.OUT
     val titleColor = when {
         isWarn -> MaterialTheme.colorScheme.tertiary
-        runwayDays == null -> MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.onSurface
     }
     val iconColor = if (isWarn) {
@@ -424,7 +422,7 @@ private fun RunwayRowCard(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val iconRes = if (runwayDays == null) R.drawable.ic_info else R.drawable.ic_insights
+    val iconRes = if (runwayDays == null) R.drawable.ic_help else R.drawable.ic_insights
     val titleText = if (runwayDays == null) {
         stringResource(R.string.stock_runway_unknown_title)
     } else {
@@ -463,7 +461,6 @@ private fun RunwayRowCard(
                     text = titleText,
                     style = MaterialTheme.typography.bodyLarge,
                     color = titleColor,
-                    fontWeight = FontWeight.Medium,
                 )
                 if (subtitleText != null) {
                     Text(
@@ -539,13 +536,7 @@ internal fun stockUnitRes(preparation: MedicinePreparation): Int? = when (prepar
 }
 
 private fun formatRate(value: Double): String {
-    // Treat anything within 0.05 of an integer as whole so "1.0 tablets/day"
-    // reads as "1 tablets/day" — the trailing decimal is just float noise.
-    return if (abs(value - value.toLong()) < 0.05) {
-        value.toLong().toString()
-    } else {
-        String.format(Locale.getDefault(), "%.1f", value)
-    }
+    return trimTrailingZeros(String.format(Locale.getDefault(), "%.2f", value))
 }
 
 private fun computeProgress(
@@ -560,11 +551,13 @@ private fun computeProgress(
 
 private fun formatCount(value: Double?): String {
     val resolved = value ?: return "-"
-    return if (resolved == resolved.toLong().toDouble()) {
-        resolved.toLong().toString()
-    } else {
-        String.format(Locale.getDefault(), "%.2f", resolved)
-    }
+    return trimTrailingZeros(String.format(Locale.getDefault(), "%.2f", resolved))
+}
+
+private fun trimTrailingZeros(text: String): String {
+    if (!text.contains('.')) return text
+    val trimmed = text.trimEnd('0').trimEnd('.')
+    return trimmed.ifEmpty { "0" }
 }
 
 @Composable

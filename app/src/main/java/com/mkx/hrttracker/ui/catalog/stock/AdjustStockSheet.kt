@@ -195,7 +195,7 @@ private fun RecountForm(
             label = stringResource(R.string.stock_adjust_field_current_stock),
             value = unitsRemainingText,
             unit = adjustStockUnitLabel(projection.medicine.preparation),
-            leadingIconRes = R.drawable.ic_inventory,
+            leadingIconRes = R.drawable.ic_box_edit,
             placeholder = placeholderText,
             onValueChange = { unitsRemainingText = it },
             onStep = stepRecount,
@@ -525,11 +525,10 @@ private fun storedTotalUnits(projection: MedicineStockProjection): Double {
 }
 
 private fun formatCount(value: Double): String {
-    return if (value == value.toLong().toDouble()) {
-        value.toLong().toString()
-    } else {
-        String.format(Locale.getDefault(), "%.2f", value)
-    }
+    val formatted = String.format(Locale.getDefault(), "%.2f", value)
+    if (!formatted.contains('.')) return formatted
+    val trimmed = formatted.trimEnd('0').trimEnd('.')
+    return trimmed.ifEmpty { "0" }
 }
 
 private val AdjustSheetTab.labelRes: Int
