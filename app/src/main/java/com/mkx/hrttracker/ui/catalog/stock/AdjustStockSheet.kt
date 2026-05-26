@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -23,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -173,6 +175,13 @@ private fun RecountForm(
         effectiveSealed
     }
 
+    val stepRecount: (Int) -> Unit = { delta ->
+        unitsRemainingText = stepCountText(
+            unitsRemainingText.ifEmpty { placeholderText },
+            delta,
+        )
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         StockStepperCard(
             label = stringResource(R.string.stock_adjust_field_current_stock),
@@ -181,12 +190,11 @@ private fun RecountForm(
             leadingIconRes = R.drawable.ic_inventory,
             placeholder = placeholderText,
             onValueChange = { unitsRemainingText = it },
-            onStep = { delta ->
-                unitsRemainingText = stepCountText(
-                    unitsRemainingText.ifEmpty { placeholderText },
-                    delta,
-                )
-            },
+            onStep = stepRecount,
+        )
+        QuickAddChips(
+            preparation = projection.medicine.preparation,
+            onAdd = stepRecount,
         )
         AfterPreview(
             projection = projection,
@@ -241,6 +249,10 @@ private fun ReceivedForm(
         storedTotalUnits(projection) + (received ?: 0).toDouble()
     }
 
+    val stepReceived: (Int) -> Unit = { delta ->
+        receivedText = stepCountText(receivedText, delta)
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         StockStepperCard(
             label = stringResource(R.string.stock_adjust_field_add_to_stock),
@@ -248,7 +260,11 @@ private fun ReceivedForm(
             unit = adjustStockUnitLabel(projection.medicine.preparation),
             leadingIconRes = R.drawable.ic_box_add,
             onValueChange = { receivedText = it },
-            onStep = { delta -> receivedText = stepCountText(receivedText, delta) },
+            onStep = stepReceived,
+        )
+        QuickAddChips(
+            preparation = projection.medicine.preparation,
+            onAdd = stepReceived,
         )
         AfterPreview(
             projection = projection,
@@ -422,6 +438,36 @@ private fun StockStepperCard(
             )
         }
     }
+}
+
+@Composable
+private fun QuickAddChips(
+    preparation: MedicinePreparation,
+    onAdd: (Int) -> Unit,
+) {
+    val presets = quickAddPresets(preparation)
+    if (presets.isEmpty()) return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        presets.forEach { preset ->
+            AssistChip(
+                onClick = { onAdd(preset) },
+                label = { Text(text = "+$preset") },
+            )
+        }
+    }
+}
+
+private fun quickAddPresets(preparation: MedicinePreparation): List<Int> = when (preparation) {
+    is MedicinePreparation.Pill,
+    is MedicinePreparation.Capsule -> listOf(10, 14, 21, 28)
+    is MedicinePreparation.InjectionSingleUseVial -> listOf(5, 10)
+    is MedicinePreparation.Patch -> listOf(8, 12, 24)
+    else -> emptyList()
 }
 
 @Composable
