@@ -37,6 +37,14 @@ interface MedicineDao {
     @Query(
         """
         SELECT * FROM medicines
+        WHERE archivedAtEpochMillis IS NULL AND trackingEnabled = 1
+        """
+    )
+    suspend fun getAllActiveTrackedEntities(): List<MedicineEntity>
+
+    @Query(
+        """
+        SELECT * FROM medicines
         WHERE uuid = :uuid
         LIMIT 1
         """

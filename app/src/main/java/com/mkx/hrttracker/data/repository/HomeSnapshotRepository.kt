@@ -5,6 +5,7 @@ import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
@@ -461,6 +462,8 @@ class HomeSnapshotRepository @Inject constructor(
         val inputs = withContext(Dispatchers.IO) {
             val database = databaseHolder.get()
             val homeDao = database.homeDao()
+            val medicineDao = database.medicineDao()
+            val medicationLogDao = database.medicationLogDao()
             val activeGroupEntities = homeDao.getActiveGroups()
             val scheduleEntryEntities = homeDao.getScheduleEntries(
                 scheduledStartIso = snapshotWindow.bufferedScheduledStart.toString(),
@@ -478,11 +481,24 @@ class HomeSnapshotRepository @Inject constructor(
             val latestEstradiolEntryEntity = homeDao.getLatestEstradiolEntryOnOrBefore(
                 onOrBeforeEpochMillis = cacheWindow.generatedAtEpochMillis,
             )
+            val stockMedicineEntities = medicineDao.getAllActiveTrackedEntities()
+            val stockWindowStartIso = now.toLocalDate()
+                .minusDays(1)
+                .atStartOfDay()
+                .toString()
+            val stockWindowEndIso = now.toLocalDate()
+                .plusDays(ScheduledRunwayCalculator.HORIZON_DAYS)
+                .atTime(23, 59, 59)
+                .toString()
+            val stockFulfillmentEntities = medicationLogDao.getScheduledEntriesInWindow(
+                scheduledStartIso = stockWindowStartIso,
+                scheduledEndIso = stockWindowEndIso,
+            )
 
             val groupMedicinesByUuid = database.resolveMedicinesForGroups(activeGroupEntities)
             val entryMedicinesByUuid = database.resolveMedicinesForEntries(
                 scheduleEntryEntities + antiandrogenHistoryEntities + pkEntries +
-                    listOfNotNull(latestEstradiolEntryEntity)
+                    listOfNotNull(latestEstradiolEntryEntity) + stockFulfillmentEntities
             )
             val activeGroups = activeGroupEntities.map { group ->
                 group.toMedicationGroupModel(groupMedicinesByUuid)
@@ -499,6 +515,10 @@ class HomeSnapshotRepository @Inject constructor(
             val latestEstradiolEntry = latestEstradiolEntryEntity?.toMedicationLogEntryModel(
                 entryMedicinesByUuid
             )
+            val stockMedicines = stockMedicineEntities.map { entity -> entity.toMedicineModel() }
+            val stockFulfillmentEntries = stockFulfillmentEntities.map { entry ->
+                entry.toMedicationLogEntryModel(entryMedicinesByUuid)
+            }
             HomeSnapshotBuildInputs(
                 activeGroups = activeGroups,
                 scheduleEntries = scheduleEntries,
@@ -509,6 +529,8 @@ class HomeSnapshotRepository @Inject constructor(
                     .getProfile()
                     ?.toUserProfileModel()
                     ?: UserProfile(),
+                stockMedicines = stockMedicines,
+                stockFulfillmentEntries = stockFulfillmentEntries,
             )
         }
         diagnosticsLogger.info(
@@ -625,6 +647,8 @@ class HomeSnapshotRepository @Inject constructor(
             scheduleEntries = inputs.scheduleEntries,
             antiandrogenHistoryEntries = inputs.antiandrogenHistoryEntries,
             userProfile = inputs.profile,
+            stockMedicines = inputs.stockMedicines,
+            stockFulfillmentEntries = inputs.stockFulfillmentEntries,
         )
 
         withContext(Dispatchers.IO) {
@@ -660,6 +684,8 @@ class HomeSnapshotRepository @Inject constructor(
         val pkEntries: List<MedicationLogEntry>,
         val latestEstradiolEntry: MedicationLogEntry?,
         val profile: UserProfile,
+        val stockMedicines: List<Medicine>,
+        val stockFulfillmentEntries: List<MedicationLogEntry>,
     )
 
     // Full projection-cache window: past-days back from today's midnight, plus

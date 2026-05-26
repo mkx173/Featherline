@@ -145,6 +145,10 @@ data class HomeSnapshotRecord(
     // init completes. Nullable for forward-compat with snapshots from before this
     // field was added.
     val userProfile: UserProfile? = null,
+    /** Every active tracked medicine, used so cold-start can re-project ungrouped meds. */
+    val stockMedicines: List<Medicine> = emptyList(),
+    /** Log entries whose `scheduledFor` falls inside the stock simulation window. */
+    val stockFulfillmentEntries: List<MedicationLogEntry> = emptyList(),
 )
 
 data class HomePkProjectionRecord(
@@ -250,6 +254,8 @@ internal object HomeSnapshotCodec {
             stream.writeList(record.scheduleEntries) { entry -> writeMedicationLogEntry(entry) }
             stream.writeList(record.antiandrogenHistoryEntries) { entry -> writeMedicationLogEntry(entry) }
             stream.writeUserProfile(record.userProfile)
+            stream.writeList(record.stockMedicines) { medicine -> writeMedicine(medicine) }
+            stream.writeList(record.stockFulfillmentEntries) { entry -> writeMedicationLogEntry(entry) }
         }
         return output.toByteArray()
     }
@@ -272,6 +278,8 @@ internal object HomeSnapshotCodec {
                 scheduleEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
                 antiandrogenHistoryEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
                 userProfile = stream.readUserProfile(),
+                stockMedicines = stream.readList { readMedicine() },
+                stockFulfillmentEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
             )
         }
     }
@@ -857,7 +865,7 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 private const val TAG = "HomeSnapshotStore"
 // v15 carries MedicineStock inside cached Medicine values; older caches are
 // rejected by codec-version mismatch so tracked stock is never defaulted away.
-private const val SNAPSHOT_CODEC_VERSION = 15
+private const val SNAPSHOT_CODEC_VERSION = 16
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0
