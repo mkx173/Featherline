@@ -20,6 +20,15 @@ interface MedicineDao {
     @Query(
         """
         SELECT * FROM medicines
+        WHERE archivedAtEpochMillis IS NULL AND trackingEnabled = 1
+        ORDER BY category ASC, updatedAtEpochMillis DESC, createdAtEpochMillis DESC
+        """
+    )
+    fun observeAllActiveTracked(): Flow<List<MedicineEntity>>
+
+    @Query(
+        """
+        SELECT * FROM medicines
         WHERE archivedAtEpochMillis IS NOT NULL
         ORDER BY archivedAtEpochMillis DESC, updatedAtEpochMillis DESC
         """

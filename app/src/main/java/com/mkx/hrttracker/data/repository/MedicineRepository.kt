@@ -44,6 +44,15 @@ class MedicineRepository @Inject internal constructor(
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
+    fun observeAllActiveTracked(): Flow<List<Medicine>> {
+        return databaseHolder.databaseFlow.flatMapLatest { database ->
+            database?.medicineDao()?.observeAllActiveTracked()
+                ?.map { entities -> entities.map(MedicineEntity::toMedicineModel) }
+                ?: flowOf(emptyList())
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun observeAllArchived(): Flow<List<Medicine>> {
         return databaseHolder.databaseFlow.flatMapLatest { database ->
             database?.medicineDao()?.observeAllArchived()

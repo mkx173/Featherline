@@ -81,6 +81,26 @@ class MedicationLogRepository @Inject internal constructor(
 
     fun observeEntries(): Flow<List<MedicationLogEntry>?> = entriesFlow
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun observeScheduledEntriesInWindow(
+        scheduledStartIso: String,
+        scheduledEndIso: String,
+    ): Flow<List<MedicationLogEntry>> {
+        return databaseHolder.databaseFlow.flatMapLatest { database ->
+            database?.let {
+                it.medicationLogDao()
+                    .observeScheduledEntriesInWindow(
+                        scheduledStartIso = scheduledStartIso,
+                        scheduledEndIso = scheduledEndIso,
+                    )
+                    .map { entities ->
+                        val medicinesByUuid = it.resolveMedicinesForEntries(entities)
+                        entities.map { entity -> entity.toMedicationLogEntryModel(medicinesByUuid) }
+                    }
+            } ?: flowOf(emptyList())
+        }
+    }
+
     fun getObservedLatestEstradiolEntryOnOrBefore(
         onOrBefore: Instant,
     ): ObservedEstradiolEntryLookup {
