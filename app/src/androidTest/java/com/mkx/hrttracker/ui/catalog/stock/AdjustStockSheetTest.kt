@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.catalog.stock
 
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
@@ -61,7 +62,7 @@ class AdjustStockSheetTest {
 
         // Type "3" into the only field (sealed received).
         composeRule
-            .onNodeWithText(context.getString(R.string.stock_adjust_field_sealed_received))
+            .onNode(hasSetTextAction())
             .performTextInput("3")
 
         composeRule

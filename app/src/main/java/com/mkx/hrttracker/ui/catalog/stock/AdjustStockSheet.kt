@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.ui.catalog.stock
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,12 +16,19 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,10 +37,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
@@ -42,10 +59,10 @@ import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import java.math.BigDecimal
 import java.util.Locale
 import kotlin.math.floor
 
@@ -145,44 +162,38 @@ private fun RecountForm(
     var unitsRemainingText by remember(
         projection.medicine.uuid,
         stock.unitsRemaining,
-    ) { mutableStateOf(stock.unitsRemaining.toEditableTextOrEmpty()) }
+    ) { mutableStateOf(stock.unitsRemaining.toEditableCountOrEmpty()) }
 
-    val unitsRemaining = unitsRemainingText.toDoubleOrNull()
-    val canConfirm = unitsRemaining != null && unitsRemaining >= 0.0
+    val unitsRemaining = unitsRemainingText.toIntOrNull()
+    val canConfirm = unitsRemaining != null && unitsRemaining >= 0
     val simulatedTotal = if (isContainer) {
         val containerSize = projection.medicine.preparation.containerSizeUnits()
-        (unitsRemaining ?: 0.0) * containerSize
+        (unitsRemaining ?: 0).toDouble() * containerSize
     } else {
-        unitsRemaining ?: 0.0
+        (unitsRemaining ?: 0).toDouble()
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
+        StockStepperCard(
+            label = stringResource(R.string.stock_adjust_field_current_stock),
             value = unitsRemainingText,
+            unit = adjustStockUnitLabel(projection.medicine.preparation),
+            leadingIconRes = R.drawable.ic_inventory,
             onValueChange = { unitsRemainingText = it },
-            label = {
-                Text(
-                    if (isContainer) {
-                        stringResource(R.string.stock_adjust_field_sealed)
-                    } else {
-                        stringResource(R.string.stock_adjust_field_now_have)
-                    }
-                )
+            onStep = { delta ->
+                unitsRemainingText = stepCountText(unitsRemainingText, delta)
             },
-            keyboardOptions = decimalKeyboardOptions(),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
         )
         AfterPreview(
             projection = projection,
             simulatedSealedUnits = simulatedTotal,
         )
         HrtButton(
-            text = stringResource(R.string.stock_adjust_confirm),
+            text = stringResource(R.string.stock_adjust_save),
             enabled = canConfirm,
             onClick = {
                 val resolvedUnitsRemaining = unitsRemaining ?: return@HrtButton
-                onSubmit(StockRecount(unitsRemaining = resolvedUnitsRemaining))
+                onSubmit(StockRecount(unitsRemaining = resolvedUnitsRemaining.toDouble()))
                 onDismiss()
             },
             modifier = Modifier
@@ -216,43 +227,35 @@ private fun ReceivedForm(
     }
     var receivedText by remember(initialReceivedText) { mutableStateOf(initialReceivedText) }
 
-    val received = receivedText.toDoubleOrNull()
-    val canConfirm = received != null && received >= 0.0
+    val received = receivedText.toIntOrNull()
+    val canConfirm = received != null && received >= 0
     val simulatedTotal = if (isContainer) {
         val containerSize = projection.medicine.preparation.containerSizeUnits()
-        val sealed = (projection.medicine.stock.unitsRemaining ?: 0.0) + (received ?: 0.0)
+        val sealed = (projection.medicine.stock.unitsRemaining ?: 0.0) + (received ?: 0).toDouble()
         sealed * containerSize
     } else {
-        storedTotalUnits(projection) + (received ?: 0.0)
+        storedTotalUnits(projection) + (received ?: 0).toDouble()
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
+        StockStepperCard(
+            label = stringResource(R.string.stock_adjust_field_add_to_stock),
             value = receivedText,
+            unit = adjustStockUnitLabel(projection.medicine.preparation),
+            leadingIconRes = R.drawable.ic_box_add,
             onValueChange = { receivedText = it },
-            label = {
-                Text(
-                    if (isContainer) {
-                        stringResource(R.string.stock_adjust_field_sealed_received)
-                    } else {
-                        stringResource(R.string.stock_adjust_field_received)
-                    }
-                )
-            },
-            keyboardOptions = decimalKeyboardOptions(),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+            onStep = { delta -> receivedText = stepCountText(receivedText, delta) },
         )
         AfterPreview(
             projection = projection,
             simulatedSealedUnits = simulatedTotal,
         )
         HrtButton(
-            text = stringResource(R.string.stock_adjust_confirm),
+            text = stringResource(R.string.stock_adjust_add),
             enabled = canConfirm,
             onClick = {
                 val resolvedReceived = received ?: return@HrtButton
-                onSubmit(StockReceived(unitsReceived = resolvedReceived))
+                onSubmit(StockReceived(unitsReceived = resolvedReceived.toDouble()))
                 onDismiss()
             },
             modifier = Modifier
@@ -297,16 +300,10 @@ private fun AfterPreview(
 
         else -> simulatedSealedUnits
     }
-    val unitRes = when (preparation) {
-        is MedicinePreparation.InjectionMultiUseVial -> R.string.stock_unit_vials
-        is MedicinePreparation.GelContainer -> R.string.stock_unit_containers
-        else -> stockUnitRes(preparation)
-    }
-    val unitLabel = if (unitRes != null) stringResource(unitRes) else ""
     val title = stringResource(
         R.string.stock_adjust_after,
         formatCount(displayCount),
-        unitLabel,
+        adjustStockUnitLabel(preparation),
     )
     SupportMessageListItem(
         text = title,
@@ -316,8 +313,126 @@ private fun AfterPreview(
     )
 }
 
-private fun decimalKeyboardOptions(): KeyboardOptions {
-    return KeyboardOptions(keyboardType = KeyboardType.Decimal)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun StockStepperCard(
+    label: String,
+    value: String,
+    unit: String,
+    @DrawableRes leadingIconRes: Int,
+    onValueChange: (String) -> Unit,
+    onStep: (Int) -> Unit,
+) {
+    val currentCount = value.toIntOrNull() ?: 0
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+
+    EditorSegmentedListItem(
+        index = 0,
+        count = 1,
+        onClick = { focusRequester.requestFocus() },
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        overlineContent = {
+            Text(
+                text = label.uppercase(),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        leadingContent = {
+            Icon(
+                painter = painterResource(leadingIconRes),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        trailingContent = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FilledTonalIconButton(
+                    onClick = { onStep(-1) },
+                    enabled = currentCount > 0,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Remove,
+                        contentDescription = stringResource(R.string.stock_adjust_decrease_count),
+                    )
+                }
+                FilledTonalIconButton(
+                    onClick = { onStep(1) },
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = stringResource(R.string.stock_adjust_increase_count),
+                    )
+                }
+            }
+        },
+    ) {
+        Row(
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(top = 2.dp),
+        ) {
+            val numberStyle = MaterialTheme.typography.headlineSmall.copy(
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                textDecoration = TextDecoration.Underline,
+            )
+            Box(modifier = Modifier.alignByBaseline()) {
+                // Invisible sizer (or hint placeholder when empty) — keeps the
+                // editable field's width tied to the typed text so the unit
+                // label can sit immediately next to the number.
+                Text(
+                    text = value.ifEmpty { "0" },
+                    style = numberStyle,
+                    color = if (value.isEmpty()) {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    } else {
+                        Color.Transparent
+                    },
+                )
+                BasicTextField(
+                    value = value,
+                    onValueChange = { onValueChange(it.filter(Char::isDigit)) },
+                    textStyle = numberStyle,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier
+                        .matchParentSize()
+                        .focusRequester(focusRequester),
+                )
+            }
+            Text(
+                text = unit,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alignByBaseline(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun adjustStockUnitLabel(preparation: MedicinePreparation): String {
+    val unitRes = when (preparation) {
+        is MedicinePreparation.InjectionMultiUseVial -> R.string.stock_unit_vials
+        is MedicinePreparation.GelContainer -> R.string.stock_unit_containers
+        else -> stockUnitRes(preparation)
+    }
+    return if (unitRes != null) stringResource(unitRes) else ""
+}
+
+private fun stepCountText(current: String, delta: Int): String {
+    val next = (current.toIntOrNull() ?: 0) + delta
+    return next.coerceAtLeast(0).toString()
 }
 
 private fun MedicinePreparation.containerSizeUnits(): Double {
@@ -357,7 +472,7 @@ private val AdjustSheetTab.labelRes: Int
         AdjustSheetTab.RECEIVED -> R.string.stock_adjust_tab_received
     }
 
-private fun Double?.toEditableTextOrEmpty(): String {
+private fun Double?.toEditableCountOrEmpty(): String {
     val value = this ?: return ""
-    return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString()
+    return value.toLong().toString()
 }

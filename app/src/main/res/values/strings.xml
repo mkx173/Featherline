@@ -791,11 +791,13 @@
     <string name="stock_adjust_tab_recount">Recount</string>
     <string name="stock_adjust_tab_received">Received</string>
     <string name="stock_adjust_after">After: %1$s %2$s</string>
-    <string name="stock_adjust_field_now_have">Now have</string>
-    <string name="stock_adjust_field_sealed">Sealed</string>
-    <string name="stock_adjust_field_received">Received this time</string>
-    <string name="stock_adjust_field_sealed_received">Sealed received</string>
+    <string name="stock_adjust_field_current_stock">Current stock</string>
+    <string name="stock_adjust_field_add_to_stock">Add to stock</string>
     <string name="stock_adjust_confirm">Confirm</string>
+    <string name="stock_adjust_save">Save</string>
+    <string name="stock_adjust_add">Add</string>
+    <string name="stock_adjust_decrease_count">Decrease count</string>
+    <string name="stock_adjust_increase_count">Increase count</string>
 
     <!-- Stock section overflow + current container edit dialog. Vial/container
          variants follow the same preparation-aware split used in the row labels. -->

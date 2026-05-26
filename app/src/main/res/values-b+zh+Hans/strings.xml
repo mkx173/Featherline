@@ -753,11 +753,13 @@
     <string name="stock_adjust_tab_recount">盘点</string>
     <string name="stock_adjust_tab_received">收到</string>
     <string name="stock_adjust_after">调整后：%1$s %2$s</string>
-    <string name="stock_adjust_field_now_have">实际数量</string>
-    <string name="stock_adjust_field_sealed">未拆封</string>
-    <string name="stock_adjust_field_received">本次收到</string>
-    <string name="stock_adjust_field_sealed_received">收到未拆封</string>
+    <string name="stock_adjust_field_current_stock">当前库存</string>
+    <string name="stock_adjust_field_add_to_stock">添加到库存</string>
     <string name="stock_adjust_confirm">确认</string>
+    <string name="stock_adjust_save">保存</string>
+    <string name="stock_adjust_add">添加</string>
+    <string name="stock_adjust_decrease_count">减少数量</string>
+    <string name="stock_adjust_increase_count">增加数量</string>
 
     <!-- Stock section overflow + current container edit dialog -->
     <string name="stock_section_more_options">更多选项</string>
