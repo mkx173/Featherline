@@ -714,7 +714,7 @@
     <string name="widget_preview_dose_supporting_progesterone">口服 · 200 mg</string>
     <string name="widget_preview_dose_time_evening">21:00</string>
 
-    <string name="stock_section_title">库存</string>
+    <string name="stock_section_title">库存追踪</string>
     <string name="stock_chip_low">不足</string>
     <string name="stock_chip_out">已用完</string>
     <string name="stock_runway_unknown_title">无法预估</string>
@@ -728,15 +728,9 @@
     <string name="stock_optin_button">设置追踪</string>
     <string name="stock_manager_track_chip">+ 追踪</string>
 
-    <string name="stock_row_label_tablets">片剂</string>
-    <string name="stock_row_label_capsules">胶囊</string>
-    <string name="stock_row_label_patches">贴片</string>
-    <string name="stock_row_label_sachets">袋装</string>
-    <string name="stock_row_label_vials_single">药瓶</string>
-    <string name="stock_row_label_sealed_vials">未拆封药瓶</string>
-    <string name="stock_row_label_sealed_pumps">未拆封容器</string>
-    <string name="stock_row_label_open_vial">已开瓶</string>
-    <string name="stock_row_label_open_pump">已开容器</string>
+    <string name="stock_row_label_stock">库存</string>
+    <string name="stock_row_label_current_vial">当前药瓶</string>
+    <string name="stock_row_label_current_container">当前容器</string>
 
     <string name="stock_row_count_over_total">%1$s / %2$s</string>
     <string name="stock_row_count_only">%1$s</string>
@@ -766,14 +760,14 @@
     <string name="stock_adjust_field_sealed_received">收到未拆封</string>
     <string name="stock_adjust_confirm">确认</string>
 
-    <!-- Stock section overflow + open container edit dialog -->
+    <!-- Stock section overflow + current container edit dialog -->
     <string name="stock_section_more_options">更多选项</string>
-    <string name="stock_open_edit_action">编辑已开容器</string>
-    <string name="stock_open_edit_dialog_title_vial">设置已开瓶</string>
-    <string name="stock_open_edit_dialog_title_pump">设置已开泵</string>
-    <string name="stock_open_edit_dialog_body">满容量为 %1$s %2$s。</string>
-    <string name="stock_open_edit_dialog_field">剩余量</string>
-    <string name="stock_open_edit_dialog_invalid">请输入非负数。</string>
+    <string name="stock_current_edit_action_vial">编辑当前药瓶</string>
+    <string name="stock_current_edit_action_container">编辑当前容器</string>
+    <string name="stock_current_edit_dialog_title_vial">设置当前药瓶</string>
+    <string name="stock_current_edit_dialog_title_container">设置当前容器</string>
+    <string name="stock_current_edit_dialog_field">剩余量</string>
+    <string name="stock_current_edit_dialog_invalid">请输入有效的数字</string>
 
     <string name="stock_warnat_row_label">剩余 %1$d 天时提醒</string>
     <string name="stock_warnat_sheet_title">剩余多少天时提醒？</string>

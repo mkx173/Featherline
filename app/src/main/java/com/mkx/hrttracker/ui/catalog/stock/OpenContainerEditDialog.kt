@@ -7,6 +7,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,7 +37,11 @@ fun OpenContainerEditDialog(
         onDismiss()
         return
     }
-    val titleRes = preparation.titleRes()
+    val titleRes = when (preparation) {
+        is MedicinePreparation.InjectionMultiUseVial ->
+            R.string.stock_current_edit_dialog_title_vial
+        else -> R.string.stock_current_edit_dialog_title_container
+    }
 
     var valueText by remember(currentAmount) {
         mutableStateOf(currentAmount.toEditableText())
@@ -52,6 +57,11 @@ fun OpenContainerEditDialog(
         }
     }
 
+    val sliderValue = valueText.trim().toDoubleOrNull()
+        ?.coerceIn(0.0, containerSize)
+        ?.toFloat()
+        ?: 0f
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(titleRes)) },
@@ -61,12 +71,14 @@ fun OpenContainerEditDialog(
                     dimensionResource(R.dimen.padding_small),
                 ),
             ) {
-                Text(
-                    text = stringResource(
-                        R.string.stock_open_edit_dialog_body,
-                        formatContainerSize(containerSize),
-                        stringResource(unitRes),
-                    ),
+                Slider(
+                    value = sliderValue,
+                    onValueChange = { newValue ->
+                        valueText = formatSliderValue(newValue.toDouble())
+                        showError = false
+                    },
+                    valueRange = 0f..containerSize.toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = valueText,
@@ -74,7 +86,7 @@ fun OpenContainerEditDialog(
                         valueText = it
                         showError = false
                     },
-                    label = { Text(stringResource(R.string.stock_open_edit_dialog_field)) },
+                    label = { Text(stringResource(R.string.stock_current_edit_dialog_field)) },
                     suffix = { Text(stringResource(unitRes)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
@@ -84,7 +96,7 @@ fun OpenContainerEditDialog(
                     keyboardActions = KeyboardActions(onDone = { submit() }),
                     isError = showError,
                     supportingText = if (showError) {
-                        { Text(stringResource(R.string.stock_open_edit_dialog_invalid)) }
+                        { Text(stringResource(R.string.stock_current_edit_dialog_invalid)) }
                     } else null,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -115,16 +127,15 @@ private fun MedicinePreparation.unitShortRes(): Int? = when (this) {
     else -> null
 }
 
-private fun MedicinePreparation.titleRes(): Int = when (this) {
-    is MedicinePreparation.GelContainer -> R.string.stock_open_edit_dialog_title_pump
-    else -> R.string.stock_open_edit_dialog_title_vial
-}
-
 private fun Double?.toEditableText(): String {
     val value = this ?: return ""
     return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString()
 }
 
-private fun formatContainerSize(value: Double): String {
-    return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString()
+private fun formatSliderValue(value: Double): String {
+    // Snap slider-driven updates to one decimal so dragging produces clean
+    // numbers (2.4 mL, not 2.4387...). The text field still accepts finer
+    // precision via direct entry.
+    val rounded = Math.round(value * 10) / 10.0
+    return BigDecimal.valueOf(rounded).stripTrailingZeros().toPlainString()
 }

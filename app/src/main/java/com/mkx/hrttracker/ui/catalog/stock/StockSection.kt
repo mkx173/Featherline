@@ -126,15 +126,21 @@ private fun SectionHeader(
             }
         }
         if (showOverflow) {
-            HeaderOverflowMenu(onEditOpenContainer = onEditOpenContainer)
+            HeaderOverflowMenu(
+                preparation = projection.medicine.preparation,
+                onEditOpenContainer = onEditOpenContainer,
+            )
         }
     }
 }
 
 @Composable
-private fun HeaderOverflowMenu(onEditOpenContainer: () -> Unit) {
+private fun HeaderOverflowMenu(
+    preparation: MedicinePreparation,
+    onEditOpenContainer: () -> Unit,
+) {
     var expanded by remember { mutableStateOf(false) }
-    val editOpenLabel = stringResource(R.string.stock_open_edit_action)
+    val editOpenLabel = stringResource(editActionRes(preparation))
     // Match the title text's vertical box (line-height + the 4.dp Text padding
     // applied above/below) so the overflow doesn't make the header taller than
     // it would be without one. Falls back to fontSize when lineHeight is
@@ -211,7 +217,7 @@ private fun StockRows(
             if (showOpenRow) {
                 StockRowCard(
                     iconRes = R.drawable.ic_humidity_mid,
-                    label = stringResource(R.string.stock_row_label_open_vial),
+                    label = stringResource(R.string.stock_row_label_current_vial),
                     trailingCount = stringResource(
                         R.string.stock_row_count_volume_ml,
                         formatCount(stock.openContainerAmount),
@@ -228,7 +234,7 @@ private fun StockRows(
             }
             StockRowCard(
                 iconRes = R.drawable.ic_inventory_2,
-                label = stringResource(R.string.stock_row_label_sealed_vials),
+                label = stringResource(R.string.stock_row_label_stock),
                 trailingCount = formatCount(stock.unitsRemaining),
                 // The sealed count is just an integer; its color stays neutral
                 // even when overall stock is low or out, otherwise the user
@@ -253,7 +259,7 @@ private fun StockRows(
             if (showOpenRow) {
                 StockRowCard(
                     iconRes = R.drawable.ic_humidity_mid,
-                    label = stringResource(R.string.stock_row_label_open_pump),
+                    label = stringResource(R.string.stock_row_label_current_container),
                     trailingCount = stringResource(
                         R.string.stock_row_count_volume_g,
                         formatCount(stock.openContainerAmount),
@@ -270,7 +276,7 @@ private fun StockRows(
             }
             StockRowCard(
                 iconRes = R.drawable.ic_inventory_2,
-                label = stringResource(R.string.stock_row_label_sealed_pumps),
+                label = stringResource(R.string.stock_row_label_stock),
                 trailingCount = formatCount(stock.unitsRemaining),
                 trailingState = MedicineStockState.HEALTHY,
                 index = index++,
@@ -287,7 +293,7 @@ private fun StockRows(
         else -> {
             StockRowCard(
                 iconRes = poolIconRes(preparation),
-                label = poolLabelForPreparation(preparation),
+                label = stringResource(R.string.stock_row_label_stock),
                 trailingCount = poolCountText(stock.unitsRemaining, stock.unitsLastTotal),
                 trailingState = projection.state,
                 index = 0,
@@ -593,19 +599,6 @@ private fun poolCountText(units: Double?, lastTotal: Double?): String {
     }
 }
 
-@Composable
-private fun poolLabelForPreparation(preparation: MedicinePreparation): String {
-    val labelRes = when (preparation) {
-        is MedicinePreparation.Pill -> R.string.stock_row_label_tablets
-        is MedicinePreparation.Capsule -> R.string.stock_row_label_capsules
-        is MedicinePreparation.Patch -> R.string.stock_row_label_patches
-        is MedicinePreparation.GelSachet -> R.string.stock_row_label_sachets
-        is MedicinePreparation.InjectionSingleUseVial -> R.string.stock_row_label_vials_single
-        else -> R.string.stock_row_label_tablets
-    }
-    return stringResource(labelRes)
-}
-
 private fun poolIconRes(preparation: MedicinePreparation): Int = when (preparation) {
     // All sealed/pool preparations read as "inventory" — boxes of tablets,
     // strips of patches, batches of sachets — so they share the inventory_2
@@ -619,4 +612,12 @@ private fun poolIconRes(preparation: MedicinePreparation): Int = when (preparati
     // upstream; this fallback only fires if a new preparation type is added
     // without a matching pool icon mapping.
     else -> R.drawable.ic_inventory_2
+}
+
+// Multi-use vials read as "vial" everywhere; gel containers and any future
+// container preparations read as "container". HeaderOverflowMenu only renders
+// for container preparations, so non-container branches don't appear here.
+private fun editActionRes(preparation: MedicinePreparation): Int = when (preparation) {
+    is MedicinePreparation.InjectionMultiUseVial -> R.string.stock_current_edit_action_vial
+    else -> R.string.stock_current_edit_action_container
 }
