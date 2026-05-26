@@ -770,9 +770,9 @@
     <string name="stock_current_edit_dialog_field">剩余量</string>
     <string name="stock_current_edit_dialog_invalid">请输入有效的数字</string>
 
-    <string name="stock_warnat_row_label">剩余 %1$d 天时提醒</string>
-    <string name="stock_warnat_sheet_title">剩余多少天时提醒？</string>
-    <string name="stock_warnat_chip_days">%1$d 天</string>
+    <string name="stock_warnat_row_title">库存不足提醒</string>
+    <string name="stock_warnat_value_off">关闭</string>
+    <string name="stock_warnat_value_days">%1$d 天</string>
 
     <string name="stock_disable_menu_action">关闭库存追踪</string>
     <string name="stock_disable_title">关闭库存追踪？</string>

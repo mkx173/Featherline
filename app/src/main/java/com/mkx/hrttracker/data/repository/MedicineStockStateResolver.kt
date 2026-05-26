@@ -15,6 +15,7 @@ object MedicineStockStateResolver {
         if (dosesPerDayMagnitude == 0.0) return MedicineStockState.NO_RUNWAY
         if (totalStockUnits == 0.0) return MedicineStockState.OUT
         val runway = runwayDays ?: return MedicineStockState.NO_RUNWAY
+        if (warnAtDaysRemaining <= 0) return MedicineStockState.HEALTHY
         return if (runway <= warnAtDaysRemaining.toDouble()) {
             MedicineStockState.LOW
         } else {

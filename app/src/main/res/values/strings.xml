@@ -809,10 +809,10 @@
     <string name="stock_current_edit_dialog_field">Remaining</string>
     <string name="stock_current_edit_dialog_invalid">Enter a valid number.</string>
 
-    <!-- Warn-at sheet -->
-    <string name="stock_warnat_row_label">Warn at %1$d days left</string>
-    <string name="stock_warnat_sheet_title">Warn at how many days remaining?</string>
-    <string name="stock_warnat_chip_days">%1$d days</string>
+    <!-- Low stock reminder -->
+    <string name="stock_warnat_row_title">Low stock reminders</string>
+    <string name="stock_warnat_value_off">Off</string>
+    <string name="stock_warnat_value_days">%1$d days</string>
 
     <!-- Disable confirmation -->
     <string name="stock_disable_menu_action">Turn off stock tracking</string>

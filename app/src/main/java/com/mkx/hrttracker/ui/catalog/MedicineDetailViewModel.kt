@@ -125,7 +125,6 @@ class MedicineDetailViewModel @Inject constructor(
                     val preservedState = state.copy(
                         preparationDraft = current.preparationDraft,
                         showAdjustSheet = current.showAdjustSheet,
-                        showWarnAtSheet = current.showWarnAtSheet,
                         showDisableConfirmation = current.showDisableConfirmation,
                         adjustSheetActiveTab = current.adjustSheetActiveTab,
                         pendingEnableTracking = current.pendingEnableTracking,
@@ -190,14 +189,6 @@ class MedicineDetailViewModel @Inject constructor(
         }
     }
 
-    fun openWarnAtSheet() {
-        _uiState.update { it.copy(showWarnAtSheet = true) }
-    }
-
-    fun closeWarnAtSheet() {
-        _uiState.update { it.copy(showWarnAtSheet = false) }
-    }
-
     fun openOpenContainerDialog() {
         _uiState.update { it.copy(showOpenContainerDialog = true) }
     }
@@ -239,7 +230,6 @@ class MedicineDetailViewModel @Inject constructor(
 
     fun submitWarnAt(days: Int): Job = viewModelScope.launch {
         medicineRepository.updateWarnAtDaysRemaining(medicineUuid, days)
-        _uiState.update { it.copy(showWarnAtSheet = false) }
     }
 
     fun submitRecount(recount: StockRecount): Job = viewModelScope.launch {
@@ -474,7 +464,6 @@ data class MedicineDetailUiState(
     val firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val stockProjection: MedicineStockProjection? = null,
     val showAdjustSheet: Boolean = false,
-    val showWarnAtSheet: Boolean = false,
     val showDisableConfirmation: Boolean = false,
     val showOpenContainerDialog: Boolean = false,
     val adjustSheetActiveTab: AdjustSheetTab = AdjustSheetTab.RECEIVED,

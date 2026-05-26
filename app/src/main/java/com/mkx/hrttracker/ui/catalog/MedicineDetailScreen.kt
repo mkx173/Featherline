@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.input.TextFieldLineLimits
@@ -79,10 +81,11 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.catalog.stock.OpenContainerEditDialog
 import com.mkx.hrttracker.ui.catalog.stock.StockSection
-import com.mkx.hrttracker.ui.catalog.stock.WarnAtThresholdSheet
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
+import com.mkx.hrttracker.ui.components.HrtDropdownMenu
+import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
@@ -103,6 +106,8 @@ import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.UUID
+
+private val WARN_AT_OPTIONS = listOf(0, 7, 14, 21, 28)
 
 @Composable
 fun MedicineDetailScreen(
@@ -163,8 +168,6 @@ fun MedicineDetailScreen(
         onOpenAdjustSheet = viewModel::openAdjustSheet,
         onOpenOptIn = viewModel::openOptIn,
         onCloseAdjustSheet = viewModel::closeAdjustSheet,
-        onOpenWarnAtSheet = viewModel::openWarnAtSheet,
-        onCloseWarnAtSheet = viewModel::closeWarnAtSheet,
         onOpenOpenContainerDialog = viewModel::openOpenContainerDialog,
         onCloseOpenContainerDialog = viewModel::closeOpenContainerDialog,
         onSubmitOpenContainerAmount = { amount -> viewModel.submitOpenContainerAmount(amount) },
@@ -190,8 +193,6 @@ private fun MedicineDetailScreenContent(
     onOpenAdjustSheet: (AdjustSheetTab) -> Unit,
     onOpenOptIn: () -> Unit,
     onCloseAdjustSheet: () -> Unit,
-    onOpenWarnAtSheet: () -> Unit,
-    onCloseWarnAtSheet: () -> Unit,
     onOpenOpenContainerDialog: () -> Unit,
     onCloseOpenContainerDialog: () -> Unit,
     onSubmitOpenContainerAmount: (Double) -> Unit,
@@ -328,29 +329,61 @@ private fun MedicineDetailScreenContent(
                                             )
                                         },
                                     )
-                                    PreferenceSegmentedListItem(
-                                        title = stringResource(
-                                            R.string.stock_warnat_row_label,
-                                            stockProjection.medicine.stock.warnAtDaysRemaining,
-                                        ),
-                                        index = 1,
-                                        count = 2,
-                                        onClick = onOpenWarnAtSheet,
-                                        leadingContent = {
-                                            Icon(
-                                                painter = painterResource(R.drawable.ic_notifications),
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        },
-                                        trailingContent = {
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        },
-                                    )
+                                    var warnAtMenuExpanded by remember { mutableStateOf(false) }
+                                    val warnAtDays =
+                                        stockProjection.medicine.stock.warnAtDaysRemaining
+                                    val warnAtSupportingText = if (warnAtDays <= 0) {
+                                        stringResource(R.string.stock_warnat_value_off)
+                                    } else {
+                                        stringResource(
+                                            R.string.stock_warnat_value_days,
+                                            warnAtDays,
+                                        )
+                                    }
+                                    Box {
+                                        PreferenceSegmentedListItem(
+                                            title = stringResource(
+                                                R.string.stock_warnat_row_title,
+                                            ),
+                                            supportingText = warnAtSupportingText,
+                                            index = 1,
+                                            count = 2,
+                                            onClick = { warnAtMenuExpanded = true },
+                                            leadingContent = {
+                                                Icon(
+                                                    painter = painterResource(
+                                                        R.drawable.ic_notifications,
+                                                    ),
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme
+                                                        .onSurfaceVariant,
+                                                )
+                                            },
+                                        )
+                                        HrtDropdownMenu(
+                                            expanded = warnAtMenuExpanded,
+                                            onDismissRequest = {
+                                                warnAtMenuExpanded = false
+                                            },
+                                            modifier = Modifier.width(IntrinsicSize.Min),
+                                            items = WARN_AT_OPTIONS.map { days ->
+                                                val text = if (days <= 0) {
+                                                    stringResource(
+                                                        R.string.stock_warnat_value_off,
+                                                    )
+                                                } else {
+                                                    stringResource(
+                                                        R.string.stock_warnat_value_days,
+                                                        days,
+                                                    )
+                                                }
+                                                HrtDropdownMenuItem(
+                                                    text = text,
+                                                    onClick = { onSubmitWarnAt(days) },
+                                                )
+                                            },
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -430,14 +463,6 @@ private fun MedicineDetailScreenContent(
             onRecount = onSubmitRecount,
             onReceived = onSubmitReceived,
             onDismissRequest = onCloseAdjustSheet,
-        )
-    }
-
-    if (uiState.showWarnAtSheet && stockProjection != null) {
-        WarnAtThresholdSheet(
-            initialValue = stockProjection.medicine.stock.warnAtDaysRemaining,
-            onSubmit = onSubmitWarnAt,
-            onDismissRequest = onCloseWarnAtSheet,
         )
     }
 

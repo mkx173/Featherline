@@ -283,8 +283,8 @@ class MedicineRepository @Inject internal constructor(
         warnAtDaysRemaining: Int,
         now: Instant = Instant.now(),
     ) {
-        require(warnAtDaysRemaining in 1..365) {
-            "warnAtDaysRemaining must be 1..365"
+        require(warnAtDaysRemaining in 0..365) {
+            "warnAtDaysRemaining must be 0..365"
         }
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
