@@ -2,7 +2,6 @@ package com.mkx.hrttracker.ui.catalog
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,13 +19,13 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
@@ -86,6 +85,7 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DangerZoneListItem
 import com.mkx.hrttracker.ui.components.MedicationCard
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -298,17 +298,28 @@ private fun MedicineDetailScreenContent(
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             if (stockProjection.medicine.stock.trackingEnabled) {
-                                Spacer(Modifier.height(4.dp))
-                                ListItem(
-                                    headlineContent = {
-                                        Text(
-                                            stringResource(
-                                                R.string.stock_warnat_row_label,
-                                                stockProjection.medicine.stock.warnAtDaysRemaining,
-                                            )
+                                Spacer(Modifier.height(8.dp))
+                                PreferenceSegmentedListItem(
+                                    title = stringResource(
+                                        R.string.stock_warnat_row_label,
+                                        stockProjection.medicine.stock.warnAtDaysRemaining,
+                                    ),
+                                    index = 0,
+                                    count = 1,
+                                    onClick = onOpenWarnAtSheet,
+                                    leadingContent = {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_notifications),
+                                            contentDescription = null,
                                         )
                                     },
-                                    modifier = Modifier.clickable(onClick = onOpenWarnAtSheet),
+                                    trailingContent = {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    },
                                 )
                             }
                         }

@@ -728,17 +728,30 @@
     <string name="stock_optin_button">设置追踪</string>
     <string name="stock_manager_track_chip">+ 追踪</string>
 
-    <string name="stock_row_tablets">片剂 · %1$s</string>
-    <string name="stock_row_capsules">胶囊 · %1$s</string>
-    <string name="stock_row_patches">贴片 · %1$s</string>
-    <string name="stock_row_sachets">袋装 · %1$s</string>
-    <string name="stock_row_vials_single">药瓶 · %1$s</string>
-    <string name="stock_row_sealed_vials">未拆封药瓶 · %1$s</string>
-    <string name="stock_row_sealed_pumps">未拆封容器 · %1$s</string>
-    <string name="stock_row_open_vial">已开瓶 · %1$s / %2$s mL</string>
-    <string name="stock_row_open_pump">已开容器 · %1$s / %2$s g</string>
+    <string name="stock_row_label_tablets">片剂</string>
+    <string name="stock_row_label_capsules">胶囊</string>
+    <string name="stock_row_label_patches">贴片</string>
+    <string name="stock_row_label_sachets">袋装</string>
+    <string name="stock_row_label_vials_single">药瓶</string>
+    <string name="stock_row_label_sealed_vials">未拆封药瓶</string>
+    <string name="stock_row_label_sealed_pumps">未拆封容器</string>
+    <string name="stock_row_label_open_vial">已开瓶</string>
+    <string name="stock_row_label_open_pump">已开容器</string>
+
     <string name="stock_row_count_over_total">%1$s / %2$s</string>
     <string name="stock_row_count_only">%1$s</string>
+    <string name="stock_row_count_volume_ml">%1$s / %2$s mL</string>
+    <string name="stock_row_count_volume_g">%1$s / %2$s g</string>
+
+    <string name="stock_rate_per_day">%1$s %2$s/天</string>
+    <string name="stock_rate_per_week">%1$s %2$s/周</string>
+    <string name="stock_unit_tablets">片</string>
+    <string name="stock_unit_capsules">粒</string>
+    <string name="stock_unit_patches">贴</string>
+    <string name="stock_unit_sachets">袋</string>
+    <string name="stock_unit_vials">瓶</string>
+    <string name="stock_unit_ml">mL</string>
+    <string name="stock_unit_g">g</string>
 
     <string name="stock_adjust_button">调整</string>
     <string name="stock_adjust_title">调整库存</string>

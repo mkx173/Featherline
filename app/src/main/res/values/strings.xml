@@ -762,18 +762,33 @@
     <string name="stock_optin_button">Set up tracking</string>
     <string name="stock_manager_track_chip">+ Track</string>
 
-    <!-- Stock row labels -->
-    <string name="stock_row_tablets">Tablets · %1$s</string>
-    <string name="stock_row_capsules">Capsules · %1$s</string>
-    <string name="stock_row_patches">Patches · %1$s</string>
-    <string name="stock_row_sachets">Sachets · %1$s</string>
-    <string name="stock_row_vials_single">Vials · %1$s</string>
-    <string name="stock_row_sealed_vials">Sealed vials · %1$s</string>
-    <string name="stock_row_sealed_pumps">Sealed pumps · %1$s</string>
-    <string name="stock_row_open_vial">Open vial · %1$s / %2$s mL</string>
-    <string name="stock_row_open_pump">Open pump · %1$s / %2$s g</string>
+    <!-- Stock row labels (left-side text in each row) -->
+    <string name="stock_row_label_tablets">Tablets</string>
+    <string name="stock_row_label_capsules">Capsules</string>
+    <string name="stock_row_label_patches">Patches</string>
+    <string name="stock_row_label_sachets">Sachets</string>
+    <string name="stock_row_label_vials_single">Vials</string>
+    <string name="stock_row_label_sealed_vials">Sealed vials</string>
+    <string name="stock_row_label_sealed_pumps">Sealed pumps</string>
+    <string name="stock_row_label_open_vial">Open vial</string>
+    <string name="stock_row_label_open_pump">Open pump</string>
+
+    <!-- Stock row trailing counts -->
     <string name="stock_row_count_over_total">%1$s / %2$s</string>
     <string name="stock_row_count_only">%1$s</string>
+    <string name="stock_row_count_volume_ml">%1$s / %2$s mL</string>
+    <string name="stock_row_count_volume_g">%1$s / %2$s g</string>
+
+    <!-- Stock consumption rate (subtitle of the runway sub-card) -->
+    <string name="stock_rate_per_day">%1$s %2$s/day</string>
+    <string name="stock_rate_per_week">%1$s %2$s/wk</string>
+    <string name="stock_unit_tablets">tablets</string>
+    <string name="stock_unit_capsules">capsules</string>
+    <string name="stock_unit_patches">patches</string>
+    <string name="stock_unit_sachets">sachets</string>
+    <string name="stock_unit_vials">vials</string>
+    <string name="stock_unit_ml">mL</string>
+    <string name="stock_unit_g">g</string>
 
     <!-- Adjust sheet -->
     <string name="stock_adjust_button">Adjust</string>
