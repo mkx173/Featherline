@@ -528,16 +528,17 @@ private fun RunwayRowCard(
             Spacer(Modifier.width(12.dp))
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
                     text = titleText,
+                    modifier = Modifier.cjkTextOffset(titleText),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 if (subtitleText != null) {
                     Text(
                         text = subtitleText,
+                        modifier = Modifier.cjkTextOffset(subtitleText),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
