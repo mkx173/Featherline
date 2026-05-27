@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +27,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
@@ -142,10 +144,13 @@ internal fun MedicationStockSubcard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 StockSubcardChip(model = model)
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = model.runwayText.resolve(),
+                    modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.End,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -207,9 +212,11 @@ private fun StockSubcardGaugeRow(row: MedicationStockSubcardRowModel) {
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = row.valueText,
+            modifier = Modifier.widthIn(max = 96.dp),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
