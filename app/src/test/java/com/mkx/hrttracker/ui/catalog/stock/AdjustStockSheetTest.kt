@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.catalog.stock
 
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -32,5 +33,10 @@ class AdjustStockSheetTest {
         assertEquals("2.5", stepAdjustStockCountText("1.5", delta = 1, allowDecimal = true))
         assertEquals("0.5", stepAdjustStockCountText("1.5", delta = -1, allowDecimal = true))
         assertEquals("0", stepAdjustStockCountText("0.25", delta = -1, allowDecimal = true))
+    }
+
+    @Test
+    fun adjustPreviewRunwayTextReturnsNullWhenRunwayCannotBeCalculated() {
+        assertNull(adjustPreviewRunwayText(RunwayProjection.NoSchedule))
     }
 }

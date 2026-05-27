@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.catalog.stock
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -326,7 +327,7 @@ private fun AfterPreview(
     val preparation = projection.medicine.preparation
     val runway = previewRunway(hypotheticalStock)?.let { runwayProjection ->
         adjustPreviewRunwayText(runwayProjection)
-    }
+    }?.resolve()
     val displayCount = hypotheticalStock.unitsRemaining ?: 0.0
     val title = stringResource(
         R.string.stock_adjust_after,
@@ -354,15 +355,30 @@ private fun MedicineStock.adjustPreviewStock(
     )
 }
 
-@Composable
-private fun adjustPreviewRunwayText(runway: RunwayProjection): String {
+internal data class AdjustPreviewRunwayText(
+    @param:StringRes val resId: Int,
+    val intArg: Int? = null,
+)
+
+internal fun adjustPreviewRunwayText(runway: RunwayProjection): AdjustPreviewRunwayText? {
     return when (runway) {
-        is RunwayProjection.Days -> stringResource(
-            R.string.stock_runway_days_remaining,
-            runway.days,
+        is RunwayProjection.Days -> AdjustPreviewRunwayText(
+            resId = R.string.stock_runway_days_remaining,
+            intArg = runway.days,
         )
-        RunwayProjection.BeyondHorizon -> stringResource(R.string.stock_runway_more_than_one_year)
-        RunwayProjection.NoSchedule -> stringResource(R.string.stock_runway_unknown_title)
+        RunwayProjection.BeyondHorizon -> AdjustPreviewRunwayText(
+            resId = R.string.stock_runway_more_than_one_year,
+        )
+        RunwayProjection.NoSchedule -> null
+    }
+}
+
+@Composable
+private fun AdjustPreviewRunwayText.resolve(): String {
+    return if (intArg == null) {
+        stringResource(resId)
+    } else {
+        stringResource(resId, intArg)
     }
 }
 
