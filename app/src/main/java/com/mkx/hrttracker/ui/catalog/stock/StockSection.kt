@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
@@ -52,6 +53,7 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.StockStatusIndicator
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.components.stockInventoryUnitRes
 import com.mkx.hrttracker.ui.components.stockRateUnitRes
@@ -352,21 +354,22 @@ private fun StockRowCard(
                     Text(
                         text = label,
                         style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(label),
                     )
-                    Spacer(Modifier.width(12.dp))
+                    val trailingCountText = trailingCount.resolve()
                     Text(
-                        text = trailingCount.resolve(),
-                        style = MaterialTheme.typography.titleMedium,
+                        text = trailingCountText,
+                        style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.alignByBaseline().cjkTextOffset(trailingCountText)
                     )
                 }
                 if (progress != null) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     FuelGauge(
                         progress = progress,
                         state = progressState,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
                     )
                 }
             }

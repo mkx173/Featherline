@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.RunwayProjection
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -19,6 +20,7 @@ import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.EntryPointAccessors
@@ -57,6 +59,7 @@ class QuickLogActionCallbackTest {
         val groupRepository: MedicationGroupRepository = mockk()
         val logRepository: MedicationLogRepository = mockk()
         val medicineStockRepository: MedicineStockRepository = mockk()
+        val settingsRepository: SettingsRepository = mockk()
         val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
         val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
@@ -78,11 +81,13 @@ class QuickLogActionCallbackTest {
         every { entryPoint.medicationGroupRepository() } returns groupRepository
         every { entryPoint.medicationLogRepository() } returns logRepository
         every { entryPoint.medicineStockRepository() } returns medicineStockRepository
+        every { entryPoint.settingsRepository() } returns settingsRepository
         every { entryPoint.reminderNotificationManager() } returns notificationManager
         every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
             stockProjection(medicine, MedicineStockState.USER_LOW)
         )
@@ -91,6 +96,57 @@ class QuickLogActionCallbackTest {
 
         coVerify { logRepository.saveNewEntries(any()) }
         verify { notificationManager.showStockUserLowToast(medicine) }
+        verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+    }
+
+    @Test
+    fun onAction_hidesMedicationDetailsByUsingStockWarningCountToast() = runTest {
+        mockkStatic(EntryPointAccessors::class)
+        val context: Context = mockk()
+        val appContext: Context = mockk()
+        val glanceId: GlanceId = mockk()
+        val entryPoint: WidgetEntryPoint = mockk()
+        val groupRepository: MedicationGroupRepository = mockk()
+        val logRepository: MedicationLogRepository = mockk()
+        val medicineStockRepository: MedicineStockRepository = mockk()
+        val settingsRepository: SettingsRepository = mockk()
+        val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
+        val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("87a1f403-79b3-428d-b902-9dc0c89c4902"),
+            scheduledTime = scheduledAt.toLocalTime(),
+            medicationKey = MedicationKey.ESTRADIOL,
+        )
+        val medicine = group.medications.single().medicine!!
+        val parameters = actionParametersOf(
+            GroupUuidKey to group.uuid.toString(),
+            ScheduleTimeUuidKey to group.schedule.timeSlots.single().uuid.toString(),
+            ScheduledAtKey to scheduledAt.toString(),
+        )
+        every { context.applicationContext } returns appContext
+        every {
+            EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        } returns entryPoint
+        every { entryPoint.medicationGroupRepository() } returns groupRepository
+        every { entryPoint.medicationLogRepository() } returns logRepository
+        every { entryPoint.medicineStockRepository() } returns medicineStockRepository
+        every { entryPoint.settingsRepository() } returns settingsRepository
+        every { entryPoint.reminderNotificationManager() } returns notificationManager
+        every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(hideMedicationDetails = true)
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(medicine, MedicineStockState.USER_LOW)
+        )
+
+        QuickLogActionCallback().onAction(context, glanceId, parameters)
+
+        coVerify { logRepository.saveNewEntries(any()) }
+        verify { notificationManager.showStockUserLowCountToast(1) }
+        verify(exactly = 0) { notificationManager.showStockUserLowToast(any()) }
         verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
     }
 

@@ -76,11 +76,20 @@
     <string name="reminder_notification_action_remind_later">Remind later</string>
     <string name="reminder_notification_snoozed">We\'ll remind you in %1$d minutes.</string>
     <string name="stock_toast_out_single">Out of stock: %1$s</string>
-    <string name="stock_toast_out_multiple">%1$d medicines out of stock</string>
+    <plurals name="stock_toast_out_multiple">
+        <item quantity="one">%1$d medicine out of stock</item>
+        <item quantity="other">%1$d medicines out of stock</item>
+    </plurals>
     <string name="stock_toast_imminent_single">Almost out: %1$s</string>
-    <string name="stock_toast_imminent_multiple">%1$d medicines almost out</string>
+    <plurals name="stock_toast_imminent_multiple">
+        <item quantity="one">%1$d medicine almost out</item>
+        <item quantity="other">%1$d medicines almost out</item>
+    </plurals>
     <string name="stock_toast_user_low_single">Low stock: %1$s</string>
-    <string name="stock_toast_user_low_multiple">%1$d medicines low on stock</string>
+    <plurals name="stock_toast_user_low_multiple">
+        <item quantity="one">%1$d medicine low on stock</item>
+        <item quantity="other">%1$d medicines low on stock</item>
+    </plurals>
     <string name="fab_add_entry">Add medication log entry</string>
     <string name="plan_empty_state">No medication groups yet.</string>
     <string name="plan_selected_day_records_empty">No records for this day.</string>

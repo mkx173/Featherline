@@ -304,7 +304,7 @@ private fun StockSubcardMetricCell(
                 trackColor = progressIndicatorColors.trackColor,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp)
+                    .padding(top = 6.dp)
                     .height(6.dp),
             )
             Spacer(modifier = Modifier.height(6.dp))

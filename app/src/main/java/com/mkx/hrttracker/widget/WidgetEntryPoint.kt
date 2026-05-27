@@ -4,6 +4,7 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.EntryPoint
@@ -18,6 +19,7 @@ interface WidgetEntryPoint {
     fun medicationGroupRepository(): MedicationGroupRepository
     fun medicationLogRepository(): MedicationLogRepository
     fun medicineStockRepository(): MedicineStockRepository
+    fun settingsRepository(): SettingsRepository
     fun reminderNotificationManager(): ReminderNotificationManager
     fun diagnosticsLogger(): AppDiagnosticsLogger
 }

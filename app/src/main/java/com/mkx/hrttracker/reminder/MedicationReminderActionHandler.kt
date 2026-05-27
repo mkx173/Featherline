@@ -96,6 +96,7 @@ class MedicationReminderActionHandler @Inject constructor(
                 now = now,
                 medicineStockRepository = medicineStockRepository,
                 reminderNotificationManager = reminderNotificationManager,
+                hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails,
             )
         } else {
             // Race: the slot was already fulfilled between the notification firing
@@ -407,6 +408,7 @@ internal suspend fun showPostLogToast(
     now: LocalDateTime,
     medicineStockRepository: MedicineStockRepository,
     reminderNotificationManager: ReminderNotificationManager,
+    hideMedicationDetails: Boolean = false,
 ) {
     val affectedMedicineUuids = entriesToSave
         .mapNotNull(MedicationLogEntryInput::medicineUuid)
@@ -429,7 +431,7 @@ internal suspend fun showPostLogToast(
     }
 
     val worstState = warned.minBy { projection -> projection.state.severityOrder() }.state
-    if (warned.size == 1) {
+    if (!hideMedicationDetails && warned.size == 1) {
         val medicine = warned.single().medicine
         when (worstState) {
             MedicineStockState.OUT -> reminderNotificationManager.showStockOutToast(medicine)

@@ -280,6 +280,41 @@ class MedicationReminderActionHandlerTest {
     }
 
     @Test
+    fun logNow_singleUserLowMedicineAfterSave_whenMedicationDetailsHidden_showsUserLowCountToast() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("d7193a2c-c4bf-4705-8ce0-20fad5b52471"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val medicine = group.medications.single().medicine!!
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(
+            remindersEnabled = true,
+            hideMedicationDetails = true,
+        )
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(medicine, MedicineStockState.USER_LOW)
+        )
+
+        actionHandler.logNow(
+            slots = listOf(slot),
+            logTargets = null,
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(10),
+        )
+
+        verify { notificationManager.showStockUserLowCountToast(1) }
+        verify(exactly = 0) { notificationManager.showStockUserLowToast(any()) }
+        verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+    }
+
+    @Test
     fun logNow_twoUserLowMedicinesAfterSave_showsUserLowCountToast() = runTest {
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
         val firstGroup = medicationGroup(

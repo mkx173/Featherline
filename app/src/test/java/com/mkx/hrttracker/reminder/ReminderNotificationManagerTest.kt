@@ -3,6 +3,7 @@ package com.mkx.hrttracker.reminder
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.res.Resources
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -30,6 +31,7 @@ import java.util.UUID
 
 class ReminderNotificationManagerTest {
     private val context: Context = mockk(relaxed = true)
+    private val resources: Resources = mockk(relaxed = true)
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
     private val toast: Toast = mockk(relaxed = true)
     private lateinit var notificationManager: ReminderNotificationManager
@@ -53,6 +55,7 @@ class ReminderNotificationManagerTest {
             firstArg<Runnable>().run()
             true
         }
+        every { context.resources } returns resources
         every { Toast.makeText(any(), any<String>(), Toast.LENGTH_SHORT) } returns toast
 
         // Builder fluent chain — all mutators return self so chaining is preserved
@@ -134,11 +137,11 @@ class ReminderNotificationManagerTest {
         every {
             context.getString(R.string.stock_toast_user_low_single, "Estradiol")
         } returns "Low stock: Estradiol"
-        every { context.getString(R.string.stock_toast_out_multiple, 2) } returns
+        every { resources.getQuantityString(R.plurals.stock_toast_out_multiple, 2, 2) } returns
             "2 medicines out of stock"
-        every { context.getString(R.string.stock_toast_imminent_multiple, 2) } returns
+        every { resources.getQuantityString(R.plurals.stock_toast_imminent_multiple, 2, 2) } returns
             "2 medicines almost out"
-        every { context.getString(R.string.stock_toast_user_low_multiple, 2) } returns
+        every { resources.getQuantityString(R.plurals.stock_toast_user_low_multiple, 2, 2) } returns
             "2 medicines low on stock"
 
         notificationManager.showStockOutToast(medicine)
@@ -155,5 +158,24 @@ class ReminderNotificationManagerTest {
         verify { Toast.makeText(context, "2 medicines almost out", Toast.LENGTH_SHORT) }
         verify { Toast.makeText(context, "2 medicines low on stock", Toast.LENGTH_SHORT) }
         verify(exactly = 6) { toast.show() }
+    }
+
+    @Test
+    fun stockWarningCountToasts_supportSingleCount() {
+        every { resources.getQuantityString(R.plurals.stock_toast_out_multiple, 1, 1) } returns
+            "1 medicine out of stock"
+        every { resources.getQuantityString(R.plurals.stock_toast_imminent_multiple, 1, 1) } returns
+            "1 medicine almost out"
+        every { resources.getQuantityString(R.plurals.stock_toast_user_low_multiple, 1, 1) } returns
+            "1 medicine low on stock"
+
+        notificationManager.showStockOutCountToast(1)
+        notificationManager.showStockImminentCountToast(1)
+        notificationManager.showStockUserLowCountToast(1)
+
+        verify { Toast.makeText(context, "1 medicine out of stock", Toast.LENGTH_SHORT) }
+        verify { Toast.makeText(context, "1 medicine almost out", Toast.LENGTH_SHORT) }
+        verify { Toast.makeText(context, "1 medicine low on stock", Toast.LENGTH_SHORT) }
+        verify(exactly = 3) { toast.show() }
     }
 }

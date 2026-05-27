@@ -191,7 +191,13 @@ class ReminderNotificationManager @Inject constructor(
 
     fun showStockOutCountToast(count: Int) {
         diagnosticsLogger.info(TAG, "reminder_notification_stock_out_count_toast count=$count")
-        showToast(context.getString(R.string.stock_toast_out_multiple, count))
+        showToast(
+            context.resources.getQuantityString(
+                R.plurals.stock_toast_out_multiple,
+                count,
+                count,
+            )
+        )
     }
 
     fun showStockImminentToast(medicine: Medicine) {
@@ -206,7 +212,13 @@ class ReminderNotificationManager @Inject constructor(
 
     fun showStockImminentCountToast(count: Int) {
         diagnosticsLogger.info(TAG, "reminder_notification_stock_imminent_count_toast count=$count")
-        showToast(context.getString(R.string.stock_toast_imminent_multiple, count))
+        showToast(
+            context.resources.getQuantityString(
+                R.plurals.stock_toast_imminent_multiple,
+                count,
+                count,
+            )
+        )
     }
 
     fun showStockUserLowToast(medicine: Medicine) {
@@ -221,7 +233,13 @@ class ReminderNotificationManager @Inject constructor(
 
     fun showStockUserLowCountToast(count: Int) {
         diagnosticsLogger.info(TAG, "reminder_notification_stock_user_low_count_toast count=$count")
-        showToast(context.getString(R.string.stock_toast_user_low_multiple, count))
+        showToast(
+            context.resources.getQuantityString(
+                R.plurals.stock_toast_user_low_multiple,
+                count,
+                count,
+            )
+        )
     }
 
     fun showDoseReminderNothingToAddToast() {

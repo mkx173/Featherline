@@ -35,6 +35,7 @@ class QuickLogActionCallback : ActionCallback {
         val groupRepository = entryPoint.medicationGroupRepository()
         val logRepository = entryPoint.medicationLogRepository()
         val medicineStockRepository = entryPoint.medicineStockRepository()
+        val settingsRepository = entryPoint.settingsRepository()
         val reminderNotificationManager = entryPoint.reminderNotificationManager()
         val diagnosticsLogger = entryPoint.diagnosticsLogger()
 
@@ -95,6 +96,7 @@ class QuickLogActionCallback : ActionCallback {
                 now = appliedAt,
                 medicineStockRepository = medicineStockRepository,
                 reminderNotificationManager = reminderNotificationManager,
+                hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails,
             )
         } else {
             diagnosticsLogger.info(TAG, "widget_quick_log_already_fulfilled slot=$scheduledAt group=$groupUuid")
