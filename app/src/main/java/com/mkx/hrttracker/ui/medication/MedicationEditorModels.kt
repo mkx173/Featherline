@@ -672,7 +672,7 @@ internal fun stockMutationPreviewDoseMagnitude(
         return null
     }
     val count = if (applicationType.supportsMedicationCountEditor(medicine.preparation.type)) {
-        parsePositiveMedicationCountOrNull(countText) ?: return null
+        parseNonNegativePreviewMedicationCount(countText)
     } else {
         1
     }
@@ -680,14 +680,38 @@ internal fun stockMutationPreviewDoseMagnitude(
         applicationType = applicationType,
         preparationType = medicine.preparation.type,
     )
-    val doseInstruction = runCatching { normalizedDoseDraft.toDoseInstruction() }
-        .getOrNull()
-        ?: return null
-    val perAdministration = medicine.preparation.stockMutationPerAdministration(
-        doseInstruction = doseInstruction,
+    val perAdministration = medicine.preparation.stockMutationPreviewPerAdministration(
+        doseInstructionDraft = normalizedDoseDraft,
     ) ?: return null
     val total = perAdministration * count
-    return total.takeIf { it.isFinite() && it > 0.0 }
+    return total.takeIf { it.isFinite() && it >= 0.0 }
+}
+
+private fun MedicinePreparation.stockMutationPreviewPerAdministration(
+    doseInstructionDraft: DoseInstructionDraftUiState,
+): Double? {
+    return when (this) {
+        is MedicinePreparation.InjectionMultiUseVial -> {
+            if (doseInstructionDraft.preparationType != MedicinePreparationType.INJECTION_MULTI_USE_VIAL) {
+                return null
+            }
+            parseNonNegativePreviewDouble(doseInstructionDraft.volumeMl)
+        }
+
+        is MedicinePreparation.GelContainer -> {
+            if (doseInstructionDraft.preparationType != MedicinePreparationType.GEL_CONTAINER) {
+                return null
+            }
+            parseNonNegativePreviewDouble(doseInstructionDraft.weightGrams)
+        }
+
+        else -> {
+            val doseInstruction = runCatching { doseInstructionDraft.toDoseInstruction() }
+                .getOrNull()
+                ?: return null
+            stockMutationPerAdministration(doseInstruction = doseInstruction)
+        }
+    }
 }
 
 private fun MedicinePreparation.stockMutationPerAdministration(
@@ -825,6 +849,16 @@ internal fun doseInstructionHasTextField(
 
 private fun parsePositiveDouble(text: String): Double? {
     return text.trim().toDoubleOrNull()?.takeIf { it > 0.0 && it.isFinite() }
+}
+
+private fun parseNonNegativePreviewDouble(text: String): Double? {
+    val trimmed = text.trim()
+    if (trimmed.isEmpty()) return 0.0
+    return trimmed.toDoubleOrNull()?.takeIf { it >= 0.0 && it.isFinite() } ?: 0.0
+}
+
+private fun parseNonNegativePreviewMedicationCount(text: String): Int {
+    return text.toIntOrNull()?.takeIf { it >= 0 } ?: 0
 }
 
 fun MedicinePickerUiState.toNewMedicineRequest(): NewMedicineRequest {

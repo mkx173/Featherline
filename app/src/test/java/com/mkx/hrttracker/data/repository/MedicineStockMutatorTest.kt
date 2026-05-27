@@ -710,6 +710,40 @@ class MedicineStockMutatorTest {
     }
 
     @Test
+    fun enableTracking_containerWithoutOpenPromotesFirstContainer() = runTest {
+        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
+            vialRow(
+                trackingEnabled = false,
+                sealed = null,
+                open = null,
+                vialVolume = 5.0,
+                stockGeneration = 4L,
+            )
+
+        mutator.enableTracking(
+            database = database,
+            medicineUuid = medicineUuid,
+            initialUnitsRemaining = 10.0,
+            initialOpenContainerAmount = null,
+            initialUnitsLastTotal = 10.0,
+            now = fixedNow,
+        )
+
+        coVerify {
+            medicineDao.updateStockFields(
+                uuid = medicineUuid.toString(),
+                trackingEnabled = true,
+                stockUnitsRemaining = 9.0,
+                stockUnitsLastTotal = 9.0,
+                openContainerAmount = 5.0,
+                warnAtDaysRemaining = 14,
+                stockGeneration = 5L,
+                updatedAtEpochMillis = fixedNow.toEpochMilli(),
+            )
+        }
+    }
+
+    @Test
     fun disableTracking_clearsPoolStockAndBumpsGeneration() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             pillRow(
@@ -884,7 +918,7 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun received_container_preservesNullOpenWhenNeverPromoted() = runTest {
+    fun received_container_promotesFirstContainerWhenNoOpenExists() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 2.0, open = null, vialVolume = 1.0)
 
@@ -899,9 +933,9 @@ class MedicineStockMutatorTest {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
                 trackingEnabled = true,
-                stockUnitsRemaining = 5.0,
-                stockUnitsLastTotal = 5.0,
-                openContainerAmount = null,
+                stockUnitsRemaining = 4.0,
+                stockUnitsLastTotal = 4.0,
+                openContainerAmount = 1.0,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 1L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),

@@ -96,12 +96,26 @@ internal class MedicineStockMutator @Inject constructor() {
     ) {
         val dao = database.medicineDao()
         val entity = dao.getByUuid(medicineUuid.toString()) ?: return
+        val prepType = MedicinePreparationType.fromStorageValue(entity.preparationType)
+        val stockFields = if (prepType.isContainerTopology()) {
+            entity.promoteFirstContainerIfNeeded(
+                sealedCount = initialUnitsRemaining,
+                lastTotal = initialUnitsLastTotal,
+                openAmount = initialOpenContainerAmount,
+            )
+        } else {
+            StockFields(
+                unitsRemaining = initialUnitsRemaining,
+                unitsLastTotal = initialUnitsLastTotal,
+                openContainerAmount = null,
+            )
+        }
         dao.updateStockFields(
             uuid = entity.uuid,
             trackingEnabled = true,
-            stockUnitsRemaining = initialUnitsRemaining,
-            stockUnitsLastTotal = initialUnitsLastTotal,
-            openContainerAmount = initialOpenContainerAmount,
+            stockUnitsRemaining = stockFields.unitsRemaining,
+            stockUnitsLastTotal = stockFields.unitsLastTotal,
+            openContainerAmount = stockFields.openContainerAmount,
             warnAtDaysRemaining = entity.warnAtDaysRemaining,
             stockGeneration = entity.stockGeneration + 1L,
             updatedAtEpochMillis = now.toEpochMilli(),
@@ -172,12 +186,17 @@ internal class MedicineStockMutator @Inject constructor() {
 
         if (prepType.isContainerTopology()) {
             val newSealed = (entity.stockUnitsRemaining ?: 0.0) + received.unitsReceived
+            val stockFields = entity.promoteFirstContainerIfNeeded(
+                sealedCount = newSealed,
+                lastTotal = newSealed,
+                openAmount = entity.openContainerAmount,
+            )
             dao.updateStockFields(
                 uuid = entity.uuid,
                 trackingEnabled = true,
-                stockUnitsRemaining = newSealed,
-                stockUnitsLastTotal = newSealed,
-                openContainerAmount = entity.openContainerAmount,
+                stockUnitsRemaining = stockFields.unitsRemaining,
+                stockUnitsLastTotal = stockFields.unitsLastTotal,
+                openContainerAmount = stockFields.openContainerAmount,
                 warnAtDaysRemaining = entity.warnAtDaysRemaining,
                 stockGeneration = entity.stockGeneration,
                 updatedAtEpochMillis = nowMs,
@@ -195,6 +214,52 @@ internal class MedicineStockMutator @Inject constructor() {
                 updatedAtEpochMillis = nowMs,
             )
         }
+    }
+
+    private data class StockFields(
+        val unitsRemaining: Double?,
+        val unitsLastTotal: Double?,
+        val openContainerAmount: Double?,
+    )
+
+    private fun MedicineEntity.promoteFirstContainerIfNeeded(
+        sealedCount: Double?,
+        lastTotal: Double?,
+        openAmount: Double?,
+    ): StockFields {
+        if (openAmount != null) {
+            return StockFields(
+                unitsRemaining = sealedCount,
+                unitsLastTotal = lastTotal,
+                openContainerAmount = openAmount,
+            )
+        }
+        val containerSize = containerSizeOrNull()
+            ?.takeIf { it.isFinite() && it > 0.0 }
+            ?: return StockFields(
+                unitsRemaining = sealedCount,
+                unitsLastTotal = lastTotal,
+                openContainerAmount = null,
+            )
+        val sealed = sealedCount?.takeIf { it.isFinite() } ?: 0.0
+        if (sealed < 1.0) {
+            return StockFields(
+                unitsRemaining = sealedCount,
+                unitsLastTotal = lastTotal,
+                openContainerAmount = null,
+            )
+        }
+        return StockFields(
+            unitsRemaining = (sealed - 1.0).coerceAtLeast(0.0).zeroIfTiny(),
+            unitsLastTotal = lastTotal?.let { total ->
+                if (total.isFinite()) {
+                    (total - 1.0).coerceAtLeast(0.0).zeroIfTiny()
+                } else {
+                    total
+                }
+            },
+            openContainerAmount = containerSize,
+        )
     }
 
     /**

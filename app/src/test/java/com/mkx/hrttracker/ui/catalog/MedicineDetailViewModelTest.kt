@@ -826,7 +826,7 @@ class MedicineDetailViewModelTest {
     }
 
     @Test
-    fun containerOptInReceivedSubmissionAlwaysStartsSealedWithNullOpen() = runTest {
+    fun containerOptInReceivedSubmissionDelegatesAutoOpenToRepository() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000017")
         val medicine = testMedicine(
             uuid = medicineUuid,
@@ -881,10 +881,6 @@ class MedicineDetailViewModelTest {
         viewModel.submitReceived(StockReceived(unitsReceived = 2.0))
         advanceUntilIdle()
 
-        // Container opt-in never seeds an open vial — the first deduction
-        // promotes a sealed vial via the deduction mutator instead. The
-        // sealed-row gauge baseline (initialUnitsLastTotal) snaps to the
-        // freshly counted sealed total.
         coVerify(exactly = 1) {
             medicineRepository.enableTracking(
                 medicineUuid,

@@ -175,9 +175,30 @@ class MedicationStockSubcardTest {
 
         requireNotNull(model)
         val row = model.rows.single()
-        assertEquals("4 → 2.5 / 10", row.valueText)
+        assertEquals("4", row.valueText)
+        assertEquals("2.5 / 10", row.previewValueText)
         assertEquals(R.string.stock_unit_tablets, row.valueUnitRes)
         assertEquals(0.4f, row.progress, 1e-6f)
+    }
+
+    @Test
+    fun poolProjectionKeepsPreviewLayoutWhenPreviewDoseIsZero() {
+        val model = medicationStockSubcardModel(
+            projection = projection(
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 10.0,
+                    unitsLastTotal = 10.0,
+                ),
+            ),
+            mutationPreviewDoseMagnitude = 0.0,
+        )
+
+        requireNotNull(model)
+        val row = model.rows.single()
+        assertEquals("10", row.valueText)
+        assertEquals("10 / 10", row.previewValueText)
+        assertEquals(R.string.stock_unit_tablets, row.valueUnitRes)
     }
 
     @Test
@@ -313,9 +334,36 @@ class MedicationStockSubcardTest {
 
         requireNotNull(model)
         val row = model.rows.single()
-        assertEquals("1.25 → 0.75 / 5", row.valueText)
+        assertEquals("1.25", row.valueText)
+        assertEquals("0.75 / 5", row.previewValueText)
         assertEquals(R.string.stock_unit_ml, row.valueUnitRes)
         assertEquals(0.25f, row.progress, 1e-6f)
+    }
+
+    @Test
+    fun openContainerProjectionKeepsPreviewLayoutWhenPreviewDoseIsZero() {
+        val preparation = MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = 20.0,
+            vialVolumeMl = 5.0,
+        )
+        val model = medicationStockSubcardModel(
+            projection = projection(
+                preparation = preparation,
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 2.0,
+                    unitsLastTotal = 4.0,
+                    openContainerAmount = 1.25,
+                ),
+            ),
+            mutationPreviewDoseMagnitude = 0.0,
+        )
+
+        requireNotNull(model)
+        val row = model.rows.single()
+        assertEquals("1.25", row.valueText)
+        assertEquals("1.25 / 5", row.previewValueText)
+        assertEquals(R.string.stock_unit_ml, row.valueUnitRes)
     }
 
     @Test

@@ -8,6 +8,6 @@ data class StockRecount(
 
 /** Received: incremental top-up. Does not bump stockGeneration. */
 data class StockReceived(
-    /** Pool: amount received; Container: sealed units received. */
+    /** Pool: amount received; Container: container units received. */
     val unitsReceived: Double,
 )

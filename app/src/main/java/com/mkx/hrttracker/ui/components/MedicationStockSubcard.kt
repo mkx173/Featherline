@@ -106,6 +106,7 @@ internal data class MedicationStockSubcardText(
 internal data class MedicationStockSubcardRowModel(
     val kind: MedicationStockSubcardRowKind,
     val valueText: String,
+    val previewValueText: String? = null,
     @param:StringRes val valueUnitRes: Int? = null,
     val progress: Float,
     val sealedSupplement: MedicationStockSubcardSealedSupplement? = null,
@@ -329,7 +330,7 @@ private fun StockSubcardMetricCell(
                 val labelText = stringResource(row.labelRes)
                 Text(
                     text = labelText,
-                    modifier = Modifier.weight(1f).cjkTextOffset(labelText),
+                    modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(labelText),
                     style = metricTextStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium,
@@ -337,7 +338,6 @@ private fun StockSubcardMetricCell(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Row(
-                    modifier = Modifier.weight(1f),
                     horizontalArrangement = Arrangement.spacedBy(
                         space = 6.dp,
                         alignment = Alignment.End,
@@ -351,15 +351,9 @@ private fun StockSubcardMetricCell(
                             lineHeight = metricLineHeight,
                         )
                     }
-                    Text(
-                        text = row.resolvedValueText(),
-                        modifier = Modifier.weight(1f, fill = false),
-                        style = metricTextStyle,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.End,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    StockSubcardValueText(
+                        row = row,
+                        textStyle = metricTextStyle,
                     )
                 }
             }
@@ -368,8 +362,70 @@ private fun StockSubcardMetricCell(
 }
 
 @Composable
-private fun MedicationStockSubcardRowModel.resolvedValueText(): String {
-    val unitRes = valueUnitRes ?: return valueText
+private fun StockSubcardValueText(
+    row: MedicationStockSubcardRowModel,
+    textStyle: androidx.compose.ui.text.TextStyle,
+) {
+    val previewValueText = row.previewValueText
+    if (previewValueText == null) {
+        Text(
+            text = resolvedStockValueText(
+                valueText = row.valueText,
+                unitRes = row.valueUnitRes,
+            ),
+            style = textStyle,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        return
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = row.valueText,
+            style = textStyle,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.alignByBaseline(),
+        )
+        Text(
+            text = " → ",
+            style = textStyle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            modifier = Modifier.alignByBaseline(),
+        )
+        Text(
+            text = resolvedStockValueText(
+                valueText = previewValueText,
+                unitRes = row.valueUnitRes,
+            ),
+            style = textStyle,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.alignByBaseline(),
+        )
+    }
+}
+
+@Composable
+private fun resolvedStockValueText(
+    valueText: String,
+    @StringRes unitRes: Int?,
+): String {
+    unitRes ?: return valueText
     return stringResource(
         R.string.stock_row_count_with_unit,
         valueText,
@@ -564,13 +620,15 @@ private fun openContainerStockSubcardRow(
     @PluralsRes sealedUnitPluralRes: Int,
     mutationPreviewOpenAmount: Double?,
 ): MedicationStockSubcardRowModel {
+    val valueText = stockSubcardValueText(
+        numerator = openAmount,
+        denominator = capacity,
+        mutationPreviewNumerator = mutationPreviewOpenAmount,
+    )
     return MedicationStockSubcardRowModel(
         kind = kind,
-        valueText = compactStockValueText(
-            numerator = openAmount,
-            denominator = capacity,
-            mutationPreviewNumerator = mutationPreviewOpenAmount,
-        ),
+        valueText = valueText.currentText,
+        previewValueText = valueText.previewText,
         valueUnitRes = valueUnitRes,
         progress = stockSubcardProgress(
             numerator = openAmount,
@@ -588,13 +646,15 @@ private fun stockPoolSubcardRow(
     preparation: MedicinePreparation,
     mutationPreview: StockSubcardMutationPreview?,
 ): MedicationStockSubcardRowModel {
+    val valueText = stockSubcardValueText(
+        numerator = stock.unitsRemaining,
+        denominator = stock.unitsLastTotal,
+        mutationPreviewNumerator = mutationPreview?.unitsRemainingAfter,
+    )
     return MedicationStockSubcardRowModel(
         kind = MedicationStockSubcardRowKind.STOCK_POOL,
-        valueText = compactStockValueText(
-            numerator = stock.unitsRemaining,
-            denominator = stock.unitsLastTotal,
-            mutationPreviewNumerator = mutationPreview?.unitsRemainingAfter,
-        ),
+        valueText = valueText.currentText,
+        previewValueText = valueText.previewText,
         valueUnitRes = stockInventoryUnitRes(preparation),
         progress = stockSubcardProgress(
             numerator = stock.unitsRemaining,
@@ -672,24 +732,44 @@ internal fun stockSubcardProgress(
     return (resolvedNumerator / resolvedDenominator).toFloat().coerceIn(0f, 1f)
 }
 
+private data class StockSubcardValueText(
+    val currentText: String,
+    val previewText: String?,
+)
+
+private fun stockSubcardValueText(
+    numerator: Double?,
+    denominator: Double?,
+    mutationPreviewNumerator: Double?,
+): StockSubcardValueText {
+    return if (mutationPreviewNumerator?.isFinite() == true) {
+        StockSubcardValueText(
+            currentText = formatStockSubcardCount(numerator),
+            previewText = compactStockValueText(
+                numerator = mutationPreviewNumerator,
+                denominator = denominator,
+            ),
+        )
+    } else {
+        StockSubcardValueText(
+            currentText = compactStockValueText(
+                numerator = numerator,
+                denominator = denominator,
+            ),
+            previewText = null,
+        )
+    }
+}
+
 internal fun compactStockValueText(
     numerator: Double?,
     denominator: Double?,
-    mutationPreviewNumerator: Double? = null,
 ): String {
     val numeratorText = formatStockSubcardCount(numerator)
-    val previewText = mutationPreviewNumerator
-        ?.takeIf { it.isFinite() }
-        ?.let(::formatStockSubcardCount)
-    val leadingText = if (previewText == null) {
-        numeratorText
-    } else {
-        "$numeratorText → $previewText"
-    }
     if (denominator == null || !denominator.isFinite() || denominator <= 0.0) {
-        return leadingText
+        return numeratorText
     }
-    return "$leadingText / ${formatStockSubcardCount(denominator)}"
+    return "$numeratorText / ${formatStockSubcardCount(denominator)}"
 }
 
 private fun formatStockSubcardCount(value: Double?): String {
@@ -710,7 +790,7 @@ private fun stockMutationPreview(
     medicine: Medicine,
     requestedDose: Double?,
 ): StockSubcardMutationPreview? {
-    val dose = requestedDose?.takeIf { it.isFinite() && it > 0.0 } ?: return null
+    val dose = requestedDose?.takeIf { it.isFinite() && it >= 0.0 } ?: return null
     val stock = medicine.stock
     if (!stock.trackingEnabled) return null
     return when (val preparation = medicine.preparation) {

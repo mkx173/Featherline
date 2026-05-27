@@ -657,6 +657,93 @@ class MedicationEditorModelsTest {
         )
     }
 
+    @Test
+    fun stockMutationPreviewDoseMagnitude_keepsContainerPreviewWhenDoseIsZero() {
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 20.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
+        val doseDraft = DoseInstructionDraftUiState(
+            applicationType = MedicationApplicationType.INJECTION,
+            preparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+            volumeMl = "0",
+        )
+
+        assertEquals(
+            0.0,
+            stockMutationPreviewDoseMagnitude(
+                medicine = medicine,
+                doseInstructionDraft = doseDraft,
+                countText = "1",
+            ) ?: -1.0,
+            1e-6,
+        )
+        assertEquals(
+            0.0,
+            stockMutationPreviewDoseMagnitude(
+                medicine = medicine,
+                doseInstructionDraft = doseDraft.copy(volumeMl = ""),
+                countText = "1",
+            ) ?: -1.0,
+            1e-6,
+        )
+    }
+
+    @Test
+    fun stockMutationPreviewDoseMagnitude_keepsContainerPreviewWhenDoseInputIsInvalid() {
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 20.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
+        val doseDraft = DoseInstructionDraftUiState(
+            applicationType = MedicationApplicationType.INJECTION,
+            preparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+        )
+
+        listOf(",", ".", "-").forEach { invalidInput ->
+            assertEquals(
+                invalidInput,
+                0.0,
+                stockMutationPreviewDoseMagnitude(
+                    medicine = medicine,
+                    doseInstructionDraft = doseDraft.copy(volumeMl = invalidInput),
+                    countText = "1",
+                ) ?: -1.0,
+                1e-6,
+            )
+        }
+    }
+
+    @Test
+    fun stockMutationPreviewDoseMagnitude_keepsCountBasedPreviewWhenCountInputIsInvalid() {
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        val doseDraft = DoseInstructionDraftUiState(
+            applicationType = MedicationApplicationType.ORAL,
+            preparationType = MedicinePreparationType.PILL,
+            tabletFractionNumerator = 1,
+            tabletFractionDenominator = 1,
+        )
+
+        listOf("", "0", "-").forEach { invalidCount ->
+            assertEquals(
+                invalidCount,
+                0.0,
+                stockMutationPreviewDoseMagnitude(
+                    medicine = medicine,
+                    doseInstructionDraft = doseDraft,
+                    countText = invalidCount,
+                ) ?: -1.0,
+                1e-6,
+            )
+        }
+    }
+
     // --- Antiandrogen dose-warning (Fix 4) ---------------------------------
     //
     // The old draft compared a typed per-dose mg directly against the threshold.

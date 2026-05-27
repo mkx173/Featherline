@@ -256,10 +256,10 @@ class MedicineDetailViewModel @Inject constructor(
             val medicine = _uiState.value.stockProjection?.medicine
             val initialUnitsRemaining = (medicine?.stock?.unitsRemaining ?: 0.0) +
                 received.unitsReceived
-            // Container opt-in always starts with everything sealed; a vial is
-            // promoted to "open" only when the first deduction happens. Both
-            // pool and container preparations seed unitsLastTotal so the
-            // sealed-row / now-have gauge has a snap-to-full baseline.
+            // The stock mutator owns container topology details, including
+            // auto-opening the first received container when no open amount
+            // exists. The sheet passes the counted total and leaves the open
+            // amount unset so that behavior stays centralized.
             medicineRepository.enableTracking(
                 uuid = medicineUuid,
                 initialUnitsRemaining = initialUnitsRemaining,
