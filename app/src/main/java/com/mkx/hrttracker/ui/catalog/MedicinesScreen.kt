@@ -112,11 +112,20 @@ internal fun medicineManagerNeedsRowBottomGap(index: Int, itemCount: Int): Boole
     return index < itemCount - 1
 }
 
-internal fun medicineManagerShowsInlineTrackButton(): Boolean = false
+internal enum class MedicineManagerTrailingContentKind {
+    NONE,
+    REFERENCE_COUNT,
+}
 
-internal fun medicineManagerShowsReferenceCountTrailingContent(
+internal fun medicineManagerTrailingContentKind(
     referenceCount: Int,
-): Boolean = referenceCount > 0
+): MedicineManagerTrailingContentKind {
+    return if (referenceCount > 0) {
+        MedicineManagerTrailingContentKind.REFERENCE_COUNT
+    } else {
+        MedicineManagerTrailingContentKind.NONE
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -528,9 +537,13 @@ private fun MedicineRow(
 private fun medicineRowTrailingContent(
     referenceCount: Int,
 ): (@Composable () -> Unit)? {
-    if (!medicineManagerShowsReferenceCountTrailingContent(referenceCount)) return null
-    return {
-        ReferenceCountChip(count = referenceCount)
+    return when (medicineManagerTrailingContentKind(referenceCount)) {
+        MedicineManagerTrailingContentKind.NONE -> null
+        MedicineManagerTrailingContentKind.REFERENCE_COUNT -> {
+            {
+                ReferenceCountChip(count = referenceCount)
+            }
+        }
     }
 }
 

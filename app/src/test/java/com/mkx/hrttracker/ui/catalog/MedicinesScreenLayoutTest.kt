@@ -75,13 +75,14 @@ class MedicinesScreenLayoutTest {
     }
 
     @Test
-    fun medicineManagerDoesNotShowInlineTrackButton() {
-        assertFalse(medicineManagerShowsInlineTrackButton())
-    }
-
-    @Test
     fun medicineManagerKeepsReferenceCountTrailingContent() {
-        assertTrue(medicineManagerShowsReferenceCountTrailingContent(referenceCount = 1))
-        assertFalse(medicineManagerShowsReferenceCountTrailingContent(referenceCount = 0))
+        assertEquals(
+            MedicineManagerTrailingContentKind.NONE,
+            medicineManagerTrailingContentKind(referenceCount = 0),
+        )
+        assertEquals(
+            MedicineManagerTrailingContentKind.REFERENCE_COUNT,
+            medicineManagerTrailingContentKind(referenceCount = 1),
+        )
     }
 }
