@@ -31,13 +31,19 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.RunwayProjection
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -453,4 +459,102 @@ private fun formatStockSubcardCount(value: Double?): String {
         minimumFractionDigits = 0
         maximumFractionDigits = 2
     }.format(resolved)
+}
+
+@Preview(
+    name = "Medication Stock Subcard",
+    showBackground = true,
+    widthDp = 420
+)
+@Composable
+private fun MedicationStockSubcardPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            MedicationStockSubcard(
+                projection = stockSubcardPreviewProjection(
+                    preparation = MedicinePreparation.GelContainer(
+                        concentrationPercent = 0.06,
+                        containerWeightGrams = 80.0,
+                    ),
+                    stock = MedicineStock(
+                        trackingEnabled = true,
+                        unitsRemaining = 3.0,
+                        unitsLastTotal = 4.0,
+                        openContainerAmount = 41.26,
+                    ),
+                    totalStockUnits = 281.26,
+                    runwayDays = 111,
+                    state = MedicineStockState.HEALTHY,
+                ),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                borderColor = MaterialTheme.colorScheme.outlineVariant,
+            )
+            MedicationStockSubcard(
+                projection = stockSubcardPreviewProjection(
+                    preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                    stock = MedicineStock(
+                        trackingEnabled = true,
+                        unitsRemaining = 84.0,
+                        unitsLastTotal = 84.0,
+                    ),
+                    totalStockUnits = 84.0,
+                    runwayDays = null,
+                    state = MedicineStockState.NO_RUNWAY,
+                ),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                borderColor = MaterialTheme.colorScheme.outlineVariant,
+            )
+        }
+    }
+}
+
+private fun stockSubcardPreviewProjection(
+    preparation: MedicinePreparation,
+    stock: MedicineStock,
+    totalStockUnits: Double,
+    runwayDays: Int?,
+    state: MedicineStockState,
+): MedicineStockProjection {
+    val medicine = stockSubcardPreviewMedicine(preparation = preparation, stock = stock)
+    return MedicineStockProjection(
+        medicine = medicine,
+        dosesPerDayMagnitude = 1.0,
+        totalStockUnits = totalStockUnits,
+        runway = if (runwayDays == null) {
+            RunwayProjection.NoSchedule
+        } else {
+            RunwayProjection.Days(
+                days = runwayDays,
+                lastFulfillable = java.time.LocalDate.of(2026, 5, 27).plusDays(runwayDays.toLong()),
+            )
+        },
+        intervalDays = null,
+        maxPerAdministration = 1.0,
+        state = state,
+    )
+}
+
+private fun stockSubcardPreviewMedicine(
+    preparation: MedicinePreparation,
+    stock: MedicineStock,
+): Medicine {
+    val medicationKey = when (preparation) {
+        is MedicinePreparation.GelContainer -> MedicationKey.ESTRADIOL_GEL
+        else -> MedicationKey.ESTRADIOL
+    }
+    return Medicine(
+        uuid = java.util.UUID.fromString("00000000-0000-0000-0000-000000000101"),
+        selection = MedicineSelection.Catalog(medicationKey),
+        category = medicationKey.category,
+        preparation = preparation,
+        displayName = null,
+        identityKey = MedicineIdentityKey.catalog(medicationKey, preparation),
+        createdAt = java.time.Instant.EPOCH,
+        updatedAt = java.time.Instant.EPOCH,
+        archivedAt = null,
+        stock = stock,
+    )
 }

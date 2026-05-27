@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,6 +41,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
@@ -50,6 +52,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
@@ -393,9 +396,81 @@ private fun HistoryMedicationCardPreview() {
     }
 }
 
-private fun previewMedicine(medicationKey: MedicationKey): Medicine {
+@Preview(
+    name = "Medication Card With Stock Subcard",
+    showBackground = true,
+    widthDp = 420
+)
+@Composable
+private fun MedicationCardWithStockSubcardPreview() {
+    val gelPreparation = MedicinePreparation.GelContainer(
+        concentrationPercent = 0.06,
+        containerWeightGrams = 80.0,
+    )
+    val gelMedicine = previewMedicine(
+        medicationKey = MedicationKey.ESTRADIOL_GEL,
+        preparation = gelPreparation,
+        stock = MedicineStock(
+            trackingEnabled = true,
+            unitsRemaining = 3.0,
+            unitsLastTotal = 4.0,
+            openContainerAmount = 41.26,
+        ),
+    )
+    val tabletMedicine = previewMedicine(
+        medicationKey = MedicationKey.ESTRADIOL,
+        stock = MedicineStock(
+            trackingEnabled = true,
+            unitsRemaining = 84.0,
+            unitsLastTotal = 84.0,
+        ),
+    )
+
+    HrtTrackerTheme(dynamicColor = false) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            MedicationCardWithStockSubcard(
+                medicine = gelMedicine,
+                doseInstruction = DoseInstruction.WeightGrams(2.5),
+                applicationType = MedicationApplicationType.GEL,
+                medicationCount = 1,
+                groupColorKey = null,
+                stockProjection = previewStockProjection(
+                    medicine = gelMedicine,
+                    totalStockUnits = 281.26,
+                    runwayDays = 111,
+                    state = MedicineStockState.HEALTHY,
+                ),
+                supportingTextOverride = "Gel · Container · 0.06% · 80 g",
+                leadingIconAsForm = true,
+            )
+            MedicationCardWithStockSubcard(
+                medicine = tabletMedicine,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                applicationType = MedicationApplicationType.ORAL,
+                medicationCount = 1,
+                groupColorKey = null,
+                stockProjection = previewStockProjection(
+                    medicine = tabletMedicine,
+                    totalStockUnits = 84.0,
+                    runwayDays = null,
+                    state = MedicineStockState.NO_RUNWAY,
+                ),
+                supportingTextOverride = "Tablet · 2 mg",
+                leadingIconAsForm = true,
+            )
+        }
+    }
+}
+
+private fun previewMedicine(
+    medicationKey: MedicationKey,
+    preparation: MedicinePreparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+    stock: MedicineStock = MedicineStock(),
+): Medicine {
     val selection = MedicineSelection.Catalog(medicationKey)
-    val preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0)
     return Medicine(
         uuid = java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"),
         selection = selection,
@@ -406,6 +481,30 @@ private fun previewMedicine(medicationKey: MedicationKey): Medicine {
         createdAt = java.time.Instant.EPOCH,
         updatedAt = java.time.Instant.EPOCH,
         archivedAt = null,
-        stock = MedicineStock(),
+        stock = stock,
+    )
+}
+
+private fun previewStockProjection(
+    medicine: Medicine,
+    totalStockUnits: Double,
+    runwayDays: Int?,
+    state: MedicineStockState,
+): MedicineStockProjection {
+    return MedicineStockProjection(
+        medicine = medicine,
+        dosesPerDayMagnitude = 1.0,
+        totalStockUnits = totalStockUnits,
+        runway = if (runwayDays == null) {
+            RunwayProjection.NoSchedule
+        } else {
+            RunwayProjection.Days(
+                days = runwayDays,
+                lastFulfillable = java.time.LocalDate.of(2026, 5, 27).plusDays(runwayDays.toLong()),
+            )
+        },
+        intervalDays = null,
+        maxPerAdministration = 1.0,
+        state = state,
     )
 }
