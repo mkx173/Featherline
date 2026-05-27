@@ -369,14 +369,19 @@ private fun MedicineDetailScreenContent(
                                             count = 2,
                                             onClick = { warnAtMenuExpanded = true },
                                             leadingContent = {
-                                                Icon(
-                                                    painter = painterResource(
-                                                        R.drawable.ic_notifications,
-                                                    ),
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme
-                                                        .onSurfaceVariant,
-                                                )
+                                                Box(
+                                                    modifier = Modifier.size(24.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(
+                                                            R.drawable.ic_production_quantity_limits,
+                                                        ),
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
                                             },
                                             trailingContent = if (showWarnAtWarning) {
                                                 {

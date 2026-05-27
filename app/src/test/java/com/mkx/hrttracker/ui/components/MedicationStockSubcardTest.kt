@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.components
 
+import androidx.compose.ui.graphics.Color
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicinePreparation
@@ -9,12 +10,120 @@ import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.medication.testPatchOffMedicine
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
 import java.util.Locale
 
 class MedicationStockSubcardTest {
+
+    @Test
+    fun iconContainerColorStepsAboveSubcardContainerColor() {
+        val surfaceContainer = Color(0xFF111111)
+        val surfaceContainerHigh = Color(0xFF222222)
+        val surfaceContainerHighest = Color(0xFF333333)
+
+        assertEquals(
+            surfaceContainerHighest,
+            stockSubcardIconContainerColor(
+                containerColor = surfaceContainerHigh,
+                surfaceContainer = surfaceContainer,
+                surfaceContainerHigh = surfaceContainerHigh,
+                surfaceContainerHighest = surfaceContainerHighest,
+            ),
+        )
+        assertEquals(
+            surfaceContainerHigh,
+            stockSubcardIconContainerColor(
+                containerColor = surfaceContainer,
+                surfaceContainer = surfaceContainer,
+                surfaceContainerHigh = surfaceContainerHigh,
+                surfaceContainerHighest = surfaceContainerHighest,
+            ),
+        )
+    }
+
+    @Test
+    fun progressIndicatorColorsUseToneColorAndContainerTrackColor() {
+        val primary = Color(0xFF111111)
+        val primaryContainer = Color(0xFF222222)
+        val tertiary = Color(0xFF333333)
+        val tertiaryContainer = Color(0xFF444444)
+        val error = Color(0xFF555555)
+        val errorContainer = Color(0xFF666666)
+        val secondary = Color(0xFF777777)
+        val secondaryContainer = Color(0xFF888888)
+
+        assertEquals(
+            StockSubcardProgressIndicatorColors(
+                color = tertiary,
+                trackColor = tertiaryContainer,
+            ),
+            stockSubcardProgressIndicatorColors(
+                tone = MedicationStockSubcardTone.WARNING,
+                primary = primary,
+                primaryContainer = primaryContainer,
+                tertiary = tertiary,
+                tertiaryContainer = tertiaryContainer,
+                error = error,
+                errorContainer = errorContainer,
+                secondary = secondary,
+                secondaryContainer = secondaryContainer,
+            ),
+        )
+        assertEquals(
+            StockSubcardProgressIndicatorColors(
+                color = error,
+                trackColor = errorContainer,
+            ),
+            stockSubcardProgressIndicatorColors(
+                tone = MedicationStockSubcardTone.ERROR,
+                primary = primary,
+                primaryContainer = primaryContainer,
+                tertiary = tertiary,
+                tertiaryContainer = tertiaryContainer,
+                error = error,
+                errorContainer = errorContainer,
+                secondary = secondary,
+                secondaryContainer = secondaryContainer,
+            ),
+        )
+        assertEquals(
+            StockSubcardProgressIndicatorColors(
+                color = primary,
+                trackColor = primaryContainer,
+            ),
+            stockSubcardProgressIndicatorColors(
+                tone = MedicationStockSubcardTone.HEALTHY,
+                primary = primary,
+                primaryContainer = primaryContainer,
+                tertiary = tertiary,
+                tertiaryContainer = tertiaryContainer,
+                error = error,
+                errorContainer = errorContainer,
+                secondary = secondary,
+                secondaryContainer = secondaryContainer,
+            ),
+        )
+        assertEquals(
+            StockSubcardProgressIndicatorColors(
+                color = secondary,
+                trackColor = secondaryContainer,
+            ),
+            stockSubcardProgressIndicatorColors(
+                tone = MedicationStockSubcardTone.NEUTRAL,
+                primary = primary,
+                primaryContainer = primaryContainer,
+                tertiary = tertiary,
+                tertiaryContainer = tertiaryContainer,
+                error = error,
+                errorContainer = errorContainer,
+                secondary = secondary,
+                secondaryContainer = secondaryContainer,
+            ),
+        )
+    }
 
     @Test
     fun poolProjectionBuildsOneStockPoolRow() {
@@ -43,6 +152,7 @@ class MedicationStockSubcardTest {
 
         val row = model.rows.single()
         assertEquals(MedicationStockSubcardRowKind.STOCK_POOL, row.kind)
+        assertEquals(R.string.stock_row_label_stock, row.labelRes)
         assertEquals(R.drawable.ic_inventory_2, row.iconRes)
         assertEquals(R.string.stock_subcard_cd_stock_pool, row.contentDescriptionRes)
         assertEquals("4 / 10", row.valueText)
@@ -50,7 +160,7 @@ class MedicationStockSubcardTest {
     }
 
     @Test
-    fun beyondHorizonOmitsRunwayHeaderText() {
+    fun beyondHorizonShowsMoreThanOneYear() {
         val model = medicationStockSubcardModel(
             projection(
                 stock = MedicineStock(
@@ -65,11 +175,13 @@ class MedicationStockSubcardTest {
 
         requireNotNull(model)
         assertEquals(R.string.stock_subcard_chip_in_stock, model.chipLabelRes)
-        assertNull(model.runwayText)
+        val runwayText = requireNotNull(model.runwayText)
+        assertEquals(R.string.stock_subcard_runway_more_than_one_year, runwayText.resId)
+        assertNull(runwayText.intArg)
     }
 
     @Test
-    fun noScheduleOmitsRunwayHeaderText() {
+    fun unknownStatusOmitsHeaderRow() {
         val model = medicationStockSubcardModel(
             projection(
                 stock = MedicineStock(
@@ -83,8 +195,9 @@ class MedicationStockSubcardTest {
         )
 
         requireNotNull(model)
-        assertEquals(R.string.stock_subcard_chip_unknown, model.chipLabelRes)
+        assertNull(model.chipLabelRes)
         assertNull(model.runwayText)
+        assertFalse(model.showsHeader)
     }
 
     @Test
@@ -113,9 +226,12 @@ class MedicationStockSubcardTest {
 
         val row = model.rows.single()
         assertEquals(MedicationStockSubcardRowKind.OPEN_VIAL, row.kind)
+        assertEquals(R.string.stock_row_label_current_vial, row.labelRes)
         assertEquals("1.25 / 5 mL", row.valueText)
         assertEquals(0.25f, row.progress, 1e-6f)
         assertEquals("2", row.sealedSupplement?.countText)
+        assertEquals("+2", row.sealedSupplement?.chipText)
+        assertEquals(R.drawable.ic_inventory_2, row.sealedSupplement?.iconRes)
         assertEquals(2, row.sealedSupplement?.pluralQuantity)
         assertEquals(R.plurals.stock_subcard_unit_vials, row.sealedSupplement?.unitPluralRes)
     }
@@ -141,6 +257,8 @@ class MedicationStockSubcardTest {
         requireNotNull(model)
         val row = model.rows.single()
         assertEquals("0", row.sealedSupplement?.countText)
+        assertEquals("+0", row.sealedSupplement?.chipText)
+        assertEquals(R.drawable.ic_inventory_2, row.sealedSupplement?.iconRes)
         assertEquals(2, row.sealedSupplement?.pluralQuantity)
         assertEquals(R.plurals.stock_subcard_unit_vials, row.sealedSupplement?.unitPluralRes)
     }
@@ -171,9 +289,12 @@ class MedicationStockSubcardTest {
 
         val row = model.rows.single()
         assertEquals(MedicationStockSubcardRowKind.OPEN_CONTAINER, row.kind)
+        assertEquals(R.string.stock_row_label_current_container, row.labelRes)
         assertEquals("20 / 80 g", row.valueText)
         assertEquals(0.25f, row.progress, 1e-6f)
         assertEquals("1", row.sealedSupplement?.countText)
+        assertEquals("+1", row.sealedSupplement?.chipText)
+        assertEquals(R.drawable.ic_inventory_2, row.sealedSupplement?.iconRes)
         assertEquals(1, row.sealedSupplement?.pluralQuantity)
         assertEquals(R.plurals.stock_subcard_unit_containers, row.sealedSupplement?.unitPluralRes)
     }
@@ -284,6 +405,7 @@ class MedicationStockSubcardTest {
         requireNotNull(model)
         assertEquals(1, model.rows.size)
         assertEquals(MedicationStockSubcardRowKind.STOCK_POOL, model.rows.single().kind)
+        assertEquals(R.string.stock_row_label_stock, model.rows.single().labelRes)
         assertEquals("3 / 4", model.rows.single().valueText)
         assertEquals(0.75f, model.rows.single().progress, 1e-6f)
         assertNull(model.rows.single().sealedSupplement)

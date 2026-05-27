@@ -3,12 +3,10 @@ package com.mkx.hrttracker.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,53 +37,39 @@ import java.util.UUID
 fun StockStatusIndicator(
     projection: MedicineStockProjection,
     modifier: Modifier = Modifier,
-    showGauge: Boolean = true,
 ) {
-    val palette = stockChipPalette(projection.state)
-    val gaugeInputs = stockStatusFuelGaugeInputs(projection)
-    if (palette == null && (!showGauge || !gaugeInputs.visible)) return
-
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        if (palette != null) {
-            StockChip(palette = palette)
-        }
-        if (showGauge && gaugeInputs.visible) {
-            LinearProgressIndicator(
-                progress = { gaugeInputs.progress() },
-                color = palette?.contentColor ?: MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp),
-            )
-        }
-    }
+    val palette = stockChipPalette(projection.state) ?: return
+    StockChip(palette = palette, modifier = modifier)
 }
 
 @Composable
-private fun StockChip(palette: StockChipPalette) {
+private fun StockChip(
+    palette: StockChipPalette,
+    modifier: Modifier = Modifier,
+) {
     Surface(
+        modifier = modifier,
         color = palette.containerColor,
         contentColor = palette.contentColor,
-        shape = MaterialTheme.shapes.small,
+        shape = CircleShape,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             palette.iconRes?.let { iconRes ->
                 Icon(
                     painter = painterResource(iconRes),
                     contentDescription = null,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(13.dp),
                 )
             }
+            val labelText = stringResource(palette.labelRes)
             Text(
-                text = stringResource(palette.labelRes),
+                text = labelText,
                 style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(labelText),
             )
         }
     }
@@ -105,80 +89,23 @@ private fun stockChipPalette(state: MedicineStockState): StockChipPalette? {
             containerColor = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer,
             labelRes = R.string.stock_chip_out,
-            iconRes = R.drawable.ic_warning,
+            iconRes = R.drawable.ic_production_quantity_limits,
         )
         MedicineStockState.IMMINENT -> StockChipPalette(
             containerColor = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer,
             labelRes = R.string.stock_chip_imminent,
-            iconRes = R.drawable.ic_warning,
+            iconRes = R.drawable.ic_production_quantity_limits,
         )
         MedicineStockState.USER_LOW -> StockChipPalette(
             containerColor = MaterialTheme.colorScheme.tertiaryContainer,
             contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
             labelRes = R.string.stock_chip_low,
-            iconRes = R.drawable.ic_notifications,
+            iconRes = R.drawable.ic_production_quantity_limits,
         )
-        MedicineStockState.NO_RUNWAY -> StockChipPalette(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            labelRes = R.string.stock_chip_no_runway,
-            iconRes = R.drawable.ic_help,
-        )
+        MedicineStockState.NO_RUNWAY,
         MedicineStockState.HEALTHY,
         MedicineStockState.UNTRACKED -> null
-    }
-}
-
-internal data class StockFuelGaugeInputs(
-    val numerator: Double,
-    val denominator: Double,
-    val visible: Boolean,
-) {
-    fun progress(): Float {
-        if (!visible || denominator <= 0.0) return 0f
-        return (numerator / denominator).toFloat().coerceIn(0f, 1f)
-    }
-}
-
-internal fun stockStatusFuelGaugeInputs(
-    projection: MedicineStockProjection,
-): StockFuelGaugeInputs {
-    if (!projection.medicine.stock.trackingEnabled ||
-        projection.state == MedicineStockState.UNTRACKED ||
-        projection.state == MedicineStockState.NO_RUNWAY
-    ) {
-        return StockFuelGaugeInputs(
-            numerator = 0.0,
-            denominator = 0.0,
-            visible = false,
-        )
-    }
-    val stock = projection.medicine.stock
-    return when (val preparation = projection.medicine.preparation) {
-        is MedicinePreparation.InjectionMultiUseVial -> {
-            StockFuelGaugeInputs(
-                numerator = stock.openContainerAmount ?: 0.0,
-                denominator = preparation.vialVolumeMl,
-                visible = stock.openContainerAmount != null,
-            )
-        }
-        is MedicinePreparation.GelContainer -> {
-            StockFuelGaugeInputs(
-                numerator = stock.openContainerAmount ?: 0.0,
-                denominator = preparation.containerWeightGrams,
-                visible = stock.openContainerAmount != null,
-            )
-        }
-        else -> {
-            StockFuelGaugeInputs(
-                numerator = stock.unitsRemaining ?: 0.0,
-                denominator = stock.unitsLastTotal ?: 0.0,
-                visible = stock.unitsRemaining != null &&
-                    stock.unitsLastTotal != null &&
-                    stock.unitsLastTotal > 0.0,
-            )
-        }
     }
 }
 

@@ -120,7 +120,6 @@ fun MainLowStockSection(
                                 )
                                 StockStatusIndicator(
                                     projection = projection,
-                                    showGauge = false,
                                     modifier = Modifier.padding(top = 4.dp),
                                 )
                             }

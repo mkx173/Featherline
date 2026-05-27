@@ -528,6 +528,7 @@ private fun MedicineRow(
         ),
         supportingTextOverride = medicinePreparationSummary(medicine),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        stockSubcardContainerColor = MaterialTheme.colorScheme.surfaceContainer,
         leadingIconAsForm = true,
         index = index,
         itemCount = itemCount,

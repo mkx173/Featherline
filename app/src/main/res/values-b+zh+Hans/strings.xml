@@ -75,8 +75,8 @@
     <string name="reminder_notification_snoozed">将在 %1$d 分钟后再次提醒您</string>
     <string name="stock_toast_out_single">%1$s 已无库存</string>
     <string name="stock_toast_out_multiple">%1$d 种药品已无库存</string>
-    <string name="stock_toast_imminent_single">%1$s 即将用完</string>
-    <string name="stock_toast_imminent_multiple">%1$d 种药品即将用完</string>
+    <string name="stock_toast_imminent_single">%1$s 即将用尽</string>
+    <string name="stock_toast_imminent_multiple">%1$d 种药品即将用尽</string>
     <string name="stock_toast_user_low_single">%1$s 库存不足</string>
     <string name="stock_toast_user_low_multiple">%1$d 种药品库存不足</string>
     <string name="fab_add_entry">添加用药记录</string>
@@ -725,38 +725,35 @@
     <string name="widget_preview_dose_time_evening">21:00</string>
 
     <string name="stock_section_title">库存追踪</string>
-    <string name="stock_chip_low">不足</string>
-    <string name="stock_chip_out">已用完</string>
-    <string name="stock_chip_imminent">即将用完</string>
+    <string name="stock_chip_low">库存不足</string>
+    <string name="stock_chip_out">已用尽</string>
+    <string name="stock_chip_imminent">即将用尽</string>
     <string name="stock_chip_no_runway">未知</string>
     <string name="stock_runway_unknown_title">无法预估</string>
     <string name="stock_runway_unknown_body">将此药品加入分组后即可预估剩余天数</string>
-    <string name="stock_runway_beyond_horizon">库存充足</string>
-    <string name="stock_runway_days_remaining">约剩 %1$d 天</string>
-    <string name="stock_runway_days_remaining_combined">约剩 %1$d 天 · 合计</string>
+    <string name="stock_runway_more_than_one_year">剩余超过 1 年</string>
+    <string name="stock_runway_days_remaining">约剩余 %1$d 天</string>
     <string name="stock_no_schedule">无计划</string>
 
-    <string name="stock_subcard_chip_in_stock">有库存</string>
-    <string name="stock_subcard_chip_low">不足</string>
-    <string name="stock_subcard_chip_almost_out">即将用完</string>
-    <string name="stock_subcard_chip_out">已用完</string>
+    <string name="stock_subcard_chip_in_stock">库存充足</string>
+    <string name="stock_subcard_chip_low">库存不足</string>
+    <string name="stock_subcard_chip_almost_out">即将用尽</string>
+    <string name="stock_subcard_chip_out">已用尽</string>
     <string name="stock_subcard_chip_unknown">未知</string>
-    <string name="stock_subcard_runway_days">约 %1$d 天</string>
-    <string name="stock_subcard_value_with_sealed">%1$s（另有 %2$s %3$s）</string>
+    <string name="stock_subcard_runway_more_than_one_year">>1 年</string>
+    <string name="stock_subcard_runway_days">~%1$d 天</string>
     <plurals name="stock_subcard_unit_vials">
         <item quantity="other">瓶</item>
     </plurals>
     <plurals name="stock_subcard_unit_containers">
         <item quantity="other">容器</item>
     </plurals>
+    <string name="stock_subcard_sealed_chip_content_description">另有未开启库存：%1$s %2$s</string>
     <string name="stock_subcard_cd_stock_pool">库存池</string>
     <string name="stock_subcard_cd_open_vial">已开启药瓶</string>
     <string name="stock_subcard_cd_open_container">已开启容器</string>
 
-    <string name="stock_optin_title">追踪库存</string>
-    <string name="stock_optin_body">在此药品库存不足时收到提醒</string>
-    <string name="stock_optin_button">设置追踪</string>
-    <string name="stock_manager_track_chip">+ 追踪</string>
+    <string name="stock_optin_title">启用库存追踪</string>
 
     <string name="stock_row_label_stock">库存</string>
     <string name="stock_row_label_current_vial">当前药瓶</string>

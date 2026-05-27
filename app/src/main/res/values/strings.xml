@@ -764,9 +764,8 @@
     <string name="stock_chip_no_runway">UNKNOWN</string>
     <string name="stock_runway_unknown_title">Runway unknown</string>
     <string name="stock_runway_unknown_body">Add this medicine to a group to forecast.</string>
-    <string name="stock_runway_beyond_horizon">Plenty in stock</string>
+    <string name="stock_runway_more_than_one_year">>1 year remaining</string>
     <string name="stock_runway_days_remaining">~%1$d days remaining</string>
-    <string name="stock_runway_days_remaining_combined">~%1$d days remaining · combined</string>
     <string name="stock_no_schedule">No schedule</string>
 
     <!-- Compact stock subcard -->
@@ -775,8 +774,8 @@
     <string name="stock_subcard_chip_almost_out">Almost out</string>
     <string name="stock_subcard_chip_out">Out</string>
     <string name="stock_subcard_chip_unknown">Unknown</string>
+    <string name="stock_subcard_runway_more_than_one_year">>1 year</string>
     <string name="stock_subcard_runway_days">~%1$d days</string>
-    <string name="stock_subcard_value_with_sealed">%1$s (+%2$s %3$s)</string>
     <plurals name="stock_subcard_unit_vials">
         <item quantity="one">vial</item>
         <item quantity="other">vials</item>
@@ -785,15 +784,13 @@
         <item quantity="one">container</item>
         <item quantity="other">containers</item>
     </plurals>
+    <string name="stock_subcard_sealed_chip_content_description">Additional sealed stock: %1$s %2$s</string>
     <string name="stock_subcard_cd_stock_pool">Stock pool</string>
     <string name="stock_subcard_cd_open_vial">Open vial</string>
     <string name="stock_subcard_cd_open_container">Open container</string>
 
     <!-- Untracked opt-in -->
-    <string name="stock_optin_title">Track stock</string>
-    <string name="stock_optin_body">Get a heads-up when this medicine is running low.</string>
-    <string name="stock_optin_button">Set up tracking</string>
-    <string name="stock_manager_track_chip">+ Track</string>
+    <string name="stock_optin_title">Enable stock tracking</string>
 
     <!-- Stock row labels (left-side text in each row) -->
     <string name="stock_row_label_stock">Stock</string>

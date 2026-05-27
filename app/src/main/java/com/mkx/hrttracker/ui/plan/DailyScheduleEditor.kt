@@ -151,7 +151,7 @@ private fun DailyTimesCard(
         count = count,
     ) {
         Column(
-            modifier = Modifier.padding(bottom = 6.dp)
+            modifier = Modifier.padding(bottom = 8.dp)
         ) {
             Row(
                 modifier = Modifier
@@ -239,7 +239,7 @@ internal fun ScheduleOccurrencesCard(
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
-            modifier = Modifier.padding(bottom = 6.dp)
+            modifier = Modifier.padding(bottom = 8.dp)
         ) {
             Text(
                 text = title.uppercase(),

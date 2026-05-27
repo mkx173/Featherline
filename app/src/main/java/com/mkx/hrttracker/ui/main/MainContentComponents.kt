@@ -4232,11 +4232,17 @@ private fun previewMedication(
     applicationType: MedicationApplicationType,
     count: Int = 1
 ): MedicationGroupMedication {
+    val medicine = previewMedicineFor(key)
+    val doseInstruction = when (medicine.preparation) {
+        is com.mkx.hrttracker.model.medication.MedicinePreparation.Pill -> DoseInstruction.TabletFraction(1, 1)
+        is com.mkx.hrttracker.model.medication.MedicinePreparation.Patch -> DoseInstruction.WholeUnit
+        else -> DoseInstruction.WholeUnit
+    }
     return MedicationGroupMedication(
         uuid = UUID.fromString(uuid),
-        medicine = previewMedicineFor(key),
+        medicine = medicine,
         applicationType = applicationType,
-        doseInstruction = DoseInstruction.TabletFraction(1, 1),
+        doseInstruction = doseInstruction,
         count = count
     )
 }
@@ -4253,9 +4259,20 @@ private fun previewMedicineFor(
     key: MedicationKey,
 ): com.mkx.hrttracker.model.medication.Medicine {
     val selection = com.mkx.hrttracker.model.medication.MedicineSelection.Catalog(key)
-    val preparation = com.mkx.hrttracker.model.medication.MedicinePreparation.Pill(
-        strengthMgPerTablet = 2.0,
-    )
+    val preparation = when (key) {
+        MedicationKey.ESTRADIOL_PATCH -> {
+            com.mkx.hrttracker.model.medication.MedicinePreparation.Patch(
+                specification = com.mkx.hrttracker.model.medication.MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                    100.0
+                )
+            )
+        }
+        else -> {
+            com.mkx.hrttracker.model.medication.MedicinePreparation.Pill(
+                strengthMgPerTablet = 2.0,
+            )
+        }
+    }
     return com.mkx.hrttracker.model.medication.Medicine(
         uuid = UUID.nameUUIDFromBytes("preview-${key.name}".toByteArray()),
         selection = selection,

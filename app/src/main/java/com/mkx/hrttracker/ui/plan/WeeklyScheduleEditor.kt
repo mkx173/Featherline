@@ -209,7 +209,7 @@ private fun WeeklyTimeCard(
         count = count,
     ) {
         Column(
-            modifier = Modifier.padding(bottom = 6.dp),
+            modifier = Modifier.padding(bottom = 8.dp),
         ) {
             Text(
                 text = label.uppercase(),

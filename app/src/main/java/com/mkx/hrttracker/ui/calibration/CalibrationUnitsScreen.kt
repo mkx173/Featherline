@@ -291,7 +291,6 @@ private fun CalibrationUnitsScreenContent(
                     icon = Icons.Rounded.Add,
                     iconModifier = Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)),
                     iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
-                    compact = true,
                 )
             }
         }

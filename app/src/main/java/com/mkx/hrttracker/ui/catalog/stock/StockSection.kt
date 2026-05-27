@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.catalog.stock
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -29,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -42,9 +45,11 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
 import com.mkx.hrttracker.ui.components.HrtDropdownAnchor
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.StockStatusIndicator
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import java.util.Locale
@@ -103,10 +108,6 @@ private fun SectionHeader(
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(4.dp),
-            )
-            StockStatusIndicator(
-                projection = projection,
-                showGauge = false,
             )
         }
         HeaderOverflowMenu(
@@ -199,13 +200,13 @@ private fun StockRows(projection: MedicineStockProjection) {
                         formatCount(stock.openContainerAmount),
                         formatCount(preparation.vialVolumeMl),
                     ),
-                    trailingState = projection.state,
                     index = index++,
                     count = totalRows,
                     progress = computeProgress(
                         numerator = stock.openContainerAmount,
                         denominator = preparation.vialVolumeMl,
                     ),
+                    progressState = projection.state,
                 )
             }
             StockRowCard(
@@ -214,15 +215,16 @@ private fun StockRows(projection: MedicineStockProjection) {
                 trailingCount = formatCount(stock.unitsRemaining),
                 // The sealed count is just an integer; its color stays neutral
                 // even when overall stock is low or out, otherwise the user
-                // reads a healthy "3" as if it were dangerous. The runway row
-                // below carries the state coloring instead.
-                trailingState = MedicineStockState.HEALTHY,
+                // reads a healthy "3" as if it were dangerous. The status chip
+                // and stock gauges carry the state color instead.
                 index = index++,
                 count = totalRows,
                 progress = computeProgress(
                     numerator = stock.unitsRemaining,
                     denominator = stock.unitsLastTotal,
                 ),
+                progressState = projection.state,
+                iconSize = 20.dp
             )
             RunwayRowCard(
                 projection = projection,
@@ -244,26 +246,27 @@ private fun StockRows(projection: MedicineStockProjection) {
                         formatCount(stock.openContainerAmount),
                         formatCount(preparation.containerWeightGrams),
                     ),
-                    trailingState = projection.state,
                     index = index++,
                     count = totalRows,
                     progress = computeProgress(
                         numerator = stock.openContainerAmount,
                         denominator = preparation.containerWeightGrams,
                     ),
+                    progressState = projection.state,
                 )
             }
             StockRowCard(
                 iconRes = R.drawable.ic_inventory_2,
                 label = stringResource(R.string.stock_row_label_stock),
                 trailingCount = formatCount(stock.unitsRemaining),
-                trailingState = MedicineStockState.HEALTHY,
                 index = index++,
                 count = totalRows,
                 progress = computeProgress(
                     numerator = stock.unitsRemaining,
                     denominator = stock.unitsLastTotal,
                 ),
+                progressState = projection.state,
+                iconSize = 20.dp
             )
             RunwayRowCard(
                 projection = projection,
@@ -277,13 +280,14 @@ private fun StockRows(projection: MedicineStockProjection) {
                 iconRes = poolIconRes(preparation),
                 label = stringResource(R.string.stock_row_label_stock),
                 trailingCount = poolCountText(stock.unitsRemaining, stock.unitsLastTotal),
-                trailingState = projection.state,
                 index = 0,
                 count = 2,
                 progress = computeProgress(
                     numerator = stock.unitsRemaining,
                     denominator = stock.unitsLastTotal,
                 ),
+                progressState = projection.state,
+                iconSize = 20.dp
             )
             RunwayRowCard(
                 projection = projection,
@@ -299,17 +303,12 @@ private fun StockRowCard(
     iconRes: Int,
     label: String,
     trailingCount: String,
-    trailingState: MedicineStockState,
     index: Int,
     count: Int,
     progress: Float? = null,
+    progressState: MedicineStockState = MedicineStockState.HEALTHY,
+    iconSize: Dp = 24.dp
 ) {
-    val trailingColor = when (trailingState) {
-        MedicineStockState.USER_LOW,
-        MedicineStockState.IMMINENT -> MaterialTheme.colorScheme.tertiary
-        MedicineStockState.OUT -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.onSurface
-    }
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = segmentedListItemShape(index = index, count = count),
@@ -321,12 +320,17 @@ private fun StockRowCard(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            Box(
                 modifier = Modifier.size(24.dp),
-            )
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(iconSize),
+                )
+            }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -339,14 +343,14 @@ private fun StockRowCard(
                     Text(
                         text = trailingCount,
                         style = MaterialTheme.typography.titleMedium,
-                        color = trailingColor,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
                 if (progress != null) {
                     Spacer(Modifier.height(8.dp))
                     FuelGauge(
                         progress = progress,
-                        state = trailingState,
+                        state = progressState,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -361,17 +365,72 @@ private fun FuelGauge(
     state: MedicineStockState,
     modifier: Modifier = Modifier,
 ) {
-    val color = when (state) {
-        MedicineStockState.USER_LOW,
-        MedicineStockState.IMMINENT -> MaterialTheme.colorScheme.tertiary
-        MedicineStockState.OUT -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.primary
-    }
+    val colors = stockSectionProgressIndicatorColors(
+        state = state,
+        primary = MaterialTheme.colorScheme.primary,
+        primaryContainer = MaterialTheme.colorScheme.primaryContainer,
+        tertiary = MaterialTheme.colorScheme.tertiary,
+        tertiaryContainer = MaterialTheme.colorScheme.tertiaryContainer,
+        error = MaterialTheme.colorScheme.error,
+        errorContainer = MaterialTheme.colorScheme.errorContainer,
+        secondary = MaterialTheme.colorScheme.secondary,
+        secondaryContainer = MaterialTheme.colorScheme.secondaryContainer,
+    )
     LinearProgressIndicator(
         progress = { progress.coerceIn(0f, 1f) },
-        color = color,
+        color = colors.color,
+        trackColor = colors.trackColor,
         modifier = modifier.height(8.dp),
     )
+}
+
+internal data class StockSectionProgressIndicatorColors(
+    val color: Color,
+    val trackColor: Color,
+)
+
+internal fun stockSectionProgressIndicatorColors(
+    state: MedicineStockState,
+    primary: Color,
+    primaryContainer: Color,
+    tertiary: Color,
+    tertiaryContainer: Color,
+    error: Color,
+    errorContainer: Color,
+    secondary: Color,
+    secondaryContainer: Color,
+): StockSectionProgressIndicatorColors {
+    return when (state) {
+        MedicineStockState.USER_LOW,
+        MedicineStockState.IMMINENT -> StockSectionProgressIndicatorColors(
+            color = tertiary,
+            trackColor = tertiaryContainer,
+        )
+        MedicineStockState.OUT -> StockSectionProgressIndicatorColors(
+            color = error,
+            trackColor = errorContainer,
+        )
+        MedicineStockState.NO_RUNWAY,
+        MedicineStockState.UNTRACKED -> StockSectionProgressIndicatorColors(
+            color = secondary,
+            trackColor = secondaryContainer,
+        )
+        MedicineStockState.HEALTHY -> StockSectionProgressIndicatorColors(
+            color = primary,
+            trackColor = primaryContainer,
+        )
+    }
+}
+
+internal fun stockSectionShowsStatusIndicator(state: MedicineStockState): Boolean {
+    return when (state) {
+        MedicineStockState.HEALTHY,
+        MedicineStockState.UNTRACKED -> false
+        MedicineStockState.USER_LOW,
+        MedicineStockState.IMMINENT,
+        MedicineStockState.OUT,
+        MedicineStockState.NO_RUNWAY -> true
+    }
 }
 
 @Composable
@@ -381,18 +440,6 @@ private fun RunwayRowCard(
     count: Int,
 ) {
     val runway = projection.runway
-    val isWarn = projection.state == MedicineStockState.USER_LOW ||
-        projection.state == MedicineStockState.IMMINENT ||
-        projection.state == MedicineStockState.OUT
-    val titleColor = when {
-        isWarn -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.onSurface
-    }
-    val iconColor = if (isWarn) {
-        MaterialTheme.colorScheme.tertiary
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
     val iconRes = when (runway) {
         is RunwayProjection.Days,
         RunwayProjection.BeyondHorizon -> R.drawable.ic_insights
@@ -403,7 +450,7 @@ private fun RunwayRowCard(
             R.string.stock_runway_days_remaining,
             runway.days,
         )
-        RunwayProjection.BeyondHorizon -> stringResource(R.string.stock_runway_beyond_horizon)
+        RunwayProjection.BeyondHorizon -> stringResource(R.string.stock_runway_more_than_one_year)
         RunwayProjection.NoSchedule -> stringResource(R.string.stock_runway_unknown_title)
     }
     val subtitleText = when (runway) {
@@ -421,12 +468,17 @@ private fun RunwayRowCard(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                tint = iconColor,
+            Box(
                 modifier = Modifier.size(24.dp),
-            )
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
             Spacer(Modifier.width(12.dp))
             Column(
                 modifier = Modifier.weight(1f),
@@ -435,7 +487,7 @@ private fun RunwayRowCard(
                 Text(
                     text = titleText,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = titleColor,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 if (subtitleText != null) {
                     Text(
@@ -444,6 +496,12 @@ private fun RunwayRowCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            if (stockSectionShowsStatusIndicator(projection.state)) {
+                Spacer(Modifier.width(12.dp))
+                StockStatusIndicator(
+                    projection = projection,
+                )
             }
         }
     }
@@ -454,34 +512,48 @@ private fun OptInCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant,
-                shape = RoundedCornerShape(8.dp),
-            ),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+    Column (modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(
-                text = stringResource(R.string.stock_optin_title),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                text = stringResource(R.string.stock_optin_body),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FilledTonalButton(onClick = onClick) {
-                Text(stringResource(R.string.stock_optin_button))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.stock_section_title).uppercase(),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(4.dp),
+                )
             }
         }
+        PreferenceSegmentedListItem(
+            title = stringResource(R.string.stock_optin_title),
+            index = 0,
+            count = 2,
+            onClick = onClick,
+            leadingContent = {
+                Icon(
+                    painter = painterResource(R.drawable.ic_inventory),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            trailingContent = {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+        )
     }
+
 }
 
 @Composable

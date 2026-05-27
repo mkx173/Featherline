@@ -112,6 +112,7 @@ internal fun MedicationCardWithStockSubcard(
     extraSupportingText: String? = null,
     supportingTextOverride: String? = null,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    stockSubcardContainerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
     isSelected: Boolean = false,
     onLeadingIconClick: (() -> Unit)? = null,
     leadingIconContentDescription: String? = null,
@@ -152,9 +153,8 @@ internal fun MedicationCardWithStockSubcard(
             {
                 MedicationStockSubcard(
                     projection = stockProjection,
-                    modifier = Modifier.fillMaxWidth(),
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    borderColor = MaterialTheme.colorScheme.outlineVariant,
+                    containerColor = stockSubcardContainerColor,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     shape = MaterialTheme.shapes.small,
                 )
             }
