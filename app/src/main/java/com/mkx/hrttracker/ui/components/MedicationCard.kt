@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,6 +48,7 @@ import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
@@ -74,6 +76,104 @@ internal fun medicationCardUsesGroupPalette(
 ): Boolean {
     return groupColorKey != null ||
         missingGroupColorTreatment == MedicationCardMissingGroupColorTreatment.NEUTRAL_GROUP_PALETTE
+}
+
+internal data class MedicationCardWithStockSegment(
+    val index: Int,
+    val count: Int,
+)
+
+internal fun medicationCardWithStockCardSegment(
+    rowIndex: Int,
+): MedicationCardWithStockSegment {
+    return if (rowIndex == 0) {
+        MedicationCardWithStockSegment(index = 0, count = 2)
+    } else {
+        MedicationCardWithStockSegment(index = 1, count = 3)
+    }
+}
+
+internal fun medicationCardWithStockSubcardSegment(
+    rowIndex: Int,
+    rowCount: Int,
+): MedicationCardWithStockSegment {
+    return if (rowIndex == rowCount - 1) {
+        MedicationCardWithStockSegment(index = 1, count = 2)
+    } else {
+        MedicationCardWithStockSegment(index = 1, count = 3)
+    }
+}
+
+@Composable
+internal fun MedicationCardWithStockSubcard(
+    medicine: Medicine?,
+    doseInstruction: DoseInstruction,
+    applicationType: MedicationApplicationType,
+    medicationCount: Int,
+    groupColorKey: MedicationGroupColorKey?,
+    stockProjection: MedicineStockProjection?,
+    missingGroupColorTreatment: MedicationCardMissingGroupColorTreatment =
+        MedicationCardMissingGroupColorTreatment.PRIMARY_CONTAINER,
+    onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+    onDeleteClick: (() -> Unit)? = null,
+    trailingContent: (@Composable () -> Unit)? = null,
+    extraSupportingText: String? = null,
+    supportingTextOverride: String? = null,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    isSelected: Boolean = false,
+    onLeadingIconClick: (() -> Unit)? = null,
+    leadingIconContentDescription: String? = null,
+    enabled: Boolean = true,
+    leadingIconAsForm: Boolean = false,
+    index: Int = 0,
+    itemCount: Int = 1,
+) {
+    val showStockSubcard = medicationStockSubcardModel(stockProjection) != null
+    val cardSegment = if (showStockSubcard) {
+        medicationCardWithStockCardSegment(rowIndex = index)
+    } else {
+        MedicationCardWithStockSegment(index = index, count = itemCount)
+    }
+    Column(modifier = modifier.fillMaxWidth()) {
+        MedicationCard(
+            medicine = medicine,
+            doseInstruction = doseInstruction,
+            applicationType = applicationType,
+            medicationCount = medicationCount,
+            groupColorKey = groupColorKey,
+            missingGroupColorTreatment = missingGroupColorTreatment,
+            onClick = onClick,
+            onLongClick = onLongClick,
+            onDeleteClick = onDeleteClick,
+            trailingContent = trailingContent,
+            extraSupportingText = extraSupportingText,
+            supportingTextOverride = supportingTextOverride,
+            containerColor = containerColor,
+            isSelected = isSelected,
+            onLeadingIconClick = onLeadingIconClick,
+            leadingIconContentDescription = leadingIconContentDescription,
+            enabled = enabled,
+            leadingIconAsForm = leadingIconAsForm,
+            index = cardSegment.index,
+            itemCount = cardSegment.count,
+        )
+        if (showStockSubcard && stockProjection != null) {
+            val subcardSegment = medicationCardWithStockSubcardSegment(
+                rowIndex = index,
+                rowCount = itemCount,
+            )
+            MedicationStockSubcard(
+                projection = stockProjection,
+                containerColor = containerColor,
+                shape = segmentedListItemShape(
+                    index = subcardSegment.index,
+                    count = subcardSegment.count,
+                ),
+            )
+        }
+    }
 }
 
 @Composable

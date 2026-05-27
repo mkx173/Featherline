@@ -2,6 +2,32 @@ package com.mkx.hrttracker.ui.components
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicinePreparation
@@ -85,6 +111,145 @@ internal fun medicationStockSubcardModel(
         runwayText = stockSubcardRunwayText(projection.runway),
         rows = rows,
     )
+}
+
+internal const val MedicationStockSubcardTestTag = "medication-stock-subcard"
+internal const val MedicationStockSubcardRowTestTagPrefix = "medication-stock-subcard-row"
+
+@Composable
+internal fun MedicationStockSubcard(
+    projection: MedicineStockProjection,
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    shape: Shape = MaterialTheme.shapes.small,
+) {
+    val model = remember(projection) { medicationStockSubcardModel(projection) } ?: return
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(MedicationStockSubcardTestTag),
+        color = containerColor,
+        shape = shape,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                StockSubcardChip(model = model)
+                Text(
+                    text = model.runwayText.resolve(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                model.rows.forEach { row ->
+                    StockSubcardGaugeRow(row = row)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StockSubcardChip(model: MedicationStockSubcardModel) {
+    val colors = stockSubcardChipColors(model.tone)
+    Surface(
+        color = colors.container,
+        contentColor = colors.content,
+        shape = MaterialTheme.shapes.small,
+    ) {
+        Text(
+            text = stringResource(model.chipLabelRes),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun StockSubcardGaugeRow(row: MedicationStockSubcardRowModel) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("$MedicationStockSubcardRowTestTagPrefix-${row.kind.name}"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.size(22.dp),
+        ) {
+            Icon(
+                painter = painterResource(row.iconRes),
+                contentDescription = stringResource(row.contentDescriptionRes),
+                modifier = Modifier.padding(4.dp),
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        LinearProgressIndicator(
+            progress = { row.progress },
+            modifier = Modifier
+                .weight(1f)
+                .height(5.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = row.valueText,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun MedicationStockSubcardText.resolve(): String {
+    return if (intArg == null) {
+        stringResource(resId)
+    } else {
+        stringResource(resId, intArg)
+    }
+}
+
+private data class StockSubcardChipColors(
+    val container: Color,
+    val content: Color,
+)
+
+@Composable
+private fun stockSubcardChipColors(
+    tone: MedicationStockSubcardTone,
+): StockSubcardChipColors {
+    return when (tone) {
+        MedicationStockSubcardTone.HEALTHY -> StockSubcardChipColors(
+            container = MaterialTheme.colorScheme.primaryContainer,
+            content = MaterialTheme.colorScheme.onPrimaryContainer,
+        )
+        MedicationStockSubcardTone.WARNING -> StockSubcardChipColors(
+            container = MaterialTheme.colorScheme.tertiaryContainer,
+            content = MaterialTheme.colorScheme.onTertiaryContainer,
+        )
+        MedicationStockSubcardTone.ERROR -> StockSubcardChipColors(
+            container = MaterialTheme.colorScheme.errorContainer,
+            content = MaterialTheme.colorScheme.onErrorContainer,
+        )
+        MedicationStockSubcardTone.NEUTRAL -> StockSubcardChipColors(
+            container = MaterialTheme.colorScheme.surfaceContainerHigh,
+            content = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 private fun stockSubcardRows(
