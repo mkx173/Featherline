@@ -656,6 +656,80 @@ internal fun medicationSummaryTrailingIndicator(
     }
 }
 
+internal fun stockMutationPreviewDoseMagnitude(
+    medicine: Medicine?,
+    doseInstructionDraft: DoseInstructionDraftUiState?,
+    countText: String,
+): Double? {
+    medicine ?: return null
+    doseInstructionDraft ?: return null
+
+    val applicationType = resolvedApplicationTypeForDose(
+        preparationType = medicine.preparation.type,
+        doseInstructionDraft = doseInstructionDraft,
+    )
+    if (applicationType == MedicationApplicationType.PATCH_OFF) {
+        return null
+    }
+    val count = if (applicationType.supportsMedicationCountEditor(medicine.preparation.type)) {
+        parsePositiveMedicationCountOrNull(countText) ?: return null
+    } else {
+        1
+    }
+    val normalizedDoseDraft = doseInstructionDraft.copy(
+        applicationType = applicationType,
+        preparationType = medicine.preparation.type,
+    )
+    val doseInstruction = runCatching { normalizedDoseDraft.toDoseInstruction() }
+        .getOrNull()
+        ?: return null
+    val perAdministration = medicine.preparation.stockMutationPerAdministration(
+        doseInstruction = doseInstruction,
+    ) ?: return null
+    val total = perAdministration * count
+    return total.takeIf { it.isFinite() && it > 0.0 }
+}
+
+private fun MedicinePreparation.stockMutationPerAdministration(
+    doseInstruction: DoseInstruction,
+): Double? {
+    return when (doseInstruction) {
+        is DoseInstruction.TabletFraction -> {
+            if (this !is MedicinePreparation.Pill) return null
+            val numerator = doseInstruction.numerator.takeIf { it > 0 } ?: return null
+            val denominator = doseInstruction.denominator.takeIf { it > 0 } ?: return null
+            numerator.toDouble() / denominator.toDouble()
+        }
+
+        DoseInstruction.WholeUnit -> when (this) {
+            is MedicinePreparation.Capsule,
+            is MedicinePreparation.InjectionSingleUseVial,
+            is MedicinePreparation.GelSachet,
+            is MedicinePreparation.Patch -> 1.0
+
+            else -> null
+        }
+
+        is DoseInstruction.VolumeMl -> {
+            if (this is MedicinePreparation.InjectionMultiUseVial) {
+                doseInstruction.valueMl.takeIf { it.isFinite() && it > 0.0 }
+            } else {
+                null
+            }
+        }
+
+        is DoseInstruction.WeightGrams -> {
+            if (this is MedicinePreparation.GelContainer) {
+                doseInstruction.valueGrams.takeIf { it.isFinite() && it > 0.0 }
+            } else {
+                null
+            }
+        }
+
+        DoseInstruction.Noop -> null
+    }
+}
+
 // String resource for the unit's short label (mg / μg / g) — used as the field
 // suffix and as the segment label inside the picker. Lives in the UI layer so
 // the model doesn't depend on R.

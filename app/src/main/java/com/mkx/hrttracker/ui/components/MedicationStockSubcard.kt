@@ -133,6 +133,7 @@ internal data class MedicationStockSubcardModel(
 
 internal fun medicationStockSubcardModel(
     projection: MedicineStockProjection?,
+    mutationPreviewDoseMagnitude: Double? = null,
 ): MedicationStockSubcardModel? {
     projection ?: return null
     val medicine = projection.medicine
@@ -140,7 +141,13 @@ internal fun medicationStockSubcardModel(
     if (!stock.trackingEnabled || projection.state == MedicineStockState.UNTRACKED) return null
     if (medicine.preparation is MedicinePreparation.PatchOff) return null
 
-    val rows = stockSubcardRows(projection)
+    val rows = stockSubcardRows(
+        projection = projection,
+        mutationPreview = stockMutationPreview(
+            medicine = medicine,
+            requestedDose = mutationPreviewDoseMagnitude,
+        ),
+    )
     if (rows.isEmpty()) return null
 
     return MedicationStockSubcardModel(
@@ -157,8 +164,14 @@ internal fun MedicationStockSubcard(
     containerColor: Color,
     modifier: Modifier = Modifier,
     shape: Shape = MaterialTheme.shapes.medium,
+    mutationPreviewDoseMagnitude: Double? = null,
 ) {
-    val model = remember(projection) { medicationStockSubcardModel(projection) } ?: return
+    val model = remember(projection, mutationPreviewDoseMagnitude) {
+        medicationStockSubcardModel(
+            projection = projection,
+            mutationPreviewDoseMagnitude = mutationPreviewDoseMagnitude,
+        )
+    } ?: return
     val chipColors = stockSubcardChipColors(model.tone)
     val iconContainerColor = stockSubcardIconContainerColor(
         containerColor = containerColor,
@@ -504,6 +517,7 @@ private fun stockSubcardChipColors(
 
 private fun stockSubcardRows(
     projection: MedicineStockProjection,
+    mutationPreview: StockSubcardMutationPreview?,
 ): List<MedicationStockSubcardRowModel> {
     val stock = projection.medicine.stock
     return when (val preparation = projection.medicine.preparation) {
@@ -516,8 +530,9 @@ private fun stockSubcardRows(
                     valueUnitRes = R.string.stock_unit_ml,
                     sealedCount = stock.unitsRemaining,
                     sealedUnitPluralRes = R.plurals.stock_subcard_unit_vials,
+                    mutationPreviewOpenAmount = mutationPreview?.openContainerAmountAfter,
                 )
-            } ?: stockPoolSubcardRow(stock, preparation),
+            } ?: stockPoolSubcardRow(stock, preparation, mutationPreview),
         )
 
         is MedicinePreparation.GelContainer -> listOf(
@@ -529,13 +544,14 @@ private fun stockSubcardRows(
                     valueUnitRes = R.string.stock_unit_g,
                     sealedCount = stock.unitsRemaining,
                     sealedUnitPluralRes = R.plurals.stock_subcard_unit_containers,
+                    mutationPreviewOpenAmount = mutationPreview?.openContainerAmountAfter,
                 )
-            } ?: stockPoolSubcardRow(stock, preparation),
+            } ?: stockPoolSubcardRow(stock, preparation, mutationPreview),
         )
 
         is MedicinePreparation.PatchOff -> emptyList()
 
-        else -> listOf(stockPoolSubcardRow(stock, preparation))
+        else -> listOf(stockPoolSubcardRow(stock, preparation, mutationPreview))
     }
 }
 
@@ -546,12 +562,14 @@ private fun openContainerStockSubcardRow(
     @StringRes valueUnitRes: Int,
     sealedCount: Double?,
     @PluralsRes sealedUnitPluralRes: Int,
+    mutationPreviewOpenAmount: Double?,
 ): MedicationStockSubcardRowModel {
     return MedicationStockSubcardRowModel(
         kind = kind,
         valueText = compactStockValueText(
             numerator = openAmount,
             denominator = capacity,
+            mutationPreviewNumerator = mutationPreviewOpenAmount,
         ),
         valueUnitRes = valueUnitRes,
         progress = stockSubcardProgress(
@@ -568,12 +586,14 @@ private fun openContainerStockSubcardRow(
 private fun stockPoolSubcardRow(
     stock: MedicineStock,
     preparation: MedicinePreparation,
+    mutationPreview: StockSubcardMutationPreview?,
 ): MedicationStockSubcardRowModel {
     return MedicationStockSubcardRowModel(
         kind = MedicationStockSubcardRowKind.STOCK_POOL,
         valueText = compactStockValueText(
             numerator = stock.unitsRemaining,
             denominator = stock.unitsLastTotal,
+            mutationPreviewNumerator = mutationPreview?.unitsRemainingAfter,
         ),
         valueUnitRes = stockInventoryUnitRes(preparation),
         progress = stockSubcardProgress(
@@ -655,12 +675,21 @@ internal fun stockSubcardProgress(
 internal fun compactStockValueText(
     numerator: Double?,
     denominator: Double?,
+    mutationPreviewNumerator: Double? = null,
 ): String {
     val numeratorText = formatStockSubcardCount(numerator)
-    if (denominator == null || !denominator.isFinite() || denominator <= 0.0) {
-        return numeratorText
+    val previewText = mutationPreviewNumerator
+        ?.takeIf { it.isFinite() }
+        ?.let(::formatStockSubcardCount)
+    val leadingText = if (previewText == null) {
+        numeratorText
+    } else {
+        "$numeratorText → $previewText"
     }
-    return "$numeratorText / ${formatStockSubcardCount(denominator)}"
+    if (denominator == null || !denominator.isFinite() || denominator <= 0.0) {
+        return leadingText
+    }
+    return "$leadingText / ${formatStockSubcardCount(denominator)}"
 }
 
 private fun formatStockSubcardCount(value: Double?): String {
@@ -670,6 +699,90 @@ private fun formatStockSubcardCount(value: Double?): String {
         minimumFractionDigits = 0
         maximumFractionDigits = 2
     }.format(resolved)
+}
+
+private data class StockSubcardMutationPreview(
+    val unitsRemainingAfter: Double?,
+    val openContainerAmountAfter: Double?,
+)
+
+private fun stockMutationPreview(
+    medicine: Medicine,
+    requestedDose: Double?,
+): StockSubcardMutationPreview? {
+    val dose = requestedDose?.takeIf { it.isFinite() && it > 0.0 } ?: return null
+    val stock = medicine.stock
+    if (!stock.trackingEnabled) return null
+    return when (val preparation = medicine.preparation) {
+        is MedicinePreparation.InjectionMultiUseVial -> containerStockMutationPreview(
+            stock = stock,
+            containerCapacity = preparation.vialVolumeMl,
+            requestedDose = dose,
+        )
+
+        is MedicinePreparation.GelContainer -> containerStockMutationPreview(
+            stock = stock,
+            containerCapacity = preparation.containerWeightGrams,
+            requestedDose = dose,
+        )
+
+        is MedicinePreparation.PatchOff -> null
+
+        else -> {
+            val remaining = stock.unitsRemaining?.takeIf { it.isFinite() } ?: return null
+            val deducted = minOf(dose, remaining).coerceAtLeast(0.0)
+            StockSubcardMutationPreview(
+                unitsRemainingAfter = (remaining - deducted).coerceAtLeast(0.0).zeroIfTiny(),
+                openContainerAmountAfter = null,
+            )
+        }
+    }
+}
+
+private fun containerStockMutationPreview(
+    stock: MedicineStock,
+    containerCapacity: Double,
+    requestedDose: Double,
+): StockSubcardMutationPreview? {
+    val capacity = containerCapacity.takeIf { it.isFinite() && it > 0.0 } ?: return null
+    val open = stock.openContainerAmount?.takeIf { it.isFinite() } ?: 0.0
+    val sealed = stock.unitsRemaining?.takeIf { it.isFinite() } ?: 0.0
+    val dose = requestedDose.coerceAtLeast(0.0)
+
+    val openAfter: Double
+    val sealedAfter: Double
+    when {
+        hasSufficientOpenAmount(open = open, dose = dose) -> {
+            openAfter = open - dose
+            sealedAfter = sealed
+        }
+
+        sealed >= 1.0 -> {
+            openAfter = maxOf(0.0, capacity - dose)
+            sealedAfter = sealed - 1.0
+        }
+
+        else -> {
+            openAfter = 0.0
+            sealedAfter = sealed
+        }
+    }
+
+    return StockSubcardMutationPreview(
+        unitsRemainingAfter = sealedAfter.coerceAtLeast(0.0).zeroIfTiny(),
+        openContainerAmountAfter = openAfter.coerceAtLeast(0.0).zeroIfTiny(),
+    )
+}
+
+private fun hasSufficientOpenAmount(open: Double, dose: Double): Boolean {
+    if (dose <= 0.0 || open >= dose) return true
+    return open > STOCK_SUBCARD_FLOAT_EPSILON && dose - open <= STOCK_SUBCARD_FLOAT_EPSILON
+}
+
+private const val STOCK_SUBCARD_FLOAT_EPSILON = 1e-9
+
+private fun Double.zeroIfTiny(): Double {
+    return if (kotlin.math.abs(this) <= STOCK_SUBCARD_FLOAT_EPSILON) 0.0 else this
 }
 
 @Preview(

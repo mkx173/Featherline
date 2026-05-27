@@ -113,6 +113,7 @@ internal fun MedicationCardWithStockSubcard(
     supportingTextOverride: String? = null,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
     stockSubcardContainerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    stockMutationPreviewDoseMagnitude: Double? = null,
     isSelected: Boolean = false,
     onLeadingIconClick: (() -> Unit)? = null,
     leadingIconContentDescription: String? = null,
@@ -121,7 +122,10 @@ internal fun MedicationCardWithStockSubcard(
     index: Int = 0,
     itemCount: Int = 1,
 ) {
-    val showStockSubcard = medicationStockSubcardModel(stockProjection) != null
+    val showStockSubcard = medicationStockSubcardModel(
+        projection = stockProjection,
+        mutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
+    ) != null
     val cardSegment = if (showStockSubcard) {
         medicationCardWithStockHostSegment(rowIndex = index, rowCount = itemCount)
     } else {
@@ -156,6 +160,7 @@ internal fun MedicationCardWithStockSubcard(
                     containerColor = stockSubcardContainerColor,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     shape = MaterialTheme.shapes.small,
+                    mutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
                 )
             }
         } else {

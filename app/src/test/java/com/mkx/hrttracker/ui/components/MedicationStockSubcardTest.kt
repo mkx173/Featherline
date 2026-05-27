@@ -161,6 +161,26 @@ class MedicationStockSubcardTest {
     }
 
     @Test
+    fun poolProjectionShowsPostMutationAmountWhenPreviewDoseProvided() {
+        val model = medicationStockSubcardModel(
+            projection = projection(
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 4.0,
+                    unitsLastTotal = 10.0,
+                ),
+            ),
+            mutationPreviewDoseMagnitude = 1.5,
+        )
+
+        requireNotNull(model)
+        val row = model.rows.single()
+        assertEquals("4 → 2.5 / 10", row.valueText)
+        assertEquals(R.string.stock_unit_tablets, row.valueUnitRes)
+        assertEquals(0.4f, row.progress, 1e-6f)
+    }
+
+    @Test
     fun poolRowsCarryLocalizedPreparationUnitForEveryPoolPreparationType() {
         val cases = listOf(
             MedicinePreparation.Pill(strengthMgPerTablet = 2.0) to R.string.stock_unit_tablets,
@@ -270,6 +290,32 @@ class MedicationStockSubcardTest {
         assertEquals(R.drawable.ic_inventory_2, row.sealedSupplement?.iconRes)
         assertEquals(2, row.sealedSupplement?.pluralQuantity)
         assertEquals(R.plurals.stock_subcard_unit_vials, row.sealedSupplement?.unitPluralRes)
+    }
+
+    @Test
+    fun openContainerProjectionShowsPostMutationAmountWhenPreviewDoseProvided() {
+        val preparation = MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = 20.0,
+            vialVolumeMl = 5.0,
+        )
+        val model = medicationStockSubcardModel(
+            projection = projection(
+                preparation = preparation,
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 2.0,
+                    unitsLastTotal = 4.0,
+                    openContainerAmount = 1.25,
+                ),
+            ),
+            mutationPreviewDoseMagnitude = 0.5,
+        )
+
+        requireNotNull(model)
+        val row = model.rows.single()
+        assertEquals("1.25 → 0.75 / 5", row.valueText)
+        assertEquals(R.string.stock_unit_ml, row.valueUnitRes)
+        assertEquals(0.25f, row.progress, 1e-6f)
     }
 
     @Test

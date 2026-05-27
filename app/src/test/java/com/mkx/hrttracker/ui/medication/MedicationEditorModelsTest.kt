@@ -600,6 +600,63 @@ class MedicationEditorModelsTest {
         assertEquals(DoseInstruction.TabletFraction(3, 4), doseDraft.toDoseInstruction())
     }
 
+    @Test
+    fun stockMutationPreviewDoseMagnitude_scalesTabletFractionByCount() {
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        val doseDraft = DoseInstructionDraftUiState(
+            applicationType = MedicationApplicationType.ORAL,
+            preparationType = MedicinePreparationType.PILL,
+            tabletFractionNumerator = 1,
+            tabletFractionDenominator = 2,
+        )
+
+        assertEquals(
+            1.5,
+            stockMutationPreviewDoseMagnitude(
+                medicine = medicine,
+                doseInstructionDraft = doseDraft,
+                countText = "3",
+            ) ?: 0.0,
+            1e-6,
+        )
+    }
+
+    @Test
+    fun stockMutationPreviewDoseMagnitude_tracksSelectedContainerDose() {
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 20.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
+        val doseDraft = DoseInstructionDraftUiState(
+            applicationType = MedicationApplicationType.INJECTION,
+            preparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+            volumeMl = "0.25",
+        )
+
+        assertEquals(
+            0.25,
+            stockMutationPreviewDoseMagnitude(
+                medicine = medicine,
+                doseInstructionDraft = doseDraft,
+                countText = "7",
+            ) ?: 0.0,
+            1e-6,
+        )
+        assertEquals(
+            0.75,
+            stockMutationPreviewDoseMagnitude(
+                medicine = medicine,
+                doseInstructionDraft = doseDraft.copy(volumeMl = "0.75"),
+                countText = "7",
+            ) ?: 0.0,
+            1e-6,
+        )
+    }
+
     // --- Antiandrogen dose-warning (Fix 4) ---------------------------------
     //
     // The old draft compared a typed per-dose mg directly against the threshold.

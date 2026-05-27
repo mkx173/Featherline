@@ -191,6 +191,7 @@ fun MedicationLogEntryEditorSheet(
     canEditMedicationIdentity: Boolean,
     lockedMedicine: Medicine?,
     selectedStockProjection: MedicineStockProjection? = null,
+    stockMutationPreviewDoseMagnitude: Double? = null,
     sourceGroupName: String? = null,
     sourceGroupColorKey: MedicationGroupColorKey? = null,
     sourceGroupScheduledFor: LocalDateTime? = null,
@@ -263,6 +264,7 @@ fun MedicationLogEntryEditorSheet(
                 resolvedMedicine = resolvedMedicine,
                 canEditMedicationIdentity = true,
                 selectedStockProjection = selectedStockProjection,
+                stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
                 onMedicineDraftChange = onMedicineDraftChange,
                 onDoseInstructionDraftChange = onDoseInstructionDraftChange,
                 onOpenMedicinePicker = onOpenMedicinePicker,
@@ -291,6 +293,7 @@ fun MedicationLogEntryEditorSheet(
                 sourceGroupScheduleOffsetOutsideFulfillmentWindow =
                     sourceGroupScheduleOffsetOutsideFulfillmentWindow,
                 selectedStockProjection = selectedStockProjection,
+                stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
             )
         }
 
@@ -435,6 +438,7 @@ internal fun MedicationEditorContent(
     resolvedMedicine: Medicine?,
     canEditMedicationIdentity: Boolean,
     selectedStockProjection: MedicineStockProjection? = null,
+    stockMutationPreviewDoseMagnitude: Double? = null,
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
     onOpenMedicinePicker: () -> Unit,
@@ -490,6 +494,7 @@ internal fun MedicationEditorContent(
             onOpenMedicinePicker = { if (!isSaving) onOpenMedicinePicker() },
             errorMessageRes = errorMessageRes,
             selectedStockProjection = selectedStockProjection,
+            stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
         )
 
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
@@ -522,6 +527,7 @@ internal fun MedicationEditorContent(
         onOpenMedicinePicker = { if (!isSaving) onOpenMedicinePicker() },
         errorMessageRes = errorMessageRes,
         selectedStockProjection = selectedStockProjection,
+        stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
         trailingIndicator = summaryTrailingIndicator,
     )
 
@@ -585,6 +591,7 @@ private fun MedicationSummaryHeader(
     onOpenMedicinePicker: () -> Unit,
     errorMessageRes: Int?,
     selectedStockProjection: MedicineStockProjection? = null,
+    stockMutationPreviewDoseMagnitude: Double? = null,
     trailingIndicator: MedicationSummaryTrailingIndicator? = null,
 ) {
     EditorSectionLabel(stringResource(R.string.field_medication))
@@ -604,6 +611,7 @@ private fun MedicationSummaryHeader(
                     hasStockProjection = it != null,
                 )
             },
+            stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
             onClick = onOpenMedicinePicker,
             modifier = Modifier.fillMaxWidth(),
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -882,6 +890,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
     sourceGroupScheduleOffsetText: String?,
     sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean,
     selectedStockProjection: MedicineStockProjection? = null,
+    stockMutationPreviewDoseMagnitude: Double? = null,
 ) {
     val groupName = sourceGroupName?.takeIf(String::isNotBlank)
     val hasGroupInfo = groupName != null && sourceGroupScheduledForText != null
@@ -912,6 +921,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
                 hasStockProjection = it != null,
             )
         },
+        stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
         missingGroupColorTreatment = linkedMedicationSummaryMissingGroupColorTreatment(
             sourceGroupColorKey = sourceGroupColorKey,
         ),

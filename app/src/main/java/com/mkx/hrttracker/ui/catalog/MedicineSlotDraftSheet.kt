@@ -33,6 +33,7 @@ import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
 import com.mkx.hrttracker.ui.medication.selectedMedicineValidationErrorRes
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
+import com.mkx.hrttracker.ui.medication.stockMutationPreviewDoseMagnitude
 import com.mkx.hrttracker.ui.medication.toDoseInstruction
 import com.mkx.hrttracker.ui.medication.validationErrorRes
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -104,6 +105,22 @@ fun MedicineSlotDraftSheet(
     }
     var countText by remember(medicine.uuid) { mutableStateOf("1") }
     var errorMessageRes: Int? by remember(medicine.uuid) { mutableStateOf(null) }
+    val previewDoseMagnitude = remember(
+        isManualLogMode,
+        medicine,
+        doseInstructionDraft,
+        countText,
+    ) {
+        if (isManualLogMode) {
+            stockMutationPreviewDoseMagnitude(
+                medicine = medicine,
+                doseInstructionDraft = doseInstructionDraft,
+                countText = countText,
+            )
+        } else {
+            null
+        }
+    }
 
     MedicationEditorSheetScaffold(
         modifier = modifier,
@@ -177,6 +194,7 @@ fun MedicineSlotDraftSheet(
             canEditMedicationIdentity = true,
             canRepickMedicine = false,
             selectedStockProjection = selectedStockProjection,
+            stockMutationPreviewDoseMagnitude = previewDoseMagnitude,
             onMedicineDraftChange = { transform ->
                 val previousDraft = medicineDraft
                 val updatedDraft = transform(previousDraft)
