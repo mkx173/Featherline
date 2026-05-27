@@ -1,18 +1,12 @@
 package com.mkx.hrttracker.ui.catalog
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -24,7 +18,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
@@ -49,31 +42,24 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.data.repository.RunwayProjection
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
-import com.mkx.hrttracker.model.medication.MedicineStockProjection
-import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.ui.components.AppContentContainer
-import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
-import com.mkx.hrttracker.ui.components.StockStatusIndicator
+import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.hideBottomSheet
-import com.mkx.hrttracker.ui.medication.medicationEntryTitle
-import com.mkx.hrttracker.ui.medication.medicinePreparationIconRes
 import com.mkx.hrttracker.ui.medication.medicinePreparationSummary
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.labelRes
@@ -126,12 +112,17 @@ internal fun medicineManagerNeedsRowBottomGap(index: Int, itemCount: Int): Boole
     return index < itemCount - 1
 }
 
+internal fun medicineManagerShowsInlineTrackButton(): Boolean = false
+
+internal fun medicineManagerShowsReferenceCountTrailingContent(
+    referenceCount: Int,
+): Boolean = referenceCount > 0
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun MedicinesScreen(
     onNavigateBack: () -> Unit,
     onMedicineClick: (UUID) -> Unit,
-    onTrackClick: (UUID) -> Unit = onMedicineClick,
     modifier: Modifier = Modifier,
     launchMode: MedicineManagerLaunchMode = MedicineManagerLaunchMode.Manager,
     onSlotResolved: (MedicineSlotResult) -> Unit = { },
@@ -208,25 +199,11 @@ internal fun MedicinesScreen(
             }
         }
     }
-    val handleTrackTap: (UUID) -> Unit = remember(
-        launchMode,
-        handleMedicineTap,
-        onTrackClick,
-    ) {
-        { medicineUuid ->
-            if (launchMode == MedicineManagerLaunchMode.Manager) {
-                onTrackClick(medicineUuid)
-            } else {
-                handleMedicineTap(medicineUuid)
-            }
-        }
-    }
 
     MedicinesScreenContent(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
         onMedicineClick = handleMedicineTap,
-        onTrackClick = handleTrackTap,
         onAddNewMedicine = {
             when (medicineManagerAddNewTarget(launchMode)) {
                 MedicineManagerAddNewTarget.CreateMedicine -> showCreateMedicineSheet = true
@@ -374,7 +351,6 @@ private fun MedicinesScreenContent(
     uiState: MedicinesUiState,
     onNavigateBack: () -> Unit,
     onMedicineClick: (UUID) -> Unit,
-    onTrackClick: (UUID) -> Unit,
     onAddNewMedicine: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -453,7 +429,6 @@ private fun MedicinesScreenContent(
                                 index = index,
                                 itemCount = section.medicines.size,
                                 onClick = { onMedicineClick(item.medicine.uuid) },
-                                onTrackClick = { onTrackClick(item.medicine.uuid) },
                             )
                             MedicineManagerRowBottomGap(
                                 index = index,
@@ -523,7 +498,6 @@ private fun MedicineRow(
     index: Int,
     itemCount: Int,
     onClick: () -> Unit,
-    onTrackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val medicine = item.medicine
@@ -531,154 +505,32 @@ private fun MedicineRow(
     val stockProjection = item.stockProjection?.takeUnless {
         medicine.preparation is MedicinePreparation.PatchOff
     }
-    val medicationName = medicationEntryTitle(medicine, applicationType)
-    val supportingText = medicinePreparationSummary(medicine)
-    val applicationTypeLabel = stringResource(applicationType.labelRes)
-
-    EditorSegmentedListItem(
+    MedicationCardWithStockSubcard(
+        medicine = medicine,
+        doseInstruction = DoseInstruction.Noop,
+        applicationType = applicationType,
+        medicationCount = 1,
+        groupColorKey = null,
+        stockProjection = stockProjection,
         onClick = onClick,
-        index = index,
-        count = itemCount,
         modifier = modifier,
+        trailingContent = medicineRowTrailingContent(
+            referenceCount = item.activeGroupReferenceCount,
+        ),
+        supportingTextOverride = medicinePreparationSummary(medicine),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(
-                modifier = Modifier.size(36.dp),
-                shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-            ) {
-                Box(
-                    modifier = Modifier.size(36.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        painter = painterResource(medicinePreparationIconRes(medicine.preparation)),
-                        contentDescription = applicationTypeLabel,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = medicationName,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.cjkTextOffset(medicationName),
-                    fontWeight = FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = supportingText,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.cjkTextOffset(supportingText),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (stockProjection != null) {
-                    StockStatusIndicator(
-                        projection = stockProjection,
-                        modifier = Modifier
-                            .padding(top = 6.dp)
-                            .fillMaxWidth(),
-                    )
-                }
-            }
-            MedicineRowTrailingContent(
-                referenceCount = item.activeGroupReferenceCount,
-                projection = stockProjection,
-                onTrackClick = onTrackClick,
-            )
-        }
-    }
+        leadingIconAsForm = true,
+        index = index,
+        itemCount = itemCount,
+    )
 }
 
-@Composable
-private fun MedicineRowTrailingContent(
+private fun medicineRowTrailingContent(
     referenceCount: Int,
-    projection: MedicineStockProjection?,
-    onTrackClick: () -> Unit,
-) {
-    if (referenceCount <= 0 && projection == null) return
-    Spacer(modifier = Modifier.width(12.dp))
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (referenceCount > 0) {
-            ReferenceCountChip(count = referenceCount)
-        }
-        projection?.let {
-            MedicineRowTrailingStock(
-                projection = it,
-                onTrackClick = onTrackClick,
-            )
-        }
-    }
-}
-
-@Composable
-private fun MedicineRowTrailingStock(
-    projection: MedicineStockProjection,
-    onTrackClick: () -> Unit,
-) {
-    when (projection.state) {
-        MedicineStockState.UNTRACKED -> {
-            OutlinedButton(
-                onClick = onTrackClick,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.stock_manager_track_chip),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
-        }
-
-        MedicineStockState.NO_RUNWAY -> {
-            Text(
-                text = stringResource(R.string.stock_no_schedule),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        MedicineStockState.OUT -> {
-            Text(
-                text = stringResource(R.string.stock_chip_out),
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-
-        MedicineStockState.USER_LOW,
-        MedicineStockState.IMMINENT -> {
-            Text(
-                text = stringResource(R.string.stock_chip_low),
-                color = MaterialTheme.colorScheme.tertiary,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-
-        MedicineStockState.HEALTHY -> {
-            val text = when (val runway = projection.runway) {
-                is RunwayProjection.Days -> stringResource(
-                    R.string.stock_runway_days_remaining,
-                    runway.days,
-                )
-                RunwayProjection.BeyondHorizon -> stringResource(R.string.stock_runway_beyond_horizon)
-                RunwayProjection.NoSchedule -> stringResource(R.string.stock_runway_unknown_title)
-            }
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+): (@Composable () -> Unit)? {
+    if (!medicineManagerShowsReferenceCountTrailingContent(referenceCount)) return null
+    return {
+        ReferenceCountChip(count = referenceCount)
     }
 }
 
@@ -750,7 +602,6 @@ private fun MedicinesScreenPreview() {
             ),
             onNavigateBack = { },
             onMedicineClick = { },
-            onTrackClick = { },
             onAddNewMedicine = { },
         )
     }

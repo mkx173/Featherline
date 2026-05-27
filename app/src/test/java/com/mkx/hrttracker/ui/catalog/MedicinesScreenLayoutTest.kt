@@ -73,4 +73,15 @@ class MedicinesScreenLayoutTest {
             medicineManagerAddNewTarget(MedicineManagerLaunchMode.ManualLog),
         )
     }
+
+    @Test
+    fun medicineManagerDoesNotShowInlineTrackButton() {
+        assertFalse(medicineManagerShowsInlineTrackButton())
+    }
+
+    @Test
+    fun medicineManagerKeepsReferenceCountTrailingContent() {
+        assertTrue(medicineManagerShowsReferenceCountTrailingContent(referenceCount = 1))
+        assertFalse(medicineManagerShowsReferenceCountTrailingContent(referenceCount = 0))
+    }
 }

@@ -811,17 +811,6 @@ fun HrtTrackerNavHost(
                                 )
                             }
                         },
-                        onTrackClick = { medicineId ->
-                            if (launchMode == MedicineManagerLaunchMode.Manager) {
-                                navController.navigate(
-                                    Screen.MedicineDetail.createRoute(
-                                        medicineId = medicineId.toString(),
-                                        topLevelParentRoute = topLevelParentRoute,
-                                        openOptIn = true,
-                                    ),
-                                )
-                            }
-                        },
                         launchMode = launchMode,
                         onSlotResolved = { slotResult ->
                             val groupSlotMode = launchMode as? MedicineManagerLaunchMode.GroupSlot
