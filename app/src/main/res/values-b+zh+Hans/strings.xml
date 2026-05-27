@@ -742,8 +742,6 @@
     <string name="stock_subcard_chip_out">已用完</string>
     <string name="stock_subcard_chip_unknown">未知</string>
     <string name="stock_subcard_runway_days">约 %1$d 天</string>
-    <string name="stock_subcard_runway_plenty">充足</string>
-    <string name="stock_subcard_runway_unknown">无法预估</string>
     <string name="stock_subcard_value_with_sealed">%1$s（另有 %2$s %3$s）</string>
     <plurals name="stock_subcard_unit_vials">
         <item quantity="other">瓶</item>

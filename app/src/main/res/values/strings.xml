@@ -776,8 +776,6 @@
     <string name="stock_subcard_chip_out">Out</string>
     <string name="stock_subcard_chip_unknown">Unknown</string>
     <string name="stock_subcard_runway_days">~%1$d days</string>
-    <string name="stock_subcard_runway_plenty">Plenty</string>
-    <string name="stock_subcard_runway_unknown">Runway unknown</string>
     <string name="stock_subcard_value_with_sealed">%1$s (+%2$s %3$s)</string>
     <plurals name="stock_subcard_unit_vials">
         <item quantity="one">vial</item>

@@ -36,8 +36,9 @@ class MedicationStockSubcardTest {
         requireNotNull(model)
         assertEquals(R.string.stock_subcard_chip_in_stock, model.chipLabelRes)
         assertEquals(MedicationStockSubcardTone.HEALTHY, model.tone)
-        assertEquals(R.string.stock_subcard_runway_days, model.runwayText.resId)
-        assertEquals(10, model.runwayText.intArg)
+        val runwayText = requireNotNull(model.runwayText)
+        assertEquals(R.string.stock_subcard_runway_days, runwayText.resId)
+        assertEquals(10, runwayText.intArg)
         assertEquals(1, model.rows.size)
 
         val row = model.rows.single()
@@ -46,6 +47,44 @@ class MedicationStockSubcardTest {
         assertEquals(R.string.stock_subcard_cd_stock_pool, row.contentDescriptionRes)
         assertEquals("4 / 10", row.valueText)
         assertEquals(0.4f, row.progress, 1e-6f)
+    }
+
+    @Test
+    fun beyondHorizonOmitsRunwayHeaderText() {
+        val model = medicationStockSubcardModel(
+            projection(
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 84.0,
+                    unitsLastTotal = 84.0,
+                ),
+                runway = RunwayProjection.BeyondHorizon,
+                state = MedicineStockState.HEALTHY,
+            ),
+        )
+
+        requireNotNull(model)
+        assertEquals(R.string.stock_subcard_chip_in_stock, model.chipLabelRes)
+        assertNull(model.runwayText)
+    }
+
+    @Test
+    fun noScheduleOmitsRunwayHeaderText() {
+        val model = medicationStockSubcardModel(
+            projection(
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 84.0,
+                    unitsLastTotal = 84.0,
+                ),
+                runway = RunwayProjection.NoSchedule,
+                state = MedicineStockState.NO_RUNWAY,
+            ),
+        )
+
+        requireNotNull(model)
+        assertEquals(R.string.stock_subcard_chip_unknown, model.chipLabelRes)
+        assertNull(model.runwayText)
     }
 
     @Test

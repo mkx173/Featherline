@@ -99,7 +99,7 @@ internal data class MedicationStockSubcardRowModel(
 internal data class MedicationStockSubcardModel(
     @param:StringRes val chipLabelRes: Int,
     val tone: MedicationStockSubcardTone,
-    val runwayText: MedicationStockSubcardText,
+    val runwayText: MedicationStockSubcardText?,
     val rows: List<MedicationStockSubcardRowModel>,
 )
 
@@ -154,16 +154,18 @@ internal fun MedicationStockSubcard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 StockSubcardChip(model = model)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = model.runwayText.resolve(),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.End,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                model.runwayText?.let { runwayText ->
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = runwayText.resolve(),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             StockSubcardMetrics(rows = model.rows)
         }
@@ -415,18 +417,15 @@ private fun stockSubcardTone(state: MedicineStockState): MedicationStockSubcardT
 
 private fun stockSubcardRunwayText(
     runway: RunwayProjection,
-): MedicationStockSubcardText {
+): MedicationStockSubcardText? {
     return when (runway) {
         is RunwayProjection.Days -> MedicationStockSubcardText(
             resId = R.string.stock_subcard_runway_days,
             intArg = runway.days,
         )
-        RunwayProjection.BeyondHorizon -> MedicationStockSubcardText(
-            resId = R.string.stock_subcard_runway_plenty,
-        )
-        RunwayProjection.NoSchedule -> MedicationStockSubcardText(
-            resId = R.string.stock_subcard_runway_unknown,
-        )
+        RunwayProjection.BeyondHorizon,
+        RunwayProjection.NoSchedule,
+        -> null
     }
 }
 
