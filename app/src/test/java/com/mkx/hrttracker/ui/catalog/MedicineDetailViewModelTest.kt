@@ -13,6 +13,7 @@ import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
@@ -26,6 +27,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -578,6 +580,110 @@ class MedicineDetailViewModelTest {
     }
 
     @Test
+    fun disableTrackingClosesConfirmationBeforeRepositoryMutationCanUpdateStock() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000021")
+        val trackedMedicine = testMedicine(
+            uuid = medicineUuid,
+            stock = MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 10.0,
+                unitsLastTotal = 10.0,
+            ),
+        )
+        val untrackedMedicine = trackedMedicine.copy(stock = MedicineStock())
+        val stockProjections = MutableStateFlow(
+            listOf(stockProjection(trackedMedicine, totalStockUnits = 10.0)),
+        )
+        lateinit var viewModel: MedicineDetailViewModel
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(trackedMedicine)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { stockRepository.observeProjections() } returns stockProjections
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+        coEvery { medicineRepository.disableTracking(medicineUuid, any()) } coAnswers {
+            assertEquals(false, viewModel.uiState.value.showDisableConfirmation)
+            stockProjections.value = listOf(
+                stockProjection(
+                    medicine = untrackedMedicine,
+                    totalStockUnits = 0.0,
+                    state = MedicineStockState.UNTRACKED,
+                ),
+            )
+        }
+
+        viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+        viewModel.openDisableConfirmation()
+        assertEquals(true, viewModel.uiState.value.showDisableConfirmation)
+
+        viewModel.confirmDisableTracking()
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.uiState.value.showDisableConfirmation)
+        assertEquals(false, viewModel.uiState.value.stockProjection?.medicine?.stock?.trackingEnabled)
+    }
+
+    @Test
+    fun archiveKeepsStockProjectionWhileRepositoryEmitsArchivedStateBeforeNavigation() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000022")
+        val medicine = testMedicine(
+            uuid = medicineUuid,
+            stock = MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 10.0,
+                unitsLastTotal = 10.0,
+            ),
+        )
+        val archivedMedicine = medicine.copy(
+            archivedAt = Instant.parse("2026-01-02T00:00:00Z"),
+            stock = MedicineStock(),
+        )
+        val projection = stockProjection(medicine, totalStockUnits = 10.0)
+        val medicineFlow = MutableStateFlow<Medicine?>(medicine)
+        val stockProjections = MutableStateFlow(listOf(projection))
+        val allowArchiveToReturn = CompletableDeferred<Unit>()
+        lateinit var viewModel: MedicineDetailViewModel
+        every { medicineRepository.observeByUuid(medicineUuid) } returns medicineFlow
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { stockRepository.observeProjections() } returns stockProjections
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+        coEvery { medicineRepository.archive(medicineUuid, any()) } coAnswers {
+            medicineFlow.value = archivedMedicine
+            stockProjections.value = emptyList()
+            allowArchiveToReturn.await()
+        }
+
+        viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+        viewModel.archive()
+        advanceUntilIdle()
+
+        assertEquals(projection, viewModel.uiState.value.stockProjection)
+        assertEquals(null, viewModel.uiState.value.archiveResult)
+
+        allowArchiveToReturn.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(MedicineArchiveResult.SUCCESS, viewModel.uiState.value.archiveResult)
+        assertEquals(projection, viewModel.uiState.value.stockProjection)
+    }
+
+    @Test
     fun optInReceivedSubmissionEnablesTrackingInsteadOfApplyingReceived() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000013")
         val medicine = testMedicine(uuid = medicineUuid)
@@ -878,5 +984,21 @@ class MedicineDetailViewModelTest {
         assertEquals(false, viewModel.uiState.value.showAdjustSheet)
         assertEquals(false, viewModel.uiState.value.pendingEnableTracking)
         assertEquals(false, savedStateHandle[MedicineDetailViewModel.OPEN_OPT_IN_ARG])
+    }
+
+    private fun stockProjection(
+        medicine: Medicine,
+        totalStockUnits: Double,
+        state: MedicineStockState = MedicineStockState.NO_RUNWAY,
+    ): MedicineStockProjection {
+        return MedicineStockProjection(
+            medicine = medicine,
+            dosesPerDayMagnitude = 0.0,
+            totalStockUnits = totalStockUnits,
+            runway = RunwayProjection.NoSchedule,
+            intervalDays = null,
+            maxPerAdministration = 0.0,
+            state = state,
+        )
     }
 }

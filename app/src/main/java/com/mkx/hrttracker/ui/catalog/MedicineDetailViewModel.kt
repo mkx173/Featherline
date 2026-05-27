@@ -122,12 +122,19 @@ class MedicineDetailViewModel @Inject constructor(
                 _uiState.update { current ->
                     // Preserve preparationDraft from the UI side; nothing
                     // upstream owns it.
+                    val stockProjection = if (current.archiveInProgress) {
+                        current.stockProjection
+                    } else {
+                        state.stockProjection
+                    }
                     val preservedState = state.copy(
                         preparationDraft = current.preparationDraft,
+                        stockProjection = stockProjection,
                         showAdjustSheet = current.showAdjustSheet,
                         showDisableConfirmation = current.showDisableConfirmation,
                         adjustSheetActiveTab = current.adjustSheetActiveTab,
                         pendingEnableTracking = current.pendingEnableTracking,
+                        archiveInProgress = current.archiveInProgress,
                     )
                     consumeOpenOptInRequestIfReady(preservedState)
                 }
@@ -211,8 +218,8 @@ class MedicineDetailViewModel @Inject constructor(
     }
 
     fun confirmDisableTracking(): Job = viewModelScope.launch {
-        medicineRepository.disableTracking(medicineUuid)
         _uiState.update { it.copy(showDisableConfirmation = false) }
+        medicineRepository.disableTracking(medicineUuid)
     }
 
     fun confirmEnableTracking(
@@ -377,10 +384,12 @@ class MedicineDetailViewModel @Inject constructor(
         if (_uiState.value.linkedActiveSlots.isNotEmpty()) {
             return null
         }
+        _uiState.update { it.copy(archiveInProgress = true) }
         return viewModelScope.launch {
             runCatching { medicineRepository.archive(medicineUuid) }
                 .onSuccess { archiveResultFlow.value = MedicineArchiveResult.SUCCESS }
                 .onFailure { error ->
+                    _uiState.update { it.copy(archiveInProgress = false) }
                     archiveResultFlow.value = when (error) {
                         is MedicineReferencedByActiveGroupException ->
                             MedicineArchiveResult.FAILURE_REFERENCED_BY_ACTIVE_GROUP
@@ -486,6 +495,7 @@ data class MedicineDetailUiState(
     val showOpenContainerDialog: Boolean = false,
     val adjustSheetActiveTab: AdjustSheetTab = AdjustSheetTab.RECEIVED,
     val pendingEnableTracking: Boolean = false,
+    val archiveInProgress: Boolean = false,
 )
 
 enum class AdjustSheetTab {
