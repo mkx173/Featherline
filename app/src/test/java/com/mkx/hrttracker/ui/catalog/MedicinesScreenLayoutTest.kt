@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.catalog
 
+import com.mkx.hrttracker.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -71,6 +72,30 @@ class MedicinesScreenLayoutTest {
         assertEquals(
             MedicineManagerAddNewTarget.NewMedicineSlot(NewMedicineSlotSheetMode.MANUAL_LOG),
             medicineManagerAddNewTarget(MedicineManagerLaunchMode.ManualLog),
+        )
+    }
+
+    @Test
+    fun medicineManagerTitle_usesManagerTitleForManagerMode() {
+        assertEquals(
+            R.string.medicines_title,
+            medicineManagerTitle(MedicineManagerLaunchMode.Manager),
+        )
+    }
+
+    @Test
+    fun medicineManagerTitle_usesPickerTitleForManualLogMode() {
+        assertEquals(
+            R.string.medicine_picker_select_medicine,
+            medicineManagerTitle(MedicineManagerLaunchMode.ManualLog),
+        )
+    }
+
+    @Test
+    fun medicineManagerTitle_usesPickerTitleForGroupSlotMode() {
+        assertEquals(
+            R.string.medicine_picker_select_medicine,
+            medicineManagerTitle(MedicineManagerLaunchMode.GroupSlot("group-slot-1")),
         )
     }
 

@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.catalog
 
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -101,6 +102,17 @@ internal fun medicineManagerAddNewTarget(
             MedicineManagerAddNewTarget.NewMedicineSlot(NewMedicineSlotSheetMode.GROUP_SLOT)
         MedicineManagerLaunchMode.ManualLog ->
             MedicineManagerAddNewTarget.NewMedicineSlot(NewMedicineSlotSheetMode.MANUAL_LOG)
+    }
+}
+
+@StringRes
+internal fun medicineManagerTitle(
+    launchMode: MedicineManagerLaunchMode,
+): Int {
+    return when (launchMode) {
+        MedicineManagerLaunchMode.Manager -> R.string.medicines_title
+        MedicineManagerLaunchMode.ManualLog,
+        is MedicineManagerLaunchMode.GroupSlot -> R.string.medicine_picker_select_medicine
     }
 }
 
@@ -211,6 +223,7 @@ internal fun MedicinesScreen(
 
     MedicinesScreenContent(
         uiState = uiState,
+        titleRes = medicineManagerTitle(launchMode),
         onNavigateBack = onNavigateBack,
         onMedicineClick = handleMedicineTap,
         onAddNewMedicine = {
@@ -358,6 +371,7 @@ private fun MedicinesUiState.findMedicineByUuid(
 @Composable
 private fun MedicinesScreenContent(
     uiState: MedicinesUiState,
+    @StringRes titleRes: Int = R.string.medicines_title,
     onNavigateBack: () -> Unit,
     onMedicineClick: (UUID) -> Unit,
     onAddNewMedicine: () -> Unit,
@@ -378,7 +392,7 @@ private fun MedicinesScreenContent(
                     listState.animateScrollToItem(0)
                 },
                 title = {
-                    val title = stringResource(R.string.medicines_title)
+                    val title = stringResource(titleRes)
                     Text(
                         text = title,
                         modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
