@@ -173,8 +173,6 @@ data class BackupMedicationLogSnapshot(
     val appliedAtTimeZoneId: String,
     val scheduledForIso: String?,
     val count: Int,
-    val stockDeductionUnits: Double? = null,
-    val stockGeneration: Long? = null,
 )
 
 @JsonClass(generateAdapter = true)

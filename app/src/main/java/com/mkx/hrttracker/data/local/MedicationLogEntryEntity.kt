@@ -23,9 +23,4 @@ data class MedicationLogEntryEntity(
     val scheduledForIso: String? = null,
     val count: Int = 1,
     val gelApplicationArea: String = "DEFAULT",
-
-    // ----- Stock fields (v3, added by MIGRATION_2_3) -----
-
-    val stockDeductionUnits: Double? = null,
-    val stockGeneration: Long? = null,
 )

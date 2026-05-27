@@ -288,7 +288,7 @@ class BackupRestoreValidationTest {
     }
 
     @Test
-    fun toValidatedSnapshot_restoresStockFieldsForMedicinesAndMedicationLogs() {
+    fun toValidatedSnapshot_restoresStockFieldsForMedicines() {
         val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000006b2")
         val logUuid = UUID.fromString("00000000-0000-0000-0000-0000000006b3")
         val snapshot = BackupSnapshot(
@@ -328,8 +328,6 @@ class BackupRestoreValidationTest {
                     appliedAtTimeZoneId = "Asia/Tokyo",
                     scheduledForIso = null,
                     count = 1,
-                    stockDeductionUnits = 1.25,
-                    stockGeneration = 7L,
                 )
             ),
             customBloodAnalytes = emptyList(),
@@ -347,8 +345,7 @@ class BackupRestoreValidationTest {
         assertEquals(7L, restoredMedicine.stockGeneration)
 
         val restoredLog = result.medicationLogs.single()
-        assertEquals(1.25, restoredLog.stockDeductionUnits!!, 1e-9)
-        assertEquals(7L, restoredLog.stockGeneration)
+        assertEquals(logUuid.toString(), restoredLog.uuid)
     }
 
     @Test

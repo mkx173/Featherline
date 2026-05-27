@@ -346,8 +346,6 @@ class BackupExportService @Inject constructor(
             appliedAtTimeZoneId = appliedAtTimeZoneId,
             scheduledForIso = scheduledFor?.toString(),
             count = count,
-            stockDeductionUnits = stockDeductionUnits,
-            stockGeneration = stockGeneration,
         )
     }
 

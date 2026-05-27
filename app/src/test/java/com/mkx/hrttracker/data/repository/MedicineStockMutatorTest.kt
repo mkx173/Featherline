@@ -14,8 +14,6 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -181,16 +179,12 @@ class MedicineStockMutatorTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             pillRow(stockUnitsRemaining = 30.0)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 1.0,
             now = fixedNow,
         )
-
-        assertNotNull(stamp)
-        assertEquals(1.0, stamp!!.deductionUnits, 0.0)
-        assertEquals(1L, stamp.generation)
 
         coVerify {
             medicineDao.updateStockFields(
@@ -207,19 +201,17 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun resolveDeduction_pool_clampAtZero_stampsActualDeductedZero() = runTest {
+    fun resolveDeduction_pool_clampAtZero_keepsStockAtZero() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             pillRow(stockUnitsRemaining = 0.0)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 1.0,
             now = fixedNow,
         )
 
-        assertNotNull(stamp)
-        assertEquals(0.0, stamp!!.deductionUnits, 0.0)
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
@@ -239,15 +231,13 @@ class MedicineStockMutatorTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             pillRow(stockUnitsRemaining = null)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 1.0,
             now = fixedNow,
         )
 
-        assertNotNull(stamp)
-        assertEquals(0.0, stamp!!.deductionUnits, 0.0)
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
@@ -263,18 +253,17 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun resolveDeduction_pool_partialClamp_stampsActualMinDoseAndStock() = runTest {
+    fun resolveDeduction_pool_partialClamp_clampsRemainingAtZero() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             pillRow(stockUnitsRemaining = 0.5)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 2.0,
             now = fixedNow,
         )
 
-        assertEquals(0.5, stamp!!.deductionUnits, 0.0)
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
@@ -290,50 +279,50 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun resolveDeduction_trackingDisabled_returnsNullAndDoesNotWrite() = runTest {
+    fun resolveDeduction_trackingDisabled_doesNotWrite() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             pillRow(trackingEnabled = false)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 1.0,
             now = fixedNow,
         )
 
-        assertNull(stamp)
         coVerify(exactly = 0) {
             medicineDao.updateStockFields(any(), any(), any(), any(), any(), any(), any(), any())
         }
     }
 
     @Test
-    fun resolveDeduction_medicineMissing_returnsNull() = runTest {
+    fun resolveDeduction_medicineMissing_doesNotWrite() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns null
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 1.0,
             now = fixedNow,
         )
 
-        assertNull(stamp)
+        coVerify(exactly = 0) {
+            medicineDao.updateStockFields(any(), any(), any(), any(), any(), any(), any(), any())
+        }
     }
 
     @Test
-    fun resolveDeduction_patchOff_returnsNull() = runTest {
+    fun resolveDeduction_patchOff_doesNotWrite() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             pillRow().copy(preparationType = "PATCH_OFF", trackingEnabled = true)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 0.0,
             now = fixedNow,
         )
 
-        assertNull(stamp)
         coVerify(exactly = 0) {
             medicineDao.updateStockFields(any(), any(), any(), any(), any(), any(), any(), any())
         }
@@ -344,14 +333,13 @@ class MedicineStockMutatorTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 0.4,
             now = fixedNow,
         )
 
-        assertEquals(0.4, stamp!!.deductionUnits, 1e-9)
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
@@ -371,14 +359,13 @@ class MedicineStockMutatorTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 2.0, open = 0.2, vialVolume = 1.0)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 0.5,
             now = fixedNow,
         )
 
-        assertEquals(0.7, stamp!!.deductionUnits, 1e-9)
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
@@ -398,14 +385,13 @@ class MedicineStockMutatorTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 1.5,
             now = fixedNow,
         )
 
-        assertEquals(1.5, stamp!!.deductionUnits, 1e-9)
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
@@ -425,14 +411,13 @@ class MedicineStockMutatorTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 2.0, open = 0.2, vialVolume = 1.0)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 1.5,
             now = fixedNow,
         )
 
-        assertEquals(1.2, stamp!!.deductionUnits, 1e-9)
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
@@ -452,14 +437,13 @@ class MedicineStockMutatorTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 2.0, open = 0.09999999999999998, vialVolume = 1.0)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 0.1,
             now = fixedNow,
         )
 
-        assertEquals(0.1, stamp!!.deductionUnits, 1e-9)
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
@@ -479,14 +463,13 @@ class MedicineStockMutatorTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             gelContainerRow(sealed = 1.0, open = 20.0, containerWeight = 80.0)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 25.0,
             now = fixedNow,
         )
 
-        assertEquals(45.0, stamp!!.deductionUnits, 0.0)
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
@@ -502,18 +485,17 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun resolveDeduction_container_tinyDoseWithNoStockStampsZero() = runTest {
+    fun resolveDeduction_container_tinyDoseWithNoStockLeavesOpenAtZero() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 0.0, open = 0.0, vialVolume = 1.0)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 0.0000000005,
             now = fixedNow,
         )
 
-        assertEquals(0.0, stamp!!.deductionUnits, 0.0)
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
@@ -529,18 +511,17 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun resolveDeduction_container_case3_outOfStock_clampsAndStampsPreOpen() = runTest {
+    fun resolveDeduction_container_case3_outOfStock_consumesRemainingOpen() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 0.0, open = 0.3, vialVolume = 1.0)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 0.5,
             now = fixedNow,
         )
 
-        assertEquals(0.3, stamp!!.deductionUnits, 1e-9)
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
@@ -556,18 +537,17 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun resolveDeduction_container_case3_emptyOpenAndZeroSealed_stampsZero() = runTest {
+    fun resolveDeduction_container_case3_emptyOpenAndZeroSealed_keepsOpenAtZero() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 0.0, open = 0.0, vialVolume = 1.0)
 
-        val stamp = mutator.resolveDeductionForInsert(
+        mutator.resolveDeductionForInsert(
             database = database,
             medicineUuid = medicineUuid,
             requestedDose = 0.5,
             now = fixedNow,
         )
 
-        assertEquals(0.0, stamp!!.deductionUnits, 1e-9)
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
@@ -575,132 +555,6 @@ class MedicineStockMutatorTest {
                 stockUnitsRemaining = 0.0,
                 stockUnitsLastTotal = null,
                 openContainerAmount = 0.0,
-                warnAtDaysRemaining = 14,
-                stockGeneration = 1L,
-                updatedAtEpochMillis = fixedNow.toEpochMilli(),
-            )
-        }
-    }
-
-    @Test
-    fun refund_gate1_nullDeduction_noWrite() = runTest {
-        mutator.applyRefundForDelete(
-            database = database,
-            medicineUuid = medicineUuid,
-            log = MedicationLogStockSnapshot(deductionUnits = null, generation = null),
-            now = fixedNow,
-        )
-
-        coVerify(exactly = 0) {
-            medicineDao.updateStockFields(any(), any(), any(), any(), any(), any(), any(), any())
-        }
-    }
-
-    @Test
-    fun refund_gate2_generationMismatch_noWrite() = runTest {
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockGeneration = 2L)
-
-        mutator.applyRefundForDelete(
-            database = database,
-            medicineUuid = medicineUuid,
-            log = MedicationLogStockSnapshot(deductionUnits = 1.0, generation = 1L),
-            now = fixedNow,
-        )
-
-        coVerify(exactly = 0) {
-            medicineDao.updateStockFields(any(), any(), any(), any(), any(), any(), any(), any())
-        }
-    }
-
-    @Test
-    fun refund_gate3_trackingDisabled_noWrite() = runTest {
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(trackingEnabled = false, stockGeneration = 1L)
-
-        mutator.applyRefundForDelete(
-            database = database,
-            medicineUuid = medicineUuid,
-            log = MedicationLogStockSnapshot(deductionUnits = 1.0, generation = 1L),
-            now = fixedNow,
-        )
-
-        coVerify(exactly = 0) {
-            medicineDao.updateStockFields(any(), any(), any(), any(), any(), any(), any(), any())
-        }
-    }
-
-    @Test
-    fun refund_pool_addsBackUnits_unclampedUpper() = runTest {
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockUnitsRemaining = 29.0, stockUnitsLastTotal = 30.0)
-
-        mutator.applyRefundForDelete(
-            database = database,
-            medicineUuid = medicineUuid,
-            log = MedicationLogStockSnapshot(deductionUnits = 5.0, generation = 1L),
-            now = fixedNow,
-        )
-
-        coVerify {
-            medicineDao.updateStockFields(
-                uuid = medicineUuid.toString(),
-                trackingEnabled = true,
-                stockUnitsRemaining = 34.0,
-                stockUnitsLastTotal = 30.0,
-                openContainerAmount = null,
-                warnAtDaysRemaining = 14,
-                stockGeneration = 1L,
-                updatedAtEpochMillis = fixedNow.toEpochMilli(),
-            )
-        }
-    }
-
-    @Test
-    fun refund_container_clampsAtContainerSize() = runTest {
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 1.0, open = 0.2, vialVolume = 1.0)
-
-        mutator.applyRefundForDelete(
-            database = database,
-            medicineUuid = medicineUuid,
-            log = MedicationLogStockSnapshot(deductionUnits = 1.5, generation = 1L),
-            now = fixedNow,
-        )
-
-        coVerify {
-            medicineDao.updateStockFields(
-                uuid = medicineUuid.toString(),
-                trackingEnabled = true,
-                stockUnitsRemaining = 1.0,
-                stockUnitsLastTotal = null,
-                openContainerAmount = 1.0,
-                warnAtDaysRemaining = 14,
-                stockGeneration = 1L,
-                updatedAtEpochMillis = fixedNow.toEpochMilli(),
-            )
-        }
-    }
-
-    @Test
-    fun refund_zeroDeduction_noOpEvenIfGatesPass() = runTest {
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockUnitsRemaining = 10.0)
-
-        mutator.applyRefundForDelete(
-            database = database,
-            medicineUuid = medicineUuid,
-            log = MedicationLogStockSnapshot(deductionUnits = 0.0, generation = 1L),
-            now = fixedNow,
-        )
-
-        coVerify {
-            medicineDao.updateStockFields(
-                uuid = medicineUuid.toString(),
-                trackingEnabled = true,
-                stockUnitsRemaining = 10.0,
-                stockUnitsLastTotal = 30.0,
-                openContainerAmount = null,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 1L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),

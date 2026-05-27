@@ -35,41 +35,6 @@ interface MedicationLogDao {
 
     @Query(
         """
-        SELECT uuid, stockDeductionUnits, stockGeneration
-        FROM medication_log_entries
-        WHERE uuid IN (:uuids)
-        """
-    )
-    suspend fun getStockSnapshotsByIds(uuids: List<String>): List<MedicationLogStockProjection>
-
-    @Query(
-        """
-        SELECT uuid, medicineUuid, stockDeductionUnits, stockGeneration
-        FROM medication_log_entries
-        WHERE uuid IN (:uuids)
-        """
-    )
-    suspend fun getRefundCandidatesByIds(uuids: List<String>): List<MedicationLogRefundCandidate>
-
-    @Query(
-        """
-        SELECT uuid, medicineUuid, stockDeductionUnits, stockGeneration
-        FROM medication_log_entries
-        WHERE sourceGroupUuid = :groupUuid
-        """
-    )
-    suspend fun getRefundCandidatesForGroup(groupUuid: String): List<MedicationLogRefundCandidate>
-
-    @Query(
-        """
-        SELECT uuid, medicineUuid, stockDeductionUnits, stockGeneration
-        FROM medication_log_entries
-        """
-    )
-    suspend fun getAllRefundCandidates(): List<MedicationLogRefundCandidate>
-
-    @Query(
-        """
         SELECT * FROM medication_log_entries
         ORDER BY appliedAtEpochMillis DESC
         """
@@ -234,31 +199,4 @@ interface MedicationLogDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntries(entries: List<MedicationLogEntryEntity>)
-
-    @Query(
-        """
-        UPDATE medication_log_entries SET
-            stockDeductionUnits = :stockDeductionUnits,
-            stockGeneration = :stockGeneration
-        WHERE uuid = :uuid
-        """
-    )
-    suspend fun updateStockFields(
-        uuid: String,
-        stockDeductionUnits: Double?,
-        stockGeneration: Long?,
-    )
 }
-
-data class MedicationLogStockProjection(
-    val uuid: String,
-    val stockDeductionUnits: Double?,
-    val stockGeneration: Long?,
-)
-
-data class MedicationLogRefundCandidate(
-    val uuid: String,
-    val medicineUuid: String?,
-    val stockDeductionUnits: Double?,
-    val stockGeneration: Long?,
-)

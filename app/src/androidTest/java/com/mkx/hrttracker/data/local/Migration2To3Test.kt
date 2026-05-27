@@ -124,6 +124,46 @@ class Migration2To3Test {
         }
     }
 
+    @Test
+    fun migrate3To4_existingLogRow_dropsStockColumnsAndPreservesLog() {
+        migrateVersion3Database { db ->
+            db.execSQL(
+                """
+                INSERT INTO medication_log_entries (
+                    uuid, category, medicineUuid, applicationType,
+                    doseInstructionKind, tabletFractionNumerator,
+                    tabletFractionDenominator, doseVolumeMl, doseWeightGrams,
+                    equivalentE2Mg, sourceGroupUuid, scheduleTimeUuid,
+                    appliedAtEpochMillis, appliedAtTimeZoneId, scheduledForIso,
+                    count, gelApplicationArea, stockDeductionUnits, stockGeneration
+                ) VALUES (
+                    'l1', 'ESTRADIOL', 'm1', 'ORAL', 'WHOLE_UNIT', NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, 1000, 'UTC', NULL, 2,
+                    'DEFAULT', 1.25, 9
+                )
+                """.trimIndent()
+            )
+        }.use { migrated ->
+            val db = migrated.database
+            db.query(
+                """
+                SELECT uuid, category, count, gelApplicationArea
+                FROM medication_log_entries
+                WHERE uuid = 'l1'
+                """.trimIndent()
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("l1", cursor.getString(0))
+                assertEquals("ESTRADIOL", cursor.getString(1))
+                assertEquals(2, cursor.getInt(2))
+                assertEquals("DEFAULT", cursor.getString(3))
+                assertFalse(cursor.moveToNext())
+            }
+            assertMissingColumn(db, "medication_log_entries", "stockDeductionUnits")
+            assertMissingColumn(db, "medication_log_entries", "stockGeneration")
+        }
+    }
+
     private fun migrateVersion2Database(
         seed: (SupportSQLiteDatabase) -> Unit,
     ): MigratedDatabase {
@@ -168,6 +208,50 @@ class Migration2To3Test {
         }
     }
 
+    private fun migrateVersion3Database(
+        seed: (SupportSQLiteDatabase) -> Unit,
+    ): MigratedDatabase {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        context.deleteDatabase(testDb)
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(testDb)
+                .callback(
+                    object : SupportSQLiteOpenHelper.Callback(3) {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            createV3Schema(db)
+                            seed(db)
+                        }
+
+                        override fun onUpgrade(
+                            db: SupportSQLiteDatabase,
+                            oldVersion: Int,
+                            newVersion: Int,
+                        ) = Unit
+                    }
+                )
+                .build()
+        )
+
+        val db = try {
+            helper.writableDatabase
+        } catch (throwable: Throwable) {
+            helper.close()
+            throw throwable
+        }
+
+        try {
+            MIGRATION_3_4.migrate(db)
+            db.version = 4
+            return MigratedDatabase(helper, db)
+        } catch (throwable: Throwable) {
+            db.close()
+            helper.close()
+            throw throwable
+        }
+    }
+
     private fun assertColumn(
         db: SupportSQLiteDatabase,
         table: String,
@@ -196,6 +280,26 @@ class Migration2To3Test {
             }
         }
         throw AssertionError("Missing column $table.$column")
+    }
+
+    private fun assertMissingColumn(
+        db: SupportSQLiteDatabase,
+        table: String,
+        column: String,
+    ) {
+        db.query("PRAGMA table_info($table)").use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameIndex) == column) {
+                    throw AssertionError("Unexpected column $table.$column")
+                }
+            }
+        }
+    }
+
+    private fun createV3Schema(db: SupportSQLiteDatabase) {
+        createV2Schema(db)
+        MIGRATION_2_3.migrate(db)
     }
 
     private fun createV2Schema(db: SupportSQLiteDatabase) {

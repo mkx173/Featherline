@@ -556,8 +556,6 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             scheduledForIso = scheduledForIso,
             count = log.count,
             gelApplicationArea = validatedMedication.gelApplicationArea.name,
-            stockDeductionUnits = log.stockDeductionUnits,
-            stockGeneration = log.stockGeneration,
         )
     }
 

@@ -160,8 +160,6 @@ class BackupExportServiceTest {
                 sourceGroupUuid = null,
                 appliedAt = Instant.parse("2026-04-26T01:00:00Z"),
                 appliedAtTimeZoneId = "Asia/Tokyo",
-                stockDeductionUnits = 1.0,
-                stockGeneration = 5L,
             )
         )
         coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
@@ -180,8 +178,7 @@ class BackupExportServiceTest {
         assertEquals(5L, stock.stockGeneration)
 
         val log = snapshot.medicationLogs.single()
-        assertEquals(1.0, log.stockDeductionUnits!!, 1e-9)
-        assertEquals(5L, log.stockGeneration)
+        assertEquals(logUuid.toString(), log.uuid)
     }
 
     @Test

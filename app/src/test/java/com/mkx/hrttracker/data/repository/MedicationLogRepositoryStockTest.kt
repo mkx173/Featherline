@@ -4,8 +4,6 @@ import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.MedicationLogDao
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
-import com.mkx.hrttracker.data.local.MedicationLogRefundCandidate
-import com.mkx.hrttracker.data.local.MedicationLogStockProjection
 import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.model.medication.DoseInstruction
@@ -18,6 +16,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
+import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -65,16 +64,8 @@ class MedicationLogRepositoryStockTest {
     }
 
     @Test
-    fun saveEntry_invokesMutatorAndStampsRow() = runTest {
+    fun saveEntry_invokesMutatorBeforeInsert() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns pillEntity()
-        coEvery {
-            stockMutator.resolveDeductionForInsert(
-                database = database,
-                medicineUuid = medicineUuid,
-                requestedDose = 1.0,
-                now = any(),
-            )
-        } returns StockDeductionStamp(deductionUnits = 1.0, generation = 1L)
 
         val captured = slot<MedicationLogEntryEntity>()
         coEvery { logDao.insertEntry(capture(captured)) } returns Unit
@@ -97,29 +88,12 @@ class MedicationLogRepositoryStockTest {
             )
             logDao.insertEntry(any())
         }
-        assertEquals(1.0, captured.captured.stockDeductionUnits!!, 0.0)
-        assertEquals(1L, captured.captured.stockGeneration)
+        assertEquals(medicineUuid.toString(), captured.captured.medicineUuid)
     }
 
     @Test
-    fun saveNewEntries_invokesMutatorForEachEntryAndStampsRows() = runTest {
+    fun saveNewEntries_invokesMutatorForEachEntryBeforeInsert() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns pillEntity()
-        coEvery {
-            stockMutator.resolveDeductionForInsert(
-                database = database,
-                medicineUuid = medicineUuid,
-                requestedDose = 1.0,
-                now = any(),
-            )
-        } returns StockDeductionStamp(deductionUnits = 1.0, generation = 1L)
-        coEvery {
-            stockMutator.resolveDeductionForInsert(
-                database = database,
-                medicineUuid = medicineUuid,
-                requestedDose = 2.0,
-                now = any(),
-            )
-        } returns StockDeductionStamp(deductionUnits = 2.0, generation = 1L)
 
         val captured = slot<List<MedicationLogEntryEntity>>()
         coEvery { logDao.insertEntries(capture(captured)) } returns Unit
@@ -161,12 +135,11 @@ class MedicationLogRepositoryStockTest {
             )
             logDao.insertEntries(any())
         }
-        assertEquals(listOf(1.0, 2.0), captured.captured.map { it.stockDeductionUnits })
-        assertEquals(listOf(1L, 1L), captured.captured.map { it.stockGeneration })
+        assertEquals(listOf(1, 2), captured.captured.map { it.count })
     }
 
     @Test
-    fun saveBackfillEntries_skipsMutatorAndLeavesStockUnstamped() = runTest {
+    fun saveBackfillEntries_skipsMutator() = runTest {
         // Backfill flows (batch-add, "show and generate past records") are
         // retrospective reconciliation — the doses left inventory long before
         // these rows were created, so stock must stay tied to the user's own
@@ -200,23 +173,13 @@ class MedicationLogRepositoryStockTest {
         coVerify(exactly = 0) {
             stockMutator.resolveDeductionForInsert(any(), any(), any(), any())
         }
-        assertEquals(listOf(null, null), captured.captured.map { it.stockDeductionUnits })
-        assertEquals(listOf(null, null), captured.captured.map { it.stockGeneration })
+        assertEquals(listOf(1, 2), captured.captured.map { it.count })
     }
 
     @Test
-    fun saveEntries_bulkEditPreservesStockMarkersAndDoesNotDeduct() = runTest {
+    fun saveEntries_bulkEditDoesNotDeductStock() = runTest {
         val entryUuid = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns pillEntity()
-        coEvery {
-            logDao.getStockSnapshotsByIds(listOf(entryUuid.toString()))
-        } returns listOf(
-            MedicationLogStockProjection(
-                uuid = entryUuid.toString(),
-                stockDeductionUnits = 1.25,
-                stockGeneration = 9L,
-            )
-        )
 
         val captured = slot<List<MedicationLogEntryEntity>>()
         coEvery { logDao.insertEntries(capture(captured)) } returns Unit
@@ -231,102 +194,39 @@ class MedicationLogRepositoryStockTest {
         )
 
         val replaced = captured.captured.single()
-        assertEquals(1.25, replaced.stockDeductionUnits!!, 0.0)
-        assertEquals(9L, replaced.stockGeneration)
+        assertEquals(entryUuid.toString(), replaced.uuid)
         coVerify(exactly = 0) {
             stockMutator.resolveDeductionForInsert(any(), any(), any(), any())
         }
     }
 
     @Test
-    fun deleteEntries_invokesRefundForEachCandidateThenDeletes() = runTest {
+    fun deleteEntries_deletesWithoutTouchingStock() = runTest {
         val u1 = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
         val u2 = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
-        coEvery {
-            logDao.getRefundCandidatesByIds(listOf(u1, u2))
-        } returns listOf(
-            MedicationLogRefundCandidate(
-                uuid = u1,
-                medicineUuid = medicineUuid.toString(),
-                stockDeductionUnits = 1.0,
-                stockGeneration = 1L,
-            ),
-            MedicationLogRefundCandidate(
-                uuid = u2,
-                medicineUuid = medicineUuid.toString(),
-                stockDeductionUnits = null,
-                stockGeneration = null,
-            ),
-        )
 
         repository.deleteEntries(listOf(UUID.fromString(u1), UUID.fromString(u2)))
 
-        coVerifyOrder {
-            stockMutator.applyRefundForDelete(
-                database = database,
-                medicineUuid = medicineUuid,
-                log = MedicationLogStockSnapshot(deductionUnits = 1.0, generation = 1L),
-                now = any(),
-            )
-            stockMutator.applyRefundForDelete(
-                database = database,
-                medicineUuid = medicineUuid,
-                log = MedicationLogStockSnapshot(deductionUnits = null, generation = null),
-                now = any(),
-            )
-            logDao.deleteEntries(listOf(u1, u2))
-        }
+        coVerify(exactly = 1) { logDao.deleteEntries(listOf(u1, u2)) }
+        confirmVerified(logDao, stockMutator)
     }
 
     @Test
-    fun deleteEntriesForGroup_invokesRefundCandidatesThenDeletesGroup() = runTest {
+    fun deleteEntriesForGroup_deletesWithoutTouchingStock() = runTest {
         val groupUuid = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc")
-        coEvery {
-            logDao.getRefundCandidatesForGroup(groupUuid.toString())
-        } returns listOf(
-            MedicationLogRefundCandidate(
-                uuid = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-                medicineUuid = medicineUuid.toString(),
-                stockDeductionUnits = 0.5,
-                stockGeneration = 2L,
-            )
-        )
 
         repository.deleteEntriesForGroup(groupUuid)
 
-        coVerifyOrder {
-            stockMutator.applyRefundForDelete(
-                database = database,
-                medicineUuid = medicineUuid,
-                log = MedicationLogStockSnapshot(deductionUnits = 0.5, generation = 2L),
-                now = any(),
-            )
-            logDao.deleteEntriesForGroup(groupUuid.toString())
-        }
+        coVerify(exactly = 1) { logDao.deleteEntriesForGroup(groupUuid.toString()) }
+        confirmVerified(logDao, stockMutator)
     }
 
     @Test
-    fun deleteAllEntries_invokesRefundCandidatesThenDeletesAll() = runTest {
-        coEvery { logDao.getAllRefundCandidates() } returns listOf(
-            MedicationLogRefundCandidate(
-                uuid = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-                medicineUuid = medicineUuid.toString(),
-                stockDeductionUnits = 0.25,
-                stockGeneration = 3L,
-            )
-        )
-
+    fun deleteAllEntries_deletesWithoutTouchingStock() = runTest {
         repository.deleteAllEntries()
 
-        coVerifyOrder {
-            stockMutator.applyRefundForDelete(
-                database = database,
-                medicineUuid = medicineUuid,
-                log = MedicationLogStockSnapshot(deductionUnits = 0.25, generation = 3L),
-                now = any(),
-            )
-            logDao.deleteAllEntries()
-        }
+        coVerify(exactly = 1) { logDao.deleteAllEntries() }
+        confirmVerified(logDao, stockMutator)
     }
 
     private fun pillEntity(): MedicineEntity {

@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BloodTestResultEntity::class,
         CustomBloodAnalyteEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
@@ -54,5 +54,55 @@ internal val MIGRATION_2_3: Migration = object : Migration(2, 3) {
         // medication_log_entries: per-log deduction marker + session token
         db.execSQL("ALTER TABLE medication_log_entries ADD COLUMN stockDeductionUnits REAL")
         db.execSQL("ALTER TABLE medication_log_entries ADD COLUMN stockGeneration INTEGER")
+    }
+}
+
+internal val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE medication_log_entries_new (
+                uuid TEXT NOT NULL PRIMARY KEY,
+                category TEXT NOT NULL,
+                medicineUuid TEXT,
+                applicationType TEXT NOT NULL,
+                doseInstructionKind TEXT NOT NULL,
+                tabletFractionNumerator INTEGER,
+                tabletFractionDenominator INTEGER,
+                doseVolumeMl REAL,
+                doseWeightGrams REAL,
+                equivalentE2Mg REAL,
+                sourceGroupUuid TEXT,
+                scheduleTimeUuid TEXT,
+                appliedAtEpochMillis INTEGER NOT NULL,
+                appliedAtTimeZoneId TEXT NOT NULL,
+                scheduledForIso TEXT,
+                count INTEGER NOT NULL DEFAULT 1,
+                gelApplicationArea TEXT NOT NULL DEFAULT 'DEFAULT'
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO medication_log_entries_new (
+                uuid, category, medicineUuid, applicationType,
+                doseInstructionKind, tabletFractionNumerator,
+                tabletFractionDenominator, doseVolumeMl, doseWeightGrams,
+                equivalentE2Mg, sourceGroupUuid, scheduleTimeUuid,
+                appliedAtEpochMillis, appliedAtTimeZoneId, scheduledForIso,
+                count, gelApplicationArea
+            )
+            SELECT
+                uuid, category, medicineUuid, applicationType,
+                doseInstructionKind, tabletFractionNumerator,
+                tabletFractionDenominator, doseVolumeMl, doseWeightGrams,
+                equivalentE2Mg, sourceGroupUuid, scheduleTimeUuid,
+                appliedAtEpochMillis, appliedAtTimeZoneId, scheduledForIso,
+                count, gelApplicationArea
+            FROM medication_log_entries
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE medication_log_entries")
+        db.execSQL("ALTER TABLE medication_log_entries_new RENAME TO medication_log_entries")
     }
 }

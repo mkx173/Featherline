@@ -151,7 +151,7 @@ class BackupRestoreServiceTest {
     }
 
     @Test
-    fun restoreBackupBytes_roundTripsStockFieldsIntoInsertedEntities() = runTest {
+    fun restoreBackupBytes_roundTripsMedicineStockFieldsIntoInsertedEntities() = runTest {
         val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000710")
         val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000711")
         val encryptedBytes = backupCrypto.encryptSnapshotJson(
@@ -175,8 +175,7 @@ class BackupRestoreServiceTest {
         assertEquals(3L, restoredMedicine.stockGeneration)
 
         val restoredLog = logsSlot.captured.single()
-        assertEquals(0.5, restoredLog.stockDeductionUnits!!, 1e-9)
-        assertEquals(3L, restoredLog.stockGeneration)
+        assertEquals(logUuid.toString(), restoredLog.uuid)
     }
 
     private fun emptySnapshot(): BackupSnapshot {
@@ -264,8 +263,6 @@ class BackupRestoreServiceTest {
                     appliedAtTimeZoneId = "Asia/Tokyo",
                     scheduledForIso = null,
                     count = 1,
-                    stockDeductionUnits = 0.5,
-                    stockGeneration = 3L,
                 )
             ),
         )

@@ -21,25 +21,18 @@ import kotlin.math.abs
 @Singleton
 internal class MedicineStockMutator @Inject constructor() {
 
-    /**
-     * Resolves how much stock should actually be deducted for an inserted log,
-     * applies that mutation to the medicine row, and returns the values the
-     * caller should stamp onto the new log row.
-     *
-     * Returns null when no stamp applies: tracking off, PATCH_OFF medicine, or
-     * medicine row not found.
-     */
+    /** Resolves and applies the stock deduction for an inserted live log. */
     suspend fun resolveDeductionForInsert(
         database: HrtTrackerDatabase,
         medicineUuid: UUID,
         requestedDose: Double,
         now: Instant = Instant.now(),
-    ): StockDeductionStamp? {
+    ) {
         val dao = database.medicineDao()
-        val entity = dao.getByUuid(medicineUuid.toString()) ?: return null
+        val entity = dao.getByUuid(medicineUuid.toString()) ?: return
         val prepType = MedicinePreparationType.fromStorageValue(entity.preparationType)
         if (!entity.trackingEnabled || prepType == MedicinePreparationType.PATCH_OFF) {
-            return null
+            return
         }
 
         val nowMs = now.toEpochMilli()
@@ -58,66 +51,10 @@ internal class MedicineStockMutator @Inject constructor() {
                 stockGeneration = entity.stockGeneration,
                 updatedAtEpochMillis = nowMs,
             )
-            return StockDeductionStamp(
-                deductionUnits = actuallyDeducted,
-                generation = entity.stockGeneration,
-            )
-        }
-
-        return resolveContainerDeductionForInsert(dao, entity, requestedDose, nowMs)
-    }
-
-    /**
-     * Applied at log-delete time. Reads the medicine row, evaluates the three
-     * refund gates from design section 3.6, and applies the refund if all pass.
-     */
-    suspend fun applyRefundForDelete(
-        database: HrtTrackerDatabase,
-        medicineUuid: UUID,
-        log: MedicationLogStockSnapshot,
-        now: Instant = Instant.now(),
-    ) {
-        val deduction = log.deductionUnits ?: return
-        val logGeneration = log.generation ?: return
-
-        val dao = database.medicineDao()
-        val entity = dao.getByUuid(medicineUuid.toString()) ?: return
-        if (logGeneration != entity.stockGeneration || !entity.trackingEnabled) {
             return
         }
 
-        val prepType = MedicinePreparationType.fromStorageValue(entity.preparationType)
-        val nowMs = now.toEpochMilli()
-
-        if (prepType.isContainerTopology()) {
-            val containerSize = entity.containerSizeOrNull() ?: return
-            val newOpen = minOf(
-                containerSize,
-                (entity.openContainerAmount ?: 0.0) + deduction,
-            )
-            dao.updateStockFields(
-                uuid = entity.uuid,
-                trackingEnabled = true,
-                stockUnitsRemaining = entity.stockUnitsRemaining,
-                stockUnitsLastTotal = entity.stockUnitsLastTotal,
-                openContainerAmount = newOpen,
-                warnAtDaysRemaining = entity.warnAtDaysRemaining,
-                stockGeneration = entity.stockGeneration,
-                updatedAtEpochMillis = nowMs,
-            )
-        } else {
-            val newRemaining = (entity.stockUnitsRemaining ?: 0.0) + deduction
-            dao.updateStockFields(
-                uuid = entity.uuid,
-                trackingEnabled = true,
-                stockUnitsRemaining = newRemaining,
-                stockUnitsLastTotal = entity.stockUnitsLastTotal,
-                openContainerAmount = null,
-                warnAtDaysRemaining = entity.warnAtDaysRemaining,
-                stockGeneration = entity.stockGeneration,
-                updatedAtEpochMillis = nowMs,
-            )
-        }
+        resolveContainerDeductionForInsert(dao, entity, requestedDose, nowMs)
     }
 
     /** Bumps stockGeneration, clears stock columns, and resets warnAtDaysRemaining. */
@@ -185,7 +122,7 @@ internal class MedicineStockMutator @Inject constructor() {
         )
     }
 
-    /** Recount: bumps stockGeneration to invalidate pre-Recount markers. */
+    /** Recount: bumps stockGeneration for the new counted stock session. */
     suspend fun applyRecount(
         database: HrtTrackerDatabase,
         medicineUuid: UUID,
@@ -292,36 +229,29 @@ internal class MedicineStockMutator @Inject constructor() {
         entity: MedicineEntity,
         requestedDose: Double,
         nowMs: Long,
-    ): StockDeductionStamp {
-        val containerSize = entity.containerSizeOrNull() ?: return StockDeductionStamp(
-            deductionUnits = 0.0,
-            generation = entity.stockGeneration,
-        )
+    ) {
+        val containerSize = entity.containerSizeOrNull() ?: return
         val open = entity.openContainerAmount ?: 0.0
         val sealed = entity.stockUnitsRemaining ?: 0.0
         val dose = requestedDose.coerceAtLeast(0.0)
 
         val newSealed: Double
         val newOpen: Double
-        val actuallyDeducted: Double
 
         when {
             hasSufficientOpenAmount(open = open, dose = dose) -> {
                 newSealed = sealed
                 newOpen = (open - dose).zeroIfTiny().coerceAtLeast(0.0)
-                actuallyDeducted = dose
             }
 
             sealed >= 1.0 -> {
                 newSealed = sealed - 1.0
                 newOpen = maxOf(0.0, containerSize - dose)
-                actuallyDeducted = open + minOf(dose, containerSize)
             }
 
             else -> {
                 newSealed = sealed
                 newOpen = 0.0
-                actuallyDeducted = open
             }
         }
 
@@ -334,10 +264,6 @@ internal class MedicineStockMutator @Inject constructor() {
             warnAtDaysRemaining = entity.warnAtDaysRemaining,
             stockGeneration = entity.stockGeneration,
             updatedAtEpochMillis = nowMs,
-        )
-        return StockDeductionStamp(
-            deductionUnits = actuallyDeducted,
-            generation = entity.stockGeneration,
         )
     }
 

@@ -60,18 +60,15 @@ class BackupSnapshotJsonCodecTest {
     }
 
     @Test
-    fun roundTrip_logEntryWithStockFields_preserves() {
-        val snapshot = makeSnapshotWithSingleLog(
-            stockDeductionUnits = 1.0,
-            stockGeneration = 5L,
-        )
+    fun roundTrip_logEntry_preservesCoreFields() {
+        val snapshot = makeSnapshotWithSingleLog()
 
         val json = BackupSnapshotJsonCodec.encode(snapshot)
         val decoded = BackupSnapshotJsonCodec.decode(json)
         val log = decoded!!.medicationLogs.single()
 
-        assertEquals(1.0, log.stockDeductionUnits!!, 0.0)
-        assertEquals(5L, log.stockGeneration)
+        assertEquals("22222222-2222-2222-2222-222222222222", log.uuid)
+        assertEquals("ORAL", log.applicationType)
     }
 
     @Test
@@ -119,10 +116,7 @@ class BackupSnapshotJsonCodecTest {
         )
     }
 
-    private fun makeSnapshotWithSingleLog(
-        stockDeductionUnits: Double?,
-        stockGeneration: Long?,
-    ): BackupSnapshot {
+    private fun makeSnapshotWithSingleLog(): BackupSnapshot {
         return baselineSnapshot(
             medicationLogs = listOf(
                 BackupMedicationLogSnapshot(
@@ -143,8 +137,6 @@ class BackupSnapshotJsonCodecTest {
                     appliedAtTimeZoneId = "UTC",
                     scheduledForIso = null,
                     count = 1,
-                    stockDeductionUnits = stockDeductionUnits,
-                    stockGeneration = stockGeneration,
                 )
             )
         )
