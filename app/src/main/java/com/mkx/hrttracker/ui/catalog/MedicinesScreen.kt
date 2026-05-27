@@ -295,12 +295,13 @@ internal fun MedicinesScreen(
         )
     }
 
-    val pendingMedicine = pendingSlotMedicineUuid?.let { uuid ->
-        uiState.findMedicineByUuid(runCatching { UUID.fromString(uuid) }.getOrNull())
+    val pendingMedicineItem = pendingSlotMedicineUuid?.let { uuid ->
+        uiState.findMedicineItemByUuid(runCatching { UUID.fromString(uuid) }.getOrNull())
     }
-    if (pendingMedicine != null) {
+    if (pendingMedicineItem != null) {
         MedicineSlotDraftSheet(
-            medicine = pendingMedicine,
+            medicine = pendingMedicineItem.medicine,
+            selectedStockProjection = pendingMedicineItem.stockProjection,
             sheetState = slotDraftSheetState,
             onDismissRequest = {
                 if (!isManualSlotLocked) {
@@ -357,12 +358,12 @@ internal fun canHideManualSlotSheet(
         allowManualSlotCompletionHide
 }
 
-private fun MedicinesUiState.findMedicineByUuid(
+internal fun MedicinesUiState.findMedicineItemByUuid(
     uuid: UUID?,
-): com.mkx.hrttracker.model.medication.Medicine? {
+): MedicineListItem? {
     uuid ?: return null
     activeSections.forEach { section ->
-        section.medicines.firstOrNull { it.medicine.uuid == uuid }?.let { return it.medicine }
+        section.medicines.firstOrNull { it.medicine.uuid == uuid }?.let { return it }
     }
     return null
 }

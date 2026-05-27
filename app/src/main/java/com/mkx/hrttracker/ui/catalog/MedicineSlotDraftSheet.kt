@@ -20,6 +20,7 @@ import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationEditorContent
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
@@ -55,6 +56,7 @@ fun MedicineSlotDraftSheet(
     onConfirm: (MedicineSlotResult) -> Unit,
     modifier: Modifier = Modifier,
     mode: MedicineSlotDraftMode = MedicineSlotDraftMode.GROUP_SLOT,
+    selectedStockProjection: MedicineStockProjection? = null,
     onManualLogSaved: (() -> Unit) -> Unit = { consumeSavedState -> consumeSavedState() },
     onManualLogSaveFailure: () -> Unit = { },
     viewModel: MedicineSlotDraftViewModel = hiltViewModel(),
@@ -174,6 +176,7 @@ fun MedicineSlotDraftSheet(
             // header is not tappable since the manager itself is the re-pick UI.
             canEditMedicationIdentity = true,
             canRepickMedicine = false,
+            selectedStockProjection = selectedStockProjection,
             onMedicineDraftChange = { transform ->
                 val previousDraft = medicineDraft
                 val updatedDraft = transform(previousDraft)

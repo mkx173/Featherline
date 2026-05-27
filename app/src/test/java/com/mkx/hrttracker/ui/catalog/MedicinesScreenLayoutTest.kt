@@ -1,10 +1,16 @@
 package com.mkx.hrttracker.ui.catalog
 
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.RunwayProjection
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
+import java.util.UUID
 
 class MedicinesScreenLayoutTest {
     @Test
@@ -109,5 +115,43 @@ class MedicinesScreenLayoutTest {
             MedicineManagerTrailingContentKind.REFERENCE_COUNT,
             medicineManagerTrailingContentKind(referenceCount = 1),
         )
+    }
+
+    @Test
+    fun pendingSlotSelectionKeepsStockProjectionForDoseSheet() {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000031"),
+        )
+        val projection = MedicineStockProjection(
+            medicine = medicine,
+            dosesPerDayMagnitude = 1.0,
+            totalStockUnits = 12.0,
+            runway = RunwayProjection.Days(
+                days = 11,
+                lastFulfillable = LocalDate.of(2026, 1, 12),
+            ),
+            intervalDays = null,
+            maxPerAdministration = 1.0,
+            state = MedicineStockState.HEALTHY,
+        )
+        val state = MedicinesUiState(
+            activeSections = listOf(
+                MedicineCategorySection(
+                    category = medicine.category,
+                    medicines = listOf(
+                        MedicineListItem(
+                            medicine = medicine,
+                            activeGroupReferenceCount = 0,
+                            stockProjection = projection,
+                        )
+                    ),
+                )
+            ),
+            isLoading = false,
+        )
+
+        val selected = state.findMedicineItemByUuid(medicine.uuid)
+
+        assertEquals(projection, selected?.stockProjection)
     }
 }
