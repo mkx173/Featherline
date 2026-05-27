@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.components
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -123,6 +124,7 @@ internal fun MedicationStockSubcard(
     projection: MedicineStockProjection,
     modifier: Modifier = Modifier,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    borderColor: Color? = null,
     shape: Shape = MaterialTheme.shapes.small,
 ) {
     val model = remember(projection) { medicationStockSubcardModel(projection) } ?: return
@@ -133,9 +135,10 @@ internal fun MedicationStockSubcard(
             .testTag(MedicationStockSubcardTestTag),
         color = containerColor,
         shape = shape,
+        border = borderColor?.let { BorderStroke(1.dp, it) },
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(

@@ -30,34 +30,18 @@ class MedicationCardTest {
     }
 
     @Test
-    fun stockSubcardCardSegmentPreservesTopOfFirstRow() {
+    fun stockSubcardHostSegmentPreservesSingleRowShape() {
         assertEquals(
-            MedicationCardWithStockSegment(index = 0, count = 2),
-            medicationCardWithStockCardSegment(rowIndex = 0),
+            MedicationCardWithStockSegment(index = 0, count = 1),
+            medicationCardWithStockHostSegment(rowIndex = 0, rowCount = 1),
         )
     }
 
     @Test
-    fun stockSubcardCardSegmentUsesMiddleShapeForNonFirstRows() {
+    fun stockSubcardHostSegmentPreservesMiddleRowShape() {
         assertEquals(
             MedicationCardWithStockSegment(index = 1, count = 3),
-            medicationCardWithStockCardSegment(rowIndex = 2),
-        )
-    }
-
-    @Test
-    fun stockSubcardBottomSegmentPreservesBottomOfLastRow() {
-        assertEquals(
-            MedicationCardWithStockSegment(index = 1, count = 2),
-            medicationCardWithStockSubcardSegment(rowIndex = 2, rowCount = 3),
-        )
-    }
-
-    @Test
-    fun stockSubcardBottomSegmentUsesMiddleShapeBeforeLastRow() {
-        assertEquals(
-            MedicationCardWithStockSegment(index = 1, count = 3),
-            medicationCardWithStockSubcardSegment(rowIndex = 1, rowCount = 3),
+            medicationCardWithStockHostSegment(rowIndex = 1, rowCount = 3),
         )
     }
 }

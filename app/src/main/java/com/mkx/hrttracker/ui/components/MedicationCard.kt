@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -83,25 +84,11 @@ internal data class MedicationCardWithStockSegment(
     val count: Int,
 )
 
-internal fun medicationCardWithStockCardSegment(
-    rowIndex: Int,
-): MedicationCardWithStockSegment {
-    return if (rowIndex == 0) {
-        MedicationCardWithStockSegment(index = 0, count = 2)
-    } else {
-        MedicationCardWithStockSegment(index = 1, count = 3)
-    }
-}
-
-internal fun medicationCardWithStockSubcardSegment(
+internal fun medicationCardWithStockHostSegment(
     rowIndex: Int,
     rowCount: Int,
 ): MedicationCardWithStockSegment {
-    return if (rowIndex == rowCount - 1) {
-        MedicationCardWithStockSegment(index = 1, count = 2)
-    } else {
-        MedicationCardWithStockSegment(index = 1, count = 3)
-    }
+    return MedicationCardWithStockSegment(index = rowIndex, count = rowCount)
 }
 
 @Composable
@@ -132,48 +119,46 @@ internal fun MedicationCardWithStockSubcard(
 ) {
     val showStockSubcard = medicationStockSubcardModel(stockProjection) != null
     val cardSegment = if (showStockSubcard) {
-        medicationCardWithStockCardSegment(rowIndex = index)
+        medicationCardWithStockHostSegment(rowIndex = index, rowCount = itemCount)
     } else {
         MedicationCardWithStockSegment(index = index, count = itemCount)
     }
-    Column(modifier = modifier.fillMaxWidth()) {
-        MedicationCard(
-            medicine = medicine,
-            doseInstruction = doseInstruction,
-            applicationType = applicationType,
-            medicationCount = medicationCount,
-            groupColorKey = groupColorKey,
-            missingGroupColorTreatment = missingGroupColorTreatment,
-            onClick = onClick,
-            onLongClick = onLongClick,
-            onDeleteClick = onDeleteClick,
-            trailingContent = trailingContent,
-            extraSupportingText = extraSupportingText,
-            supportingTextOverride = supportingTextOverride,
-            containerColor = containerColor,
-            isSelected = isSelected,
-            onLeadingIconClick = onLeadingIconClick,
-            leadingIconContentDescription = leadingIconContentDescription,
-            enabled = enabled,
-            leadingIconAsForm = leadingIconAsForm,
-            index = cardSegment.index,
-            itemCount = cardSegment.count,
-        )
-        if (showStockSubcard && stockProjection != null) {
-            val subcardSegment = medicationCardWithStockSubcardSegment(
-                rowIndex = index,
-                rowCount = itemCount,
-            )
-            MedicationStockSubcard(
-                projection = stockProjection,
-                containerColor = containerColor,
-                shape = segmentedListItemShape(
-                    index = subcardSegment.index,
-                    count = subcardSegment.count,
-                ),
-            )
+    MedicationCard(
+        medicine = medicine,
+        doseInstruction = doseInstruction,
+        applicationType = applicationType,
+        medicationCount = medicationCount,
+        groupColorKey = groupColorKey,
+        missingGroupColorTreatment = missingGroupColorTreatment,
+        onClick = onClick,
+        onLongClick = onLongClick,
+        onDeleteClick = onDeleteClick,
+        trailingContent = trailingContent,
+        extraSupportingText = extraSupportingText,
+        supportingTextOverride = supportingTextOverride,
+        containerColor = containerColor,
+        isSelected = isSelected,
+        onLeadingIconClick = onLeadingIconClick,
+        leadingIconContentDescription = leadingIconContentDescription,
+        enabled = enabled,
+        leadingIconAsForm = leadingIconAsForm,
+        index = cardSegment.index,
+        itemCount = cardSegment.count,
+        modifier = modifier,
+        embeddedContent = if (showStockSubcard && stockProjection != null) {
+            {
+                MedicationStockSubcard(
+                    projection = stockProjection,
+                    modifier = Modifier.fillMaxWidth(),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    borderColor = MaterialTheme.colorScheme.outlineVariant,
+                    shape = MaterialTheme.shapes.small,
+                )
+            }
+        } else {
+            null
         }
-    }
+    )
 }
 
 @Composable
@@ -207,7 +192,8 @@ internal fun MedicationCard(
     leadingIconAsForm: Boolean = false,
     enabled: Boolean = true,
     index: Int = 0,
-    itemCount: Int = 1
+    itemCount: Int = 1,
+    embeddedContent: (@Composable () -> Unit)? = null,
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = groupColorKey)
     val applicationTypeLabel = stringResource(applicationType.labelRes)
@@ -286,64 +272,71 @@ internal fun MedicationCard(
         enabled = enabled,
         containerColor = containerColor
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-            Surface(
-                modifier = leadingIconModifier,
-                shape = MaterialTheme.shapes.small,
-                color = leadingSurfaceColor,
-                contentColor = leadingContentColor
-            ) {
-                Box(
-                    modifier = Modifier.size(36.dp),
-                    contentAlignment = Alignment.Center
+                Surface(
+                    modifier = leadingIconModifier,
+                    shape = MaterialTheme.shapes.small,
+                    color = leadingSurfaceColor,
+                    contentColor = leadingContentColor
                 ) {
-                    if (isSelected) {
-                        Icon(
-                            imageVector = Icons.Rounded.Check,
-                            contentDescription = leadingIconContentDescription,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    } else if (leadingIconAsForm && medicine != null) {
-                        Icon(
-                            painter = painterResource(
-                                medicinePreparationIconRes(medicine.preparation),
-                            ),
-                            contentDescription = leadingIconContentDescription ?: applicationTypeLabel,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    } else {
-                        MedicationApplicationIcon(
-                            applicationType = applicationType,
-                            contentDescription = leadingIconContentDescription ?: applicationTypeLabel,
-                            modifier = Modifier.size(20.dp),
-                        )
+                    Box(
+                        modifier = Modifier.size(36.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = leadingIconContentDescription,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else if (leadingIconAsForm && medicine != null) {
+                            Icon(
+                                painter = painterResource(
+                                    medicinePreparationIconRes(medicine.preparation),
+                                ),
+                                contentDescription = leadingIconContentDescription ?: applicationTypeLabel,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        } else {
+                            MedicationApplicationIcon(
+                                applicationType = applicationType,
+                                contentDescription = leadingIconContentDescription ?: applicationTypeLabel,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
                     }
                 }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = medicationName,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.cjkTextOffset(medicationName),
-                    fontWeight = FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = supportingText,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.cjkTextOffset(supportingText),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            resolvedTrailingContent?.let {
                 Spacer(modifier = Modifier.width(12.dp))
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = medicationName,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.cjkTextOffset(medicationName),
+                        fontWeight = FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = supportingText,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.cjkTextOffset(supportingText),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                resolvedTrailingContent?.let {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    it.invoke()
+                }
+            }
+            embeddedContent?.let {
+                Spacer(modifier = Modifier.height(10.dp))
                 it.invoke()
             }
         }
