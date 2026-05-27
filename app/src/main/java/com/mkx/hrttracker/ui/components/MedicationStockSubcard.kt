@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import java.text.NumberFormat
 import java.util.Locale
 
 internal enum class MedicationStockSubcardTone {
@@ -239,11 +240,9 @@ internal fun compactStockValueText(
 
 private fun formatStockSubcardCount(value: Double?): String {
     val resolved = value?.takeIf { it.isFinite() } ?: return "-"
-    return trimTrailingZeros(String.format(Locale.getDefault(), "%.2f", resolved))
-}
-
-private fun trimTrailingZeros(text: String): String {
-    if (!text.contains('.')) return text
-    val trimmed = text.trimEnd('0').trimEnd('.')
-    return trimmed.ifEmpty { "0" }
+    return NumberFormat.getNumberInstance(Locale.getDefault()).apply {
+        isGroupingUsed = false
+        minimumFractionDigits = 0
+        maximumFractionDigits = 2
+    }.format(resolved)
 }

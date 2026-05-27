@@ -12,6 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
+import java.util.Locale
 
 class MedicationStockSubcardTest {
 
@@ -169,6 +170,35 @@ class MedicationStockSubcardTest {
         val row = model.rows.single()
         assertEquals("- / 10", row.valueText)
         assertEquals(0f, row.progress, 1e-6f)
+    }
+
+    @Test
+    fun compactCountsUseLocalizedDecimalSeparatorWithoutTrailingZeros() {
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.GERMANY)
+        try {
+            val preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 20.0,
+                vialVolumeMl = 5.0,
+            )
+            val model = medicationStockSubcardModel(
+                projection(
+                    preparation = preparation,
+                    stock = MedicineStock(
+                        trackingEnabled = true,
+                        unitsRemaining = 4.0,
+                        unitsLastTotal = 10.0,
+                        openContainerAmount = 1.25,
+                    ),
+                ),
+            )
+
+            requireNotNull(model)
+            assertEquals("1,25 / 5 mL", model.rows[0].valueText)
+            assertEquals("4 / 10", model.rows[1].valueText)
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
     }
 
     @Test
