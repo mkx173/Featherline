@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import kotlinx.coroutines.CoroutineScope
@@ -44,6 +45,10 @@ class MedicineStockRepository @Inject constructor(
     // before Room finishes opening.
     private data class ProjectionsCache(
         val projections: List<MedicineStockProjection>,
+        val medicines: List<Medicine>,
+        val activeGroups: List<MedicationGroup>,
+        val logEntries: List<MedicationLogEntry>,
+        val now: Instant,
         val isLive: Boolean,
     )
 
@@ -56,28 +61,52 @@ class MedicineStockRepository @Inject constructor(
         ) { medicines, groups, logEntries, snapshot ->
             val now = clock.instant()
             when {
-                medicines != null && groups != null && logEntries != null -> ProjectionsCache(
-                    projections = projectAll(
+                medicines != null && groups != null && logEntries != null -> {
+                    val activeGroups = groups.filter { group -> group.archivedAt == null }
+                    ProjectionsCache(
+                        projections = projectAll(
+                            medicines = medicines,
+                            activeGroups = activeGroups,
+                            logEntries = logEntries,
+                            now = now,
+                        ),
                         medicines = medicines,
-                        activeGroups = groups.filter { group -> group.archivedAt == null },
+                        activeGroups = activeGroups,
                         logEntries = logEntries,
                         now = now,
-                    ),
-                    isLive = true,
-                )
-                snapshot != null -> ProjectionsCache(
-                    projections = projectAll(
+                        isLive = true,
+                    )
+                }
+                snapshot != null -> {
+                    ProjectionsCache(
+                        projections = projectAll(
+                            medicines = snapshot.stockMedicines,
+                            activeGroups = snapshot.activeGroups,
+                            logEntries = snapshot.stockFulfillmentEntries,
+                            now = now,
+                        ),
                         medicines = snapshot.stockMedicines,
                         activeGroups = snapshot.activeGroups,
                         logEntries = snapshot.stockFulfillmentEntries,
                         now = now,
-                    ),
-                    isLive = false,
-                )
+                        isLive = false,
+                    )
+                }
                 else -> null
             }
         }
-            .catch { emit(ProjectionsCache(emptyList(), isLive = true)) }
+            .catch {
+                emit(
+                    ProjectionsCache(
+                        projections = emptyList(),
+                        medicines = emptyList(),
+                        activeGroups = emptyList(),
+                        logEntries = emptyList(),
+                        now = clock.instant(),
+                        isLive = true,
+                    )
+                )
+            }
             .stateIn(
                 scope = appScope,
                 started = SharingStarted.Eagerly,
@@ -106,6 +135,22 @@ class MedicineStockRepository @Inject constructor(
     fun getCachedProjection(medicineUuid: UUID): MedicineStockProjection? {
         return projectionsCacheFlow.value?.projections
             ?.firstOrNull { it.medicine.uuid == medicineUuid }
+    }
+
+    fun previewRunway(
+        medicineUuid: UUID,
+        hypotheticalStock: MedicineStock,
+    ): RunwayProjection? {
+        val cache = projectionsCacheFlow.value ?: return null
+        val medicine = cache.medicines.firstOrNull { it.uuid == medicineUuid } ?: return null
+        val zoneId = scheduleZoneId()
+        return ScheduledRunwayCalculator.computeScheduledRunway(
+            medicine = medicine.copy(stock = hypotheticalStock),
+            activeGroups = cache.activeGroups,
+            logEntries = stockWindowLogEntries(cache.logEntries, cache.now, zoneId),
+            now = cache.now,
+            zoneId = zoneId,
+        )
     }
 
     internal fun projectAll(

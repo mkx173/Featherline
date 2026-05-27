@@ -56,9 +56,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
@@ -70,7 +72,6 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.medication.activeDoseAssistPresets
 import java.math.BigDecimal
 import java.util.Locale
-import kotlin.math.floor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,6 +79,7 @@ fun AdjustStockSheet(
     projection: MedicineStockProjection,
     initialTab: AdjustSheetTab,
     receivedOnly: Boolean = false,
+    previewRunway: (MedicineStock) -> RunwayProjection?,
     onRecount: (StockRecount) -> Unit,
     onReceived: (StockReceived) -> Unit,
     onDismissRequest: () -> Unit,
@@ -146,6 +148,7 @@ fun AdjustStockSheet(
                 AdjustSheetTab.RECOUNT -> RecountForm(
                     projection = projection,
                     isContainer = isContainer,
+                    previewRunway = previewRunway,
                     onSubmit = onRecount,
                     onDismiss = onDismissRequest,
                 )
@@ -153,6 +156,7 @@ fun AdjustStockSheet(
                 AdjustSheetTab.RECEIVED -> ReceivedForm(
                     projection = projection,
                     isContainer = isContainer,
+                    previewRunway = previewRunway,
                     onSubmit = onReceived,
                     onDismiss = onDismissRequest,
                 )
@@ -165,6 +169,7 @@ fun AdjustStockSheet(
 private fun RecountForm(
     projection: MedicineStockProjection,
     isContainer: Boolean,
+    previewRunway: (MedicineStock) -> RunwayProjection?,
     onSubmit: (StockRecount) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -177,13 +182,11 @@ private fun RecountForm(
 
     val unitsRemaining = parseAdjustStockCount(unitsRemainingText, allowDecimal)
     val canConfirm = unitsRemaining != null && unitsRemaining >= 0
-    val effectiveSealed = unitsRemaining ?: (stock.unitsRemaining ?: 0.0)
-    val simulatedTotal = if (isContainer) {
-        val containerSize = projection.medicine.preparation.containerSizeUnits()
-        effectiveSealed * containerSize
-    } else {
-        effectiveSealed
-    }
+    val effectiveUnitsRemaining = unitsRemaining ?: (stock.unitsRemaining ?: 0.0)
+    val previewStock = stock.adjustPreviewStock(
+        unitsRemaining = effectiveUnitsRemaining,
+        isContainer = isContainer,
+    )
 
     val stepRecount: (Int) -> Unit = { delta ->
         unitsRemainingText = stepAdjustStockCountText(
@@ -215,7 +218,8 @@ private fun RecountForm(
         }
         AfterPreview(
             projection = projection,
-            simulatedSealedUnits = simulatedTotal,
+            hypotheticalStock = previewStock,
+            previewRunway = previewRunway,
         )
         HrtButton(
             text = stringResource(R.string.stock_adjust_save),
@@ -236,6 +240,7 @@ private fun RecountForm(
 private fun ReceivedForm(
     projection: MedicineStockProjection,
     isContainer: Boolean,
+    previewRunway: (MedicineStock) -> RunwayProjection?,
     onSubmit: (StockReceived) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -259,13 +264,15 @@ private fun ReceivedForm(
 
     val received = parseAdjustStockCount(receivedText, allowDecimal)
     val canConfirm = received != null && received >= 0
-    val simulatedTotal = if (isContainer) {
-        val containerSize = projection.medicine.preparation.containerSizeUnits()
-        val sealed = (projection.medicine.stock.unitsRemaining ?: 0.0) + (received ?: 0.0)
-        sealed * containerSize
+    val effectiveUnitsRemaining = if (isContainer) {
+        (projection.medicine.stock.unitsRemaining ?: 0.0) + (received ?: 0.0)
     } else {
         storedTotalUnits(projection) + (received ?: 0.0)
     }
+    val previewStock = projection.medicine.stock.adjustPreviewStock(
+        unitsRemaining = effectiveUnitsRemaining,
+        isContainer = isContainer,
+    )
 
     val stepReceived: (Int) -> Unit = { delta ->
         receivedText = stepAdjustStockCountText(receivedText, delta, allowDecimal)
@@ -292,7 +299,8 @@ private fun ReceivedForm(
         }
         AfterPreview(
             projection = projection,
-            simulatedSealedUnits = simulatedTotal,
+            hypotheticalStock = previewStock,
+            previewRunway = previewRunway,
         )
         HrtButton(
             text = stringResource(R.string.stock_adjust_add),
@@ -312,38 +320,14 @@ private fun ReceivedForm(
 @Composable
 private fun AfterPreview(
     projection: MedicineStockProjection,
-    simulatedSealedUnits: Double,
+    hypotheticalStock: MedicineStock,
+    previewRunway: (MedicineStock) -> RunwayProjection?,
 ) {
     val preparation = projection.medicine.preparation
-    val runwayTotalUnits = when (preparation) {
-        is MedicinePreparation.InjectionMultiUseVial,
-        is MedicinePreparation.GelContainer -> {
-            val size = preparation.containerSizeUnits()
-            val open = (projection.medicine.stock.openContainerAmount ?: 0.0)
-                .coerceIn(0.0, size)
-            simulatedSealedUnits + open
-        }
-
-        else -> simulatedSealedUnits
+    val runway = previewRunway(hypotheticalStock)?.let { runwayProjection ->
+        adjustPreviewRunwayText(runwayProjection)
     }
-    val rate = projection.dosesPerDayMagnitude
-    val runway = if (rate > 0.0) {
-        stringResource(
-            R.string.stock_runway_days_remaining,
-            floor(runwayTotalUnits / rate).toInt(),
-        )
-    } else {
-        null
-    }
-    val displayCount = when (preparation) {
-        is MedicinePreparation.InjectionMultiUseVial,
-        is MedicinePreparation.GelContainer -> {
-            val size = preparation.containerSizeUnits()
-            if (size > 0.0) simulatedSealedUnits / size else 0.0
-        }
-
-        else -> simulatedSealedUnits
-    }
+    val displayCount = hypotheticalStock.unitsRemaining ?: 0.0
     val title = stringResource(
         R.string.stock_adjust_after,
         formatCount(displayCount),
@@ -355,6 +339,31 @@ private fun AfterPreview(
         painter = painterResource(R.drawable.ic_arrow_forward),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
     )
+}
+
+private fun MedicineStock.adjustPreviewStock(
+    unitsRemaining: Double,
+    isContainer: Boolean,
+): MedicineStock {
+    val resolvedUnitsRemaining = unitsRemaining.coerceAtLeast(0.0)
+    return copy(
+        trackingEnabled = true,
+        unitsRemaining = resolvedUnitsRemaining,
+        unitsLastTotal = resolvedUnitsRemaining,
+        openContainerAmount = if (isContainer && trackingEnabled) openContainerAmount else null,
+    )
+}
+
+@Composable
+private fun adjustPreviewRunwayText(runway: RunwayProjection): String {
+    return when (runway) {
+        is RunwayProjection.Days -> stringResource(
+            R.string.stock_runway_days_remaining,
+            runway.days,
+        )
+        RunwayProjection.BeyondHorizon -> stringResource(R.string.stock_runway_more_than_one_year)
+        RunwayProjection.NoSchedule -> stringResource(R.string.stock_runway_unknown_title)
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -631,6 +640,7 @@ private fun AdjustStockSheetPillRecountPreview() {
                 state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY,
             ),
             isContainer = false,
+            previewRunway = { null },
             onSubmit = {},
             onDismiss = {},
         )
@@ -658,6 +668,7 @@ private fun AdjustStockSheetSingleUseVialReceivedPreview() {
                 state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY,
             ),
             isContainer = false,
+            previewRunway = { null },
             onSubmit = {},
             onDismiss = {},
         )
@@ -688,6 +699,7 @@ private fun AdjustStockSheetMultiUseVialReceivedPreview() {
                 state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY,
             ),
             isContainer = true,
+            previewRunway = { null },
             onSubmit = {},
             onDismiss = {},
         )

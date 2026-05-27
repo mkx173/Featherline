@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -78,6 +79,7 @@ import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.catalog.stock.OpenContainerEditDialog
 import com.mkx.hrttracker.ui.catalog.stock.StockSection
@@ -175,6 +177,7 @@ fun MedicineDetailScreen(
         onCloseDisableConfirmation = viewModel::closeDisableConfirmation,
         onSubmitRecount = { recount -> viewModel.submitRecount(recount) },
         onSubmitReceived = { received -> viewModel.submitReceived(received) },
+        previewRunway = viewModel::previewRunway,
         onSubmitWarnAt = { days -> viewModel.submitWarnAt(days) },
         onConfirmDisableTracking = { viewModel.confirmDisableTracking() },
         onArchive = { viewModel.archive() },
@@ -207,6 +210,7 @@ private fun MedicineDetailScreenContent(
     onCloseDisableConfirmation: () -> Unit,
     onSubmitRecount: (StockRecount) -> Unit,
     onSubmitReceived: (StockReceived) -> Unit,
+    previewRunway: (MedicineStock) -> RunwayProjection?,
     onSubmitWarnAt: (Int) -> Unit,
     onConfirmDisableTracking: () -> Unit,
     onArchive: () -> Unit,
@@ -502,6 +506,7 @@ private fun MedicineDetailScreenContent(
             receivedOnly = uiState.pendingEnableTracking,
             onRecount = onSubmitRecount,
             onReceived = onSubmitReceived,
+            previewRunway = previewRunway,
             onDismissRequest = onCloseAdjustSheet,
         )
     }

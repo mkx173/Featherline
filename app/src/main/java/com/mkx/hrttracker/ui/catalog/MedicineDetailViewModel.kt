@@ -9,6 +9,7 @@ import com.mkx.hrttracker.data.repository.MedicineLockedException
 import com.mkx.hrttracker.data.repository.MedicineReferencedByActiveGroupException
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
@@ -17,6 +18,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
@@ -237,6 +239,10 @@ class MedicineDetailViewModel @Inject constructor(
 
     fun submitWarnAt(days: Int): Job = viewModelScope.launch {
         medicineRepository.updateWarnAtDaysRemaining(medicineUuid, days)
+    }
+
+    fun previewRunway(hypotheticalStock: MedicineStock): RunwayProjection? {
+        return stockRepository.previewRunway(medicineUuid, hypotheticalStock)
     }
 
     fun submitRecount(recount: StockRecount): Job = viewModelScope.launch {

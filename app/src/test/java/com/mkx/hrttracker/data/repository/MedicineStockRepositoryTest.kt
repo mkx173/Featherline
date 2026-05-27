@@ -330,6 +330,57 @@ class MedicineStockRepositoryTest {
         assertEquals(RunwayProjection.Days(1, LocalDate.of(2026, 1, 2)), projection.runway)
     }
 
+    @Test
+    fun previewRunwayUsesCachedScheduleAwareInputsForHypotheticalStock() = runTest {
+        val medicine = patch(
+            MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 1.0,
+                unitsLastTotal = 1.0,
+                openContainerAmount = null,
+                warnAtDaysRemaining = 14,
+                generation = 1L,
+            )
+        )
+        val group = weeklyGroup(
+            medicine = medicine,
+            weeklyDaysOfWeek = setOf(DayOfWeek.THURSDAY),
+            applicationType = MedicationApplicationType.PATCH_ON,
+            doseInstruction = DoseInstruction.WholeUnit,
+        )
+        val medicines = MutableStateFlow(listOf(medicine))
+        every { medicineRepository.observeAllActive() } returns medicines
+        every { medicineRepository.observeAllActiveOrNull() } returns medicines
+        every { medicationGroupRepository.observeGroups() } returns
+            MutableStateFlow<List<MedicationGroup>?>(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
+        val projectionScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val repository = MedicineStockRepository(
+                medicineRepository = medicineRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicationLogRepository = medicationLogRepository,
+                homeSnapshotRepository = homeSnapshotRepository,
+                appScope = projectionScope,
+                clock = clock,
+            )
+            advanceUntilIdle()
+
+            val preview = repository.previewRunway(
+                medicineUuid = medicine.uuid,
+                hypotheticalStock = medicine.stock.copy(unitsRemaining = 4.0),
+            )
+
+            assertEquals(
+                RunwayProjection.Days(days = 21, lastFulfillable = LocalDate.of(2026, 1, 22)),
+                preview,
+            )
+        } finally {
+            projectionScope.cancel()
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun observeProjectionsCombinesMedicinesGroupsAndLogEntries() = runTest {
@@ -468,6 +519,13 @@ class MedicineStockRepositoryTest {
         return medicine(preparation = preparation, stock = stock)
     }
 
+    private fun patch(stock: MedicineStock): Medicine {
+        val preparation = MedicinePreparation.Patch(
+            MedicinePreparation.PatchSpecification.TotalMg(valueMg = 1.0),
+        )
+        return medicine(preparation = preparation, stock = stock)
+    }
+
     private fun medicine(
         preparation: MedicinePreparation,
         stock: MedicineStock,
@@ -524,6 +582,8 @@ class MedicineStockRepositoryTest {
     private fun weeklyGroup(
         medicine: Medicine,
         weeklyDaysOfWeek: Set<DayOfWeek>,
+        applicationType: MedicationApplicationType = MedicationApplicationType.ORAL,
+        doseInstruction: DoseInstruction = DoseInstruction.TabletFraction(1, 1),
     ): MedicationGroup {
         return MedicationGroup(
             uuid = groupUuid,
@@ -540,8 +600,8 @@ class MedicineStockRepositoryTest {
                 MedicationGroupMedication(
                     uuid = UUID.fromString("33333333-3333-3333-3333-333333333333"),
                     medicine = medicine,
-                    applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    applicationType = applicationType,
+                    doseInstruction = doseInstruction,
                     count = 1,
                 )
             ),
