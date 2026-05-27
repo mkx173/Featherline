@@ -593,6 +593,7 @@
     <string name="personalization_weight_dialog_save">保存</string>
     <string name="personalization_weight_dialog_clear">清除</string>
     <string name="personalization_weight_validation_invalid">请输入有效的体重</string>
+    <string name="personalization_weight_update_failed">无法更新体重。</string>
     <string name="app_language_english">English</string>
     <string name="app_language_simplified_chinese">简体中文</string>
     <string name="first_day_of_week_follow_system">默认</string>

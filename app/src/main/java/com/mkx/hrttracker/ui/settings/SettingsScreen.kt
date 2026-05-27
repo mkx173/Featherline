@@ -180,6 +180,7 @@ fun SettingsScreen(
         stringResource(R.string.settings_backup_restore_incompatible_file)
     val backupRestoreFailedMessage = stringResource(R.string.settings_backup_restore_failed)
     val backupRestoreSuccessMessage = stringResource(R.string.settings_backup_restore_success)
+    val weightMutationFailedMessage = stringResource(R.string.personalization_weight_update_failed)
 
     // Restore runs in viewModelScope so it survives the activity recreate
     // that the restored app-locale setting triggers. Results come back
@@ -197,6 +198,20 @@ fun SettingsScreen(
             }
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             viewModel.consumeBackupRestoreEvent()
+        }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.weightMutationEvents.collect { event ->
+            when (event) {
+                is WeightMutationEvent.Failure -> {
+                    Toast.makeText(
+                        context,
+                        weightMutationFailedMessage,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+            viewModel.consumeWeightMutationEvent()
         }
     }
     val diagnosticsExportSuccessMessage = stringResource(R.string.settings_diagnostics_export_success)
@@ -685,7 +700,7 @@ private fun WidgetAppearanceDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsScreenContent(
+internal fun SettingsScreenContent(
     modifier: Modifier = Modifier,
     uiState: SettingsUiState,
     hasNotificationAccess: Boolean,
@@ -717,7 +732,6 @@ private fun SettingsScreenContent(
     val settingsState = uiState.settingsState
     val context = LocalContext.current
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
-    var pendingWeightMutationCompletionToken by rememberSaveable { mutableStateOf<Long?>(null) }
     var showExactAlarmRecoveryDialog by rememberSaveable { mutableStateOf(false) }
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingExternalLinkTitleRes by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -779,23 +793,6 @@ private fun SettingsScreenContent(
         }
     }
 
-    LaunchedEffect(
-        showWeightDialog,
-        pendingWeightMutationCompletionToken,
-        uiState.isWeightMutationInProgress,
-        uiState.weightMutationCompletionToken,
-    ) {
-        val pendingToken = pendingWeightMutationCompletionToken ?: return@LaunchedEffect
-        if (
-            showWeightDialog &&
-            !uiState.isWeightMutationInProgress &&
-            uiState.weightMutationCompletionToken > pendingToken
-        ) {
-            pendingWeightMutationCompletionToken = null
-            showWeightDialog = false
-        }
-    }
-
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -835,7 +832,11 @@ private fun SettingsScreenContent(
                     supportingCjkTextOffsetEnabled = uiState.userProfile.weightOriginalValue == null,
                     index = 0,
                     count = 2,
-                    onClick = { showWeightDialog = true },
+                    onClick = {
+                        if (!uiState.isWeightMutationInProgress) {
+                            showWeightDialog = true
+                        }
+                    },
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             painter = painterResource(R.drawable.ic_monitor_weight)
@@ -1587,16 +1588,15 @@ private fun SettingsScreenContent(
         WeightDialog(
             profile = uiState.userProfile,
             onSave = { value, unit ->
-                pendingWeightMutationCompletionToken = uiState.weightMutationCompletionToken
+                showWeightDialog = false
                 onWeightSave(value, unit)
             },
             onClear = {
-                pendingWeightMutationCompletionToken = uiState.weightMutationCompletionToken
+                showWeightDialog = false
                 onWeightClear()
             },
             onDismiss = {
                 if (!uiState.isWeightMutationInProgress) {
-                    pendingWeightMutationCompletionToken = null
                     showWeightDialog = false
                 }
             },

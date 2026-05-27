@@ -60,7 +60,10 @@ class SettingsViewModel @Inject constructor(
     private val isBackupExportInProgress = MutableStateFlow(false)
     private val isBackupRestoreInProgress = MutableStateFlow(false)
     private val isWeightMutationInProgress = MutableStateFlow(false)
-    private val weightMutationCompletionToken = MutableStateFlow(0L)
+    private val weightEvents = MutableSharedFlow<WeightMutationEvent>(
+        replay = 1,
+        extraBufferCapacity = 4,
+    )
     // Replay the most recent result so the UI still sees it after a config
     // change recreates the collector. The restore itself sets the app locale,
     // which triggers an activity recreate; without replay the success/failure
@@ -81,7 +84,6 @@ class SettingsViewModel @Inject constructor(
         isBackupExportInProgress,
         isBackupRestoreInProgress,
         isWeightMutationInProgress,
-        weightMutationCompletionToken,
     ) { values ->
         val settingsState = values[0] as SettingsState
         val profile = values[1] as UserProfile?
@@ -92,7 +94,6 @@ class SettingsViewModel @Inject constructor(
         val exportInProgress = values[6] as Boolean
         val restoreInProgress = values[7] as Boolean
         val weightInProgress = values[8] as Boolean
-        val weightCompletionToken = values[9] as Long
         SettingsUiState(
             settingsState = settingsState,
             userProfile = profile ?: UserProfile(),
@@ -103,7 +104,6 @@ class SettingsViewModel @Inject constructor(
             isBackupExportInProgress = exportInProgress,
             isBackupRestoreInProgress = restoreInProgress,
             isWeightMutationInProgress = weightInProgress,
-            weightMutationCompletionToken = weightCompletionToken,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -133,8 +133,11 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 block()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                weightEvents.tryEmit(WeightMutationEvent.Failure(error))
             } finally {
-                weightMutationCompletionToken.value += 1L
                 isWeightMutationInProgress.value = false
             }
         }
@@ -398,10 +401,16 @@ class SettingsViewModel @Inject constructor(
     }
 
     val backupRestoreEvents: SharedFlow<BackupRestoreEvent> = restoreEvents.asSharedFlow()
+    val weightMutationEvents: SharedFlow<WeightMutationEvent> = weightEvents.asSharedFlow()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun consumeBackupRestoreEvent() {
         restoreEvents.resetReplayCache()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun consumeWeightMutationEvent() {
+        weightEvents.resetReplayCache()
     }
 
     suspend fun validateBackupFile(
@@ -508,7 +517,6 @@ data class SettingsUiState(
     val isBackupExportInProgress: Boolean = false,
     val isBackupRestoreInProgress: Boolean = false,
     val isWeightMutationInProgress: Boolean = false,
-    val weightMutationCompletionToken: Long = 0L,
 )
 
 data class PendingPreparedBackupExport(
@@ -519,6 +527,10 @@ data class PendingPreparedBackupExport(
 sealed class BackupRestoreEvent {
     data object Success : BackupRestoreEvent()
     data class Failure(val error: Throwable) : BackupRestoreEvent()
+}
+
+sealed class WeightMutationEvent {
+    data class Failure(val error: Throwable) : WeightMutationEvent()
 }
 
 class PendingBackupRestoreRequest(

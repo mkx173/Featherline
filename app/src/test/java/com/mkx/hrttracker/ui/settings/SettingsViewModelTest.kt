@@ -24,7 +24,9 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -193,6 +195,42 @@ class SettingsViewModelTest {
         allowWriteToFinish.complete(Unit)
         advanceUntilIdle()
 
+        assertFalse(viewModel.uiState.value.isWeightMutationInProgress)
+    }
+
+    @Test
+    fun setWeightFailureEmitsFailureEventAndClearsProgress() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val failure = IllegalStateException("write failed")
+        coEvery {
+            userProfileRepository.setWeight(72.0, WeightUnit.KILOGRAMS, any())
+        } throws failure
+        val event = backgroundScope.async { viewModel.weightMutationEvents.first() }
+
+        viewModel.setWeight(72.0, WeightUnit.KILOGRAMS)
+        advanceUntilIdle()
+
+        val failureEvent = event.await() as WeightMutationEvent.Failure
+        assertSame(failure, failureEvent.error)
+        assertFalse(viewModel.uiState.value.isWeightMutationInProgress)
+    }
+
+    @Test
+    fun clearWeightFailureEmitsFailureEventAndClearsProgress() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val failure = IllegalStateException("clear failed")
+        coEvery {
+            userProfileRepository.clearWeight(any())
+        } throws failure
+        val event = backgroundScope.async { viewModel.weightMutationEvents.first() }
+
+        viewModel.clearWeight()
+        advanceUntilIdle()
+
+        val failureEvent = event.await() as WeightMutationEvent.Failure
+        assertSame(failure, failureEvent.error)
         assertFalse(viewModel.uiState.value.isWeightMutationInProgress)
     }
 
