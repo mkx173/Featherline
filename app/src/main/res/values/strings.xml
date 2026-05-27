@@ -330,8 +330,8 @@
     <string name="medicine_linked_groups">Active groups</string>
     <string name="medicine_linked_groups_empty">No active groups use this medicine.</string>
     <string name="medicine_archive_action">Archive</string>
-    <string name="medicine_archive_confirm_title">Archive medicine?</string>
-    <string name="medicine_archive_confirm_message">The medicine will be hidden from pickers. Logged history is preserved.</string>
+    <string name="medicine_archive_confirm_title">Archive medicine</string>
+    <string name="medicine_archive_confirm_message">Archive this medicine? Logged history will be kept.</string>
     <string name="medicine_archive_blocked_by_groups">Remove this medicine from active groups before archiving.</string>
     <plurals name="medicine_archive_blocked_count">
         <item quantity="one">%1$d active group is using this medicine.</item>

@@ -317,8 +317,8 @@
     <string name="medicine_linked_groups">活跃分组</string>
     <string name="medicine_linked_groups_empty">没有活跃分组使用此药物</string>
     <string name="medicine_archive_action">归档</string>
-    <string name="medicine_archive_confirm_title">归档药物？</string>
-    <string name="medicine_archive_confirm_message">此药物会从选择器中隐藏，历史记录会保留</string>
+    <string name="medicine_archive_confirm_title">归档药物</string>
+    <string name="medicine_archive_confirm_message">要归档这个药物吗？历史记录会保留</string>
     <string name="medicine_archive_blocked_by_groups">请先从活跃分组中移除此药物再归档</string>
     <plurals name="medicine_archive_blocked_count">
         <item quantity="other">%1$d 个活跃分组正在使用此药物</item>
