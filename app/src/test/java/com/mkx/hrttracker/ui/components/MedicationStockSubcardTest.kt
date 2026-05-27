@@ -136,6 +136,42 @@ class MedicationStockSubcardTest {
     }
 
     @Test
+    fun invalidDenominatorShowsCurrentOnlyWithEmptyProgress() {
+        val model = medicationStockSubcardModel(
+            projection(
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 4.0,
+                    unitsLastTotal = Double.NaN,
+                ),
+            ),
+        )
+
+        requireNotNull(model)
+        val row = model.rows.single()
+        assertEquals("4", row.valueText)
+        assertEquals(0f, row.progress, 1e-6f)
+    }
+
+    @Test
+    fun invalidNumeratorUsesDashWithEmptyProgress() {
+        val model = medicationStockSubcardModel(
+            projection(
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = Double.POSITIVE_INFINITY,
+                    unitsLastTotal = 10.0,
+                ),
+            ),
+        )
+
+        requireNotNull(model)
+        val row = model.rows.single()
+        assertEquals("- / 10", row.valueText)
+        assertEquals(0f, row.progress, 1e-6f)
+    }
+
+    @Test
     fun sealedOnlyContainerOmitsOpenRowButKeepsSealedRow() {
         val preparation = MedicinePreparation.InjectionMultiUseVial(
             concentrationMgPerMl = 20.0,

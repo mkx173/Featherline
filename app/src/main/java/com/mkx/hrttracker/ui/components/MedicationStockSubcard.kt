@@ -219,8 +219,8 @@ internal fun stockSubcardProgress(
     numerator: Double?,
     denominator: Double?,
 ): Float {
-    val resolvedNumerator = numerator ?: return 0f
-    val resolvedDenominator = denominator ?: return 0f
+    val resolvedNumerator = numerator?.takeIf { it.isFinite() } ?: return 0f
+    val resolvedDenominator = denominator?.takeIf { it.isFinite() } ?: return 0f
     if (resolvedDenominator <= 0.0) return 0f
     return (resolvedNumerator / resolvedDenominator).toFloat().coerceIn(0f, 1f)
 }
@@ -231,12 +231,14 @@ internal fun compactStockValueText(
     suffix: String = "",
 ): String {
     val numeratorText = formatStockSubcardCount(numerator)
-    if (denominator == null || denominator <= 0.0) return "$numeratorText$suffix"
+    if (denominator == null || !denominator.isFinite() || denominator <= 0.0) {
+        return "$numeratorText$suffix"
+    }
     return "$numeratorText / ${formatStockSubcardCount(denominator)}$suffix"
 }
 
 private fun formatStockSubcardCount(value: Double?): String {
-    val resolved = value ?: return "-"
+    val resolved = value?.takeIf { it.isFinite() } ?: return "-"
     return trimTrailingZeros(String.format(Locale.getDefault(), "%.2f", resolved))
 }
 
