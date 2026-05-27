@@ -36,8 +36,7 @@ import javax.inject.Inject
 
 /**
  * Backs `MedicineDetailScreen`. Owns:
- *  - the currently-observed [Medicine] (live from
- *    [MedicineRepository.observeAllActive] / [MedicineRepository.observeAllArchived]);
+ *  - the currently-observed [Medicine] (live from [MedicineRepository.observeByUuid]);
  *  - the list of active groups that still reference the medicine — the input
  *    to the archive-blocking guard;
  *  - the locked flag (true if any log row references the medicine, which the
@@ -53,7 +52,7 @@ class MedicineDetailViewModel @Inject constructor(
     private val medicineRepository: MedicineRepository,
     medicationGroupRepository: MedicationGroupRepository,
     private val stockRepository: MedicineStockRepository,
-    settingsRepository: SettingsRepository,
+    private val settingsRepository: SettingsRepository,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -72,7 +71,10 @@ class MedicineDetailViewModel @Inject constructor(
     private val archiveResultFlow = MutableStateFlow<MedicineArchiveResult?>(null)
     private val saveResultFlow = MutableStateFlow<MedicineDetailSaveResult?>(null)
 
-    private val _uiState = MutableStateFlow(MedicineDetailUiState())
+    // Seed from the eagerly-cached repo StateFlows so the first composition
+    // lands on a populated screen (medicine != null, stock subcard present)
+    // instead of a centered loading spinner that pops to populated content.
+    private val _uiState = MutableStateFlow(initialUiStateFromCaches(medicationGroupRepository))
     val uiState: StateFlow<MedicineDetailUiState> = _uiState.asStateFlow()
 
     init {
@@ -81,8 +83,7 @@ class MedicineDetailViewModel @Inject constructor(
         // setPreparationDraft (UI-owned local state).
         viewModelScope.launch {
             combine(
-                medicineRepository.observeAllActive(),
-                medicineRepository.observeAllArchived(),
+                medicineRepository.observeByUuid(medicineUuid),
                 medicationGroupRepository.observeGroups().map { it.orEmpty() },
                 isLockedFlow,
                 combine(
@@ -106,10 +107,9 @@ class MedicineDetailViewModel @Inject constructor(
                         stockProjection = stockProjection,
                     )
                 },
-            ) { active, archived, groups, isLocked, derived ->
+            ) { medicine, groups, isLocked, derived ->
                 buildState(
-                    active = active,
-                    archived = archived,
+                    medicine = medicine,
                     groups = groups,
                     isLocked = isLocked,
                     displayNameDraft = derived.displayNameDraft,
@@ -390,9 +390,28 @@ class MedicineDetailViewModel @Inject constructor(
         }
     }
 
+    private fun initialUiStateFromCaches(
+        medicationGroupRepository: MedicationGroupRepository,
+    ): MedicineDetailUiState {
+        val medicine = medicineRepository.getCachedActiveMedicine(medicineUuid)
+        if (medicine == null) {
+            return MedicineDetailUiState()
+        }
+        return buildState(
+            medicine = medicine,
+            groups = medicationGroupRepository.getCachedGroups().orEmpty(),
+            isLocked = false,
+            displayNameDraft = null,
+            archiveResult = null,
+            saveResult = null,
+            firstDayOfWeek = settingsRepository.settingsState.value.firstDayOfWeekOption
+                .resolve(systemLocale()),
+            stockProjection = stockRepository.getCachedProjection(medicineUuid),
+        )
+    }
+
     private fun buildState(
-        active: List<Medicine>,
-        archived: List<Medicine>,
+        medicine: Medicine?,
         groups: List<MedicationGroup>,
         isLocked: Boolean,
         displayNameDraft: String?,
@@ -401,7 +420,6 @@ class MedicineDetailViewModel @Inject constructor(
         firstDayOfWeek: DayOfWeek,
         stockProjection: MedicineStockProjection?,
     ): MedicineDetailUiState {
-        val medicine = (active + archived).firstOrNull { it.uuid == medicineUuid }
         val linkedActiveSlots = if (medicine == null) {
             emptyList()
         } else {

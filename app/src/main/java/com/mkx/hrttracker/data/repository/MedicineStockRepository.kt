@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.data.repository
 
+import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
@@ -7,12 +8,19 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -21,11 +29,12 @@ class MedicineStockRepository @Inject constructor(
     private val medicineRepository: MedicineRepository,
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
+    @AppScope appScope: CoroutineScope,
     private val clock: Clock = Clock.systemDefaultZone(),
 ) {
 
-    fun observeProjections(): Flow<List<MedicineStockProjection>> {
-        return combine(
+    private val projectionsFlow: StateFlow<List<MedicineStockProjection>?> =
+        combine(
             medicineRepository.observeAllActive(),
             medicationGroupRepository.observeGroups(),
             medicationLogRepository.observeEntries(),
@@ -37,6 +46,25 @@ class MedicineStockRepository @Inject constructor(
                 now = clock.instant(),
             )
         }
+            .catch { emit(emptyList()) }
+            .stateIn(
+                scope = appScope,
+                started = SharingStarted.Eagerly,
+                initialValue = null,
+            )
+
+    fun observeProjections(): Flow<List<MedicineStockProjection>> = projectionsFlow.filterNotNull()
+
+    /**
+     * Synchronous read of the eagerly-cached projections. Returns `null` until
+     * the combined upstream flows produce their first emission; lets
+     * ViewModels seed `stateIn` `initialValue` so the first composition lands
+     * on a populated stock subcard instead of a missing-then-popping one.
+     */
+    fun getCachedProjections(): List<MedicineStockProjection>? = projectionsFlow.value
+
+    fun getCachedProjection(medicineUuid: UUID): MedicineStockProjection? {
+        return projectionsFlow.value?.firstOrNull { it.medicine.uuid == medicineUuid }
     }
 
     internal fun projectAll(

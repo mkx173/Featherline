@@ -6,6 +6,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
+import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
@@ -17,11 +18,17 @@ import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.normalizeCustomMedicationName
 import com.mkx.hrttracker.util.ToastManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
@@ -33,29 +40,44 @@ class MedicineRepository @Inject internal constructor(
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val stockMutator: MedicineStockMutator,
+    @AppScope appScope: CoroutineScope,
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun observeAllActive(): Flow<List<Medicine>> {
-        return databaseHolder.databaseFlow.flatMapLatest { database ->
-            database?.medicineDao()?.observeAllActive()
-                ?.map { entities -> entities.map(MedicineEntity::toMedicineModel) }
-                ?: flowOf(emptyList())
-        }
+    private val activeMedicinesFlow: StateFlow<List<Medicine>?> =
+        databaseHolder.databaseFlow
+            .flatMapLatest { database ->
+                if (database == null) {
+                    flowOf<List<Medicine>?>(null)
+                } else {
+                    database.medicineDao().observeAllActive()
+                        .map { entities -> entities.map(MedicineEntity::toMedicineModel) }
+                        .catch { emit(emptyList()) }
+                }
+            }
+            .stateIn(
+                scope = appScope,
+                started = SharingStarted.Eagerly,
+                initialValue = null,
+            )
+
+    fun observeAllActive(): Flow<List<Medicine>> = activeMedicinesFlow.filterNotNull()
+
+    /**
+     * Synchronous read of the eagerly-cached active list. Returns `null` until
+     * Room's first emission populates [activeMedicinesFlow]; lets ViewModels
+     * seed `stateIn` `initialValue` so the first composition lands on
+     * populated state instead of a loading flash.
+     */
+    fun getCachedActiveMedicines(): List<Medicine>? = activeMedicinesFlow.value
+
+    fun getCachedActiveMedicine(uuid: UUID): Medicine? {
+        return activeMedicinesFlow.value?.firstOrNull { it.uuid == uuid }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeAllActiveTracked(): Flow<List<Medicine>> {
         return databaseHolder.databaseFlow.flatMapLatest { database ->
             database?.medicineDao()?.observeAllActiveTracked()
-                ?.map { entities -> entities.map(MedicineEntity::toMedicineModel) }
-                ?: flowOf(emptyList())
-        }
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    fun observeAllArchived(): Flow<List<Medicine>> {
-        return databaseHolder.databaseFlow.flatMapLatest { database ->
-            database?.medicineDao()?.observeAllArchived()
                 ?.map { entities -> entities.map(MedicineEntity::toMedicineModel) }
                 ?: flowOf(emptyList())
         }

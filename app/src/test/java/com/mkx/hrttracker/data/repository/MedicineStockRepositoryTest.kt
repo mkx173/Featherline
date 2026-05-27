@@ -17,18 +17,23 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -43,12 +48,14 @@ import java.time.ZoneOffset
 import java.util.TimeZone
 import java.util.UUID
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class MedicineStockRepositoryTest {
 
     private lateinit var medicineRepository: MedicineRepository
     private lateinit var medicationGroupRepository: MedicationGroupRepository
     private lateinit var medicationLogRepository: MedicationLogRepository
     private lateinit var repository: MedicineStockRepository
+    private lateinit var appScope: CoroutineScope
     private lateinit var originalTimeZone: TimeZone
 
     private val medicineUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
@@ -62,16 +69,22 @@ class MedicineStockRepositoryTest {
         medicineRepository = mockk(relaxed = true)
         medicationGroupRepository = mockk(relaxed = true)
         medicationLogRepository = mockk(relaxed = true)
+        appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        every { medicineRepository.observeAllActive() } returns MutableStateFlow(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns MutableStateFlow(emptyList())
+        every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
         repository = MedicineStockRepository(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            appScope = appScope,
             clock = clock,
         )
     }
 
     @After
     fun tearDown() {
+        appScope.cancel()
         TimeZone.setDefault(originalTimeZone)
     }
 
@@ -332,17 +345,69 @@ class MedicineStockRepositoryTest {
         every { medicineRepository.observeAllActive() } returns medicines
         every { medicationGroupRepository.observeGroups() } returns groups
         every { medicationLogRepository.observeEntries() } returns logs
-        val emissions = mutableListOf<List<com.mkx.hrttracker.model.medication.MedicineStockProjection>>()
+        val projectionScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val repository = MedicineStockRepository(
+                medicineRepository = medicineRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicationLogRepository = medicationLogRepository,
+                appScope = projectionScope,
+                clock = clock,
+            )
+            advanceUntilIdle()
 
-        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
-            repository.observeProjections().take(2).toList(emissions)
+            val initial = repository.observeProjections().first()
+            assertEquals(RunwayProjection.Days(1, LocalDate.of(2026, 1, 2)), initial.single().runway)
+
+            logs.value = listOf(logForToday(group = group, medicine = medicine))
+            advanceUntilIdle()
+
+            val updated = repository.observeProjections().first()
+            assertEquals(RunwayProjection.Days(2, LocalDate.of(2026, 1, 3)), updated.single().runway)
+        } finally {
+            projectionScope.cancel()
         }
-        logs.value = listOf(logForToday(group = group, medicine = medicine))
-        advanceUntilIdle()
-        job.join()
+    }
 
-        assertEquals(RunwayProjection.Days(1, LocalDate.of(2026, 1, 2)), emissions[0].single().runway)
-        assertEquals(RunwayProjection.Days(2, LocalDate.of(2026, 1, 3)), emissions[1].single().runway)
+    @Test
+    fun observeProjections_sharesSingleUpstreamSubscriptionAcrossCollectors() = runTest {
+        val medicine = pill(
+            MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 2.0,
+                unitsLastTotal = 30.0,
+                openContainerAmount = null,
+                warnAtDaysRemaining = 0,
+                generation = 1L,
+            )
+        )
+        every { medicineRepository.observeAllActive() } returns MutableStateFlow(listOf(medicine))
+        every { medicationGroupRepository.observeGroups() } returns MutableStateFlow<List<MedicationGroup>?>(emptyList())
+        every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
+        clearMocks(
+            medicineRepository,
+            medicationGroupRepository,
+            medicationLogRepository,
+            answers = false,
+            recordedCalls = true,
+        )
+        val repository = MedicineStockRepository(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            appScope = backgroundScope,
+            clock = clock,
+        )
+
+        val first = async { repository.observeProjections().first() }
+        val second = async { repository.observeProjections().first() }
+        advanceUntilIdle()
+
+        assertEquals(medicine.uuid, first.await().single().medicine.uuid)
+        assertEquals(medicine.uuid, second.await().single().medicine.uuid)
+        verify(exactly = 1) { medicineRepository.observeAllActive() }
+        verify(exactly = 1) { medicationGroupRepository.observeGroups() }
+        verify(exactly = 1) { medicationLogRepository.observeEntries() }
     }
 
     @Test

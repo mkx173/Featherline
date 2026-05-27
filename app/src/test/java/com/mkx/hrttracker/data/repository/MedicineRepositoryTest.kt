@@ -24,8 +24,14 @@ import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.unmockkObject
 import io.mockk.verify
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -48,10 +54,12 @@ class MedicineRepositoryTest {
     private val stockMutator: MedicineStockMutator = mockk(relaxed = true)
     private val duplicateMedicineMessage = "Medicine already exists."
 
+    private lateinit var appScope: CoroutineScope
     private lateinit var repository: MedicineRepository
 
     @Before
     fun setUp() {
+        appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         mockkObject(ToastManager)
         every { ToastManager.showMessage(any()) } just Runs
 
@@ -72,11 +80,13 @@ class MedicineRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
+            appScope = appScope,
         )
     }
 
     @After
     fun tearDown() {
+        appScope.cancel()
         unmockkObject(ToastManager)
     }
 
@@ -341,6 +351,28 @@ class MedicineRepositoryTest {
         assertEquals(Instant.ofEpochMilli(200), medicine.updatedAt)
         coVerify(exactly = 1) { dao.insert(any()) }
         coVerify(exactly = 0) { dao.unarchive(any(), any()) }
+    }
+
+    @Test
+    fun observeAllActive_sharesSingleDaoSubscriptionAcrossCollectors() = runTest {
+        val entity = medicineEntity()
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns MutableStateFlow(listOf(entity))
+        val repository = MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = appScope,
+        )
+
+        val first = async { repository.observeAllActive().first() }
+        val second = async { repository.observeAllActive().first() }
+        advanceUntilIdle()
+
+        assertEquals(listOf(entity.toMedicineModel()), first.await())
+        assertEquals(listOf(entity.toMedicineModel()), second.await())
+        verify(exactly = 1) { dao.observeAllActive() }
     }
 
     @Test

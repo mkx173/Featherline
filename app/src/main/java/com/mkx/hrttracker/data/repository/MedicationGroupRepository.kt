@@ -75,6 +75,8 @@ class MedicationGroupRepository @Inject constructor(
         return groupsFlow.value?.firstOrNull { group -> group.uuid == uuid }
     }
 
+    fun getCachedGroups(): List<MedicationGroup>? = groupsFlow.value
+
     suspend fun getGroups(): List<MedicationGroup> {
         val database = databaseHolder.get()
         val groups = database.medicationGroupDao().getGroups()

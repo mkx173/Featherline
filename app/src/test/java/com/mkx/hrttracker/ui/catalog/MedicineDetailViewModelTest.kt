@@ -58,12 +58,37 @@ class MedicineDetailViewModelTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         every { stockRepository.observeProjections() } returns flowOf(emptyList())
+        every { stockRepository.getCachedProjection(any()) } returns null
+        every { medicineRepository.getCachedActiveMedicine(any()) } returns null
+        every { medicationGroupRepository.getCachedGroups() } returns null
         every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
     }
 
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun detailStateUsesMedicineByUuidInsteadOfActiveAndArchivedLists() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000020")
+        val medicine = testMedicine(uuid = medicineUuid)
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(medicine, viewModel.uiState.value.medicine)
     }
 
     // Why this matters: archive must not silently no-op when a live group
@@ -75,8 +100,7 @@ class MedicineDetailViewModelTest {
     fun archiveDisabledWhenActiveGroupsReferenceMedicine() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
         val medicine = testMedicine(uuid = medicineUuid)
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(
             listOf(testGroupReferencingMedicine(medicine = medicine)),
         )
@@ -135,8 +159,7 @@ class MedicineDetailViewModelTest {
                 ),
             ),
         )
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(
             listOf(morningGroup, eveningGroup),
         )
@@ -179,8 +202,7 @@ class MedicineDetailViewModelTest {
             medicine = medicine,
             archivedAt = Instant.EPOCH,
         ).copy(name = "Archived")
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(
             listOf(activeGroup, archivedGroup),
         )
@@ -229,8 +251,7 @@ class MedicineDetailViewModelTest {
                 ),
             ),
         )
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
 
@@ -261,8 +282,7 @@ class MedicineDetailViewModelTest {
     fun archiveSucceedsWhenNoActiveGroupsReferenceMedicine() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001")
         val medicine = testMedicine(uuid = medicineUuid)
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
         coEvery { medicineRepository.archive(medicineUuid, any()) } just Runs
@@ -295,8 +315,7 @@ class MedicineDetailViewModelTest {
     fun archiveFailureExceptionSurfacedAsFailure() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000002")
         val medicine = testMedicine(uuid = medicineUuid)
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
         coEvery { medicineRepository.archive(medicineUuid, any()) } throws
@@ -329,8 +348,7 @@ class MedicineDetailViewModelTest {
     fun updatePreparationFailsWithLockedExceptionSurfacesLockedResult() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000003")
         val medicine = testMedicine(uuid = medicineUuid)
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns true
         coEvery {
@@ -360,8 +378,7 @@ class MedicineDetailViewModelTest {
     fun savePreparation_acceptsCapsulePreparation() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000009")
         val medicine = testMedicine(uuid = medicineUuid)
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
         coEvery {
@@ -399,8 +416,7 @@ class MedicineDetailViewModelTest {
     fun updatePreparationFailsWithIdentityCollisionSurfacesCollisionResult() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000004")
         val medicine = testMedicine(uuid = medicineUuid)
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
         coEvery {
@@ -433,8 +449,7 @@ class MedicineDetailViewModelTest {
     fun savePreparationAndDisplayNameSuccessSurfacesSuccessResult() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000005")
         val medicine = testMedicine(uuid = medicineUuid)
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
         coEvery {
@@ -477,8 +492,7 @@ class MedicineDetailViewModelTest {
     fun saveDisplayNameBlankClearsToNull() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000006")
         val medicine = testMedicine(uuid = medicineUuid, displayName = "Old name")
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
         coEvery { medicineRepository.setDisplayName(medicineUuid, null, any()) } just Runs
@@ -509,8 +523,7 @@ class MedicineDetailViewModelTest {
     fun lockStateReflectsRepositoryIsLocked() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000007")
         val medicine = testMedicine(uuid = medicineUuid)
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns true
 
@@ -545,8 +558,7 @@ class MedicineDetailViewModelTest {
         val otherProjection = projection.copy(
             medicine = testMedicine(uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000012")),
         )
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         every { stockRepository.observeProjections() } returns flowOf(listOf(otherProjection, projection))
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
@@ -569,8 +581,7 @@ class MedicineDetailViewModelTest {
     fun optInReceivedSubmissionEnablesTrackingInsteadOfApplyingReceived() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000013")
         val medicine = testMedicine(uuid = medicineUuid)
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
         coEvery {
@@ -627,8 +638,7 @@ class MedicineDetailViewModelTest {
                 unitsLastTotal = 60.0,
             ),
         )
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         every { stockRepository.observeProjections() } returns flowOf(
             listOf(
@@ -684,8 +694,7 @@ class MedicineDetailViewModelTest {
     fun optInRecountSubmissionDoesNotMutateStock() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000015")
         val medicine = testMedicine(uuid = medicineUuid)
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
 
@@ -725,8 +734,7 @@ class MedicineDetailViewModelTest {
                 openContainerAmount = 2.0,
             ),
         )
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         every { stockRepository.observeProjections() } returns flowOf(
             listOf(
@@ -792,8 +800,7 @@ class MedicineDetailViewModelTest {
                 MedicineDetailViewModel.OPEN_OPT_IN_ARG to true,
             ),
         )
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         every { stockRepository.observeProjections() } returns flowOf(
             listOf(
@@ -842,8 +849,7 @@ class MedicineDetailViewModelTest {
                 MedicineDetailViewModel.OPEN_OPT_IN_ARG to true,
             ),
         )
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         every { stockRepository.observeProjections() } returns flowOf(
             listOf(

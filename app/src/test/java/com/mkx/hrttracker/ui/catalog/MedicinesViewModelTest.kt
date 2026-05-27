@@ -55,6 +55,9 @@ class MedicinesViewModelTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         every { stockRepository.observeProjections() } returns flowOf(emptyList())
+        every { stockRepository.getCachedProjections() } returns null
+        every { medicineRepository.getCachedActiveMedicines() } returns null
+        every { medicationGroupRepository.getCachedGroups() } returns null
     }
 
     @After
@@ -353,6 +356,17 @@ class MedicinesViewModelTest {
 
         assertFalse(viewModel.uiState.value.isLoading)
         collectJob.cancel()
+    }
+
+    @Test
+    fun uiStateCollectsRepositoryFlowsEagerlyWithoutExternalSubscriber() = runTest {
+        every { medicineRepository.observeAllActive() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoading)
     }
 
     @Test

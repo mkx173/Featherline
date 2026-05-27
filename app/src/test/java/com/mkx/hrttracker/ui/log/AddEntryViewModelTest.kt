@@ -78,6 +78,7 @@ class AddEntryViewModelTest {
             medicineRepository.findOrCreateForCatalog(any(), any(), any())
         } returns estradiolMedicine
         every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
+        every { medicineStockRepository.getCachedProjections() } returns null
     }
 
     @After

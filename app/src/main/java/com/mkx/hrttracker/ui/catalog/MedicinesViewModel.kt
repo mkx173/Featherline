@@ -43,7 +43,31 @@ class MedicinesViewModel @Inject constructor(
         medicationGroupRepository.observeGroups().map { it.orEmpty() },
         stockRepository.observeProjections(),
     ) { activeMedicines, groups, stockProjections ->
-        MedicinesUiState(
+        buildUiState(
+            activeMedicines = activeMedicines,
+            groups = groups,
+            stockProjections = stockProjections,
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        // Seed from the eagerly-cached repo StateFlows so the first
+        // composition lands on a populated list — without this, even with
+        // SharingStarted.Eagerly the upstream combine emits on the next
+        // coroutine tick and Compose sees isLoading=true on frame 1.
+        initialValue = buildInitialUiState(
+            activeMedicines = medicineRepository.getCachedActiveMedicines(),
+            groups = medicationGroupRepository.getCachedGroups(),
+            stockProjections = stockRepository.getCachedProjections(),
+        ),
+    )
+
+    private fun buildUiState(
+        activeMedicines: List<Medicine>,
+        groups: List<MedicationGroup>,
+        stockProjections: List<MedicineStockProjection>,
+    ): MedicinesUiState {
+        return MedicinesUiState(
             activeSections = buildSections(
                 activeMedicines = activeMedicines,
                 referenceCounts = activeGroupReferenceCounts(groups),
@@ -51,11 +75,22 @@ class MedicinesViewModel @Inject constructor(
             ),
             isLoading = false,
         )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
-        initialValue = MedicinesUiState(),
-    )
+    }
+
+    private fun buildInitialUiState(
+        activeMedicines: List<Medicine>?,
+        groups: List<MedicationGroup>?,
+        stockProjections: List<MedicineStockProjection>?,
+    ): MedicinesUiState {
+        if (activeMedicines == null || groups == null || stockProjections == null) {
+            return MedicinesUiState()
+        }
+        return buildUiState(
+            activeMedicines = activeMedicines,
+            groups = groups,
+            stockProjections = stockProjections,
+        )
+    }
 
     private fun buildSections(
         activeMedicines: List<Medicine>,
@@ -119,9 +154,6 @@ class MedicinesViewModel @Inject constructor(
         }
     }
 
-    private companion object {
-        const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
-    }
 }
 
 data class MedicinesUiState(

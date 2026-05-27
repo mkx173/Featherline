@@ -65,12 +65,20 @@ class AddEntryViewModel @Inject constructor(
     private val medicineStockRepository: MedicineStockRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(AddEntryUiState())
+    private val _uiState = MutableStateFlow(
+        // Seed from the eagerly-cached active list so the first composition,
+        // which happens before the LaunchedEffect-driven initialize*() call,
+        // already has medicines available — the subsequent initialize() call
+        // can then resolve the selected stock projection on the very next
+        // composition instead of waiting for the cold collector below.
+        AddEntryUiState(activeMedicines = medicineRepository.getCachedActiveMedicines().orEmpty())
+    )
     val uiState: StateFlow<AddEntryUiState> = _uiState.asStateFlow()
     private var loadEntryJob: Job? = null
     private var pendingSave: PendingSaveRequest? = null
     private var pendingDelete: PendingDeleteRequest? = null
-    private var stockProjections: List<MedicineStockProjection> = emptyList()
+    private var stockProjections: List<MedicineStockProjection> =
+        medicineStockRepository.getCachedProjections().orEmpty()
 
     init {
         viewModelScope.launch {

@@ -29,15 +29,6 @@ interface MedicineDao {
     @Query(
         """
         SELECT * FROM medicines
-        WHERE archivedAtEpochMillis IS NOT NULL
-        ORDER BY archivedAtEpochMillis DESC, updatedAtEpochMillis DESC
-        """
-    )
-    fun observeAllArchived(): Flow<List<MedicineEntity>>
-
-    @Query(
-        """
-        SELECT * FROM medicines
         ORDER BY createdAtEpochMillis ASC, uuid ASC
         """
     )
