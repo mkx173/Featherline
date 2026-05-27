@@ -744,11 +744,16 @@
     <string name="stock_subcard_runway_days">约 %1$d 天</string>
     <string name="stock_subcard_runway_plenty">充足</string>
     <string name="stock_subcard_runway_unknown">无法预估</string>
+    <string name="stock_subcard_value_with_sealed">%1$s（另有 %2$s %3$s）</string>
+    <plurals name="stock_subcard_unit_vials">
+        <item quantity="other">瓶</item>
+    </plurals>
+    <plurals name="stock_subcard_unit_containers">
+        <item quantity="other">容器</item>
+    </plurals>
     <string name="stock_subcard_cd_stock_pool">库存池</string>
     <string name="stock_subcard_cd_open_vial">已开启药瓶</string>
     <string name="stock_subcard_cd_open_container">已开启容器</string>
-    <string name="stock_subcard_cd_sealed_vials">未开启药瓶</string>
-    <string name="stock_subcard_cd_sealed_containers">未开启容器</string>
 
     <string name="stock_optin_title">追踪库存</string>
     <string name="stock_optin_body">在此药品库存不足时收到提醒</string>

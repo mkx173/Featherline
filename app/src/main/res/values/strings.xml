@@ -778,11 +778,18 @@
     <string name="stock_subcard_runway_days">~%1$d days</string>
     <string name="stock_subcard_runway_plenty">Plenty</string>
     <string name="stock_subcard_runway_unknown">Runway unknown</string>
+    <string name="stock_subcard_value_with_sealed">%1$s (+%2$s %3$s)</string>
+    <plurals name="stock_subcard_unit_vials">
+        <item quantity="one">vial</item>
+        <item quantity="other">vials</item>
+    </plurals>
+    <plurals name="stock_subcard_unit_containers">
+        <item quantity="one">container</item>
+        <item quantity="other">containers</item>
+    </plurals>
     <string name="stock_subcard_cd_stock_pool">Stock pool</string>
     <string name="stock_subcard_cd_open_vial">Open vial</string>
     <string name="stock_subcard_cd_open_container">Open container</string>
-    <string name="stock_subcard_cd_sealed_vials">Sealed vials</string>
-    <string name="stock_subcard_cd_sealed_containers">Sealed containers</string>
 
     <!-- Untracked opt-in -->
     <string name="stock_optin_title">Track stock</string>

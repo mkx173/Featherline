@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.components
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import java.text.NumberFormat
@@ -62,15 +64,13 @@ internal enum class MedicationStockSubcardRowKind(
         iconRes = R.drawable.ic_humidity_mid,
         contentDescriptionRes = R.string.stock_subcard_cd_open_container,
     ),
-    SEALED_VIALS(
-        iconRes = R.drawable.ic_inventory_2,
-        contentDescriptionRes = R.string.stock_subcard_cd_sealed_vials,
-    ),
-    SEALED_CONTAINERS(
-        iconRes = R.drawable.ic_inventory_2,
-        contentDescriptionRes = R.string.stock_subcard_cd_sealed_containers,
-    ),
 }
+
+internal data class MedicationStockSubcardSealedSupplement(
+    val countText: String,
+    val pluralQuantity: Int,
+    @param:PluralsRes val unitPluralRes: Int,
+)
 
 internal data class MedicationStockSubcardText(
     @param:StringRes val resId: Int,
@@ -81,6 +81,7 @@ internal data class MedicationStockSubcardRowModel(
     val kind: MedicationStockSubcardRowKind,
     val valueText: String,
     val progress: Float,
+    val sealedSupplement: MedicationStockSubcardSealedSupplement? = null,
 ) {
     @get:DrawableRes
     val iconRes: Int get() = kind.iconRes
@@ -158,11 +159,7 @@ internal fun MedicationStockSubcard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                model.rows.forEach { row ->
-                    StockSubcardGaugeRow(row = row)
-                }
-            }
+            StockSubcardMetrics(rows = model.rows)
         }
     }
 }
@@ -186,11 +183,22 @@ private fun StockSubcardChip(model: MedicationStockSubcardModel) {
 }
 
 @Composable
-private fun StockSubcardGaugeRow(row: MedicationStockSubcardRowModel) {
+private fun StockSubcardMetrics(rows: List<MedicationStockSubcardRowModel>) {
+    rows.firstOrNull()?.let { row ->
+        StockSubcardMetricCell(
+            row = row,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun StockSubcardMetricCell(
+    row: MedicationStockSubcardRowModel,
+    modifier: Modifier = Modifier,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("$MedicationStockSubcardRowTestTagPrefix-${row.kind.name}"),
+        modifier = modifier.testTag("$MedicationStockSubcardRowTestTagPrefix-${row.kind.name}"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Surface(
@@ -205,23 +213,40 @@ private fun StockSubcardGaugeRow(row: MedicationStockSubcardRowModel) {
                 modifier = Modifier.padding(4.dp),
             )
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        LinearProgressIndicator(
-            progress = { row.progress },
-            modifier = Modifier
-                .weight(1f)
-                .height(5.dp),
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = row.valueText,
-            modifier = Modifier.widthIn(max = 96.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            LinearProgressIndicator(
+                progress = { row.progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(5.dp),
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = stockSubcardRowValueText(row),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
+}
+
+@Composable
+private fun stockSubcardRowValueText(
+    row: MedicationStockSubcardRowModel,
+): String {
+    val supplement = row.sealedSupplement ?: return row.valueText
+    return stringResource(
+        R.string.stock_subcard_value_with_sealed,
+        row.valueText,
+        supplement.countText,
+        pluralStringResource(
+            supplement.unitPluralRes,
+            supplement.pluralQuantity,
+        ),
+    )
 }
 
 @Composable
@@ -267,86 +292,94 @@ private fun stockSubcardRows(
 ): List<MedicationStockSubcardRowModel> {
     val stock = projection.medicine.stock
     return when (val preparation = projection.medicine.preparation) {
-        is MedicinePreparation.InjectionMultiUseVial -> buildList {
+        is MedicinePreparation.InjectionMultiUseVial -> listOf(
             stock.openContainerAmount?.let { openAmount ->
-                add(
-                    MedicationStockSubcardRowModel(
-                        kind = MedicationStockSubcardRowKind.OPEN_VIAL,
-                        valueText = compactStockValueText(
-                            numerator = openAmount,
-                            denominator = preparation.vialVolumeMl,
-                            suffix = " mL",
-                        ),
-                        progress = stockSubcardProgress(
-                            numerator = openAmount,
-                            denominator = preparation.vialVolumeMl,
-                        ),
-                    ),
+                openContainerStockSubcardRow(
+                    kind = MedicationStockSubcardRowKind.OPEN_VIAL,
+                    openAmount = openAmount,
+                    capacity = preparation.vialVolumeMl,
+                    capacitySuffix = " mL",
+                    sealedCount = stock.unitsRemaining,
+                    sealedUnitPluralRes = R.plurals.stock_subcard_unit_vials,
                 )
-            }
-            add(
-                MedicationStockSubcardRowModel(
-                    kind = MedicationStockSubcardRowKind.SEALED_VIALS,
-                    valueText = compactStockValueText(
-                        numerator = stock.unitsRemaining,
-                        denominator = stock.unitsLastTotal,
-                    ),
-                    progress = stockSubcardProgress(
-                        numerator = stock.unitsRemaining,
-                        denominator = stock.unitsLastTotal,
-                    ),
-                ),
-            )
-        }
+            } ?: stockPoolSubcardRow(stock),
+        )
 
-        is MedicinePreparation.GelContainer -> buildList {
+        is MedicinePreparation.GelContainer -> listOf(
             stock.openContainerAmount?.let { openAmount ->
-                add(
-                    MedicationStockSubcardRowModel(
-                        kind = MedicationStockSubcardRowKind.OPEN_CONTAINER,
-                        valueText = compactStockValueText(
-                            numerator = openAmount,
-                            denominator = preparation.containerWeightGrams,
-                            suffix = " g",
-                        ),
-                        progress = stockSubcardProgress(
-                            numerator = openAmount,
-                            denominator = preparation.containerWeightGrams,
-                        ),
-                    ),
+                openContainerStockSubcardRow(
+                    kind = MedicationStockSubcardRowKind.OPEN_CONTAINER,
+                    openAmount = openAmount,
+                    capacity = preparation.containerWeightGrams,
+                    capacitySuffix = " g",
+                    sealedCount = stock.unitsRemaining,
+                    sealedUnitPluralRes = R.plurals.stock_subcard_unit_containers,
                 )
-            }
-            add(
-                MedicationStockSubcardRowModel(
-                    kind = MedicationStockSubcardRowKind.SEALED_CONTAINERS,
-                    valueText = compactStockValueText(
-                        numerator = stock.unitsRemaining,
-                        denominator = stock.unitsLastTotal,
-                    ),
-                    progress = stockSubcardProgress(
-                        numerator = stock.unitsRemaining,
-                        denominator = stock.unitsLastTotal,
-                    ),
-                ),
-            )
-        }
+            } ?: stockPoolSubcardRow(stock),
+        )
 
         is MedicinePreparation.PatchOff -> emptyList()
 
-        else -> listOf(
-            MedicationStockSubcardRowModel(
-                kind = MedicationStockSubcardRowKind.STOCK_POOL,
-                valueText = compactStockValueText(
-                    numerator = stock.unitsRemaining,
-                    denominator = stock.unitsLastTotal,
-                ),
-                progress = stockSubcardProgress(
-                    numerator = stock.unitsRemaining,
-                    denominator = stock.unitsLastTotal,
-                ),
-            ),
-        )
+        else -> listOf(stockPoolSubcardRow(stock))
     }
+}
+
+private fun openContainerStockSubcardRow(
+    kind: MedicationStockSubcardRowKind,
+    openAmount: Double,
+    capacity: Double,
+    capacitySuffix: String,
+    sealedCount: Double?,
+    @PluralsRes sealedUnitPluralRes: Int,
+): MedicationStockSubcardRowModel {
+    return MedicationStockSubcardRowModel(
+        kind = kind,
+        valueText = compactStockValueText(
+            numerator = openAmount,
+            denominator = capacity,
+            suffix = capacitySuffix,
+        ),
+        progress = stockSubcardProgress(
+            numerator = openAmount,
+            denominator = capacity,
+        ),
+        sealedSupplement = stockSubcardSealedSupplement(
+            sealedCount = sealedCount,
+            unitPluralRes = sealedUnitPluralRes,
+        ),
+    )
+}
+
+private fun stockPoolSubcardRow(
+    stock: MedicineStock,
+): MedicationStockSubcardRowModel {
+    return MedicationStockSubcardRowModel(
+        kind = MedicationStockSubcardRowKind.STOCK_POOL,
+        valueText = compactStockValueText(
+            numerator = stock.unitsRemaining,
+            denominator = stock.unitsLastTotal,
+        ),
+        progress = stockSubcardProgress(
+            numerator = stock.unitsRemaining,
+            denominator = stock.unitsLastTotal,
+        ),
+    )
+}
+
+private fun stockSubcardSealedSupplement(
+    sealedCount: Double?,
+    @PluralsRes unitPluralRes: Int,
+): MedicationStockSubcardSealedSupplement? {
+    val resolvedCount = sealedCount?.takeIf { it.isFinite() && it >= 0.0 } ?: return null
+    return MedicationStockSubcardSealedSupplement(
+        countText = formatStockSubcardCount(resolvedCount),
+        pluralQuantity = stockSubcardPluralQuantity(resolvedCount),
+        unitPluralRes = unitPluralRes,
+    )
+}
+
+private fun stockSubcardPluralQuantity(value: Double): Int {
+    return if (value == 1.0) 1 else 2
 }
 
 @StringRes

@@ -49,7 +49,7 @@ class MedicationStockSubcardTest {
     }
 
     @Test
-    fun multiUseVialBuildsOpenVialAndSealedRows() {
+    fun multiUseVialBuildsOpenVialRowWithSealedSupplement() {
         val preparation = MedicinePreparation.InjectionMultiUseVial(
             concentrationMgPerMl = 20.0,
             vialVolumeMl = 5.0,
@@ -70,21 +70,44 @@ class MedicationStockSubcardTest {
         requireNotNull(model)
         assertEquals(R.string.stock_subcard_chip_low, model.chipLabelRes)
         assertEquals(MedicationStockSubcardTone.WARNING, model.tone)
-        assertEquals(
-            listOf(
-                MedicationStockSubcardRowKind.OPEN_VIAL,
-                MedicationStockSubcardRowKind.SEALED_VIALS,
-            ),
-            model.rows.map { it.kind },
-        )
-        assertEquals("1.25 / 5 mL", model.rows[0].valueText)
-        assertEquals(0.25f, model.rows[0].progress, 1e-6f)
-        assertEquals("2 / 4", model.rows[1].valueText)
-        assertEquals(0.5f, model.rows[1].progress, 1e-6f)
+        assertEquals(1, model.rows.size)
+
+        val row = model.rows.single()
+        assertEquals(MedicationStockSubcardRowKind.OPEN_VIAL, row.kind)
+        assertEquals("1.25 / 5 mL", row.valueText)
+        assertEquals(0.25f, row.progress, 1e-6f)
+        assertEquals("2", row.sealedSupplement?.countText)
+        assertEquals(2, row.sealedSupplement?.pluralQuantity)
+        assertEquals(R.plurals.stock_subcard_unit_vials, row.sealedSupplement?.unitPluralRes)
     }
 
     @Test
-    fun gelContainerBuildsOpenContainerAndSealedRows() {
+    fun multiUseVialShowsZeroSealedSupplement() {
+        val preparation = MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = 20.0,
+            vialVolumeMl = 5.0,
+        )
+        val model = medicationStockSubcardModel(
+            projection(
+                preparation = preparation,
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 0.0,
+                    unitsLastTotal = 4.0,
+                    openContainerAmount = 1.25,
+                ),
+            ),
+        )
+
+        requireNotNull(model)
+        val row = model.rows.single()
+        assertEquals("0", row.sealedSupplement?.countText)
+        assertEquals(2, row.sealedSupplement?.pluralQuantity)
+        assertEquals(R.plurals.stock_subcard_unit_vials, row.sealedSupplement?.unitPluralRes)
+    }
+
+    @Test
+    fun gelContainerBuildsOpenContainerRowWithSealedSupplement() {
         val preparation = MedicinePreparation.GelContainer(
             concentrationPercent = 0.06,
             containerWeightGrams = 80.0,
@@ -105,17 +128,15 @@ class MedicationStockSubcardTest {
         requireNotNull(model)
         assertEquals(R.string.stock_subcard_chip_almost_out, model.chipLabelRes)
         assertEquals(MedicationStockSubcardTone.ERROR, model.tone)
-        assertEquals(
-            listOf(
-                MedicationStockSubcardRowKind.OPEN_CONTAINER,
-                MedicationStockSubcardRowKind.SEALED_CONTAINERS,
-            ),
-            model.rows.map { it.kind },
-        )
-        assertEquals("20 / 80 g", model.rows[0].valueText)
-        assertEquals(0.25f, model.rows[0].progress, 1e-6f)
-        assertEquals("1 / 2", model.rows[1].valueText)
-        assertEquals(0.5f, model.rows[1].progress, 1e-6f)
+        assertEquals(1, model.rows.size)
+
+        val row = model.rows.single()
+        assertEquals(MedicationStockSubcardRowKind.OPEN_CONTAINER, row.kind)
+        assertEquals("20 / 80 g", row.valueText)
+        assertEquals(0.25f, row.progress, 1e-6f)
+        assertEquals("1", row.sealedSupplement?.countText)
+        assertEquals(1, row.sealedSupplement?.pluralQuantity)
+        assertEquals(R.plurals.stock_subcard_unit_containers, row.sealedSupplement?.unitPluralRes)
     }
 
     @Test
@@ -194,15 +215,17 @@ class MedicationStockSubcardTest {
             )
 
             requireNotNull(model)
-            assertEquals("1,25 / 5 mL", model.rows[0].valueText)
-            assertEquals("4 / 10", model.rows[1].valueText)
+            val row = model.rows.single()
+            assertEquals("1,25 / 5 mL", row.valueText)
+            assertEquals("4", row.sealedSupplement?.countText)
+            assertEquals(2, row.sealedSupplement?.pluralQuantity)
         } finally {
             Locale.setDefault(previousLocale)
         }
     }
 
     @Test
-    fun sealedOnlyContainerOmitsOpenRowButKeepsSealedRow() {
+    fun sealedOnlyContainerFallsBackToTotalStockRow() {
         val preparation = MedicinePreparation.InjectionMultiUseVial(
             concentrationMgPerMl = 20.0,
             vialVolumeMl = 5.0,
@@ -221,9 +244,10 @@ class MedicationStockSubcardTest {
 
         requireNotNull(model)
         assertEquals(1, model.rows.size)
-        assertEquals(MedicationStockSubcardRowKind.SEALED_VIALS, model.rows.single().kind)
+        assertEquals(MedicationStockSubcardRowKind.STOCK_POOL, model.rows.single().kind)
         assertEquals("3 / 4", model.rows.single().valueText)
         assertEquals(0.75f, model.rows.single().progress, 1e-6f)
+        assertNull(model.rows.single().sealedSupplement)
     }
 
     @Test
