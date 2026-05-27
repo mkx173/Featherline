@@ -54,6 +54,7 @@ class MedicineStockRepositoryTest {
     private lateinit var medicineRepository: MedicineRepository
     private lateinit var medicationGroupRepository: MedicationGroupRepository
     private lateinit var medicationLogRepository: MedicationLogRepository
+    private lateinit var homeSnapshotRepository: HomeSnapshotRepository
     private lateinit var repository: MedicineStockRepository
     private lateinit var appScope: CoroutineScope
     private lateinit var originalTimeZone: TimeZone
@@ -69,14 +70,18 @@ class MedicineStockRepositoryTest {
         medicineRepository = mockk(relaxed = true)
         medicationGroupRepository = mockk(relaxed = true)
         medicationLogRepository = mockk(relaxed = true)
+        homeSnapshotRepository = mockk(relaxed = true)
         appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         every { medicineRepository.observeAllActive() } returns MutableStateFlow(emptyList())
+        every { medicineRepository.observeAllActiveOrNull() } returns MutableStateFlow(emptyList())
         every { medicationGroupRepository.observeGroups() } returns MutableStateFlow(emptyList())
         every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
         repository = MedicineStockRepository(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
             appScope = appScope,
             clock = clock,
         )
@@ -343,14 +348,17 @@ class MedicineStockRepositoryTest {
         val groups = MutableStateFlow<List<MedicationGroup>?>(listOf(group))
         val logs = MutableStateFlow<List<com.mkx.hrttracker.model.medication.MedicationLogEntry>?>(emptyList())
         every { medicineRepository.observeAllActive() } returns medicines
+        every { medicineRepository.observeAllActiveOrNull() } returns medicines
         every { medicationGroupRepository.observeGroups() } returns groups
         every { medicationLogRepository.observeEntries() } returns logs
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
         val projectionScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
         try {
             val repository = MedicineStockRepository(
                 medicineRepository = medicineRepository,
                 medicationGroupRepository = medicationGroupRepository,
                 medicationLogRepository = medicationLogRepository,
+                homeSnapshotRepository = homeSnapshotRepository,
                 appScope = projectionScope,
                 clock = clock,
             )
@@ -382,12 +390,15 @@ class MedicineStockRepositoryTest {
             )
         )
         every { medicineRepository.observeAllActive() } returns MutableStateFlow(listOf(medicine))
+        every { medicineRepository.observeAllActiveOrNull() } returns MutableStateFlow(listOf(medicine))
         every { medicationGroupRepository.observeGroups() } returns MutableStateFlow<List<MedicationGroup>?>(emptyList())
         every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
         clearMocks(
             medicineRepository,
             medicationGroupRepository,
             medicationLogRepository,
+            homeSnapshotRepository,
             answers = false,
             recordedCalls = true,
         )
@@ -395,6 +406,7 @@ class MedicineStockRepositoryTest {
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
             appScope = backgroundScope,
             clock = clock,
         )
@@ -405,9 +417,10 @@ class MedicineStockRepositoryTest {
 
         assertEquals(medicine.uuid, first.await().single().medicine.uuid)
         assertEquals(medicine.uuid, second.await().single().medicine.uuid)
-        verify(exactly = 1) { medicineRepository.observeAllActive() }
+        verify(exactly = 1) { medicineRepository.observeAllActiveOrNull() }
         verify(exactly = 1) { medicationGroupRepository.observeGroups() }
         verify(exactly = 1) { medicationLogRepository.observeEntries() }
+        verify(exactly = 1) { homeSnapshotRepository.observeHomeSnapshot() }
     }
 
     @Test

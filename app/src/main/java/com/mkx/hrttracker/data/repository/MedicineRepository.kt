@@ -63,6 +63,16 @@ class MedicineRepository @Inject internal constructor(
     fun observeAllActive(): Flow<List<Medicine>> = activeMedicinesFlow.filterNotNull()
 
     /**
+     * Nullable variant of [observeAllActive]. Emits `null` until the
+     * eagerly-cached flow has produced its first list (i.e. until Room has
+     * opened and delivered the first query). Consumers that need to combine
+     * this with a fallback source (e.g. the home snapshot) should observe
+     * this flow so the combine fires immediately on the initial `null`
+     * instead of blocking on the live emission.
+     */
+    fun observeAllActiveOrNull(): Flow<List<Medicine>?> = activeMedicinesFlow
+
+    /**
      * Synchronous read of the eagerly-cached active list. Returns `null` until
      * Room's first emission populates [activeMedicinesFlow]; lets ViewModels
      * seed `stateIn` `initialValue` so the first composition lands on

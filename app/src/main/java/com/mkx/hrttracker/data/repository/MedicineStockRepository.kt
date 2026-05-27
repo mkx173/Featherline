@@ -14,7 +14,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
 import java.time.Instant
@@ -29,31 +31,68 @@ class MedicineStockRepository @Inject constructor(
     private val medicineRepository: MedicineRepository,
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
+    private val homeSnapshotRepository: HomeSnapshotRepository,
     @AppScope appScope: CoroutineScope,
     private val clock: Clock = Clock.systemDefaultZone(),
 ) {
 
-    private val projectionsFlow: StateFlow<List<MedicineStockProjection>?> =
+    // Tracks both the projection list and whether it was derived from live
+    // upstream data or from the home snapshot. The medicine manager only
+    // wants live data (so the manager rows don't visibly shift from
+    // snapshot-derived to live values). The AddEntry sheet wants whatever's
+    // cached, including the snapshot, so its subcard renders on frame 1
+    // before Room finishes opening.
+    private data class ProjectionsCache(
+        val projections: List<MedicineStockProjection>,
+        val isLive: Boolean,
+    )
+
+    private val projectionsCacheFlow: StateFlow<ProjectionsCache?> =
         combine(
-            medicineRepository.observeAllActive(),
+            medicineRepository.observeAllActiveOrNull(),
             medicationGroupRepository.observeGroups(),
             medicationLogRepository.observeEntries(),
-        ) { medicines, groups, logEntries ->
-            projectAll(
-                medicines = medicines,
-                activeGroups = groups.orEmpty().filter { group -> group.archivedAt == null },
-                logEntries = logEntries.orEmpty(),
-                now = clock.instant(),
-            )
+            homeSnapshotRepository.observeHomeSnapshot(),
+        ) { medicines, groups, logEntries, snapshot ->
+            val now = clock.instant()
+            when {
+                medicines != null && groups != null && logEntries != null -> ProjectionsCache(
+                    projections = projectAll(
+                        medicines = medicines,
+                        activeGroups = groups.filter { group -> group.archivedAt == null },
+                        logEntries = logEntries,
+                        now = now,
+                    ),
+                    isLive = true,
+                )
+                snapshot != null -> ProjectionsCache(
+                    projections = projectAll(
+                        medicines = snapshot.stockMedicines,
+                        activeGroups = snapshot.activeGroups,
+                        logEntries = snapshot.stockFulfillmentEntries,
+                        now = now,
+                    ),
+                    isLive = false,
+                )
+                else -> null
+            }
         }
-            .catch { emit(emptyList()) }
+            .catch { emit(ProjectionsCache(emptyList(), isLive = true)) }
             .stateIn(
                 scope = appScope,
                 started = SharingStarted.Eagerly,
                 initialValue = null,
             )
 
-    fun observeProjections(): Flow<List<MedicineStockProjection>> = projectionsFlow.filterNotNull()
+    // Live-only: emits when all three live inputs are non-null. The medicine
+    // manager subscribes to this so its combine fires once with a complete
+    // projection — never with a snapshot-derived list that would re-render
+    // when live data lands.
+    fun observeProjections(): Flow<List<MedicineStockProjection>> =
+        projectionsCacheFlow
+            .filterNotNull()
+            .filter { it.isLive }
+            .map { it.projections }
 
     /**
      * Synchronous read of the eagerly-cached projections. Returns `null` until
@@ -61,10 +100,12 @@ class MedicineStockRepository @Inject constructor(
      * ViewModels seed `stateIn` `initialValue` so the first composition lands
      * on a populated stock subcard instead of a missing-then-popping one.
      */
-    fun getCachedProjections(): List<MedicineStockProjection>? = projectionsFlow.value
+    fun getCachedProjections(): List<MedicineStockProjection>? =
+        projectionsCacheFlow.value?.projections
 
     fun getCachedProjection(medicineUuid: UUID): MedicineStockProjection? {
-        return projectionsFlow.value?.firstOrNull { it.medicine.uuid == medicineUuid }
+        return projectionsCacheFlow.value?.projections
+            ?.firstOrNull { it.medicine.uuid == medicineUuid }
     }
 
     internal fun projectAll(
