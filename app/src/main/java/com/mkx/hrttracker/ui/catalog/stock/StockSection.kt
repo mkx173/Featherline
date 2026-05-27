@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.catalog.stock
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,6 +53,8 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.StockStatusIndicator
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
+import com.mkx.hrttracker.ui.components.stockInventoryUnitRes
+import com.mkx.hrttracker.ui.components.stockRateUnitRes
 import java.util.Locale
 
 @Composable
@@ -195,10 +198,10 @@ private fun StockRows(projection: MedicineStockProjection) {
                 StockRowCard(
                     iconRes = R.drawable.ic_humidity_mid,
                     label = stringResource(R.string.stock_row_label_current_vial),
-                    trailingCount = stringResource(
-                        R.string.stock_row_count_volume_ml,
-                        formatCount(stock.openContainerAmount),
-                        formatCount(preparation.vialVolumeMl),
+                    trailingCount = stockSectionCountText(
+                        numerator = stock.openContainerAmount,
+                        denominator = preparation.vialVolumeMl,
+                        unitRes = R.string.stock_unit_ml,
                     ),
                     index = index++,
                     count = totalRows,
@@ -212,7 +215,11 @@ private fun StockRows(projection: MedicineStockProjection) {
             StockRowCard(
                 iconRes = R.drawable.ic_inventory_2,
                 label = stringResource(R.string.stock_row_label_stock),
-                trailingCount = formatCount(stock.unitsRemaining),
+                trailingCount = stockSectionCountText(
+                    numerator = stock.unitsRemaining,
+                    denominator = stock.unitsLastTotal,
+                    unitRes = R.string.stock_unit_vials,
+                ),
                 // The sealed count is just an integer; its color stays neutral
                 // even when overall stock is low or out, otherwise the user
                 // reads a healthy "3" as if it were dangerous. The status chip
@@ -241,10 +248,10 @@ private fun StockRows(projection: MedicineStockProjection) {
                 StockRowCard(
                     iconRes = R.drawable.ic_humidity_mid,
                     label = stringResource(R.string.stock_row_label_current_container),
-                    trailingCount = stringResource(
-                        R.string.stock_row_count_volume_g,
-                        formatCount(stock.openContainerAmount),
-                        formatCount(preparation.containerWeightGrams),
+                    trailingCount = stockSectionCountText(
+                        numerator = stock.openContainerAmount,
+                        denominator = preparation.containerWeightGrams,
+                        unitRes = R.string.stock_unit_g,
                     ),
                     index = index++,
                     count = totalRows,
@@ -258,7 +265,11 @@ private fun StockRows(projection: MedicineStockProjection) {
             StockRowCard(
                 iconRes = R.drawable.ic_inventory_2,
                 label = stringResource(R.string.stock_row_label_stock),
-                trailingCount = formatCount(stock.unitsRemaining),
+                trailingCount = stockSectionCountText(
+                    numerator = stock.unitsRemaining,
+                    denominator = stock.unitsLastTotal,
+                    unitRes = R.string.stock_unit_containers,
+                ),
                 index = index++,
                 count = totalRows,
                 progress = computeProgress(
@@ -279,7 +290,11 @@ private fun StockRows(projection: MedicineStockProjection) {
             StockRowCard(
                 iconRes = poolIconRes(preparation),
                 label = stringResource(R.string.stock_row_label_stock),
-                trailingCount = poolCountText(stock.unitsRemaining, stock.unitsLastTotal),
+                trailingCount = stockSectionCountText(
+                    numerator = stock.unitsRemaining,
+                    denominator = stock.unitsLastTotal,
+                    unitRes = stockInventoryUnitRes(preparation),
+                ),
                 index = 0,
                 count = 2,
                 progress = computeProgress(
@@ -302,7 +317,7 @@ private fun StockRows(projection: MedicineStockProjection) {
 private fun StockRowCard(
     iconRes: Int,
     label: String,
-    trailingCount: String,
+    trailingCount: StockSectionCountText,
     index: Int,
     count: Int,
     progress: Float? = null,
@@ -341,7 +356,7 @@ private fun StockRowCard(
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        text = trailingCount,
+                        text = trailingCount.resolve(),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
@@ -357,6 +372,34 @@ private fun StockRowCard(
             }
         }
     }
+}
+
+internal data class StockSectionCountText(
+    val numeratorText: String,
+    val denominatorText: String?,
+    @param:StringRes val unitRes: Int? = null,
+) {
+    val valueText: String
+        get() = if (denominatorText == null) {
+            numeratorText
+        } else {
+            "$numeratorText / $denominatorText"
+        }
+}
+
+@Composable
+private fun StockSectionCountText.resolve(): String {
+    val countText = if (denominatorText == null) {
+        stringResource(R.string.stock_row_count_only, numeratorText)
+    } else {
+        stringResource(R.string.stock_row_count_over_total, numeratorText, denominatorText)
+    }
+    val unitRes = unitRes ?: return countText
+    return stringResource(
+        R.string.stock_row_count_with_unit,
+        countText,
+        stringResource(unitRes),
+    )
 }
 
 @Composable
@@ -560,7 +603,7 @@ private fun OptInCard(
 private fun rateLabel(projection: MedicineStockProjection): String? {
     val dosesPerDay = projection.dosesPerDayMagnitude
     if (dosesPerDay <= 0.0) return null
-    val unitRes = stockUnitRes(projection.medicine.preparation) ?: return null
+    val unitRes = stockRateUnitRes(projection.medicine.preparation) ?: return null
     val unit = stringResource(unitRes)
     // Sub-once-a-day cadence reads better as a weekly rate: a multi-use vial
     // at 0.4 mL/wk is more legible than 0.06 mL/day.
@@ -571,16 +614,7 @@ private fun rateLabel(projection: MedicineStockProjection): String? {
     }
 }
 
-internal fun stockUnitRes(preparation: MedicinePreparation): Int? = when (preparation) {
-    is MedicinePreparation.Pill -> R.string.stock_unit_tablets
-    is MedicinePreparation.Capsule -> R.string.stock_unit_capsules
-    is MedicinePreparation.Patch -> R.string.stock_unit_patches
-    is MedicinePreparation.GelSachet -> R.string.stock_unit_sachets
-    is MedicinePreparation.InjectionSingleUseVial -> R.string.stock_unit_vials
-    is MedicinePreparation.InjectionMultiUseVial -> R.string.stock_unit_ml
-    is MedicinePreparation.GelContainer -> R.string.stock_unit_g
-    is MedicinePreparation.PatchOff -> null
-}
+internal fun stockUnitRes(preparation: MedicinePreparation): Int? = stockRateUnitRes(preparation)
 
 private fun formatRate(value: Double): String {
     return trimTrailingZeros(String.format(Locale.getDefault(), "%.2f", value))
@@ -607,17 +641,17 @@ private fun trimTrailingZeros(text: String): String {
     return trimmed.ifEmpty { "0" }
 }
 
-@Composable
-private fun poolCountText(units: Double?, lastTotal: Double?): String {
-    return if (lastTotal != null) {
-        stringResource(
-            R.string.stock_row_count_over_total,
-            formatCount(units),
-            formatCount(lastTotal),
-        )
-    } else {
-        stringResource(R.string.stock_row_count_only, formatCount(units))
-    }
+internal fun stockSectionCountText(
+    numerator: Double?,
+    denominator: Double?,
+    @StringRes unitRes: Int?,
+): StockSectionCountText {
+    val denominatorText = denominator?.let(::formatCount)
+    return StockSectionCountText(
+        numeratorText = formatCount(numerator),
+        denominatorText = denominatorText,
+        unitRes = unitRes,
+    )
 }
 
 private fun poolIconRes(preparation: MedicinePreparation): Int = when (preparation) {

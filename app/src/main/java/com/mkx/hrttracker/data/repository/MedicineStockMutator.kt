@@ -171,23 +171,17 @@ internal class MedicineStockMutator @Inject constructor() {
         )
     }
 
-    /** Sets trackingEnabled=false. Preserves values. Does not bump generation. */
+    /** Sets trackingEnabled=false, clears stock columns, and bumps stockGeneration. */
     suspend fun disableTracking(
         database: HrtTrackerDatabase,
         medicineUuid: UUID,
         now: Instant = Instant.now(),
     ) {
-        val dao = database.medicineDao()
-        val entity = dao.getByUuid(medicineUuid.toString()) ?: return
-        dao.updateStockFields(
-            uuid = entity.uuid,
-            trackingEnabled = false,
-            stockUnitsRemaining = entity.stockUnitsRemaining,
-            stockUnitsLastTotal = entity.stockUnitsLastTotal,
-            openContainerAmount = entity.openContainerAmount,
-            warnAtDaysRemaining = entity.warnAtDaysRemaining,
-            stockGeneration = entity.stockGeneration,
-            updatedAtEpochMillis = now.toEpochMilli(),
+        clearStockInternal(
+            database = database,
+            medicineUuid = medicineUuid,
+            resetWarnAtDays = false,
+            now = now,
         )
     }
 

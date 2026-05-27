@@ -761,8 +761,7 @@
 
     <string name="stock_row_count_over_total">%1$s / %2$s</string>
     <string name="stock_row_count_only">%1$s</string>
-    <string name="stock_row_count_volume_ml">%1$s / %2$s mL</string>
-    <string name="stock_row_count_volume_g">%1$s / %2$s g</string>
+    <string name="stock_row_count_with_unit">%1$s %2$s</string>
 
     <string name="stock_rate_per_day">%1$s %2$s/天</string>
     <string name="stock_rate_per_week">%1$s %2$s/周</string>
@@ -805,7 +804,7 @@
 
     <string name="stock_disable_menu_action">关闭库存追踪</string>
     <string name="stock_disable_title">关闭库存追踪？</string>
-    <string name="stock_disable_body">可以稍后再开启，并从当前数量继续</string>
+    <string name="stock_disable_body">这会清除库存信息</string>
     <string name="stock_disable_confirm">关闭</string>
     <string name="stock_cancel">取消</string>
 

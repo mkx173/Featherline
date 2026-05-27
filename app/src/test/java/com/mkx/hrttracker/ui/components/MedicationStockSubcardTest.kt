@@ -156,7 +156,42 @@ class MedicationStockSubcardTest {
         assertEquals(R.drawable.ic_inventory_2, row.iconRes)
         assertEquals(R.string.stock_subcard_cd_stock_pool, row.contentDescriptionRes)
         assertEquals("4 / 10", row.valueText)
+        assertEquals(R.string.stock_unit_tablets, row.valueUnitRes)
         assertEquals(0.4f, row.progress, 1e-6f)
+    }
+
+    @Test
+    fun poolRowsCarryLocalizedPreparationUnitForEveryPoolPreparationType() {
+        val cases = listOf(
+            MedicinePreparation.Pill(strengthMgPerTablet = 2.0) to R.string.stock_unit_tablets,
+            MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0) to R.string.stock_unit_capsules,
+            MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 10.0) to
+                R.string.stock_unit_vials,
+            MedicinePreparation.GelSachet(
+                concentrationPercent = 0.06,
+                sachetWeightGrams = 1.0,
+            ) to R.string.stock_unit_sachets,
+            MedicinePreparation.Patch(
+                specification = MedicinePreparation.PatchSpecification.TotalMg(1.0),
+            ) to R.string.stock_unit_patches,
+        )
+
+        cases.forEach { (preparation, expectedUnitRes) ->
+            val model = medicationStockSubcardModel(
+                projection(
+                    preparation = preparation,
+                    stock = MedicineStock(
+                        trackingEnabled = true,
+                        unitsRemaining = 4.0,
+                        unitsLastTotal = 10.0,
+                    ),
+                ),
+            )
+
+            requireNotNull(model)
+            assertEquals("4 / 10", model.rows.single().valueText)
+            assertEquals(expectedUnitRes, model.rows.single().valueUnitRes)
+        }
     }
 
     @Test
@@ -227,7 +262,8 @@ class MedicationStockSubcardTest {
         val row = model.rows.single()
         assertEquals(MedicationStockSubcardRowKind.OPEN_VIAL, row.kind)
         assertEquals(R.string.stock_row_label_current_vial, row.labelRes)
-        assertEquals("1.25 / 5 mL", row.valueText)
+        assertEquals("1.25 / 5", row.valueText)
+        assertEquals(R.string.stock_unit_ml, row.valueUnitRes)
         assertEquals(0.25f, row.progress, 1e-6f)
         assertEquals("2", row.sealedSupplement?.countText)
         assertEquals("+2", row.sealedSupplement?.chipText)
@@ -290,7 +326,8 @@ class MedicationStockSubcardTest {
         val row = model.rows.single()
         assertEquals(MedicationStockSubcardRowKind.OPEN_CONTAINER, row.kind)
         assertEquals(R.string.stock_row_label_current_container, row.labelRes)
-        assertEquals("20 / 80 g", row.valueText)
+        assertEquals("20 / 80", row.valueText)
+        assertEquals(R.string.stock_unit_g, row.valueUnitRes)
         assertEquals(0.25f, row.progress, 1e-6f)
         assertEquals("1", row.sealedSupplement?.countText)
         assertEquals("+1", row.sealedSupplement?.chipText)
@@ -314,6 +351,7 @@ class MedicationStockSubcardTest {
         requireNotNull(model)
         val row = model.rows.single()
         assertEquals("4", row.valueText)
+        assertEquals(R.string.stock_unit_tablets, row.valueUnitRes)
         assertEquals(0f, row.progress, 1e-6f)
     }
 
@@ -332,6 +370,7 @@ class MedicationStockSubcardTest {
         requireNotNull(model)
         val row = model.rows.single()
         assertEquals("4", row.valueText)
+        assertEquals(R.string.stock_unit_tablets, row.valueUnitRes)
         assertEquals(0f, row.progress, 1e-6f)
     }
 
@@ -350,6 +389,7 @@ class MedicationStockSubcardTest {
         requireNotNull(model)
         val row = model.rows.single()
         assertEquals("- / 10", row.valueText)
+        assertEquals(R.string.stock_unit_tablets, row.valueUnitRes)
         assertEquals(0f, row.progress, 1e-6f)
     }
 
@@ -376,7 +416,8 @@ class MedicationStockSubcardTest {
 
             requireNotNull(model)
             val row = model.rows.single()
-            assertEquals("1,25 / 5 mL", row.valueText)
+            assertEquals("1,25 / 5", row.valueText)
+            assertEquals(R.string.stock_unit_ml, row.valueUnitRes)
             assertEquals("4", row.sealedSupplement?.countText)
             assertEquals(2, row.sealedSupplement?.pluralQuantity)
         } finally {
@@ -407,8 +448,33 @@ class MedicationStockSubcardTest {
         assertEquals(MedicationStockSubcardRowKind.STOCK_POOL, model.rows.single().kind)
         assertEquals(R.string.stock_row_label_stock, model.rows.single().labelRes)
         assertEquals("3 / 4", model.rows.single().valueText)
+        assertEquals(R.string.stock_unit_vials, model.rows.single().valueUnitRes)
         assertEquals(0.75f, model.rows.single().progress, 1e-6f)
         assertNull(model.rows.single().sealedSupplement)
+    }
+
+    @Test
+    fun sealedOnlyGelContainerFallbackUsesContainerUnit() {
+        val preparation = MedicinePreparation.GelContainer(
+            concentrationPercent = 0.06,
+            containerWeightGrams = 80.0,
+        )
+        val model = medicationStockSubcardModel(
+            projection(
+                preparation = preparation,
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 3.0,
+                    unitsLastTotal = 4.0,
+                    openContainerAmount = null,
+                ),
+            ),
+        )
+
+        requireNotNull(model)
+        assertEquals(MedicationStockSubcardRowKind.STOCK_POOL, model.rows.single().kind)
+        assertEquals("3 / 4", model.rows.single().valueText)
+        assertEquals(R.string.stock_unit_containers, model.rows.single().valueUnitRes)
     }
 
     @Test

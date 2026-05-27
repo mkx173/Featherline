@@ -1,7 +1,10 @@
 package com.mkx.hrttracker.ui.catalog.stock
 
 import androidx.compose.ui.graphics.Color
+import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.ui.components.stockInventoryUnitRes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -113,6 +116,40 @@ class StockSectionTest {
                 errorContainer = errorContainer,
                 secondary = secondary,
                 secondaryContainer = secondaryContainer,
+            ),
+        )
+    }
+
+    @Test
+    fun stockCountTextCarriesLocalizedUnitResource() {
+        val countText = stockSectionCountText(
+            numerator = 4.0,
+            denominator = 10.0,
+            unitRes = R.string.stock_unit_tablets,
+        )
+
+        assertEquals("4 / 10", countText.valueText)
+        assertEquals(R.string.stock_unit_tablets, countText.unitRes)
+    }
+
+    @Test
+    fun inventoryUnitResourcesUseSealedUnitsForContainerPreparations() {
+        assertEquals(
+            R.string.stock_unit_vials,
+            stockInventoryUnitRes(
+                MedicinePreparation.InjectionMultiUseVial(
+                    concentrationMgPerMl = 20.0,
+                    vialVolumeMl = 5.0,
+                ),
+            ),
+        )
+        assertEquals(
+            R.string.stock_unit_containers,
+            stockInventoryUnitRes(
+                MedicinePreparation.GelContainer(
+                    concentrationPercent = 0.06,
+                    containerWeightGrams = 80.0,
+                ),
             ),
         )
     }

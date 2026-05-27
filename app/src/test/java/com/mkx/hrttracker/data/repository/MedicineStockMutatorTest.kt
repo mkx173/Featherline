@@ -856,7 +856,7 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun disableTracking_preservesAllValuesAndGeneration() = runTest {
+    fun disableTracking_clearsPoolStockAndBumpsGeneration() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             pillRow(
                 trackingEnabled = true,
@@ -872,18 +872,18 @@ class MedicineStockMutatorTest {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
                 trackingEnabled = false,
-                stockUnitsRemaining = 25.0,
-                stockUnitsLastTotal = 30.0,
+                stockUnitsRemaining = null,
+                stockUnitsLastTotal = null,
                 openContainerAmount = null,
                 warnAtDaysRemaining = 21,
-                stockGeneration = 5L,
+                stockGeneration = 6L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),
             )
         }
     }
 
     @Test
-    fun disableTracking_preservesOpenContainerAmount() = runTest {
+    fun disableTracking_clearsOpenContainerStockAndBumpsGeneration() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(
                 trackingEnabled = true,
@@ -899,11 +899,11 @@ class MedicineStockMutatorTest {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
                 trackingEnabled = false,
-                stockUnitsRemaining = 2.0,
+                stockUnitsRemaining = null,
                 stockUnitsLastTotal = null,
-                openContainerAmount = 0.4,
+                openContainerAmount = null,
                 warnAtDaysRemaining = 21,
-                stockGeneration = 5L,
+                stockGeneration = 6L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),
             )
         }

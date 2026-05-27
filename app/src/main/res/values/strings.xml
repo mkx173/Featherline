@@ -800,8 +800,7 @@
     <!-- Stock row trailing counts -->
     <string name="stock_row_count_over_total">%1$s / %2$s</string>
     <string name="stock_row_count_only">%1$s</string>
-    <string name="stock_row_count_volume_ml">%1$s / %2$s mL</string>
-    <string name="stock_row_count_volume_g">%1$s / %2$s g</string>
+    <string name="stock_row_count_with_unit">%1$s %2$s</string>
 
     <!-- Stock consumption rate (subtitle of the runway sub-card) -->
     <string name="stock_rate_per_day">%1$s %2$s/day</string>
@@ -849,7 +848,7 @@
     <!-- Disable confirmation -->
     <string name="stock_disable_menu_action">Turn off stock tracking</string>
     <string name="stock_disable_title">Turn off stock tracking?</string>
-    <string name="stock_disable_body">You can turn it back on later and continue from your current count.</string>
+    <string name="stock_disable_body">This will clear the current stock info.</string>
     <string name="stock_disable_confirm">Turn off</string>
     <string name="stock_cancel">Cancel</string>
 

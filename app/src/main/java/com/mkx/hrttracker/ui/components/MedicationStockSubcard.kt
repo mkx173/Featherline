@@ -106,6 +106,7 @@ internal data class MedicationStockSubcardText(
 internal data class MedicationStockSubcardRowModel(
     val kind: MedicationStockSubcardRowKind,
     val valueText: String,
+    @param:StringRes val valueUnitRes: Int? = null,
     val progress: Float,
     val sealedSupplement: MedicationStockSubcardSealedSupplement? = null,
 ) {
@@ -338,7 +339,7 @@ private fun StockSubcardMetricCell(
                         )
                     }
                     Text(
-                        text = row.valueText,
+                        text = row.resolvedValueText(),
                         modifier = Modifier.weight(1f, fill = false),
                         style = metricTextStyle,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -351,6 +352,16 @@ private fun StockSubcardMetricCell(
             }
         }
     }
+}
+
+@Composable
+private fun MedicationStockSubcardRowModel.resolvedValueText(): String {
+    val unitRes = valueUnitRes ?: return valueText
+    return stringResource(
+        R.string.stock_row_count_with_unit,
+        valueText,
+        stringResource(unitRes),
+    )
 }
 
 @Composable
@@ -502,11 +513,11 @@ private fun stockSubcardRows(
                     kind = MedicationStockSubcardRowKind.OPEN_VIAL,
                     openAmount = openAmount,
                     capacity = preparation.vialVolumeMl,
-                    capacitySuffix = " mL",
+                    valueUnitRes = R.string.stock_unit_ml,
                     sealedCount = stock.unitsRemaining,
                     sealedUnitPluralRes = R.plurals.stock_subcard_unit_vials,
                 )
-            } ?: stockPoolSubcardRow(stock),
+            } ?: stockPoolSubcardRow(stock, preparation),
         )
 
         is MedicinePreparation.GelContainer -> listOf(
@@ -515,16 +526,16 @@ private fun stockSubcardRows(
                     kind = MedicationStockSubcardRowKind.OPEN_CONTAINER,
                     openAmount = openAmount,
                     capacity = preparation.containerWeightGrams,
-                    capacitySuffix = " g",
+                    valueUnitRes = R.string.stock_unit_g,
                     sealedCount = stock.unitsRemaining,
                     sealedUnitPluralRes = R.plurals.stock_subcard_unit_containers,
                 )
-            } ?: stockPoolSubcardRow(stock),
+            } ?: stockPoolSubcardRow(stock, preparation),
         )
 
         is MedicinePreparation.PatchOff -> emptyList()
 
-        else -> listOf(stockPoolSubcardRow(stock))
+        else -> listOf(stockPoolSubcardRow(stock, preparation))
     }
 }
 
@@ -532,7 +543,7 @@ private fun openContainerStockSubcardRow(
     kind: MedicationStockSubcardRowKind,
     openAmount: Double,
     capacity: Double,
-    capacitySuffix: String,
+    @StringRes valueUnitRes: Int,
     sealedCount: Double?,
     @PluralsRes sealedUnitPluralRes: Int,
 ): MedicationStockSubcardRowModel {
@@ -541,8 +552,8 @@ private fun openContainerStockSubcardRow(
         valueText = compactStockValueText(
             numerator = openAmount,
             denominator = capacity,
-            suffix = capacitySuffix,
         ),
+        valueUnitRes = valueUnitRes,
         progress = stockSubcardProgress(
             numerator = openAmount,
             denominator = capacity,
@@ -556,6 +567,7 @@ private fun openContainerStockSubcardRow(
 
 private fun stockPoolSubcardRow(
     stock: MedicineStock,
+    preparation: MedicinePreparation,
 ): MedicationStockSubcardRowModel {
     return MedicationStockSubcardRowModel(
         kind = MedicationStockSubcardRowKind.STOCK_POOL,
@@ -563,6 +575,7 @@ private fun stockPoolSubcardRow(
             numerator = stock.unitsRemaining,
             denominator = stock.unitsLastTotal,
         ),
+        valueUnitRes = stockInventoryUnitRes(preparation),
         progress = stockSubcardProgress(
             numerator = stock.unitsRemaining,
             denominator = stock.unitsLastTotal,
@@ -642,13 +655,12 @@ internal fun stockSubcardProgress(
 internal fun compactStockValueText(
     numerator: Double?,
     denominator: Double?,
-    suffix: String = "",
 ): String {
     val numeratorText = formatStockSubcardCount(numerator)
     if (denominator == null || !denominator.isFinite() || denominator <= 0.0) {
-        return "$numeratorText$suffix"
+        return numeratorText
     }
-    return "$numeratorText / ${formatStockSubcardCount(denominator)}$suffix"
+    return "$numeratorText / ${formatStockSubcardCount(denominator)}"
 }
 
 private fun formatStockSubcardCount(value: Double?): String {

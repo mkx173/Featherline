@@ -68,6 +68,7 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.medication.activeDoseAssistPresets
+import java.math.BigDecimal
 import java.util.Locale
 import kotlin.math.floor
 
@@ -168,14 +169,15 @@ private fun RecountForm(
     onDismiss: () -> Unit,
 ) {
     val stock = projection.medicine.stock
-    val placeholderText = remember(stock.unitsRemaining) {
-        stock.unitsRemaining.toEditableCountOrEmpty().ifEmpty { "0" }
+    val allowDecimal = projection.medicine.preparation.allowsDecimalAdjustStockCount()
+    val placeholderText = remember(stock.unitsRemaining, allowDecimal) {
+        stock.unitsRemaining.toEditableCountOrEmpty(allowDecimal).ifEmpty { "0" }
     }
     var unitsRemainingText by remember(projection.medicine.uuid) { mutableStateOf("") }
 
-    val unitsRemaining = unitsRemainingText.toIntOrNull()
+    val unitsRemaining = parseAdjustStockCount(unitsRemainingText, allowDecimal)
     val canConfirm = unitsRemaining != null && unitsRemaining >= 0
-    val effectiveSealed = unitsRemaining?.toDouble() ?: (stock.unitsRemaining ?: 0.0)
+    val effectiveSealed = unitsRemaining ?: (stock.unitsRemaining ?: 0.0)
     val simulatedTotal = if (isContainer) {
         val containerSize = projection.medicine.preparation.containerSizeUnits()
         effectiveSealed * containerSize
@@ -184,9 +186,10 @@ private fun RecountForm(
     }
 
     val stepRecount: (Int) -> Unit = { delta ->
-        unitsRemainingText = stepCountText(
+        unitsRemainingText = stepAdjustStockCountText(
             unitsRemainingText.ifEmpty { placeholderText },
             delta,
+            allowDecimal,
         )
     }
 
@@ -197,6 +200,7 @@ private fun RecountForm(
             unit = adjustStockUnitLabel(projection.medicine.preparation),
             leadingIconRes = R.drawable.ic_box_edit,
             placeholder = placeholderText,
+            allowDecimal = allowDecimal,
             onValueChange = { unitsRemainingText = it },
             onStep = stepRecount,
         )
@@ -218,7 +222,7 @@ private fun RecountForm(
             enabled = canConfirm,
             onClick = {
                 val resolvedUnitsRemaining = unitsRemaining ?: return@HrtButton
-                onSubmit(StockRecount(unitsRemaining = resolvedUnitsRemaining.toDouble()))
+                onSubmit(StockRecount(unitsRemaining = resolvedUnitsRemaining))
                 onDismiss()
             },
             modifier = Modifier
@@ -235,6 +239,7 @@ private fun ReceivedForm(
     onSubmit: (StockReceived) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val allowDecimal = projection.medicine.preparation.allowsDecimalAdjustStockCount()
     val initialReceivedText = remember(
         projection.medicine.uuid,
         projection.medicine.stock.trackingEnabled,
@@ -252,18 +257,18 @@ private fun ReceivedForm(
     }
     var receivedText by remember(initialReceivedText) { mutableStateOf(initialReceivedText) }
 
-    val received = receivedText.toIntOrNull()
+    val received = parseAdjustStockCount(receivedText, allowDecimal)
     val canConfirm = received != null && received >= 0
     val simulatedTotal = if (isContainer) {
         val containerSize = projection.medicine.preparation.containerSizeUnits()
-        val sealed = (projection.medicine.stock.unitsRemaining ?: 0.0) + (received ?: 0).toDouble()
+        val sealed = (projection.medicine.stock.unitsRemaining ?: 0.0) + (received ?: 0.0)
         sealed * containerSize
     } else {
-        storedTotalUnits(projection) + (received ?: 0).toDouble()
+        storedTotalUnits(projection) + (received ?: 0.0)
     }
 
     val stepReceived: (Int) -> Unit = { delta ->
-        receivedText = stepCountText(receivedText, delta)
+        receivedText = stepAdjustStockCountText(receivedText, delta, allowDecimal)
     }
 
     Column {
@@ -272,6 +277,7 @@ private fun ReceivedForm(
             value = receivedText,
             unit = adjustStockUnitLabel(projection.medicine.preparation),
             leadingIconRes = R.drawable.ic_box_add,
+            allowDecimal = allowDecimal,
             onValueChange = { receivedText = it },
             onStep = stepReceived,
         )
@@ -293,7 +299,7 @@ private fun ReceivedForm(
             enabled = canConfirm,
             onClick = {
                 val resolvedReceived = received ?: return@HrtButton
-                onSubmit(StockReceived(unitsReceived = resolvedReceived.toDouble()))
+                onSubmit(StockReceived(unitsReceived = resolvedReceived))
                 onDismiss()
             },
             modifier = Modifier
@@ -361,8 +367,9 @@ private fun StockStepperCard(
     onValueChange: (String) -> Unit,
     onStep: (Int) -> Unit,
     placeholder: String = "0",
+    allowDecimal: Boolean,
 ) {
-    val effectiveCount = value.ifEmpty { placeholder }.toIntOrNull() ?: 0
+    val effectiveCount = parseAdjustStockCount(value.ifEmpty { placeholder }, allowDecimal) ?: 0.0
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
@@ -422,7 +429,10 @@ private fun StockStepperCard(
             Box(modifier = Modifier.alignByBaseline()) {
                 // Invisible sizer (or hint placeholder when empty) — keeps the
                 // editable field's width tied to the typed text so the unit
-                // label can sit immediately next to the number.
+                // label can sit immediately next to the number. The trailing
+                // padding reserves room for the text cursor so it isn't clipped
+                // (and doesn't trigger the field's internal horizontal scroll)
+                // when the caret sits at the end of the value.
                 Text(
                     text = value.ifEmpty { placeholder },
                     style = numberStyle,
@@ -431,14 +441,21 @@ private fun StockStepperCard(
                     } else {
                         Color.Transparent
                     },
+                    modifier = Modifier.padding(end = 2.dp),
                 )
                 BasicTextField(
                     value = value,
-                    onValueChange = { onValueChange(it.filter(Char::isDigit)) },
+                    onValueChange = {
+                        onValueChange(sanitizeAdjustStockCountText(it, allowDecimal))
+                    },
                     textStyle = numberStyle,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
+                        keyboardType = if (allowDecimal) {
+                            KeyboardType.Decimal
+                        } else {
+                            KeyboardType.Number
+                        },
                         imeAction = ImeAction.Done,
                     ),
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
@@ -496,9 +513,52 @@ private fun adjustStockUnitLabel(preparation: MedicinePreparation): String {
     return if (unitRes != null) stringResource(unitRes) else ""
 }
 
-private fun stepCountText(current: String, delta: Int): String {
-    val next = (current.toIntOrNull() ?: 0) + delta
-    return next.coerceAtLeast(0).toString()
+internal fun parseAdjustStockCount(
+    text: String,
+    allowDecimal: Boolean,
+): Double? {
+    val trimmed = text.trim()
+    if (trimmed.isEmpty()) return null
+    if (trimmed.any { !it.isDigit() && it != '.' && it != ',' }) return null
+    if (!allowDecimal && trimmed.any { it == '.' || it == ',' }) return null
+    val normalized = if (allowDecimal) {
+        val separatorCount = trimmed.count { it == '.' || it == ',' }
+        if (separatorCount > 1) return null
+        trimmed.replace(',', '.')
+    } else {
+        trimmed
+    }
+    val value = normalized.toDoubleOrNull() ?: return null
+    if (!value.isFinite() || value < 0.0) return null
+    return value
+}
+
+internal fun sanitizeAdjustStockCountText(
+    input: String,
+    allowDecimal: Boolean,
+): String {
+    var hasSeparator = false
+    val filtered = StringBuilder()
+    input.forEach { char ->
+        when {
+            char.isDigit() -> filtered.append(char)
+            allowDecimal && (char == '.' || char == ',') && !hasSeparator -> {
+                filtered.append(char)
+                hasSeparator = true
+            }
+        }
+    }
+    return filtered.toString()
+}
+
+internal fun stepAdjustStockCountText(
+    current: String,
+    delta: Int,
+    allowDecimal: Boolean,
+): String {
+    val next = ((parseAdjustStockCount(current, allowDecimal) ?: 0.0) + delta)
+        .coerceAtLeast(0.0)
+    return formatEditableStockCount(next, allowDecimal)
 }
 
 private fun MedicinePreparation.containerSizeUnits(): Double {
@@ -537,9 +597,19 @@ private val AdjustSheetTab.labelRes: Int
         AdjustSheetTab.RECEIVED -> R.string.stock_adjust_tab_received
     }
 
-private fun Double?.toEditableCountOrEmpty(): String {
+private fun MedicinePreparation.allowsDecimalAdjustStockCount(): Boolean {
+    return this is MedicinePreparation.Pill
+}
+
+private fun Double?.toEditableCountOrEmpty(allowDecimal: Boolean): String {
     val value = this ?: return ""
-    return value.toLong().toString()
+    return formatEditableStockCount(value, allowDecimal)
+}
+
+private fun formatEditableStockCount(value: Double, allowDecimal: Boolean): String {
+    val resolved = value.coerceAtLeast(0.0)
+    if (!allowDecimal) return resolved.toLong().toString()
+    return BigDecimal.valueOf(resolved).stripTrailingZeros().toPlainString()
 }
 
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 420)
