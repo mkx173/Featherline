@@ -18,6 +18,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -118,25 +119,35 @@ class HomeSnapshotRepository @Inject constructor(
 
     // All medication group, medication log, and profile writes that affect Home data
     // must go through this gate so stale snapshots are rejected before the DB changes.
+    //
+    // The work inside the lock runs in NonCancellable: once we bump the generation
+    // and clear the snapshot, the new snapshot MUST be rewritten — otherwise a
+    // caller whose scope dies mid-mutation (e.g. an OnboardingViewModel's
+    // viewModelScope when the user finishes onboarding right after saving weight)
+    // leaves the snapshot store empty and the next launch reads no profile until
+    // Room finishes opening. Lock acquisition stays cancellable so callers blocked
+    // on a long-running peer can still be cancelled cleanly.
     suspend fun <T> runHomeDataMutation(block: suspend () -> T): T {
         var generation = 0L
         var mutationResult: Result<T>? = null
         refreshMutex.withLock {
-            diagnosticsLogger.info(TAG, "home_data_mutation_start")
-            generation = homeSnapshotGenerationStore.incrementGeneration()
-            diagnosticsLogger.info(
-                TAG,
-                "home_data_mutation_generation_incremented generation=$generation"
-            )
-            val result = runCatching { block() }
-            mutationResult = result
-            result.onSuccess {
-                diagnosticsLogger.info(TAG, "home_data_mutation_committed generation=$generation")
+            withContext(NonCancellable) {
+                diagnosticsLogger.info(TAG, "home_data_mutation_start")
+                generation = homeSnapshotGenerationStore.incrementGeneration()
+                diagnosticsLogger.info(
+                    TAG,
+                    "home_data_mutation_generation_incremented generation=$generation"
+                )
+                val result = runCatching { block() }
+                mutationResult = result
+                result.onSuccess {
+                    diagnosticsLogger.info(TAG, "home_data_mutation_committed generation=$generation")
+                }
+                // The generation has already been bumped, so observers will reject any
+                // stale snapshot. Clear while still serialized with other mutations.
+                clearSnapshotBestEffort()
+                refreshHomeSnapshotBestEffortLocked(force = true)
             }
-            // The generation has already been bumped, so observers will reject any
-            // stale snapshot. Clear while still serialized with other mutations.
-            clearSnapshotBestEffort()
-            refreshHomeSnapshotBestEffortLocked(force = true)
         }
         diagnosticsLogger.info(
             TAG,
