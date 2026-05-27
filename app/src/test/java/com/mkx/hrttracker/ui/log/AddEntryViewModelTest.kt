@@ -28,6 +28,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -506,6 +507,146 @@ class AddEntryViewModelTest {
         stockProjections.value = listOf(estradiolProjection)
         advanceUntilIdle()
         assertNull(viewModel.uiState.value.selectedStockProjection)
+    }
+
+    @Test
+    fun selectedStockProjection_staysFrozenDuringInFlightSave() = runTest {
+        val beforeSaveProjection = stockProjection(
+            medicine = estradiolMedicine,
+            unitsRemaining = 4.0,
+        )
+        val afterSaveProjection = stockProjection(
+            medicine = estradiolMedicine.copy(
+                stock = estradiolMedicine.stock.copy(unitsRemaining = 3.0),
+            ),
+            unitsRemaining = 3.0,
+        )
+        val stockProjections = MutableStateFlow(listOf(beforeSaveProjection))
+        val saveStarted = CompletableDeferred<Unit>()
+        val finishSave = CompletableDeferred<Unit>()
+        every { medicineStockRepository.observeProjections() } returns stockProjections
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = estradiolMedicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+            )
+        } coAnswers {
+            saveStarted.complete(Unit)
+            finishSave.await()
+        }
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
+        )
+        advanceUntilIdle()
+
+        viewModel.updateMedicineDraft { draft ->
+            draft.copy(selectedMedicineUuid = estradiolMedicine.uuid)
+        }
+        assertEquals(beforeSaveProjection, viewModel.uiState.value.selectedStockProjection)
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+        saveStarted.await()
+        assertTrue(viewModel.uiState.value.isSaving)
+
+        stockProjections.value = listOf(afterSaveProjection)
+        advanceUntilIdle()
+
+        assertEquals(beforeSaveProjection, viewModel.uiState.value.selectedStockProjection)
+
+        finishSave.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertEquals(beforeSaveProjection, viewModel.uiState.value.selectedStockProjection)
+    }
+
+    @Test
+    fun selectedStockProjection_staysFrozenDuringInFlightGroupLinkedSave() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.now().withSecond(0).withNano(0)
+        val beforeSaveProjection = stockProjection(
+            medicine = estradiolMedicine,
+            unitsRemaining = 4.0,
+        )
+        val afterSaveProjection = stockProjection(
+            medicine = estradiolMedicine.copy(
+                stock = estradiolMedicine.stock.copy(unitsRemaining = 3.0),
+            ),
+            unitsRemaining = 3.0,
+        )
+        val stockProjections = MutableStateFlow(listOf(beforeSaveProjection))
+        val saveStarted = CompletableDeferred<Unit>()
+        val finishSave = CompletableDeferred<Unit>()
+        every { medicineStockRepository.observeProjections() } returns stockProjections
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns testMedicationGroup(
+            groupId = groupId,
+            name = "Evening",
+            colorKey = MedicationGroupColorKey.INDIGO,
+        )
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = estradiolMedicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = groupId,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 1,
+                appliedAtTimeZoneId = any(),
+            )
+        } coAnswers {
+            saveStarted.complete(Unit)
+            finishSave.await()
+        }
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            medicationCount = 1,
+        )
+        advanceUntilIdle()
+
+        assertEquals(beforeSaveProjection, viewModel.uiState.value.selectedStockProjection)
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+        saveStarted.await()
+        assertTrue(viewModel.uiState.value.isSaving)
+
+        stockProjections.value = listOf(afterSaveProjection)
+        advanceUntilIdle()
+
+        assertEquals(beforeSaveProjection, viewModel.uiState.value.selectedStockProjection)
+
+        finishSave.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertEquals(beforeSaveProjection, viewModel.uiState.value.selectedStockProjection)
     }
 
     @Test
@@ -1683,11 +1824,12 @@ private fun testMedicationGroup(
 
 private fun stockProjection(
     medicine: Medicine,
+    unitsRemaining: Double = 4.0,
 ): MedicineStockProjection {
     return MedicineStockProjection(
         medicine = medicine,
         dosesPerDayMagnitude = 1.0,
-        totalStockUnits = 4.0,
+        totalStockUnits = unitsRemaining,
         runway = RunwayProjection.NoSchedule,
         intervalDays = null,
         maxPerAdministration = 1.0,

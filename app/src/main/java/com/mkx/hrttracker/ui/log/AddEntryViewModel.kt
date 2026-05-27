@@ -89,7 +89,13 @@ class AddEntryViewModel @Inject constructor(
         viewModelScope.launch {
             medicineStockRepository.observeProjections().collect { projections ->
                 stockProjections = projections
-                _uiState.update { current -> current.withSelectedStockProjection() }
+                _uiState.update { current ->
+                    if (current.isSaving || current.isDeleting || current.isSaved) {
+                        current
+                    } else {
+                        current.withSelectedStockProjection()
+                    }
+                }
             }
         }
     }
@@ -472,7 +478,7 @@ class AddEntryViewModel @Inject constructor(
             }
 
             _uiState.update {
-                it.copy(
+                val updated = it.copy(
                     isLoading = false,
                     isSaving = false,
                     isSaved = isSaved,
@@ -481,6 +487,7 @@ class AddEntryViewModel @Inject constructor(
                     isScheduleFulfillmentWarningVisible = false,
                     savedCrossZoneZoneText = crossZoneText,
                 )
+                if (isSaved) updated else updated.withSelectedStockProjection()
             }
 
             if (isSaved) {
