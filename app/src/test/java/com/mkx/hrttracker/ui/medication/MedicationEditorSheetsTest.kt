@@ -108,6 +108,28 @@ class MedicationEditorSheetsTest {
     }
 
     @Test
+    fun medicationSummaryAllowsStockSubcardOnlyWhenMedicineAndProjectionExist() {
+        assertFalse(
+            medicationSummaryShouldShowStockSubcard(
+                hasMedicine = false,
+                hasStockProjection = true,
+            ),
+        )
+        assertFalse(
+            medicationSummaryShouldShowStockSubcard(
+                hasMedicine = true,
+                hasStockProjection = false,
+            ),
+        )
+        assertTrue(
+            medicationSummaryShouldShowStockSubcard(
+                hasMedicine = true,
+                hasStockProjection = true,
+            ),
+        )
+    }
+
+    @Test
     fun medicationLogScheduleOffset_selects_localized_label_and_single_largest_unit() {
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
 

@@ -96,9 +96,8 @@ import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
-import com.mkx.hrttracker.ui.components.MedicationCard
+import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
-import com.mkx.hrttracker.ui.components.StockStatusIndicator
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -490,8 +489,8 @@ internal fun MedicationEditorContent(
             canOpenMedicinePicker = canRepickMedicine,
             onOpenMedicinePicker = { if (!isSaving) onOpenMedicinePicker() },
             errorMessageRes = errorMessageRes,
+            selectedStockProjection = selectedStockProjection,
         )
-        MedicationEditorStockStatus(projection = selectedStockProjection)
 
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         NumericField(
@@ -522,9 +521,9 @@ internal fun MedicationEditorContent(
         canOpenMedicinePicker = canRepickMedicine,
         onOpenMedicinePicker = { if (!isSaving) onOpenMedicinePicker() },
         errorMessageRes = errorMessageRes,
+        selectedStockProjection = selectedStockProjection,
         trailingIndicator = summaryTrailingIndicator,
     )
-    MedicationEditorStockStatus(projection = selectedStockProjection)
 
     // The dose instruction form must render whenever the route requires per-
     // instruction dose data (VolumeMl for INJECTION_MULTI_USE_VIAL,
@@ -575,19 +574,6 @@ private fun EditorSectionLabel(text: String) {
     )
 }
 
-@Composable
-private fun MedicationEditorStockStatus(
-    projection: MedicineStockProjection?,
-) {
-    if (projection == null) return
-
-    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-    StockStatusIndicator(
-        projection = projection,
-        modifier = Modifier.fillMaxWidth(),
-    )
-}
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun MedicationSummaryHeader(
@@ -598,6 +584,7 @@ private fun MedicationSummaryHeader(
     canOpenMedicinePicker: Boolean,
     onOpenMedicinePicker: () -> Unit,
     errorMessageRes: Int?,
+    selectedStockProjection: MedicineStockProjection? = null,
     trailingIndicator: MedicationSummaryTrailingIndicator? = null,
 ) {
     EditorSectionLabel(stringResource(R.string.field_medication))
@@ -605,12 +592,18 @@ private fun MedicationSummaryHeader(
     val doseInstruction = doseInstructionDraft?.toDoseInstructionOrNull()
         ?: com.mkx.hrttracker.model.medication.DoseInstruction.Noop
     if (medicine != null) {
-        MedicationCard(
+        MedicationCardWithStockSubcard(
             medicine = medicine,
             doseInstruction = doseInstruction,
             applicationType = applicationType,
             medicationCount = resolvedCount.coerceAtLeast(1),
             groupColorKey = null,
+            stockProjection = selectedStockProjection.takeIf {
+                medicationSummaryShouldShowStockSubcard(
+                    hasMedicine = true,
+                    hasStockProjection = it != null,
+                )
+            },
             onClick = onOpenMedicinePicker,
             modifier = Modifier.fillMaxWidth(),
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -657,6 +650,13 @@ private fun MedicationSummaryHeader(
             )
         }
     }
+}
+
+internal fun medicationSummaryShouldShowStockSubcard(
+    hasMedicine: Boolean,
+    hasStockProjection: Boolean,
+): Boolean {
+    return hasMedicine && hasStockProjection
 }
 
 @Composable
@@ -899,13 +899,19 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
     }
 
-    MedicationCard(
+    MedicationCardWithStockSubcard(
         medicine = lockedMedicine,
         doseInstruction = doseInstruction
             ?: com.mkx.hrttracker.model.medication.DoseInstruction.Noop,
         applicationType = applicationType,
         medicationCount = resolvedCount.coerceAtLeast(1),
         groupColorKey = sourceGroupColorKey,
+        stockProjection = selectedStockProjection.takeIf {
+            medicationSummaryShouldShowStockSubcard(
+                hasMedicine = lockedMedicine != null,
+                hasStockProjection = it != null,
+            )
+        },
         missingGroupColorTreatment = linkedMedicationSummaryMissingGroupColorTreatment(
             sourceGroupColorKey = sourceGroupColorKey,
         ),
@@ -917,7 +923,6 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
         index = if (hasGroupInfo) 1 else 0,
         itemCount = if (hasGroupInfo) 2 else 1,
     )
-    MedicationEditorStockStatus(projection = selectedStockProjection)
 }
 
 internal fun linkedMedicationSummaryMissingGroupColorTreatment(
