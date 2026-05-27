@@ -177,7 +177,7 @@ class PlanBatchAddViewModel @Inject constructor(
 
         viewModelScope.launch {
             val saveResult = runCatching {
-                medicationLogRepository.saveNewEntries(entriesToSave)
+                medicationLogRepository.saveBackfillEntries(entriesToSave)
             }.fold(
                 onSuccess = { null },
                 onFailure = { PlanBatchAddSaveResult.FAILURE },

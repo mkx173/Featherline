@@ -1533,7 +1533,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 now = now,
                 zoneId = ZoneId.systemDefault(),
             )
-            medicationLogRepository.saveNewEntries(entriesToSave)
+            medicationLogRepository.saveBackfillEntries(entriesToSave)
             CreatePastScheduledSlotRecordsSaveState(
                 result = null,
                 savedRecordCount = entriesToSave.size,

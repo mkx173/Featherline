@@ -166,6 +166,45 @@ class MedicationLogRepositoryStockTest {
     }
 
     @Test
+    fun saveBackfillEntries_skipsMutatorAndLeavesStockUnstamped() = runTest {
+        // Backfill flows (batch-add, "show and generate past records") are
+        // retrospective reconciliation — the doses left inventory long before
+        // these rows were created, so stock must stay tied to the user's own
+        // Adjust Stock count rather than being re-debited per backfilled entry.
+        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns pillEntity()
+
+        val captured = slot<List<MedicationLogEntryEntity>>()
+        coEvery { logDao.insertEntries(capture(captured)) } returns Unit
+
+        repository.saveBackfillEntries(
+            listOf(
+                MedicationLogEntryInput(
+                    medicineUuid = medicineUuid,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    sourceGroupUuid = null,
+                    appliedAt = Instant.ofEpochMilli(0L),
+                    count = 1,
+                ),
+                MedicationLogEntryInput(
+                    medicineUuid = medicineUuid,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    sourceGroupUuid = null,
+                    appliedAt = Instant.ofEpochMilli(1L),
+                    count = 2,
+                ),
+            )
+        )
+
+        coVerify(exactly = 0) {
+            stockMutator.resolveDeductionForInsert(any(), any(), any(), any())
+        }
+        assertEquals(listOf(null, null), captured.captured.map { it.stockDeductionUnits })
+        assertEquals(listOf(null, null), captured.captured.map { it.stockGeneration })
+    }
+
+    @Test
     fun saveEntries_bulkEditPreservesStockMarkersAndDoesNotDeduct() = runTest {
         val entryUuid = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns pillEntity()

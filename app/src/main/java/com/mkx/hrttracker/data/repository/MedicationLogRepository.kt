@@ -355,6 +355,22 @@ class MedicationLogRepository @Inject internal constructor(
     }
 
     suspend fun saveNewEntries(entries: Collection<MedicationLogEntryInput>) {
+        insertNewEntries(entries, deductStock = true)
+    }
+
+    // Bulk insert used by retrospective backfill flows (batch-add and
+    // "show and generate past records as planned"). The user is reconstructing
+    // history they already lived through, so the doses left inventory long
+    // before these rows existed — current stock should stay tied to the user's
+    // own count via Adjust Stock, not be re-debited per backfilled entry.
+    suspend fun saveBackfillEntries(entries: Collection<MedicationLogEntryInput>) {
+        insertNewEntries(entries, deductStock = false)
+    }
+
+    private suspend fun insertNewEntries(
+        entries: Collection<MedicationLogEntryInput>,
+        deductStock: Boolean,
+    ) {
         if (entries.isEmpty()) {
             return
         }
@@ -377,19 +393,23 @@ class MedicationLogRepository @Inject internal constructor(
                         doseInstruction = entry.doseInstruction,
                         preparationType = medicine?.preparation?.type,
                     )
-                    val stockStamp = medicine?.let {
-                        val requested = resolveRequestedDoseForStock(
-                            preparation = it.preparation,
-                            doseInstruction = entry.doseInstruction,
-                            count = entry.count.coerceAtLeast(1),
-                        )
-                        requested?.let { requestedDose ->
-                            stockMutator.resolveDeductionForInsert(
-                                database = database,
-                                medicineUuid = it.uuid,
-                                requestedDose = requestedDose,
+                    val stockStamp = if (deductStock) {
+                        medicine?.let {
+                            val requested = resolveRequestedDoseForStock(
+                                preparation = it.preparation,
+                                doseInstruction = entry.doseInstruction,
+                                count = entry.count.coerceAtLeast(1),
                             )
+                            requested?.let { requestedDose ->
+                                stockMutator.resolveDeductionForInsert(
+                                    database = database,
+                                    medicineUuid = it.uuid,
+                                    requestedDose = requestedDose,
+                                )
+                            }
                         }
+                    } else {
+                        null
                     }
 
                     buildEntryEntity(

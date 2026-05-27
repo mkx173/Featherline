@@ -1126,7 +1126,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         } returns savedGroupUuid
         coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns savedGroup
         coEvery { medicationLogRepository.getEntries() } returns emptyList()
-        coEvery { medicationLogRepository.saveNewEntries(capture(savedEntries)) } returns Unit
+        coEvery { medicationLogRepository.saveBackfillEntries(capture(savedEntries)) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
 
         val viewModel = MedicationGroupEditorViewModel(
@@ -1170,7 +1170,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             entries.map { entry -> entry.sourceGroupUuid },
         )
         coVerify(exactly = 1) { medicationLogRepository.getEntries() }
-        coVerify(exactly = 1) { medicationLogRepository.saveNewEntries(any()) }
+        coVerify(exactly = 1) { medicationLogRepository.saveBackfillEntries(any()) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) }
     }
 
@@ -1208,7 +1208,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         } returns savedGroupUuid
         coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns savedGroup
         coEvery { medicationLogRepository.getEntries() } returns emptyList()
-        coEvery { medicationLogRepository.saveNewEntries(any()) } coAnswers {
+        coEvery { medicationLogRepository.saveBackfillEntries(any()) } coAnswers {
             recordGenerationStarted = true
             delay(1)
             Unit
@@ -1258,7 +1258,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertEquals(3, viewModel.uiState.value.createdPastScheduledSlotRecordCount)
         assertNull(callbackResult)
         assertEquals(3, callbackSavedRecordCount)
-        coVerify(exactly = 1) { medicationLogRepository.saveNewEntries(any()) }
+        coVerify(exactly = 1) { medicationLogRepository.saveBackfillEntries(any()) }
     }
 
     @Test
@@ -1295,7 +1295,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         } returns groupUuid
         coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
         coEvery { medicationLogRepository.getEntries() } returns emptyList()
-        coEvery { medicationLogRepository.saveNewEntries(capture(savedEntries)) } returns Unit
+        coEvery { medicationLogRepository.saveBackfillEntries(capture(savedEntries)) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleGroup(groupUuid, any()) } returns Unit
 
         val viewModel = MedicationGroupEditorViewModel(
@@ -1339,7 +1339,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             entries.map { entry -> entry.sourceGroupUuid },
         )
         coVerify(exactly = 1) { medicationLogRepository.getEntries() }
-        coVerify(exactly = 1) { medicationLogRepository.saveNewEntries(any()) }
+        coVerify(exactly = 1) { medicationLogRepository.saveBackfillEntries(any()) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(groupUuid, any()) }
     }
 
@@ -1390,7 +1390,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertEquals(savedGroupUuid.toString(), viewModel.uiState.value.editingGroupId)
 
         coVerify(exactly = 0) { medicationLogRepository.getEntries() }
-        coVerify(exactly = 0) { medicationLogRepository.saveNewEntries(any()) }
+        coVerify(exactly = 0) { medicationLogRepository.saveBackfillEntries(any()) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) }
     }
 
@@ -1426,7 +1426,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         } returns savedGroupUuid
         coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns savedGroup
         coEvery { medicationLogRepository.getEntries() } returns emptyList()
-        coEvery { medicationLogRepository.saveNewEntries(any()) } throws RuntimeException("record failed")
+        coEvery { medicationLogRepository.saveBackfillEntries(any()) } throws RuntimeException("record failed")
         coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
         var callbackResult: CreatePastScheduledSlotRecordsResult? = null
         var callbackSavedRecordCount: Int? = null
@@ -1463,7 +1463,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertEquals(savedGroupUuid.toString(), viewModel.uiState.value.editingGroupId)
         assertEquals(CreatePastScheduledSlotRecordsResult.FAILURE, callbackResult)
         assertNull(callbackSavedRecordCount)
-        coVerify(exactly = 1) { medicationLogRepository.saveNewEntries(any()) }
+        coVerify(exactly = 1) { medicationLogRepository.saveBackfillEntries(any()) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) }
     }
 }
