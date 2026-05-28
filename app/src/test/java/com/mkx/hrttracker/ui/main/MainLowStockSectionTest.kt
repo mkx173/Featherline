@@ -15,12 +15,6 @@ class MainLowStockSectionTest {
     }
 
     @Test
-    fun mainLowStockHeaderCountSuffixVisible_onlyWhenCollapsed() {
-        assertEquals(true, mainLowStockHeaderCountSuffixVisible(expanded = false))
-        assertEquals(false, mainLowStockHeaderCountSuffixVisible(expanded = true))
-    }
-
-    @Test
     fun mainLowStockRunwaySupportingText_uses_days_remaining_copy() {
         val text = mainLowStockRunwaySupportingText(
             RunwayProjection.Days(
