@@ -742,6 +742,125 @@ class MainViewModelTest {
     }
 
     @Test
+    fun reenteredLowStockWarningWithoutAllEmptyRoomEmissionStaysAcknowledged() = runTest {
+        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val firstProjection = stockWarningProjection(
+            uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
+            state = MedicineStockState.USER_LOW,
+        )
+        val secondProjection = stockWarningProjection(
+            uuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
+            state = MedicineStockState.USER_LOW,
+        )
+        val inputs = MutableSharedFlow<HomeInputs>()
+        every { settingsRepository.homeLowStockSectionExpandedFlow } returns MutableStateFlow(false)
+        every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
+            mapOf(
+                firstProjection.medicine.uuid.toString() to MedicineStockState.USER_LOW,
+                secondProjection.medicine.uuid.toString() to MedicineStockState.USER_LOW,
+            )
+        )
+        every { homeRepository.observeHomeInputs(any()) } returns inputs
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = FakeAppTimeSource(now),
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        inputs.emit(
+            homeInputs(
+                now = now,
+                stockWarnings = listOf(firstProjection, secondProjection),
+                source = HomeInputSource.ROOM,
+            )
+        )
+        advanceUntilIdle()
+        assertEquals(false, viewModel.uiState.value.lowStockSectionExpanded)
+
+        inputs.emit(
+            homeInputs(
+                now = now,
+                stockWarnings = listOf(secondProjection),
+                source = HomeInputSource.ROOM,
+            )
+        )
+        advanceUntilIdle()
+        assertEquals(false, viewModel.uiState.value.lowStockSectionExpanded)
+        coVerify(exactly = 0) {
+            settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+        }
+
+        inputs.emit(
+            homeInputs(
+                now = now,
+                stockWarnings = listOf(firstProjection, secondProjection),
+                source = HomeInputSource.ROOM,
+            )
+        )
+        advanceUntilIdle()
+        assertEquals(false, viewModel.uiState.value.lowStockSectionExpanded)
+        coVerify(exactly = 0) {
+            settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+        }
+    }
+
+    @Test
+    fun snapshotToRoomSameLowStockWarningDoesNotReexpandAfterAcknowledgement() = runTest {
+        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val projection = stockWarningProjection(
+            uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
+            state = MedicineStockState.OUT,
+        )
+        val inputs = MutableSharedFlow<HomeInputs>()
+        every { settingsRepository.homeLowStockSectionExpandedFlow } returns MutableStateFlow(false)
+        every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
+            mapOf(projection.medicine.uuid.toString() to MedicineStockState.OUT)
+        )
+        every { homeRepository.observeHomeInputs(any()) } returns inputs
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = FakeAppTimeSource(now),
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        inputs.emit(
+            homeInputs(
+                now = now,
+                stockWarnings = listOf(projection),
+                source = HomeInputSource.SNAPSHOT,
+            )
+        )
+        advanceUntilIdle()
+        assertEquals(false, viewModel.uiState.value.lowStockSectionExpanded)
+        coVerify(exactly = 0) {
+            settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+        }
+
+        inputs.emit(
+            homeInputs(
+                now = now,
+                stockWarnings = listOf(projection),
+                source = HomeInputSource.ROOM,
+            )
+        )
+        advanceUntilIdle()
+        assertEquals(false, viewModel.uiState.value.lowStockSectionExpanded)
+        coVerify(exactly = 0) {
+            settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+        }
+    }
+
+    @Test
     fun snapshotEmptyWarningsDoNotClearAcknowledgedWarningStates() = runTest {
         val now = LocalDateTime.of(2026, 4, 30, 12, 0)
         every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
