@@ -1,8 +1,12 @@
 package com.mkx.hrttracker.ui.main
 
+import com.mkx.hrttracker.ScheduledDoseRowHighlightTarget
+import com.mkx.hrttracker.scheduledDoseRowHighlightTargetFromStorageValue
+import com.mkx.hrttracker.toStorageValue
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -137,5 +141,60 @@ class DoseRowHighlightKeyTest {
     fun `Manual does not match an upcoming row`() {
         val key = DoseRowHighlightKey.Manual(entryUuid)
         assertFalse(key.matches(upcomingRow()))
+    }
+
+    // -- Multi-key request matching --
+
+    @Test
+    fun `Request matches today row when any key matches`() {
+        val request = DoseRowHighlightRequest(
+            listOf(
+                DoseRowHighlightKey.Scheduled(UUID.randomUUID(), slotUuid, scheduledAt, medUuid),
+                DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medicationUuid = null),
+            )
+        )
+
+        assertTrue(request.matches(scheduledTodayRow(medicationUuid = UUID.randomUUID())))
+    }
+
+    @Test
+    fun `Request matches upcoming row when any key matches`() {
+        val otherGroupUuid = UUID.fromString("55555555-0000-0000-0000-000000000000")
+        val request = DoseRowHighlightRequest(
+            listOf(
+                DoseRowHighlightKey.Scheduled(otherGroupUuid, slotUuid, scheduledAt, medUuid),
+                DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medicationUuid = null),
+            )
+        )
+
+        assertTrue(request.matches(upcomingRow(medicationUuid = UUID.randomUUID())))
+    }
+
+    @Test
+    fun `Request does not match rows when no key matches`() {
+        val request = DoseRowHighlightRequest(
+            listOf(
+                DoseRowHighlightKey.Scheduled(UUID.randomUUID(), slotUuid, scheduledAt, medUuid),
+                DoseRowHighlightKey.Manual(UUID.randomUUID()),
+            )
+        )
+
+        assertFalse(request.matches(scheduledTodayRow()))
+    }
+
+    // -- Scheduled highlight target storage --
+
+    @Test
+    fun `Scheduled highlight target storage round trips null schedule time`() {
+        val target = ScheduledDoseRowHighlightTarget(
+            groupUuid = groupUuid,
+            scheduleTimeUuid = null,
+            scheduledAt = scheduledAt,
+        )
+
+        assertEquals(
+            target,
+            scheduledDoseRowHighlightTargetFromStorageValue(target.toStorageValue())
+        )
     }
 }

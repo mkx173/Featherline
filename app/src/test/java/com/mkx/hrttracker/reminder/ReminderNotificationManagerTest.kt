@@ -10,6 +10,9 @@ import android.os.Looper
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.mkx.hrttracker.EXTRA_HIGHLIGHT_KIND
+import com.mkx.hrttracker.EXTRA_HIGHLIGHT_SCHEDULED_TARGETS
+import com.mkx.hrttracker.HIGHLIGHT_KIND_SCHEDULED
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testMedicine
@@ -24,6 +27,7 @@ import io.mockk.spyk
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDateTime
@@ -177,5 +181,65 @@ class ReminderNotificationManagerTest {
         verify { Toast.makeText(context, "1 medicine almost out", Toast.LENGTH_SHORT) }
         verify { Toast.makeText(context, "1 medicine low on stock", Toast.LENGTH_SHORT) }
         verify(exactly = 3) { toast.show() }
+    }
+
+    @Test
+    fun reminderNotificationScheduledHighlightTargetStorageValues_returnsEveryBundleSlotWithoutMedicationUuid() {
+        val firstSlot = MedicationReminderSlot(
+            groupUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
+            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
+            scheduleTimeUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000000"),
+        )
+        val secondSlot = MedicationReminderSlot(
+            groupUuid = UUID.fromString("cccccccc-0000-0000-0000-000000000000"),
+            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
+            scheduleTimeUuid = null,
+        )
+        val bundle = MedicationReminderBundle(
+            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
+            items = listOf(
+                MedicationReminderBundleItem(firstSlot, "Morning", emptyList()),
+                MedicationReminderBundleItem(secondSlot, "Evening", emptyList()),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                "aaaaaaaa-0000-0000-0000-000000000000|bbbbbbbb-0000-0000-0000-000000000000|2026-05-20T09:00",
+                "cccccccc-0000-0000-0000-000000000000||2026-05-20T09:00",
+            ),
+            reminderNotificationScheduledHighlightTargetStorageValues(bundle)
+        )
+    }
+
+    @Test
+    fun showDoseReminderNotification_addsScheduledHighlightTargetsToContentIntent() {
+        val slot = MedicationReminderSlot(
+            groupUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
+            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
+            scheduleTimeUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000000"),
+        )
+        val bundle = MedicationReminderBundle(
+            scheduledAt = slot.scheduledAt,
+            items = listOf(MedicationReminderBundleItem(slot, "Morning", emptyList())),
+        )
+        val notifManagerCompat: NotificationManagerCompat = mockk()
+        every { NotificationManagerCompat.from(any()) } returns notifManagerCompat
+        every { notifManagerCompat.areNotificationsEnabled() } returns true
+        every { notifManagerCompat.notify(any<String>(), any(), any()) } just Runs
+
+        notificationManager.showDoseReminderNotification(bundle, canSnooze = false)
+
+        verify {
+            anyConstructed<Intent>().putExtra(EXTRA_HIGHLIGHT_KIND, HIGHLIGHT_KIND_SCHEDULED)
+            anyConstructed<Intent>().putStringArrayListExtra(
+                EXTRA_HIGHLIGHT_SCHEDULED_TARGETS,
+                arrayListOf(
+                    "aaaaaaaa-0000-0000-0000-000000000000|" +
+                        "bbbbbbbb-0000-0000-0000-000000000000|" +
+                        "2026-05-20T09:00"
+                ),
+            )
+        }
     }
 }

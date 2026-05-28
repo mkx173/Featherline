@@ -1002,6 +1002,14 @@ sealed interface DoseRowHighlightKey {
     ) : DoseRowHighlightKey
 }
 
+data class DoseRowHighlightRequest(
+    val keys: List<DoseRowHighlightKey>,
+) {
+    init {
+        require(keys.isNotEmpty()) { "DoseRowHighlightRequest requires at least one key." }
+    }
+}
+
 internal fun DoseRowHighlightKey.matches(row: MainTodayDoseRowUiState): Boolean =
     when (this) {
         is DoseRowHighlightKey.Scheduled ->
@@ -1020,3 +1028,9 @@ internal fun DoseRowHighlightKey.matches(row: MainUpcomingDoseRowUiState): Boole
         row.scheduleTimeUuid == scheduleTimeUuid &&
         row.scheduledAt == scheduledAt &&
         (medicationUuid == null || row.medication.uuid == medicationUuid)
+
+internal fun DoseRowHighlightRequest.matches(row: MainTodayDoseRowUiState): Boolean =
+    keys.any { key -> key.matches(row) }
+
+internal fun DoseRowHighlightRequest.matches(row: MainUpcomingDoseRowUiState): Boolean =
+    keys.any { key -> key.matches(row) }

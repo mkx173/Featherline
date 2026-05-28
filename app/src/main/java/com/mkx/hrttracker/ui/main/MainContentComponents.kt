@@ -2790,9 +2790,8 @@ internal fun MainTodaySection(
     now: LocalDateTime,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    highlightRequest: DoseRowHighlightKey? = null,
+    highlightRequest: DoseRowHighlightRequest? = null,
     highlightEffectsEnabled: Boolean = true,
-    onHighlightConsumed: () -> Unit = { },
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     modifier: Modifier = Modifier
@@ -2860,7 +2859,6 @@ internal fun MainTodaySection(
                                     now = now,
                                     timeFormatter = timeFormatter,
                                     isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
-                                    onHighlightConsumed = onHighlightConsumed,
                                     onQuickLogDoseClick = onQuickLogDoseClick,
                                     onEntryClick = onEntryClick
                                 )
@@ -2879,9 +2877,8 @@ internal fun MainLastNightSection(
     now: LocalDateTime,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    highlightRequest: DoseRowHighlightKey? = null,
+    highlightRequest: DoseRowHighlightRequest? = null,
     highlightEffectsEnabled: Boolean = true,
-    onHighlightConsumed: () -> Unit = { },
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     modifier: Modifier = Modifier
@@ -2919,7 +2916,6 @@ internal fun MainLastNightSection(
                         now = now,
                         timeFormatter = timeFormatter,
                         isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
-                        onHighlightConsumed = onHighlightConsumed,
                         onQuickLogDoseClick = onQuickLogDoseClick,
                         onEntryClick = onEntryClick
                     )
@@ -2934,9 +2930,8 @@ internal fun MainUpcomingSection(
     section: MainUpcomingSectionUiState,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    highlightRequest: DoseRowHighlightKey? = null,
+    highlightRequest: DoseRowHighlightRequest? = null,
     highlightEffectsEnabled: Boolean = true,
-    onHighlightConsumed: () -> Unit = { },
     modifier: Modifier = Modifier
 ) {
     val title = when (section.title) {
@@ -2972,7 +2967,6 @@ internal fun MainUpcomingSection(
                             itemCount = section.rows.size,
                             timeFormatter = timeFormatter,
                             isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
-                            onHighlightConsumed = onHighlightConsumed,
                         )
                     }
                 }
@@ -3014,7 +3008,6 @@ private fun MainTodayDoseRow(
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     isHighlighted: Boolean = false,
-    onHighlightConsumed: () -> Unit = { },
     modifier: Modifier = Modifier
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -3037,7 +3030,6 @@ private fun MainTodayDoseRow(
         } finally {
             flashActive = false
         }
-        onHighlightConsumed()
     }
     val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
@@ -3167,7 +3159,6 @@ private fun MainUpcomingDoseRow(
     itemCount: Int,
     timeFormatter: DateTimeFormatter,
     isHighlighted: Boolean = false,
-    onHighlightConsumed: () -> Unit = { },
     modifier: Modifier = Modifier
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -3190,7 +3181,6 @@ private fun MainUpcomingDoseRow(
         } finally {
             flashActive = false
         }
-        onHighlightConsumed()
     }
     val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)

@@ -18,9 +18,14 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
+import com.mkx.hrttracker.EXTRA_HIGHLIGHT_KIND
+import com.mkx.hrttracker.EXTRA_HIGHLIGHT_SCHEDULED_TARGETS
+import com.mkx.hrttracker.HIGHLIGHT_KIND_SCHEDULED
 import com.mkx.hrttracker.MainActivity
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ScheduledDoseRowHighlightTarget
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.toStorageValue
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.medicineDisplayName
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -90,10 +95,7 @@ class ReminderNotificationManager @Inject constructor(
         val contentIntent = PendingIntent.getActivity(
             context,
             REMINDER_NOTIFICATION_REQUEST_CODE,
-            Intent(context, MainActivity::class.java).apply {
-                data = reminderNotificationContentData(notificationTag)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            },
+            buildReminderNotificationContentIntent(bundle, notificationTag),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val isMerged = bundle.items.size > 1
@@ -348,6 +350,24 @@ class ReminderNotificationManager @Inject constructor(
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
+
+    private fun buildReminderNotificationContentIntent(
+        bundle: MedicationReminderBundle,
+        notificationTag: String,
+    ): Intent {
+        return Intent(context, MainActivity::class.java).apply {
+            data = reminderNotificationContentData(notificationTag)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            val targets = reminderNotificationScheduledHighlightTargetStorageValues(bundle)
+            if (targets.isNotEmpty()) {
+                putExtra(EXTRA_HIGHLIGHT_KIND, HIGHLIGHT_KIND_SCHEDULED)
+                putStringArrayListExtra(
+                    EXTRA_HIGHLIGHT_SCHEDULED_TARGETS,
+                    ArrayList(targets),
+                )
+            }
+        }
+    }
 }
 
 private fun buildExpandedNotificationBody(
@@ -371,6 +391,20 @@ private fun buildExpandedNotificationBody(
         }
     }
 }
+
+internal fun reminderNotificationScheduledHighlightTargetStorageValues(
+    bundle: MedicationReminderBundle,
+): List<String> =
+    bundle.items
+        .map { item ->
+            ScheduledDoseRowHighlightTarget(
+                groupUuid = item.slot.groupUuid,
+                scheduleTimeUuid = item.slot.scheduleTimeUuid,
+                scheduledAt = item.slot.scheduledAt,
+            )
+        }
+        .distinct()
+        .map { target -> target.toStorageValue() }
 
 private fun reminderNotificationContentData(notificationTag: String): Uri {
     return "$REMINDER_NOTIFICATION_CONTENT_URI_PREFIX/$notificationTag".toUri()

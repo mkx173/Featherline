@@ -52,9 +52,8 @@ fun MainContent(
     modifier: Modifier = Modifier,
     uiState: MainUiState,
     scrollState: ScrollState,
-    highlightRequest: DoseRowHighlightKey? = null,
+    highlightRequest: DoseRowHighlightRequest? = null,
     highlightEffectsEnabled: Boolean = true,
-    onHighlightConsumed: () -> Unit = { },
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     onMedicineDetailClick: (UUID) -> Unit = { },
@@ -137,7 +136,6 @@ fun MainContent(
                 timeFormatter = timeFormatter,
                 highlightRequest = highlightRequest,
                 highlightEffectsEnabled = highlightEffectsEnabled,
-                onHighlightConsumed = onHighlightConsumed,
                 onQuickLogDoseClick = onQuickLogDoseClick,
                 onEntryClick = onEntryClick
             )
@@ -151,7 +149,6 @@ fun MainContent(
             timeFormatter = timeFormatter,
             highlightRequest = highlightRequest,
             highlightEffectsEnabled = highlightEffectsEnabled,
-            onHighlightConsumed = onHighlightConsumed,
             onQuickLogDoseClick = onQuickLogDoseClick,
             onEntryClick = onEntryClick
         )
@@ -163,7 +160,6 @@ fun MainContent(
             timeFormatter = timeFormatter,
             highlightRequest = highlightRequest,
             highlightEffectsEnabled = highlightEffectsEnabled,
-            onHighlightConsumed = onHighlightConsumed,
         )
 
         Spacer(modifier = Modifier.height(16.dp))

@@ -147,7 +147,6 @@ fun MainScreen(
                 scrollState = scrollState,
                 highlightRequest = highlightRequest,
                 highlightEffectsEnabled = highlightEffectsEnabled,
-                onHighlightConsumed = viewModel::consumeHighlightRequest,
                 onQuickLogDoseClick = onQuickLogDoseClick,
                 onEntryClick = onEntryClick,
                 onMedicineDetailClick = onMedicineDetailClick,

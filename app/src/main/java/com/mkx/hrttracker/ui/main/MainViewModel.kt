@@ -101,14 +101,21 @@ class MainViewModel @Inject constructor(
             )
         )
 
-    private val _highlightRequest = MutableStateFlow<DoseRowHighlightKey?>(null)
-    val highlightRequest: StateFlow<DoseRowHighlightKey?> = _highlightRequest.asStateFlow()
+    private val _highlightRequest = MutableStateFlow<DoseRowHighlightRequest?>(null)
+    val highlightRequest: StateFlow<DoseRowHighlightRequest?> = _highlightRequest.asStateFlow()
 
     private val _homeDeepLinkSignal = MutableStateFlow(0)
     val homeDeepLinkSignal: StateFlow<Int> = _homeDeepLinkSignal.asStateFlow()
 
     fun requestWidgetDoseRowHighlight(key: DoseRowHighlightKey) {
-        _highlightRequest.value = key
+        requestDoseRowHighlight(listOf(key))
+    }
+
+    fun requestDoseRowHighlight(keys: List<DoseRowHighlightKey>) {
+        if (keys.isEmpty()) {
+            return
+        }
+        _highlightRequest.value = DoseRowHighlightRequest(keys)
         _homeDeepLinkSignal.update { it + 1 }
     }
 
