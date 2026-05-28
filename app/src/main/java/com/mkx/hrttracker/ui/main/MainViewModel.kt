@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.util.AppTimeSource
@@ -69,13 +70,25 @@ class MainViewModel @Inject constructor(
         currentDateTime,
         timeZoneChangeNoticeController.notice,
         settingsRepository.homeLowStockSectionExpandedFlow,
-    ) { inputs, now, timeZoneNotice, lowStockSectionExpanded ->
+        settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
+    ) { inputs, now, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
+        if (
+            inputs.source == HomeInputSource.ROOM &&
+            inputs.stockWarnings.isEmpty() &&
+            acknowledgedWarningStates.isNotEmpty()
+        ) {
+            settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+        }
         withContext(defaultDispatcher) {
             buildHomeUiState(
                 inputs = inputs,
                 now = now,
                 timeZoneNotice = timeZoneNotice,
-                lowStockSectionExpanded = lowStockSectionExpanded,
+                lowStockSectionExpanded = shouldExpandLowStockSection(
+                    storedExpanded = storedLowStockSectionExpanded,
+                    stockWarnings = inputs.stockWarnings,
+                    acknowledgedWarningStates = acknowledgedWarningStates,
+                ),
             )
         }
     }
@@ -121,12 +134,15 @@ class MainViewModel @Inject constructor(
 
     fun setLowStockSectionExpanded(expanded: Boolean) {
         viewModelScope.launch {
-            settingsRepository.setHomeLowStockSectionExpanded(expanded)
+            settingsRepository.setHomeLowStockSectionFoldState(
+                expanded = expanded,
+                acknowledgedWarningStates = if (expanded) {
+                    emptyMap()
+                } else {
+                    uiState.value.stockWarnings.toLowStockWarningStateMap()
+                },
+            )
         }
-    }
-
-    private companion object {
-        const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
     }
 
     private fun refreshHomeSnapshotForDateIfNeeded(now: LocalDateTime) {
@@ -231,6 +247,45 @@ class MainViewModel @Inject constructor(
             ),
             timeZoneChangeNotice = timeZoneNotice,
         )
+    }
+
+    private fun shouldExpandLowStockSection(
+        storedExpanded: Boolean,
+        stockWarnings: List<MedicineStockProjection>,
+        acknowledgedWarningStates: Map<String, MedicineStockState>,
+    ): Boolean {
+        if (storedExpanded) {
+            return true
+        }
+        val currentWarningStates = stockWarnings.toLowStockWarningStateMap()
+        return currentWarningStates.any { (uuid, currentState) ->
+            val acknowledgedState = acknowledgedWarningStates[uuid]
+            acknowledgedState == null ||
+                acknowledgedState.lowStockSeverityRank() < currentState.lowStockSeverityRank()
+        }
+    }
+
+    private fun List<MedicineStockProjection>.toLowStockWarningStateMap(): Map<String, MedicineStockState> {
+        return mapNotNull { projection ->
+            projection.state
+                .takeIf { state -> state.lowStockSeverityRank() > 0 }
+                ?.let { state -> projection.medicine.uuid.toString() to state }
+        }.toMap()
+    }
+
+    private fun MedicineStockState.lowStockSeverityRank(): Int {
+        return when (this) {
+            MedicineStockState.USER_LOW -> 1
+            MedicineStockState.IMMINENT -> 2
+            MedicineStockState.OUT -> 3
+            MedicineStockState.HEALTHY,
+            MedicineStockState.UNTRACKED,
+            MedicineStockState.NO_RUNWAY -> 0
+        }
+    }
+
+    private companion object {
+        const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
     }
 }
 
