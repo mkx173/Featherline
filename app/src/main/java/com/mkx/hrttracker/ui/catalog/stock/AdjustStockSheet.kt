@@ -154,7 +154,6 @@ fun AdjustStockSheet(
                     isContainer = isContainer,
                     previewRunway = previewRunway,
                     onSubmit = onRecount,
-                    onDismiss = onDismissRequest,
                 )
 
                 AdjustSheetTab.RECEIVED -> ReceivedForm(
@@ -162,7 +161,6 @@ fun AdjustStockSheet(
                     isContainer = isContainer,
                     previewRunway = previewRunway,
                     onSubmit = onReceived,
-                    onDismiss = onDismissRequest,
                 )
             }
         }
@@ -175,7 +173,6 @@ private fun RecountForm(
     isContainer: Boolean,
     previewRunway: (MedicineStock) -> RunwayProjection?,
     onSubmit: (StockRecount) -> Unit,
-    onDismiss: () -> Unit,
 ) {
     val stock = projection.medicine.stock
     val allowDecimal = projection.medicine.preparation.allowsDecimalAdjustStockCount()
@@ -231,7 +228,6 @@ private fun RecountForm(
             onClick = {
                 val resolvedUnitsRemaining = unitsRemaining ?: return@HrtButton
                 onSubmit(StockRecount(unitsRemaining = resolvedUnitsRemaining))
-                onDismiss()
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -246,7 +242,6 @@ private fun ReceivedForm(
     isContainer: Boolean,
     previewRunway: (MedicineStock) -> RunwayProjection?,
     onSubmit: (StockReceived) -> Unit,
-    onDismiss: () -> Unit,
 ) {
     val allowDecimal = projection.medicine.preparation.allowsDecimalAdjustStockCount()
     val initialReceivedText = remember(
@@ -312,7 +307,6 @@ private fun ReceivedForm(
             onClick = {
                 val resolvedReceived = received ?: return@HrtButton
                 onSubmit(StockReceived(unitsReceived = resolvedReceived))
-                onDismiss()
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -670,7 +664,6 @@ private fun AdjustStockSheetPillRecountPreview() {
             isContainer = false,
             previewRunway = { null },
             onSubmit = {},
-            onDismiss = {},
         )
     }
 }
@@ -698,7 +691,6 @@ private fun AdjustStockSheetSingleUseVialReceivedPreview() {
             isContainer = false,
             previewRunway = { null },
             onSubmit = {},
-            onDismiss = {},
         )
     }
 }
@@ -729,7 +721,6 @@ private fun AdjustStockSheetMultiUseVialReceivedPreview() {
             isContainer = true,
             previewRunway = { null },
             onSubmit = {},
-            onDismiss = {},
         )
     }
 }

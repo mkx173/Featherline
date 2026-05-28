@@ -5,10 +5,13 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.RunwayProjection
+import com.mkx.hrttracker.data.repository.StockReceived
+import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
@@ -20,6 +23,7 @@ import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
@@ -131,6 +135,96 @@ class AdjustStockSheetTest {
         composeRule
             .onNodeWithText(context.getString(R.string.stock_runway_days_remaining, 28))
             .assertDoesNotExist()
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Test
+    fun receivedSubmitDoesNotDismissSheetBeforeMutationResult() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val projection = MedicineStockProjection(
+            medicine = patchMedicine(
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 0.0,
+                )
+            ),
+            dosesPerDayMagnitude = 1.0 / 7.0,
+            totalStockUnits = 0.0,
+            runway = RunwayProjection.NoSchedule,
+            intervalDays = 7,
+            maxPerAdministration = 1.0,
+            state = MedicineStockState.HEALTHY,
+        )
+        var submitted: StockReceived? = null
+        var dismissCount = 0
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                AdjustStockSheet(
+                    projection = projection,
+                    initialTab = AdjustSheetTab.RECEIVED,
+                    previewRunway = { null },
+                    onRecount = { },
+                    onReceived = { submitted = it },
+                    onDismissRequest = { dismissCount += 1 },
+                )
+            }
+        }
+
+        composeRule
+            .onNode(hasSetTextAction())
+            .performTextInput("4")
+        composeRule
+            .onNodeWithText(context.getString(R.string.stock_adjust_add))
+            .performClick()
+
+        assertEquals(StockReceived(unitsReceived = 4.0), submitted)
+        assertEquals(0, dismissCount)
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Test
+    fun recountSubmitDoesNotDismissSheetBeforeMutationResult() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val projection = MedicineStockProjection(
+            medicine = patchMedicine(
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 0.0,
+                )
+            ),
+            dosesPerDayMagnitude = 1.0 / 7.0,
+            totalStockUnits = 0.0,
+            runway = RunwayProjection.NoSchedule,
+            intervalDays = 7,
+            maxPerAdministration = 1.0,
+            state = MedicineStockState.HEALTHY,
+        )
+        var submitted: StockRecount? = null
+        var dismissCount = 0
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                AdjustStockSheet(
+                    projection = projection,
+                    initialTab = AdjustSheetTab.RECOUNT,
+                    previewRunway = { null },
+                    onRecount = { submitted = it },
+                    onReceived = { },
+                    onDismissRequest = { dismissCount += 1 },
+                )
+            }
+        }
+
+        composeRule
+            .onNode(hasSetTextAction())
+            .performTextInput("4")
+        composeRule
+            .onNodeWithText(context.getString(R.string.stock_adjust_save))
+            .performClick()
+
+        assertEquals(StockRecount(unitsRemaining = 4.0), submitted)
+        assertEquals(0, dismissCount)
     }
 }
 
