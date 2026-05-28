@@ -18,7 +18,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -104,6 +106,7 @@ import com.mkx.hrttracker.ui.catalog.NewMedicineSlotSheet
 import com.mkx.hrttracker.ui.catalog.NewMedicineSlotSheetMode
 import com.mkx.hrttracker.ui.catalog.NewMedicineSlotViewModel
 import com.mkx.hrttracker.ui.catalog.canHideNewMedicineSlotSheet
+import com.mkx.hrttracker.ui.components.AppContentMaxWidth
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -262,151 +265,153 @@ fun OnboardingScreen(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.surface,
     ) {
-        AnimatedContent(
-            targetState = step,
-            modifier = Modifier.fillMaxSize(),
-            transitionSpec = {
-                val forward = targetState > initialState
-                sharedAxisXEnterTransition(
-                    density = density,
-                    layoutDirection = layoutDirection,
-                    forward = forward,
-                ) togetherWith sharedAxisXExitTransition(
-                    density = density,
-                    layoutDirection = layoutDirection,
-                    forward = forward,
-                )
-            },
-            label = "onboarding-step",
-        ) {
-            val currentStep = it
-            val showProgress = currentStep >= 1
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .systemBarsPadding(),
+        OnboardingContentFrame {
+            AnimatedContent(
+                targetState = step,
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = {
+                    val forward = targetState > initialState
+                    sharedAxisXEnterTransition(
+                        density = density,
+                        layoutDirection = layoutDirection,
+                        forward = forward,
+                    ) togetherWith sharedAxisXExitTransition(
+                        density = density,
+                        layoutDirection = layoutDirection,
+                        forward = forward,
+                    )
+                },
+                label = "onboarding-step",
             ) {
-                OnboardingTopChrome(
-                    showProgress = showProgress,
-                    progressTotal = progressSteps,
-                    progressCurrent = currentStep,
-                )
+                val currentStep = it
+                val showProgress = currentStep >= 1
 
-                Box(
+                Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
+                        .fillMaxSize()
+                        .systemBarsPadding(),
                 ) {
-                    when (currentStep) {
-                        0 -> StartStep()
-                        1 -> DisclaimerStep(
-                            accepted = accepted,
-                            onAcceptedChange = { accepted = it },
-                            onOpenPrivacyPolicy = onOpenPrivacyPolicy,
-                        )
-                        2 -> NotificationsStep(
-                            notificationsGranted = notificationsGranted,
-                            exactAlarmGranted = exactAlarmGranted,
-                            onAllowNotifications = {
-                                val hasRuntimePerm: Boolean
-                                val shouldShowRationale: Boolean
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                    hasRuntimePerm = ContextCompat.checkSelfPermission(
-                                        context,
-                                        Manifest.permission.POST_NOTIFICATIONS
-                                    ) == PackageManager.PERMISSION_GRANTED
-                                    shouldShowRationale = activity?.let {
-                                        ActivityCompat.shouldShowRequestPermissionRationale(
-                                            it,
+                    OnboardingTopChrome(
+                        showProgress = showProgress,
+                        progressTotal = progressSteps,
+                        progressCurrent = currentStep,
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                    ) {
+                        when (currentStep) {
+                            0 -> StartStep()
+                            1 -> DisclaimerStep(
+                                accepted = accepted,
+                                onAcceptedChange = { accepted = it },
+                                onOpenPrivacyPolicy = onOpenPrivacyPolicy,
+                            )
+                            2 -> NotificationsStep(
+                                notificationsGranted = notificationsGranted,
+                                exactAlarmGranted = exactAlarmGranted,
+                                onAllowNotifications = {
+                                    val hasRuntimePerm: Boolean
+                                    val shouldShowRationale: Boolean
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        hasRuntimePerm = ContextCompat.checkSelfPermission(
+                                            context,
                                             Manifest.permission.POST_NOTIFICATIONS
+                                        ) == PackageManager.PERMISSION_GRANTED
+                                        shouldShowRationale = activity?.let {
+                                            ActivityCompat.shouldShowRequestPermissionRationale(
+                                                it,
+                                                Manifest.permission.POST_NOTIFICATIONS
+                                            )
+                                        } ?: false
+                                    } else {
+                                        hasRuntimePerm = false
+                                        shouldShowRationale = false
+                                    }
+                                    when (
+                                        resolveOnboardingNotificationPermissionAction(
+                                            sdkInt = Build.VERSION.SDK_INT,
+                                            hasRuntimePermission = hasRuntimePerm,
+                                            areNotificationsEnabled = NotificationManagerCompat
+                                                .from(context)
+                                                .areNotificationsEnabled(),
+                                            hasRequestedPermissionBefore = hasRequestedNotificationPermission,
+                                            shouldShowPermissionRationale = shouldShowRationale,
                                         )
-                                    } ?: false
-                                } else {
-                                    hasRuntimePerm = false
-                                    shouldShowRationale = false
-                                }
-                                when (
-                                    resolveOnboardingNotificationPermissionAction(
-                                        sdkInt = Build.VERSION.SDK_INT,
-                                        hasRuntimePermission = hasRuntimePerm,
-                                        areNotificationsEnabled = NotificationManagerCompat
-                                            .from(context)
-                                            .areNotificationsEnabled(),
-                                        hasRequestedPermissionBefore = hasRequestedNotificationPermission,
-                                        shouldShowPermissionRationale = shouldShowRationale,
-                                    )
-                                ) {
-                                    OnboardingNotificationPermissionAction.REQUEST_PERMISSION -> {
-                                        hasRequestedNotificationPermission = true
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    ) {
+                                        OnboardingNotificationPermissionAction.REQUEST_PERMISSION -> {
+                                            hasRequestedNotificationPermission = true
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                                notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                            }
+                                        }
+                                        OnboardingNotificationPermissionAction.OPEN_NOTIFICATION_SETTINGS -> {
+                                            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                            context.startActivity(intent)
+                                        }
+                                        OnboardingNotificationPermissionAction.SHOW_UNAVAILABLE_TOAST -> {
+                                            Toast.makeText(
+                                                context,
+                                                notificationsUnavailableMessage,
+                                                Toast.LENGTH_SHORT
+                                            ).show()
                                         }
                                     }
-                                    OnboardingNotificationPermissionAction.OPEN_NOTIFICATION_SETTINGS -> {
-                                        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                        context.startActivity(intent)
-                                    }
-                                    OnboardingNotificationPermissionAction.SHOW_UNAVAILABLE_TOAST -> {
-                                        Toast.makeText(
-                                            context,
-                                            notificationsUnavailableMessage,
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
-                            },
-                            onAllowExactAlarm = {
-                                val intent = Intent(
-                                    Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                                    "package:${context.packageName}".toUri()
-                                )
-                                exactAlarmLauncher.launch(intent)
-                            },
-                        )
-                        3 -> UsefulInfoStep(
-                            profile = uiState.userProfile,
-                            activeGroupCount = uiState.activeGroupCount,
-                            trackedMedicineCount = uiState.trackedMedicineCount,
-                            onSetWeightClick = { showWeightDialog = true },
-                            onAddGroupClick = {
-                                groupEditorOpenCount += 1
-                                showGroupEditor = true
-                            },
-                            onEnableStockClick = { showStockOnboarding = true },
-                        )
+                                },
+                                onAllowExactAlarm = {
+                                    val intent = Intent(
+                                        Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                        "package:${context.packageName}".toUri()
+                                    )
+                                    exactAlarmLauncher.launch(intent)
+                                },
+                            )
+                            3 -> UsefulInfoStep(
+                                profile = uiState.userProfile,
+                                activeGroupCount = uiState.activeGroupCount,
+                                trackedMedicineCount = uiState.trackedMedicineCount,
+                                onSetWeightClick = { showWeightDialog = true },
+                                onAddGroupClick = {
+                                    groupEditorOpenCount += 1
+                                    showGroupEditor = true
+                                },
+                                onEnableStockClick = { showStockOnboarding = true },
+                            )
+                        }
                     }
-                }
 
-                OnboardingBottomChrome(
-                    ctaLabel = when (currentStep) {
-                        0 -> stringResource(R.string.onboarding_start_cta)
-                        totalSteps - 1 -> stringResource(R.string.onboarding_open_app)
-                        else -> stringResource(R.string.onboarding_continue)
-                    },
-                    ctaEnabled = when (currentStep) {
-                        1 -> accepted
-                        2 -> notificationsGranted
-                        else -> true
-                    },
-                    secondaryButtonLabel = if (currentStep == 2) {
-                        stringResource(R.string.onboarding_skip_notifications)
-                    } else {
-                        null
-                    },
-                    onSecondaryButtonClick = if (currentStep == 2) {
-                        declineRemindersAndGoNext
-                    } else {
-                        null
-                    },
-                    secondaryButtonEnabled = currentStep != 2 || !notificationsGranted,
-                    onCta = if (currentStep == 2) {
-                        acceptRemindersAndGoNext
-                    } else {
-                        goNext
-                    },
-                )
+                    OnboardingBottomChrome(
+                        ctaLabel = when (currentStep) {
+                            0 -> stringResource(R.string.onboarding_start_cta)
+                            totalSteps - 1 -> stringResource(R.string.onboarding_open_app)
+                            else -> stringResource(R.string.onboarding_continue)
+                        },
+                        ctaEnabled = when (currentStep) {
+                            1 -> accepted
+                            2 -> notificationsGranted
+                            else -> true
+                        },
+                        secondaryButtonLabel = if (currentStep == 2) {
+                            stringResource(R.string.onboarding_skip_notifications)
+                        } else {
+                            null
+                        },
+                        onSecondaryButtonClick = if (currentStep == 2) {
+                            declineRemindersAndGoNext
+                        } else {
+                            null
+                        },
+                        secondaryButtonEnabled = currentStep != 2 || !notificationsGranted,
+                        onCta = if (currentStep == 2) {
+                            acceptRemindersAndGoNext
+                        } else {
+                            goNext
+                        },
+                    )
+                }
             }
         }
     }
@@ -500,6 +505,26 @@ fun OnboardingScreen(
                 onMedicineClick = { /* unreachable in OnboardingStockOptIn mode */ },
                 launchMode = MedicineManagerLaunchMode.OnboardingStockOptIn,
             )
+        }
+    }
+}
+
+@Composable
+internal fun OnboardingContentFrame(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        val contentWidth = minOf(maxWidth, AppContentMaxWidth)
+        Box(
+            modifier = modifier
+                .width(contentWidth)
+                .fillMaxHeight(),
+        ) {
+            content()
         }
     }
 }
@@ -1251,35 +1276,37 @@ private fun OnboardingStepPreviewFrame(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.surface,
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .systemBarsPadding(),
-            ) {
-                OnboardingTopChrome(
-                    showProgress = step >= 1,
-                    progressTotal = 3,
-                    progressCurrent = step,
-                )
-                Box(
+            OnboardingContentFrame {
+                Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
+                        .fillMaxSize()
+                        .systemBarsPadding(),
                 ) {
-                    content()
+                    OnboardingTopChrome(
+                        showProgress = step >= 1,
+                        progressTotal = 3,
+                        progressCurrent = step,
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                    ) {
+                        content()
+                    }
+                    OnboardingBottomChrome(
+                        ctaLabel = ctaLabel,
+                        ctaEnabled = ctaEnabled,
+                        secondaryButtonLabel = secondaryButtonLabel,
+                        onSecondaryButtonClick = if (secondaryButtonLabel != null) {
+                            {}
+                        } else {
+                            null
+                        },
+                        secondaryButtonEnabled = true,
+                        onCta = { },
+                    )
                 }
-                OnboardingBottomChrome(
-                    ctaLabel = ctaLabel,
-                    ctaEnabled = ctaEnabled,
-                    secondaryButtonLabel = secondaryButtonLabel,
-                    onSecondaryButtonClick = if (secondaryButtonLabel != null) {
-                        {}
-                    } else {
-                        null
-                    },
-                    secondaryButtonEnabled = true,
-                    onCta = { },
-                )
             }
         }
     }
