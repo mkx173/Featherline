@@ -746,7 +746,7 @@ private fun CalibrationMetadataChip(
 ) {
     Surface(
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surface,
+        color = MaterialTheme.colorScheme.surfaceContainer,
         onClick = onClick,
         modifier = modifier
     ) {
