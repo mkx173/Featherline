@@ -19,16 +19,11 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainContentComponentsTest {
     @Test
-    fun runDoseRowHighlightEffect_scrollsBeforeFlashing() = runTest {
-        val scrollComplete = kotlinx.coroutines.CompletableDeferred<Unit>()
+    fun runDoseRowHighlightFlashEffect_turnsFlashOffAfterHold() = runTest {
         val events = mutableListOf<String>()
         val job = launch {
-            runDoseRowHighlightEffect(
+            runDoseRowHighlightFlashEffect(
                 setFlashActive = { active -> events += "flash=$active" },
-                bringIntoView = {
-                    events += "bringIntoView"
-                    scrollComplete.await()
-                },
                 holdMillis = 0,
             )
         }
@@ -36,19 +31,63 @@ class MainContentComponentsTest {
         runCurrent()
 
         assertEquals(
-            listOf("bringIntoView"),
-            events,
-        )
-
-        scrollComplete.complete(Unit)
-        runCurrent()
-
-        assertEquals(
-            listOf("bringIntoView", "flash=true", "flash=false"),
+            listOf("flash=true", "flash=false"),
             events,
         )
 
         job.cancel()
+    }
+
+    @Test
+    fun mainDoseRowHighlightScrollTargetKey_usesLastMatchingTodayRowInRenderedOrder() {
+        val morningGroupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val eveningGroupUuid = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val morningSlotUuid = UUID.fromString("33333333-3333-3333-3333-333333333333")
+        val eveningSlotUuid = UUID.fromString("44444444-4444-4444-4444-444444444444")
+        val morningMedicationUuid = UUID.fromString("55555555-5555-5555-5555-555555555555")
+        val eveningMedicationUuid = UUID.fromString("66666666-6666-6666-6666-666666666666")
+        val morningAt = LocalDateTime.of(2026, 5, 20, 8, 0)
+        val eveningAt = LocalDateTime.of(2026, 5, 20, 21, 0)
+        val morningRow = scheduledTodayRow(
+            groupUuid = morningGroupUuid,
+            scheduleTimeUuid = morningSlotUuid,
+            scheduledAt = morningAt,
+            medicationUuid = morningMedicationUuid,
+        )
+        val eveningRow = scheduledTodayRow(
+            groupUuid = eveningGroupUuid,
+            scheduleTimeUuid = eveningSlotUuid,
+            scheduledAt = eveningAt,
+            medicationUuid = eveningMedicationUuid,
+        )
+        val request = DoseRowHighlightRequest(
+            listOf(
+                DoseRowHighlightKey.Scheduled(
+                    groupUuid = morningGroupUuid,
+                    scheduleTimeUuid = morningSlotUuid,
+                    scheduledAt = morningAt,
+                    medicationUuid = morningMedicationUuid,
+                ),
+                DoseRowHighlightKey.Scheduled(
+                    groupUuid = eveningGroupUuid,
+                    scheduleTimeUuid = eveningSlotUuid,
+                    scheduledAt = eveningAt,
+                    medicationUuid = eveningMedicationUuid,
+                ),
+            )
+        )
+        val uiState = MainUiState(
+            now = morningAt,
+            todaySection = MainTodaySectionUiState(
+                date = morningAt.toLocalDate(),
+                rows = listOf(eveningRow, morningRow),
+            ),
+        )
+
+        assertEquals(
+            mainTodayDoseRowCompositionKey(eveningRow),
+            mainDoseRowHighlightScrollTargetKey(uiState, request),
+        )
     }
 
     @Test

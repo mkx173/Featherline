@@ -54,6 +54,7 @@ fun MainContent(
     scrollState: ScrollState,
     highlightRequest: DoseRowHighlightRequest? = null,
     highlightEffectsEnabled: Boolean = true,
+    highlightFlashReady: Boolean = true,
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     onMedicineDetailClick: (UUID) -> Unit = { },
@@ -70,6 +71,13 @@ fun MainContent(
         medicationGroupScheduleDateFormatter(appLocale, today)
     }
     val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
+    val highlightScrollTargetKey = remember(uiState, highlightRequest, highlightEffectsEnabled) {
+        if (highlightEffectsEnabled) {
+            mainDoseRowHighlightScrollTargetKey(uiState, highlightRequest)
+        } else {
+            null
+        }
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -136,6 +144,8 @@ fun MainContent(
                 timeFormatter = timeFormatter,
                 highlightRequest = highlightRequest,
                 highlightEffectsEnabled = highlightEffectsEnabled,
+                highlightFlashReady = highlightFlashReady,
+                highlightScrollTargetKey = highlightScrollTargetKey,
                 onQuickLogDoseClick = onQuickLogDoseClick,
                 onEntryClick = onEntryClick
             )
@@ -149,6 +159,8 @@ fun MainContent(
             timeFormatter = timeFormatter,
             highlightRequest = highlightRequest,
             highlightEffectsEnabled = highlightEffectsEnabled,
+            highlightFlashReady = highlightFlashReady,
+            highlightScrollTargetKey = highlightScrollTargetKey,
             onQuickLogDoseClick = onQuickLogDoseClick,
             onEntryClick = onEntryClick
         )
@@ -160,6 +172,8 @@ fun MainContent(
             timeFormatter = timeFormatter,
             highlightRequest = highlightRequest,
             highlightEffectsEnabled = highlightEffectsEnabled,
+            highlightFlashReady = highlightFlashReady,
+            highlightScrollTargetKey = highlightScrollTargetKey,
         )
 
         Spacer(modifier = Modifier.height(16.dp))

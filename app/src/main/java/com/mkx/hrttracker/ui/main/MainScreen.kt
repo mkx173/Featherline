@@ -54,6 +54,46 @@ import com.mkx.hrttracker.util.calibrationUnitLabel
 import kotlinx.coroutines.delay
 import java.util.UUID
 
+private const val DoseRowHighlightClearDelayMillis = 2_000L
+private const val DoseRowHighlightScrollSettleFrameCount = 2
+
+internal suspend fun runDoseRowHighlightLifecycle(
+    setFlashReady: (Boolean) -> Unit,
+    awaitFirstLayoutFrame: suspend () -> Unit,
+    awaitScrollSettled: suspend () -> Unit,
+    clearDelayMillis: Long,
+    consumeHighlightRequest: () -> Unit,
+) {
+    setFlashReady(false)
+    awaitFirstLayoutFrame()
+    awaitScrollSettled()
+    setFlashReady(true)
+    delay(clearDelayMillis)
+    consumeHighlightRequest()
+}
+
+internal suspend fun awaitDoseRowHighlightScrollSettled(
+    isScrollInProgress: () -> Boolean,
+    scrollValue: () -> Int,
+    awaitFrame: suspend () -> Unit,
+    stableFrameCount: Int = DoseRowHighlightScrollSettleFrameCount,
+) {
+    require(stableFrameCount > 0) { "stableFrameCount must be greater than zero." }
+
+    var lastValue = scrollValue()
+    var stableFrames = 0
+    while (stableFrames < stableFrameCount) {
+        awaitFrame()
+        val currentValue = scrollValue()
+        stableFrames = if (!isScrollInProgress() && currentValue == lastValue) {
+            stableFrames + 1
+        } else {
+            0
+        }
+        lastValue = currentValue
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -70,12 +110,28 @@ fun MainScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val highlightRequest by viewModel.highlightRequest.collectAsStateWithLifecycle()
+    val scrollState = rememberScrollState()
+    var highlightFlashReady by remember { mutableStateOf(false) }
 
     LaunchedEffect(highlightRequest, highlightEffectsEnabled) {
-        if (highlightRequest != null && highlightEffectsEnabled) {
-            delay(2_000)
-            viewModel.consumeHighlightRequest()
+        if (highlightRequest == null || !highlightEffectsEnabled) {
+            highlightFlashReady = false
+            return@LaunchedEffect
         }
+
+        runDoseRowHighlightLifecycle(
+            setFlashReady = { ready -> highlightFlashReady = ready },
+            awaitFirstLayoutFrame = { withFrameNanos { } },
+            awaitScrollSettled = {
+                awaitDoseRowHighlightScrollSettled(
+                    isScrollInProgress = { scrollState.isScrollInProgress },
+                    scrollValue = { scrollState.value },
+                    awaitFrame = { withFrameNanos { } },
+                )
+            },
+            clearDelayMillis = DoseRowHighlightClearDelayMillis,
+            consumeHighlightRequest = viewModel::consumeHighlightRequest,
+        )
     }
 
     ReportDrawnWhen {
@@ -94,7 +150,6 @@ fun MainScreen(
             null -> Unit
         }
     }
-    val scrollState = rememberScrollState()
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
         state = topAppBarState
@@ -147,6 +202,7 @@ fun MainScreen(
                 scrollState = scrollState,
                 highlightRequest = highlightRequest,
                 highlightEffectsEnabled = highlightEffectsEnabled,
+                highlightFlashReady = highlightFlashReady,
                 onQuickLogDoseClick = onQuickLogDoseClick,
                 onEntryClick = onEntryClick,
                 onMedicineDetailClick = onMedicineDetailClick,
