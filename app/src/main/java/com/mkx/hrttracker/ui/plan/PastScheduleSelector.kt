@@ -51,7 +51,7 @@ internal fun PastScheduleSelectorCard(
                 text = stringResource(R.string.group_past_plans_title).uppercase(),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 8.dp, top = 2.dp)
             )
             PastScheduleSelectorRows(
                 state = state,

@@ -157,7 +157,7 @@ private fun DailyTimesCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .wrapContentHeight()
-                    .padding(bottom = 10.dp),
+                    .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -245,7 +245,7 @@ internal fun ScheduleOccurrencesCard(
                 text = title.uppercase(),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 8.dp, top = 2.dp)
             )
             val todayLabel = stringResource(R.string.plan_group_upcoming_today)
             val tomorrowLabel = stringResource(R.string.plan_group_upcoming_tomorrow)
