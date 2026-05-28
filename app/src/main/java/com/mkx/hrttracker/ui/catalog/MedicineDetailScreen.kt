@@ -263,8 +263,7 @@ private fun MedicineDetailScreenContent(
 
     LaunchedEffect(uiState.showAdjustSheet, adjustSheetRendered) {
         if (!uiState.showAdjustSheet && adjustSheetRendered) {
-            adjustSheetState.hide()
-            if (!adjustSheetState.isVisible) {
+            hideBottomSheet(scope, adjustSheetState) {
                 adjustSheetRendered = false
                 retainedAdjustSheetProjection = null
             }
