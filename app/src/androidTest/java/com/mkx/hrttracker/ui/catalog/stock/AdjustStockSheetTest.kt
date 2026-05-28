@@ -226,6 +226,52 @@ class AdjustStockSheetTest {
         assertEquals(StockRecount(unitsRemaining = 4.0), submitted)
         assertEquals(0, dismissCount)
     }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Test
+    fun cancelButtonDoesNotClearSheetSynchronously() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val projection = MedicineStockProjection(
+            medicine = patchMedicine(
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 0.0,
+                )
+            ),
+            dosesPerDayMagnitude = 1.0 / 7.0,
+            totalStockUnits = 0.0,
+            runway = RunwayProjection.NoSchedule,
+            intervalDays = 7,
+            maxPerAdministration = 1.0,
+            state = MedicineStockState.HEALTHY,
+        )
+        var dismissCount = 0
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                AdjustStockSheet(
+                    projection = projection,
+                    initialTab = AdjustSheetTab.RECEIVED,
+                    previewRunway = { null },
+                    onRecount = { },
+                    onReceived = { },
+                    onDismissRequest = { dismissCount += 1 },
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.mainClock.autoAdvance = false
+        try {
+            composeRule
+                .onNodeWithText(context.getString(R.string.stock_cancel))
+                .performClick()
+
+            assertEquals(0, dismissCount)
+        } finally {
+            composeRule.mainClock.autoAdvance = true
+        }
+    }
 }
 
 private fun containerMedicine(stock: MedicineStock): Medicine {

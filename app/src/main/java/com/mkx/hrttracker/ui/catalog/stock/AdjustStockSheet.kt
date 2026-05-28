@@ -35,12 +35,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +76,7 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.activeDoseAssistPresets
 import java.math.BigDecimal
 import java.util.Locale
@@ -86,12 +90,18 @@ fun AdjustStockSheet(
     previewRunway: (MedicineStock) -> RunwayProjection?,
     onRecount: (StockRecount) -> Unit,
     onReceived: (StockReceived) -> Unit,
+    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     onDismissRequest: () -> Unit,
+    onCloseClick: (() -> Unit)? = null,
 ) {
     val effectiveInitialTab = if (receivedOnly) AdjustSheetTab.RECEIVED else initialTab
     var activeTab by remember(effectiveInitialTab) { mutableStateOf(effectiveInitialTab) }
     val isContainer = projection.medicine.preparation is MedicinePreparation.InjectionMultiUseVial ||
         projection.medicine.preparation is MedicinePreparation.GelContainer
+    val scope = rememberCoroutineScope()
+    val resolvedOnCloseClick = onCloseClick ?: {
+        hideBottomSheet(scope, sheetState, onDismissRequest)
+    }
 
     val density = LocalDensity.current
     val navigationBarBottomPadding = with(density) {
@@ -99,6 +109,7 @@ fun AdjustStockSheet(
     }
 
     ModalBottomSheet(
+        sheetState = sheetState,
         onDismissRequest = onDismissRequest,
         modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
         contentWindowInsets = { WindowInsets.systemBars.only(WindowInsetsSides.Top) },
@@ -125,7 +136,7 @@ fun AdjustStockSheet(
                 )
                 HrtFilledTonalButton(
                     text = stringResource(R.string.stock_cancel),
-                    onClick = onDismissRequest,
+                    onClick = resolvedOnCloseClick,
                 )
             }
 

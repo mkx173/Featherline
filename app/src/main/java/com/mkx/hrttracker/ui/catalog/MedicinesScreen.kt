@@ -201,6 +201,7 @@ internal fun MedicinesScreen(
             )
         },
     )
+    val stockOptInSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val saveEntryFailureMessage = stringResource(R.string.save_entry_failure)
@@ -404,8 +405,11 @@ internal fun MedicinesScreen(
                     currentUnitsRemaining = pendingOptInProjection.medicine.stock.unitsRemaining ?: 0.0,
                     received = received,
                 )
-                pendingStockOptInUuid = null
+                hideBottomSheet(scope, stockOptInSheetState) {
+                    pendingStockOptInUuid = null
+                }
             },
+            sheetState = stockOptInSheetState,
             onDismissRequest = { pendingStockOptInUuid = null },
         )
     }

@@ -80,6 +80,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.catalog.stock.OpenContainerEditDialog
 import com.mkx.hrttracker.ui.catalog.stock.StockSection
@@ -234,10 +235,41 @@ private fun MedicineDetailScreenContent(
         state = topAppBarState,
     )
     val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val adjustSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     var editSheetOpen by remember { mutableStateOf(false) }
+    var adjustSheetRendered by remember { mutableStateOf(false) }
+    var retainedAdjustSheetProjection by remember {
+        mutableStateOf<MedicineStockProjection?>(null)
+    }
+    var retainedAdjustSheetTab by remember { mutableStateOf(AdjustSheetTab.RECEIVED) }
+    var retainedAdjustSheetReceivedOnly by remember { mutableStateOf(false) }
     var archiveConfirmOpen by remember { mutableStateOf(false) }
     val stockProjection = uiState.stockProjection
+
+    LaunchedEffect(
+        uiState.showAdjustSheet,
+        stockProjection,
+        uiState.adjustSheetActiveTab,
+        uiState.pendingEnableTracking,
+    ) {
+        if (uiState.showAdjustSheet && stockProjection != null) {
+            retainedAdjustSheetProjection = stockProjection
+            retainedAdjustSheetTab = uiState.adjustSheetActiveTab
+            retainedAdjustSheetReceivedOnly = uiState.pendingEnableTracking
+            adjustSheetRendered = true
+        }
+    }
+
+    LaunchedEffect(uiState.showAdjustSheet, adjustSheetRendered) {
+        if (!uiState.showAdjustSheet && adjustSheetRendered) {
+            adjustSheetState.hide()
+            if (!adjustSheetState.isVisible) {
+                adjustSheetRendered = false
+                retainedAdjustSheetProjection = null
+            }
+        }
+    }
 
     val appLocale = rememberAppLocale()
     val today = remember { LocalDate.now() }
@@ -515,15 +547,34 @@ private fun MedicineDetailScreenContent(
         }
     }
 
-    if (uiState.showAdjustSheet && stockProjection != null) {
+    val adjustSheetProjection = if (uiState.showAdjustSheet) {
+        stockProjection
+    } else {
+        retainedAdjustSheetProjection
+    }
+    val adjustSheetTab = if (uiState.showAdjustSheet) {
+        uiState.adjustSheetActiveTab
+    } else {
+        retainedAdjustSheetTab
+    }
+    val adjustSheetReceivedOnly = if (uiState.showAdjustSheet) {
+        uiState.pendingEnableTracking
+    } else {
+        retainedAdjustSheetReceivedOnly
+    }
+    if (adjustSheetRendered && adjustSheetProjection != null) {
         AdjustStockSheet(
-            projection = stockProjection,
-            initialTab = uiState.adjustSheetActiveTab,
-            receivedOnly = uiState.pendingEnableTracking,
+            projection = adjustSheetProjection,
+            initialTab = adjustSheetTab,
+            receivedOnly = adjustSheetReceivedOnly,
             onRecount = onSubmitRecount,
             onReceived = onSubmitReceived,
             previewRunway = previewRunway,
+            sheetState = adjustSheetState,
             onDismissRequest = onCloseAdjustSheet,
+            onCloseClick = {
+                hideBottomSheet(scope, adjustSheetState, onCloseAdjustSheet)
+            },
         )
     }
 
