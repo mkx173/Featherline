@@ -836,6 +836,128 @@ class MedicineDetailViewModelTest {
     }
 
     @Test
+    fun receivedStockMutationIgnoresSecondSubmitWhileFirstSubmitIsInFlight() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000024")
+        val medicine = testMedicine(
+            uuid = medicineUuid,
+            stock = MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 10.0,
+                unitsLastTotal = 10.0,
+            ),
+        )
+        val mutationStarted = CompletableDeferred<Unit>()
+        val finishMutation = CompletableDeferred<Unit>()
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+        coEvery { medicineRepository.applyReceived(medicineUuid, any(), any()) } coAnswers {
+            mutationStarted.complete(Unit)
+            finishMutation.await()
+        }
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+        viewModel.openAdjustSheet()
+
+        viewModel.submitReceived(StockReceived(unitsReceived = 5.0))
+        advanceUntilIdle()
+        mutationStarted.await()
+        viewModel.submitReceived(StockReceived(unitsReceived = 5.0))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            medicineRepository.applyReceived(medicineUuid, StockReceived(unitsReceived = 5.0), any())
+        }
+        assertEquals(true, viewModel.uiState.value.showAdjustSheet)
+
+        finishMutation.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.uiState.value.showAdjustSheet)
+    }
+
+    @Test
+    fun receivedStockMutationIsIgnoredAfterAdjustSheetStartsClosing() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000025")
+        val medicine = testMedicine(
+            uuid = medicineUuid,
+            stock = MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 10.0,
+                unitsLastTotal = 10.0,
+            ),
+        )
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+        coEvery { medicineRepository.applyReceived(medicineUuid, any(), any()) } just Runs
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.openAdjustSheet()
+        viewModel.closeAdjustSheet()
+        viewModel.submitReceived(StockReceived(unitsReceived = 5.0))
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { medicineRepository.applyReceived(any(), any(), any()) }
+        assertEquals(false, viewModel.uiState.value.showAdjustSheet)
+    }
+
+    @Test
+    fun recountStockMutationIsIgnoredAfterAdjustSheetStartsClosing() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000026")
+        val medicine = testMedicine(
+            uuid = medicineUuid,
+            stock = MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 10.0,
+                unitsLastTotal = 10.0,
+            ),
+        )
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+        coEvery { medicineRepository.applyRecount(medicineUuid, any(), any()) } just Runs
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.openAdjustSheet()
+        viewModel.closeAdjustSheet()
+        viewModel.submitRecount(StockRecount(unitsRemaining = 5.0))
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { medicineRepository.applyRecount(any(), any(), any()) }
+        assertEquals(false, viewModel.uiState.value.showAdjustSheet)
+    }
+
+    @Test
     fun optInRecountSubmissionDoesNotMutateStock() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000015")
         val medicine = testMedicine(uuid = medicineUuid)

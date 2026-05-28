@@ -178,8 +178,10 @@ class AdjustStockSheetTest {
             .onNodeWithText(context.getString(R.string.stock_adjust_add))
             .performClick()
 
-        assertEquals(StockReceived(unitsReceived = 4.0), submitted)
-        assertEquals(0, dismissCount)
+        composeRule.runOnIdle {
+            assertEquals(StockReceived(unitsReceived = 4.0), submitted)
+            assertEquals(0, dismissCount)
+        }
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -223,8 +225,10 @@ class AdjustStockSheetTest {
             .onNodeWithText(context.getString(R.string.stock_adjust_save))
             .performClick()
 
-        assertEquals(StockRecount(unitsRemaining = 4.0), submitted)
-        assertEquals(0, dismissCount)
+        composeRule.runOnIdle {
+            assertEquals(StockRecount(unitsRemaining = 4.0), submitted)
+            assertEquals(0, dismissCount)
+        }
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -270,6 +274,10 @@ class AdjustStockSheetTest {
             assertEquals(0, dismissCount)
         } finally {
             composeRule.mainClock.autoAdvance = true
+        }
+        composeRule.mainClock.advanceTimeBy(1_000)
+        composeRule.waitUntil(timeoutMillis = 3_000) {
+            dismissCount == 1
         }
     }
 }

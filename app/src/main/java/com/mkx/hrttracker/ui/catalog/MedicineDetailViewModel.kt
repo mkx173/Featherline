@@ -24,6 +24,8 @@ import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,7 +34,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
 import java.time.DayOfWeek
 import java.util.UUID
 import javax.inject.Inject
@@ -74,6 +75,7 @@ class MedicineDetailViewModel @Inject constructor(
     private val archiveResultFlow = MutableStateFlow<MedicineArchiveResult?>(null)
     private val saveResultFlow = MutableStateFlow<MedicineDetailSaveResult?>(null)
     private val stockMutationResultFlow = MutableStateFlow<MedicineStockMutationResult?>(null)
+    private var stockMutationJob: Job? = null
 
     // Seed from the eagerly-cached repo StateFlows so the first composition
     // lands on a populated screen (medicine != null, stock subcard present)
@@ -268,38 +270,46 @@ class MedicineDetailViewModel @Inject constructor(
         return stockRepository.previewRunway(medicineUuid, hypotheticalStock)
     }
 
-    fun submitRecount(recount: StockRecount): Job = launchStockMutation {
-        if (closePendingEnableAdjustSheet()) return@launchStockMutation
-        medicineRepository.applyRecount(medicineUuid, recount)
-        _uiState.update { it.copy(showAdjustSheet = false) }
-    }
-
-    fun submitReceived(received: StockReceived): Job = launchStockMutation {
-        if (_uiState.value.pendingEnableTracking) {
-            val medicine = _uiState.value.stockProjection?.medicine
-            val initialUnitsRemaining = (medicine?.stock?.unitsRemaining ?: 0.0) +
-                received.unitsReceived
-            // The stock mutator owns container topology details, including
-            // auto-opening the first received container when no open amount
-            // exists. The sheet passes the counted total and leaves the open
-            // amount unset so that behavior stays centralized.
-            medicineRepository.enableTracking(
-                uuid = medicineUuid,
-                initialUnitsRemaining = initialUnitsRemaining,
-                initialOpenContainerAmount = null,
-                initialUnitsLastTotal = initialUnitsRemaining,
-            )
-            _uiState.update {
-                it.copy(
-                    showAdjustSheet = false,
-                    pendingEnableTracking = false,
-                )
-            }
-        } else {
-            medicineRepository.applyReceived(medicineUuid, received)
+    fun submitRecount(recount: StockRecount): Job {
+        if (!_uiState.value.showAdjustSheet) return ignoredStockMutation()
+        return launchStockMutation {
+            if (closePendingEnableAdjustSheet()) return@launchStockMutation
+            medicineRepository.applyRecount(medicineUuid, recount)
             _uiState.update { it.copy(showAdjustSheet = false) }
         }
     }
+
+    fun submitReceived(received: StockReceived): Job {
+        if (!_uiState.value.showAdjustSheet) return ignoredStockMutation()
+        return launchStockMutation {
+            if (_uiState.value.pendingEnableTracking) {
+                val medicine = _uiState.value.stockProjection?.medicine
+                val initialUnitsRemaining = (medicine?.stock?.unitsRemaining ?: 0.0) +
+                    received.unitsReceived
+                // The stock mutator owns container topology details, including
+                // auto-opening the first received container when no open amount
+                // exists. The sheet passes the counted total and leaves the open
+                // amount unset so that behavior stays centralized.
+                medicineRepository.enableTracking(
+                    uuid = medicineUuid,
+                    initialUnitsRemaining = initialUnitsRemaining,
+                    initialOpenContainerAmount = null,
+                    initialUnitsLastTotal = initialUnitsRemaining,
+                )
+                _uiState.update {
+                    it.copy(
+                        showAdjustSheet = false,
+                        pendingEnableTracking = false,
+                    )
+                }
+            } else {
+                medicineRepository.applyReceived(medicineUuid, received)
+                _uiState.update { it.copy(showAdjustSheet = false) }
+            }
+        }
+    }
+
+    private fun ignoredStockMutation(): Job = viewModelScope.launch {}
 
     private fun closePendingEnableAdjustSheet(): Boolean {
         if (!_uiState.value.pendingEnableTracking) return false
@@ -330,15 +340,27 @@ class MedicineDetailViewModel @Inject constructor(
     private fun launchStockMutation(
         onFailure: (() -> Unit)? = null,
         block: suspend () -> Unit,
-    ): Job = viewModelScope.launch {
-        try {
-            block()
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Exception) {
-            onFailure?.invoke()
-            stockMutationResultFlow.value = MedicineStockMutationResult.FAILURE
+    ): Job {
+        stockMutationJob?.takeIf(Job::isActive)?.let { return it }
+
+        lateinit var job: Job
+        job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                block()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                onFailure?.invoke()
+                stockMutationResultFlow.value = MedicineStockMutationResult.FAILURE
+            } finally {
+                if (stockMutationJob == job) {
+                    stockMutationJob = null
+                }
+            }
         }
+        stockMutationJob = job
+        job.start()
+        return job
     }
 
     fun saveDisplayName(): Job = viewModelScope.launch {
