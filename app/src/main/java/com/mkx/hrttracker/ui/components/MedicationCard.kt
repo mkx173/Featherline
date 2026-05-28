@@ -1,5 +1,11 @@
 package com.mkx.hrttracker.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +30,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -126,7 +137,22 @@ internal fun MedicationCardWithStockSubcard(
         projection = stockProjection,
         mutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
     ) != null
-    val cardSegment = if (showStockSubcard) {
+    val stockSubcardVisibilityState = remember(medicine?.uuid) {
+        MutableTransitionState(showStockSubcard)
+    }.apply {
+        targetState = showStockSubcard
+    }
+    var lastStockSubcardProjection by remember(medicine?.uuid) {
+        mutableStateOf(stockProjection.takeIf { showStockSubcard })
+    }
+    LaunchedEffect(showStockSubcard, stockProjection) {
+        if (showStockSubcard && stockProjection != null) {
+            lastStockSubcardProjection = stockProjection
+        }
+    }
+    val stockSubcardIsAnimatingOrVisible =
+        stockSubcardVisibilityState.currentState || stockSubcardVisibilityState.targetState
+    val cardSegment = if (stockSubcardIsAnimatingOrVisible) {
         medicationCardWithStockHostSegment(rowIndex = index, rowCount = itemCount)
     } else {
         MedicationCardWithStockSegment(index = index, count = itemCount)
@@ -153,15 +179,24 @@ internal fun MedicationCardWithStockSubcard(
         index = cardSegment.index,
         itemCount = cardSegment.count,
         modifier = modifier,
-        embeddedContent = if (showStockSubcard && stockProjection != null) {
+        embeddedContent = if (stockSubcardIsAnimatingOrVisible) {
             {
-                MedicationStockSubcard(
-                    projection = stockProjection,
-                    containerColor = stockSubcardContainerColor,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    shape = MaterialTheme.shapes.small,
-                    mutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
-                )
+                AnimatedVisibility(
+                    visibleState = stockSubcardVisibilityState,
+                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                ) {
+                    val animatedProjection = stockProjection ?: lastStockSubcardProjection
+                    if (animatedProjection != null) {
+                        MedicationStockSubcard(
+                            projection = animatedProjection,
+                            containerColor = stockSubcardContainerColor,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            shape = MaterialTheme.shapes.small,
+                            mutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
+                        )
+                    }
+                }
             }
         } else {
             null
