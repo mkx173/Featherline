@@ -165,7 +165,6 @@ private fun HeaderOverflowMenu(
         HrtDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            anchor = HrtDropdownAnchor.EndAlignedBelow,
             items = buildList {
                 if (onEditOpenContainer != null) {
                     add(

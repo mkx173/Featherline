@@ -685,7 +685,6 @@ private fun WidgetAppearanceDialog(
                             expanded = isDarkModeMenuExpanded,
                             onDismissRequest = { isDarkModeMenuExpanded = false },
                             modifier = Modifier.width(IntrinsicSize.Min),
-                            anchor = HrtDropdownAnchor.EndAlignedBelow,
                             items = DarkModeOption.entries.map { option ->
                                 HrtDropdownMenuItem(
                                     text = stringResource(option.labelRes),
@@ -1053,10 +1052,36 @@ internal fun SettingsScreenContent(
                     dimensionResource(R.dimen.list_segment_gap)
                 )
             ) {
+
+                Box {
+                    SettingsSegmentedListItem(
+                        title = stringResource(R.string.settings_first_day_of_week),
+                        supportingText = stringResource(settingsState.firstDayOfWeekOption.menuLabelRes),
+                        index = 0,
+                        count = 4,
+                        onClick = { setFirstDayOfWeekMenuExpanded(true) },
+                        leadingContent = {
+                            SettingsLeadingIconSlot(
+                                painter = painterResource(R.drawable.ic_today)
+                            )
+                        }
+                    )
+                    HrtDropdownMenu(
+                        expanded = isFirstDayOfWeekMenuExpanded,
+                        onDismissRequest = { setFirstDayOfWeekMenuExpanded(false) },
+                        modifier = Modifier.width(IntrinsicSize.Min),
+                        items = FirstDayOfWeekOption.entries.map { option ->
+                            HrtDropdownMenuItem(
+                                text = stringResource(option.menuLabelRes),
+                                onClick = { onFirstDayOfWeekOptionChange(option) },
+                            )
+                        },
+                    )
+                }
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_hide_reference_ranges),
-                    index = 0,
-                    count = 3,
+                    index = 1,
+                    count = 4,
                     onClick = {
                         onHideReferenceRangesChange(!settingsState.hideReferenceRanges)
                     },
@@ -1082,8 +1107,8 @@ internal fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_hide_medication_details),
                     supportingText = stringResource(R.string.settings_hide_medication_details_summary),
-                    index = 1,
-                    count = 3,
+                    index = 2,
+                    count = 4,
                     onClick = {
                         onHideMedicationDetailsChange(!settingsState.hideMedicationDetails)
                     },
@@ -1103,8 +1128,8 @@ internal fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_hide_archived_group_records),
                     supportingText = stringResource(R.string.settings_hide_archived_group_records_summary),
-                    index = 2,
-                    count = 3,
+                    index = 3,
+                    count = 4,
                     onClick = {
                         onShowArchivedGroupRecordsChange(!settingsState.showArchivedGroupRecords)
                     },
@@ -1135,12 +1160,26 @@ internal fun SettingsScreenContent(
                     dimensionResource(R.dimen.list_segment_gap)
                 )
             ) {
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_widget_appearance),
+                    index = 0,
+                    count = 4,
+                    onClick = { showWidgetAppearanceDialog = true },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_widgets)
+                        )
+                    },
+                    trailingContent = {
+                        SettingsChevronTrailingIcon()
+                    }
+                )
                 Box {
                     SettingsSegmentedListItem(
                         title = stringResource(R.string.settings_app_language),
                         supportingText = stringResource(settingsState.appLanguageOption.labelRes),
-                        index = 0,
-                        count = 5,
+                        index = 1,
+                        count = 4,
                         onClick = { setLanguageMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1163,36 +1202,10 @@ internal fun SettingsScreenContent(
 
                 Box {
                     SettingsSegmentedListItem(
-                        title = stringResource(R.string.settings_first_day_of_week),
-                        supportingText = stringResource(settingsState.firstDayOfWeekOption.menuLabelRes),
-                        index = 1,
-                        count = 5,
-                        onClick = { setFirstDayOfWeekMenuExpanded(true) },
-                        leadingContent = {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_today)
-                            )
-                        }
-                    )
-                    HrtDropdownMenu(
-                        expanded = isFirstDayOfWeekMenuExpanded,
-                        onDismissRequest = { setFirstDayOfWeekMenuExpanded(false) },
-                        modifier = Modifier.width(IntrinsicSize.Min),
-                        items = FirstDayOfWeekOption.entries.map { option ->
-                            HrtDropdownMenuItem(
-                                text = stringResource(option.menuLabelRes),
-                                onClick = { onFirstDayOfWeekOptionChange(option) },
-                            )
-                        },
-                    )
-                }
-
-                Box {
-                    SettingsSegmentedListItem(
                         title = stringResource(R.string.settings_dark_mode),
                         supportingText = stringResource(settingsState.darkModeOption.labelRes),
                         index = 2,
-                        count = 5,
+                        count = 4,
                         onClick = { setDarkModeMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1216,7 +1229,7 @@ internal fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_adaptive_color),
                     index = 3,
-                    count = 5,
+                    count = 4,
                     onClick = {
                         onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
                     },
@@ -1230,21 +1243,6 @@ internal fun SettingsScreenContent(
                             checked = settingsState.adaptiveColorEnabled,
                             onCheckedChange = onAdaptiveColorEnabledChange
                         )
-                    }
-                )
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_widget_appearance),
-                    index = 4,
-                    count = 5,
-                    onClick = { showWidgetAppearanceDialog = true },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_widgets)
-                        )
-                    },
-                    trailingContent = {
-                        SettingsChevronTrailingIcon()
                     }
                 )
             }
