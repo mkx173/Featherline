@@ -620,7 +620,7 @@ private fun CalibrationAddAnalyteSheetContent(
                 onClick = onDismissRequest,
             )
         }
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
         availableAnalytes.forEachIndexed { index, option ->
             val title = when (option) {
                 is CalibrationAddAnalyteOption.Builtin -> {

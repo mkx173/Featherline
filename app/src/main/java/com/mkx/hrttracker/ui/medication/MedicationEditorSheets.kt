@@ -370,6 +370,7 @@ internal fun MedicationEditorSheetScaffold(
                 HrtFilledTonalButton(
                     text = stringResource(R.string.cancel),
                     onClick = onCloseClick,
+                    compact = true
                 )
             }
 
@@ -468,7 +469,7 @@ internal fun MedicationEditorContent(
     // it because they carry no medicine and the user must still choose ANTIANDROGEN
     // vs ESTRADIOL etc.
     if (resolvedMedicine == null) {
-        EditorSectionLabel(stringResource(R.string.field_medication_category))
+        EditorSectionLabel(stringResource(R.string.field_medication_category), topPadding = false)
         ConnectedButtonGroup(
             options = editorMedicationCategories(),
             selectedOption = medicineDraft.category,
@@ -483,8 +484,6 @@ internal fun MedicationEditorContent(
     }
 
     if (isPatchOff) {
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-
         MedicationSummaryHeader(
             medicine = resolvedMedicine,
             applicationType = applicationType,
@@ -508,8 +507,6 @@ internal fun MedicationEditorContent(
         )
         return
     }
-
-    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
     val summaryTrailingIndicator = remember(medicineDraft, doseInstructionDraft, countText) {
         medicationSummaryTrailingIndicator(
@@ -569,14 +566,14 @@ internal fun MedicationEditorContent(
 }
 
 @Composable
-private fun EditorSectionLabel(text: String) {
+private fun EditorSectionLabel(text: String, topPadding: Boolean = true) {
     Text(
         text = text,
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(bottom = 4.dp, top = if (topPadding) 4.dp else 0.dp),
     )
 }
 
@@ -594,7 +591,7 @@ private fun MedicationSummaryHeader(
     stockMutationPreviewDoseMagnitude: Double? = null,
     trailingIndicator: MedicationSummaryTrailingIndicator? = null,
 ) {
-    EditorSectionLabel(stringResource(R.string.field_medication))
+    EditorSectionLabel(stringResource(R.string.field_medication), topPadding = false)
     val resolvedCount = remember(countText) { parseMedicationCountText(countText) }
     val doseInstruction = doseInstructionDraft?.toDoseInstructionOrNull()
         ?: com.mkx.hrttracker.model.medication.DoseInstruction.Noop

@@ -177,7 +177,7 @@ internal fun CreateMedicineForm(
     }
     val editableFields = editableFields(medicineDraft)
 
-    EditorSectionLabel(stringResource(R.string.field_medication_category))
+    EditorSectionLabel(stringResource(R.string.field_medication_category), topPadding = false)
     ConnectedButtonGroup(
         options = editorMedicationCategories(),
         selectedOption = medicineDraft.category,
@@ -819,14 +819,14 @@ private fun fieldLabelWithUnit(
 }
 
 @Composable
-private fun EditorSectionLabel(text: String) {
+private fun EditorSectionLabel(text: String, topPadding: Boolean = true) {
     Text(
         text = text,
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(bottom = 4.dp, top = if (topPadding) 4.dp else 0.dp),
     )
 }
 
