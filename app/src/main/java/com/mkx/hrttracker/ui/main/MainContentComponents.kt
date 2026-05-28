@@ -2676,7 +2676,7 @@ private fun MainAntiandrogenMedicationSubCard(
     EditorSegmentedListItem(
         index = index,
         count = itemCount,
-        onClick = { },
+        onClick = null,
         modifier = modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         cornerShape = MaterialTheme.shapes.large,
@@ -3209,7 +3209,7 @@ private fun MainUpcomingDoseRow(
         EditorSegmentedListItem(
             index = index,
             count = itemCount,
-            onClick = { },
+            onClick = null,
             modifier = modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester),
             trailingContent = {
                 Text(
