@@ -1,7 +1,11 @@
 package com.mkx.hrttracker.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -37,8 +41,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -73,6 +80,8 @@ import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.labelRes
 
 internal const val MedicationCardLeadingIconTestTag = "medication-card-leading-icon"
+private const val MedicationCardLeadingIconTransitionDurationMillis = 220
+private const val MedicationCardLeadingIconFlipCameraDistance = 12f
 
 internal val MedicationCardLeadingIconContainerColorArgbKey =
     SemanticsPropertyKey<Int>("MedicationCardLeadingIconContainerColorArgb")
@@ -83,6 +92,24 @@ internal var SemanticsPropertyReceiver.medicationCardLeadingIconContainerColorAr
 internal enum class MedicationCardMissingGroupColorTreatment {
     PRIMARY_CONTAINER,
     NEUTRAL_GROUP_PALETTE,
+}
+
+internal enum class MedicationCardLeadingIconVisualState {
+    SELECTED,
+    FORM,
+    APPLICATION,
+}
+
+internal fun medicationCardLeadingIconVisualState(
+    isSelected: Boolean,
+    leadingIconAsForm: Boolean,
+    hasMedicine: Boolean,
+): MedicationCardLeadingIconVisualState {
+    return when {
+        isSelected -> MedicationCardLeadingIconVisualState.SELECTED
+        leadingIconAsForm && hasMedicine -> MedicationCardLeadingIconVisualState.FORM
+        else -> MedicationCardLeadingIconVisualState.APPLICATION
+    }
 }
 
 internal fun medicationCardUsesGroupPalette(
@@ -260,22 +287,41 @@ internal fun MedicationCard(
     // the icon still reads as a colored chip. Some entry surfaces, such as
     // manual logs opened from Home, opt into the neutral group palette to
     // match their source row.
-    val leadingSurfaceColor = when {
+    val targetLeadingSurfaceColor = when {
         isSelected -> MaterialTheme.colorScheme.primary
         useGroupPalette -> groupColorScheme.primaryContainer
         else -> MaterialTheme.colorScheme.secondaryContainer
     }
-    val leadingContentColor = when {
+    val targetLeadingContentColor = when {
         isSelected -> MaterialTheme.colorScheme.onPrimary
         useGroupPalette -> groupColorScheme.onPrimaryContainer
         else -> MaterialTheme.colorScheme.onSecondaryContainer
     }
+    val leadingFadeSpec = tween<Color>(
+        durationMillis = MedicationCardLeadingIconTransitionDurationMillis,
+    )
+    val leadingSurfaceColor by animateColorAsState(
+        targetValue = targetLeadingSurfaceColor,
+        animationSpec = leadingFadeSpec,
+        label = "medication-card-leading-surface-color",
+    )
+    val leadingContentColor by animateColorAsState(
+        targetValue = targetLeadingContentColor,
+        animationSpec = leadingFadeSpec,
+        label = "medication-card-leading-content-color",
+    )
+    val leadingIconVisualState = medicationCardLeadingIconVisualState(
+        isSelected = isSelected,
+        leadingIconAsForm = leadingIconAsForm,
+        hasMedicine = medicine != null,
+    )
     val leadingIconModifier = Modifier
         .size(36.dp)
         .testTag(MedicationCardLeadingIconTestTag)
         .semantics {
             medicationCardLeadingIconContainerColorArgb = leadingSurfaceColor.toArgb()
         }
+        .clip(MaterialTheme.shapes.small)
         .then(
             if (onLeadingIconClick != null) {
                 Modifier.clickable(
@@ -330,26 +376,48 @@ internal fun MedicationCard(
                         modifier = Modifier.size(36.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = leadingIconContentDescription,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        } else if (leadingIconAsForm && medicine != null) {
-                            Icon(
-                                painter = painterResource(
-                                    medicinePreparationIconRes(medicine.preparation),
-                                ),
-                                contentDescription = leadingIconContentDescription ?: applicationTypeLabel,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        } else {
-                            MedicationApplicationIcon(
-                                applicationType = applicationType,
-                                contentDescription = leadingIconContentDescription ?: applicationTypeLabel,
-                                modifier = Modifier.size(20.dp),
-                            )
+                        MedicationCardLeadingIconFlipSlot(
+                            targetState = leadingIconVisualState,
+                        ) { visualState ->
+                            when (visualState) {
+                                MedicationCardLeadingIconVisualState.SELECTED -> {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = leadingIconContentDescription,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                MedicationCardLeadingIconVisualState.FORM -> {
+                                    val currentMedicine = medicine
+                                    if (currentMedicine != null) {
+                                        Icon(
+                                            painter = painterResource(
+                                                medicinePreparationIconRes(currentMedicine.preparation),
+                                            ),
+                                            contentDescription = leadingIconContentDescription
+                                                ?: applicationTypeLabel,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    } else {
+                                        MedicationApplicationIcon(
+                                            applicationType = applicationType,
+                                            contentDescription = leadingIconContentDescription
+                                                ?: applicationTypeLabel,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
+                                }
+
+                                MedicationCardLeadingIconVisualState.APPLICATION -> {
+                                    MedicationApplicationIcon(
+                                        applicationType = applicationType,
+                                        contentDescription = leadingIconContentDescription
+                                            ?: applicationTypeLabel,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -385,6 +453,57 @@ internal fun MedicationCard(
         }
     }
 }
+
+@Composable
+private fun MedicationCardLeadingIconFlipSlot(
+    targetState: MedicationCardLeadingIconVisualState,
+    content: @Composable (MedicationCardLeadingIconVisualState) -> Unit,
+) {
+    var fromState by remember { mutableStateOf(targetState) }
+    var toState by remember { mutableStateOf(targetState) }
+    val progress = remember { Animatable(0f) }
+
+    LaunchedEffect(targetState) {
+        if (targetState != toState) {
+            val currentlyVisible = if (progress.value < FlipFaceSwapProgress) fromState else toState
+            fromState = currentlyVisible
+            toState = targetState
+            progress.snapTo(0f)
+            progress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = MedicationCardLeadingIconTransitionDurationMillis,
+                    easing = FastOutSlowInEasing,
+                ),
+            )
+        }
+    }
+
+    val coercedProgress = progress.value.coerceIn(0f, 1f)
+    val showingTarget = coercedProgress >= FlipFaceSwapProgress
+    val face = if (showingTarget) toState else fromState
+    val rotationX = if (showingTarget) {
+        -FlipQuarterTurnDegrees +
+            FlipQuarterTurnDegrees *
+            ((coercedProgress - FlipFaceSwapProgress) / FlipFaceSwapProgress)
+    } else {
+        FlipQuarterTurnDegrees * (coercedProgress / FlipFaceSwapProgress)
+    }
+    val density = LocalDensity.current.density
+
+    Box(
+        modifier = Modifier.graphicsLayer {
+            this.rotationX = rotationX
+            cameraDistance = MedicationCardLeadingIconFlipCameraDistance * density
+        },
+        contentAlignment = Alignment.Center,
+    ) {
+        content(face)
+    }
+}
+
+private const val FlipFaceSwapProgress = 0.5f
+private const val FlipQuarterTurnDegrees = 90f
 
 @Preview(
     name = "Medication Card",

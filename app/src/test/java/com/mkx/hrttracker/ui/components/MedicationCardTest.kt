@@ -8,6 +8,26 @@ import org.junit.Test
 
 class MedicationCardTest {
     @Test
+    fun leadingIconVisualStateUsesSelectedIconWhenCardIsSelected() {
+        assertEquals(
+            MedicationCardLeadingIconVisualState.SELECTED,
+            medicationCardLeadingIconVisualState(
+                isSelected = true,
+                leadingIconAsForm = true,
+                hasMedicine = true,
+            ),
+        )
+        assertEquals(
+            MedicationCardLeadingIconVisualState.SELECTED,
+            medicationCardLeadingIconVisualState(
+                isSelected = true,
+                leadingIconAsForm = false,
+                hasMedicine = false,
+            ),
+        )
+    }
+
+    @Test
     fun medicationCardUsesNeutralGroupPaletteForMissingGroupOnlyWhenRequested() {
         assertFalse(
             medicationCardUsesGroupPalette(
