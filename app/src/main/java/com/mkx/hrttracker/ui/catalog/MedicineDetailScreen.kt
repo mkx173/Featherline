@@ -204,6 +204,18 @@ internal fun showWarnAtBelowIntervalWarning(
     return warnAtDays > 0 && intervalDays != null && warnAtDays < intervalDays
 }
 
+internal fun adjustSheetStockProjectionForDisplay(
+    isStockProjectionFrozen: Boolean,
+    stockProjection: MedicineStockProjection?,
+    frozenStockProjection: MedicineStockProjection?,
+): MedicineStockProjection? {
+    return if (isStockProjectionFrozen) {
+        frozenStockProjection
+    } else {
+        stockProjection
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MedicineDetailScreenContent(
@@ -244,6 +256,10 @@ private fun MedicineDetailScreenContent(
     }
     var retainedAdjustSheetTab by remember { mutableStateOf(AdjustSheetTab.RECEIVED) }
     var retainedAdjustSheetReceivedOnly by remember { mutableStateOf(false) }
+    var isAdjustSheetStockProjectionFrozen by remember { mutableStateOf(false) }
+    var frozenAdjustSheetStockProjection by remember {
+        mutableStateOf<MedicineStockProjection?>(null)
+    }
     var archiveConfirmOpen by remember { mutableStateOf(false) }
     val stockProjection = uiState.stockProjection
 
@@ -252,8 +268,13 @@ private fun MedicineDetailScreenContent(
         stockProjection,
         uiState.adjustSheetActiveTab,
         uiState.pendingEnableTracking,
+        isAdjustSheetStockProjectionFrozen,
     ) {
-        if (uiState.showAdjustSheet && stockProjection != null) {
+        if (
+            uiState.showAdjustSheet &&
+            stockProjection != null &&
+            !isAdjustSheetStockProjectionFrozen
+        ) {
             retainedAdjustSheetProjection = stockProjection
             retainedAdjustSheetTab = uiState.adjustSheetActiveTab
             retainedAdjustSheetReceivedOnly = uiState.pendingEnableTracking
@@ -266,7 +287,16 @@ private fun MedicineDetailScreenContent(
             hideBottomSheet(scope, adjustSheetState) {
                 adjustSheetRendered = false
                 retainedAdjustSheetProjection = null
+                isAdjustSheetStockProjectionFrozen = false
+                frozenAdjustSheetStockProjection = null
             }
+        }
+    }
+
+    LaunchedEffect(uiState.stockMutationResult) {
+        if (uiState.stockMutationResult == MedicineStockMutationResult.FAILURE) {
+            isAdjustSheetStockProjectionFrozen = false
+            frozenAdjustSheetStockProjection = null
         }
     }
 
@@ -546,11 +576,16 @@ private fun MedicineDetailScreenContent(
         }
     }
 
-    val adjustSheetProjection = if (uiState.showAdjustSheet) {
+    val liveAdjustSheetProjection = if (uiState.showAdjustSheet) {
         stockProjection
     } else {
         retainedAdjustSheetProjection
     }
+    val adjustSheetProjection = adjustSheetStockProjectionForDisplay(
+        isStockProjectionFrozen = isAdjustSheetStockProjectionFrozen,
+        stockProjection = liveAdjustSheetProjection,
+        frozenStockProjection = frozenAdjustSheetStockProjection,
+    )
     val adjustSheetTab = if (uiState.showAdjustSheet) {
         uiState.adjustSheetActiveTab
     } else {
@@ -566,8 +601,16 @@ private fun MedicineDetailScreenContent(
             projection = adjustSheetProjection,
             initialTab = adjustSheetTab,
             receivedOnly = adjustSheetReceivedOnly,
-            onRecount = onSubmitRecount,
-            onReceived = onSubmitReceived,
+            onRecount = { recount ->
+                frozenAdjustSheetStockProjection = adjustSheetProjection
+                isAdjustSheetStockProjectionFrozen = true
+                onSubmitRecount(recount)
+            },
+            onReceived = { received ->
+                frozenAdjustSheetStockProjection = adjustSheetProjection
+                isAdjustSheetStockProjectionFrozen = true
+                onSubmitReceived(received)
+            },
             previewRunway = previewRunway,
             sheetState = adjustSheetState,
             onDismissRequest = onCloseAdjustSheet,
