@@ -326,11 +326,16 @@ private fun MedicineDetailScreenContent(
                                         count = 2,
                                         onClick = { onOpenAdjustSheet(AdjustSheetTab.RECEIVED) },
                                         leadingContent = {
-                                            Icon(
-                                                painter = painterResource(R.drawable.ic_box),
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                            Box(
+                                                modifier = Modifier.size(22.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(R.drawable.ic_box),
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
                                         },
                                         trailingContent = {
                                             Icon(

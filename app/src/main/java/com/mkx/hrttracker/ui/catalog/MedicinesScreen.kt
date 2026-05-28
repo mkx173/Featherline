@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -132,11 +134,16 @@ internal fun medicineManagerNeedsRowBottomGap(index: Int, itemCount: Int): Boole
 internal enum class MedicineManagerTrailingContentKind {
     NONE,
     REFERENCE_COUNT,
+    CHEVRON,
 }
 
 internal fun medicineManagerTrailingContentKind(
     referenceCount: Int,
+    showOnboardingChevron: Boolean = false,
 ): MedicineManagerTrailingContentKind {
+    if (showOnboardingChevron) {
+        return MedicineManagerTrailingContentKind.CHEVRON
+    }
     return if (referenceCount > 0) {
         MedicineManagerTrailingContentKind.REFERENCE_COUNT
     } else {
@@ -491,10 +498,11 @@ private fun MedicinesScreenContent(
             ) {
                 if (showOnboardingBanner) {
                     item(key = "onboarding-stock-banner") {
-                        OnboardingStockOptInBanner(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = dimensionResource(R.dimen.padding_medium)),
+                        SupportMessageListItem(
+                            text = stringResource(R.string.onboarding_stock_optin_banner),
+                            painter = painterResource(R.drawable.ic_box),
+                            modifier = Modifier.padding(bottom = 16.dp),
+                            leadingIconSize = 22.dp
                         )
                     }
                 }
@@ -522,6 +530,7 @@ private fun MedicinesScreenContent(
                                 index = index,
                                 itemCount = section.medicines.size,
                                 onClick = { onMedicineClick(item.medicine.uuid) },
+                                showOnboardingChevron = showOnboardingBanner,
                             )
                             MedicineManagerRowBottomGap(
                                 index = index,
@@ -594,6 +603,7 @@ private fun MedicineRow(
     itemCount: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showOnboardingChevron: Boolean = false,
 ) {
     val medicine = item.medicine
     val applicationType = inferApplicationTypeForMedicine(medicine)
@@ -611,6 +621,7 @@ private fun MedicineRow(
         modifier = modifier,
         trailingContent = medicineRowTrailingContent(
             referenceCount = item.activeGroupReferenceCount,
+            showOnboardingChevron = showOnboardingChevron,
         ),
         supportingTextOverride = medicinePreparationSummary(medicine),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -623,15 +634,36 @@ private fun MedicineRow(
 
 private fun medicineRowTrailingContent(
     referenceCount: Int,
+    showOnboardingChevron: Boolean,
 ): (@Composable () -> Unit)? {
-    return when (medicineManagerTrailingContentKind(referenceCount)) {
+    return when (
+        medicineManagerTrailingContentKind(
+            referenceCount = referenceCount,
+            showOnboardingChevron = showOnboardingChevron,
+        )
+    ) {
         MedicineManagerTrailingContentKind.NONE -> null
         MedicineManagerTrailingContentKind.REFERENCE_COUNT -> {
             {
                 ReferenceCountChip(count = referenceCount)
             }
         }
+        MedicineManagerTrailingContentKind.CHEVRON -> {
+            {
+                MedicineRowChevron()
+            }
+        }
     }
+}
+
+@Composable
+private fun MedicineRowChevron() {
+    Icon(
+        imageVector = Icons.Rounded.ChevronRight,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(24.dp),
+    )
 }
 
 @Composable
@@ -682,18 +714,13 @@ private fun inferApplicationTypeForMedicine(
     }
 }
 
+@Preview(name = "Onboarding stock opt-in banner", showBackground = true, widthDp = 420)
 @Composable
-private fun OnboardingStockOptInBanner(modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = MaterialTheme.shapes.large,
-    ) {
-        Text(
+private fun OnboardingStockOptInBannerPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        SupportMessageListItem(
             text = stringResource(R.string.onboarding_stock_optin_banner),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(16.dp),
+            painter = painterResource(R.drawable.ic_info),
         )
     }
 }

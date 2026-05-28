@@ -305,7 +305,7 @@
     <string name="medicines_title">药物</string>
     <string name="medicines_empty_state">暂无药物</string>
     <string name="medicine_picker_add_new_medicine">添加药物</string>
-    <string name="onboarding_stock_optin_banner">轻点药品即可开始追踪其库存。也可稍后在「计划」→「药品」中启用。</string>
+    <string name="onboarding_stock_optin_banner">轻点药品即可添加库存，您也可以随时在「计划」→「药品」中启用库存追踪</string>
     <string name="create_medicine_title">添加药物</string>
     <string name="create_medicine_action">保存</string>
     <string name="medicine_detail_title">药物详情</string>
@@ -656,7 +656,7 @@
     <string name="onboarding_useful_weight_title">设置体重</string>
     <string name="onboarding_useful_weight_desc">填写体重以改进血药浓度估算</string>
     <string name="onboarding_useful_stock_title">追踪库存</string>
-    <string name="onboarding_useful_stock_desc">在药品快用完前提前提醒你。</string>
+    <string name="onboarding_useful_stock_desc">记录剩余库存以预估可用天数</string>
     <string name="onboarding_useful_stock_added">已启用库存追踪</string>
     <string name="onboarding_open_app">打开 Featherline</string>
     <string name="settings_calibration_remaining_analytes">%1$d 可用</string>

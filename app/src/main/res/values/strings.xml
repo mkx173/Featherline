@@ -318,7 +318,7 @@
     <string name="medicines_title">Medicines</string>
     <string name="medicines_empty_state">No medicines yet.</string>
     <string name="medicine_picker_add_new_medicine">Add medicine</string>
-    <string name="onboarding_stock_optin_banner">Tap a medicine to start tracking its stock. You can also enable this later from Plan → medicine.</string>
+    <string name="onboarding_stock_optin_banner">Tap a medicine to add stock. You can also enable stock tracking anytime from Plan → Medicine.</string>
     <string name="create_medicine_title">Add medicine</string>
     <string name="create_medicine_action">Save</string>
     <string name="medicine_detail_title">Medicine details</string>
@@ -673,7 +673,7 @@
     <string name="onboarding_useful_weight_title">Enter your weight</string>
     <string name="onboarding_useful_weight_desc">Set your weight to improve plasma concentration estimates.</string>
     <string name="onboarding_useful_stock_title">Track stock</string>
-    <string name="onboarding_useful_stock_desc">Get a warning before any medicine runs out.</string>
+    <string name="onboarding_useful_stock_desc">Record your remaining stock to enable runway estimates.</string>
     <string name="onboarding_useful_stock_added">Stock tracking enabled</string>
     <string name="onboarding_open_app">Open Featherline</string>
     <string name="privacy_policy_url" translatable="false">https://asterismlabs.io/featherline/privacy/</string>

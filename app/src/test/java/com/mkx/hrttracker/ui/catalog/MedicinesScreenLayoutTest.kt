@@ -118,6 +118,24 @@ class MedicinesScreenLayoutTest {
     }
 
     @Test
+    fun onboardingMedicineManagerRowsUseChevronInsteadOfReferenceCount() {
+        assertEquals(
+            MedicineManagerTrailingContentKind.CHEVRON,
+            medicineManagerTrailingContentKind(
+                referenceCount = 0,
+                showOnboardingChevron = true,
+            ),
+        )
+        assertEquals(
+            MedicineManagerTrailingContentKind.CHEVRON,
+            medicineManagerTrailingContentKind(
+                referenceCount = 2,
+                showOnboardingChevron = true,
+            ),
+        )
+    }
+
+    @Test
     fun pendingSlotSelectionKeepsStockProjectionForDoseSheet() {
         val medicine = testMedicine(
             uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000031"),

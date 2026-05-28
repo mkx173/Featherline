@@ -71,6 +71,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -637,7 +638,7 @@ private fun OnboardingBottomChrome(
             )
             Spacer(modifier = Modifier.size(ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight)))
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                painter = painterResource(R.drawable.ic_arrow_forward),
                 contentDescription = null,
                 modifier = Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)),
             )
@@ -1003,7 +1004,11 @@ private fun PermissionCard(
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
-            AllowButton(granted = granted, onClick = { if (!granted) onAllow() })
+            AllowButton(
+                granted = granted,
+                onClick = { if (!granted) onAllow() },
+                actionIconPainter = painterResource(R.drawable.ic_arrow_forward)
+            )
         }
 
     }
@@ -1013,34 +1018,35 @@ private fun PermissionCard(
 private fun AllowButton(
     granted: Boolean,
     onClick: () -> Unit,
-    actionIcon: ImageVector = Icons.AutoMirrored.Rounded.ArrowForward
+    actionIconPainter: Painter,
+    actionIconSize: Dp = 18.dp,
 ) {
-    if (granted) {
-        IconButton(
-            onClick = {},
-            enabled = false,
-            colors = IconButtonDefaults.iconButtonColors(
-                disabledContainerColor = MaterialTheme.colorScheme.primary,
-                disabledContentColor = MaterialTheme.colorScheme.onPrimary,
-            ),
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Check,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-    } else {
-        CompositionLocalProvider(
-            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
-        ) {
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+    ) {
+        if (granted) {
+            IconButton(
+                onClick = {},
+                enabled = false,
+                colors = IconButtonDefaults.iconButtonColors(
+                    disabledContainerColor = MaterialTheme.colorScheme.primary,
+                    disabledContentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        } else {
             FilledTonalIconButton(
                 onClick = onClick,
             ) {
                 Icon(
-                    imageVector = actionIcon,
+                    painter = actionIconPainter,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(actionIconSize),
                 )
             }
         }
@@ -1080,7 +1086,8 @@ private fun UsefulInfoStep(
             count = 3,
             actionGranted = profile.weightOriginalValue != null,
             onActionClick = onSetWeightClick,
-            actionIcon = Icons.Rounded.Edit
+            actionIconPainter = painterResource(R.drawable.ic_edit),
+            actionIconSize = 16.dp
         )
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
         val hasGroup = activeGroupCount > 0
@@ -1097,7 +1104,8 @@ private fun UsefulInfoStep(
             actionGranted = hasGroup,
             onActionClick = if (hasGroup) null else onAddGroupClick,
             showActionWhenGranted = true,
-            actionIcon = Icons.Rounded.Add
+            actionIconPainter = painterResource(R.drawable.ic_add),
+            actionIconSize = 22.dp
         )
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
         val hasTrackedStock = trackedMedicineCount > 0
@@ -1114,14 +1122,17 @@ private fun UsefulInfoStep(
             actionGranted = hasTrackedStock,
             onActionClick = if (hasTrackedStock) null else onEnableStockClick,
             showActionWhenGranted = true,
-            actionIcon = Icons.AutoMirrored.Rounded.ArrowForward,
+            actionIconPainter = painterResource(R.drawable.ic_arrow_forward),
+            actionIconSize = 18.dp,
+            iconSize = 22.dp
         )
     }
 }
 
 @Composable
 private fun InfoCard(
-    iconPainter: androidx.compose.ui.graphics.painter.Painter,
+    iconPainter: Painter,
+    iconSize: Dp = 24.dp,
     iconBg: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
     iconFg: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     title: String,
@@ -1130,7 +1141,8 @@ private fun InfoCard(
     count: Int,
     actionGranted: Boolean = false,
     onActionClick: (() -> Unit)? = null,
-    actionIcon: ImageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+    actionIconPainter: Painter,
+    actionIconSize: Dp,
     showActionWhenGranted: Boolean = false,
 ) {
     val showAction = onActionClick != null || (actionGranted && showActionWhenGranted)
@@ -1154,7 +1166,7 @@ private fun InfoCard(
                     painter = iconPainter,
                     contentDescription = null,
                     tint = iconFg,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(iconSize),
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -1179,7 +1191,8 @@ private fun InfoCard(
                 AllowButton(
                     granted = actionGranted,
                     onClick = onActionClick ?: {},
-                    actionIcon = actionIcon
+                    actionIconPainter = actionIconPainter,
+                    actionIconSize = actionIconSize
                 )
             }
         }
