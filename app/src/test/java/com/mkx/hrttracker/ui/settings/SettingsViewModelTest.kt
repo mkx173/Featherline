@@ -26,8 +26,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -296,6 +298,51 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun setRemindersEnabled_schedulerFailureDoesNotEmitSettingFailureEvent() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { medicationReminderScheduler.rescheduleAll() } coAnswers {
+            throw IllegalStateException("alarm scheduling failed")
+        }
+        val events = mutableListOf<SettingsMutationEvent>()
+        backgroundScope.launch {
+            viewModel.settingsMutationEvents.collect { event -> events += event }
+        }
+        runCurrent()
+
+        viewModel.setRemindersEnabled(true)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(true) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun setRemindersEnabled_snoozeClearFailureDoesNotEmitSettingFailureEvent() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        var clearAttempted = false
+        coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } coAnswers {
+            clearAttempted = true
+            throw IllegalStateException("snooze clear failed")
+        }
+        val events = mutableListOf<SettingsMutationEvent>()
+        backgroundScope.launch {
+            viewModel.settingsMutationEvents.collect { event -> events += event }
+        }
+        runCurrent()
+
+        viewModel.setRemindersEnabled(false)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(false) }
+        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+        assertTrue(clearAttempted)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
     fun onScreenLockProtectionAuthenticated_enablesAppLock_andTurnsOnHideScreenContent() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -321,6 +368,21 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { settingsRepository.setHideScreenContentEnabled(false) }
+    }
+
+    @Test
+    fun settingsWriteFailureEmitsMutationEvent() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val failure = IllegalStateException("settings write failed")
+        coEvery { settingsRepository.setHideScreenContentEnabled(false) } throws failure
+        val event = backgroundScope.async { viewModel.settingsMutationEvents.first() }
+
+        viewModel.setHideScreenContentEnabled(false)
+        advanceUntilIdle()
+
+        val failureEvent = event.await() as SettingsMutationEvent.Failure
+        assertSame(failure, failureEvent.error)
     }
 
     @Test

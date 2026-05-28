@@ -797,6 +797,45 @@ class MedicineDetailViewModelTest {
     }
 
     @Test
+    fun receivedStockMutationFailureSurfacesFailureAndKeepsAdjustSheetOpen() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000023")
+        val medicine = testMedicine(
+            uuid = medicineUuid,
+            stock = MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 10.0,
+                unitsLastTotal = 10.0,
+            ),
+        )
+        val failure = IllegalStateException("stock write failed")
+        every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+        coEvery { medicineRepository.applyReceived(medicineUuid, any(), any()) } throws failure
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+        viewModel.openAdjustSheet()
+
+        viewModel.submitReceived(StockReceived(unitsReceived = 5.0))
+        advanceUntilIdle()
+
+        assertEquals(
+            MedicineStockMutationResult.FAILURE,
+            viewModel.uiState.value.stockMutationResult,
+        )
+        assertEquals(true, viewModel.uiState.value.showAdjustSheet)
+    }
+
+    @Test
     fun optInRecountSubmissionDoesNotMutateStock() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000015")
         val medicine = testMedicine(uuid = medicineUuid)

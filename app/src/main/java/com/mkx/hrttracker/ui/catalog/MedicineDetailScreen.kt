@@ -126,6 +126,7 @@ fun MedicineDetailScreen(
     val saveFailureMessage = stringResource(R.string.medicine_save_failure)
     val archiveBlockedMessage = stringResource(R.string.medicine_archive_blocked_by_groups)
     val archiveFailureMessage = stringResource(R.string.medicine_archive_failure)
+    val stockMutationFailureMessage = stringResource(R.string.medicine_stock_update_failure)
 
     LaunchedEffect(uiState.saveResult) {
         val result = uiState.saveResult ?: return@LaunchedEffect
@@ -154,6 +155,16 @@ fun MedicineDetailScreen(
             MedicineArchiveResult.FAILURE_OTHER -> {
                 Toast.makeText(context, archiveFailureMessage, Toast.LENGTH_SHORT).show()
                 viewModel.clearArchiveResult()
+            }
+            null -> Unit
+        }
+    }
+
+    LaunchedEffect(uiState.stockMutationResult) {
+        when (uiState.stockMutationResult) {
+            MedicineStockMutationResult.FAILURE -> {
+                Toast.makeText(context, stockMutationFailureMessage, Toast.LENGTH_SHORT).show()
+                viewModel.clearStockMutationResult()
             }
             null -> Unit
         }

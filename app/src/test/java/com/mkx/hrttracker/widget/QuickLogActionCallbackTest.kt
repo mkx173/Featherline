@@ -1,8 +1,12 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import androidx.glance.GlanceId
 import androidx.glance.action.actionParametersOf
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
@@ -28,6 +32,7 @@ import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.mockkConstructor
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -150,6 +155,75 @@ class QuickLogActionCallbackTest {
         verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
     }
 
+    @Test
+    fun onAction_showsFailureToastAndLogsWhenWidgetQuickLogWriteFails() = runTest {
+        mockkStatic(EntryPointAccessors::class)
+        mockkStatic(Toast::class)
+        mockkStatic(Looper::class)
+        mockkStatic("com.mkx.hrttracker.widget.HrtWidgetKt")
+        mockkConstructor(Handler::class)
+        val context: Context = mockk()
+        val appContext: Context = mockk()
+        val mainLooper: Looper = mockk()
+        val glanceId: GlanceId = mockk()
+        val entryPoint: WidgetEntryPoint = mockk()
+        val groupRepository: MedicationGroupRepository = mockk()
+        val logRepository: MedicationLogRepository = mockk()
+        val medicineStockRepository: MedicineStockRepository = mockk()
+        val settingsRepository: SettingsRepository = mockk()
+        val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
+        val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
+        val toast: Toast = mockk(relaxed = true)
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("7f8f2630-bf28-4d6c-994d-35e09bfe895e"),
+            scheduledTime = scheduledAt.toLocalTime(),
+            medicationKey = MedicationKey.ESTRADIOL,
+        )
+        val failure = IllegalStateException("database write failed")
+        val failureMessage = "Unable to quick-log dose."
+        val parameters = actionParametersOf(
+            GroupUuidKey to group.uuid.toString(),
+            ScheduleTimeUuidKey to group.schedule.timeSlots.single().uuid.toString(),
+            ScheduledAtKey to scheduledAt.toString(),
+        )
+        every { context.applicationContext } returns appContext
+        every { appContext.getString(R.string.widget_quick_log_failed) } returns failureMessage
+        every { Looper.getMainLooper() } returns mainLooper
+        every { anyConstructed<Handler>().post(any()) } answers {
+            firstArg<Runnable>().run()
+            true
+        }
+        every {
+            EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        } returns entryPoint
+        every { entryPoint.medicationGroupRepository() } returns groupRepository
+        every { entryPoint.medicationLogRepository() } returns logRepository
+        every { entryPoint.medicineStockRepository() } returns medicineStockRepository
+        every { entryPoint.settingsRepository() } returns settingsRepository
+        every { entryPoint.reminderNotificationManager() } returns notificationManager
+        every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
+        every { Toast.makeText(appContext, failureMessage, Toast.LENGTH_SHORT) } returns toast
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } throws failure
+        coEvery { updateAllHrtWidgets(appContext) } just Runs
+
+        QuickLogActionCallback().onAction(context, glanceId, parameters)
+
+        verify {
+            diagnosticsLogger.warning(
+                TAG,
+                match { message -> message.startsWith("widget_quick_log_failed") },
+                failure,
+            )
+        }
+        coVerify { updateAllHrtWidgets(appContext) }
+        verify { anyConstructed<Handler>().post(any()) }
+        verify { Toast.makeText(appContext, failureMessage, Toast.LENGTH_SHORT) }
+        verify { toast.show() }
+    }
+
     private fun medicationGroup(
         uuid: UUID,
         scheduledTime: LocalTime,
@@ -193,5 +267,9 @@ class QuickLogActionCallbackTest {
             maxPerAdministration = 1.0,
             state = state,
         )
+    }
+
+    private companion object {
+        private const val TAG = "QuickLogActionCallback"
     }
 }

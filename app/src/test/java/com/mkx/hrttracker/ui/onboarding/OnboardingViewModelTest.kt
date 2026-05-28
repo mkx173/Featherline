@@ -12,8 +12,10 @@ import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import kotlinx.coroutines.CancellationException
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -22,7 +24,9 @@ import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -33,7 +37,9 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -116,6 +122,52 @@ class OnboardingViewModelTest {
         advanceUntilIdle()
 
         assertTrue(returned)
+    }
+
+    @Test
+    fun setRemindersEnabledDuringOnboardingFailureEmitsMutationEventAndReturnsFalse() = runTest {
+        val viewModel = createViewModel()
+        val failure = IllegalStateException("settings write failed")
+        coEvery { settingsRepository.setRemindersEnabled(true) } throws failure
+        val event = backgroundScope.async { viewModel.onboardingMutationEvents.first() }
+
+        val result = viewModel.setRemindersEnabledDuringOnboarding(true)
+        advanceUntilIdle()
+
+        assertFalse(result)
+        val failureEvent = event.await() as OnboardingMutationEvent.Failure
+        assertSame(failure, failureEvent.error)
+        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun setRemindersEnabledDuringOnboardingRethrowsSchedulerCancellation() = runTest {
+        val viewModel = createViewModel()
+        val cancellation = CancellationException("scheduler cancelled")
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } throws cancellation
+
+        try {
+            viewModel.setRemindersEnabledDuringOnboarding(true)
+            fail("Expected scheduler cancellation to be rethrown.")
+        } catch (error: CancellationException) {
+            assertSame(cancellation, error)
+        }
+    }
+
+    @Test
+    fun setWeightFailureEmitsMutationEvent() = runTest {
+        val viewModel = createViewModel()
+        val failure = IllegalStateException("weight write failed")
+        coEvery {
+            userProfileRepository.setWeight(72.0, WeightUnit.KILOGRAMS, any())
+        } throws failure
+        val event = backgroundScope.async { viewModel.onboardingMutationEvents.first() }
+
+        viewModel.setWeight(72.0, WeightUnit.KILOGRAMS)
+        advanceUntilIdle()
+
+        val failureEvent = event.await() as OnboardingMutationEvent.Failure
+        assertSame(failure, failureEvent.error)
     }
 
     @Test

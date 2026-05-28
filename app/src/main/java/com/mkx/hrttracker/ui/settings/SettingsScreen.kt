@@ -181,6 +181,7 @@ fun SettingsScreen(
     val backupRestoreFailedMessage = stringResource(R.string.settings_backup_restore_failed)
     val backupRestoreSuccessMessage = stringResource(R.string.settings_backup_restore_success)
     val weightMutationFailedMessage = stringResource(R.string.personalization_weight_update_failed)
+    val settingsUpdateFailedMessage = stringResource(R.string.settings_update_failed)
 
     // Restore runs in viewModelScope so it survives the activity recreate
     // that the restored app-locale setting triggers. Results come back
@@ -212,6 +213,20 @@ fun SettingsScreen(
                 }
             }
             viewModel.consumeWeightMutationEvent()
+        }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.settingsMutationEvents.collect { event ->
+            when (event) {
+                is SettingsMutationEvent.Failure -> {
+                    Toast.makeText(
+                        context,
+                        settingsUpdateFailedMessage,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+            viewModel.consumeSettingsMutationEvent()
         }
     }
     val diagnosticsExportSuccessMessage = stringResource(R.string.settings_diagnostics_export_success)

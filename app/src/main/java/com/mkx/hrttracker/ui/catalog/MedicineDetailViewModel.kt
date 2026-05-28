@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import java.time.DayOfWeek
 import java.util.UUID
 import javax.inject.Inject
@@ -72,6 +73,7 @@ class MedicineDetailViewModel @Inject constructor(
     private val displayNameTextFlow = MutableStateFlow<String?>(null)
     private val archiveResultFlow = MutableStateFlow<MedicineArchiveResult?>(null)
     private val saveResultFlow = MutableStateFlow<MedicineDetailSaveResult?>(null)
+    private val stockMutationResultFlow = MutableStateFlow<MedicineStockMutationResult?>(null)
 
     // Seed from the eagerly-cached repo StateFlows so the first composition
     // lands on a populated screen (medicine != null, stock subcard present)
@@ -90,8 +92,17 @@ class MedicineDetailViewModel @Inject constructor(
                 isLockedFlow,
                 combine(
                     displayNameTextFlow,
-                    archiveResultFlow,
-                    saveResultFlow,
+                    combine(
+                        archiveResultFlow,
+                        saveResultFlow,
+                        stockMutationResultFlow,
+                    ) { archiveResult, saveResult, stockMutationResult ->
+                        MutationResults(
+                            archiveResult = archiveResult,
+                            saveResult = saveResult,
+                            stockMutationResult = stockMutationResult,
+                        )
+                    },
                     settingsRepository.settingsState,
                     stockRepository.observeProjections()
                         .map { projections ->
@@ -99,11 +110,12 @@ class MedicineDetailViewModel @Inject constructor(
                                 projection.medicine.uuid == medicineUuid
                             }
                         },
-                ) { displayNameDraft, archiveResult, saveResult, settingsState, stockProjection ->
+                ) { displayNameDraft, mutationResults, settingsState, stockProjection ->
                     ResultsAndSettings(
                         displayNameDraft = displayNameDraft,
-                        archiveResult = archiveResult,
-                        saveResult = saveResult,
+                        archiveResult = mutationResults.archiveResult,
+                        saveResult = mutationResults.saveResult,
+                        stockMutationResult = mutationResults.stockMutationResult,
                         firstDayOfWeek = settingsState.firstDayOfWeekOption
                             .resolve(systemLocale()),
                         stockProjection = stockProjection,
@@ -117,6 +129,7 @@ class MedicineDetailViewModel @Inject constructor(
                     displayNameDraft = derived.displayNameDraft,
                     archiveResult = derived.archiveResult,
                     saveResult = derived.saveResult,
+                    stockMutationResult = derived.stockMutationResult,
                     firstDayOfWeek = derived.firstDayOfWeek,
                     stockProjection = derived.stockProjection,
                 )
@@ -165,6 +178,10 @@ class MedicineDetailViewModel @Inject constructor(
         archiveResultFlow.value = null
     }
 
+    fun clearStockMutationResult() {
+        stockMutationResultFlow.value = null
+    }
+
     fun setPreparationDraft(draft: MedicinePreparationDraftUiState?) {
         _uiState.update { it.copy(preparationDraft = draft) }
     }
@@ -206,7 +223,7 @@ class MedicineDetailViewModel @Inject constructor(
         _uiState.update { it.copy(showOpenContainerDialog = false) }
     }
 
-    fun submitOpenContainerAmount(amount: Double): Job = viewModelScope.launch {
+    fun submitOpenContainerAmount(amount: Double): Job = launchStockMutation {
         medicineRepository.applySetOpenContainerAmount(medicineUuid, amount)
         _uiState.update { it.copy(showOpenContainerDialog = false) }
     }
@@ -219,16 +236,22 @@ class MedicineDetailViewModel @Inject constructor(
         _uiState.update { it.copy(showDisableConfirmation = false) }
     }
 
-    fun confirmDisableTracking(): Job = viewModelScope.launch {
+    fun confirmDisableTracking(): Job {
         _uiState.update { it.copy(showDisableConfirmation = false) }
-        medicineRepository.disableTracking(medicineUuid)
+        return launchStockMutation(
+            onFailure = {
+                _uiState.update { it.copy(showDisableConfirmation = true) }
+            },
+        ) {
+            medicineRepository.disableTracking(medicineUuid)
+        }
     }
 
     fun confirmEnableTracking(
         unitsRemaining: Double?,
         openContainerAmount: Double?,
         unitsLastTotal: Double?,
-    ): Job = viewModelScope.launch {
+    ): Job = launchStockMutation {
         medicineRepository.enableTracking(
             uuid = medicineUuid,
             initialUnitsRemaining = unitsRemaining,
@@ -237,7 +260,7 @@ class MedicineDetailViewModel @Inject constructor(
         )
     }
 
-    fun submitWarnAt(days: Int): Job = viewModelScope.launch {
+    fun submitWarnAt(days: Int): Job = launchStockMutation {
         medicineRepository.updateWarnAtDaysRemaining(medicineUuid, days)
     }
 
@@ -245,13 +268,13 @@ class MedicineDetailViewModel @Inject constructor(
         return stockRepository.previewRunway(medicineUuid, hypotheticalStock)
     }
 
-    fun submitRecount(recount: StockRecount): Job = viewModelScope.launch {
-        if (closePendingEnableAdjustSheet()) return@launch
+    fun submitRecount(recount: StockRecount): Job = launchStockMutation {
+        if (closePendingEnableAdjustSheet()) return@launchStockMutation
         medicineRepository.applyRecount(medicineUuid, recount)
         _uiState.update { it.copy(showAdjustSheet = false) }
     }
 
-    fun submitReceived(received: StockReceived): Job = viewModelScope.launch {
+    fun submitReceived(received: StockReceived): Job = launchStockMutation {
         if (_uiState.value.pendingEnableTracking) {
             val medicine = _uiState.value.stockProjection?.medicine
             val initialUnitsRemaining = (medicine?.stock?.unitsRemaining ?: 0.0) +
@@ -302,6 +325,20 @@ class MedicineDetailViewModel @Inject constructor(
             adjustSheetActiveTab = AdjustSheetTab.RECEIVED,
             pendingEnableTracking = true,
         )
+    }
+
+    private fun launchStockMutation(
+        onFailure: (() -> Unit)? = null,
+        block: suspend () -> Unit,
+    ): Job = viewModelScope.launch {
+        try {
+            block()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            onFailure?.invoke()
+            stockMutationResultFlow.value = MedicineStockMutationResult.FAILURE
+        }
     }
 
     fun saveDisplayName(): Job = viewModelScope.launch {
@@ -419,6 +456,7 @@ class MedicineDetailViewModel @Inject constructor(
             displayNameDraft = null,
             archiveResult = null,
             saveResult = null,
+            stockMutationResult = null,
             firstDayOfWeek = settingsRepository.settingsState.value.firstDayOfWeekOption
                 .resolve(systemLocale()),
             stockProjection = stockRepository.getCachedProjection(medicineUuid),
@@ -432,6 +470,7 @@ class MedicineDetailViewModel @Inject constructor(
         displayNameDraft: String?,
         archiveResult: MedicineArchiveResult?,
         saveResult: MedicineDetailSaveResult?,
+        stockMutationResult: MedicineStockMutationResult?,
         firstDayOfWeek: DayOfWeek,
         stockProjection: MedicineStockProjection?,
     ): MedicineDetailUiState {
@@ -466,15 +505,23 @@ class MedicineDetailViewModel @Inject constructor(
             displayNameText = displayName,
             archiveResult = archiveResult,
             saveResult = saveResult,
+            stockMutationResult = stockMutationResult,
             firstDayOfWeek = firstDayOfWeek,
             stockProjection = stockProjection,
         )
     }
 
+    private data class MutationResults(
+        val archiveResult: MedicineArchiveResult?,
+        val saveResult: MedicineDetailSaveResult?,
+        val stockMutationResult: MedicineStockMutationResult?,
+    )
+
     private data class ResultsAndSettings(
         val displayNameDraft: String?,
         val archiveResult: MedicineArchiveResult?,
         val saveResult: MedicineDetailSaveResult?,
+        val stockMutationResult: MedicineStockMutationResult?,
         val firstDayOfWeek: DayOfWeek,
         val stockProjection: MedicineStockProjection?,
     )
@@ -496,6 +543,7 @@ data class MedicineDetailUiState(
     val saveResult: MedicineDetailSaveResult? = null,
     val firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val stockProjection: MedicineStockProjection? = null,
+    val stockMutationResult: MedicineStockMutationResult? = null,
     val showAdjustSheet: Boolean = false,
     val showDisableConfirmation: Boolean = false,
     val showOpenContainerDialog: Boolean = false,
@@ -551,4 +599,8 @@ enum class MedicineDetailSaveResult {
     FAILURE_LOCKED,
     FAILURE_IDENTITY_COLLISION,
     FAILURE_OTHER,
+}
+
+enum class MedicineStockMutationResult {
+    FAILURE,
 }

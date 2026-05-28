@@ -338,6 +338,7 @@
         <item quantity="other">%1$d active groups are using this medicine.</item>
     </plurals>
     <string name="medicine_archive_failure">Unable to archive this medicine.</string>
+    <string name="medicine_stock_update_failure">Unable to update stock.</string>
     <string name="medicine_patch_off_name">Remove patch</string>
     <string name="medicine_patch_off_detail_summary">Logging this entry removes any currently applied estradiol patch.</string>
     <string name="medicine_save_failure">Unable to save this medicine.</string>
@@ -576,6 +577,7 @@
     <string name="settings_backup_restore_password_message">This will replace current local data with the selected backup. Enter the backup password to continue.</string>
     <string name="settings_backup_restore_password_message_with_name">This will replace current local data with %1$s. Enter the backup password to continue.</string>
     <string name="settings_backup_restore_confirm">Restore</string>
+    <string name="settings_update_failed">Unable to update setting.</string>
     <string name="settings_diagnostics">Diagnostics</string>
     <string name="settings_diagnostics_export_logs">Export diagnostic logs</string>
     <string name="settings_diagnostics_export_success">Diagnostic logs exported</string>
@@ -611,6 +613,7 @@
     <string name="personalization_weight_dialog_clear">Clear</string>
     <string name="personalization_weight_validation_invalid">Enter a valid weight.</string>
     <string name="personalization_weight_update_failed">Unable to update body weight.</string>
+    <string name="onboarding_update_failed">Unable to update onboarding.</string>
     <string name="app_language_english">English</string>
     <string name="app_language_simplified_chinese">简体中文</string>
     <string name="first_day_of_week_follow_system">Default</string>
@@ -692,6 +695,7 @@
         <item quantity="other">Added %1$d entries.</item>
     </plurals>
     <string name="reminder_notification_nothing_to_add">Already logged.</string>
+    <string name="widget_quick_log_failed">Unable to quick-log dose.</string>
     <plurals name="plan_regimen_group_count">
         <item quantity="one">%1$d group</item>
         <item quantity="other">%1$d groups</item>

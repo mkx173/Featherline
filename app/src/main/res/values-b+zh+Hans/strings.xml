@@ -324,6 +324,7 @@
         <item quantity="other">%1$d 个活跃分组正在使用此药物</item>
     </plurals>
     <string name="medicine_archive_failure">无法归档此药物</string>
+    <string name="medicine_stock_update_failure">无法更新库存</string>
     <string name="medicine_patch_off_name">移除贴片</string>
     <string name="medicine_patch_off_detail_summary">记录此条目会取下所有雌二醇贴片</string>
     <string name="medicine_save_failure">无法保存此药物</string>
@@ -559,6 +560,7 @@
     <string name="settings_backup_restore_password_message">这会用所选备份替换当前本地数据，输入备份密码以继续</string>
     <string name="settings_backup_restore_password_message_with_name">这会用 %1$s 替换当前本地数据，输入备份密码以继续</string>
     <string name="settings_backup_restore_confirm">恢复</string>
+    <string name="settings_update_failed">无法更新设置</string>
     <string name="settings_diagnostics">诊断</string>
     <string name="settings_diagnostics_export_logs">导出诊断日志</string>
     <string name="settings_diagnostics_export_success">诊断日志已导出</string>
@@ -594,6 +596,7 @@
     <string name="personalization_weight_dialog_clear">清除</string>
     <string name="personalization_weight_validation_invalid">请输入有效的体重</string>
     <string name="personalization_weight_update_failed">无法更新体重。</string>
+    <string name="onboarding_update_failed">无法更新引导设置</string>
     <string name="app_language_english">English</string>
     <string name="app_language_simplified_chinese">简体中文</string>
     <string name="first_day_of_week_follow_system">默认</string>
@@ -671,6 +674,7 @@
         <item quantity="other">已添加 %1$d 条记录</item>
     </plurals>
     <string name="reminder_notification_nothing_to_add">已经记录过了</string>
+    <string name="widget_quick_log_failed">无法快速记录剂量</string>
     <plurals name="plan_regimen_group_count">
         <item quantity="other">%1$d 分组</item>
     </plurals>

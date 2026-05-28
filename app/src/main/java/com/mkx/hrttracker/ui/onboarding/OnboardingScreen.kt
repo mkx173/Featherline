@@ -188,6 +188,22 @@ fun OnboardingScreen(
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     val notificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
+    val onboardingUpdateFailedMessage = stringResource(R.string.onboarding_update_failed)
+
+    LaunchedEffect(viewModel) {
+        viewModel.onboardingMutationEvents.collect { event ->
+            when (event) {
+                is OnboardingMutationEvent.Failure -> {
+                    Toast.makeText(
+                        context,
+                        onboardingUpdateFailedMessage,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+            viewModel.consumeOnboardingMutationEvent()
+        }
+    }
 
     val notificationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -224,15 +240,17 @@ fun OnboardingScreen(
     val acceptRemindersAndGoNext: () -> Unit = {
         remindersAcceptedDuringOnboarding = true
         coroutineScope.launch {
-            viewModel.setRemindersEnabledDuringOnboarding(true)
-            goNext()
+            if (viewModel.setRemindersEnabledDuringOnboarding(true)) {
+                goNext()
+            }
         }
     }
     val declineRemindersAndGoNext: () -> Unit = {
         remindersAcceptedDuringOnboarding = false
         coroutineScope.launch {
-            viewModel.setRemindersEnabledDuringOnboarding(false)
-            goNext()
+            if (viewModel.setRemindersEnabledDuringOnboarding(false)) {
+                goNext()
+            }
         }
     }
 

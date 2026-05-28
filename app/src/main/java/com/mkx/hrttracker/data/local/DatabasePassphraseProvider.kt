@@ -4,7 +4,6 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.KeyStore
 import java.security.SecureRandom
@@ -80,16 +79,17 @@ class DatabasePassphraseProvider @Inject constructor(
     }
 
     private fun persistEncryptedBlob(encryptedBlob: EncryptedBlob) {
-        prefs.edit(commit = true) {
-            putString(
+        val committed = prefs.edit()
+            .putString(
                 KEY_DATABASE_PASSPHRASE,
                 Base64.encodeToString(encryptedBlob.encryptedBytes, Base64.NO_WRAP)
             )
-            putString(
+            .putString(
                 KEY_DATABASE_PASSPHRASE_IV,
                 Base64.encodeToString(encryptedBlob.iv, Base64.NO_WRAP)
             )
-        }
+            .commit()
+        check(committed) { "Failed to persist database passphrase." }
     }
 
     private fun cachePassphrase(passphrase: ByteArray) {
