@@ -47,27 +47,21 @@ class MedicationStockSubcardTest {
     @Test
     fun progressIndicatorColorsUseToneColorAndContainerTrackColor() {
         val primary = Color(0xFF111111)
-        val primaryContainer = Color(0xFF222222)
         val tertiary = Color(0xFF333333)
-        val tertiaryContainer = Color(0xFF444444)
         val error = Color(0xFF555555)
-        val errorContainer = Color(0xFF666666)
         val secondary = Color(0xFF777777)
         val secondaryContainer = Color(0xFF888888)
 
         assertEquals(
             StockSubcardProgressIndicatorColors(
                 color = tertiary,
-                trackColor = tertiaryContainer,
+                trackColor = secondaryContainer,
             ),
             stockSubcardProgressIndicatorColors(
                 tone = MedicationStockSubcardTone.WARNING,
                 primary = primary,
-                primaryContainer = primaryContainer,
                 tertiary = tertiary,
-                tertiaryContainer = tertiaryContainer,
                 error = error,
-                errorContainer = errorContainer,
                 secondary = secondary,
                 secondaryContainer = secondaryContainer,
             ),
@@ -75,16 +69,13 @@ class MedicationStockSubcardTest {
         assertEquals(
             StockSubcardProgressIndicatorColors(
                 color = error,
-                trackColor = errorContainer,
+                trackColor = secondaryContainer,
             ),
             stockSubcardProgressIndicatorColors(
                 tone = MedicationStockSubcardTone.ERROR,
                 primary = primary,
-                primaryContainer = primaryContainer,
                 tertiary = tertiary,
-                tertiaryContainer = tertiaryContainer,
                 error = error,
-                errorContainer = errorContainer,
                 secondary = secondary,
                 secondaryContainer = secondaryContainer,
             ),
@@ -92,16 +83,13 @@ class MedicationStockSubcardTest {
         assertEquals(
             StockSubcardProgressIndicatorColors(
                 color = primary,
-                trackColor = primaryContainer,
+                trackColor = secondaryContainer,
             ),
             stockSubcardProgressIndicatorColors(
                 tone = MedicationStockSubcardTone.HEALTHY,
                 primary = primary,
-                primaryContainer = primaryContainer,
                 tertiary = tertiary,
-                tertiaryContainer = tertiaryContainer,
                 error = error,
-                errorContainer = errorContainer,
                 secondary = secondary,
                 secondaryContainer = secondaryContainer,
             ),
@@ -114,11 +102,8 @@ class MedicationStockSubcardTest {
             stockSubcardProgressIndicatorColors(
                 tone = MedicationStockSubcardTone.NEUTRAL,
                 primary = primary,
-                primaryContainer = primaryContainer,
                 tertiary = tertiary,
-                tertiaryContainer = tertiaryContainer,
                 error = error,
-                errorContainer = errorContainer,
                 secondary = secondary,
                 secondaryContainer = secondaryContainer,
             ),

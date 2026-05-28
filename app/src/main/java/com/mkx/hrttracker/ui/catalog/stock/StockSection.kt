@@ -413,11 +413,8 @@ private fun FuelGauge(
     val colors = stockSectionProgressIndicatorColors(
         state = state,
         primary = MaterialTheme.colorScheme.primary,
-        primaryContainer = MaterialTheme.colorScheme.primaryContainer,
         tertiary = MaterialTheme.colorScheme.tertiary,
-        tertiaryContainer = MaterialTheme.colorScheme.tertiaryContainer,
         error = MaterialTheme.colorScheme.error,
-        errorContainer = MaterialTheme.colorScheme.errorContainer,
         secondary = MaterialTheme.colorScheme.secondary,
         secondaryContainer = MaterialTheme.colorScheme.secondaryContainer,
     )
@@ -437,23 +434,20 @@ internal data class StockSectionProgressIndicatorColors(
 internal fun stockSectionProgressIndicatorColors(
     state: MedicineStockState,
     primary: Color,
-    primaryContainer: Color,
     tertiary: Color,
-    tertiaryContainer: Color,
     error: Color,
-    errorContainer: Color,
     secondary: Color,
     secondaryContainer: Color,
 ): StockSectionProgressIndicatorColors {
     return when (state) {
         MedicineStockState.USER_LOW -> StockSectionProgressIndicatorColors(
             color = tertiary,
-            trackColor = tertiaryContainer,
+            trackColor = secondaryContainer,
         )
         MedicineStockState.IMMINENT,
         MedicineStockState.OUT -> StockSectionProgressIndicatorColors(
             color = error,
-            trackColor = errorContainer,
+            trackColor = secondaryContainer,
         )
         MedicineStockState.NO_RUNWAY,
         MedicineStockState.UNTRACKED -> StockSectionProgressIndicatorColors(
@@ -462,7 +456,7 @@ internal fun stockSectionProgressIndicatorColors(
         )
         MedicineStockState.HEALTHY -> StockSectionProgressIndicatorColors(
             color = primary,
-            trackColor = primaryContainer,
+            trackColor = secondaryContainer,
         )
     }
 }

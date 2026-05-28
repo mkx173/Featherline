@@ -183,11 +183,8 @@ internal fun MedicationStockSubcard(
     val progressIndicatorColors = stockSubcardProgressIndicatorColors(
         tone = model.tone,
         primary = MaterialTheme.colorScheme.primary,
-        primaryContainer = MaterialTheme.colorScheme.primaryContainer,
         tertiary = MaterialTheme.colorScheme.tertiary,
-        tertiaryContainer = MaterialTheme.colorScheme.tertiaryContainer,
         error = MaterialTheme.colorScheme.error,
-        errorContainer = MaterialTheme.colorScheme.errorContainer,
         secondary = MaterialTheme.colorScheme.secondary,
         secondaryContainer = MaterialTheme.colorScheme.secondaryContainer,
     )
@@ -519,26 +516,23 @@ internal fun stockSubcardIconContainerColor(
 internal fun stockSubcardProgressIndicatorColors(
     tone: MedicationStockSubcardTone,
     primary: Color,
-    primaryContainer: Color,
     tertiary: Color,
-    tertiaryContainer: Color,
     error: Color,
-    errorContainer: Color,
     secondary: Color,
     secondaryContainer: Color,
 ): StockSubcardProgressIndicatorColors {
     return when (tone) {
         MedicationStockSubcardTone.HEALTHY -> StockSubcardProgressIndicatorColors(
             color = primary,
-            trackColor = primaryContainer,
+            trackColor = secondaryContainer,
         )
         MedicationStockSubcardTone.WARNING -> StockSubcardProgressIndicatorColors(
             color = tertiary,
-            trackColor = tertiaryContainer,
+            trackColor = secondaryContainer,
         )
         MedicationStockSubcardTone.ERROR -> StockSubcardProgressIndicatorColors(
             color = error,
-            trackColor = errorContainer,
+            trackColor = secondaryContainer,
         )
         MedicationStockSubcardTone.NEUTRAL -> StockSubcardProgressIndicatorColors(
             color = secondary,
