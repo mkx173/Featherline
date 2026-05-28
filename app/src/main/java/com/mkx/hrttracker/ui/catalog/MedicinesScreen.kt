@@ -53,6 +53,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
@@ -73,6 +74,7 @@ internal sealed interface MedicineManagerLaunchMode {
     data object Manager : MedicineManagerLaunchMode
     data object ManualLog : MedicineManagerLaunchMode
     data class GroupSlot(val resultKey: String) : MedicineManagerLaunchMode
+    data object OnboardingStockOptIn : MedicineManagerLaunchMode
 }
 
 internal sealed interface MedicineManagerAddNewTarget {
@@ -97,7 +99,9 @@ internal fun medicineManagerAddNewTarget(
     launchMode: MedicineManagerLaunchMode,
 ): MedicineManagerAddNewTarget {
     return when (launchMode) {
-        MedicineManagerLaunchMode.Manager -> MedicineManagerAddNewTarget.CreateMedicine
+        MedicineManagerLaunchMode.Manager,
+        MedicineManagerLaunchMode.OnboardingStockOptIn ->
+            MedicineManagerAddNewTarget.CreateMedicine
         is MedicineManagerLaunchMode.GroupSlot ->
             MedicineManagerAddNewTarget.NewMedicineSlot(NewMedicineSlotSheetMode.GROUP_SLOT)
         MedicineManagerLaunchMode.ManualLog ->
@@ -110,7 +114,8 @@ internal fun medicineManagerTitle(
     launchMode: MedicineManagerLaunchMode,
 ): Int {
     return when (launchMode) {
-        MedicineManagerLaunchMode.Manager -> R.string.medicines_title
+        MedicineManagerLaunchMode.Manager,
+        MedicineManagerLaunchMode.OnboardingStockOptIn -> R.string.medicines_title
         MedicineManagerLaunchMode.ManualLog,
         is MedicineManagerLaunchMode.GroupSlot -> R.string.medicine_picker_select_medicine
     }
@@ -167,6 +172,7 @@ internal fun MedicinesScreen(
     // The slot-result flow keeps the picked medicine in this state while the
     // dose sheet is up; clearing it dismisses the sheet.
     var pendingSlotMedicineUuid by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingStockOptInUuid by rememberSaveable { mutableStateOf<String?>(null) }
     val createMedicineSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val slotDraftSheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
@@ -210,6 +216,9 @@ internal fun MedicinesScreen(
         { medicineUuid ->
             when (launchMode) {
                 MedicineManagerLaunchMode.Manager -> onMedicineClick(medicineUuid)
+                MedicineManagerLaunchMode.OnboardingStockOptIn -> {
+                    pendingStockOptInUuid = medicineUuid.toString()
+                }
                 is MedicineManagerLaunchMode.GroupSlot,
                 MedicineManagerLaunchMode.ManualLog -> {
                     if (launchMode == MedicineManagerLaunchMode.ManualLog) {
@@ -232,6 +241,8 @@ internal fun MedicinesScreen(
                 is MedicineManagerAddNewTarget.NewMedicineSlot -> showNewMedicineSlotSheet = true
             }
         },
+        showOnboardingBanner = launchMode == MedicineManagerLaunchMode.OnboardingStockOptIn,
+        showAddNewButton = launchMode != MedicineManagerLaunchMode.OnboardingStockOptIn,
         modifier = modifier,
     )
 
@@ -324,6 +335,7 @@ internal fun MedicinesScreen(
             mode = when (launchMode) {
                 MedicineManagerLaunchMode.ManualLog -> MedicineSlotDraftMode.MANUAL_LOG
                 MedicineManagerLaunchMode.Manager,
+                MedicineManagerLaunchMode.OnboardingStockOptIn,
                 is MedicineManagerLaunchMode.GroupSlot -> MedicineSlotDraftMode.GROUP_SLOT
             },
             onManualLogSaved = { consumeSavedState ->
@@ -343,6 +355,51 @@ internal fun MedicinesScreen(
                 ).show()
             },
             viewModel = slotDraftViewModel,
+        )
+    }
+
+    val pendingOptInItem = pendingStockOptInUuid?.let { uuid ->
+        uiState.findMedicineItemByUuid(runCatching { UUID.fromString(uuid) }.getOrNull())
+    }
+    val pendingOptInProjection = pendingOptInItem?.stockProjection
+
+    LaunchedEffect(
+        launchMode,
+        pendingStockOptInUuid,
+        pendingOptInProjection,
+        uiState.isLoading,
+    ) {
+        if (pendingStockOptInUuid == null) return@LaunchedEffect
+        if (launchMode != MedicineManagerLaunchMode.OnboardingStockOptIn) {
+            pendingStockOptInUuid = null
+            return@LaunchedEffect
+        }
+        if (!uiState.isLoading && pendingOptInProjection == null) {
+            pendingStockOptInUuid = null
+        }
+    }
+
+    if (
+        launchMode == MedicineManagerLaunchMode.OnboardingStockOptIn &&
+        pendingOptInProjection != null
+    ) {
+        AdjustStockSheet(
+            projection = pendingOptInProjection,
+            initialTab = AdjustSheetTab.RECEIVED,
+            receivedOnly = true,
+            previewRunway = { hypothetical ->
+                viewModel.previewRunwayFor(pendingOptInProjection.medicine.uuid, hypothetical)
+            },
+            onRecount = { },
+            onReceived = { received ->
+                viewModel.enableTrackingFromReceived(
+                    medicineUuid = pendingOptInProjection.medicine.uuid,
+                    currentUnitsRemaining = pendingOptInProjection.medicine.stock.unitsRemaining ?: 0.0,
+                    received = received,
+                )
+                pendingStockOptInUuid = null
+            },
+            onDismissRequest = { pendingStockOptInUuid = null },
         )
     }
 }
@@ -376,6 +433,8 @@ private fun MedicinesScreenContent(
     onNavigateBack: () -> Unit,
     onMedicineClick: (UUID) -> Unit,
     onAddNewMedicine: () -> Unit,
+    showOnboardingBanner: Boolean,
+    showAddNewButton: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -430,6 +489,16 @@ private fun MedicinesScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValues(),
             ) {
+                if (showOnboardingBanner) {
+                    item(key = "onboarding-stock-banner") {
+                        OnboardingStockOptInBanner(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = dimensionResource(R.dimen.padding_medium)),
+                        )
+                    }
+                }
+
                 if (uiState.activeSections.isEmpty()) {
                     item(key = "empty-state") {
                         SupportMessageListItem(
@@ -462,15 +531,17 @@ private fun MedicinesScreenContent(
                     }
                 }
 
-                item(key = "add-new-medicine") {
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-                    HrtButton(
-                        text = stringResource(R.string.medicine_picker_add_new_medicine),
-                        onClick = onAddNewMedicine,
-                        icon = Icons.Rounded.Add,
-                        iconContentDescription = null,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                if (showAddNewButton) {
+                    item(key = "add-new-medicine") {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                        HrtButton(
+                            text = stringResource(R.string.medicine_picker_add_new_medicine),
+                            onClick = onAddNewMedicine,
+                            icon = Icons.Rounded.Add,
+                            iconContentDescription = null,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
         }
@@ -611,6 +682,22 @@ private fun inferApplicationTypeForMedicine(
     }
 }
 
+@Composable
+private fun OnboardingStockOptInBanner(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = MaterialTheme.shapes.large,
+    ) {
+        Text(
+            text = stringResource(R.string.onboarding_stock_optin_banner),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(16.dp),
+        )
+    }
+}
+
 @Preview(showBackground = true, widthDp = 420, heightDp = 760)
 @Composable
 private fun MedicinesScreenPreview() {
@@ -632,6 +719,35 @@ private fun MedicinesScreenPreview() {
             onNavigateBack = { },
             onMedicineClick = { },
             onAddNewMedicine = { },
+            showOnboardingBanner = false,
+            showAddNewButton = true,
+        )
+    }
+}
+
+@Preview(name = "Onboarding stock opt-in", showBackground = true, widthDp = 420, heightDp = 760)
+@Composable
+private fun MedicinesScreenOnboardingPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        MedicinesScreenContent(
+            uiState = MedicinesUiState(
+                activeSections = listOf(
+                    MedicineCategorySection(
+                        category = MedicationCategory.ESTRADIOL,
+                        medicines = listOf(
+                            MedicineListItem(
+                                medicine = previewMedicine(),
+                                activeGroupReferenceCount = 2,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            onNavigateBack = { },
+            onMedicineClick = { },
+            onAddNewMedicine = { },
+            showOnboardingBanner = true,
+            showAddNewButton = false,
         )
     }
 }

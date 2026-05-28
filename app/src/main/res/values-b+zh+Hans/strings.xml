@@ -305,6 +305,7 @@
     <string name="medicines_title">药物</string>
     <string name="medicines_empty_state">暂无药物</string>
     <string name="medicine_picker_add_new_medicine">添加药物</string>
+    <string name="onboarding_stock_optin_banner">轻点药品即可开始追踪其库存。也可稍后在「计划」→「药品」中启用。</string>
     <string name="create_medicine_title">添加药物</string>
     <string name="create_medicine_action">保存</string>
     <string name="medicine_detail_title">药物详情</string>

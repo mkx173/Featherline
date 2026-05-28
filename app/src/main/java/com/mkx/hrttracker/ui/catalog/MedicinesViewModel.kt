@@ -5,18 +5,24 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
+import com.mkx.hrttracker.data.repository.RunwayProjection
+import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.isArchived
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 
 /**
@@ -33,9 +39,9 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class MedicinesViewModel @Inject constructor(
-    medicineRepository: MedicineRepository,
+    private val medicineRepository: MedicineRepository,
     medicationGroupRepository: MedicationGroupRepository,
-    stockRepository: MedicineStockRepository,
+    private val stockRepository: MedicineStockRepository,
 ) : ViewModel() {
 
     val uiState: StateFlow<MedicinesUiState> = combine(
@@ -143,6 +149,27 @@ class MedicinesViewModel @Inject constructor(
             }
             .groupingBy { it }
             .eachCount()
+    }
+
+    fun previewRunwayFor(
+        medicineUuid: UUID,
+        hypotheticalStock: MedicineStock,
+    ): RunwayProjection? {
+        return stockRepository.previewRunway(medicineUuid, hypotheticalStock)
+    }
+
+    fun enableTrackingFromReceived(
+        medicineUuid: UUID,
+        currentUnitsRemaining: Double,
+        received: StockReceived,
+    ): Job = viewModelScope.launch {
+        val initialUnitsRemaining = currentUnitsRemaining + received.unitsReceived
+        medicineRepository.enableTracking(
+            uuid = medicineUuid,
+            initialUnitsRemaining = initialUnitsRemaining,
+            initialOpenContainerAmount = null,
+            initialUnitsLastTotal = initialUnitsRemaining,
+        )
     }
 
     private fun List<Medicine>.visibleInMedicineManager(): List<Medicine> {
