@@ -212,6 +212,20 @@ private const val MainE2ChartThirtyDaySegmentCount: Int = 2240
 
 private const val MainE2ChartZoomFloorRoundingHours = 24.0
 
+internal suspend fun runDoseRowHighlightEffect(
+    setFlashActive: (Boolean) -> Unit,
+    bringIntoView: suspend () -> Unit,
+    holdMillis: Long,
+) {
+    bringIntoView()
+    try {
+        setFlashActive(true)
+        delay(holdMillis)
+    } finally {
+        setFlashActive(false)
+    }
+}
+
 internal fun mainE2ChartZoomFloorHours(
     projectionSpanHours: Double,
     segmentCount: Int,
@@ -3023,13 +3037,11 @@ private fun MainTodayDoseRow(
             return@LaunchedEffect
         }
 
-        try {
-            flashActive = true
-            bringIntoViewRequester.bringIntoView()
-            delay(300)
-        } finally {
-            flashActive = false
-        }
+        runDoseRowHighlightEffect(
+            setFlashActive = { active -> flashActive = active },
+            bringIntoView = { bringIntoViewRequester.bringIntoView() },
+            holdMillis = 300,
+        )
     }
     val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
@@ -3174,13 +3186,11 @@ private fun MainUpcomingDoseRow(
             return@LaunchedEffect
         }
 
-        try {
-            flashActive = true
-            bringIntoViewRequester.bringIntoView()
-            delay(600)
-        } finally {
-            flashActive = false
-        }
+        runDoseRowHighlightEffect(
+            setFlashActive = { active -> flashActive = active },
+            bringIntoView = { bringIntoViewRequester.bringIntoView() },
+            holdMillis = 600,
+        )
     }
     val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)

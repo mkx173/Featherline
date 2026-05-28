@@ -4,6 +4,10 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -12,7 +16,41 @@ import org.junit.Test
 import java.time.LocalDateTime
 import java.util.UUID
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class MainContentComponentsTest {
+    @Test
+    fun runDoseRowHighlightEffect_scrollsBeforeFlashing() = runTest {
+        val scrollComplete = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val events = mutableListOf<String>()
+        val job = launch {
+            runDoseRowHighlightEffect(
+                setFlashActive = { active -> events += "flash=$active" },
+                bringIntoView = {
+                    events += "bringIntoView"
+                    scrollComplete.await()
+                },
+                holdMillis = 0,
+            )
+        }
+
+        runCurrent()
+
+        assertEquals(
+            listOf("bringIntoView"),
+            events,
+        )
+
+        scrollComplete.complete(Unit)
+        runCurrent()
+
+        assertEquals(
+            listOf("bringIntoView", "flash=true", "flash=false"),
+            events,
+        )
+
+        job.cancel()
+    }
+
     @Test
     fun mainTodayDoseRowCompositionKey_distinguishesScheduledSlotsForSameGroup() {
         val groupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
