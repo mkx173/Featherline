@@ -525,6 +525,7 @@ private fun MedicinesScreenContent(
                         MedicineManagerSectionTopSpacing(sectionIndex = sectionIndex)
                         MedicineManagerSectionTitle(
                             text = stringResource(section.category.labelRes).uppercase(),
+                            topPadding = sectionIndex != 0
                         )
                     }
                     section.medicines.forEachIndexed { index, item ->
@@ -586,6 +587,7 @@ private fun MedicineManagerRowBottomGap(
 private fun MedicineManagerSectionTitle(
     text: String,
     modifier: Modifier = Modifier,
+    topPadding: Boolean = true,
 ) {
     Text(
         text = text,
@@ -594,7 +596,7 @@ private fun MedicineManagerSectionTitle(
         modifier = modifier
             .fillMaxWidth()
             .padding(
-                top = MedicineManagerSectionHeaderTopPaddingDp.dp,
+                top = if (topPadding) MedicineManagerSectionHeaderTopPaddingDp.dp else 0.dp,
                 bottom = MedicineManagerSectionHeaderBottomPaddingDp.dp,
             ),
     )

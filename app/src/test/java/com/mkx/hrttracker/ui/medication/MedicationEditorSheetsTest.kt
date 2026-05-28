@@ -11,6 +11,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.file.Files
+import java.nio.file.Path
 import java.time.LocalDateTime
 
 class MedicationEditorSheetsTest {
@@ -130,6 +132,31 @@ class MedicationEditorSheetsTest {
     }
 
     @Test
+    fun medicationEditorContentAndSummaryRequireResolvedMedicine() {
+        val source = Files.readString(medicationEditorSheetsSourcePath())
+
+        assertTrue(
+            source.contains(
+                "internal fun MedicationEditorContent(\n" +
+                    "    medicineDraft: MedicinePickerUiState,\n" +
+                    "    doseInstructionDraft: DoseInstructionDraftUiState?,\n" +
+                    "    resolvedMedicine: Medicine,"
+            ),
+        )
+        assertFalse(
+            source.contains(
+                "internal fun MedicationEditorContent(\n" +
+                    "    medicineDraft: MedicinePickerUiState,\n" +
+                    "    doseInstructionDraft: DoseInstructionDraftUiState?,\n" +
+                    "    resolvedMedicine: Medicine?"
+            ),
+        )
+        assertTrue(source.contains("private fun MedicationSummaryHeader(\n    medicine: Medicine,"))
+        assertFalse(source.contains("private fun MedicationSummaryHeader(\n    medicine: Medicine?"))
+        assertFalse(source.contains("if (medicine != null)"))
+    }
+
+    @Test
     fun medicationLogScheduleOffset_selects_localized_label_and_single_largest_unit() {
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
 
@@ -186,5 +213,13 @@ class MedicationEditorSheetsTest {
                 appliedAt = scheduledFor.minusHours(25),
             ),
         )
+    }
+
+    private fun medicationEditorSheetsSourcePath(): Path {
+        val userDir = Path.of(System.getProperty("user.dir"))
+        return listOf(
+            userDir.resolve("src/main/java/com/mkx/hrttracker/ui/medication/MedicationEditorSheets.kt"),
+            userDir.resolve("app/src/main/java/com/mkx/hrttracker/ui/medication/MedicationEditorSheets.kt"),
+        ).first(Files::exists)
     }
 }

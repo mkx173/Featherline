@@ -364,6 +364,13 @@ class AddEntryViewModelTest {
     }
 
     @Test
+    fun addEntryUiState_doesNotExposeEditableIdentityBeforeMedicineResolves() {
+        val state = AddEntryUiState()
+
+        assertFalse(state.canEditMedicationIdentity)
+    }
+
+    @Test
     fun buildQuickLogUiState_uses_planned_dose_metadata() {
         val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
         val group = testMedicationGroup(

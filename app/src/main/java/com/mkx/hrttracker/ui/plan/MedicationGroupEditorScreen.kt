@@ -1635,6 +1635,9 @@ private fun MedicationGroupEditorScreenContent(
     uiState.editingMedication?.let { medication ->
         val isEditingExistingMedication = uiState.medications.any { it.localId == medication.localId }
         val canEditMedicationIdentity = !areFieldsRenderedLocked && !isEditingExistingMedication
+        val resolvedMedicine = checkNotNull(medication.resolvedMedicine) {
+            "Medication definition editor requires a resolved medicine."
+        }
         MedicationDefinitionEditorSheet(
             modifier = Modifier,
             title = stringResource(
@@ -1652,7 +1655,7 @@ private fun MedicationGroupEditorScreenContent(
             },
             medicineDraft = medication.medicineDraft,
             doseInstructionDraft = medication.doseInstructionDraft,
-            resolvedMedicine = medication.resolvedMedicine,
+            resolvedMedicine = resolvedMedicine,
             canEditMedicationIdentity = canEditMedicationIdentity,
             onMedicineDraftChange = onMedicineDraftChange,
             onDoseInstructionDraftChange = onDoseInstructionDraftChange,

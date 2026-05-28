@@ -283,7 +283,7 @@ private fun PlanBatchAddScreenContent(
                     text = stringResource(R.string.plan_batch_add_select_group).uppercase(),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp)
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
                 )
             }
 

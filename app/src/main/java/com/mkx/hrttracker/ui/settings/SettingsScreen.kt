@@ -833,7 +833,8 @@ internal fun SettingsScreenContent(
                     .padding(appContentPaddingValues()),
             ) {
             SettingsSectionTitle(
-                text = stringResource(R.string.settings_personalization)
+                text = stringResource(R.string.settings_personalization),
+                topPadding = false
             )
 
             Column(
@@ -1667,13 +1668,14 @@ internal fun resolveSettingsSecuritySectionLayout(
 @Composable
 private fun SettingsSectionTitle(
     text: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    topPadding: Boolean = true,
 ) {
     Text(
         text = text.uppercase(),
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp)
+        modifier = modifier.fillMaxWidth().padding(bottom = 10.dp, top = if (topPadding) 4.dp else 0.dp)
     )
 }
 

@@ -225,6 +225,7 @@ private fun CalibrationUnitsScreenContent(
             item(key = "builtin-header") {
                 CalibrationSettingsSectionHeader(
                     title = stringResource(R.string.settings_calibration_builtin_analytes),
+                    topPadding = false
                 )
             }
 
@@ -316,11 +317,12 @@ private fun CalibrationUnitsScreenContent(
 private fun CalibrationSettingsSectionHeader(
     modifier: Modifier = Modifier,
     title: String,
+    topPadding: Boolean = true,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = 10.dp, top = 4.dp),
+            .padding(bottom = 10.dp, top = if (topPadding) 4.dp else 0.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {

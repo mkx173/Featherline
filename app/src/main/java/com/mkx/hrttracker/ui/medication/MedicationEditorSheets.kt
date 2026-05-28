@@ -33,7 +33,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Tag
@@ -80,13 +79,19 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.DatePickerModal
@@ -108,11 +113,13 @@ import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 import kotlin.math.roundToInt
 
 // ---------------------------------------------------------------------------
@@ -130,7 +137,7 @@ fun MedicationDefinitionEditorSheet(
     onCloseClick: () -> Unit,
     medicineDraft: MedicinePickerUiState,
     doseInstructionDraft: DoseInstructionDraftUiState?,
-    resolvedMedicine: Medicine?,
+    resolvedMedicine: Medicine,
     canEditMedicationIdentity: Boolean,
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
@@ -258,10 +265,13 @@ fun MedicationLogEntryEditorSheet(
         onConfirm = onConfirm,
     ) {
         if (canEditMedicationIdentity) {
+            val editableMedicine = checkNotNull(resolvedMedicine) {
+                "Editable medication log content requires a resolved medicine."
+            }
             MedicationEditorContent(
                 medicineDraft = medicineDraft,
                 doseInstructionDraft = doseInstructionDraft,
-                resolvedMedicine = resolvedMedicine,
+                resolvedMedicine = editableMedicine,
                 canEditMedicationIdentity = true,
                 selectedStockProjection = selectedStockProjection,
                 stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
@@ -365,7 +375,6 @@ internal fun MedicationEditorSheetScaffold(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(bottom = 10.dp, top = 4.dp),
                 )
                 HrtFilledTonalButton(
                     text = stringResource(R.string.cancel),
@@ -436,7 +445,7 @@ internal fun MedicationEditorSheetScaffold(
 internal fun MedicationEditorContent(
     medicineDraft: MedicinePickerUiState,
     doseInstructionDraft: DoseInstructionDraftUiState?,
-    resolvedMedicine: Medicine?,
+    resolvedMedicine: Medicine,
     canEditMedicationIdentity: Boolean,
     selectedStockProjection: MedicineStockProjection? = null,
     stockMutationPreviewDoseMagnitude: Double? = null,
@@ -454,34 +463,11 @@ internal fun MedicationEditorContent(
     // since re-tapping a card in the manager itself is the re-pick UI.
     canRepickMedicine: Boolean = canEditMedicationIdentity,
 ) {
-    val activePreparationType = resolvedMedicine?.preparation?.type
-        ?: doseInstructionDraft?.preparationType
-    val applicationType = if (activePreparationType != null && doseInstructionDraft != null) {
-        resolvedApplicationTypeForDose(activePreparationType, doseInstructionDraft)
-    } else {
-        medicineDraft.catalogFilterApplicationType
-    }
+    val activePreparationType = resolvedMedicine.preparation.type
+    val applicationType = doseInstructionDraft
+        ?.let { resolvedApplicationTypeForDose(activePreparationType, it) }
+        ?: medicineDraft.catalogFilterApplicationType
     val isPatchOff = applicationType == MedicationApplicationType.PATCH_OFF
-
-    // Category is fixed by the medicine — switching to a different category
-    // would orphan the resolved medicine (changeCategory clears the selection).
-    // Hide the picker entirely once a medicine is in hand; PATCH_OFF slots keep
-    // it because they carry no medicine and the user must still choose ANTIANDROGEN
-    // vs ESTRADIOL etc.
-    if (resolvedMedicine == null) {
-        EditorSectionLabel(stringResource(R.string.field_medication_category), topPadding = false)
-        ConnectedButtonGroup(
-            options = editorMedicationCategories(),
-            selectedOption = medicineDraft.category,
-            optionLabel = { category -> stringResource(category.labelRes) },
-            onOptionSelected = { category ->
-                if (!isSaving) {
-                    onMedicineDraftChange { it.changeCategory(category) }
-                }
-            },
-            enabled = canEditMedicationIdentity,
-        )
-    }
 
     if (isPatchOff) {
         MedicationSummaryHeader(
@@ -491,7 +477,6 @@ internal fun MedicationEditorContent(
             countText = countText,
             canOpenMedicinePicker = canRepickMedicine,
             onOpenMedicinePicker = { if (!isSaving) onOpenMedicinePicker() },
-            errorMessageRes = errorMessageRes,
             selectedStockProjection = selectedStockProjection,
             stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
         )
@@ -522,7 +507,6 @@ internal fun MedicationEditorContent(
         countText = countText,
         canOpenMedicinePicker = canRepickMedicine,
         onOpenMedicinePicker = { if (!isSaving) onOpenMedicinePicker() },
-        errorMessageRes = errorMessageRes,
         selectedStockProjection = selectedStockProjection,
         stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
         trailingIndicator = summaryTrailingIndicator,
@@ -537,7 +521,6 @@ internal fun MedicationEditorContent(
     // DoseInstructionDraftUiState.validationErrorRes(): the editor is otherwise
     // unsaveable when the user picks an existing multi-use vial / gel container.
     if (doseInstructionDraft != null &&
-        activePreparationType != null &&
         requiresEditableDoseInstructionForm(activePreparationType)
     ) {
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
@@ -580,81 +563,45 @@ private fun EditorSectionLabel(text: String, topPadding: Boolean = true) {
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun MedicationSummaryHeader(
-    medicine: Medicine?,
+    medicine: Medicine,
     applicationType: MedicationApplicationType,
     doseInstructionDraft: DoseInstructionDraftUiState?,
     countText: String,
     canOpenMedicinePicker: Boolean,
     onOpenMedicinePicker: () -> Unit,
-    errorMessageRes: Int?,
     selectedStockProjection: MedicineStockProjection? = null,
     stockMutationPreviewDoseMagnitude: Double? = null,
     trailingIndicator: MedicationSummaryTrailingIndicator? = null,
 ) {
     EditorSectionLabel(stringResource(R.string.field_medication), topPadding = false)
     val resolvedCount = remember(countText) { parseMedicationCountText(countText) }
-    val doseInstruction = doseInstructionDraft?.toDoseInstructionOrNull()
-        ?: com.mkx.hrttracker.model.medication.DoseInstruction.Noop
-    if (medicine != null) {
-        MedicationCardWithStockSubcard(
-            medicine = medicine,
-            doseInstruction = doseInstruction,
-            applicationType = applicationType,
-            medicationCount = resolvedCount.coerceAtLeast(1),
-            groupColorKey = null,
-            stockProjection = selectedStockProjection.takeIf {
-                medicationSummaryShouldShowStockSubcard(
-                    hasMedicine = true,
-                    hasStockProjection = it != null,
-                )
-            },
-            stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
-            onClick = onOpenMedicinePicker,
-            modifier = Modifier.fillMaxWidth(),
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            enabled = canOpenMedicinePicker,
-            trailingContent = medicationSummaryTrailingContent(trailingIndicator),
-            // Match the medicine manager row: describe the medicine
-            // (preparation summary) instead of the in-flight entry (route +
-            // dose + count). The dose form below covers the rest.
-            supportingTextOverride = medicinePreparationSummary(medicine),
-            leadingIconAsForm = true,
-        )
-    } else {
-        EditorSegmentedListItem(
-            onClick = onOpenMedicinePicker,
-            index = 0,
-            count = 1,
-            enabled = canOpenMedicinePicker,
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            leadingContent = {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.Label,
-                    contentDescription = null,
-                )
-            },
-            supportingContent = if (
-                errorMessageRes == R.string.validation_medication_selection_required
-            ) {
-                {
-                    Text(
-                        text = stringResource(R.string.validation_medication_selection_required),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            } else {
-                null
-            },
-            trailingContent = medicationSummaryTrailingContent(trailingIndicator),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                text = stringResource(R.string.medicine_picker_select_medicine),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Normal,
+    val doseInstruction = doseInstructionDraft?.toDoseInstructionOrNull() ?: DoseInstruction.Noop
+    Spacer(modifier = Modifier.height(2.dp))
+    MedicationCardWithStockSubcard(
+        medicine = medicine,
+        doseInstruction = doseInstruction,
+        applicationType = applicationType,
+        medicationCount = resolvedCount.coerceAtLeast(1),
+        groupColorKey = null,
+        stockProjection = selectedStockProjection.takeIf {
+            medicationSummaryShouldShowStockSubcard(
+                hasMedicine = true,
+                hasStockProjection = it != null,
             )
-        }
-    }
+        },
+        stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
+        onClick = onOpenMedicinePicker,
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        enabled = canOpenMedicinePicker,
+        trailingContent = medicationSummaryTrailingContent(trailingIndicator),
+        // Match the medicine manager row: describe the medicine
+        // (preparation summary) instead of the in-flight entry (route +
+        // dose + count). The dose form below covers the rest.
+        supportingTextOverride = medicinePreparationSummary(medicine),
+        leadingIconAsForm = true,
+    )
+    Spacer(modifier = Modifier.height(2.dp))
 }
 
 internal fun medicationSummaryShouldShowStockSubcard(
@@ -1454,6 +1401,10 @@ private fun MedicationDefinitionEditorSheetPreview() {
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.ORAL,
         ).copy(pillStrengthMg = "2")
+        val medicine = previewMedicationEditorMedicine(
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
         MedicationDefinitionEditorSheet(
             title = "Edit medication",
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -1462,7 +1413,7 @@ private fun MedicationDefinitionEditorSheetPreview() {
             onCloseClick = { },
             medicineDraft = draft,
             doseInstructionDraft = draft.toDoseInstructionDraft(),
-            resolvedMedicine = null,
+            resolvedMedicine = medicine,
             canEditMedicationIdentity = true,
             onMedicineDraftChange = { },
             onDoseInstructionDraftChange = { },
@@ -1490,6 +1441,10 @@ private fun MedicationLogEntryEditorSheetPreview() {
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.ORAL,
         )
+        val medicine = previewMedicationEditorMedicine(
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
         MedicationLogEntryEditorSheet(
             title = "Add entry",
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -1498,9 +1453,9 @@ private fun MedicationLogEntryEditorSheetPreview() {
             onCloseClick = { },
             medicineDraft = draft,
             doseInstructionDraft = draft.toDoseInstructionDraft(),
-            resolvedMedicine = null,
+            resolvedMedicine = medicine,
             canEditMedicationIdentity = false,
-            lockedMedicine = null,
+            lockedMedicine = medicine,
             sourceGroupName = "Nightly estradiol",
             sourceGroupColorKey = MedicationGroupColorKey.INDIGO,
             sourceGroupScheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0),
@@ -1518,4 +1473,22 @@ private fun MedicationLogEntryEditorSheetPreview() {
             onConfirm = { },
         )
     }
+}
+
+private fun previewMedicationEditorMedicine(
+    key: MedicationKey,
+    preparation: MedicinePreparation,
+): Medicine {
+    return Medicine(
+        uuid = UUID.nameUUIDFromBytes("preview-medicine-${key.name}".toByteArray()),
+        selection = MedicineSelection.Catalog(key),
+        category = key.category,
+        preparation = preparation,
+        displayName = null,
+        identityKey = MedicineIdentityKey.catalog(key, preparation),
+        createdAt = Instant.EPOCH,
+        updatedAt = Instant.EPOCH,
+        archivedAt = null,
+        stock = MedicineStock(),
+    )
 }
