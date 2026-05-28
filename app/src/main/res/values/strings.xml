@@ -862,10 +862,4 @@
     <string name="stock_disable_confirm">Turn off</string>
     <string name="stock_cancel">Cancel</string>
 
-    <!-- Discovery prompt -->
-    <string name="stock_intro_prompt_title">Track stock for these medicines?</string>
-    <string name="stock_intro_prompt_body">Enter how many you have for any medicine you want to track. Skip the rest.</string>
-    <string name="stock_intro_prompt_hint">e.g. 60</string>
-    <string name="stock_intro_prompt_done">Done</string>
-    <string name="stock_intro_prompt_not_now">Not now</string>
 </resources>

@@ -68,7 +68,6 @@ class MedicationGroupEditorLoadStateTest {
         Dispatchers.setMain(dispatcher)
         settingsStateFlow = MutableStateFlow(SettingsState(remindersEnabled = true))
         every { settingsRepository.settingsState } returns settingsStateFlow
-        every { settingsRepository.stockIntroPromptShownFlow } returns MutableStateFlow(true)
         coEvery { settingsRepository.getCurrentSettings() } returns settingsStateFlow.value
         coEvery { settingsRepository.peekNextGroupNameIndex() } returns 1
         coEvery { settingsRepository.consumeNextGroupNameIndex() } returns 1

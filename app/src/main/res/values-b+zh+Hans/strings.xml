@@ -815,9 +815,4 @@
     <string name="stock_disable_confirm">关闭</string>
     <string name="stock_cancel">取消</string>
 
-    <string name="stock_intro_prompt_title">为这些药品追踪库存？</string>
-    <string name="stock_intro_prompt_body">输入想追踪的药品数量，其余留空即可跳过</string>
-    <string name="stock_intro_prompt_hint">例如 60</string>
-    <string name="stock_intro_prompt_done">完成</string>
-    <string name="stock_intro_prompt_not_now">暂不</string>
 </resources>

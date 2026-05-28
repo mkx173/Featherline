@@ -81,7 +81,6 @@ class SettingsRepository @Inject constructor(
     private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
     private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
-    private val stockIntroPromptShownKey = booleanPreferencesKey("stock_intro_prompt_shown")
     private val homeLowStockSectionExpandedKey =
         booleanPreferencesKey("home_low_stock_section_expanded")
     private val lastSeenTimeZoneIdKey = stringPreferencesKey("last_seen_time_zone_id")
@@ -111,10 +110,6 @@ class SettingsRepository @Inject constructor(
 
     val onboardingCompleted: Flow<Boolean> = storedPreferences
         .map { it[onboardingCompletedKey] ?: false }
-        .distinctUntilChanged()
-
-    val stockIntroPromptShownFlow: Flow<Boolean> = storedPreferences
-        .map { it[stockIntroPromptShownKey] ?: false }
         .distinctUntilChanged()
 
     val homeLowStockSectionExpandedFlow: Flow<Boolean> = storedPreferences
@@ -299,12 +294,6 @@ class SettingsRepository @Inject constructor(
     suspend fun setOnboardingCompleted(completed: Boolean) {
         activeDataStore().edit { preferences ->
             preferences[onboardingCompletedKey] = completed
-        }
-    }
-
-    suspend fun markStockIntroPromptShown() {
-        activeDataStore().edit { preferences ->
-            preferences[stockIntroPromptShownKey] = true
         }
     }
 
