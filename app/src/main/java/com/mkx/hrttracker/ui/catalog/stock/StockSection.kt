@@ -447,11 +447,11 @@ internal fun stockSectionProgressIndicatorColors(
     secondaryContainer: Color,
 ): StockSectionProgressIndicatorColors {
     return when (state) {
-        MedicineStockState.USER_LOW,
-        MedicineStockState.IMMINENT -> StockSectionProgressIndicatorColors(
+        MedicineStockState.USER_LOW -> StockSectionProgressIndicatorColors(
             color = tertiary,
             trackColor = tertiaryContainer,
         )
+        MedicineStockState.IMMINENT,
         MedicineStockState.OUT -> StockSectionProgressIndicatorColors(
             color = error,
             trackColor = errorContainer,
