@@ -61,7 +61,6 @@
     <string name="main_relative_tomorrow">明天</string>
     <string name="main_more_options">更多选项</string>
     <string name="main_display_unit">显示单位</string>
-    <string name="home_low_stock_title">库存不足</string>
     <string name="home_low_stock_title_with_count">库存不足 · %1$d</string>
     <string name="home_low_stock_expanded_state">已展开</string>
     <string name="home_low_stock_collapsed_state">已折叠</string>
