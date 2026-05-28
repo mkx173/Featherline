@@ -32,6 +32,38 @@ class Migration2To3Test {
     }
 
     @Test
+    fun migrate1To2_existingMedicineRow_getsMgDisplayDoseUnitDefault() {
+        migrateVersion1Database { db ->
+            db.execSQL(
+                """
+                INSERT INTO medicines (
+                    uuid, selectionKind, medicationKey, customMedicationName,
+                    customMedicationNameNormalized, category, preparationType,
+                    strengthMgPerTablet, strengthMgPerVial, concentrationMgPerMl,
+                    vialVolumeMl, concentrationPercent, sachetWeightGrams,
+                    containerWeightGrams, patchTotalMg, patchReleaseRateMcgPerDay,
+                    displayName, identityKey, createdAtEpochMillis,
+                    updatedAtEpochMillis, archivedAtEpochMillis
+                ) VALUES (
+                    'm1', 'CATALOG', 'EV_2MG', NULL, NULL,
+                    'ESTRADIOL', 'PILL', 2.0, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, 'C|EV_2MG|PILL|s=2',
+                    1000, 1000, NULL
+                )
+                """.trimIndent()
+            )
+        }.use { migrated ->
+            val db = migrated.database
+            db.query("SELECT displayDoseUnit FROM medicines WHERE uuid = 'm1'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("MG", cursor.getString(0))
+                assertFalse(cursor.moveToNext())
+            }
+            assertColumn(db, "medicines", "displayDoseUnit", "TEXT", notNull = true, defaultValue = "'MG'")
+        }
+    }
+
+    @Test
     fun migrate2To3_existingMedicineRow_comesUpUntracked() {
         migrateVersion2Database { db ->
             db.execSQL(
@@ -161,6 +193,50 @@ class Migration2To3Test {
             }
             assertMissingColumn(db, "medication_log_entries", "stockDeductionUnits")
             assertMissingColumn(db, "medication_log_entries", "stockGeneration")
+        }
+    }
+
+    private fun migrateVersion1Database(
+        seed: (SupportSQLiteDatabase) -> Unit,
+    ): MigratedDatabase {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        context.deleteDatabase(testDb)
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(testDb)
+                .callback(
+                    object : SupportSQLiteOpenHelper.Callback(1) {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            createV1Schema(db)
+                            seed(db)
+                        }
+
+                        override fun onUpgrade(
+                            db: SupportSQLiteDatabase,
+                            oldVersion: Int,
+                            newVersion: Int,
+                        ) = Unit
+                    }
+                )
+                .build()
+        )
+
+        val db = try {
+            helper.writableDatabase
+        } catch (throwable: Throwable) {
+            helper.close()
+            throw throwable
+        }
+
+        try {
+            MIGRATION_1_2.migrate(db)
+            db.version = 2
+            return MigratedDatabase(helper, db)
+        } catch (throwable: Throwable) {
+            db.close()
+            helper.close()
+            throw throwable
         }
     }
 
@@ -303,6 +379,11 @@ class Migration2To3Test {
     }
 
     private fun createV2Schema(db: SupportSQLiteDatabase) {
+        createV1Schema(db)
+        MIGRATION_1_2.migrate(db)
+    }
+
+    private fun createV1Schema(db: SupportSQLiteDatabase) {
         db.execSQL(
             """
             CREATE TABLE medicines (
@@ -326,8 +407,7 @@ class Migration2To3Test {
                 identityKey TEXT NOT NULL,
                 createdAtEpochMillis INTEGER NOT NULL,
                 updatedAtEpochMillis INTEGER NOT NULL,
-                archivedAtEpochMillis INTEGER,
-                displayDoseUnit TEXT NOT NULL DEFAULT 'MG'
+                archivedAtEpochMillis INTEGER
             )
             """.trimIndent()
         )

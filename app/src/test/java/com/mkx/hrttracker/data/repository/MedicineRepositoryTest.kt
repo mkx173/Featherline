@@ -512,6 +512,25 @@ class MedicineRepositoryTest {
     }
 
     @Test
+    fun disableTracking_invokesStockClearInsideTransaction() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val now = Instant.parse("2026-05-22T00:00:00Z")
+        stubUnitMutation()
+
+        repository.disableTracking(uuid, now = now)
+
+        coVerify(exactly = 1) {
+            homeSnapshotRepository.runHomeDataMutation<Unit>(any())
+        }
+        coVerify(exactly = 1) {
+            databaseHolder.withTransaction<Unit>(any())
+        }
+        coVerify(exactly = 1) {
+            stockMutator.disableTracking(database, uuid, now)
+        }
+    }
+
+    @Test
     fun archive_rejectsMedicineReferencedByActiveGroup() = runTest {
         val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
         stubUnitMutation()
