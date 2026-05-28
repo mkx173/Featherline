@@ -672,6 +672,9 @@
     <string name="onboarding_useful_plan_added">Group added</string>
     <string name="onboarding_useful_weight_title">Enter your weight</string>
     <string name="onboarding_useful_weight_desc">Set your weight to improve plasma concentration estimates.</string>
+    <string name="onboarding_useful_stock_title">Track stock</string>
+    <string name="onboarding_useful_stock_desc">Get a warning before any medicine runs out.</string>
+    <string name="onboarding_useful_stock_added">Stock tracking enabled</string>
     <string name="onboarding_open_app">Open Featherline</string>
     <string name="privacy_policy_url" translatable="false">https://asterismlabs.io/featherline/privacy/</string>
     <string name="settings_calibration_remaining_analytes">%1$d available</string>

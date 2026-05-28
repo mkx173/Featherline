@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.onboarding
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
+import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -23,18 +24,21 @@ class OnboardingViewModel @Inject constructor(
     private val userProfileRepository: UserProfileRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     medicationGroupRepository: MedicationGroupRepository,
+    medicineRepository: MedicineRepository,
 ) : ViewModel() {
 
     val uiState: StateFlow<OnboardingUiState> = combine(
         settingsRepository.onboardingCompleted,
         userProfileRepository.observeProfile(),
         medicationGroupRepository.observeGroups(),
-    ) { completed, profile, groups ->
+        medicineRepository.observeAllActiveOrNull(),
+    ) { completed, profile, groups, medicines ->
         OnboardingUiState(
             isLoaded = true,
             isCompleted = completed,
             userProfile = profile ?: UserProfile(),
             activeGroupCount = groups.orEmpty().count { it.archivedAt == null },
+            trackedMedicineCount = medicines.orEmpty().count { it.stock.trackingEnabled },
         )
     }
         .stateIn(
@@ -86,6 +90,7 @@ data class OnboardingUiState(
     val isCompleted: Boolean = false,
     val userProfile: UserProfile = UserProfile(),
     val activeGroupCount: Int = 0,
+    val trackedMedicineCount: Int = 0,
 ) {
     val shouldShowOnboarding: Boolean
         get() = isLoaded && !isCompleted

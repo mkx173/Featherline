@@ -97,6 +97,8 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
+import com.mkx.hrttracker.ui.catalog.MedicineManagerLaunchMode
+import com.mkx.hrttracker.ui.catalog.MedicinesScreen
 import com.mkx.hrttracker.ui.catalog.NewMedicineSlotSheet
 import com.mkx.hrttracker.ui.catalog.NewMedicineSlotSheetMode
 import com.mkx.hrttracker.ui.catalog.NewMedicineSlotViewModel
@@ -169,6 +171,7 @@ fun OnboardingScreen(
     var accepted by rememberSaveable { mutableStateOf(false) }
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
     var showGroupEditor by rememberSaveable { mutableStateOf(false) }
+    var showStockOnboarding by rememberSaveable { mutableStateOf(false) }
     var groupEditorOpenCount by rememberSaveable { mutableIntStateOf(0) }
     var remindersAcceptedDuringOnboarding by rememberSaveable { mutableStateOf(false) }
 
@@ -232,8 +235,9 @@ fun OnboardingScreen(
         }
     }
 
-    BackHandler(enabled = step > 0 && !showGroupEditor) { goPrev() }
+    BackHandler(enabled = step > 0 && !showGroupEditor && !showStockOnboarding) { goPrev() }
     BackHandler(enabled = showGroupEditor) { showGroupEditor = false }
+    BackHandler(enabled = showStockOnboarding) { showStockOnboarding = false }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -345,11 +349,13 @@ fun OnboardingScreen(
                         3 -> UsefulInfoStep(
                             profile = uiState.userProfile,
                             activeGroupCount = uiState.activeGroupCount,
+                            trackedMedicineCount = uiState.trackedMedicineCount,
                             onSetWeightClick = { showWeightDialog = true },
                             onAddGroupClick = {
                                 groupEditorOpenCount += 1
                                 showGroupEditor = true
                             },
+                            onEnableStockClick = { showStockOnboarding = true },
                         )
                     }
                 }
@@ -449,6 +455,33 @@ fun OnboardingScreen(
                 )
             },
         )
+    }
+
+    AnimatedVisibility(
+        visible = showStockOnboarding,
+        modifier = Modifier.fillMaxSize(),
+        enter = sharedAxisXEnterTransition(
+            density = density,
+            layoutDirection = layoutDirection,
+            forward = true,
+        ),
+        exit = sharedAxisXExitTransition(
+            density = density,
+            layoutDirection = layoutDirection,
+            forward = false,
+        ),
+        label = "onboarding-stock-medicine-manager",
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            MedicinesScreen(
+                onNavigateBack = { showStockOnboarding = false },
+                onMedicineClick = { /* unreachable in OnboardingStockOptIn mode */ },
+                launchMode = MedicineManagerLaunchMode.OnboardingStockOptIn,
+            )
+        }
     }
 }
 
@@ -1018,8 +1051,10 @@ private fun AllowButton(
 private fun UsefulInfoStep(
     profile: UserProfile,
     activeGroupCount: Int,
+    trackedMedicineCount: Int,
     onSetWeightClick: () -> Unit,
     onAddGroupClick: () -> Unit,
+    onEnableStockClick: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -1042,7 +1077,7 @@ private fun UsefulInfoStep(
                 formatWeightSummary(profile)
             },
             index = 0,
-            count = 2,
+            count = 3,
             actionGranted = profile.weightOriginalValue != null,
             onActionClick = onSetWeightClick,
             actionIcon = Icons.Rounded.Edit
@@ -1058,11 +1093,28 @@ private fun UsefulInfoStep(
                 stringResource(R.string.onboarding_useful_plan_desc)
             },
             index = 1,
-            count = 2,
+            count = 3,
             actionGranted = hasGroup,
             onActionClick = if (hasGroup) null else onAddGroupClick,
             showActionWhenGranted = true,
             actionIcon = Icons.Rounded.Add
+        )
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+        val hasTrackedStock = trackedMedicineCount > 0
+        InfoCard(
+            iconPainter = painterResource(R.drawable.ic_box),
+            title = stringResource(R.string.onboarding_useful_stock_title),
+            desc = if (hasTrackedStock) {
+                stringResource(R.string.onboarding_useful_stock_added)
+            } else {
+                stringResource(R.string.onboarding_useful_stock_desc)
+            },
+            index = 2,
+            count = 3,
+            actionGranted = hasTrackedStock,
+            onActionClick = if (hasTrackedStock) null else onEnableStockClick,
+            showActionWhenGranted = true,
+            actionIcon = Icons.AutoMirrored.Rounded.ArrowForward,
         )
     }
 }
@@ -1279,8 +1331,10 @@ private fun OnboardingUsefulInfoPreview() {
         UsefulInfoStep(
             profile = UserProfile(),
             activeGroupCount = 0,
+            trackedMedicineCount = 0,
             onSetWeightClick = {},
             onAddGroupClick = {},
+            onEnableStockClick = {},
         )
     }
 }
