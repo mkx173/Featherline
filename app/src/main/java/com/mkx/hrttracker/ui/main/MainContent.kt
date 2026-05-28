@@ -213,7 +213,7 @@ private fun MainTimeZoneChangeNoticeBanner(
             )
             Text(
                 text = timeZoneChangeNoticeText,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.weight(1f).cjkTextOffset(timeZoneChangeNoticeText)
             )
             CompositionLocalProvider(
