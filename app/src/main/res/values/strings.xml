@@ -657,7 +657,7 @@
     <string name="onboarding_disclaimer_reminders_heading">Reminders</string>
     <string name="onboarding_disclaimer_reminders_body">Dose reminders depend on your device\'s notification and alarm permissions. Battery optimizations or system limits may delay or skip reminders.</string>
     <string name="onboarding_disclaimer_view_full_policy">View full privacy policy</string>
-    <string name="onboarding_disclaimer_acknowledge">I agree</string>
+    <string name="onboarding_disclaimer_acknowledge_read">I have read and agree</string>
     <string name="onboarding_continue">Continue</string>
     <string name="onboarding_notifications_title">Enable dose reminders</string>
     <string name="onboarding_notifications_subtitle">To send reminders at your scheduled dose times, Featherline needs the following two permissions. You can revoke them at any time in your system settings.</string>

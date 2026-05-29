@@ -173,6 +173,7 @@ fun OnboardingScreen(
     val progressSteps = totalSteps - 1
     var step by rememberSaveable { mutableIntStateOf(0) }
     var accepted by rememberSaveable { mutableStateOf(false) }
+    var disclaimerReadToBottom by rememberSaveable { mutableStateOf(false) }
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
     var showGroupEditor by rememberSaveable { mutableStateOf(false) }
     var showStockOnboarding by rememberSaveable { mutableStateOf(false) }
@@ -307,6 +308,8 @@ fun OnboardingScreen(
                             1 -> DisclaimerStep(
                                 accepted = accepted,
                                 onAcceptedChange = { accepted = it },
+                                readToBottom = disclaimerReadToBottom,
+                                onReadToBottom = { disclaimerReadToBottom = true },
                                 onOpenPrivacyPolicy = onOpenPrivacyPolicy,
                             )
                             2 -> NotificationsStep(
@@ -797,8 +800,18 @@ private fun StepHeader(
 private fun DisclaimerStep(
     accepted: Boolean,
     onAcceptedChange: (Boolean) -> Unit,
+    readToBottom: Boolean,
+    onReadToBottom: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
 ) {
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    // canScrollForward starts true (maxValue is Int.MAX_VALUE pre-layout) and
+    // becomes false either at the bottom or when the text already fits, so this
+    // also unlocks the checkbox immediately when there's nothing to scroll.
+    LaunchedEffect(scrollState.canScrollForward) {
+        if (!scrollState.canScrollForward) onReadToBottom()
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -821,7 +834,7 @@ private fun DisclaimerStep(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(scrollState),
             ) {
                 DisclaimerSection(
                     heading = stringResource(R.string.onboarding_disclaimer_data_heading),
@@ -864,8 +877,17 @@ private fun DisclaimerStep(
 
         AcceptanceCheckbox(
             checked = accepted,
-            label = stringResource(R.string.onboarding_disclaimer_acknowledge),
-            onToggle = { onAcceptedChange(!accepted) },
+            label = stringResource(R.string.onboarding_disclaimer_acknowledge_read),
+            onToggle = {
+                if (readToBottom) {
+                    onAcceptedChange(!accepted)
+                } else {
+                    // Nudge the user to actually read it: tapping before
+                    // reaching the bottom scrolls there, which unlocks the
+                    // checkbox via the canScrollForward effect above.
+                    scope.launch { scrollState.animateScrollTo(scrollState.maxValue) }
+                }
+            },
             index = 0,
             count = 1,
         )
@@ -1344,6 +1366,8 @@ private fun OnboardingDisclaimerPreview() {
         DisclaimerStep(
             accepted = false,
             onAcceptedChange = { },
+            readToBottom = false,
+            onReadToBottom = { },
             onOpenPrivacyPolicy = { },
         )
     }

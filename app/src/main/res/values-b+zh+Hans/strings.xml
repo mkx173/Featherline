@@ -640,7 +640,7 @@
     <string name="onboarding_disclaimer_reminders_heading">提醒</string>
     <string name="onboarding_disclaimer_reminders_body">用药提醒依赖于设备的通知和闹钟权限。电池优化、勿扰模式或系统限制可能会导致提醒延迟或无法送达。</string>
     <string name="onboarding_disclaimer_view_full_policy">查看完整隐私政策</string>
-    <string name="onboarding_disclaimer_acknowledge">我同意</string>
+    <string name="onboarding_disclaimer_acknowledge_read">我已阅读并同意</string>
     <string name="onboarding_continue">继续</string>
     <string name="onboarding_notifications_title">开启用药提醒</string>
     <string name="onboarding_notifications_subtitle">为了在您预定的服药时间发送提醒，Featherline 需要以下两项权限，您可以随时在系统设置中关闭它们</string>
