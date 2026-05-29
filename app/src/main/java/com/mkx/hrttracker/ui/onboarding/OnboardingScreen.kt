@@ -187,6 +187,7 @@ fun OnboardingScreen(
     var step by rememberSaveable { mutableIntStateOf(0) }
     var accepted by rememberSaveable { mutableStateOf(false) }
     var disclaimerReadToBottom by rememberSaveable { mutableStateOf(false) }
+    var startAnimationPlayed by rememberSaveable { mutableStateOf(false) }
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
     var showGroupEditor by rememberSaveable { mutableStateOf(false) }
     var showStockOnboarding by rememberSaveable { mutableStateOf(false) }
@@ -317,7 +318,10 @@ fun OnboardingScreen(
                             .fillMaxWidth(),
                     ) {
                         when (currentStep) {
-                            0 -> StartStep()
+                            0 -> StartStep(
+                                animationPlayed = startAnimationPlayed,
+                                onAnimationPlayed = { startAnimationPlayed = true },
+                            )
                             1 -> DisclaimerStep(
                                 accepted = accepted,
                                 onAcceptedChange = { accepted = it },
@@ -706,7 +710,10 @@ private fun OnboardingBottomChrome(
 }
 
 @Composable
-private fun StartStep() {
+private fun StartStep(
+    animationPlayed: Boolean,
+    onAnimationPlayed: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -719,7 +726,10 @@ private fun StartStep() {
                 .fillMaxWidth(),
             contentAlignment = Alignment.Center,
         ) {
-            AppIconHero()
+            AppIconHero(
+                animationPlayed = animationPlayed,
+                onAnimationPlayed = onAnimationPlayed,
+            )
         }
         Text(
             text = stringResource(R.string.app_name),
@@ -745,7 +755,10 @@ private const val FEATHER_PATH_DATA =
     "M335.48,358.35c3.04,1.42,6.33-2.47,4.23-5.21h0c-.32-.53-.84-.95-1.47-1.23-20.93-9.13-38.58-19.78-55.88-33.19-18.88-14.84-35.57-32.01-49.93-51.13-23.66-30.27-39.41-68.32-40.35-72.67-2.48-4.65,4.4-8.12,6.33-3.11-.41.46,29.44,85.8,107.7,135.33.24-5.14,1.92-15.21,10.28-21.4.84-.59.62-2.01-.38-2.27-1.05-.35-8.71-2.69-13.81-1.33,3.84-11.23-8.8-22.1-5-33.08.46-1.17-1.04-2.25-2.03-1.43-.8.63-6.29,5.11-8.32,9.86-2.06-4.58-4.27-11.47-2.03-15.53.74-1.34-1.15-2.67-2.13-1.5-.07.1-4.65,5.42-6.92,12.38-2.76-12.76-10.56-39.9-29.76-60.81-.66-.77-2.06-.42-2.24.59l-.87,3.88c-2.94-8.11-10.32-25.32-23.43-36.75-.81-.69-2.2-.14-2.2.98l-.14,7.06c-5.84-11.15-21.26-37.49-35.46-34.16-16.24,5.11-8.73,41.54-4.96,55.57-5.95,27.48,11.29,50.74,26.16,65.01l-12.1,1.96c-1.08.11-1.52,1.6-.66,2.27.14.14,15,12.8,17.9,16.86,1.82,2.52,12.73,11.09,25.7,16.68-6.4,2.2-10.21,8.64-10.42,8.99-.35.63-.14,1.4.46,1.78,24.2,14.44,43.96,9.13,51.02,6.33-1.01,4.06-1.96,11.51,2.8,17.45.27.34.7.52,1.12.49,1.53-.04,4.87-8.05,12.97-12.9,13.11,8.99,27.7,17.24,43.85,24.23"
 
 @Composable
-private fun AppIconHero() {
+private fun AppIconHero(
+    animationPlayed: Boolean,
+    onAnimationPlayed: () -> Unit,
+) {
     val featherAndroidPath = remember {
         PathParser().parsePathString(FEATHER_PATH_DATA).toPath().asAndroidPath()
     }
@@ -753,13 +766,15 @@ private fun AppIconHero() {
     val pathLength = remember { pathMeasure.length }
     val strokeColor = MaterialTheme.colorScheme.outlineVariant
 
-    val drawProgress = remember { Animatable(0f) }
-    val iconAlpha = remember { Animatable(0f) }
+    val drawProgress = remember { Animatable(if (animationPlayed) 1f else 0f) }
+    val iconAlpha = remember { Animatable(if (animationPlayed) 1f else 0f) }
 
     LaunchedEffect(Unit) {
+        if (animationPlayed) return@LaunchedEffect
         delay(150)
         drawProgress.animateTo(1f, animationSpec = tween(durationMillis = 1100, easing = EaseInOut))
         iconAlpha.animateTo(1f, animationSpec = tween(durationMillis = 450))
+        onAnimationPlayed()
     }
 
     Box(modifier = Modifier.size(160.dp)) {
@@ -1423,7 +1438,7 @@ private fun OnboardingStartPreview() {
         step = 0,
         ctaLabel = stringResource(R.string.onboarding_start_cta),
     ) {
-        StartStep()
+        StartStep(animationPlayed = false, onAnimationPlayed = { })
     }
 }
 
