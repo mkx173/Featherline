@@ -194,6 +194,16 @@ collapses it onto the same notification instead of stacking. Toasts
 for "Logged N", "Nothing to add", and "Snoozed N minutes" are dispatched
 on the main looper.
 
+After a "Log all" action logs doses, `logNow` re-projects stock for the
+affected medicines and, if any landed in a warning state, shows a
+low-stock toast via the manager's `showStock{Out,Imminent,UserLow}{,Count}Toast`
+helpers (worst severity wins; a single-medicine toast names the medicine
+unless `hideMedicationDetails` is on, otherwise a count-plural toast).
+This is a toast only — there is **no dedicated low-stock notification
+channel**; the only channel is `dose_reminders`, and the persistent
+low-stock surface is the home `MainLowStockSection`. The widget
+quick-log path shows the same toast (see [widget.md](widget.md#quick-log-action)).
+
 The companion `cancelAllDoseReminderNotifications` is called from the
 backup restore path: any active reminder still references slot UUIDs
 from the pre-restore database, so every notification has to be

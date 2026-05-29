@@ -43,10 +43,10 @@ are organized by role:
 - [`model`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/model) — pure-Kotlin domain.
   Five sub-packages.
 - [`data`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data) — Room, DataStore, backup
-  codec. Three sub-packages; `data/repository` holds 8 `*Repository`
+  codec. Three sub-packages; `data/repository` holds 9 `*Repository`
   classes plus `HomeSnapshotStore`, the `MedicationEntityMappers`
-  and `MedicineEntityMappers` helpers, and the
-  `DoseInstructionCalculator`.
+  and `MedicineEntityMappers` helpers, the `DoseInstructionCalculator`,
+  and the stock-projection helpers (see below).
 - [`ui`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui) — Compose UI. Ten feature
   sub-packages plus `components`, `navigation`, `theme`.
 - [`di`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/di) — Hilt modules. Two files.
@@ -121,27 +121,38 @@ code is built around.
 ## Within `data/`
 
 [`data/repository`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/repository)
-holds 8 `*Repository` classes — `BloodTestRepository`, `HomeRepository`,
+holds 9 `*Repository` classes — `BloodTestRepository`, `HomeRepository`,
 `HomeSnapshotRepository` (gates all home-data mutations and currently
 bundles the PK projection — see [Home snapshot and PK projection
 cache](#home-snapshot-and-pk-projection-cache) below),
 `MedicationGroupRepository`, `MedicationLogRepository`,
 `MedicineRepository` (find-or-create dedup over `MedicineIdentityKey`,
-plus the global PATCH_OFF singleton lifecycle), `SettingsRepository`,
+plus the global PATCH_OFF singleton lifecycle),
+`MedicineStockRepository` (derives the per-medicine
+`MedicineStockProjection` — total units, runway, state — from the stock
+columns plus the active schedule), `SettingsRepository`,
 and `UserProfileRepository` — plus `HomeSnapshotStore` (serializes
 `HomeSnapshotRecord` including the embedded `HomePkProjectionRecord`
-to an encrypted DataStore file) and three supporting files: the
-`MedicationEntityMappers` and `MedicineEntityMappers` helpers and the
+to an encrypted DataStore file) and the supporting files: the
+`MedicationEntityMappers` and `MedicineEntityMappers` helpers, the
 `DoseInstructionCalculator` (which derives `equivalentE2Mg` from a
-medicine's preparation and a `DoseInstruction`). Only repositories are
+medicine's preparation and a `DoseInstruction`), and the stock engine —
+`MedicineStockMutator` (applies the deduction-on-log and
+recount/top-up/recover mutations), `ScheduledRunwayCalculator` (a
+365-day forward simulation of upcoming scheduled doses against current
+stock, the source of the "days remaining" runway), `MedicineStockRateCalculator`,
+`MedicineStockStateResolver` (maps a projection to a
+`MedicineStockState`), and the `SimulatedStock` / `RunwayProjection` /
+`MedicineStockTypes` value types. Only repositories are
 exposed across the layer boundary; DAOs and entities stay inside
 `data/`.
 
 [`data/local`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local)
 holds the Room database, the 10 `@Entity` data classes, the 6 DAOs,
 the migration objects, and the SQLCipher passphrase provider. The
-current schema is version 2 (the medicine-identity refactor reset the
-schema and dropped the legacy v1–v29 migration chain). See
+current schema is version 4 (the medicine-identity refactor reset the
+schema and dropped the legacy v1–v29 migration chain; `MIGRATION_2_3`
+and `MIGRATION_3_4` then added the stock columns on `medicines`). See
 [data-model.md](data-model.md) for the per-entity breakdown.
 
 [`data/backup`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup)
@@ -166,7 +177,11 @@ Detailed in [backup-format.md](backup-format.md).
   `TotalMg` or `ReleaseRateMcgPerDay`, and the `PatchOff` sentinel),
   and the sealed `DoseInstruction` hierarchy (`TabletFraction`,
   `WholeUnit`, `VolumeMl`, `WeightGrams`, `Noop`) that describes how
-  much of a preparation a slot delivers.
+  much of a preparation a slot delivers. Stock domain types live here
+  too: `MedicineStock` (the per-medicine stock state),
+  `MedicineStockState` (HEALTHY / USER_LOW / IMMINENT / OUT / UNTRACKED
+  / NO_RUNWAY), and `MedicineStockProjection` (the derived UI payload —
+  rate, total units, runway, state) in `MedicineStockModels.kt`.
 - [`model/bloodtest`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/model/bloodtest) — analyte catalog
   (`BloodTestCatalog`), unit-conversion factor table, and the
   `AllowedAnalyteUnit` validation pattern. Detailed in
@@ -187,7 +202,9 @@ Feature sub-packages, one screen tree each:
 
 - [`ui/main`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/main) — the home tab:
   E2 hero card, 7-day/30-day PK trend chart,
-  today/last-night/upcoming sections, antiandrogen status cards.
+  today/last-night/upcoming sections, antiandrogen status cards, and
+  the collapsible low-stock section (`MainLowStockSection`) that lists
+  medicines in a warning state.
 - [`ui/plan`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/plan) — the plan tab: medication-group
   list, the group editor, the batch-add flow, the archived-groups
   screen. Hosts a top-bar icon that opens the catalog manager
@@ -199,13 +216,17 @@ Feature sub-packages, one screen tree each:
 - [`ui/settings`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/settings) — the settings tab.
 - [`ui/security`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/security) — the app-lock screen and
   authentication prompt.
-- [`ui/onboarding`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/onboarding) — the first-run onboarding flow.
+- [`ui/onboarding`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/onboarding) — the first-run onboarding flow,
+  including the optional stock-tracking opt-in step.
 - [`ui/catalog`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/catalog) — the medicine manager: list of
   catalog `Medicine` rows, the create-medicine bottom sheet, the
   medicine detail/edit screen, the combined "new medicine slot" sheet
   used when a slot needs a brand-new medicine, and the shared
   manual-log-save helper. This is the surface that owns `Medicine`
-  identity; `ui/medication` (below) and `ui/log` consume it.
+  identity; `ui/medication` (below) and `ui/log` consume it. The nested
+  `ui/catalog/stock` package holds the per-medicine stock controls — the
+  `StockSection` block on the detail screen, the `AdjustStockSheet`
+  (recount / received forms), and the `OpenContainerEditDialog`.
 - [`ui/medication`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/medication) — slot editor sheets and
   application-type icons reused across plan and log. Picks an existing
   `Medicine` (via `ui/catalog`) and edits the slot's dose instruction
@@ -217,7 +238,8 @@ Shared sub-packages:
 
 - [`ui/components`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/components) — Compose primitives reused across
   features: buttons, dropdowns, dialogs, segmented list items, the
-  medication card, the medical-disclaimer banner.
+  medication card (with its embedded `MedicationStockSubcard`), the
+  `StockStatusIndicator` state badge, the medical-disclaimer banner.
 - [`ui/navigation`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/navigation) — the `HrtTrackerNavHost`, the
   `Screen` sealed class, and the navigation-transition specs. See
   the section below.
@@ -336,10 +358,12 @@ The home screen has two cached layers, both observed by
   (`home_snapshot.pb`) so the home screen paints from cache on cold
   start before live Room observation catches up. The persisted record
   is `HomeSnapshotRecord`. The snapshot codec is at
-  `SNAPSHOT_CODEC_VERSION = 14` and the schema record at
-  `HOME_SNAPSHOT_SCHEMA_VERSION = 7`; both were bumped through the
+  `SNAPSHOT_CODEC_VERSION = 16` and the schema record at
+  `HOME_SNAPSHOT_SCHEMA_VERSION = 7`; both moved through the
   medicine-identity refactor (slots and log entries now reference a
-  medicine by UUID, and the PATCH_OFF singleton round-trips).
+  medicine by UUID, and the PATCH_OFF singleton round-trips), and the
+  codec bumped again when the snapshot began carrying stock inputs so
+  the home low-stock section can paint from cache on cold start.
 
 The persisted snapshot also bundles a `HomePkProjectionRecord` — the
 result of the most recent

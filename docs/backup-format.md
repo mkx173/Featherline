@@ -105,7 +105,7 @@ cap (decompression-bomb defence).
 
 ## Snapshot tree
 
-Thirteen `@JsonClass` data classes in
+Fourteen `@JsonClass` data classes in
 [`BackupSnapshot.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt).
 The tree is the wire-format mirror of the Room schema documented in
 [`data-model.md`](data-model.md#entities); each row maps one
@@ -147,9 +147,17 @@ flattened into the parent's JSON.
   `vialVolumeMl`, `concentrationPercent`, `sachetWeightGrams`,
   `containerWeightGrams`, `patchTotalMg`,
   `patchReleaseRateMcgPerDay`); optional `displayName`; `identityKey`
-  for duplicate detection; created/updated/archived timestamps; and an
+  for duplicate detection; created/updated/archived timestamps; an
   optional `displayDoseUnit` (added when the custom-medicine unit
-  picker shipped; missing values default to `MG` on restore).
+  picker shipped; missing values default to `MG` on restore); and an
+  optional nested `stock` →
+  `BackupMedicineStockSnapshot` (`trackingEnabled`, `unitsRemaining`,
+  `unitsLastTotal`, `openContainerAmount`, `warnAtDaysRemaining`,
+  `stockGeneration`). The export path writes `stock` **only when
+  tracking is enabled** for the medicine, otherwise `null`; restore maps
+  the fields back with null-safe defaults (`warnAtDaysRemaining` → 14,
+  `stockGeneration` → 0), so backups predating the stock feature simply
+  restore as untracked.
 - `BackupMedicationGroupSnapshot` →
   [`MedicationGroupEntity`](data-model.md#medicationgroupentity),
   with three child snapshots nested in-line:
@@ -313,9 +321,10 @@ declaration are forward-compatible: Moshi reads missing fields as the
 default. This is how `lastSeenTimeZoneId`, `hideReferenceRanges`,
 `homeE2ChartWindow`, `archivedAtLocalIso`,
 `includePastScheduledSlots`, `replacedByGroupUuid`,
-`recreatedFromGroupUuid`, and `BackupMedicineSnapshot.displayDoseUnit`
-shipped without a snapshot-version bump. Removing or renaming a field
-is *not* in this bucket.
+`recreatedFromGroupUuid`, `BackupMedicineSnapshot.displayDoseUnit`, and
+the optional `BackupMedicineSnapshot.stock` object (the entire stock
+feature) shipped without a snapshot-version bump — `CURRENT_BACKUP_SNAPSHOT_VERSION`
+stayed at `3`. Removing or renaming a field is *not* in this bucket.
 
 **Bumping the snapshot version (envelope unchanged).** Required when
 a field's *meaning* changes — a rename, removal, unit change, or a

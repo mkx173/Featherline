@@ -318,6 +318,15 @@ touch the widget store. The only direct `updateAllHrtWidgets` call in
 this path is the no-op short-circuit, taken when the slot is already
 fulfilled.
 
+Because the persist runs through `saveNewEntries`, quick-logged doses
+deduct medicine stock for tracking-enabled medicines just like an
+in-app log, and the callback then shows the same worst-severity
+low-stock toast as the notification "Log all" action (see
+[reminders.md](reminders.md#notify)). The widget snapshot itself carries
+no stock data — `WidgetSnapshotRecord` is unchanged and
+`WIDGET_SNAPSHOT_SCHEMA_VERSION` stays `12`; low-stock state surfaces in
+the app (home section + toasts), not on the widget.
+
 ### Group collapsing
 
 When several scheduled rows share the same group and scheduled time,

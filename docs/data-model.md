@@ -10,13 +10,14 @@ format used for manual backups, see [backup-format.md](backup-format.md).
 ## Database setup
 
 - [`HrtTrackerDatabase`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt)
-  is the Room database at schema version 2. It declares 10 entities
+  is the Room database at schema version 4. It declares 10 entities
   and exposes 6 DAOs. `exportSchema` is off — schemas are tracked via
   migration objects in source rather than committed schema JSON.
 - [`DatabaseHolder`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/DatabaseHolder.kt)
   builds the database via `Room.databaseBuilder`, installs a
   `SupportOpenHelperFactory` from SQLCipher's `net.zetetic` artifact,
-  and registers `MIGRATION_1_2`. No `fallbackToDestructiveMigration`
+  and registers `MIGRATION_1_2`, `MIGRATION_2_3`, and `MIGRATION_3_4`.
+  No `fallbackToDestructiveMigration`
   is wired — a missing migration crashes loudly in every build, debug
   and release, so silent data loss can't slip through.
 - [`DatabasePassphraseProvider`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/DatabasePassphraseProvider.kt)
@@ -63,6 +64,22 @@ unique on `identityKey`, plus secondary indices on
 the dedup contract: two medicines that hash to the same canonical
 string can't both exist, so editing a custom medicine's preparation
 fields recomputes the key and may collide with an existing row.
+
+Stock tracking is per-medicine state stored on this same row (added by
+`MIGRATION_2_3`): `trackingEnabled` (opt-in flag, default `0`),
+`stockUnitsRemaining` (the on-hand count — whole units for pool
+preparations, or the count of *sealed* containers for multi-use vials /
+gel containers), `stockUnitsLastTotal` (the gauge denominator set at the
+last recount), `openContainerAmount` (current mL/g in the open container,
+null for pool preparations), `warnAtDaysRemaining` (the per-medicine
+low-stock threshold in days, default `14` — this is not a global
+setting), and `stockGeneration` (a session token bumped on
+enable/disable/recount/clear, but not on plain logging or top-ups). All
+are nullable or carry column defaults so pre-feature rows migrate
+cleanly. The domain projection of these fields is `MedicineStock` in
+`model/medication/MedicineStockModels.kt`; the runway/state math derived
+from them lives in the stock repositories (see
+[architecture.md](architecture.md#within-data)).
 
 The PATCH_OFF sentinel — a singleton row with
 `identityKey = "P|PATCH_OFF"`, `selectionKind = CATALOG`,
@@ -328,8 +345,12 @@ Six DAO interfaces, each backing the entities in its namesake area.
   `unarchive`), and the two reference-count queries
   (`logReferenceCount`, `activeGroupReferenceCount`) the repository
   uses to lock preparation edits and reject archive attempts while
-  active groups still reference the medicine. Also exposes
-  `observeMedicineChangeVersion`, a `SELECT COUNT(*)` Flow used as a
+  active groups still reference the medicine. Stock support adds
+  `updateStockFields` / `updateWarnAtDaysRemaining` (the targeted
+  mutations behind recount, top-up, and threshold edits) plus
+  `observeAllActiveTracked` / `getAllActiveTrackedEntities` (the
+  tracking-enabled medicines that feed low-stock projection). Also
+  exposes `observeMedicineChangeVersion`, a `SELECT COUNT(*)` Flow used as a
   change-only signal: repositories that resolve medicines as a
   separate fetch off a group or log observation join on this so
   display-name / preparation / archive edits propagate without
@@ -344,9 +365,12 @@ Six DAO interfaces, each backing the entities in its namesake area.
 - [`MedicationLogDao`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/MedicationLogDao.kt)
   — log inserts, batch reads by ID, the
   `getLatestEntryByCategoryOnOrBefore` query, schedule-time renames
-  (`updateScheduledForTimeForEntries`), and the
+  (`updateScheduledForTimeForEntries`), the
   `reclassifyEntriesForDeletedGroup` step that nulls out group
-  references rather than dropping rows.
+  references rather than dropping rows, and the
+  `observeScheduledEntriesInWindow` / `getScheduledEntriesInWindow`
+  reads that index already-logged scheduled doses for the stock
+  runway projection.
 - [`BloodTestDao`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestDao.kt)
   — panels, results, and custom analytes; the
   `upsertPanelWithResults` `@Transaction`; the
@@ -369,8 +393,19 @@ abandoned mid-flight and the database was collapsed to v1, with
 `DatabaseMigrations.kt` deleted entirely. The current chain starts
 fresh at v1 and bumps via `Migration` objects declared inline in
 [`HrtTrackerDatabase.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt).
-The only migration today is `MIGRATION_1_2`, which adds the
-`displayDoseUnit` column to `medicines` with a `MG` default. The
+The chain today is `MIGRATION_1_2` → `MIGRATION_2_3` → `MIGRATION_3_4`.
+`MIGRATION_1_2` adds the `displayDoseUnit` column to `medicines` with a
+`MG` default. `MIGRATION_2_3` adds the stock feature: the six stock
+columns on `medicines` (see [`MedicineEntity`](#medicineentity) above),
+all with column defaults or nullable, plus two now-abandoned per-log
+columns (`stockDeductionUnits`, `stockGeneration`) on
+`medication_log_entries`. `MIGRATION_3_4` then table-recreates
+`medication_log_entries` to **drop** those two log columns: the design
+moved away from per-entry deduction records and delete-time refunds, so
+deduction is applied directly to the medicine row and the log table
+carries no stock state. (This is why a logged dose is not refunded when
+its entry is later edited or deleted — the user re-syncs via Adjust
+Stock instead.) The
 reset deliberately did not register a `MIGRATION_29_*` shim, and no
 `fallbackToDestructiveMigration` is wired in any build flavor: a
 pre-refactor database does not migrate, it fails to open at startup
