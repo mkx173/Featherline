@@ -462,6 +462,14 @@ private fun HistoryScreenContent(
             entryId !in uiState.selectedEntryIds
         }
     }
+    // The SELECTION face keeps rendering for ~110ms while the top app bar flips out.
+    // Latch the in-selection values so the cleared selection can't change them mid-animation and blink.
+    val selectAllEnabled = remember { mutableStateOf(canSelectAllVisibleEntries) }
+    val displayedSelectedEntryCount = remember { mutableStateOf(selectedEntryCount) }
+    if (uiState.isSelectionMode) {
+        selectAllEnabled.value = canSelectAllVisibleEntries
+        displayedSelectedEntryCount.value = selectedEntryCount
+    }
     val groupNamesById = remember(uiState.medicationGroups) {
         uiState.medicationGroups.associate { group -> group.uuid to group.name }
     }
@@ -672,8 +680,8 @@ private fun HistoryScreenContent(
                             HistoryTopAppBarFlipFace.NORMAL -> stringResource(R.string.tab_history)
                             HistoryTopAppBarFlipFace.SELECTION -> pluralStringResource(
                                 R.plurals.history_selected_entries_title,
-                                selectedEntryCount,
-                                selectedEntryCount,
+                                displayedSelectedEntryCount.value,
+                                displayedSelectedEntryCount.value,
                             )
                         }
                         Text(
@@ -743,7 +751,7 @@ private fun HistoryScreenContent(
                             HistoryTopAppBarFlipFace.SELECTION -> {
                                 Row {
                                     IconButton(
-                                        enabled = canSelectAllVisibleEntries,
+                                        enabled = selectAllEnabled.value,
                                         onClick = { onSelectAllEntriesClick(visibleEntryIds) }
                                     ) {
                                         Icon(
