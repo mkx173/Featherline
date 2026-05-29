@@ -15,9 +15,13 @@ import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.isArchived
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -67,6 +71,11 @@ class MedicinesViewModel @Inject constructor(
             stockProjections = stockRepository.getCachedProjections(),
         ),
     )
+
+    private val stockOptInResultFlow = MutableStateFlow<MedicineStockMutationResult?>(null)
+    val stockOptInResult: StateFlow<MedicineStockMutationResult?> =
+        stockOptInResultFlow.asStateFlow()
+    private var stockOptInJob: Job? = null
 
     private fun buildUiState(
         activeMedicines: List<Medicine>,
@@ -158,18 +167,45 @@ class MedicinesViewModel @Inject constructor(
         return stockRepository.previewRunway(medicineUuid, hypotheticalStock)
     }
 
+    // Mirrors the detail screen's launchStockMutation: a single-flight mutation
+    // that reports its outcome so the onboarding opt-in sheet closes only on
+    // success and stays open (with a failure toast) on error, instead of
+    // dismissing optimistically and dropping a failed enable.
     fun enableTrackingFromReceived(
         medicineUuid: UUID,
         currentUnitsRemaining: Double,
         received: StockReceived,
-    ): Job = viewModelScope.launch {
-        val initialUnitsRemaining = currentUnitsRemaining + received.unitsReceived
-        medicineRepository.enableTracking(
-            uuid = medicineUuid,
-            initialUnitsRemaining = initialUnitsRemaining,
-            initialOpenContainerAmount = null,
-            initialUnitsLastTotal = initialUnitsRemaining,
-        )
+    ): Job {
+        stockOptInJob?.takeIf(Job::isActive)?.let { return it }
+
+        lateinit var job: Job
+        job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                val initialUnitsRemaining = currentUnitsRemaining + received.unitsReceived
+                medicineRepository.enableTracking(
+                    uuid = medicineUuid,
+                    initialUnitsRemaining = initialUnitsRemaining,
+                    initialOpenContainerAmount = null,
+                    initialUnitsLastTotal = initialUnitsRemaining,
+                )
+                stockOptInResultFlow.value = MedicineStockMutationResult.SUCCESS
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                stockOptInResultFlow.value = MedicineStockMutationResult.FAILURE
+            } finally {
+                if (stockOptInJob == job) {
+                    stockOptInJob = null
+                }
+            }
+        }
+        stockOptInJob = job
+        job.start()
+        return job
+    }
+
+    fun clearStockOptInResult() {
+        stockOptInResultFlow.value = null
     }
 
     private fun List<Medicine>.visibleInMedicineManager(): List<Medicine> {

@@ -167,7 +167,12 @@ fun MedicineDetailScreen(
                 Toast.makeText(context, stockMutationFailureMessage, Toast.LENGTH_SHORT).show()
                 viewModel.clearStockMutationResult()
             }
-            null -> Unit
+            // The detail VM never emits SUCCESS — it signals success by flipping
+            // showAdjustSheet false. The branch exists only because the opt-in
+            // flow shares this result type.
+            MedicineStockMutationResult.SUCCESS,
+            null,
+            -> Unit
         }
     }
 
@@ -282,6 +287,12 @@ private fun MedicineDetailScreenContent(
         }
     }
 
+    // Assumes no reopen mid-close: if showAdjustSheet went false->true while
+    // this hide is still animating, the in-flight hide could complete and run
+    // onHidden (adjustSheetRendered = false), dropping the just-reopened sheet,
+    // and this effect's keys wouldn't have changed on the second transition to
+    // re-render it. Gated in practice by user interaction (reopen needs a tap,
+    // the animating sheet covers the screen) plus the single-flight submit guard.
     LaunchedEffect(uiState.showAdjustSheet, adjustSheetRendered) {
         if (!uiState.showAdjustSheet && adjustSheetRendered) {
             hideBottomSheet(scope, adjustSheetState) {

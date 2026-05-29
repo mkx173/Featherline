@@ -18,6 +18,7 @@ import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,7 +78,16 @@ class MainViewModel @Inject constructor(
             inputs.stockWarnings.isEmpty() &&
             acknowledgedWarningStates.isNotEmpty()
         ) {
-            settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+            // Swallow DataStore failures: letting them propagate would tear
+            // down this combine -> stateIn home flow. A dropped clear is
+            // self-correcting on the next empty-ROOM emission.
+            try {
+                settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Best-effort cleanup; see comment above.
+            }
         }
         withContext(defaultDispatcher) {
             buildHomeUiState(
@@ -106,10 +116,6 @@ class MainViewModel @Inject constructor(
 
     private val _homeDeepLinkSignal = MutableStateFlow(0)
     val homeDeepLinkSignal: StateFlow<Int> = _homeDeepLinkSignal.asStateFlow()
-
-    fun requestWidgetDoseRowHighlight(key: DoseRowHighlightKey) {
-        requestDoseRowHighlight(listOf(key))
-    }
 
     fun requestDoseRowHighlight(keys: List<DoseRowHighlightKey>) {
         if (keys.isEmpty()) {

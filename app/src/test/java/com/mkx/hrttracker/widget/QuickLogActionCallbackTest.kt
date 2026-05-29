@@ -1,8 +1,6 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
 import android.widget.Toast
 import androidx.glance.GlanceId
 import androidx.glance.action.actionParametersOf
@@ -32,13 +30,17 @@ import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
-import io.mockk.mockkConstructor
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Test
 import java.time.Instant
@@ -47,10 +49,12 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.UUID
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class QuickLogActionCallbackTest {
 
     @After
     fun tearDown() {
+        Dispatchers.resetMain()
         unmockkAll()
     }
 
@@ -157,14 +161,12 @@ class QuickLogActionCallbackTest {
 
     @Test
     fun onAction_showsFailureToastAndLogsWhenWidgetQuickLogWriteFails() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         mockkStatic(EntryPointAccessors::class)
         mockkStatic(Toast::class)
-        mockkStatic(Looper::class)
         mockkStatic("com.mkx.hrttracker.widget.HrtWidgetKt")
-        mockkConstructor(Handler::class)
         val context: Context = mockk()
         val appContext: Context = mockk()
-        val mainLooper: Looper = mockk()
         val glanceId: GlanceId = mockk()
         val entryPoint: WidgetEntryPoint = mockk()
         val groupRepository: MedicationGroupRepository = mockk()
@@ -189,11 +191,6 @@ class QuickLogActionCallbackTest {
         )
         every { context.applicationContext } returns appContext
         every { appContext.getString(R.string.widget_quick_log_failed) } returns failureMessage
-        every { Looper.getMainLooper() } returns mainLooper
-        every { anyConstructed<Handler>().post(any()) } answers {
-            firstArg<Runnable>().run()
-            true
-        }
         every {
             EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
         } returns entryPoint
@@ -219,7 +216,6 @@ class QuickLogActionCallbackTest {
             )
         }
         coVerify { updateAllHrtWidgets(appContext) }
-        verify { anyConstructed<Handler>().post(any()) }
         verify { Toast.makeText(appContext, failureMessage, Toast.LENGTH_SHORT) }
         verify { toast.show() }
     }

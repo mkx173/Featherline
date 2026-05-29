@@ -338,6 +338,9 @@ class SettingsViewModelTest {
 
         coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(false) }
         coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+        // The snooze-clear failure must not bail out of the launch block:
+        // rescheduleAll still has to run afterward.
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
         assertTrue(clearAttempted)
         assertTrue(events.isEmpty())
     }

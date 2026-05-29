@@ -209,10 +209,6 @@ class SettingsRepository @Inject constructor(
         }
     }
 
-    suspend fun setHomeLowStockSectionExpanded(expanded: Boolean) {
-        setHomeLowStockSectionFoldState(expanded = expanded)
-    }
-
     suspend fun setHomeLowStockSectionFoldState(
         expanded: Boolean,
         acknowledgedWarningStates: Map<String, MedicineStockState> = emptyMap(),

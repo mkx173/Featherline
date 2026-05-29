@@ -72,6 +72,13 @@ internal suspend fun runDoseRowHighlightLifecycle(
     consumeHighlightRequest()
 }
 
+// Assumes the target row's bringIntoView() registers isScrollInProgress (or
+// moves scrollValue) within the first awaitFrame, i.e. the scroll begins the
+// same frame the settle poll starts. If the poll observed stillness for
+// stableFrameCount frames before the scroll animation registered, the flash
+// would fire before the scroll lands. Held off in practice by the caller's
+// first-layout-frame wait, the >1 stableFrameCount, and a real off-screen
+// scroll spanning many frames.
 internal suspend fun awaitDoseRowHighlightScrollSettled(
     isScrollInProgress: () -> Boolean,
     scrollValue: () -> Int,

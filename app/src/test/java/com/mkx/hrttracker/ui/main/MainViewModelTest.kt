@@ -72,7 +72,6 @@ class MainViewModelTest {
         every { timeZoneChangeNoticeController.notice } returns MutableStateFlow(null)
         every { settingsRepository.homeLowStockSectionExpandedFlow } returns MutableStateFlow(true)
         every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(emptyMap())
-        coEvery { settingsRepository.setHomeLowStockSectionExpanded(any()) } returns Unit
         coEvery { settingsRepository.setHomeLowStockSectionFoldState(any(), any()) } returns Unit
         coEvery { settingsRepository.clearHomeLowStockAcknowledgedWarningStates() } returns Unit
     }
@@ -706,6 +705,37 @@ class MainViewModelTest {
         coVerify(exactly = 1) {
             settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
         }
+    }
+
+    @Test
+    fun clearAcknowledgedWarningStatesFailureDoesNotTearDownHomeState() = runTest {
+        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
+        every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
+            mapOf("11111111-1111-1111-1111-111111111111" to MedicineStockState.OUT)
+        )
+        coEvery { settingsRepository.clearHomeLowStockAcknowledgedWarningStates() } throws
+            IllegalStateException("datastore write failed")
+        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+            homeInputs(
+                now = now,
+                stockWarnings = emptyList(),
+                source = HomeInputSource.ROOM,
+            )
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = FakeAppTimeSource(now),
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        // A failed clear is self-correcting on the next ROOM emission; it must
+        // not propagate through combine -> stateIn and stop the home flow.
+        assertEquals(HomeInputSource.ROOM, viewModel.uiState.value.homeSource)
     }
 
     @Test

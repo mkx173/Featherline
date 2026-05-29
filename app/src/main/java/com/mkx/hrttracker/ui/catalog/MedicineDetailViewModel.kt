@@ -624,5 +624,6 @@ enum class MedicineDetailSaveResult {
 }
 
 enum class MedicineStockMutationResult {
+    SUCCESS,
     FAILURE,
 }

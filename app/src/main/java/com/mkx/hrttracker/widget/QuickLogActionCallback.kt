@@ -1,8 +1,6 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
 import android.widget.Toast
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
@@ -14,6 +12,8 @@ import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
 import com.mkx.hrttracker.reminder.showPostLogToast
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
@@ -132,9 +132,9 @@ class QuickLogActionCallback : ActionCallback {
         }
     }
 
-    private fun showQuickLogFailureToast(context: Context) {
+    private suspend fun showQuickLogFailureToast(context: Context) {
         val message = context.getString(R.string.widget_quick_log_failed)
-        Handler(Looper.getMainLooper()).post {
+        withContext(Dispatchers.Main) {
             Toast.makeText(
                 context,
                 message,

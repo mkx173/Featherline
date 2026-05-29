@@ -6,6 +6,7 @@ import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.model.medication.MedicineStock
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -73,6 +74,47 @@ class MedicinesViewModelOnboardingOptInTest {
                 any(),
             )
         }
+    }
+
+    @Test
+    fun enableTrackingFromReceivedEmitsSuccessResult() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000032")
+        val viewModel = MedicinesViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+        )
+
+        viewModel.enableTrackingFromReceived(
+            medicineUuid = uuid,
+            currentUnitsRemaining = 0.0,
+            received = StockReceived(unitsReceived = 10.0),
+        )
+        advanceUntilIdle()
+
+        assertEquals(MedicineStockMutationResult.SUCCESS, viewModel.stockOptInResult.value)
+    }
+
+    @Test
+    fun enableTrackingFromReceivedEmitsFailureResultWhenRepositoryThrows() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000033")
+        coEvery {
+            medicineRepository.enableTracking(any(), any(), any(), any(), any())
+        } throws IllegalStateException("enable failed")
+        val viewModel = MedicinesViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+        )
+
+        viewModel.enableTrackingFromReceived(
+            medicineUuid = uuid,
+            currentUnitsRemaining = 0.0,
+            received = StockReceived(unitsReceived = 10.0),
+        )
+        advanceUntilIdle()
+
+        assertEquals(MedicineStockMutationResult.FAILURE, viewModel.stockOptInResult.value)
     }
 
     @Test

@@ -166,6 +166,7 @@ internal fun MedicinesScreen(
     newMedicineSlotViewModel: NewMedicineSlotViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val stockOptInResult by viewModel.stockOptInResult.collectAsStateWithLifecycle()
     val slotDraftUiState by slotDraftViewModel.uiState.collectAsStateWithLifecycle()
     val newMedicineSlotUiState by newMedicineSlotViewModel.uiState.collectAsStateWithLifecycle()
     val isManualSlotLocked = launchMode == MedicineManagerLaunchMode.ManualLog &&
@@ -205,6 +206,7 @@ internal fun MedicinesScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val saveEntryFailureMessage = stringResource(R.string.save_entry_failure)
+    val stockOptInFailureMessage = stringResource(R.string.medicine_stock_update_failure)
 
     // Reset the shared draft when the sheet opens so a previously-dismissed
     // attempt doesn't leak into the next one.
@@ -387,6 +389,22 @@ internal fun MedicinesScreen(
         }
     }
 
+    LaunchedEffect(stockOptInResult) {
+        when (stockOptInResult) {
+            MedicineStockMutationResult.SUCCESS -> {
+                hideBottomSheet(scope, stockOptInSheetState) {
+                    pendingStockOptInUuid = null
+                }
+                viewModel.clearStockOptInResult()
+            }
+            MedicineStockMutationResult.FAILURE -> {
+                Toast.makeText(context, stockOptInFailureMessage, Toast.LENGTH_SHORT).show()
+                viewModel.clearStockOptInResult()
+            }
+            null -> Unit
+        }
+    }
+
     if (
         launchMode == MedicineManagerLaunchMode.OnboardingStockOptIn &&
         pendingOptInProjection != null
@@ -400,14 +418,15 @@ internal fun MedicinesScreen(
             },
             onRecount = { },
             onReceived = { received ->
+                // Don't dismiss here: the sheet closes only after the enable
+                // succeeds (observed via stockOptInResult below), so a failed
+                // enable keeps the sheet open and surfaces a toast instead of
+                // silently closing.
                 viewModel.enableTrackingFromReceived(
                     medicineUuid = pendingOptInProjection.medicine.uuid,
                     currentUnitsRemaining = pendingOptInProjection.medicine.stock.unitsRemaining ?: 0.0,
                     received = received,
                 )
-                hideBottomSheet(scope, stockOptInSheetState) {
-                    pendingStockOptInUuid = null
-                }
             },
             sheetState = stockOptInSheetState,
             onDismissRequest = { pendingStockOptInUuid = null },
