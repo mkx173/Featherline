@@ -209,29 +209,32 @@ class MainViewModel @Inject constructor(
                 option = chartWindowOption,
             )
 
-        diagnosticsLogger.info(
-            TAG,
-            "home_pk_trend_path source=${inputs.source} " +
-                "projectionPresent=${inputs.pkProjection != null} " +
-                "projectionExpired=${inputs.pkProjection != null && freshProjection == null} " +
-                "usedCachedProjection=${freshProjection != null} " +
-                "reSimulatedLocally=${freshProjection == null && inputs.estradiolPkEntries.isNotEmpty()} " +
-                "pkEntries=${inputs.estradiolPkEntries.size} " +
-                "plannedEntries=${freshPlannedEntries.size} " +
-                "e2TrendReady=${freshProjection != null || inputs.estradiolPkEntries.isNotEmpty() || inputs.source == HomeInputSource.ROOM}",
-        )
+        // When the cached projection is invalid the trend falls back to
+        // simulating over `estradiolPkEntries`. The SNAPSHOT path now embeds
+        // those entries, so it can recompute a real curve without waiting for
+        // Room; mark it ready whenever a usable projection or PK entries are
+        // present. Only a SNAPSHOT with neither (no dose history) stays gated
+        // on the ROOM emission.
+        val e2TrendReady = freshProjection != null ||
+            inputs.estradiolPkEntries.isNotEmpty() ||
+            inputs.source == HomeInputSource.ROOM
+
+        // Local re-simulation only happens when no usable cached projection
+        // remains but embedded PK entries do — log just that case, not every
+        // per-minute tick.
+        if (freshProjection == null && inputs.estradiolPkEntries.isNotEmpty()) {
+            diagnosticsLogger.info(
+                TAG,
+                "home_pk_trend_resimulated source=${inputs.source} " +
+                    "projectionExpired=${inputs.pkProjection != null} " +
+                    "pkEntries=${inputs.estradiolPkEntries.size} " +
+                    "plannedEntries=${freshPlannedEntries.size}",
+            )
+        }
 
         return MainUiState(
             homeDataReady = true,
-            // When the cached projection is invalid the trend falls back to
-            // simulating over `estradiolPkEntries`. The SNAPSHOT path now embeds
-            // those entries, so it can recompute a real curve without waiting for
-            // Room; mark it ready whenever a usable projection or PK entries are
-            // present. Only a SNAPSHOT with neither (no dose history) stays gated
-            // on the ROOM emission.
-            e2TrendReady = freshProjection != null ||
-                inputs.estradiolPkEntries.isNotEmpty() ||
-                inputs.source == HomeInputSource.ROOM,
+            e2TrendReady = e2TrendReady,
             homeSource = inputs.source,
             now = now,
             homeE2DisplayUnit = homeE2DisplayUnit,
