@@ -82,6 +82,11 @@ const val EXTRA_HIGHLIGHT_SCHEDULED_TARGETS = "highlight_scheduled_targets"
 const val HIGHLIGHT_KIND_SCHEDULED = "scheduled"
 const val HIGHLIGHT_KIND_MANUAL = "manual"
 
+// Fade the splash out ourselves so the handoff is consistent across devices:
+// some OEMs skip the default exit animation, which makes the swap to the
+// onboarding hero icon read as a blink.
+private const val SPLASH_EXIT_FADE_DURATION_MILLIS = 250L
+
 data class ScheduledDoseRowHighlightTarget(
     val groupUuid: UUID,
     val scheduleTimeUuid: UUID?,
@@ -151,6 +156,21 @@ class MainActivity : AppCompatActivity() {
                 (shouldWaitForHomeShell && !mainViewModel.uiState.value.splashReady)
         }
         diagnosticsLogger.info(TAG, "main_activity_splash_condition_installed")
+        splashScreen.setOnExitAnimationListener { splashProvider ->
+            // Only cross-fade into onboarding, where the swap to the hero icon
+            // would otherwise read as a blink. Once onboarding is complete the
+            // home shell has no such handoff, so remove the splash immediately.
+            if (onboardingViewModel.uiState.value.shouldShowOnboarding) {
+                splashProvider.view
+                    .animate()
+                    .alpha(0f)
+                    .setDuration(SPLASH_EXIT_FADE_DURATION_MILLIS)
+                    .withEndAction { splashProvider.remove() }
+                    .start()
+            } else {
+                splashProvider.remove()
+            }
+        }
         settingsRepository.refreshAppLanguageOption(this)
         diagnosticsLogger.info(TAG, "main_activity_language_refresh_requested")
 
