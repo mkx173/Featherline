@@ -653,7 +653,7 @@
     <string name="onboarding_disclaimer_estimates_heading">Estimates &amp; modeling</string>
     <string name="onboarding_disclaimer_estimates_body">Plasma concentration estimates are calculated using approximate pharmacokinetic models based on published data and route-specific assumptions. Individual response can vary significantly. Treat estimates as rough trend indicators only.</string>
     <string name="onboarding_disclaimer_advice_heading">Not medical advice</string>
-    <string name="onboarding_disclaimer_advice_body">Information shown by this app is educational and is not medical advice. It cannot diagnose, treat, cure, or prevent any condition. Always consult a qualified clinician before changing your regimen.</string>
+    <string name="onboarding_disclaimer_advice_body">Information shown by this app is educational and is not medical advice. It is not a medical device, and it cannot diagnose, treat, cure, or prevent any condition. Always consult a qualified clinician before changing your regimen.</string>
     <string name="onboarding_disclaimer_reminders_heading">Reminders</string>
     <string name="onboarding_disclaimer_reminders_body">Dose reminders depend on your device\'s notification and alarm permissions. Battery optimizations or system limits may delay or skip reminders.</string>
     <string name="onboarding_disclaimer_view_full_policy">View full privacy policy</string>

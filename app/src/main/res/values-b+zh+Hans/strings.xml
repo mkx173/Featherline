@@ -636,7 +636,7 @@
     <string name="onboarding_disclaimer_estimates_heading">估算与建模</string>
     <string name="onboarding_disclaimer_estimates_body">血药浓度估算基于近似药代动力学模型，并参考已发表数据和不同给药途径的建模假设。个体反应可能存在显著差异。请仅将估算值作为粗略的趋势参考。</string>
     <string name="onboarding_disclaimer_advice_heading">非医疗建议</string>
-    <string name="onboarding_disclaimer_advice_body">本应用显示的信息仅用于教育目的，不构成医疗建议。它不能诊断、治疗、治愈或预防任何疾病。更改用药方案前，请务必咨询合格的临床医生。</string>
+    <string name="onboarding_disclaimer_advice_body">本应用显示的信息仅用于教育目的，不构成医疗建议。它不是医疗设备，不能诊断、治疗、治愈或预防任何疾病。更改用药方案前，请务必咨询合格的临床医生。</string>
     <string name="onboarding_disclaimer_reminders_heading">提醒</string>
     <string name="onboarding_disclaimer_reminders_body">用药提醒依赖于设备的通知和闹钟权限。电池优化、勿扰模式或系统限制可能会导致提醒延迟或无法送达。</string>
     <string name="onboarding_disclaimer_view_full_policy">查看完整隐私政策</string>
