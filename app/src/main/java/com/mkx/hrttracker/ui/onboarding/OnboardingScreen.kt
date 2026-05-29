@@ -1006,9 +1006,10 @@ private fun AcceptanceCheckbox(
                 ) {
                     if (isLocked) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_arrow_circle_down),
+                            painter = painterResource(R.drawable.ic_arrow_downward),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
                         )
                     } else {
                         Checkbox(
@@ -1024,6 +1025,7 @@ private fun AcceptanceCheckbox(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = textColor,
+            modifier = Modifier.padding(start = 8.dp).cjkTextOffset(label),
         )
     }
 }
