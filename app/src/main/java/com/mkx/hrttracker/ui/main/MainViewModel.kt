@@ -14,6 +14,7 @@ import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
@@ -43,6 +44,7 @@ class MainViewModel @Inject constructor(
     private val homeRepository: HomeRepository,
     private val settingsRepository: SettingsRepository,
     private val timeZoneChangeNoticeController: TimeZoneChangeNoticeController,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     appTimeSource: AppTimeSource,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
@@ -207,14 +209,28 @@ class MainViewModel @Inject constructor(
                 option = chartWindowOption,
             )
 
+        diagnosticsLogger.info(
+            TAG,
+            "home_pk_trend_path source=${inputs.source} " +
+                "projectionPresent=${inputs.pkProjection != null} " +
+                "projectionExpired=${inputs.pkProjection != null && freshProjection == null} " +
+                "usedCachedProjection=${freshProjection != null} " +
+                "reSimulatedLocally=${freshProjection == null && inputs.estradiolPkEntries.isNotEmpty()} " +
+                "pkEntries=${inputs.estradiolPkEntries.size} " +
+                "plannedEntries=${freshPlannedEntries.size} " +
+                "e2TrendReady=${freshProjection != null || inputs.estradiolPkEntries.isNotEmpty() || inputs.source == HomeInputSource.ROOM}",
+        )
+
         return MainUiState(
             homeDataReady = true,
-            // SNAPSHOT path carries no `estradiolPkEntries`, so when its cached
-            // projection is invalid the trend falls back to simulating over an
-            // empty list — a misleading "no data" curve. Mark the trend as not
-            // ready in that window so the E2 hero & chart show a skeleton until
-            // the ROOM emission arrives with real entries.
+            // When the cached projection is invalid the trend falls back to
+            // simulating over `estradiolPkEntries`. The SNAPSHOT path now embeds
+            // those entries, so it can recompute a real curve without waiting for
+            // Room; mark it ready whenever a usable projection or PK entries are
+            // present. Only a SNAPSHOT with neither (no dose history) stays gated
+            // on the ROOM emission.
             e2TrendReady = freshProjection != null ||
+                inputs.estradiolPkEntries.isNotEmpty() ||
                 inputs.source == HomeInputSource.ROOM,
             homeSource = inputs.source,
             now = now,
@@ -298,6 +314,7 @@ class MainViewModel @Inject constructor(
     }
 
     private companion object {
+        const val TAG = "MainViewModel"
         const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
     }
 }

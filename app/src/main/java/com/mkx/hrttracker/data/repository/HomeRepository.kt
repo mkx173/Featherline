@@ -94,6 +94,21 @@ class HomeRepository @Inject constructor(
                     )
                 } ?: return@mapNotNull null
                 val pkProjectionRecord = usable.pkProjection
+                // Rebuild the simulator inputs from the embedded PK log entries so
+                // the snapshot path can recompute the curve locally (no Room) when
+                // the cached projection has expired — e.g. a missed planned dose.
+                // `buildEstradiolPkSimulationEntries` is pure, preserving the
+                // snapshot path's "never opens the database" guarantee.
+                val pkHorizon = now.toLocalDate()
+                    .plusDays(option.projectionFutureDays())
+                    .atStartOfDay()
+                val simulationEntries = buildEstradiolPkSimulationEntries(
+                    realEntries = usable.pkEntries,
+                    activeGroups = usable.activeGroups,
+                    now = now,
+                    horizon = pkHorizon,
+                    zoneId = zoneId,
+                )
                 val stockWarnings = medicineStockRepository.projectAll(
                     medicines = usable.stockMedicines,
                     activeGroups = usable.activeGroups,
@@ -117,7 +132,8 @@ class HomeRepository @Inject constructor(
                     pkProjectionExpiresAt = pkProjectionRecord
                         ?.let { Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis) },
                     latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry,
-                    estradiolPkEntries = emptyList(),
+                    estradiolPkEntries = simulationEntries.real,
+                    estradiolPkPlannedEntries = simulationEntries.planned,
                     stockWarnings = stockWarnings,
                     source = HomeInputSource.SNAPSHOT,
                     now = now,

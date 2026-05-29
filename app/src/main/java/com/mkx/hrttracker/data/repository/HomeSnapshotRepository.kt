@@ -660,6 +660,7 @@ class HomeSnapshotRepository @Inject constructor(
             userProfile = inputs.profile,
             stockMedicines = inputs.stockMedicines,
             stockFulfillmentEntries = inputs.stockFulfillmentEntries,
+            pkEntries = inputs.pkEntries,
         )
 
         withContext(Dispatchers.IO) {

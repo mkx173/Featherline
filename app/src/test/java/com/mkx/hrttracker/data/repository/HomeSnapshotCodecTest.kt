@@ -19,6 +19,7 @@ import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
@@ -287,6 +288,114 @@ class HomeSnapshotCodecTest {
         assertEquals(
             MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
             restoredPreparation,
+        )
+    }
+
+    @Test
+    fun encodeDecode_roundTripsPkEntriesSharingMedicineAndNullMedicine() {
+        val sharedMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000001"),
+            key = MedicationKey.ESTRADIOL_VALERATE,
+        )
+        val group = UUID.fromString("aaaa0000-0000-0000-0000-0000000000a0")
+        val slot = UUID.fromString("aaaa0000-0000-0000-0000-0000000000b0")
+        val pkEntries = (0 until 3).map { index ->
+            testMedicationLogEntry(
+                uuid = UUID.fromString("aaaa0000-0000-0000-0000-00000000010$index"),
+                medicine = sharedMedicine,
+                category = MedicationCategory.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 1),
+                equivalentE2Mg = 5.0,
+                sourceGroupUuid = group,
+                scheduleTimeUuid = slot,
+                appliedAt = Instant.ofEpochMilli(1_000L + index),
+                scheduledFor = LocalDateTime.of(2026, 5, index + 1, 8, 0),
+            )
+        } + testMedicationLogEntry(
+            // A PATCH_OFF-style row carries a null medicine; the pooled codec
+            // must round-trip the -1 reference back to null rather than NPE.
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-0000000001ff"),
+            medicine = null,
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+            doseInstruction = DoseInstruction.Noop,
+            sourceGroupUuid = null,
+            appliedAt = Instant.ofEpochMilli(2_000L),
+        )
+        val record = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 1L,
+            generatedAtEpochMillis = 100L,
+            anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
+            zoneId = "Asia/Tokyo",
+            pkProjection = null,
+            activeGroups = emptyList(),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+            pkEntries = pkEntries,
+        )
+
+        val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+
+        assertEquals(record, decoded)
+        // The three estradiol entries must resolve back to the same medicine
+        // identity, and the patch-off row must stay null.
+        assertEquals(
+            listOf(sharedMedicine.uuid, sharedMedicine.uuid, sharedMedicine.uuid, null),
+            decoded.pkEntries.map { it.medicine?.uuid },
+        )
+    }
+
+    @Test
+    fun encode_dedupesMedicineSharedAcrossPkEntries() {
+        // A medicine shared across many entries must be serialized once. Encode
+        // 40 entries that share one medicine vs 40 that each carry a distinct
+        // medicine; the shared payload should be a fraction of the distinct one.
+        fun recordWith(entries: List<MedicationLogEntry>) = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 1L,
+            generatedAtEpochMillis = 100L,
+            anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
+            zoneId = "Asia/Tokyo",
+            pkProjection = null,
+            activeGroups = emptyList(),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+            pkEntries = entries,
+        )
+
+        val sharedMedicine = testMedicine(
+            uuid = UUID.fromString("bbbb0000-0000-0000-0000-000000000001"),
+            key = MedicationKey.ESTRADIOL_VALERATE,
+        )
+        val shared = (0 until 40).map { index ->
+            testMedicationLogEntry(
+                uuid = UUID.fromString("bbbb0000-0000-0000-0000-0000000002%02d".format(index)),
+                medicine = sharedMedicine,
+                sourceGroupUuid = null,
+                appliedAt = Instant.ofEpochMilli(1_000L + index),
+            )
+        }
+        val distinct = (0 until 40).map { index ->
+            testMedicationLogEntry(
+                uuid = UUID.fromString("cccc0000-0000-0000-0000-0000000002%02d".format(index)),
+                medicine = testMedicine(
+                    uuid = UUID.fromString("dddd0000-0000-0000-0000-0000000002%02d".format(index)),
+                    key = MedicationKey.ESTRADIOL_VALERATE,
+                ),
+                sourceGroupUuid = null,
+                appliedAt = Instant.ofEpochMilli(1_000L + index),
+            )
+        }
+
+        val sharedSize = HomeSnapshotCodec.encode(recordWith(shared)).size
+        val distinctSize = HomeSnapshotCodec.encode(recordWith(distinct)).size
+
+        assertTrue(
+            "Shared-medicine encoding ($sharedSize B) should be far smaller than " +
+                "distinct-medicine encoding ($distinctSize B)",
+            sharedSize < distinctSize / 2,
         )
     }
 

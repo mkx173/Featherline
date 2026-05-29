@@ -149,6 +149,12 @@ data class HomeSnapshotRecord(
     val stockMedicines: List<Medicine> = emptyList(),
     /** Log entries whose `scheduledFor` falls inside the stock simulation window. */
     val stockFulfillmentEntries: List<MedicationLogEntry> = emptyList(),
+    // Real estradiol log entries over the PK input window. Embedded so the
+    // snapshot path can re-run the simulation locally — without waiting for
+    // Room — when the cached projection expires (e.g. the user missed a
+    // future planned dose). Encoded with medicine dedup since a daily doser
+    // repeats the same one or two medicines across the whole window.
+    val pkEntries: List<MedicationLogEntry> = emptyList(),
 )
 
 data class HomePkProjectionRecord(
@@ -256,6 +262,7 @@ internal object HomeSnapshotCodec {
             stream.writeUserProfile(record.userProfile)
             stream.writeList(record.stockMedicines) { medicine -> writeMedicine(medicine) }
             stream.writeList(record.stockFulfillmentEntries) { entry -> writeMedicationLogEntry(entry) }
+            stream.writePooledMedicationLogEntries(record.pkEntries)
         }
         return output.toByteArray()
     }
@@ -280,6 +287,7 @@ internal object HomeSnapshotCodec {
                 userProfile = stream.readUserProfile(),
                 stockMedicines = stream.readList { readMedicine() },
                 stockFulfillmentEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
+                pkEntries = stream.readPooledMedicationLogEntries(),
             )
         }
     }
@@ -445,6 +453,44 @@ internal object HomeSnapshotCodec {
         entry ?: return
         writeString(entry.uuid.toString())
         writeNullableMedicine(entry.medicine)
+        writeMedicationLogEntryBody(entry)
+    }
+
+    private fun DataInputStream.readMedicationLogEntry(): MedicationLogEntry? {
+        if (!readBoolean()) {
+            return null
+        }
+        val uuid = UUID.fromString(readString())
+        val medicine = readNullableMedicine()
+        return readMedicationLogEntryBody(uuid = uuid, medicine = medicine)
+    }
+
+    // Writes a non-null entry list using a deduplicated medicine pool: each
+    // distinct medicine is serialized once, and entries reference it by pool
+    // index (-1 = no medicine). A daily doser embeds ~200 entries that repeat
+    // the same medicine, so inlining each one would roughly double the cost.
+    private fun DataOutputStream.writePooledMedicationLogEntries(entries: List<MedicationLogEntry>) {
+        val medicinePool = entries.mapNotNull { entry -> entry.medicine }.distinctBy { it.uuid }
+        val indexByUuid = medicinePool.withIndex().associate { (index, medicine) -> medicine.uuid to index }
+        writeList(medicinePool) { medicine -> writeMedicine(medicine) }
+        writeList(entries) { entry ->
+            writeString(entry.uuid.toString())
+            writeInt(entry.medicine?.let { medicine -> indexByUuid.getValue(medicine.uuid) } ?: -1)
+            writeMedicationLogEntryBody(entry)
+        }
+    }
+
+    private fun DataInputStream.readPooledMedicationLogEntries(): List<MedicationLogEntry> {
+        val medicinePool = readList { readMedicine() }
+        return readList {
+            val uuid = UUID.fromString(readString())
+            val medicineIndex = readInt()
+            val medicine = medicinePool.getOrNull(medicineIndex)
+            readMedicationLogEntryBody(uuid = uuid, medicine = medicine)
+        }
+    }
+
+    private fun DataOutputStream.writeMedicationLogEntryBody(entry: MedicationLogEntry) {
         writeString(entry.category.name)
         writeString(entry.applicationType.name)
         writeDoseInstruction(entry.doseInstruction)
@@ -457,13 +503,13 @@ internal object HomeSnapshotCodec {
         writeInt(entry.count)
     }
 
-    private fun DataInputStream.readMedicationLogEntry(): MedicationLogEntry? {
-        if (!readBoolean()) {
-            return null
-        }
+    private fun DataInputStream.readMedicationLogEntryBody(
+        uuid: UUID,
+        medicine: Medicine?,
+    ): MedicationLogEntry {
         return MedicationLogEntry(
-            uuid = UUID.fromString(readString()),
-            medicine = readNullableMedicine(),
+            uuid = uuid,
+            medicine = medicine,
             category = MedicationCategory.fromStorageValue(readString()),
             applicationType = MedicationApplicationType.fromStorageValue(readString()),
             doseInstruction = readDoseInstruction(),
@@ -865,7 +911,9 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 private const val TAG = "HomeSnapshotStore"
 // v15 carries MedicineStock inside cached Medicine values; older caches are
 // rejected by codec-version mismatch so tracked stock is never defaulted away.
-private const val SNAPSHOT_CODEC_VERSION = 16
+// v17 appends the deduped pkEntries pool so the snapshot path can re-simulate
+// the E2 curve locally when the cached projection expires.
+private const val SNAPSHOT_CODEC_VERSION = 17
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0
