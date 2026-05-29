@@ -186,14 +186,7 @@
     <string name="medication_editor_schedule_offset_hours_earlier">-%1$d小时</string>
     <string name="medication_editor_schedule_offset_days_later">+%1$d天</string>
     <string name="medication_editor_schedule_offset_days_earlier">-%1$d天</string>
-    <string name="field_dosage_mg">剂量</string>
     <string name="field_count">数量</string>
-    <string name="field_dose_type">剂量类型</string>
-    <string name="field_equivalent_estradiol_mg">等效雌二醇剂量</string>
-    <string name="field_gel_percent">雌二醇浓度</string>
-    <string name="field_gel_weight_grams">凝胶重量</string>
-    <string name="field_patch_total_mg">总雌二醇剂量</string>
-    <string name="field_patch_release_rate_mcg_day">雌二醇释放速率</string>
     <string name="unit_mg">mg</string>
     <string name="unit_mg_per_ml">mg/mL</string>
     <string name="unit_ml">mL</string>
@@ -202,7 +195,6 @@
     <string name="unit_grams">g</string>
     <string name="unit_mcg_day">μg/天</string>
     <string name="field_medication_group_name">分组名称</string>
-    <string name="clear_group_name">清空分组名称</string>
     <string name="group_color_picker_action">更改分组颜色</string>
     <string name="group_color_picker_title">选择颜色</string>
     <string name="group_color_picker_swatch_content_description">颜色 %1$d</string>
@@ -293,7 +285,6 @@
     <string name="quick_add_group_planned_slot_today">今天</string>
     <string name="cancel">取消</string>
     <string name="save">保存</string>
-    <string name="done">完成</string>
     <string name="archive">归档</string>
     <string name="archived_group_record_indicator">来自已归档分组</string>
     <string name="cross_timezone_entry_indicator">在其他时区记录</string>
@@ -311,7 +302,6 @@
     <string name="medicine_locked_by_logs">这个药物已有相关的记录，因此您无法更改部分内容</string>
     <string name="medicine_display_name">显示名称</string>
     <string name="medicine_preparation">制剂</string>
-    <string name="medicine_preparation_edit">编辑制剂</string>
     <string name="medicine_edit_title">编辑药物</string>
     <string name="medicine_edit_action">编辑药物</string>
     <string name="medicine_linked_groups">活跃分组</string>
@@ -340,18 +330,9 @@
     <string name="preparation_type_gel_container">容器</string>
     <string name="preparation_type_patch">贴片</string>
     <string name="medicine_picker_select_medicine">选择药物</string>
-    <string name="medicine_picker_change_medicine">更改药物</string>
-    <string name="dose_type_mg_as_medicine">mg 剂量</string>
-    <string name="dose_type_gel_equivalent_estradiol_mg">等效剂量</string>
-    <string name="dose_type_gel_percent_and_weight">浓度和重量</string>
-    <string name="dose_type_patch_total_mg">总剂量</string>
-    <string name="dose_type_patch_release_rate_mcg_day">释放速率</string>
     <string name="medication_editor_patch_off_hint">移除贴片不需要填写</string>
     <string name="validation_name_required">请输入药物名称</string>
-    <string name="validation_dose_required">请输入有效的剂量</string>
     <string name="validation_medication_selection_required">请选择药物</string>
-    <string name="validation_gel_percent_required">请输入有效的浓度</string>
-    <string name="validation_gel_weight_required">请输入有效的重量</string>
     <string name="validation_patch_release_rate_required">请输入有效的释放速率</string>
     <string name="validation_count_required">请输入有效数量</string>
     <string name="validation_preparation_type_required">请选择制剂类型</string>
@@ -369,7 +350,6 @@
     <string name="validation_dose_tablet_fraction_required">请输入有效的每次片数</string>
     <string name="field_preparation_form">剂型</string>
     <string name="field_preparation_type">制剂类型</string>
-    <string name="field_strength_unit">含量单位</string>
     <string name="field_pill_strength_mg">每片含量</string>
     <string name="field_capsule_strength_mg">每粒含量</string>
     <string name="field_single_use_vial_strength_mg">每瓶总量</string>
@@ -388,9 +368,6 @@
     <string name="medicine_preparation_form_injection">注射</string>
     <string name="medicine_preparation_form_gel">凝胶</string>
     <string name="medicine_preparation_form_patch">贴片</string>
-    <string name="medicine_capsule_strength_label">每粒含量（mg）</string>
-    <string name="medication_picker_existing_medicines">现有药物</string>
-    <string name="medication_picker_add_new">+ 新建</string>
     <string name="medication_preparation_summary_pill">片剂 · %1$s mg</string>
     <string name="medication_preparation_summary_pill_with_unit">片剂 · %1$s %2$s</string>
     <string name="medication_preparation_summary_capsule">胶囊 · %1$s mg</string>
@@ -412,10 +389,6 @@
     <string name="dose_instruction_summary_patch_release_rate">%1$s μg/天</string>
     <string name="medication_count_multiplicity">%1$dx</string>
     <string name="default_group_name_format">分组 %1$d</string>
-    <string name="medication_dose_with_unit">%1$s %2$s</string>
-    <string name="medication_dose_mg_e2">%1$s mg E2</string>
-    <string name="medication_dose_percent_and_weight">%1$s%% · %2$s g</string>
-    <string name="medication_dose_release_rate_mcg_day">%1$s μg/天</string>
     <string name="dark_mode_follow_system">跟随系统</string>
     <string name="dark_mode_always_off">始终关闭</string>
     <string name="dark_mode_always_on">始终开启</string>
@@ -431,7 +404,6 @@
     <string name="medication_application_sublingual">舌下</string>
     <string name="medication_application_injection">注射</string>
     <string name="medication_application_gel">凝胶</string>
-    <string name="field_gel_application_area">涂抹部位</string>
     <string name="medication_gel_application_area_default">默认</string>
     <string name="medication_application_patch_on">贴上贴片</string>
     <string name="medication_application_patch_off">移除贴片</string>
@@ -742,18 +714,15 @@
     <string name="stock_chip_low">库存不足</string>
     <string name="stock_chip_out">已用尽</string>
     <string name="stock_chip_imminent">即将用尽</string>
-    <string name="stock_chip_no_runway">未知</string>
     <string name="stock_runway_unknown_title">无法预估</string>
     <string name="stock_runway_unknown_body">将此药品加入分组后即可预估剩余天数</string>
     <string name="stock_runway_more_than_one_year">剩余超过 1 年</string>
     <string name="stock_runway_days_remaining">约剩余 %1$d 天</string>
-    <string name="stock_no_schedule">无计划</string>
 
     <string name="stock_subcard_chip_in_stock">库存充足</string>
     <string name="stock_subcard_chip_low">库存不足</string>
     <string name="stock_subcard_chip_almost_out">即将用尽</string>
     <string name="stock_subcard_chip_out">已用尽</string>
-    <string name="stock_subcard_chip_unknown">未知</string>
     <string name="stock_subcard_runway_more_than_one_year">>1 年</string>
     <string name="stock_subcard_runway_days">~%1$d 天</string>
     <plurals name="stock_subcard_unit_vials">
