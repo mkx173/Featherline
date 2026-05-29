@@ -746,8 +746,8 @@
     <string name="stock_row_count_only">%1$s</string>
     <string name="stock_row_count_with_unit">%1$s %2$s</string>
 
-    <string name="stock_rate_per_day">%1$s %2$s/天</string>
-    <string name="stock_rate_per_week">%1$s %2$s/周</string>
+    <string name="stock_rate_per_day">%1$s %2$s / 天</string>
+    <string name="stock_rate_per_week">%1$s %2$s / 周</string>
     <string name="stock_unit_tablets">片</string>
     <string name="stock_unit_capsules">粒</string>
     <string name="stock_unit_patches">贴</string>
@@ -782,8 +782,6 @@
     <string name="stock_warnat_row_title">库存不足提醒</string>
     <string name="stock_warnat_value_off">关闭</string>
     <string name="stock_warnat_value_days">%1$d 天</string>
-    <string name="stock_warnat_below_interval_supporting">阈值短于给药间隔，可能在缺货前不会提醒。</string>
-    <string name="stock_warnat_below_interval_content_description">阈值可能在缺货前不会提醒。</string>
 
     <string name="stock_disable_menu_action">关闭库存追踪</string>
     <string name="stock_disable_title">关闭库存追踪？</string>

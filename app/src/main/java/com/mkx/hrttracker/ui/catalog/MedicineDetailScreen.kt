@@ -202,13 +202,6 @@ fun MedicineDetailScreen(
     )
 }
 
-internal fun showWarnAtBelowIntervalWarning(
-    warnAtDays: Int,
-    intervalDays: Int?,
-): Boolean {
-    return warnAtDays > 0 && intervalDays != null && warnAtDays < intervalDays
-}
-
 internal fun adjustSheetStockProjectionForDisplay(
     isStockProjectionFrozen: Boolean,
     stockProjection: MedicineStockProjection?,
@@ -431,10 +424,6 @@ private fun MedicineDetailScreenContent(
                                     var warnAtMenuExpanded by remember { mutableStateOf(false) }
                                     val warnAtDays =
                                         stockProjection.medicine.stock.warnAtDaysRemaining
-                                    val showWarnAtWarning = showWarnAtBelowIntervalWarning(
-                                        warnAtDays = warnAtDays,
-                                        intervalDays = stockProjection.intervalDays,
-                                    )
                                     val warnAtValueText = if (warnAtDays <= 0) {
                                         stringResource(R.string.stock_warnat_value_off)
                                     } else {
@@ -443,20 +432,12 @@ private fun MedicineDetailScreenContent(
                                             warnAtDays,
                                         )
                                     }
-                                    val warnAtSupportingText = if (showWarnAtWarning) {
-                                        warnAtValueText + " · " +
-                                            stringResource(
-                                                R.string.stock_warnat_below_interval_supporting,
-                                            )
-                                    } else {
-                                        warnAtValueText
-                                    }
                                     Box {
                                         PreferenceSegmentedListItem(
                                             title = stringResource(
                                                 R.string.stock_warnat_row_title,
                                             ),
-                                            supportingText = warnAtSupportingText,
+                                            supportingText = warnAtValueText,
                                             index = 1,
                                             count = 2,
                                             onClick = { warnAtMenuExpanded = true },
@@ -474,22 +455,6 @@ private fun MedicineDetailScreenContent(
                                                         modifier = Modifier.size(20.dp)
                                                     )
                                                 }
-                                            },
-                                            trailingContent = if (showWarnAtWarning) {
-                                                {
-                                                    Icon(
-                                                        painter = painterResource(
-                                                            R.drawable.ic_warning,
-                                                        ),
-                                                        contentDescription = stringResource(
-                                                            R.string.stock_warnat_below_interval_content_description,
-                                                        ),
-                                                        tint = MaterialTheme.colorScheme.tertiary,
-                                                        modifier = Modifier.size(20.dp),
-                                                    )
-                                                }
-                                            } else {
-                                                null
                                             },
                                         )
                                         HrtDropdownMenu(

@@ -5,21 +5,10 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.testMedicine
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MedicineDetailScreenStockWarningTest {
-
-    @Test
-    fun warnAtBelowIntervalShowsWarningOnlyWhenEnabledAndShorterThanInterval() {
-        assertTrue(showWarnAtBelowIntervalWarning(warnAtDays = 7, intervalDays = 14))
-        assertFalse(showWarnAtBelowIntervalWarning(warnAtDays = 14, intervalDays = 14))
-        assertFalse(showWarnAtBelowIntervalWarning(warnAtDays = 21, intervalDays = 14))
-        assertFalse(showWarnAtBelowIntervalWarning(warnAtDays = 0, intervalDays = 14))
-        assertFalse(showWarnAtBelowIntervalWarning(warnAtDays = 7, intervalDays = null))
-    }
 
     @Test
     fun adjustSheetStockProjectionForDisplayKeepsFrozenProjection() {
