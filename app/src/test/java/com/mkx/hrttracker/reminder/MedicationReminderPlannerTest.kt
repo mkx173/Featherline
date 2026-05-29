@@ -105,6 +105,31 @@ class MedicationReminderPlannerTest {
     }
 
     @Test
+    fun buildNextMedicationReminderPlans_skips_occurrence_at_exactly_now_to_avoid_past_alarm() {
+        // The startup reschedule passes a minute-truncated `now`. When the app
+        // is reopened within the same minute a dose fired, the occurrence at
+        // exactly `now` would otherwise be re-armed as an exact alarm in the
+        // past, which AlarmManager fires immediately -> the reminder re-fires.
+        val group = medicationGroup(
+            uuid = UUID.fromString("b1f0c2d3-4e5f-4a6b-8c7d-9e0f1a2b3c4d"),
+            name = "Daily estradiol",
+            time = LocalTime.of(9, 0),
+            notificationsEnabled = true
+        )
+
+        val plans = buildNextMedicationReminderPlans(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 20, 9, 0)
+        )
+
+        assertEquals(
+            listOf(LocalDateTime.of(2026, 4, 21, 9, 0)),
+            plans.map { it.scheduledAt }
+        )
+    }
+
+    @Test
     fun buildNextMedicationReminderPlans_scans_entire_90_day_window_for_next_unfulfilled_occurrence() {
         val group = medicationGroup(
             uuid = UUID.fromString("c873b736-521a-4f35-b207-258fd697c5fd"),

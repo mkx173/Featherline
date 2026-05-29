@@ -207,23 +207,29 @@ class MainActivity : AppCompatActivity() {
                     if (!appLockUiState.isReady || !mainUiState.homeDataReady) {
                         return@LaunchedEffect
                     }
-                    val nowAtTrigger = mainUiState.now
+                    // Use the real wall clock rather than `mainUiState.now`,
+                    // which is truncated to the minute (the UI tick clock).
+                    // Scheduling exact alarms with a truncated now can place a
+                    // trigger up to 59s in the past, which AlarmManager fires
+                    // immediately -> a just-fired reminder/snooze re-fires when
+                    // the app is reopened within the same minute.
+                    val rescheduleNow = LocalDateTime.now()
                     when (mainUiState.homeSource) {
                         HomeInputSource.SNAPSHOT -> {
                             diagnosticsLogger.info(
                                 TAG,
-                                "main_activity_home_data_ready source=snapshot now=$nowAtTrigger"
+                                "main_activity_home_data_ready source=snapshot now=$rescheduleNow"
                             )
                             startupPreloaderProvider.get()
-                                .startReminderRescheduleFromSnapshot(nowAtTrigger)
+                                .startReminderRescheduleFromSnapshot(rescheduleNow)
                         }
                         HomeInputSource.ROOM -> {
                             diagnosticsLogger.info(
                                 TAG,
-                                "main_activity_home_data_ready source=room now=$nowAtTrigger"
+                                "main_activity_home_data_ready source=room now=$rescheduleNow"
                             )
                             startupPreloaderProvider.get()
-                                .startReminderRescheduleFromWarmDatabase(nowAtTrigger)
+                                .startReminderRescheduleFromWarmDatabase(rescheduleNow)
                         }
                         null -> Unit
                     }
