@@ -656,6 +656,104 @@ internal fun medicationSummaryTrailingIndicator(
     }
 }
 
+internal fun stockMutationPreviewDoseMagnitude(
+    medicine: Medicine?,
+    doseInstructionDraft: DoseInstructionDraftUiState?,
+    countText: String,
+): Double? {
+    medicine ?: return null
+    doseInstructionDraft ?: return null
+
+    val applicationType = resolvedApplicationTypeForDose(
+        preparationType = medicine.preparation.type,
+        doseInstructionDraft = doseInstructionDraft,
+    )
+    if (applicationType == MedicationApplicationType.PATCH_OFF) {
+        return null
+    }
+    val count = if (applicationType.supportsMedicationCountEditor(medicine.preparation.type)) {
+        parseNonNegativePreviewMedicationCount(countText)
+    } else {
+        1
+    }
+    val normalizedDoseDraft = doseInstructionDraft.copy(
+        applicationType = applicationType,
+        preparationType = medicine.preparation.type,
+    )
+    val perAdministration = medicine.preparation.stockMutationPreviewPerAdministration(
+        doseInstructionDraft = normalizedDoseDraft,
+    ) ?: return null
+    val total = perAdministration * count
+    return total.takeIf { it.isFinite() && it >= 0.0 }
+}
+
+private fun MedicinePreparation.stockMutationPreviewPerAdministration(
+    doseInstructionDraft: DoseInstructionDraftUiState,
+): Double? {
+    return when (this) {
+        is MedicinePreparation.InjectionMultiUseVial -> {
+            if (doseInstructionDraft.preparationType != MedicinePreparationType.INJECTION_MULTI_USE_VIAL) {
+                return null
+            }
+            parseNonNegativePreviewDouble(doseInstructionDraft.volumeMl)
+        }
+
+        is MedicinePreparation.GelContainer -> {
+            if (doseInstructionDraft.preparationType != MedicinePreparationType.GEL_CONTAINER) {
+                return null
+            }
+            parseNonNegativePreviewDouble(doseInstructionDraft.weightGrams)
+        }
+
+        else -> {
+            val doseInstruction = runCatching { doseInstructionDraft.toDoseInstruction() }
+                .getOrNull()
+                ?: return null
+            stockMutationPerAdministration(doseInstruction = doseInstruction)
+        }
+    }
+}
+
+private fun MedicinePreparation.stockMutationPerAdministration(
+    doseInstruction: DoseInstruction,
+): Double? {
+    return when (doseInstruction) {
+        is DoseInstruction.TabletFraction -> {
+            if (this !is MedicinePreparation.Pill) return null
+            val numerator = doseInstruction.numerator.takeIf { it > 0 } ?: return null
+            val denominator = doseInstruction.denominator.takeIf { it > 0 } ?: return null
+            numerator.toDouble() / denominator.toDouble()
+        }
+
+        DoseInstruction.WholeUnit -> when (this) {
+            is MedicinePreparation.Capsule,
+            is MedicinePreparation.InjectionSingleUseVial,
+            is MedicinePreparation.GelSachet,
+            is MedicinePreparation.Patch -> 1.0
+
+            else -> null
+        }
+
+        is DoseInstruction.VolumeMl -> {
+            if (this is MedicinePreparation.InjectionMultiUseVial) {
+                doseInstruction.valueMl.takeIf { it.isFinite() && it > 0.0 }
+            } else {
+                null
+            }
+        }
+
+        is DoseInstruction.WeightGrams -> {
+            if (this is MedicinePreparation.GelContainer) {
+                doseInstruction.valueGrams.takeIf { it.isFinite() && it > 0.0 }
+            } else {
+                null
+            }
+        }
+
+        DoseInstruction.Noop -> null
+    }
+}
+
 // String resource for the unit's short label (mg / μg / g) — used as the field
 // suffix and as the segment label inside the picker. Lives in the UI layer so
 // the model doesn't depend on R.
@@ -751,6 +849,16 @@ internal fun doseInstructionHasTextField(
 
 private fun parsePositiveDouble(text: String): Double? {
     return text.trim().toDoubleOrNull()?.takeIf { it > 0.0 && it.isFinite() }
+}
+
+private fun parseNonNegativePreviewDouble(text: String): Double? {
+    val trimmed = text.trim()
+    if (trimmed.isEmpty()) return 0.0
+    return trimmed.toDoubleOrNull()?.takeIf { it >= 0.0 && it.isFinite() } ?: 0.0
+}
+
+private fun parseNonNegativePreviewMedicationCount(text: String): Int {
+    return text.toIntOrNull()?.takeIf { it >= 0 } ?: 0
 }
 
 fun MedicinePickerUiState.toNewMedicineRequest(): NewMedicineRequest {

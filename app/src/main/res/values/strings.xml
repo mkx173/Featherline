@@ -63,6 +63,9 @@
     <string name="main_relative_tomorrow">tomorrow</string>
     <string name="main_more_options">More options</string>
     <string name="main_display_unit">Display unit</string>
+    <string name="home_low_stock_title_with_count">Low stock · %1$d</string>
+    <string name="home_low_stock_expanded_state">Expanded</string>
+    <string name="home_low_stock_collapsed_state">Collapsed</string>
     <string name="reminder_notification_channel_name">Dose reminders</string>
     <string name="reminder_notification_channel_description">Notifications for scheduled doses.</string>
     <string name="reminder_notification_single_title">Time for your dose</string>
@@ -71,6 +74,21 @@
     <string name="reminder_notification_action_log_all">Log all</string>
     <string name="reminder_notification_action_remind_later">Remind later</string>
     <string name="reminder_notification_snoozed">We\'ll remind you in %1$d minutes.</string>
+    <string name="stock_toast_out_single">Out of stock: %1$s</string>
+    <plurals name="stock_toast_out_multiple">
+        <item quantity="one">%1$d medicine out of stock</item>
+        <item quantity="other">%1$d medicines out of stock</item>
+    </plurals>
+    <string name="stock_toast_imminent_single">Almost out: %1$s</string>
+    <plurals name="stock_toast_imminent_multiple">
+        <item quantity="one">%1$d medicine almost out</item>
+        <item quantity="other">%1$d medicines almost out</item>
+    </plurals>
+    <string name="stock_toast_user_low_single">Low stock: %1$s</string>
+    <plurals name="stock_toast_user_low_multiple">
+        <item quantity="one">%1$d medicine low on stock</item>
+        <item quantity="other">%1$d medicines low on stock</item>
+    </plurals>
     <string name="fab_add_entry">Add medication log entry</string>
     <string name="plan_empty_state">No medication groups yet.</string>
     <string name="plan_selected_day_records_empty">No records for this day.</string>
@@ -299,6 +317,7 @@
     <string name="medicines_title">Medicines</string>
     <string name="medicines_empty_state">No medicines yet.</string>
     <string name="medicine_picker_add_new_medicine">Add medicine</string>
+    <string name="onboarding_stock_optin_banner">Tap a medicine to add stock. You can also enable stock tracking anytime from Plan → Medicine.</string>
     <string name="create_medicine_title">Add medicine</string>
     <string name="create_medicine_action">Save</string>
     <string name="medicine_detail_title">Medicine details</string>
@@ -311,14 +330,15 @@
     <string name="medicine_linked_groups">Active groups</string>
     <string name="medicine_linked_groups_empty">No active groups use this medicine.</string>
     <string name="medicine_archive_action">Archive</string>
-    <string name="medicine_archive_confirm_title">Archive medicine?</string>
-    <string name="medicine_archive_confirm_message">The medicine will be hidden from pickers. Logged history is preserved.</string>
+    <string name="medicine_archive_confirm_title">Archive medicine</string>
+    <string name="medicine_archive_confirm_message">Archive this medicine? Logged history will be kept.</string>
     <string name="medicine_archive_blocked_by_groups">Remove this medicine from active groups before archiving.</string>
     <plurals name="medicine_archive_blocked_count">
         <item quantity="one">%1$d active group is using this medicine.</item>
         <item quantity="other">%1$d active groups are using this medicine.</item>
     </plurals>
     <string name="medicine_archive_failure">Unable to archive this medicine.</string>
+    <string name="medicine_stock_update_failure">Unable to update stock.</string>
     <string name="medicine_patch_off_name">Remove patch</string>
     <string name="medicine_patch_off_detail_summary">Logging this entry removes any currently applied estradiol patch.</string>
     <string name="medicine_save_failure">Unable to save this medicine.</string>
@@ -375,10 +395,10 @@
     <string name="medicine_preparation_form_patch">Patch</string>
     <string name="preparation_type_pill">Tablet</string>
     <string name="preparation_type_capsule">Capsule</string>
-    <string name="preparation_type_injection_single_use_vial">Single-dose vial</string>
-    <string name="preparation_type_injection_multi_use_vial">Multi-dose vial</string>
-    <string name="preparation_type_gel_sachet">Single-use sachet</string>
-    <string name="preparation_type_gel_container">Multi-use container</string>
+    <string name="preparation_type_injection_single_use_vial">Ampule</string>
+    <string name="preparation_type_injection_multi_use_vial">Vial</string>
+    <string name="preparation_type_gel_sachet">Sachet</string>
+    <string name="preparation_type_gel_container">Container</string>
     <string name="preparation_type_patch">Patch</string>
     <string name="medication_picker_existing_medicines">Existing medicines</string>
     <string name="medication_picker_add_new">+ New</string>
@@ -389,11 +409,11 @@
     <string name="medication_preparation_summary_pill_with_unit">Tablet · %1$s %2$s</string>
     <string name="medication_preparation_summary_capsule">Capsule · %1$s mg</string>
     <string name="medication_preparation_summary_capsule_with_unit">Capsule · %1$s %2$s</string>
-    <string name="medication_preparation_summary_single_use_vial">Injection · Single-dose vial · %1$s mg</string>
-    <string name="medication_preparation_summary_single_use_vial_with_unit">Injection · Single-dose vial · %1$s %2$s</string>
-    <string name="medication_preparation_summary_multi_use_vial">Injection · Multi-dose vial · %1$s mg/mL · %2$s mL</string>
-    <string name="medication_preparation_summary_gel_sachet">Gel · Single-use sachet · %1$s%% · %2$s g</string>
-    <string name="medication_preparation_summary_gel_container">Gel · Multi-use container · %1$s%% · %2$s g</string>
+    <string name="medication_preparation_summary_single_use_vial">Injection · Ampule · %1$s mg</string>
+    <string name="medication_preparation_summary_single_use_vial_with_unit">Injection · Ampule · %1$s %2$s</string>
+    <string name="medication_preparation_summary_multi_use_vial">Injection · Vial · %1$s mg/mL · %2$s mL</string>
+    <string name="medication_preparation_summary_gel_sachet">Gel · Sachet · %1$s%% · %2$s g</string>
+    <string name="medication_preparation_summary_gel_container">Gel · Container · %1$s%% · %2$s g</string>
     <string name="medication_preparation_summary_patch_total">Patch · %1$s mg</string>
     <string name="medication_preparation_summary_patch_total_with_unit">Patch · %1$s %2$s</string>
     <string name="medication_preparation_summary_patch_release_rate">Patch · %1$s μg/day</string>
@@ -557,6 +577,7 @@
     <string name="settings_backup_restore_password_message">This will replace current local data with the selected backup. Enter the backup password to continue.</string>
     <string name="settings_backup_restore_password_message_with_name">This will replace current local data with %1$s. Enter the backup password to continue.</string>
     <string name="settings_backup_restore_confirm">Restore</string>
+    <string name="settings_update_failed">Unable to update setting.</string>
     <string name="settings_diagnostics">Diagnostics</string>
     <string name="settings_diagnostics_export_logs">Export diagnostic logs</string>
     <string name="settings_diagnostics_export_success">Diagnostic logs exported</string>
@@ -591,6 +612,8 @@
     <string name="personalization_weight_dialog_save">Save</string>
     <string name="personalization_weight_dialog_clear">Clear</string>
     <string name="personalization_weight_validation_invalid">Enter a valid weight.</string>
+    <string name="personalization_weight_update_failed">Unable to update body weight.</string>
+    <string name="onboarding_update_failed">Unable to update onboarding.</string>
     <string name="app_language_english">English</string>
     <string name="app_language_simplified_chinese">简体中文</string>
     <string name="first_day_of_week_follow_system">Default</string>
@@ -651,6 +674,9 @@
     <string name="onboarding_useful_plan_added">Group added</string>
     <string name="onboarding_useful_weight_title">Enter your weight</string>
     <string name="onboarding_useful_weight_desc">Set your weight to improve plasma concentration estimates.</string>
+    <string name="onboarding_useful_stock_title">Track stock</string>
+    <string name="onboarding_useful_stock_desc">Record your remaining stock to enable runway estimates.</string>
+    <string name="onboarding_useful_stock_added">Stock tracking enabled</string>
     <string name="onboarding_open_app">Open Featherline</string>
     <string name="privacy_policy_url" translatable="false">https://asterismlabs.io/featherline/privacy/</string>
     <string name="settings_calibration_remaining_analytes">%1$d available</string>
@@ -669,6 +695,7 @@
         <item quantity="other">Added %1$d entries.</item>
     </plurals>
     <string name="reminder_notification_nothing_to_add">Already logged.</string>
+    <string name="widget_quick_log_failed">Unable to quick-log dose.</string>
     <plurals name="plan_regimen_group_count">
         <item quantity="one">%1$d group</item>
         <item quantity="other">%1$d groups</item>
@@ -745,4 +772,101 @@
     <string name="widget_preview_dose_supporting_cpa">Oral · 12.5 mg</string>
     <string name="widget_preview_dose_supporting_progesterone">Oral · 200 mg</string>
     <string name="widget_preview_dose_time_evening">9:00 PM</string>
+
+    <!-- Stock section -->
+    <string name="stock_section_title">Stock tracking</string>
+    <string name="stock_chip_low">LOW</string>
+    <string name="stock_chip_out">OUT</string>
+    <string name="stock_chip_imminent">ALMOST OUT</string>
+    <string name="stock_chip_no_runway">UNKNOWN</string>
+    <string name="stock_runway_unknown_title">Runway unknown</string>
+    <string name="stock_runway_unknown_body">Add this medicine to a group to forecast.</string>
+    <string name="stock_runway_more_than_one_year">>1 year remaining</string>
+    <string name="stock_runway_days_remaining">~%1$d days remaining</string>
+    <string name="stock_no_schedule">No schedule</string>
+
+    <!-- Compact stock subcard -->
+    <string name="stock_subcard_chip_in_stock">In stock</string>
+    <string name="stock_subcard_chip_low">Low</string>
+    <string name="stock_subcard_chip_almost_out">Almost out</string>
+    <string name="stock_subcard_chip_out">Out</string>
+    <string name="stock_subcard_chip_unknown">Unknown</string>
+    <string name="stock_subcard_runway_more_than_one_year">>1 year</string>
+    <string name="stock_subcard_runway_days">~%1$d days</string>
+    <plurals name="stock_subcard_unit_vials">
+        <item quantity="one">vial</item>
+        <item quantity="other">vials</item>
+    </plurals>
+    <plurals name="stock_subcard_unit_containers">
+        <item quantity="one">container</item>
+        <item quantity="other">containers</item>
+    </plurals>
+    <string name="stock_subcard_sealed_chip_content_description">Additional sealed stock: %1$s %2$s</string>
+    <string name="stock_subcard_cd_stock_pool">Stock pool</string>
+    <string name="stock_subcard_cd_open_vial">Open vial</string>
+    <string name="stock_subcard_cd_open_container">Open container</string>
+
+    <!-- Untracked opt-in -->
+    <string name="stock_optin_title">Enable stock tracking</string>
+
+    <!-- Stock row labels (left-side text in each row) -->
+    <string name="stock_row_label_stock">Stock</string>
+    <string name="stock_row_label_current_vial">Current vial</string>
+    <string name="stock_row_label_current_container">Current container</string>
+
+    <!-- Stock row trailing counts -->
+    <string name="stock_row_count_over_total">%1$s / %2$s</string>
+    <string name="stock_row_count_only">%1$s</string>
+    <string name="stock_row_count_with_unit">%1$s %2$s</string>
+
+    <!-- Stock consumption rate (subtitle of the runway sub-card) -->
+    <string name="stock_rate_per_day">%1$s %2$s/day</string>
+    <string name="stock_rate_per_week">%1$s %2$s/week</string>
+    <string name="stock_unit_tablets">tablets</string>
+    <string name="stock_unit_capsules">capsules</string>
+    <string name="stock_unit_patches">patches</string>
+    <string name="stock_unit_sachets">sachets</string>
+    <string name="stock_unit_vials">vials</string>
+    <string name="stock_unit_containers">containers</string>
+    <string name="stock_unit_ml">mL</string>
+    <string name="stock_unit_g">g</string>
+
+    <!-- Adjust sheet -->
+    <string name="stock_adjust_row_label">Adjust stock</string>
+    <string name="stock_adjust_title">Adjust stock</string>
+    <string name="stock_adjust_tab_recount">Edit stock</string>
+    <string name="stock_adjust_tab_received">Add stock</string>
+    <string name="stock_adjust_after">After: %1$s %2$s</string>
+    <string name="stock_adjust_field_current_stock">Current stock</string>
+    <string name="stock_adjust_field_add_to_stock">Add to stock</string>
+    <string name="stock_adjust_confirm">Confirm</string>
+    <string name="stock_adjust_save">Save</string>
+    <string name="stock_adjust_add">Add</string>
+    <string name="stock_adjust_decrease_count">Decrease count</string>
+    <string name="stock_adjust_increase_count">Increase count</string>
+
+    <!-- Stock section overflow + current container edit dialog. Vial/container
+         variants follow the same preparation-aware split used in the row labels. -->
+    <string name="stock_section_more_options">More options</string>
+    <string name="stock_current_edit_action_vial">Edit current vial</string>
+    <string name="stock_current_edit_action_container">Edit current container</string>
+    <string name="stock_current_edit_dialog_title_vial">Set current vial</string>
+    <string name="stock_current_edit_dialog_title_container">Set current container</string>
+    <string name="stock_current_edit_dialog_field">Remaining</string>
+    <string name="stock_current_edit_dialog_invalid">Enter a valid number.</string>
+
+    <!-- Low stock reminder -->
+    <string name="stock_warnat_row_title">Low stock reminders</string>
+    <string name="stock_warnat_value_off">Off</string>
+    <string name="stock_warnat_value_days">%1$d days</string>
+    <string name="stock_warnat_below_interval_supporting">Threshold shorter than dose interval — may not warn before stockout.</string>
+    <string name="stock_warnat_below_interval_content_description">Threshold may not warn before stockout.</string>
+
+    <!-- Disable confirmation -->
+    <string name="stock_disable_menu_action">Turn off stock tracking</string>
+    <string name="stock_disable_title">Turn off stock tracking?</string>
+    <string name="stock_disable_body">This will clear the current stock info.</string>
+    <string name="stock_disable_confirm">Turn off</string>
+    <string name="stock_cancel">Cancel</string>
+
 </resources>

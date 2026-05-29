@@ -1,13 +1,19 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
+import android.widget.Toast
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.reminder.MedicationReminderSlot
 import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
+import com.mkx.hrttracker.reminder.showPostLogToast
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
@@ -26,23 +32,27 @@ class QuickLogActionCallback : ActionCallback {
         val scheduledAt = runCatching { LocalDateTime.parse(scheduledAtStr) }.getOrNull() ?: return
         val medicationUuid = medicationUuidStr?.takeIf { it.isNotEmpty() }
             ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+        val appContext = context.applicationContext
 
         val entryPoint = EntryPointAccessors.fromApplication(
-            context.applicationContext,
+            appContext,
             WidgetEntryPoint::class.java,
         )
         val groupRepository = entryPoint.medicationGroupRepository()
         val logRepository = entryPoint.medicationLogRepository()
+        val medicineStockRepository = entryPoint.medicineStockRepository()
+        val settingsRepository = entryPoint.settingsRepository()
+        val reminderNotificationManager = entryPoint.reminderNotificationManager()
         val diagnosticsLogger = entryPoint.diagnosticsLogger()
 
         val group = groupRepository.getGroup(groupUuid) ?: run {
             diagnosticsLogger.warning(TAG, "widget_quick_log_group_not_found uuid=$groupUuid")
-            updateAllHrtWidgets(context.applicationContext)
+            updateAllHrtWidgets(appContext)
             return
         }
 
         if (!group.isActive()) {
-            updateAllHrtWidgets(context.applicationContext)
+            updateAllHrtWidgets(appContext)
             return
         }
 
@@ -55,7 +65,7 @@ class QuickLogActionCallback : ActionCallback {
             val match = group.medications.firstOrNull { it.uuid == medicationUuid }
             if (match == null) {
                 diagnosticsLogger.warning(TAG, "widget_quick_log_medication_not_found uuid=$medicationUuid")
-                updateAllHrtWidgets(context.applicationContext)
+                updateAllHrtWidgets(appContext)
                 return
             }
             group.copy(medications = listOf(match))
@@ -71,25 +81,65 @@ class QuickLogActionCallback : ActionCallback {
             scheduleTimeUuid = scheduleTimeUuid,
         )
 
-        // Load entries from scheduledAt onward — same approach used by the reminder action handler.
-        val entries = logRepository.getScheduledGroupEntriesSince(scheduledAt)
+        try {
+            // Load entries from scheduledAt onward — same approach used by the reminder action handler.
+            val entries = logRepository.getScheduledGroupEntriesSince(scheduledAt)
 
-        val missingEntries = buildMissingScheduledLogEntries(
-            group = targetGroup,
-            slot = slot,
-            entries = entries,
-            appliedAt = appliedAt,
-            zoneId = zoneId,
-        )
+            val missingEntries = buildMissingScheduledLogEntries(
+                group = targetGroup,
+                slot = slot,
+                entries = entries,
+                appliedAt = appliedAt,
+                zoneId = zoneId,
+            )
 
-        if (missingEntries.isNotEmpty()) {
-            // saveNewEntries goes through runHomeDataMutation, which rewrites the home
-            // snapshot. HomeWidgetManager's home-snapshot observer picks that up and
-            // re-derives the widget snapshot — no explicit widget refresh needed.
-            logRepository.saveNewEntries(missingEntries)
-        } else {
-            diagnosticsLogger.info(TAG, "widget_quick_log_already_fulfilled slot=$scheduledAt group=$groupUuid")
-            updateAllHrtWidgets(context.applicationContext)
+            if (missingEntries.isNotEmpty()) {
+                // saveNewEntries goes through runHomeDataMutation, which rewrites the home
+                // snapshot. HomeWidgetManager's home-snapshot observer picks that up and
+                // re-derives the widget snapshot — no explicit widget refresh needed.
+                logRepository.saveNewEntries(missingEntries)
+                showPostLogToast(
+                    entriesToSave = missingEntries,
+                    now = appliedAt,
+                    medicineStockRepository = medicineStockRepository,
+                    reminderNotificationManager = reminderNotificationManager,
+                    hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails,
+                )
+            } else {
+                diagnosticsLogger.info(TAG, "widget_quick_log_already_fulfilled slot=$scheduledAt group=$groupUuid")
+                updateAllHrtWidgets(appContext)
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            diagnosticsLogger.warning(
+                TAG,
+                "widget_quick_log_failed slot=$scheduledAt group=$groupUuid",
+                error,
+            )
+            refreshWidgetsBestEffort(appContext)
+            showQuickLogFailureToast(appContext)
+        }
+    }
+
+    private suspend fun refreshWidgetsBestEffort(context: Context) {
+        try {
+            updateAllHrtWidgets(context)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // The stale widget state is secondary to surfacing the quick-log failure.
+        }
+    }
+
+    private suspend fun showQuickLogFailureToast(context: Context) {
+        val message = context.getString(R.string.widget_quick_log_failed)
+        withContext(Dispatchers.Main) {
+            Toast.makeText(
+                context,
+                message,
+                Toast.LENGTH_SHORT,
+            ).show()
         }
     }
 

@@ -139,7 +139,7 @@ private fun ArchivedMedicationGroupsScreenContent(
                     text = stringResource(R.string.plan_archived_groups).uppercase(),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp)
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
                 )
             }
 

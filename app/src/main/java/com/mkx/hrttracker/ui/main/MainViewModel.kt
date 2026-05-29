@@ -10,12 +10,15 @@ import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,12 +67,39 @@ class MainViewModel @Inject constructor(
                 val anchorNow = currentDateTime.value
                 refreshHomeSnapshotForDateIfNeeded(anchorNow)
                 homeRepository.observeHomeInputs(anchorNow)
-            },
+        },
         currentDateTime,
         timeZoneChangeNoticeController.notice,
-    ) { inputs, now, timeZoneNotice ->
+        settingsRepository.homeLowStockSectionExpandedFlow,
+        settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
+    ) { inputs, now, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
+        if (
+            inputs.source == HomeInputSource.ROOM &&
+            inputs.stockWarnings.isEmpty() &&
+            acknowledgedWarningStates.isNotEmpty()
+        ) {
+            // Swallow DataStore failures: letting them propagate would tear
+            // down this combine -> stateIn home flow. A dropped clear is
+            // self-correcting on the next empty-ROOM emission.
+            try {
+                settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Best-effort cleanup; see comment above.
+            }
+        }
         withContext(defaultDispatcher) {
-            buildHomeUiState(inputs = inputs, now = now, timeZoneNotice = timeZoneNotice)
+            buildHomeUiState(
+                inputs = inputs,
+                now = now,
+                timeZoneNotice = timeZoneNotice,
+                lowStockSectionExpanded = shouldExpandLowStockSection(
+                    storedExpanded = storedLowStockSectionExpanded,
+                    stockWarnings = inputs.stockWarnings,
+                    acknowledgedWarningStates = acknowledgedWarningStates,
+                ),
+            )
         }
     }
         .stateIn(
@@ -81,14 +111,17 @@ class MainViewModel @Inject constructor(
             )
         )
 
-    private val _highlightRequest = MutableStateFlow<DoseRowHighlightKey?>(null)
-    val highlightRequest: StateFlow<DoseRowHighlightKey?> = _highlightRequest.asStateFlow()
+    private val _highlightRequest = MutableStateFlow<DoseRowHighlightRequest?>(null)
+    val highlightRequest: StateFlow<DoseRowHighlightRequest?> = _highlightRequest.asStateFlow()
 
     private val _homeDeepLinkSignal = MutableStateFlow(0)
     val homeDeepLinkSignal: StateFlow<Int> = _homeDeepLinkSignal.asStateFlow()
 
-    fun requestWidgetDoseRowHighlight(key: DoseRowHighlightKey) {
-        _highlightRequest.value = key
+    fun requestDoseRowHighlight(keys: List<DoseRowHighlightKey>) {
+        if (keys.isEmpty()) {
+            return
+        }
+        _highlightRequest.value = DoseRowHighlightRequest(keys)
         _homeDeepLinkSignal.update { it + 1 }
     }
 
@@ -112,8 +145,17 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private companion object {
-        const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
+    fun setLowStockSectionExpanded(expanded: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setHomeLowStockSectionFoldState(
+                expanded = expanded,
+                acknowledgedWarningStates = if (expanded) {
+                    emptyMap()
+                } else {
+                    uiState.value.stockWarnings.toLowStockWarningStateMap()
+                },
+            )
+        }
     }
 
     private fun refreshHomeSnapshotForDateIfNeeded(now: LocalDateTime) {
@@ -129,6 +171,7 @@ class MainViewModel @Inject constructor(
         inputs: HomeInputs,
         now: LocalDateTime,
         timeZoneNotice: TimeZoneChangeNotice?,
+        lowStockSectionExpanded: Boolean,
     ): MainUiState {
         val homeE2DisplayUnit = inputs.settings.homeE2DisplayUnit
         val chartWindowOption = inputs.settings.homeE2ChartWindowOption
@@ -178,6 +221,8 @@ class MainViewModel @Inject constructor(
             homeE2DisplayUnit = homeE2DisplayUnit,
             homeE2ChartWindowOption = chartWindowOption,
             hideReferenceRanges = inputs.settings.hideReferenceRanges,
+            stockWarnings = inputs.stockWarnings,
+            lowStockSectionExpanded = lowStockSectionExpanded,
             e2Hero = buildMainE2Hero(
                 entries = listOfNotNull(inputs.latestEstradiolEntry),
                 trendResult = trendResult,
@@ -216,6 +261,45 @@ class MainViewModel @Inject constructor(
             timeZoneChangeNotice = timeZoneNotice,
         )
     }
+
+    private fun shouldExpandLowStockSection(
+        storedExpanded: Boolean,
+        stockWarnings: List<MedicineStockProjection>,
+        acknowledgedWarningStates: Map<String, MedicineStockState>,
+    ): Boolean {
+        if (storedExpanded) {
+            return true
+        }
+        val currentWarningStates = stockWarnings.toLowStockWarningStateMap()
+        return currentWarningStates.any { (uuid, currentState) ->
+            val acknowledgedState = acknowledgedWarningStates[uuid]
+            acknowledgedState == null ||
+                acknowledgedState.lowStockSeverityRank() < currentState.lowStockSeverityRank()
+        }
+    }
+
+    private fun List<MedicineStockProjection>.toLowStockWarningStateMap(): Map<String, MedicineStockState> {
+        return mapNotNull { projection ->
+            projection.state
+                .takeIf { state -> state.lowStockSeverityRank() > 0 }
+                ?.let { state -> projection.medicine.uuid.toString() to state }
+        }.toMap()
+    }
+
+    private fun MedicineStockState.lowStockSeverityRank(): Int {
+        return when (this) {
+            MedicineStockState.USER_LOW -> 1
+            MedicineStockState.IMMINENT -> 2
+            MedicineStockState.OUT -> 3
+            MedicineStockState.HEALTHY,
+            MedicineStockState.UNTRACKED,
+            MedicineStockState.NO_RUNWAY -> 0
+        }
+    }
+
+    private companion object {
+        const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
+    }
 }
 
 data class MainUiState(
@@ -226,6 +310,8 @@ data class MainUiState(
     val homeE2DisplayUnit: BloodUnitKey = BloodUnitKey.PG_ML,
     val homeE2ChartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
     val hideReferenceRanges: Boolean = false,
+    val stockWarnings: List<MedicineStockProjection> = emptyList(),
+    val lowStockSectionExpanded: Boolean = true,
     val e2Hero: MainE2HeroUiState = MainE2HeroUiState(),
     val e2Chart: MainE2ChartUiState = MainE2ChartUiState(),
     val antiandrogenCards: List<MainAntiandrogenCardUiState> = emptyList(),

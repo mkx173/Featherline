@@ -563,7 +563,7 @@ private fun CalibrationEditorScreenContent(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CalibrationAddAnalyteSheet(
+internal fun CalibrationAddAnalyteSheet(
     availableAnalytes: List<CalibrationAddAnalyteOption>,
     onDismissRequest: () -> Unit,
     onAnalyteClick: (CalibrationAddAnalyteOption) -> Unit,
@@ -577,7 +577,9 @@ private fun CalibrationAddAnalyteSheet(
     ) {
         CalibrationAddAnalyteSheetContent(
             availableAnalytes = availableAnalytes,
-            onDismissRequest = onDismissRequest,
+            onDismissRequest = {
+                hideBottomSheet(scope, sheetState, onDismissRequest)
+            },
             onAnalyteClick = { option ->
                 onAnalyteClick(option)
                 hideBottomSheet(scope, sheetState, onDismissRequest)
@@ -618,7 +620,7 @@ private fun CalibrationAddAnalyteSheetContent(
                 onClick = onDismissRequest,
             )
         }
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
         availableAnalytes.forEachIndexed { index, option ->
             val title = when (option) {
                 is CalibrationAddAnalyteOption.Builtin -> {

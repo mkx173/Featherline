@@ -1,0 +1,42 @@
+package com.mkx.hrttracker.ui.catalog.stock
+
+import com.mkx.hrttracker.data.repository.RunwayProjection
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class AdjustStockSheetTest {
+
+    @Test
+    fun parseAdjustStockCountAcceptsDotAndCommaDecimalsForTablets() {
+        assertEquals(1.5, requireNotNull(parseAdjustStockCount("1.5", allowDecimal = true)), 0.0)
+        assertEquals(1.5, requireNotNull(parseAdjustStockCount("1,5", allowDecimal = true)), 0.0)
+    }
+
+    @Test
+    fun parseAdjustStockCountRejectsDecimalSeparatorsWhenDecimalsAreDisabled() {
+        assertNull(parseAdjustStockCount("1.5", allowDecimal = false))
+        assertNull(parseAdjustStockCount("1,5", allowDecimal = false))
+        assertEquals(15.0, requireNotNull(parseAdjustStockCount("15", allowDecimal = false)), 0.0)
+    }
+
+    @Test
+    fun sanitizeAdjustStockCountTextAllowsOneDecimalSeparatorForTablets() {
+        assertEquals("12.5", sanitizeAdjustStockCountText("12.5", allowDecimal = true))
+        assertEquals("12,5", sanitizeAdjustStockCountText("12,5", allowDecimal = true))
+        assertEquals("12.56", sanitizeAdjustStockCountText("12.5.6", allowDecimal = true))
+        assertEquals("125", sanitizeAdjustStockCountText("12.5", allowDecimal = false))
+    }
+
+    @Test
+    fun stepAdjustStockCountTextPreservesDecimalRemainderAndClampsAtZero() {
+        assertEquals("2.5", stepAdjustStockCountText("1.5", delta = 1, allowDecimal = true))
+        assertEquals("0.5", stepAdjustStockCountText("1.5", delta = -1, allowDecimal = true))
+        assertEquals("0", stepAdjustStockCountText("0.25", delta = -1, allowDecimal = true))
+    }
+
+    @Test
+    fun adjustPreviewRunwayTextReturnsNullWhenRunwayCannotBeCalculated() {
+        assertNull(adjustPreviewRunwayText(RunwayProjection.NoSchedule))
+    }
+}

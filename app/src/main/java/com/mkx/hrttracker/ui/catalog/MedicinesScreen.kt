@@ -1,17 +1,20 @@
 package com.mkx.hrttracker.ui.catalog
 
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -50,10 +53,12 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtButton
-import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
-import com.mkx.hrttracker.ui.components.MedicationCard
+import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -71,6 +76,7 @@ internal sealed interface MedicineManagerLaunchMode {
     data object Manager : MedicineManagerLaunchMode
     data object ManualLog : MedicineManagerLaunchMode
     data class GroupSlot(val resultKey: String) : MedicineManagerLaunchMode
+    data object OnboardingStockOptIn : MedicineManagerLaunchMode
 }
 
 internal sealed interface MedicineManagerAddNewTarget {
@@ -95,11 +101,25 @@ internal fun medicineManagerAddNewTarget(
     launchMode: MedicineManagerLaunchMode,
 ): MedicineManagerAddNewTarget {
     return when (launchMode) {
-        MedicineManagerLaunchMode.Manager -> MedicineManagerAddNewTarget.CreateMedicine
+        MedicineManagerLaunchMode.Manager,
+        MedicineManagerLaunchMode.OnboardingStockOptIn ->
+            MedicineManagerAddNewTarget.CreateMedicine
         is MedicineManagerLaunchMode.GroupSlot ->
             MedicineManagerAddNewTarget.NewMedicineSlot(NewMedicineSlotSheetMode.GROUP_SLOT)
         MedicineManagerLaunchMode.ManualLog ->
             MedicineManagerAddNewTarget.NewMedicineSlot(NewMedicineSlotSheetMode.MANUAL_LOG)
+    }
+}
+
+@StringRes
+internal fun medicineManagerTitle(
+    launchMode: MedicineManagerLaunchMode,
+): Int {
+    return when (launchMode) {
+        MedicineManagerLaunchMode.Manager,
+        MedicineManagerLaunchMode.OnboardingStockOptIn -> R.string.medicines_title
+        MedicineManagerLaunchMode.ManualLog,
+        is MedicineManagerLaunchMode.GroupSlot -> R.string.medicine_picker_select_medicine
     }
 }
 
@@ -109,6 +129,26 @@ internal fun medicineManagerNeedsSectionTopSpacing(sectionIndex: Int): Boolean {
 
 internal fun medicineManagerNeedsRowBottomGap(index: Int, itemCount: Int): Boolean {
     return index < itemCount - 1
+}
+
+internal enum class MedicineManagerTrailingContentKind {
+    NONE,
+    REFERENCE_COUNT,
+    CHEVRON,
+}
+
+internal fun medicineManagerTrailingContentKind(
+    referenceCount: Int,
+    showOnboardingChevron: Boolean = false,
+): MedicineManagerTrailingContentKind {
+    if (showOnboardingChevron) {
+        return MedicineManagerTrailingContentKind.CHEVRON
+    }
+    return if (referenceCount > 0) {
+        MedicineManagerTrailingContentKind.REFERENCE_COUNT
+    } else {
+        MedicineManagerTrailingContentKind.NONE
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -126,6 +166,7 @@ internal fun MedicinesScreen(
     newMedicineSlotViewModel: NewMedicineSlotViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val stockOptInResult by viewModel.stockOptInResult.collectAsStateWithLifecycle()
     val slotDraftUiState by slotDraftViewModel.uiState.collectAsStateWithLifecycle()
     val newMedicineSlotUiState by newMedicineSlotViewModel.uiState.collectAsStateWithLifecycle()
     val isManualSlotLocked = launchMode == MedicineManagerLaunchMode.ManualLog &&
@@ -139,6 +180,7 @@ internal fun MedicinesScreen(
     // The slot-result flow keeps the picked medicine in this state while the
     // dose sheet is up; clearing it dismisses the sheet.
     var pendingSlotMedicineUuid by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingStockOptInUuid by rememberSaveable { mutableStateOf<String?>(null) }
     val createMedicineSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val slotDraftSheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
@@ -160,9 +202,11 @@ internal fun MedicinesScreen(
             )
         },
     )
+    val stockOptInSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val saveEntryFailureMessage = stringResource(R.string.save_entry_failure)
+    val stockOptInFailureMessage = stringResource(R.string.medicine_stock_update_failure)
 
     // Reset the shared draft when the sheet opens so a previously-dismissed
     // attempt doesn't leak into the next one.
@@ -182,6 +226,9 @@ internal fun MedicinesScreen(
         { medicineUuid ->
             when (launchMode) {
                 MedicineManagerLaunchMode.Manager -> onMedicineClick(medicineUuid)
+                MedicineManagerLaunchMode.OnboardingStockOptIn -> {
+                    pendingStockOptInUuid = medicineUuid.toString()
+                }
                 is MedicineManagerLaunchMode.GroupSlot,
                 MedicineManagerLaunchMode.ManualLog -> {
                     if (launchMode == MedicineManagerLaunchMode.ManualLog) {
@@ -195,6 +242,7 @@ internal fun MedicinesScreen(
 
     MedicinesScreenContent(
         uiState = uiState,
+        titleRes = medicineManagerTitle(launchMode),
         onNavigateBack = onNavigateBack,
         onMedicineClick = handleMedicineTap,
         onAddNewMedicine = {
@@ -203,6 +251,8 @@ internal fun MedicinesScreen(
                 is MedicineManagerAddNewTarget.NewMedicineSlot -> showNewMedicineSlotSheet = true
             }
         },
+        showOnboardingBanner = launchMode == MedicineManagerLaunchMode.OnboardingStockOptIn,
+        showAddNewButton = launchMode != MedicineManagerLaunchMode.OnboardingStockOptIn,
         modifier = modifier,
     )
 
@@ -266,12 +316,13 @@ internal fun MedicinesScreen(
         )
     }
 
-    val pendingMedicine = pendingSlotMedicineUuid?.let { uuid ->
-        uiState.findMedicineByUuid(runCatching { UUID.fromString(uuid) }.getOrNull())
+    val pendingMedicineItem = pendingSlotMedicineUuid?.let { uuid ->
+        uiState.findMedicineItemByUuid(runCatching { UUID.fromString(uuid) }.getOrNull())
     }
-    if (pendingMedicine != null) {
+    if (pendingMedicineItem != null) {
         MedicineSlotDraftSheet(
-            medicine = pendingMedicine,
+            medicine = pendingMedicineItem.medicine,
+            selectedStockProjection = pendingMedicineItem.stockProjection,
             sheetState = slotDraftSheetState,
             onDismissRequest = {
                 if (!isManualSlotLocked) {
@@ -294,6 +345,7 @@ internal fun MedicinesScreen(
             mode = when (launchMode) {
                 MedicineManagerLaunchMode.ManualLog -> MedicineSlotDraftMode.MANUAL_LOG
                 MedicineManagerLaunchMode.Manager,
+                MedicineManagerLaunchMode.OnboardingStockOptIn,
                 is MedicineManagerLaunchMode.GroupSlot -> MedicineSlotDraftMode.GROUP_SLOT
             },
             onManualLogSaved = { consumeSavedState ->
@@ -315,6 +367,71 @@ internal fun MedicinesScreen(
             viewModel = slotDraftViewModel,
         )
     }
+
+    val pendingOptInItem = pendingStockOptInUuid?.let { uuid ->
+        uiState.findMedicineItemByUuid(runCatching { UUID.fromString(uuid) }.getOrNull())
+    }
+    val pendingOptInProjection = pendingOptInItem?.stockProjection
+
+    LaunchedEffect(
+        launchMode,
+        pendingStockOptInUuid,
+        pendingOptInProjection,
+        uiState.isLoading,
+    ) {
+        if (pendingStockOptInUuid == null) return@LaunchedEffect
+        if (launchMode != MedicineManagerLaunchMode.OnboardingStockOptIn) {
+            pendingStockOptInUuid = null
+            return@LaunchedEffect
+        }
+        if (!uiState.isLoading && pendingOptInProjection == null) {
+            pendingStockOptInUuid = null
+        }
+    }
+
+    LaunchedEffect(stockOptInResult) {
+        when (stockOptInResult) {
+            MedicineStockMutationResult.SUCCESS -> {
+                hideBottomSheet(scope, stockOptInSheetState) {
+                    pendingStockOptInUuid = null
+                }
+                viewModel.clearStockOptInResult()
+            }
+            MedicineStockMutationResult.FAILURE -> {
+                Toast.makeText(context, stockOptInFailureMessage, Toast.LENGTH_SHORT).show()
+                viewModel.clearStockOptInResult()
+            }
+            null -> Unit
+        }
+    }
+
+    if (
+        launchMode == MedicineManagerLaunchMode.OnboardingStockOptIn &&
+        pendingOptInProjection != null
+    ) {
+        AdjustStockSheet(
+            projection = pendingOptInProjection,
+            initialTab = AdjustSheetTab.RECEIVED,
+            receivedOnly = true,
+            previewRunway = { hypothetical ->
+                viewModel.previewRunwayFor(pendingOptInProjection.medicine.uuid, hypothetical)
+            },
+            onRecount = { },
+            onReceived = { received ->
+                // Don't dismiss here: the sheet closes only after the enable
+                // succeeds (observed via stockOptInResult below), so a failed
+                // enable keeps the sheet open and surfaces a toast instead of
+                // silently closing.
+                viewModel.enableTrackingFromReceived(
+                    medicineUuid = pendingOptInProjection.medicine.uuid,
+                    currentUnitsRemaining = pendingOptInProjection.medicine.stock.unitsRemaining ?: 0.0,
+                    received = received,
+                )
+            },
+            sheetState = stockOptInSheetState,
+            onDismissRequest = { pendingStockOptInUuid = null },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -328,12 +445,12 @@ internal fun canHideManualSlotSheet(
         allowManualSlotCompletionHide
 }
 
-private fun MedicinesUiState.findMedicineByUuid(
+internal fun MedicinesUiState.findMedicineItemByUuid(
     uuid: UUID?,
-): com.mkx.hrttracker.model.medication.Medicine? {
+): MedicineListItem? {
     uuid ?: return null
     activeSections.forEach { section ->
-        section.medicines.firstOrNull { it.medicine.uuid == uuid }?.let { return it.medicine }
+        section.medicines.firstOrNull { it.medicine.uuid == uuid }?.let { return it }
     }
     return null
 }
@@ -342,9 +459,12 @@ private fun MedicinesUiState.findMedicineByUuid(
 @Composable
 private fun MedicinesScreenContent(
     uiState: MedicinesUiState,
+    @StringRes titleRes: Int = R.string.medicines_title,
     onNavigateBack: () -> Unit,
     onMedicineClick: (UUID) -> Unit,
     onAddNewMedicine: () -> Unit,
+    showOnboardingBanner: Boolean,
+    showAddNewButton: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -362,7 +482,7 @@ private fun MedicinesScreenContent(
                     listState.animateScrollToItem(0)
                 },
                 title = {
-                    val title = stringResource(R.string.medicines_title)
+                    val title = stringResource(titleRes)
                     Text(
                         text = title,
                         modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
@@ -399,6 +519,17 @@ private fun MedicinesScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValues(),
             ) {
+                if (showOnboardingBanner) {
+                    item(key = "onboarding-stock-banner") {
+                        SupportMessageListItem(
+                            text = stringResource(R.string.onboarding_stock_optin_banner),
+                            painter = painterResource(R.drawable.ic_box),
+                            modifier = Modifier.padding(bottom = 16.dp),
+                            leadingIconSize = 22.dp
+                        )
+                    }
+                }
+
                 if (uiState.activeSections.isEmpty()) {
                     item(key = "empty-state") {
                         SupportMessageListItem(
@@ -413,6 +544,7 @@ private fun MedicinesScreenContent(
                         MedicineManagerSectionTopSpacing(sectionIndex = sectionIndex)
                         MedicineManagerSectionTitle(
                             text = stringResource(section.category.labelRes).uppercase(),
+                            topPadding = sectionIndex != 0
                         )
                     }
                     section.medicines.forEachIndexed { index, item ->
@@ -422,6 +554,7 @@ private fun MedicinesScreenContent(
                                 index = index,
                                 itemCount = section.medicines.size,
                                 onClick = { onMedicineClick(item.medicine.uuid) },
+                                showOnboardingChevron = showOnboardingBanner,
                             )
                             MedicineManagerRowBottomGap(
                                 index = index,
@@ -431,15 +564,17 @@ private fun MedicinesScreenContent(
                     }
                 }
 
-                item(key = "add-new-medicine") {
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-                    HrtButton(
-                        text = stringResource(R.string.medicine_picker_add_new_medicine),
-                        onClick = onAddNewMedicine,
-                        icon = Icons.Rounded.Add,
-                        iconContentDescription = null,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                if (showAddNewButton) {
+                    item(key = "add-new-medicine") {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                        HrtButton(
+                            text = stringResource(R.string.medicine_picker_add_new_medicine),
+                            onClick = onAddNewMedicine,
+                            icon = Icons.Rounded.Add,
+                            iconContentDescription = null,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
         }
@@ -471,6 +606,7 @@ private fun MedicineManagerRowBottomGap(
 private fun MedicineManagerSectionTitle(
     text: String,
     modifier: Modifier = Modifier,
+    topPadding: Boolean = true,
 ) {
     Text(
         text = text,
@@ -479,7 +615,7 @@ private fun MedicineManagerSectionTitle(
         modifier = modifier
             .fillMaxWidth()
             .padding(
-                top = MedicineManagerSectionHeaderTopPaddingDp.dp,
+                top = if (topPadding) MedicineManagerSectionHeaderTopPaddingDp.dp else 0.dp,
                 bottom = MedicineManagerSectionHeaderBottomPaddingDp.dp,
             ),
     )
@@ -492,36 +628,66 @@ private fun MedicineRow(
     itemCount: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showOnboardingChevron: Boolean = false,
 ) {
-    // The medicine row reuses MedicationCard so it matches the rest of the
-    // app visually. PATCH_OFF is rendered as the global singleton row (see
-    // the MedicineSelection.PatchOff branch); every row carries a non-null
-    // Medicine.
     val medicine = item.medicine
     val applicationType = inferApplicationTypeForMedicine(medicine)
-    val trailingContent: (@Composable () -> Unit)? = if (item.activeGroupReferenceCount > 0) {
-        @Composable {
-            ReferenceCountChip(count = item.activeGroupReferenceCount)
-        }
-    } else {
-        null
+    val stockProjection = item.stockProjection?.takeUnless {
+        medicine.preparation is MedicinePreparation.PatchOff
     }
-
-    MedicationCard(
+    MedicationCardWithStockSubcard(
         medicine = medicine,
-        // Noop + override below — the manager's supporting line describes the
-        // medicine itself (preparation summary), not an entry's route/dose.
         doseInstruction = DoseInstruction.Noop,
         applicationType = applicationType,
         medicationCount = 1,
         groupColorKey = null,
+        stockProjection = stockProjection,
         onClick = onClick,
+        modifier = modifier,
+        trailingContent = medicineRowTrailingContent(
+            referenceCount = item.activeGroupReferenceCount,
+            showOnboardingChevron = showOnboardingChevron,
+        ),
         supportingTextOverride = medicinePreparationSummary(medicine),
-        trailingContent = trailingContent,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        stockSubcardContainerColor = MaterialTheme.colorScheme.surfaceContainer,
         leadingIconAsForm = true,
         index = index,
         itemCount = itemCount,
-        modifier = modifier,
+    )
+}
+
+private fun medicineRowTrailingContent(
+    referenceCount: Int,
+    showOnboardingChevron: Boolean,
+): (@Composable () -> Unit)? {
+    return when (
+        medicineManagerTrailingContentKind(
+            referenceCount = referenceCount,
+            showOnboardingChevron = showOnboardingChevron,
+        )
+    ) {
+        MedicineManagerTrailingContentKind.NONE -> null
+        MedicineManagerTrailingContentKind.REFERENCE_COUNT -> {
+            {
+                ReferenceCountChip(count = referenceCount)
+            }
+        }
+        MedicineManagerTrailingContentKind.CHEVRON -> {
+            {
+                MedicineRowChevron()
+            }
+        }
+    }
+}
+
+@Composable
+private fun MedicineRowChevron() {
+    Icon(
+        imageVector = Icons.Rounded.ChevronRight,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(24.dp),
     )
 }
 
@@ -547,29 +713,40 @@ private fun ReferenceCountChip(count: Int) {
  * back to ORAL/INJECTION/etc. by preparation type.
  */
 private fun inferApplicationTypeForMedicine(
-    medicine: com.mkx.hrttracker.model.medication.Medicine,
+    medicine: Medicine,
 ): MedicationApplicationType {
     return when (medicine.preparation) {
-        is com.mkx.hrttracker.model.medication.MedicinePreparation.Pill ->
+        is MedicinePreparation.Pill ->
             MedicationApplicationType.ORAL
 
-        is com.mkx.hrttracker.model.medication.MedicinePreparation.Capsule ->
+        is MedicinePreparation.Capsule ->
             MedicationApplicationType.ORAL
 
-        is com.mkx.hrttracker.model.medication.MedicinePreparation.InjectionSingleUseVial,
-        is com.mkx.hrttracker.model.medication.MedicinePreparation.InjectionMultiUseVial ->
+        is MedicinePreparation.InjectionSingleUseVial,
+        is MedicinePreparation.InjectionMultiUseVial ->
             MedicationApplicationType.INJECTION
 
-        is com.mkx.hrttracker.model.medication.MedicinePreparation.GelSachet,
-        is com.mkx.hrttracker.model.medication.MedicinePreparation.GelContainer ->
+        is MedicinePreparation.GelSachet,
+        is MedicinePreparation.GelContainer ->
             MedicationApplicationType.GEL
 
-        is com.mkx.hrttracker.model.medication.MedicinePreparation.Patch ->
+        is MedicinePreparation.Patch ->
             MedicationApplicationType.PATCH_ON
 
         // Singleton row in the manager renders with the patch-off icon.
-        is com.mkx.hrttracker.model.medication.MedicinePreparation.PatchOff ->
+        is MedicinePreparation.PatchOff ->
             MedicationApplicationType.PATCH_OFF
+    }
+}
+
+@Preview(name = "Onboarding stock opt-in banner", showBackground = true, widthDp = 420)
+@Composable
+private fun OnboardingStockOptInBannerPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        SupportMessageListItem(
+            text = stringResource(R.string.onboarding_stock_optin_banner),
+            painter = painterResource(R.drawable.ic_info),
+        )
     }
 }
 
@@ -594,6 +771,35 @@ private fun MedicinesScreenPreview() {
             onNavigateBack = { },
             onMedicineClick = { },
             onAddNewMedicine = { },
+            showOnboardingBanner = false,
+            showAddNewButton = true,
+        )
+    }
+}
+
+@Preview(name = "Onboarding stock opt-in", showBackground = true, widthDp = 420, heightDp = 760)
+@Composable
+private fun MedicinesScreenOnboardingPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        MedicinesScreenContent(
+            uiState = MedicinesUiState(
+                activeSections = listOf(
+                    MedicineCategorySection(
+                        category = MedicationCategory.ESTRADIOL,
+                        medicines = listOf(
+                            MedicineListItem(
+                                medicine = previewMedicine(),
+                                activeGroupReferenceCount = 2,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            onNavigateBack = { },
+            onMedicineClick = { },
+            onAddNewMedicine = { },
+            showOnboardingBanner = true,
+            showAddNewButton = false,
         )
     }
 }
@@ -615,5 +821,6 @@ private fun previewMedicine(): com.mkx.hrttracker.model.medication.Medicine {
         createdAt = java.time.Instant.EPOCH,
         updatedAt = java.time.Instant.EPOCH,
         archivedAt = null,
+        stock = com.mkx.hrttracker.model.medication.MedicineStock(),
     )
 }

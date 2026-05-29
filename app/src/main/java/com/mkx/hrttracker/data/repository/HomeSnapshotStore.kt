@@ -30,6 +30,7 @@ import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.DenseSamplePolicy
@@ -144,6 +145,10 @@ data class HomeSnapshotRecord(
     // init completes. Nullable for forward-compat with snapshots from before this
     // field was added.
     val userProfile: UserProfile? = null,
+    /** Every active tracked medicine, used so cold-start can re-project ungrouped meds. */
+    val stockMedicines: List<Medicine> = emptyList(),
+    /** Log entries whose `scheduledFor` falls inside the stock simulation window. */
+    val stockFulfillmentEntries: List<MedicationLogEntry> = emptyList(),
 )
 
 data class HomePkProjectionRecord(
@@ -249,6 +254,8 @@ internal object HomeSnapshotCodec {
             stream.writeList(record.scheduleEntries) { entry -> writeMedicationLogEntry(entry) }
             stream.writeList(record.antiandrogenHistoryEntries) { entry -> writeMedicationLogEntry(entry) }
             stream.writeUserProfile(record.userProfile)
+            stream.writeList(record.stockMedicines) { medicine -> writeMedicine(medicine) }
+            stream.writeList(record.stockFulfillmentEntries) { entry -> writeMedicationLogEntry(entry) }
         }
         return output.toByteArray()
     }
@@ -271,6 +278,8 @@ internal object HomeSnapshotCodec {
                 scheduleEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
                 antiandrogenHistoryEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
                 userProfile = stream.readUserProfile(),
+                stockMedicines = stream.readList { readMedicine() },
+                stockFulfillmentEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
             )
         }
     }
@@ -492,6 +501,7 @@ internal object HomeSnapshotCodec {
         writeLong(medicine.updatedAt.toEpochMilli())
         writeNullableLong(medicine.archivedAt?.toEpochMilli())
         writeString(medicine.displayDoseUnit.name)
+        writeMedicineStock(medicine.stock)
     }
 
     private fun DataInputStream.readMedicine(): Medicine {
@@ -505,6 +515,7 @@ internal object HomeSnapshotCodec {
         val updatedAt = Instant.ofEpochMilli(readLong())
         val archivedAt = readNullableLong()?.let(Instant::ofEpochMilli)
         val displayDoseUnit = MedicineDisplayDoseUnit.fromStorageValue(readString())
+        val stock = readMedicineStock()
         // PATCH_OFF preparation is the discriminator for the sentinel selection,
         // mirroring MedicineEntityMappers.toMedicineModel — the cache writer
         // emits CATALOG selectionKind for storage convenience and we fix it up
@@ -535,6 +546,27 @@ internal object HomeSnapshotCodec {
             updatedAt = updatedAt,
             archivedAt = archivedAt,
             displayDoseUnit = displayDoseUnit,
+            stock = stock,
+        )
+    }
+
+    private fun DataOutputStream.writeMedicineStock(stock: MedicineStock) {
+        writeBoolean(stock.trackingEnabled)
+        writeNullableDouble(stock.unitsRemaining)
+        writeNullableDouble(stock.unitsLastTotal)
+        writeNullableDouble(stock.openContainerAmount)
+        writeInt(stock.warnAtDaysRemaining)
+        writeLong(stock.generation)
+    }
+
+    private fun DataInputStream.readMedicineStock(): MedicineStock {
+        return MedicineStock(
+            trackingEnabled = readBoolean(),
+            unitsRemaining = readNullableDouble(),
+            unitsLastTotal = readNullableDouble(),
+            openContainerAmount = readNullableDouble(),
+            warnAtDaysRemaining = readInt(),
+            generation = readLong(),
         )
     }
 
@@ -831,9 +863,9 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 }
 
 private const val TAG = "HomeSnapshotStore"
-// v14 introduces the CAPSULE preparation marker; older caches don't carry the
-// marker and will be rejected by codec-version mismatch.
-private const val SNAPSHOT_CODEC_VERSION = 14
+// v15 carries MedicineStock inside cached Medicine values; older caches are
+// rejected by codec-version mismatch so tracked stock is never defaulted away.
+private const val SNAPSHOT_CODEC_VERSION = 16
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0

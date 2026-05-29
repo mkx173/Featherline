@@ -151,13 +151,13 @@ private fun DailyTimesCard(
         count = count,
     ) {
         Column(
-            modifier = Modifier.padding(bottom = 6.dp)
+            modifier = Modifier.padding(bottom = 8.dp)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .wrapContentHeight()
-                    .padding(bottom = 10.dp),
+                    .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -239,13 +239,13 @@ internal fun ScheduleOccurrencesCard(
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
-            modifier = Modifier.padding(bottom = 6.dp)
+            modifier = Modifier.padding(bottom = 8.dp)
         ) {
             Text(
                 text = title.uppercase(),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 8.dp, top = 2.dp)
             )
             val todayLabel = stringResource(R.string.plan_group_upcoming_today)
             val tomorrowLabel = stringResource(R.string.plan_group_upcoming_tomorrow)

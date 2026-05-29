@@ -10,6 +10,7 @@ import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import java.time.Instant
 import java.util.UUID
 
@@ -37,6 +38,14 @@ internal fun MedicineEntity.toMedicineModel(): Medicine {
         // written before the column existed (handled by MIGRATION_1_2) and
         // any future unknown values stay safely readable.
         displayDoseUnit = MedicineDisplayDoseUnit.fromStorageValue(displayDoseUnit),
+        stock = MedicineStock(
+            trackingEnabled = trackingEnabled,
+            unitsRemaining = stockUnitsRemaining,
+            unitsLastTotal = stockUnitsLastTotal,
+            openContainerAmount = openContainerAmount,
+            warnAtDaysRemaining = warnAtDaysRemaining,
+            generation = stockGeneration,
+        ),
     )
 }
 
@@ -80,6 +89,12 @@ internal fun Medicine.toEntity(): MedicineEntity {
         updatedAtEpochMillis = updatedAt.toEpochMilli(),
         archivedAtEpochMillis = archivedAt?.toEpochMilli(),
         displayDoseUnit = displayDoseUnit.name,
+        trackingEnabled = stock.trackingEnabled,
+        stockUnitsRemaining = stock.unitsRemaining,
+        stockUnitsLastTotal = stock.unitsLastTotal,
+        openContainerAmount = stock.openContainerAmount,
+        warnAtDaysRemaining = stock.warnAtDaysRemaining,
+        stockGeneration = stock.generation,
     )
 }
 

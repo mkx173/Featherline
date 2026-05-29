@@ -24,8 +24,12 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -197,6 +201,42 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun setWeightFailureEmitsFailureEventAndClearsProgress() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val failure = IllegalStateException("write failed")
+        coEvery {
+            userProfileRepository.setWeight(72.0, WeightUnit.KILOGRAMS, any())
+        } throws failure
+        val event = backgroundScope.async { viewModel.weightMutationEvents.first() }
+
+        viewModel.setWeight(72.0, WeightUnit.KILOGRAMS)
+        advanceUntilIdle()
+
+        val failureEvent = event.await() as WeightMutationEvent.Failure
+        assertSame(failure, failureEvent.error)
+        assertFalse(viewModel.uiState.value.isWeightMutationInProgress)
+    }
+
+    @Test
+    fun clearWeightFailureEmitsFailureEventAndClearsProgress() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val failure = IllegalStateException("clear failed")
+        coEvery {
+            userProfileRepository.clearWeight(any())
+        } throws failure
+        val event = backgroundScope.async { viewModel.weightMutationEvents.first() }
+
+        viewModel.clearWeight()
+        advanceUntilIdle()
+
+        val failureEvent = event.await() as WeightMutationEvent.Failure
+        assertSame(failure, failureEvent.error)
+        assertFalse(viewModel.uiState.value.isWeightMutationInProgress)
+    }
+
+    @Test
     fun requestBackupRestore_keepsPendingRequestWhileRestoreIsInFlight() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -258,6 +298,54 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun setRemindersEnabled_schedulerFailureDoesNotEmitSettingFailureEvent() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { medicationReminderScheduler.rescheduleAll() } coAnswers {
+            throw IllegalStateException("alarm scheduling failed")
+        }
+        val events = mutableListOf<SettingsMutationEvent>()
+        backgroundScope.launch {
+            viewModel.settingsMutationEvents.collect { event -> events += event }
+        }
+        runCurrent()
+
+        viewModel.setRemindersEnabled(true)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(true) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun setRemindersEnabled_snoozeClearFailureDoesNotEmitSettingFailureEvent() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        var clearAttempted = false
+        coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } coAnswers {
+            clearAttempted = true
+            throw IllegalStateException("snooze clear failed")
+        }
+        val events = mutableListOf<SettingsMutationEvent>()
+        backgroundScope.launch {
+            viewModel.settingsMutationEvents.collect { event -> events += event }
+        }
+        runCurrent()
+
+        viewModel.setRemindersEnabled(false)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(false) }
+        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+        // The snooze-clear failure must not bail out of the launch block:
+        // rescheduleAll still has to run afterward.
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        assertTrue(clearAttempted)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
     fun onScreenLockProtectionAuthenticated_enablesAppLock_andTurnsOnHideScreenContent() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -283,6 +371,21 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { settingsRepository.setHideScreenContentEnabled(false) }
+    }
+
+    @Test
+    fun settingsWriteFailureEmitsMutationEvent() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val failure = IllegalStateException("settings write failed")
+        coEvery { settingsRepository.setHideScreenContentEnabled(false) } throws failure
+        val event = backgroundScope.async { viewModel.settingsMutationEvents.first() }
+
+        viewModel.setHideScreenContentEnabled(false)
+        advanceUntilIdle()
+
+        val failureEvent = event.await() as SettingsMutationEvent.Failure
+        assertSame(failure, failureEvent.error)
     }
 
     @Test

@@ -92,6 +92,8 @@ Notifications and widgets have extra locale handling because they often run from
 
 - `ReminderNotificationManager.createNotificationChannel(languageTag)` resolves channel name/description through a locale-overridden context. `HrtTrackerApplication` re-registers the channel when `settingsState.appLanguageOption` changes.
 - Reminder notification titles/bodies come from string resources and plurals in `ReminderNotificationText.kt` and `ReminderNotificationManager.kt`.
+- Low-stock toasts fired after notification "Log all" and widget quick-log come from string resources and plurals in `ReminderNotificationManager.kt` (the `showStock*Toast` helpers); the count variants use plurals, so translate the plural forms.
+- Stock UI strings — runway/"days remaining" labels, stock state labels, unit nouns (vials, containers, sachets, etc.), and the onboarding opt-in copy — live in `strings.xml` alongside the rest. Translate the new block and check the plural-bearing count strings.
 - `WidgetSnapshotRepository` creates a localized context from `settings.appLanguageOption.languageTag` before building snapshots. It also passes a locale-specific `localizedShortTimeFormatter`.
 - Live widget rows are built from localized string resources plus fixed separators. Review these for the new language:
   - `HrtWidget.kt`: progress text currently builds `/$totalCount <DONE>` and `"<Today> · $doneCount/$totalCount <DONE>"`.
@@ -209,8 +211,9 @@ comm -23 \
 ```
 
 5. Manually verify these screens in the new language:
-   - Onboarding.
-   - Home, including E2 chart marker labels and 7/30-day axis labels.
+   - Onboarding, including the stock-tracking opt-in step.
+   - Home, including E2 chart marker labels, 7/30-day axis labels, and the low-stock section.
+   - Medicine manager and medicine detail stock controls: stock subcard, Adjust stock sheet (recount/received), open-container dialog, runway and stock-state labels.
    - Plan calendar, schedule editor, date picker, time picker, and batch add.
    - History calendar/month picker and selected-day records.
    - Blood test calibration screens.

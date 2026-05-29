@@ -262,6 +262,18 @@ class BackupExportService @Inject constructor(
             updatedAtEpochMillis = updatedAt.toEpochMilli(),
             archivedAtEpochMillis = archivedAt?.toEpochMilli(),
             displayDoseUnit = displayDoseUnit.name,
+            stock = if (stock.trackingEnabled) {
+                BackupMedicineStockSnapshot(
+                    trackingEnabled = true,
+                    unitsRemaining = stock.unitsRemaining,
+                    unitsLastTotal = stock.unitsLastTotal,
+                    openContainerAmount = stock.openContainerAmount,
+                    warnAtDaysRemaining = stock.warnAtDaysRemaining,
+                    stockGeneration = stock.generation,
+                )
+            } else {
+                null
+            },
         )
     }
 

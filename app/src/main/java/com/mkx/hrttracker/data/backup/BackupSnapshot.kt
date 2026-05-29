@@ -56,6 +56,16 @@ data class BackupUserProfileSnapshot(
 )
 
 @JsonClass(generateAdapter = true)
+data class BackupMedicineStockSnapshot(
+    val trackingEnabled: Boolean,
+    val unitsRemaining: Double?,
+    val unitsLastTotal: Double?,
+    val openContainerAmount: Double?,
+    val warnAtDaysRemaining: Int,
+    val stockGeneration: Long,
+)
+
+@JsonClass(generateAdapter = true)
 data class BackupMedicineSnapshot(
     val uuid: String,
     val selectionKind: String,
@@ -84,6 +94,7 @@ data class BackupMedicineSnapshot(
     // Optional for backwards compatibility — backups exported before the
     // picker existed simply default to "MG" on restore.
     val displayDoseUnit: String? = null,
+    val stock: BackupMedicineStockSnapshot? = null,
 )
 
 @JsonClass(generateAdapter = true)

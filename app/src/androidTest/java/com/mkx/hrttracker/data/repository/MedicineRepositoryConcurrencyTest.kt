@@ -13,9 +13,12 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -29,13 +32,16 @@ import java.time.Instant
 class MedicineRepositoryConcurrencyTest {
     private lateinit var database: HrtTrackerDatabase
     private lateinit var repository: MedicineRepository
+    private lateinit var appScope: CoroutineScope
 
     private val databaseHolder: DatabaseHolder = mockk()
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
+    private val stockMutator: MedicineStockMutator = mockk(relaxed = true)
 
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
+        appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         database = Room.inMemoryDatabaseBuilder(context, HrtTrackerDatabase::class.java)
             .build()
 
@@ -54,11 +60,14 @@ class MedicineRepositoryConcurrencyTest {
             context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = appScope,
         )
     }
 
     @After
     fun tearDown() {
+        appScope.cancel()
         database.close()
     }
 

@@ -225,6 +225,7 @@ private fun CalibrationUnitsScreenContent(
             item(key = "builtin-header") {
                 CalibrationSettingsSectionHeader(
                     title = stringResource(R.string.settings_calibration_builtin_analytes),
+                    topPadding = false
                 )
             }
 
@@ -291,7 +292,6 @@ private fun CalibrationUnitsScreenContent(
                     icon = Icons.Rounded.Add,
                     iconModifier = Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)),
                     iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
-                    compact = true,
                 )
             }
         }
@@ -317,11 +317,12 @@ private fun CalibrationUnitsScreenContent(
 private fun CalibrationSettingsSectionHeader(
     modifier: Modifier = Modifier,
     title: String,
+    topPadding: Boolean = true,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = 10.dp, top = 4.dp),
+            .padding(bottom = 10.dp, top = if (topPadding) 4.dp else 0.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -655,10 +656,7 @@ private fun CalibrationCustomAnalyteDialog(
                         TextButton(
                             onClick = { if (!isBusy) isArchiveConfirmationVisible = true },
                         ) {
-                            Text(
-                                text = stringResource(R.string.archive),
-                                color = MaterialTheme.colorScheme.error
-                            )
+                            Text(text = stringResource(R.string.archive))
                         }
                     }
                     Spacer(modifier = Modifier.weight(1f))

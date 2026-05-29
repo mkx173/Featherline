@@ -2,6 +2,8 @@ package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkProjectionResult
@@ -36,6 +38,9 @@ class HomeRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val settingsRepository: SettingsRepository,
     private val homeSnapshotRepository: HomeSnapshotRepository,
+    private val medicineStockRepository: MedicineStockRepository,
+    private val medicineRepository: MedicineRepository,
+    private val medicationLogRepository: MedicationLogRepository,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     fun observeHomeInputs(now: LocalDateTime): Flow<HomeInputs> {
@@ -89,6 +94,12 @@ class HomeRepository @Inject constructor(
                     )
                 } ?: return@mapNotNull null
                 val pkProjectionRecord = usable.pkProjection
+                val stockWarnings = medicineStockRepository.projectAll(
+                    medicines = usable.stockMedicines,
+                    activeGroups = usable.activeGroups,
+                    logEntries = usable.stockFulfillmentEntries,
+                    now = now.atZone(zoneId).toInstant(),
+                ).stockWarningsOnly()
                 HomeInputs(
                     activeGroups = usable.activeGroups,
                     scheduleEntries = homeSnapshotRepository.scheduleEntriesForHome(
@@ -107,6 +118,7 @@ class HomeRepository @Inject constructor(
                         ?.let { Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis) },
                     latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry,
                     estradiolPkEntries = emptyList(),
+                    stockWarnings = stockWarnings,
                     source = HomeInputSource.SNAPSHOT,
                     now = now,
                 )
@@ -119,12 +131,24 @@ class HomeRepository @Inject constructor(
 
     private fun observeHomeRoomInputs(now: LocalDateTime): Flow<HomeInputs> {
         val zoneId = ZoneId.systemDefault()
+        val today = now.toLocalDate()
+        val stockWindowStartIso = today.minusDays(1).atStartOfDay().toString()
+        val stockWindowEndIso = today
+            .plusDays(ScheduledRunwayCalculator.HORIZON_DAYS)
+            .atTime(23, 59, 59)
+            .toString()
+        val nowInstant = now.atZone(zoneId).toInstant()
         val roomBasicsFlow = observeHomeStartupInputs(now)
         return combine(
             roomBasicsFlow,
             homeSnapshotRepository.observeHomeSnapshot(),
             settingsRepository.homeE2ChartWindowOptionFlow,
-        ) { inputs, snapshot, option ->
+            medicineRepository.observeAllActiveTracked(),
+            medicationLogRepository.observeScheduledEntriesInWindow(
+                scheduledStartIso = stockWindowStartIso,
+                scheduledEndIso = stockWindowEndIso,
+            ),
+        ) { inputs, snapshot, option, trackedMedicines, stockFulfillmentEntries ->
             if (inputs.settings.homeE2ChartWindowOption != option) {
                 return@combine null
             }
@@ -138,6 +162,12 @@ class HomeRepository @Inject constructor(
                     )
                 }
                 ?.pkProjection
+            val stockWarnings = medicineStockRepository.projectAll(
+                medicines = trackedMedicines,
+                activeGroups = inputs.activeGroups,
+                logEntries = stockFulfillmentEntries,
+                now = nowInstant,
+            ).stockWarningsOnly()
             HomeInputs(
                 activeGroups = inputs.activeGroups,
                 scheduleEntries = inputs.scheduleEntries,
@@ -156,6 +186,7 @@ class HomeRepository @Inject constructor(
                 latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry ?: inputs.latestEstradiolEntry,
                 estradiolPkEntries = inputs.estradiolPkEntries,
                 estradiolPkPlannedEntries = inputs.estradiolPkPlannedEntries,
+                stockWarnings = stockWarnings,
                 source = HomeInputSource.ROOM,
                 now = now,
             )
@@ -375,6 +406,14 @@ class HomeRepository @Inject constructor(
     }
 }
 
+private fun List<MedicineStockProjection>.stockWarningsOnly(): List<MedicineStockProjection> {
+    return filter { projection ->
+        projection.state == MedicineStockState.OUT ||
+            projection.state == MedicineStockState.IMMINENT ||
+            projection.state == MedicineStockState.USER_LOW
+    }
+}
+
 data class HomeStartupInputs(
     val activeGroups: List<com.mkx.hrttracker.model.medication.MedicationGroup>,
     val scheduleEntries: List<MedicationLogEntry>,
@@ -403,6 +442,7 @@ data class HomeInputs(
     val latestEstradiolEntry: MedicationLogEntry?,
     val estradiolPkEntries: List<MedicationLogEntry>,
     val estradiolPkPlannedEntries: List<MedicationLogEntry> = emptyList(),
+    val stockWarnings: List<MedicineStockProjection> = emptyList(),
     val source: HomeInputSource,
     val now: LocalDateTime,
 )

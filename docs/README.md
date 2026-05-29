@@ -8,7 +8,7 @@ download links, see the [repo README](../README.md).
 - [Architecture](architecture.md) — layer map, module boundaries, DI,
   Compose navigation, known limitations.
 - [Data model](data-model.md) — Room entities, schema relationships,
-  encryption, migration policy.
+  encryption, migration policy, per-medicine stock columns.
 
 ## Domain deep-dives
 

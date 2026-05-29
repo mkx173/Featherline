@@ -212,6 +212,18 @@ private const val MainE2ChartThirtyDaySegmentCount: Int = 2240
 
 private const val MainE2ChartZoomFloorRoundingHours = 24.0
 
+internal suspend fun runDoseRowHighlightFlashEffect(
+    setFlashActive: (Boolean) -> Unit,
+    holdMillis: Long,
+) {
+    try {
+        setFlashActive(true)
+        delay(holdMillis)
+    } finally {
+        setFlashActive(false)
+    }
+}
+
 internal fun mainE2ChartZoomFloorHours(
     projectionSpanHours: Double,
     segmentCount: Int,
@@ -237,6 +249,41 @@ internal fun mainE2ChartMaxZoomXRangeHours(
         segmentCount = MainE2ChartThirtyDaySegmentCount,
         chartPixelWidthPx = chartPixelWidthPx,
     )
+}
+
+private fun mainTodayDoseRowsByTimeRange(
+    rows: List<MainTodayDoseRowUiState>,
+): List<Map.Entry<MainTodayTimeRange, List<MainTodayDoseRowUiState>>> =
+    rows
+        .groupBy { row -> mainTodayTimeRange(row.scheduledAt.toLocalTime()) }
+        .entries
+        .sortedBy { (timeRange, _) -> timeRange.ordinal }
+
+internal fun mainDoseRowHighlightScrollTargetKey(
+    uiState: MainUiState,
+    highlightRequest: DoseRowHighlightRequest?,
+): String? {
+    if (highlightRequest == null) return null
+
+    var targetKey: String? = null
+    uiState.lastNightSection.rows.forEach { row ->
+        if (highlightRequest.matches(row)) {
+            targetKey = mainTodayDoseRowCompositionKey(row)
+        }
+    }
+    mainTodayDoseRowsByTimeRange(uiState.todaySection.rows).forEach { (_, rows) ->
+        rows.forEach { row ->
+            if (highlightRequest.matches(row)) {
+                targetKey = mainTodayDoseRowCompositionKey(row)
+            }
+        }
+    }
+    uiState.upcomingSection.rows.forEach { row ->
+        if (highlightRequest.matches(row)) {
+            targetKey = mainUpcomingDoseRowCompositionKey(row)
+        }
+    }
+    return targetKey
 }
 
 private const val MainE2ChartMinimapRangeEpsilonHours = 1e-3
@@ -2676,7 +2723,7 @@ private fun MainAntiandrogenMedicationSubCard(
     EditorSegmentedListItem(
         index = index,
         count = itemCount,
-        onClick = { },
+        onClick = null,
         modifier = modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         cornerShape = MaterialTheme.shapes.large,
@@ -2790,19 +2837,15 @@ internal fun MainTodaySection(
     now: LocalDateTime,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    highlightRequest: DoseRowHighlightKey? = null,
+    highlightRequest: DoseRowHighlightRequest? = null,
     highlightEffectsEnabled: Boolean = true,
-    onHighlightConsumed: () -> Unit = { },
+    highlightFlashReady: Boolean = true,
+    highlightScrollTargetKey: String? = null,
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val groupedRows = remember(section.rows) {
-        section.rows
-            .groupBy { row -> mainTodayTimeRange(row.scheduledAt.toLocalTime()) }
-            .entries
-            .sortedBy { (timeRange, _) -> timeRange.ordinal }
-    }
+    val groupedRows = remember(section.rows) { mainTodayDoseRowsByTimeRange(section.rows) }
     val countLabel = mainTodayCountLabel(
         doneCount = section.doneCount,
         totalCount = section.totalCount,
@@ -2852,15 +2895,19 @@ internal fun MainTodaySection(
                         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
                     ) {
                         rows.forEachIndexed { index, row ->
-                            key(mainTodayDoseRowCompositionKey(row)) {
+                            val rowKey = mainTodayDoseRowCompositionKey(row)
+                            val matchesHighlight =
+                                highlightRequest?.matches(row) == true && highlightEffectsEnabled
+                            key(rowKey) {
                                 MainTodayDoseRow(
                                     row = row,
                                     index = index,
                                     itemCount = rows.size,
                                     now = now,
                                     timeFormatter = timeFormatter,
-                                    isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
-                                    onHighlightConsumed = onHighlightConsumed,
+                                    isHighlighted = matchesHighlight,
+                                    isHighlightFlashReady = matchesHighlight && highlightFlashReady,
+                                    isHighlightScrollTarget = rowKey == highlightScrollTargetKey,
                                     onQuickLogDoseClick = onQuickLogDoseClick,
                                     onEntryClick = onEntryClick
                                 )
@@ -2879,9 +2926,10 @@ internal fun MainLastNightSection(
     now: LocalDateTime,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    highlightRequest: DoseRowHighlightKey? = null,
+    highlightRequest: DoseRowHighlightRequest? = null,
     highlightEffectsEnabled: Boolean = true,
-    onHighlightConsumed: () -> Unit = { },
+    highlightFlashReady: Boolean = true,
+    highlightScrollTargetKey: String? = null,
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     modifier: Modifier = Modifier
@@ -2911,15 +2959,18 @@ internal fun MainLastNightSection(
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
         ) {
             section.rows.forEachIndexed { index, row ->
-                key(mainTodayDoseRowCompositionKey(row)) {
+                val rowKey = mainTodayDoseRowCompositionKey(row)
+                val matchesHighlight = highlightRequest?.matches(row) == true && highlightEffectsEnabled
+                key(rowKey) {
                     MainTodayDoseRow(
                         row = row,
                         index = index,
                         itemCount = section.rows.size,
                         now = now,
                         timeFormatter = timeFormatter,
-                        isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
-                        onHighlightConsumed = onHighlightConsumed,
+                        isHighlighted = matchesHighlight,
+                        isHighlightFlashReady = matchesHighlight && highlightFlashReady,
+                        isHighlightScrollTarget = rowKey == highlightScrollTargetKey,
                         onQuickLogDoseClick = onQuickLogDoseClick,
                         onEntryClick = onEntryClick
                     )
@@ -2934,9 +2985,10 @@ internal fun MainUpcomingSection(
     section: MainUpcomingSectionUiState,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    highlightRequest: DoseRowHighlightKey? = null,
+    highlightRequest: DoseRowHighlightRequest? = null,
     highlightEffectsEnabled: Boolean = true,
-    onHighlightConsumed: () -> Unit = { },
+    highlightFlashReady: Boolean = true,
+    highlightScrollTargetKey: String? = null,
     modifier: Modifier = Modifier
 ) {
     val title = when (section.title) {
@@ -2965,14 +3017,17 @@ internal fun MainUpcomingSection(
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
             ) {
                 section.rows.forEachIndexed { index, row ->
-                    key(mainUpcomingDoseRowCompositionKey(row)) {
+                    val rowKey = mainUpcomingDoseRowCompositionKey(row)
+                    val matchesHighlight = highlightRequest?.matches(row) == true && highlightEffectsEnabled
+                    key(rowKey) {
                         MainUpcomingDoseRow(
                             row = row,
                             index = index,
                             itemCount = section.rows.size,
                             timeFormatter = timeFormatter,
-                            isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
-                            onHighlightConsumed = onHighlightConsumed,
+                            isHighlighted = matchesHighlight,
+                            isHighlightFlashReady = matchesHighlight && highlightFlashReady,
+                            isHighlightScrollTarget = rowKey == highlightScrollTargetKey,
                         )
                     }
                 }
@@ -3014,7 +3069,8 @@ private fun MainTodayDoseRow(
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     isHighlighted: Boolean = false,
-    onHighlightConsumed: () -> Unit = { },
+    isHighlightFlashReady: Boolean = isHighlighted,
+    isHighlightScrollTarget: Boolean = isHighlighted,
     modifier: Modifier = Modifier
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -3024,20 +3080,21 @@ private fun MainTodayDoseRow(
         animationSpec = if (flashActive) tween(150) else tween(600),
         label = "dose-row-highlight",
     )
-    LaunchedEffect(isHighlighted) {
-        if (!isHighlighted) {
+    LaunchedEffect(isHighlightScrollTarget) {
+        if (isHighlightScrollTarget) {
+            bringIntoViewRequester.bringIntoView()
+        }
+    }
+    LaunchedEffect(isHighlightFlashReady) {
+        if (!isHighlightFlashReady) {
             flashActive = false
             return@LaunchedEffect
         }
 
-        try {
-            flashActive = true
-            bringIntoViewRequester.bringIntoView()
-            delay(300)
-        } finally {
-            flashActive = false
-        }
-        onHighlightConsumed()
+        runDoseRowHighlightFlashEffect(
+            setFlashActive = { active -> flashActive = active },
+            holdMillis = 300,
+        )
     }
     val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
@@ -3167,7 +3224,8 @@ private fun MainUpcomingDoseRow(
     itemCount: Int,
     timeFormatter: DateTimeFormatter,
     isHighlighted: Boolean = false,
-    onHighlightConsumed: () -> Unit = { },
+    isHighlightFlashReady: Boolean = isHighlighted,
+    isHighlightScrollTarget: Boolean = isHighlighted,
     modifier: Modifier = Modifier
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -3177,20 +3235,21 @@ private fun MainUpcomingDoseRow(
         animationSpec = if (flashActive) tween(150) else tween(1000),
         label = "dose-row-highlight",
     )
-    LaunchedEffect(isHighlighted) {
-        if (!isHighlighted) {
+    LaunchedEffect(isHighlightScrollTarget) {
+        if (isHighlightScrollTarget) {
+            bringIntoViewRequester.bringIntoView()
+        }
+    }
+    LaunchedEffect(isHighlightFlashReady) {
+        if (!isHighlightFlashReady) {
             flashActive = false
             return@LaunchedEffect
         }
 
-        try {
-            flashActive = true
-            bringIntoViewRequester.bringIntoView()
-            delay(600)
-        } finally {
-            flashActive = false
-        }
-        onHighlightConsumed()
+        runDoseRowHighlightFlashEffect(
+            setFlashActive = { active -> flashActive = active },
+            holdMillis = 600,
+        )
     }
     val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
@@ -3209,7 +3268,7 @@ private fun MainUpcomingDoseRow(
         EditorSegmentedListItem(
             index = index,
             count = itemCount,
-            onClick = { },
+            onClick = null,
             modifier = modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester),
             trailingContent = {
                 Text(
@@ -4232,11 +4291,17 @@ private fun previewMedication(
     applicationType: MedicationApplicationType,
     count: Int = 1
 ): MedicationGroupMedication {
+    val medicine = previewMedicineFor(key)
+    val doseInstruction = when (medicine.preparation) {
+        is com.mkx.hrttracker.model.medication.MedicinePreparation.Pill -> DoseInstruction.TabletFraction(1, 1)
+        is com.mkx.hrttracker.model.medication.MedicinePreparation.Patch -> DoseInstruction.WholeUnit
+        else -> DoseInstruction.WholeUnit
+    }
     return MedicationGroupMedication(
         uuid = UUID.fromString(uuid),
-        medicine = previewMedicineFor(key),
+        medicine = medicine,
         applicationType = applicationType,
-        doseInstruction = DoseInstruction.TabletFraction(1, 1),
+        doseInstruction = doseInstruction,
         count = count
     )
 }
@@ -4253,9 +4318,20 @@ private fun previewMedicineFor(
     key: MedicationKey,
 ): com.mkx.hrttracker.model.medication.Medicine {
     val selection = com.mkx.hrttracker.model.medication.MedicineSelection.Catalog(key)
-    val preparation = com.mkx.hrttracker.model.medication.MedicinePreparation.Pill(
-        strengthMgPerTablet = 2.0,
-    )
+    val preparation = when (key) {
+        MedicationKey.ESTRADIOL_PATCH -> {
+            com.mkx.hrttracker.model.medication.MedicinePreparation.Patch(
+                specification = com.mkx.hrttracker.model.medication.MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                    100.0
+                )
+            )
+        }
+        else -> {
+            com.mkx.hrttracker.model.medication.MedicinePreparation.Pill(
+                strengthMgPerTablet = 2.0,
+            )
+        }
+    }
     return com.mkx.hrttracker.model.medication.Medicine(
         uuid = UUID.nameUUIDFromBytes("preview-${key.name}".toByteArray()),
         selection = selection,
@@ -4268,5 +4344,6 @@ private fun previewMedicineFor(
         createdAt = java.time.Instant.EPOCH,
         updatedAt = java.time.Instant.EPOCH,
         archivedAt = null,
+        stock = com.mkx.hrttracker.model.medication.MedicineStock(),
     )
 }

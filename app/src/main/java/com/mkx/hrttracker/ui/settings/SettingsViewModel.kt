@@ -60,7 +60,14 @@ class SettingsViewModel @Inject constructor(
     private val isBackupExportInProgress = MutableStateFlow(false)
     private val isBackupRestoreInProgress = MutableStateFlow(false)
     private val isWeightMutationInProgress = MutableStateFlow(false)
-    private val weightMutationCompletionToken = MutableStateFlow(0L)
+    private val weightEvents = MutableSharedFlow<WeightMutationEvent>(
+        replay = 1,
+        extraBufferCapacity = 4,
+    )
+    private val settingsEvents = MutableSharedFlow<SettingsMutationEvent>(
+        replay = 1,
+        extraBufferCapacity = 4,
+    )
     // Replay the most recent result so the UI still sees it after a config
     // change recreates the collector. The restore itself sets the app locale,
     // which triggers an activity recreate; without replay the success/failure
@@ -81,7 +88,6 @@ class SettingsViewModel @Inject constructor(
         isBackupExportInProgress,
         isBackupRestoreInProgress,
         isWeightMutationInProgress,
-        weightMutationCompletionToken,
     ) { values ->
         val settingsState = values[0] as SettingsState
         val profile = values[1] as UserProfile?
@@ -92,7 +98,6 @@ class SettingsViewModel @Inject constructor(
         val exportInProgress = values[6] as Boolean
         val restoreInProgress = values[7] as Boolean
         val weightInProgress = values[8] as Boolean
-        val weightCompletionToken = values[9] as Long
         SettingsUiState(
             settingsState = settingsState,
             userProfile = profile ?: UserProfile(),
@@ -103,7 +108,6 @@ class SettingsViewModel @Inject constructor(
             isBackupExportInProgress = exportInProgress,
             isBackupRestoreInProgress = restoreInProgress,
             isWeightMutationInProgress = weightInProgress,
-            weightMutationCompletionToken = weightCompletionToken,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -133,51 +137,54 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 block()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                weightEvents.tryEmit(WeightMutationEvent.Failure(error))
             } finally {
-                weightMutationCompletionToken.value += 1L
                 isWeightMutationInProgress.value = false
             }
         }
     }
 
     fun setDarkModeOption(option: DarkModeOption) {
-        viewModelScope.launch {
+        launchSettingsMutation {
             settingsRepository.setDarkModeOption(option)
         }
     }
 
     fun setAdaptiveColorEnabled(enabled: Boolean) {
-        viewModelScope.launch {
+        launchSettingsMutation {
             settingsRepository.setAdaptiveColorEnabled(enabled)
         }
     }
 
     fun setShowArchivedGroupRecords(enabled: Boolean) {
-        viewModelScope.launch {
+        launchSettingsMutation {
             settingsRepository.setShowArchivedGroupRecords(enabled)
         }
     }
 
     fun setHideReferenceRanges(enabled: Boolean) {
-        viewModelScope.launch {
+        launchSettingsMutation {
             settingsRepository.setHideReferenceRanges(enabled)
         }
     }
 
     fun setHideMedicationDetails(hidden: Boolean) {
-        viewModelScope.launch {
+        launchSettingsMutation {
             settingsRepository.setHideMedicationDetails(hidden)
         }
     }
 
     fun setWidgetContentScale(value: Float) {
-        viewModelScope.launch {
+        launchSettingsMutation {
             settingsRepository.setWidgetContentScale(value)
         }
     }
 
     fun setWidgetBackgroundAlpha(value: Float) {
-        viewModelScope.launch {
+        launchSettingsMutation {
             settingsRepository.setWidgetBackgroundAlpha(value)
         }
     }
@@ -187,18 +194,29 @@ class SettingsViewModel @Inject constructor(
         backgroundAlpha: Float,
         darkModeOption: DarkModeOption,
     ) {
-        viewModelScope.launch {
+        launchSettingsMutation {
             settingsRepository.setWidgetAppearance(contentScale, backgroundAlpha, darkModeOption)
         }
     }
 
     fun setRemindersEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            settingsRepository.setRemindersEnabled(enabled)
-            if (!enabled) {
-                medicationReminderSnoozeScheduler.clearAllSnoozes()
+            try {
+                settingsRepository.setRemindersEnabled(enabled)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                settingsEvents.tryEmit(SettingsMutationEvent.Failure(error))
+                return@launch
             }
-            medicationReminderScheduler.rescheduleAll()
+            if (!enabled) {
+                runReminderSideEffectBestEffort {
+                    medicationReminderSnoozeScheduler.clearAllSnoozes()
+                }
+            }
+            runReminderSideEffectBestEffort {
+                medicationReminderScheduler.rescheduleAll()
+            }
         }
     }
 
@@ -207,19 +225,19 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setFirstDayOfWeekOption(option: FirstDayOfWeekOption) {
-        viewModelScope.launch {
+        launchSettingsMutation {
             settingsRepository.setFirstDayOfWeekOption(option)
         }
     }
 
     fun setAppLockGracePeriodOption(option: AppLockGracePeriodOption) {
-        viewModelScope.launch {
+        launchSettingsMutation {
             settingsRepository.setAppLockGracePeriodOption(option)
         }
     }
 
     fun setHideScreenContentEnabled(enabled: Boolean) {
-        viewModelScope.launch {
+        launchSettingsMutation {
             settingsRepository.setHideScreenContentEnabled(enabled)
         }
     }
@@ -244,7 +262,7 @@ class SettingsViewModel @Inject constructor(
                 pendingScreenLockIntent = null
                 return
             }
-            viewModelScope.launch {
+            launchSettingsMutation {
                 settingsRepository.setScreenLockProtectionEnabled(false)
                 securityErrorMessageRes.value = null
                 pendingPrompt.value = null
@@ -278,7 +296,7 @@ class SettingsViewModel @Inject constructor(
         val intent = pendingScreenLockIntent ?: ScreenLockPromptIntent.ENABLE
         pendingPrompt.value = null
         pendingScreenLockIntent = null
-        viewModelScope.launch {
+        launchSettingsMutation {
             when (intent) {
                 ScreenLockPromptIntent.ENABLE -> {
                     settingsRepository.setScreenLockProtectionEnabled(true)
@@ -398,10 +416,22 @@ class SettingsViewModel @Inject constructor(
     }
 
     val backupRestoreEvents: SharedFlow<BackupRestoreEvent> = restoreEvents.asSharedFlow()
+    val weightMutationEvents: SharedFlow<WeightMutationEvent> = weightEvents.asSharedFlow()
+    val settingsMutationEvents: SharedFlow<SettingsMutationEvent> = settingsEvents.asSharedFlow()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun consumeBackupRestoreEvent() {
         restoreEvents.resetReplayCache()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun consumeWeightMutationEvent() {
+        weightEvents.resetReplayCache()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun consumeSettingsMutationEvent() {
+        settingsEvents.resetReplayCache()
     }
 
     suspend fun validateBackupFile(
@@ -496,6 +526,29 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
+
+    private fun launchSettingsMutation(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                settingsEvents.tryEmit(SettingsMutationEvent.Failure(error))
+            }
+        }
+    }
+
+    private suspend fun runReminderSideEffectBestEffort(block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // Reminder alarms and snoozes are reconciled again by lifecycle
+            // hooks; the settings DataStore write above is the user-visible change.
+        }
+    }
 }
 
 data class SettingsUiState(
@@ -508,7 +561,6 @@ data class SettingsUiState(
     val isBackupExportInProgress: Boolean = false,
     val isBackupRestoreInProgress: Boolean = false,
     val isWeightMutationInProgress: Boolean = false,
-    val weightMutationCompletionToken: Long = 0L,
 )
 
 data class PendingPreparedBackupExport(
@@ -519,6 +571,14 @@ data class PendingPreparedBackupExport(
 sealed class BackupRestoreEvent {
     data object Success : BackupRestoreEvent()
     data class Failure(val error: Throwable) : BackupRestoreEvent()
+}
+
+sealed class WeightMutationEvent {
+    data class Failure(val error: Throwable) : WeightMutationEvent()
+}
+
+sealed class SettingsMutationEvent {
+    data class Failure(val error: Throwable) : SettingsMutationEvent()
 }
 
 class PendingBackupRestoreRequest(

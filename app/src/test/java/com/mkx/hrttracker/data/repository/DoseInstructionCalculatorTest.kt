@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -275,6 +276,7 @@ class DoseInstructionCalculatorTest {
             createdAt = timestamp,
             updatedAt = timestamp,
             archivedAt = null,
+            stock = MedicineStock(),
         )
     }
 }

@@ -29,6 +29,7 @@ import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationLogEntryEditorSheet
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
+import com.mkx.hrttracker.ui.medication.stockMutationPreviewDoseMagnitude
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -188,6 +189,22 @@ private fun AddEntryScreenContent(
     onScheduleFulfillmentWarningDismiss: () -> Unit
 ) {
     var isDeleteConfirmationVisible by remember(uiState.canDelete) { mutableStateOf(false) }
+    val previewDoseMagnitude = remember(
+        uiState.isEditing,
+        uiState.resolvedMedicine,
+        uiState.doseInstructionDraft,
+        uiState.countText,
+    ) {
+        if (uiState.isEditing) {
+            null
+        } else {
+            stockMutationPreviewDoseMagnitude(
+                medicine = uiState.resolvedMedicine,
+                doseInstructionDraft = uiState.doseInstructionDraft,
+                countText = uiState.countText,
+            )
+        }
+    }
 
     MedicationLogEntryEditorSheet(
         modifier = modifier,
@@ -201,6 +218,8 @@ private fun AddEntryScreenContent(
         resolvedMedicine = uiState.resolvedMedicine,
         canEditMedicationIdentity = uiState.canEditMedicationIdentity,
         lockedMedicine = uiState.resolvedMedicine,
+        selectedStockProjection = uiState.selectedStockProjection,
+        stockMutationPreviewDoseMagnitude = previewDoseMagnitude,
         sourceGroupName = uiState.sourceGroupName,
         sourceGroupColorKey = uiState.sourceGroupColorKey,
         sourceGroupScheduledFor = uiState.scheduledFor,

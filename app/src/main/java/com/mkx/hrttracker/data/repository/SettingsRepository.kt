@@ -11,12 +11,14 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
@@ -42,6 +44,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.io.IOException
 import java.util.Locale
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -81,6 +84,10 @@ class SettingsRepository @Inject constructor(
     private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
     private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
+    private val homeLowStockSectionExpandedKey =
+        booleanPreferencesKey("home_low_stock_section_expanded")
+    private val homeLowStockAcknowledgedWarningStatesKey =
+        stringSetPreferencesKey("home_low_stock_acknowledged_warning_states")
     private val lastSeenTimeZoneIdKey = stringPreferencesKey("last_seen_time_zone_id")
     private val hideMedicationDetailsKey = booleanPreferencesKey("hide_medication_details")
     private val widgetContentScaleKey = floatPreferencesKey("widget_content_scale")
@@ -109,6 +116,19 @@ class SettingsRepository @Inject constructor(
     val onboardingCompleted: Flow<Boolean> = storedPreferences
         .map { it[onboardingCompletedKey] ?: false }
         .distinctUntilChanged()
+
+    val homeLowStockSectionExpandedFlow: Flow<Boolean> = storedPreferences
+        .map { it[homeLowStockSectionExpandedKey] ?: true }
+        .distinctUntilChanged()
+
+    val homeLowStockAcknowledgedWarningStatesFlow: Flow<Map<String, MedicineStockState>> =
+        storedPreferences
+            .map { preferences ->
+                decodeHomeLowStockAcknowledgedWarningStates(
+                    preferences[homeLowStockAcknowledgedWarningStatesKey].orEmpty()
+                )
+            }
+            .distinctUntilChanged()
 
     // Raw DataStore-backed flow that intentionally bypasses [settingsState]'s
     // eager `initialValue` so consumers can distinguish the persisted option
@@ -186,6 +206,29 @@ class SettingsRepository @Inject constructor(
             } else {
                 preferences[homeE2ChartWindowKey] = option.name
             }
+        }
+    }
+
+    suspend fun setHomeLowStockSectionFoldState(
+        expanded: Boolean,
+        acknowledgedWarningStates: Map<String, MedicineStockState> = emptyMap(),
+    ) {
+        activeDataStore().edit { preferences ->
+            preferences[homeLowStockSectionExpandedKey] = expanded
+            val encodedWarningStates = encodeHomeLowStockAcknowledgedWarningStates(
+                acknowledgedWarningStates
+            )
+            if (encodedWarningStates.isEmpty()) {
+                preferences.remove(homeLowStockAcknowledgedWarningStatesKey)
+            } else {
+                preferences[homeLowStockAcknowledgedWarningStatesKey] = encodedWarningStates
+            }
+        }
+    }
+
+    suspend fun clearHomeLowStockAcknowledgedWarningStates() {
+        activeDataStore().edit { preferences ->
+            preferences.remove(homeLowStockAcknowledgedWarningStatesKey)
         }
     }
 
@@ -361,6 +404,8 @@ class SettingsRepository @Inject constructor(
             } else {
                 preferences[firstDayOfWeekKey] = firstDayOfWeekOption.name
             }
+
+            preferences.remove(homeLowStockAcknowledgedWarningStatesKey)
         }
 
         setAppLanguageOption(appLanguageOption)
@@ -408,6 +453,48 @@ class SettingsRepository @Inject constructor(
             groupNameCounter = preferences[groupNameCounterKey] ?: 0,
             firstDayOfWeekOption = FirstDayOfWeekOption.fromStorageValue(preferences[firstDayOfWeekKey]),
         )
+    }
+
+    private fun encodeHomeLowStockAcknowledgedWarningStates(
+        acknowledgedWarningStates: Map<String, MedicineStockState>,
+    ): Set<String> {
+        return acknowledgedWarningStates.mapNotNull { (uuid, state) ->
+            val canonicalUuid = uuid.toCanonicalUuidOrNull() ?: return@mapNotNull null
+            state.takeIf { warningState -> warningState.isHomeLowStockWarningState() }
+                ?.let { warningState -> "$canonicalUuid|${warningState.name}" }
+        }.toSet()
+    }
+
+    private fun decodeHomeLowStockAcknowledgedWarningStates(
+        encodedWarningStates: Set<String>,
+    ): Map<String, MedicineStockState> {
+        return encodedWarningStates.mapNotNull { encodedValue ->
+            val separatorIndex = encodedValue.indexOf('|')
+            if (separatorIndex <= 0 || separatorIndex == encodedValue.lastIndex) {
+                return@mapNotNull null
+            }
+            val uuid = encodedValue
+                .substring(startIndex = 0, endIndex = separatorIndex)
+                .toCanonicalUuidOrNull()
+                ?: return@mapNotNull null
+            val state = runCatching {
+                MedicineStockState.valueOf(encodedValue.substring(startIndex = separatorIndex + 1))
+            }.getOrNull()
+                ?.takeIf { state -> state.isHomeLowStockWarningState() }
+                ?: return@mapNotNull null
+
+            uuid to state
+        }.toMap()
+    }
+
+    private fun String.toCanonicalUuidOrNull(): String? {
+        return runCatching { UUID.fromString(this).toString() }.getOrNull()
+    }
+
+    private fun MedicineStockState.isHomeLowStockWarningState(): Boolean {
+        return this == MedicineStockState.USER_LOW ||
+            this == MedicineStockState.IMMINENT ||
+            this == MedicineStockState.OUT
     }
 
     private fun resolveHomeE2DisplayUnit(storedValue: String?): AllowedAnalyteUnit {

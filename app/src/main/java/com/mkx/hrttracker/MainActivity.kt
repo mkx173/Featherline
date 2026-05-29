@@ -78,8 +78,36 @@ const val EXTRA_HIGHLIGHT_SCHEDULE_TIME_UUID = "highlight_schedule_time_uuid"
 const val EXTRA_HIGHLIGHT_SCHEDULED_AT = "highlight_scheduled_at"
 const val EXTRA_HIGHLIGHT_MEDICATION_UUID = "highlight_medication_uuid"
 const val EXTRA_HIGHLIGHT_ENTRY_UUID = "highlight_entry_uuid"
+const val EXTRA_HIGHLIGHT_SCHEDULED_TARGETS = "highlight_scheduled_targets"
 const val HIGHLIGHT_KIND_SCHEDULED = "scheduled"
 const val HIGHLIGHT_KIND_MANUAL = "manual"
+
+data class ScheduledDoseRowHighlightTarget(
+    val groupUuid: UUID,
+    val scheduleTimeUuid: UUID?,
+    val scheduledAt: LocalDateTime,
+)
+
+fun ScheduledDoseRowHighlightTarget.toStorageValue(): String =
+    listOf(
+        groupUuid.toString(),
+        scheduleTimeUuid?.toString().orEmpty(),
+        scheduledAt.toString(),
+    ).joinToString(separator = "|")
+
+fun scheduledDoseRowHighlightTargetFromStorageValue(value: String): ScheduledDoseRowHighlightTarget? {
+    val parts = value.split("|", limit = 3)
+    if (parts.size != 3) {
+        return null
+    }
+    return runCatching {
+        ScheduledDoseRowHighlightTarget(
+            groupUuid = UUID.fromString(parts[0]),
+            scheduleTimeUuid = parts[1].takeIf(String::isNotBlank)?.let(UUID::fromString),
+            scheduledAt = LocalDateTime.parse(parts[2]),
+        )
+    }.getOrNull()
+}
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -386,14 +414,40 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun parseWidgetHighlightIntent(intent: Intent) {
-        val key = when (intent.getStringExtra(EXTRA_HIGHLIGHT_KIND)) {
+        val keys = parseDoseRowHighlightIntent(intent)
+        if (keys.isNotEmpty()) {
+            mainViewModel.requestDoseRowHighlight(keys)
+        }
+    }
+
+    private fun parseDoseRowHighlightIntent(intent: Intent): List<DoseRowHighlightKey> {
+        val kind = intent.getStringExtra(EXTRA_HIGHLIGHT_KIND)
+        if (kind == HIGHLIGHT_KIND_SCHEDULED) {
+            val targetKeys = intent.getStringArrayListExtra(EXTRA_HIGHLIGHT_SCHEDULED_TARGETS)
+                .orEmpty()
+                .mapNotNull { encoded ->
+                    scheduledDoseRowHighlightTargetFromStorageValue(encoded)?.let { target ->
+                        DoseRowHighlightKey.Scheduled(
+                            groupUuid = target.groupUuid,
+                            scheduleTimeUuid = target.scheduleTimeUuid,
+                            scheduledAt = target.scheduledAt,
+                            medicationUuid = null,
+                        )
+                    }
+                }
+            if (targetKeys.isNotEmpty()) {
+                return targetKeys
+            }
+        }
+
+        val key = when (kind) {
             HIGHLIGHT_KIND_MANUAL -> {
-                val entryUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_ENTRY_UUID) ?: return
+                val entryUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_ENTRY_UUID) ?: return emptyList()
                 DoseRowHighlightKey.Manual(entryUuid)
             }
             HIGHLIGHT_KIND_SCHEDULED -> {
-                val groupUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_GROUP_UUID) ?: return
-                val scheduledAt = intent.localDateTimeExtra(EXTRA_HIGHLIGHT_SCHEDULED_AT) ?: return
+                val groupUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_GROUP_UUID) ?: return emptyList()
+                val scheduledAt = intent.localDateTimeExtra(EXTRA_HIGHLIGHT_SCHEDULED_AT) ?: return emptyList()
                 DoseRowHighlightKey.Scheduled(
                     groupUuid = groupUuid,
                     scheduleTimeUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_SCHEDULE_TIME_UUID),
@@ -401,9 +455,9 @@ class MainActivity : AppCompatActivity() {
                     medicationUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_MEDICATION_UUID),
                 )
             }
-            else -> return
+            else -> return emptyList()
         }
-        mainViewModel.requestWidgetDoseRowHighlight(key)
+        return listOf(key)
     }
 
     private fun Intent.uuidExtra(key: String): UUID? =

@@ -165,7 +165,7 @@ internal fun EditorFieldRow(
         overlineContent = {
             Text(
                 text = label.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },

@@ -20,11 +20,11 @@ interface MedicineDao {
     @Query(
         """
         SELECT * FROM medicines
-        WHERE archivedAtEpochMillis IS NOT NULL
-        ORDER BY archivedAtEpochMillis DESC, updatedAtEpochMillis DESC
+        WHERE archivedAtEpochMillis IS NULL AND trackingEnabled = 1
+        ORDER BY category ASC, updatedAtEpochMillis DESC, createdAtEpochMillis DESC
         """
     )
-    fun observeAllArchived(): Flow<List<MedicineEntity>>
+    fun observeAllActiveTracked(): Flow<List<MedicineEntity>>
 
     @Query(
         """
@@ -33,6 +33,14 @@ interface MedicineDao {
         """
     )
     suspend fun getAll(): List<MedicineEntity>
+
+    @Query(
+        """
+        SELECT * FROM medicines
+        WHERE archivedAtEpochMillis IS NULL AND trackingEnabled = 1
+        """
+    )
+    suspend fun getAllActiveTrackedEntities(): List<MedicineEntity>
 
     @Query(
         """
@@ -180,4 +188,42 @@ interface MedicineDao {
         """
     )
     suspend fun deleteAll()
+
+    @Query(
+        """
+        UPDATE medicines SET
+            trackingEnabled = :trackingEnabled,
+            stockUnitsRemaining = :stockUnitsRemaining,
+            stockUnitsLastTotal = :stockUnitsLastTotal,
+            openContainerAmount = :openContainerAmount,
+            warnAtDaysRemaining = :warnAtDaysRemaining,
+            stockGeneration = :stockGeneration,
+            updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE uuid = :uuid
+        """
+    )
+    suspend fun updateStockFields(
+        uuid: String,
+        trackingEnabled: Boolean,
+        stockUnitsRemaining: Double?,
+        stockUnitsLastTotal: Double?,
+        openContainerAmount: Double?,
+        warnAtDaysRemaining: Int,
+        stockGeneration: Long,
+        updatedAtEpochMillis: Long,
+    )
+
+    @Query(
+        """
+        UPDATE medicines SET
+            warnAtDaysRemaining = :warnAtDaysRemaining,
+            updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE uuid = :uuid
+        """
+    )
+    suspend fun updateWarnAtDaysRemaining(
+        uuid: String,
+        warnAtDaysRemaining: Int,
+        updatedAtEpochMillis: Long,
+    )
 }

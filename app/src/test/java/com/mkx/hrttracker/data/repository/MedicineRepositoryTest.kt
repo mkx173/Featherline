@@ -16,6 +16,7 @@ import com.mkx.hrttracker.util.ToastManager
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -23,8 +24,14 @@ import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.unmockkObject
 import io.mockk.verify
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -44,12 +51,15 @@ class MedicineRepositoryTest {
     private val database: HrtTrackerDatabase = mockk()
     private val dao: MedicineDao = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
+    private val stockMutator: MedicineStockMutator = mockk(relaxed = true)
     private val duplicateMedicineMessage = "Medicine already exists."
 
+    private lateinit var appScope: CoroutineScope
     private lateinit var repository: MedicineRepository
 
     @Before
     fun setUp() {
+        appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         mockkObject(ToastManager)
         every { ToastManager.showMessage(any()) } just Runs
 
@@ -69,11 +79,14 @@ class MedicineRepositoryTest {
             context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = appScope,
         )
     }
 
     @After
     fun tearDown() {
+        appScope.cancel()
         unmockkObject(ToastManager)
     }
 
@@ -341,6 +354,28 @@ class MedicineRepositoryTest {
     }
 
     @Test
+    fun observeAllActive_sharesSingleDaoSubscriptionAcrossCollectors() = runTest {
+        val entity = medicineEntity()
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns MutableStateFlow(listOf(entity))
+        val repository = MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = appScope,
+        )
+
+        val first = async { repository.observeAllActive().first() }
+        val second = async { repository.observeAllActive().first() }
+        advanceUntilIdle()
+
+        assertEquals(listOf(entity.toMedicineModel()), first.await())
+        assertEquals(listOf(entity.toMedicineModel()), second.await())
+        verify(exactly = 1) { dao.observeAllActive() }
+    }
+
+    @Test
     fun setDisplayName_updatesObservedMedicineByUuid() = runTest {
         val uuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000000")
         val original = medicineEntity(uuid = uuid.toString())
@@ -405,12 +440,7 @@ class MedicineRepositoryTest {
     @Test
     fun updatePreparation_rejectsLockedMedicine() = runTest {
         val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
-        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
-            firstArg<suspend () -> Unit>().invoke()
-        }
-        coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
-            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
-        }
+        stubUnitMutation()
         coEvery { dao.getByUuid(uuid.toString()) } returns medicineEntity(uuid = uuid.toString())
         coEvery { dao.logReferenceCount(uuid.toString()) } returns 1
 
@@ -426,20 +456,113 @@ class MedicineRepositoryTest {
     }
 
     @Test
+    fun updatePreparation_trackingOn_clearsStockBeforePrepUpdate() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val existing = medicineEntity(uuid = uuid.toString()).copy(trackingEnabled = true)
+        stubUnitMutation()
+        coEvery { dao.getByUuid(uuid.toString()) } returns existing
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 0
+        coEvery { dao.getByIdentityKey(any()) } returns null
+
+        repository.updatePreparation(
+            uuid = uuid,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 4.0),
+            now = Instant.parse("2026-05-22T00:00:00Z"),
+        )
+
+        coVerifyOrder {
+            stockMutator.clearStockOnPreparationEdit(database, uuid, any())
+            dao.updatePreparationFields(
+                uuid.toString(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+            )
+        }
+    }
+
+    @Test
+    fun updatePreparation_trackingOff_doesNotInvokeStockClear() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val existing = medicineEntity(uuid = uuid.toString()).copy(trackingEnabled = false)
+        stubUnitMutation()
+        coEvery { dao.getByUuid(uuid.toString()) } returns existing
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 0
+        coEvery { dao.getByIdentityKey(any()) } returns null
+
+        repository.updatePreparation(
+            uuid = uuid,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 4.0),
+            now = Instant.parse("2026-05-22T00:00:00Z"),
+        )
+
+        coVerify(exactly = 0) {
+            stockMutator.clearStockOnPreparationEdit(any(), any(), any())
+        }
+    }
+
+    @Test
+    fun disableTracking_invokesStockClearInsideTransaction() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val now = Instant.parse("2026-05-22T00:00:00Z")
+        stubUnitMutation()
+
+        repository.disableTracking(uuid, now = now)
+
+        coVerify(exactly = 1) {
+            homeSnapshotRepository.runHomeDataMutation<Unit>(any())
+        }
+        coVerify(exactly = 1) {
+            databaseHolder.withTransaction<Unit>(any())
+        }
+        coVerify(exactly = 1) {
+            stockMutator.disableTracking(database, uuid, now)
+        }
+    }
+
+    @Test
     fun archive_rejectsMedicineReferencedByActiveGroup() = runTest {
         val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
-        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
-            firstArg<suspend () -> Unit>().invoke()
-        }
-        coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
-            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
-        }
+        stubUnitMutation()
         coEvery { dao.activeGroupReferenceCount(uuid.toString()) } returns 1
 
         assertThrows(MedicineReferencedByActiveGroupException::class.java) {
             kotlinx.coroutines.test.runTest {
                 repository.archive(uuid, now = Instant.parse("2026-05-22T00:00:00Z"))
             }
+        }
+
+        coVerify(exactly = 0) {
+            stockMutator.clearStockOnArchive(any(), any(), any())
+        }
+    }
+
+    @Test
+    fun archive_invokesStockClearInsideTransaction() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val now = Instant.parse("2026-05-22T00:00:00Z")
+        stubUnitMutation()
+        coEvery { dao.activeGroupReferenceCount(uuid.toString()) } returns 0
+
+        repository.archive(uuid, now = now)
+
+        coVerifyOrder {
+            stockMutator.clearStockOnArchive(database, uuid, now)
+            dao.archive(
+                uuid = uuid.toString(),
+                archivedAtEpochMillis = now.toEpochMilli(),
+                updatedAtEpochMillis = now.toEpochMilli(),
+            )
         }
     }
 
@@ -571,6 +694,15 @@ class MedicineRepositoryTest {
             updatedAtEpochMillis = 200,
             archivedAtEpochMillis = archivedAtEpochMillis,
         )
+    }
+
+    private fun stubUnitMutation() {
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+        }
+        coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
     }
 
     private fun customMedicineEntity(): MedicineEntity {

@@ -12,7 +12,9 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.testCustomMedicine
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import org.junit.Assert.assertEquals
@@ -33,6 +35,12 @@ class HomeSnapshotCodecTest {
         val medicine = testMedicine(
             uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
             key = MedicationKey.ESTRADIOL,
+            stock = MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 12.0,
+                unitsLastTotal = 30.0,
+                warnAtDaysRemaining = 14,
+            ),
         )
         val antiandrogenMedicine = testMedicine(
             uuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
@@ -122,6 +130,37 @@ class HomeSnapshotCodecTest {
             activeGroups = listOf(group),
             scheduleEntries = listOf(latestEntry),
             antiandrogenHistoryEntries = listOf(antiandrogenEntry),
+            stockMedicines = listOf(
+                medicine,
+                testCustomMedicine(
+                    uuid = UUID.fromString("33333333-3333-3333-3333-333333333333"),
+                    medicationName = "Injection stock",
+                    category = MedicationCategory.ESTRADIOL,
+                    preparation = MedicinePreparation.InjectionMultiUseVial(
+                        concentrationMgPerMl = 20.0,
+                        vialVolumeMl = 1.0,
+                    ),
+                    stock = MedicineStock(
+                        trackingEnabled = true,
+                        unitsRemaining = 1.0,
+                        openContainerAmount = 0.5,
+                        warnAtDaysRemaining = 7,
+                    ),
+                ),
+            ),
+            stockFulfillmentEntries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.fromString("44444444-4444-4444-4444-444444444444"),
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 2),
+                    sourceGroupUuid = group.uuid,
+                    scheduleTimeUuid = group.schedule.timeSlots.single().uuid,
+                    appliedAt = latestEntry.appliedAt,
+                    appliedAtTimeZoneId = latestEntry.appliedAtTimeZoneId,
+                    scheduledFor = latestEntry.scheduledFor,
+                )
+            ),
         )
 
         val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))

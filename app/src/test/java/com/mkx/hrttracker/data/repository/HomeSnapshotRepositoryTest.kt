@@ -7,6 +7,8 @@ import com.mkx.hrttracker.data.local.MedicationGroupEntity
 import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
+import com.mkx.hrttracker.data.local.MedicationLogDao
+import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.data.local.UserProfileDao
@@ -175,6 +177,7 @@ class HomeSnapshotRepositoryTest {
         val database: HrtTrackerDatabase = mockk()
         val homeDao: HomeDao = mockk()
         val medicineDao: MedicineDao = mockk()
+        val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
         val writtenSnapshot = slot<HomeSnapshotRecord>()
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001")
@@ -186,6 +189,7 @@ class HomeSnapshotRepositoryTest {
         every { databaseHolder.get() } returns database
         every { database.homeDao() } returns homeDao
         every { database.medicineDao() } returns medicineDao
+        every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         coEvery { homeDao.getActiveGroups() } returns listOf(
             groupWithTwoSlotsReferencing(medicineUuid)
@@ -194,6 +198,8 @@ class HomeSnapshotRepositoryTest {
         coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
         coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
+        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
         coEvery { userProfileDao.getProfile() } returns null
         coEvery { medicineDao.getByUuids(listOf(medicineUuid.toString())) } coAnswers {
             listOf(medicineEntity(uuid = medicineUuid, displayName = displayName))
@@ -237,15 +243,22 @@ class HomeSnapshotRepositoryTest {
         // Refresh path will hit the database; minimal stubs so it returns quickly.
         val database: HrtTrackerDatabase = mockk()
         val homeDao: HomeDao = mockk()
+        val medicineDao: MedicineDao = mockk()
+        val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
         every { databaseHolder.get() } returns database
         every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
         coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
+        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
         coEvery { userProfileDao.getProfile() } returns null
         coEvery { homeSnapshotStore.writeSnapshot(any()) } returns Unit
         val repository = HomeSnapshotRepository(
@@ -309,6 +322,8 @@ class HomeSnapshotRepositoryTest {
         val appDispatcher = StandardTestDispatcher()
         val database: HrtTrackerDatabase = mockk()
         val homeDao: HomeDao = mockk()
+        val medicineDao: MedicineDao = mockk()
+        val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
         val mutationCommitted = CompletableDeferred<Unit>()
 
@@ -320,12 +335,17 @@ class HomeSnapshotRepositoryTest {
         }
         every { databaseHolder.get() } returns database
         every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
         coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
+        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
         coEvery { userProfileDao.getProfile() } returns null
         val repository = HomeSnapshotRepository(
             databaseHolder = databaseHolder,
@@ -513,6 +533,8 @@ class HomeSnapshotRepositoryTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val database: HrtTrackerDatabase = mockk()
         val homeDao: HomeDao = mockk()
+        val medicineDao: MedicineDao = mockk()
+        val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
         val writtenSnapshot = slot<HomeSnapshotRecord>()
         val scheduledStartIso = slot<String>()
@@ -528,6 +550,8 @@ class HomeSnapshotRepositoryTest {
         coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
         every { databaseHolder.get() } returns database
         every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery {
@@ -541,6 +565,9 @@ class HomeSnapshotRepositoryTest {
         coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
         coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
+        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
         coEvery { userProfileDao.getProfile() } returns null
 
         HomeSnapshotRepository(
@@ -575,6 +602,85 @@ class HomeSnapshotRepositoryTest {
         )
     }
 
+    @Test
+    fun refreshHomeSnapshotIfNeeded_persistsStockInputs() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val anchorDate = now.toLocalDate()
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val database: HrtTrackerDatabase = mockk()
+        val homeDao: HomeDao = mockk()
+        val medicineDao: MedicineDao = mockk()
+        val medicationLogDao: MedicationLogDao = mockk()
+        val userProfileDao: UserProfileDao = mockk()
+        val writtenSnapshot = slot<HomeSnapshotRecord>()
+        val stockStartIso = slot<String>()
+        val stockEndIso = slot<String>()
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001")
+        val stockMedicine = medicineEntity(
+            uuid = medicineUuid,
+            displayName = "Tracked stock",
+            trackingEnabled = true,
+            stockUnitsRemaining = 2.0,
+            stockUnitsLastTotal = 10.0,
+        )
+        val stockEntry = medicationLogEntryEntity(
+            uuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000001"),
+            medicineUuid = medicineUuid,
+            scheduledFor = anchorDate.plusDays(2).atTime(8, 0),
+        )
+
+        coEvery { homeSnapshotStore.readSnapshot() } returns null
+        coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
+        every { databaseHolder.get() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        every { database.medicationLogDao() } returns medicationLogDao
+        every { database.userProfileDao() } returns userProfileDao
+        coEvery { homeDao.getActiveGroups() } returns emptyList()
+        coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
+        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { medicineDao.getAllActiveTrackedEntities() } returns listOf(stockMedicine)
+        coEvery { medicineDao.getByUuids(any()) } returns listOf(stockMedicine)
+        coEvery {
+            medicationLogDao.getScheduledEntriesInWindow(
+                capture(stockStartIso),
+                capture(stockEndIso),
+            )
+        } returns listOf(stockEntry)
+        coEvery { userProfileDao.getProfile() } returns null
+
+        HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher),
+            defaultDispatcher = dispatcher,
+        ).refreshHomeSnapshotIfNeeded(now = now, force = true)
+
+        assertTrue(writtenSnapshot.isCaptured)
+        assertEquals(
+            anchorDate.minusDays(1).atStartOfDay().toString(),
+            stockStartIso.captured,
+        )
+        assertEquals(
+            anchorDate.plusDays(ScheduledRunwayCalculator.HORIZON_DAYS)
+                .atTime(23, 59, 59)
+                .toString(),
+            stockEndIso.captured,
+        )
+        assertEquals(
+            listOf(medicineUuid),
+            writtenSnapshot.captured.stockMedicines.map { medicine -> medicine.uuid },
+        )
+        assertEquals(
+            listOf(stockEntry.uuid),
+            writtenSnapshot.captured.stockFulfillmentEntries.map { entry -> entry.uuid.toString() },
+        )
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun invalidateHomeSnapshot_waitsForInFlightSnapshotWriteBeforeClearing() = runTest {
@@ -582,6 +688,8 @@ class HomeSnapshotRepositoryTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val database: HrtTrackerDatabase = mockk()
         val homeDao: HomeDao = mockk()
+        val medicineDao: MedicineDao = mockk()
+        val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
         val writeStarted = CompletableDeferred<Unit>()
         val allowWrite = CompletableDeferred<Unit>()
@@ -594,12 +702,17 @@ class HomeSnapshotRepositoryTest {
         }
         every { databaseHolder.get() } returns database
         every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
         coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
+        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
         coEvery { userProfileDao.getProfile() } returns null
         val repository = HomeSnapshotRepository(
             databaseHolder = databaseHolder,
@@ -723,6 +836,9 @@ class HomeSnapshotRepositoryTest {
     private fun medicineEntity(
         uuid: UUID,
         displayName: String?,
+        trackingEnabled: Boolean = false,
+        stockUnitsRemaining: Double? = null,
+        stockUnitsLastTotal: Double? = null,
     ): MedicineEntity {
         return MedicineEntity(
             uuid = uuid.toString(),
@@ -746,6 +862,32 @@ class HomeSnapshotRepositoryTest {
             createdAtEpochMillis = 0L,
             updatedAtEpochMillis = 500L,
             archivedAtEpochMillis = null,
+            trackingEnabled = trackingEnabled,
+            stockUnitsRemaining = stockUnitsRemaining,
+            stockUnitsLastTotal = stockUnitsLastTotal,
+        )
+    }
+
+    private fun medicationLogEntryEntity(
+        uuid: UUID,
+        medicineUuid: UUID,
+        scheduledFor: LocalDateTime,
+    ): MedicationLogEntryEntity {
+        return MedicationLogEntryEntity(
+            uuid = uuid.toString(),
+            category = MedicationCategory.ESTRADIOL.name,
+            medicineUuid = medicineUuid.toString(),
+            applicationType = MedicationApplicationType.ORAL.name,
+            doseInstructionKind = DoseInstructionKind.TABLET_FRACTION.name,
+            tabletFractionNumerator = 1,
+            tabletFractionDenominator = 1,
+            doseVolumeMl = null,
+            doseWeightGrams = null,
+            equivalentE2Mg = 2.0,
+            sourceGroupUuid = UUID.fromString("cccccccc-0000-0000-0000-000000000001").toString(),
+            scheduleTimeUuid = UUID.fromString("dddddddd-0000-0000-0000-000000000001").toString(),
+            appliedAtEpochMillis = scheduledFor.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            scheduledForIso = scheduledFor.toString(),
         )
     }
 }

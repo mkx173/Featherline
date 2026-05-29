@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.input.TextFieldLineLimits
@@ -19,6 +21,7 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -67,17 +70,27 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.RunwayProjection
+import com.mkx.hrttracker.data.repository.StockReceived
+import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
+import com.mkx.hrttracker.ui.catalog.stock.OpenContainerEditDialog
+import com.mkx.hrttracker.ui.catalog.stock.StockSection
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
-import com.mkx.hrttracker.ui.components.DangerZoneListItem
+import com.mkx.hrttracker.ui.components.HrtDropdownMenu
+import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.MedicationCard
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -97,6 +110,8 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.UUID
 
+private val WARN_AT_OPTIONS = listOf(0, 7, 14, 21, 28)
+
 @Composable
 fun MedicineDetailScreen(
     onNavigateBack: () -> Unit,
@@ -112,6 +127,7 @@ fun MedicineDetailScreen(
     val saveFailureMessage = stringResource(R.string.medicine_save_failure)
     val archiveBlockedMessage = stringResource(R.string.medicine_archive_blocked_by_groups)
     val archiveFailureMessage = stringResource(R.string.medicine_archive_failure)
+    val stockMutationFailureMessage = stringResource(R.string.medicine_stock_update_failure)
 
     LaunchedEffect(uiState.saveResult) {
         val result = uiState.saveResult ?: return@LaunchedEffect
@@ -145,6 +161,21 @@ fun MedicineDetailScreen(
         }
     }
 
+    LaunchedEffect(uiState.stockMutationResult) {
+        when (uiState.stockMutationResult) {
+            MedicineStockMutationResult.FAILURE -> {
+                Toast.makeText(context, stockMutationFailureMessage, Toast.LENGTH_SHORT).show()
+                viewModel.clearStockMutationResult()
+            }
+            // The detail VM never emits SUCCESS — it signals success by flipping
+            // showAdjustSheet false. The branch exists only because the opt-in
+            // flow shares this result type.
+            MedicineStockMutationResult.SUCCESS,
+            null,
+            -> Unit
+        }
+    }
+
     MedicineDetailScreenContent(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
@@ -153,9 +184,41 @@ fun MedicineDetailScreen(
         onSaveAll = { preparation, unit ->
             viewModel.saveAll(preparation, unit)
         },
+        onOpenAdjustSheet = viewModel::openAdjustSheet,
+        onOpenOptIn = viewModel::openOptIn,
+        onCloseAdjustSheet = viewModel::closeAdjustSheet,
+        onOpenOpenContainerDialog = viewModel::openOpenContainerDialog,
+        onCloseOpenContainerDialog = viewModel::closeOpenContainerDialog,
+        onSubmitOpenContainerAmount = { amount -> viewModel.submitOpenContainerAmount(amount) },
+        onOpenDisableConfirmation = viewModel::openDisableConfirmation,
+        onCloseDisableConfirmation = viewModel::closeDisableConfirmation,
+        onSubmitRecount = { recount -> viewModel.submitRecount(recount) },
+        onSubmitReceived = { received -> viewModel.submitReceived(received) },
+        previewRunway = viewModel::previewRunway,
+        onSubmitWarnAt = { days -> viewModel.submitWarnAt(days) },
+        onConfirmDisableTracking = { viewModel.confirmDisableTracking() },
         onArchive = { viewModel.archive() },
         modifier = modifier,
     )
+}
+
+internal fun showWarnAtBelowIntervalWarning(
+    warnAtDays: Int,
+    intervalDays: Int?,
+): Boolean {
+    return warnAtDays > 0 && intervalDays != null && warnAtDays < intervalDays
+}
+
+internal fun adjustSheetStockProjectionForDisplay(
+    isStockProjectionFrozen: Boolean,
+    stockProjection: MedicineStockProjection?,
+    frozenStockProjection: MedicineStockProjection?,
+): MedicineStockProjection? {
+    return if (isStockProjectionFrozen) {
+        frozenStockProjection
+    } else {
+        stockProjection
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -166,6 +229,19 @@ private fun MedicineDetailScreenContent(
     onGroupClick: (UUID) -> Unit,
     onDisplayNameChange: (String) -> Unit,
     onSaveAll: (MedicinePreparation?, MedicineDisplayDoseUnit?) -> Unit,
+    onOpenAdjustSheet: (AdjustSheetTab) -> Unit,
+    onOpenOptIn: () -> Unit,
+    onCloseAdjustSheet: () -> Unit,
+    onOpenOpenContainerDialog: () -> Unit,
+    onCloseOpenContainerDialog: () -> Unit,
+    onSubmitOpenContainerAmount: (Double) -> Unit,
+    onOpenDisableConfirmation: () -> Unit,
+    onCloseDisableConfirmation: () -> Unit,
+    onSubmitRecount: (StockRecount) -> Unit,
+    onSubmitReceived: (StockReceived) -> Unit,
+    previewRunway: (MedicineStock) -> RunwayProjection?,
+    onSubmitWarnAt: (Int) -> Unit,
+    onConfirmDisableTracking: () -> Unit,
     onArchive: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -176,9 +252,64 @@ private fun MedicineDetailScreenContent(
         state = topAppBarState,
     )
     val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val adjustSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     var editSheetOpen by remember { mutableStateOf(false) }
+    var adjustSheetRendered by remember { mutableStateOf(false) }
+    var retainedAdjustSheetProjection by remember {
+        mutableStateOf<MedicineStockProjection?>(null)
+    }
+    var retainedAdjustSheetTab by remember { mutableStateOf(AdjustSheetTab.RECEIVED) }
+    var retainedAdjustSheetReceivedOnly by remember { mutableStateOf(false) }
+    var isAdjustSheetStockProjectionFrozen by remember { mutableStateOf(false) }
+    var frozenAdjustSheetStockProjection by remember {
+        mutableStateOf<MedicineStockProjection?>(null)
+    }
     var archiveConfirmOpen by remember { mutableStateOf(false) }
+    val stockProjection = uiState.stockProjection
+
+    LaunchedEffect(
+        uiState.showAdjustSheet,
+        stockProjection,
+        uiState.adjustSheetActiveTab,
+        uiState.pendingEnableTracking,
+        isAdjustSheetStockProjectionFrozen,
+    ) {
+        if (
+            uiState.showAdjustSheet &&
+            stockProjection != null &&
+            !isAdjustSheetStockProjectionFrozen
+        ) {
+            retainedAdjustSheetProjection = stockProjection
+            retainedAdjustSheetTab = uiState.adjustSheetActiveTab
+            retainedAdjustSheetReceivedOnly = uiState.pendingEnableTracking
+            adjustSheetRendered = true
+        }
+    }
+
+    // Assumes no reopen mid-close: if showAdjustSheet went false->true while
+    // this hide is still animating, the in-flight hide could complete and run
+    // onHidden (adjustSheetRendered = false), dropping the just-reopened sheet,
+    // and this effect's keys wouldn't have changed on the second transition to
+    // re-render it. Gated in practice by user interaction (reopen needs a tap,
+    // the animating sheet covers the screen) plus the single-flight submit guard.
+    LaunchedEffect(uiState.showAdjustSheet, adjustSheetRendered) {
+        if (!uiState.showAdjustSheet && adjustSheetRendered) {
+            hideBottomSheet(scope, adjustSheetState) {
+                adjustSheetRendered = false
+                retainedAdjustSheetProjection = null
+                isAdjustSheetStockProjectionFrozen = false
+                frozenAdjustSheetStockProjection = null
+            }
+        }
+    }
+
+    LaunchedEffect(uiState.stockMutationResult) {
+        if (uiState.stockMutationResult == MedicineStockMutationResult.FAILURE) {
+            isAdjustSheetStockProjectionFrozen = false
+            frozenAdjustSheetStockProjection = null
+        }
+    }
 
     val appLocale = rememberAppLocale()
     val today = remember { LocalDate.now() }
@@ -255,6 +386,142 @@ private fun MedicineDetailScreenContent(
                     )
                 }
 
+                if (!isPatchOff && stockProjection != null) {
+                    item(key = "medicine-stock") {
+                        Column {
+                            StockSection(
+                                projection = stockProjection,
+                                onOptInClick = onOpenOptIn,
+                                onEditOpenContainer = onOpenOpenContainerDialog,
+                                onDisableTracking = onOpenDisableConfirmation,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            if (stockProjection.medicine.stock.trackingEnabled) {
+                                Spacer(Modifier.height(8.dp))
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(
+                                        dimensionResource(R.dimen.list_segment_gap),
+                                    ),
+                                ) {
+                                    PreferenceSegmentedListItem(
+                                        title = stringResource(R.string.stock_adjust_row_label),
+                                        index = 0,
+                                        count = 2,
+                                        onClick = { onOpenAdjustSheet(AdjustSheetTab.RECEIVED) },
+                                        leadingContent = {
+                                            Box(
+                                                modifier = Modifier.size(22.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(R.drawable.ic_box),
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        },
+                                        trailingContent = {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        },
+                                    )
+                                    var warnAtMenuExpanded by remember { mutableStateOf(false) }
+                                    val warnAtDays =
+                                        stockProjection.medicine.stock.warnAtDaysRemaining
+                                    val showWarnAtWarning = showWarnAtBelowIntervalWarning(
+                                        warnAtDays = warnAtDays,
+                                        intervalDays = stockProjection.intervalDays,
+                                    )
+                                    val warnAtValueText = if (warnAtDays <= 0) {
+                                        stringResource(R.string.stock_warnat_value_off)
+                                    } else {
+                                        stringResource(
+                                            R.string.stock_warnat_value_days,
+                                            warnAtDays,
+                                        )
+                                    }
+                                    val warnAtSupportingText = if (showWarnAtWarning) {
+                                        warnAtValueText + " · " +
+                                            stringResource(
+                                                R.string.stock_warnat_below_interval_supporting,
+                                            )
+                                    } else {
+                                        warnAtValueText
+                                    }
+                                    Box {
+                                        PreferenceSegmentedListItem(
+                                            title = stringResource(
+                                                R.string.stock_warnat_row_title,
+                                            ),
+                                            supportingText = warnAtSupportingText,
+                                            index = 1,
+                                            count = 2,
+                                            onClick = { warnAtMenuExpanded = true },
+                                            leadingContent = {
+                                                Box(
+                                                    modifier = Modifier.size(24.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(
+                                                            R.drawable.ic_production_quantity_limits,
+                                                        ),
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            },
+                                            trailingContent = if (showWarnAtWarning) {
+                                                {
+                                                    Icon(
+                                                        painter = painterResource(
+                                                            R.drawable.ic_warning,
+                                                        ),
+                                                        contentDescription = stringResource(
+                                                            R.string.stock_warnat_below_interval_content_description,
+                                                        ),
+                                                        tint = MaterialTheme.colorScheme.tertiary,
+                                                        modifier = Modifier.size(20.dp),
+                                                    )
+                                                }
+                                            } else {
+                                                null
+                                            },
+                                        )
+                                        HrtDropdownMenu(
+                                            expanded = warnAtMenuExpanded,
+                                            onDismissRequest = {
+                                                warnAtMenuExpanded = false
+                                            },
+                                            modifier = Modifier.width(IntrinsicSize.Min),
+                                            items = WARN_AT_OPTIONS.map { days ->
+                                                val text = if (days <= 0) {
+                                                    stringResource(
+                                                        R.string.stock_warnat_value_off,
+                                                    )
+                                                } else {
+                                                    stringResource(
+                                                        R.string.stock_warnat_value_days,
+                                                        days,
+                                                    )
+                                                }
+                                                HrtDropdownMenuItem(
+                                                    text = text,
+                                                    onClick = { onSubmitWarnAt(days) },
+                                                )
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 item(key = "linked-groups") {
                     Column {
                         SectionHeader(text = stringResource(R.string.medicine_linked_groups))
@@ -318,6 +585,77 @@ private fun MedicineDetailScreenContent(
                 }
             }
         }
+    }
+
+    val liveAdjustSheetProjection = if (uiState.showAdjustSheet) {
+        stockProjection
+    } else {
+        retainedAdjustSheetProjection
+    }
+    val adjustSheetProjection = adjustSheetStockProjectionForDisplay(
+        isStockProjectionFrozen = isAdjustSheetStockProjectionFrozen,
+        stockProjection = liveAdjustSheetProjection,
+        frozenStockProjection = frozenAdjustSheetStockProjection,
+    )
+    val adjustSheetTab = if (uiState.showAdjustSheet) {
+        uiState.adjustSheetActiveTab
+    } else {
+        retainedAdjustSheetTab
+    }
+    val adjustSheetReceivedOnly = if (uiState.showAdjustSheet) {
+        uiState.pendingEnableTracking
+    } else {
+        retainedAdjustSheetReceivedOnly
+    }
+    if (adjustSheetRendered && adjustSheetProjection != null) {
+        AdjustStockSheet(
+            projection = adjustSheetProjection,
+            initialTab = adjustSheetTab,
+            receivedOnly = adjustSheetReceivedOnly,
+            onRecount = { recount ->
+                frozenAdjustSheetStockProjection = adjustSheetProjection
+                isAdjustSheetStockProjectionFrozen = true
+                onSubmitRecount(recount)
+            },
+            onReceived = { received ->
+                frozenAdjustSheetStockProjection = adjustSheetProjection
+                isAdjustSheetStockProjectionFrozen = true
+                onSubmitReceived(received)
+            },
+            previewRunway = previewRunway,
+            sheetState = adjustSheetState,
+            onDismissRequest = onCloseAdjustSheet,
+            onCloseClick = {
+                hideBottomSheet(scope, adjustSheetState, onCloseAdjustSheet)
+            },
+        )
+    }
+
+    if (uiState.showOpenContainerDialog && stockProjection != null) {
+        OpenContainerEditDialog(
+            preparation = stockProjection.medicine.preparation,
+            currentAmount = stockProjection.medicine.stock.openContainerAmount,
+            onSubmit = onSubmitOpenContainerAmount,
+            onDismiss = onCloseOpenContainerDialog,
+        )
+    }
+
+    if (uiState.showDisableConfirmation) {
+        AlertDialog(
+            onDismissRequest = onCloseDisableConfirmation,
+            title = { Text(stringResource(R.string.stock_disable_title)) },
+            text = { Text(stringResource(R.string.stock_disable_body)) },
+            confirmButton = {
+                TextButton(onClick = onConfirmDisableTracking) {
+                    Text(stringResource(R.string.stock_disable_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onCloseDisableConfirmation) {
+                    Text(stringResource(R.string.stock_cancel))
+                }
+            },
+        )
     }
 
     if (editSheetOpen) {
@@ -481,12 +819,31 @@ private fun ArchiveAction(
     } else {
         null
     }
-    DangerZoneListItem(
-        label = stringResource(R.string.medicine_archive_action),
+    // Matches the group editor's ArchiveMedicationGroupCard styling
+    // (onSurfaceVariant tint, no error-container background) — archiving
+    // here is a normal lifecycle action, not a destructive danger-zone op.
+    PreferenceSegmentedListItem(
+        title = stringResource(R.string.medicine_archive_action),
+        index = 0,
+        count = 1,
         enabled = canArchive,
         onClick = onArchiveClick,
-        iconPainter = painterResource(R.drawable.ic_archive),
-        supportText = supportText,
+        supportingText = supportText,
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.ic_archive),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
+        },
+        trailingContent = {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
     )
 }
 

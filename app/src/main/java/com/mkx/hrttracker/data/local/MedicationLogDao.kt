@@ -44,6 +44,32 @@ interface MedicationLogDao {
     @Query(
         """
         SELECT * FROM medication_log_entries
+        WHERE sourceGroupUuid IS NOT NULL
+          AND scheduledForIso IS NOT NULL
+          AND scheduledForIso BETWEEN :scheduledStartIso AND :scheduledEndIso
+        """
+    )
+    suspend fun getScheduledEntriesInWindow(
+        scheduledStartIso: String,
+        scheduledEndIso: String,
+    ): List<MedicationLogEntryEntity>
+
+    @Query(
+        """
+        SELECT * FROM medication_log_entries
+        WHERE sourceGroupUuid IS NOT NULL
+          AND scheduledForIso IS NOT NULL
+          AND scheduledForIso BETWEEN :scheduledStartIso AND :scheduledEndIso
+        """
+    )
+    fun observeScheduledEntriesInWindow(
+        scheduledStartIso: String,
+        scheduledEndIso: String,
+    ): Flow<List<MedicationLogEntryEntity>>
+
+    @Query(
+        """
+        SELECT * FROM medication_log_entries
         WHERE category = :category
           AND appliedAtEpochMillis <= :onOrBeforeEpochMillis
         ORDER BY appliedAtEpochMillis DESC

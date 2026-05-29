@@ -105,6 +105,22 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
+    fun medicineDetailCreateRouteIncludesOptionalOpenOptInFlag() {
+        val medicineId = "aaaaaaaa-0000-0000-0000-000000000000"
+        assertEquals(
+            "medicine_detail/$medicineId?topLevelParent=plan",
+            Screen.MedicineDetail.createRoute(medicineId = medicineId),
+        )
+        assertEquals(
+            "medicine_detail/$medicineId?topLevelParent=plan&openOptIn=true",
+            Screen.MedicineDetail.createRoute(
+                medicineId = medicineId,
+                openOptIn = true,
+            ),
+        )
+    }
+
+    @Test
     fun topLevelNavigationReplacementPopUpToRoute_usesSelectedTopLevelRoute() {
         assertEquals(
             Screen.Plan.route,

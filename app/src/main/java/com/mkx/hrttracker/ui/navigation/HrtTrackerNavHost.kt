@@ -51,6 +51,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
 import com.mkx.hrttracker.ui.calibration.CalibrationScreen
@@ -186,7 +187,8 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
 
     data object MedicineDetail : Screen(
         "medicine_detail/{${MedicineDetailViewModel.MEDICINE_ID_ARG}}?" +
-                "$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+                "$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}" +
+                "&${MedicineDetailViewModel.OPEN_OPT_IN_ARG}={${MedicineDetailViewModel.OPEN_OPT_IN_ARG}}",
         R.string.medicine_detail_title,
     ) {
         const val baseRoute = "medicine_detail"
@@ -197,8 +199,17 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
         fun createRoute(
             medicineId: String,
             topLevelParentRoute: String = Plan.route,
+            openOptIn: Boolean = false,
         ): String {
-            return "$baseRoute/$medicineId?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+            return buildString {
+                append(baseRoute)
+                append("/")
+                append(medicineId)
+                append("?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute")
+                if (openOptIn) {
+                    append("&${MedicineDetailViewModel.OPEN_OPT_IN_ARG}=true")
+                }
+            }
         }
     }
 
@@ -527,6 +538,14 @@ fun HrtTrackerNavHost(
                                 editSnapshot = request.toAddEntryEditSnapshot(),
                             )
                         },
+                        onMedicineDetailClick = { medicineId ->
+                            navController.navigate(
+                                Screen.MedicineDetail.createRoute(
+                                    medicineId = medicineId.toString(),
+                                    topLevelParentRoute = Screen.Main.route,
+                                ),
+                            )
+                        },
                         onAddEntryClick = {
                             // Jump straight to the manager; its dose sheet saves
                             // the manual log directly in manual-log mode.
@@ -815,6 +834,10 @@ fun HrtTrackerNavHost(
                         navArgument(TOP_LEVEL_PARENT_ARG) {
                             type = NavType.StringType
                             defaultValue = Screen.Plan.route
+                        },
+                        navArgument(MedicineDetailViewModel.OPEN_OPT_IN_ARG) {
+                            type = NavType.BoolType
+                            defaultValue = false
                         },
                     ),
                 ) {
@@ -1146,6 +1169,12 @@ private fun saveMedicine(medicine: Medicine): ArrayList<Any?> {
         medicine.createdAt.toEpochMilli(),
         medicine.updatedAt.toEpochMilli(),
         medicine.archivedAt?.toEpochMilli(),
+        medicine.stock.trackingEnabled,
+        medicine.stock.unitsRemaining,
+        medicine.stock.unitsLastTotal,
+        medicine.stock.openContainerAmount,
+        medicine.stock.warnAtDaysRemaining,
+        medicine.stock.generation,
     )
 }
 
@@ -1179,6 +1208,21 @@ private fun restoreMedicine(saved: Any): Medicine {
         createdAt = Instant.ofEpochMilli(list[8] as Long),
         updatedAt = Instant.ofEpochMilli(list[9] as Long),
         archivedAt = (list[10] as? Long)?.let(Instant::ofEpochMilli),
+        stock = restoreMedicineStock(list),
+    )
+}
+
+private fun restoreMedicineStock(list: ArrayList<Any?>): MedicineStock {
+    if (list.size < 17) {
+        return MedicineStock()
+    }
+    return MedicineStock(
+        trackingEnabled = list[11] as Boolean,
+        unitsRemaining = list[12] as? Double,
+        unitsLastTotal = list[13] as? Double,
+        openContainerAmount = list[14] as? Double,
+        warnAtDaysRemaining = list[15] as Int,
+        generation = list[16] as Long,
     )
 }
 

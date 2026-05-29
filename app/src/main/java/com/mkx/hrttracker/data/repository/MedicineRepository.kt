@@ -6,6 +6,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
+import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
@@ -13,38 +14,80 @@ import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.normalizeCustomMedicationName
 import com.mkx.hrttracker.util.ToastManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class MedicineRepository @Inject constructor(
+class MedicineRepository @Inject internal constructor(
     @param:ApplicationContext private val context: Context,
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotRepository: HomeSnapshotRepository,
+    private val stockMutator: MedicineStockMutator,
+    @AppScope appScope: CoroutineScope,
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun observeAllActive(): Flow<List<Medicine>> {
-        return databaseHolder.databaseFlow.flatMapLatest { database ->
-            database?.medicineDao()?.observeAllActive()
-                ?.map { entities -> entities.map(MedicineEntity::toMedicineModel) }
-                ?: flowOf(emptyList())
-        }
+    private val activeMedicinesFlow: StateFlow<List<Medicine>?> =
+        databaseHolder.databaseFlow
+            .flatMapLatest { database ->
+                if (database == null) {
+                    flowOf<List<Medicine>?>(null)
+                } else {
+                    database.medicineDao().observeAllActive()
+                        .map { entities -> entities.map(MedicineEntity::toMedicineModel) }
+                        .catch { emit(emptyList()) }
+                }
+            }
+            .stateIn(
+                scope = appScope,
+                started = SharingStarted.Eagerly,
+                initialValue = null,
+            )
+
+    fun observeAllActive(): Flow<List<Medicine>> = activeMedicinesFlow.filterNotNull()
+
+    /**
+     * Nullable variant of [observeAllActive]. Emits `null` until the
+     * eagerly-cached flow has produced its first list (i.e. until Room has
+     * opened and delivered the first query). Consumers that need to combine
+     * this with a fallback source (e.g. the home snapshot) should observe
+     * this flow so the combine fires immediately on the initial `null`
+     * instead of blocking on the live emission.
+     */
+    fun observeAllActiveOrNull(): Flow<List<Medicine>?> = activeMedicinesFlow
+
+    /**
+     * Synchronous read of the eagerly-cached active list. Returns `null` until
+     * Room's first emission populates [activeMedicinesFlow]; lets ViewModels
+     * seed `stateIn` `initialValue` so the first composition lands on
+     * populated state instead of a loading flash.
+     */
+    fun getCachedActiveMedicines(): List<Medicine>? = activeMedicinesFlow.value
+
+    fun getCachedActiveMedicine(uuid: UUID): Medicine? {
+        return activeMedicinesFlow.value?.firstOrNull { it.uuid == uuid }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun observeAllArchived(): Flow<List<Medicine>> {
+    fun observeAllActiveTracked(): Flow<List<Medicine>> {
         return databaseHolder.databaseFlow.flatMapLatest { database ->
-            database?.medicineDao()?.observeAllArchived()
+            database?.medicineDao()?.observeAllActiveTracked()
                 ?.map { entities -> entities.map(MedicineEntity::toMedicineModel) }
                 ?: flowOf(emptyList())
         }
@@ -68,6 +111,10 @@ class MedicineRepository @Inject constructor(
         return databaseHolder.get().medicineDao()
             .getAll()
             .map(MedicineEntity::toMedicineModel)
+    }
+
+    suspend fun getAllActive(): List<Medicine> {
+        return getAll().filterNot(Medicine::isArchived)
     }
 
     suspend fun getByUuid(uuid: UUID): Medicine? {
@@ -189,6 +236,112 @@ class MedicineRepository @Inject constructor(
         }
     }
 
+    suspend fun enableTracking(
+        uuid: UUID,
+        initialUnitsRemaining: Double?,
+        initialOpenContainerAmount: Double?,
+        initialUnitsLastTotal: Double?,
+        now: Instant = Instant.now(),
+    ) {
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                stockMutator.enableTracking(
+                    database = database,
+                    medicineUuid = uuid,
+                    initialUnitsRemaining = initialUnitsRemaining,
+                    initialOpenContainerAmount = initialOpenContainerAmount,
+                    initialUnitsLastTotal = initialUnitsLastTotal,
+                    now = now,
+                )
+            }
+        }
+    }
+
+    suspend fun disableTracking(
+        uuid: UUID,
+        now: Instant = Instant.now(),
+    ) {
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                stockMutator.disableTracking(
+                    database = database,
+                    medicineUuid = uuid,
+                    now = now,
+                )
+            }
+        }
+    }
+
+    internal suspend fun applyRecount(
+        uuid: UUID,
+        recount: StockRecount,
+        now: Instant = Instant.now(),
+    ) {
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                stockMutator.applyRecount(
+                    database = database,
+                    medicineUuid = uuid,
+                    recount = recount,
+                    now = now,
+                )
+            }
+        }
+    }
+
+    internal suspend fun applyReceived(
+        uuid: UUID,
+        received: StockReceived,
+        now: Instant = Instant.now(),
+    ) {
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                stockMutator.applyReceived(
+                    database = database,
+                    medicineUuid = uuid,
+                    received = received,
+                    now = now,
+                )
+            }
+        }
+    }
+
+    internal suspend fun applySetOpenContainerAmount(
+        uuid: UUID,
+        amount: Double,
+        now: Instant = Instant.now(),
+    ) {
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                stockMutator.applySetOpenContainerAmount(
+                    database = database,
+                    medicineUuid = uuid,
+                    amount = amount,
+                    now = now,
+                )
+            }
+        }
+    }
+
+    suspend fun updateWarnAtDaysRemaining(
+        uuid: UUID,
+        warnAtDaysRemaining: Int,
+        now: Instant = Instant.now(),
+    ) {
+        require(warnAtDaysRemaining in 0..365) {
+            "warnAtDaysRemaining must be 0..365"
+        }
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                database.medicineDao().updateWarnAtDaysRemaining(
+                    uuid = uuid.toString(),
+                    warnAtDaysRemaining = warnAtDaysRemaining,
+                    updatedAtEpochMillis = now.toEpochMilli(),
+                )
+            }
+        }
+    }
+
     suspend fun isLocked(uuid: UUID): Boolean {
         return databaseHolder.get().medicineDao().logReferenceCount(uuid.toString()) > 0
     }
@@ -231,6 +384,13 @@ class MedicineRepository @Inject constructor(
                 if (collision != null && collision.uuid != existing.uuid) {
                     throw MedicineIdentityCollisionException(newIdentityKey)
                 }
+                if (existing.trackingEnabled) {
+                    stockMutator.clearStockOnPreparationEdit(
+                        database = database,
+                        medicineUuid = uuid,
+                        now = now,
+                    )
+                }
                 val storageFields = preparation.toStorageFields()
                 // Reuse the existing column value when the caller passed null,
                 // so a partial update (preparation only, no unit change) is a
@@ -272,6 +432,11 @@ class MedicineRepository @Inject constructor(
                 if (dao.activeGroupReferenceCount(uuid.toString()) > 0) {
                     throw MedicineReferencedByActiveGroupException(uuid)
                 }
+                stockMutator.clearStockOnArchive(
+                    database = database,
+                    medicineUuid = uuid,
+                    now = now,
+                )
                 dao.archive(
                     uuid = uuid.toString(),
                     archivedAtEpochMillis = nowEpochMillis,
@@ -313,6 +478,7 @@ class MedicineRepository @Inject constructor(
                     updatedAt = now,
                     archivedAt = null,
                     displayDoseUnit = displayDoseUnit,
+                    stock = MedicineStock(),
                 )
                 try {
                     dao.insert(medicine.toEntity())

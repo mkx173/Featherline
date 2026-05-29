@@ -45,19 +45,22 @@ import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.zoneDisplayName
 import java.util.Locale
+import java.util.UUID
 
 @Composable
 fun MainContent(
     modifier: Modifier = Modifier,
     uiState: MainUiState,
     scrollState: ScrollState,
-    highlightRequest: DoseRowHighlightKey? = null,
+    highlightRequest: DoseRowHighlightRequest? = null,
     highlightEffectsEnabled: Boolean = true,
-    onHighlightConsumed: () -> Unit = { },
+    highlightFlashReady: Boolean = true,
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
+    onMedicineDetailClick: (UUID) -> Unit = { },
     onDismissTimeZoneChangeNotice: () -> Unit = { },
     onE2ChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
+    onLowStockSectionExpandedChange: (Boolean) -> Unit = { },
 ) {
     val appLocale = rememberAppLocale()
     val today = uiState.now.toLocalDate()
@@ -68,6 +71,13 @@ fun MainContent(
         medicationGroupScheduleDateFormatter(appLocale, today)
     }
     val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
+    val highlightScrollTargetKey = remember(uiState, highlightRequest, highlightEffectsEnabled) {
+        if (highlightEffectsEnabled) {
+            mainDoseRowHighlightScrollTargetKey(uiState, highlightRequest)
+        } else {
+            null
+        }
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -80,6 +90,16 @@ fun MainContent(
                 appLocale = appLocale,
                 onDismiss = onDismissTimeZoneChangeNotice,
             )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        MainLowStockSection(
+            warnings = uiState.stockWarnings,
+            expanded = uiState.lowStockSectionExpanded,
+            onExpandedChange = onLowStockSectionExpandedChange,
+            onMedicineClick = onMedicineDetailClick,
+        )
+        if (uiState.stockWarnings.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
         }
 
@@ -124,7 +144,8 @@ fun MainContent(
                 timeFormatter = timeFormatter,
                 highlightRequest = highlightRequest,
                 highlightEffectsEnabled = highlightEffectsEnabled,
-                onHighlightConsumed = onHighlightConsumed,
+                highlightFlashReady = highlightFlashReady,
+                highlightScrollTargetKey = highlightScrollTargetKey,
                 onQuickLogDoseClick = onQuickLogDoseClick,
                 onEntryClick = onEntryClick
             )
@@ -138,7 +159,8 @@ fun MainContent(
             timeFormatter = timeFormatter,
             highlightRequest = highlightRequest,
             highlightEffectsEnabled = highlightEffectsEnabled,
-            onHighlightConsumed = onHighlightConsumed,
+            highlightFlashReady = highlightFlashReady,
+            highlightScrollTargetKey = highlightScrollTargetKey,
             onQuickLogDoseClick = onQuickLogDoseClick,
             onEntryClick = onEntryClick
         )
@@ -150,7 +172,8 @@ fun MainContent(
             timeFormatter = timeFormatter,
             highlightRequest = highlightRequest,
             highlightEffectsEnabled = highlightEffectsEnabled,
-            onHighlightConsumed = onHighlightConsumed,
+            highlightFlashReady = highlightFlashReady,
+            highlightScrollTargetKey = highlightScrollTargetKey,
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -200,7 +223,7 @@ private fun MainTimeZoneChangeNoticeBanner(
             )
             Text(
                 text = timeZoneChangeNoticeText,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.weight(1f).cjkTextOffset(timeZoneChangeNoticeText)
             )
             CompositionLocalProvider(

@@ -18,7 +18,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -71,6 +73,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -97,10 +100,13 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
+import com.mkx.hrttracker.ui.catalog.MedicineManagerLaunchMode
+import com.mkx.hrttracker.ui.catalog.MedicinesScreen
 import com.mkx.hrttracker.ui.catalog.NewMedicineSlotSheet
 import com.mkx.hrttracker.ui.catalog.NewMedicineSlotSheetMode
 import com.mkx.hrttracker.ui.catalog.NewMedicineSlotViewModel
 import com.mkx.hrttracker.ui.catalog.canHideNewMedicineSlotSheet
+import com.mkx.hrttracker.ui.components.AppContentMaxWidth
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -169,6 +175,7 @@ fun OnboardingScreen(
     var accepted by rememberSaveable { mutableStateOf(false) }
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
     var showGroupEditor by rememberSaveable { mutableStateOf(false) }
+    var showStockOnboarding by rememberSaveable { mutableStateOf(false) }
     var groupEditorOpenCount by rememberSaveable { mutableIntStateOf(0) }
     var remindersAcceptedDuringOnboarding by rememberSaveable { mutableStateOf(false) }
 
@@ -184,6 +191,22 @@ fun OnboardingScreen(
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     val notificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
+    val onboardingUpdateFailedMessage = stringResource(R.string.onboarding_update_failed)
+
+    LaunchedEffect(viewModel) {
+        viewModel.onboardingMutationEvents.collect { event ->
+            when (event) {
+                is OnboardingMutationEvent.Failure -> {
+                    Toast.makeText(
+                        context,
+                        onboardingUpdateFailedMessage,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+            viewModel.consumeOnboardingMutationEvent()
+        }
+    }
 
     val notificationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -220,168 +243,175 @@ fun OnboardingScreen(
     val acceptRemindersAndGoNext: () -> Unit = {
         remindersAcceptedDuringOnboarding = true
         coroutineScope.launch {
-            viewModel.setRemindersEnabledDuringOnboarding(true)
-            goNext()
+            if (viewModel.setRemindersEnabledDuringOnboarding(true)) {
+                goNext()
+            }
         }
     }
     val declineRemindersAndGoNext: () -> Unit = {
         remindersAcceptedDuringOnboarding = false
         coroutineScope.launch {
-            viewModel.setRemindersEnabledDuringOnboarding(false)
-            goNext()
+            if (viewModel.setRemindersEnabledDuringOnboarding(false)) {
+                goNext()
+            }
         }
     }
 
-    BackHandler(enabled = step > 0 && !showGroupEditor) { goPrev() }
+    BackHandler(enabled = step > 0 && !showGroupEditor && !showStockOnboarding) { goPrev() }
     BackHandler(enabled = showGroupEditor) { showGroupEditor = false }
+    BackHandler(enabled = showStockOnboarding) { showStockOnboarding = false }
 
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.surface,
     ) {
-        AnimatedContent(
-            targetState = step,
-            modifier = Modifier.fillMaxSize(),
-            transitionSpec = {
-                val forward = targetState > initialState
-                sharedAxisXEnterTransition(
-                    density = density,
-                    layoutDirection = layoutDirection,
-                    forward = forward,
-                ) togetherWith sharedAxisXExitTransition(
-                    density = density,
-                    layoutDirection = layoutDirection,
-                    forward = forward,
-                )
-            },
-            label = "onboarding-step",
-        ) {
-            val currentStep = it
-            val showProgress = currentStep >= 1
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .systemBarsPadding(),
+        OnboardingContentFrame {
+            AnimatedContent(
+                targetState = step,
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = {
+                    val forward = targetState > initialState
+                    sharedAxisXEnterTransition(
+                        density = density,
+                        layoutDirection = layoutDirection,
+                        forward = forward,
+                    ) togetherWith sharedAxisXExitTransition(
+                        density = density,
+                        layoutDirection = layoutDirection,
+                        forward = forward,
+                    )
+                },
+                label = "onboarding-step",
             ) {
-                OnboardingTopChrome(
-                    showProgress = showProgress,
-                    progressTotal = progressSteps,
-                    progressCurrent = currentStep,
-                )
+                val currentStep = it
+                val showProgress = currentStep >= 1
 
-                Box(
+                Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
+                        .fillMaxSize()
+                        .systemBarsPadding(),
                 ) {
-                    when (currentStep) {
-                        0 -> StartStep()
-                        1 -> DisclaimerStep(
-                            accepted = accepted,
-                            onAcceptedChange = { accepted = it },
-                            onOpenPrivacyPolicy = onOpenPrivacyPolicy,
-                        )
-                        2 -> NotificationsStep(
-                            notificationsGranted = notificationsGranted,
-                            exactAlarmGranted = exactAlarmGranted,
-                            onAllowNotifications = {
-                                val hasRuntimePerm: Boolean
-                                val shouldShowRationale: Boolean
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                    hasRuntimePerm = ContextCompat.checkSelfPermission(
-                                        context,
-                                        Manifest.permission.POST_NOTIFICATIONS
-                                    ) == PackageManager.PERMISSION_GRANTED
-                                    shouldShowRationale = activity?.let {
-                                        ActivityCompat.shouldShowRequestPermissionRationale(
-                                            it,
+                    OnboardingTopChrome(
+                        showProgress = showProgress,
+                        progressTotal = progressSteps,
+                        progressCurrent = currentStep,
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                    ) {
+                        when (currentStep) {
+                            0 -> StartStep()
+                            1 -> DisclaimerStep(
+                                accepted = accepted,
+                                onAcceptedChange = { accepted = it },
+                                onOpenPrivacyPolicy = onOpenPrivacyPolicy,
+                            )
+                            2 -> NotificationsStep(
+                                notificationsGranted = notificationsGranted,
+                                exactAlarmGranted = exactAlarmGranted,
+                                onAllowNotifications = {
+                                    val hasRuntimePerm: Boolean
+                                    val shouldShowRationale: Boolean
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        hasRuntimePerm = ContextCompat.checkSelfPermission(
+                                            context,
                                             Manifest.permission.POST_NOTIFICATIONS
+                                        ) == PackageManager.PERMISSION_GRANTED
+                                        shouldShowRationale = activity?.let {
+                                            ActivityCompat.shouldShowRequestPermissionRationale(
+                                                it,
+                                                Manifest.permission.POST_NOTIFICATIONS
+                                            )
+                                        } ?: false
+                                    } else {
+                                        hasRuntimePerm = false
+                                        shouldShowRationale = false
+                                    }
+                                    when (
+                                        resolveOnboardingNotificationPermissionAction(
+                                            sdkInt = Build.VERSION.SDK_INT,
+                                            hasRuntimePermission = hasRuntimePerm,
+                                            areNotificationsEnabled = NotificationManagerCompat
+                                                .from(context)
+                                                .areNotificationsEnabled(),
+                                            hasRequestedPermissionBefore = hasRequestedNotificationPermission,
+                                            shouldShowPermissionRationale = shouldShowRationale,
                                         )
-                                    } ?: false
-                                } else {
-                                    hasRuntimePerm = false
-                                    shouldShowRationale = false
-                                }
-                                when (
-                                    resolveOnboardingNotificationPermissionAction(
-                                        sdkInt = Build.VERSION.SDK_INT,
-                                        hasRuntimePermission = hasRuntimePerm,
-                                        areNotificationsEnabled = NotificationManagerCompat
-                                            .from(context)
-                                            .areNotificationsEnabled(),
-                                        hasRequestedPermissionBefore = hasRequestedNotificationPermission,
-                                        shouldShowPermissionRationale = shouldShowRationale,
-                                    )
-                                ) {
-                                    OnboardingNotificationPermissionAction.REQUEST_PERMISSION -> {
-                                        hasRequestedNotificationPermission = true
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    ) {
+                                        OnboardingNotificationPermissionAction.REQUEST_PERMISSION -> {
+                                            hasRequestedNotificationPermission = true
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                                notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                            }
+                                        }
+                                        OnboardingNotificationPermissionAction.OPEN_NOTIFICATION_SETTINGS -> {
+                                            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                            context.startActivity(intent)
+                                        }
+                                        OnboardingNotificationPermissionAction.SHOW_UNAVAILABLE_TOAST -> {
+                                            Toast.makeText(
+                                                context,
+                                                notificationsUnavailableMessage,
+                                                Toast.LENGTH_SHORT
+                                            ).show()
                                         }
                                     }
-                                    OnboardingNotificationPermissionAction.OPEN_NOTIFICATION_SETTINGS -> {
-                                        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                        context.startActivity(intent)
-                                    }
-                                    OnboardingNotificationPermissionAction.SHOW_UNAVAILABLE_TOAST -> {
-                                        Toast.makeText(
-                                            context,
-                                            notificationsUnavailableMessage,
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
-                            },
-                            onAllowExactAlarm = {
-                                val intent = Intent(
-                                    Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                                    "package:${context.packageName}".toUri()
-                                )
-                                exactAlarmLauncher.launch(intent)
-                            },
-                        )
-                        3 -> UsefulInfoStep(
-                            profile = uiState.userProfile,
-                            activeGroupCount = uiState.activeGroupCount,
-                            onSetWeightClick = { showWeightDialog = true },
-                            onAddGroupClick = {
-                                groupEditorOpenCount += 1
-                                showGroupEditor = true
-                            },
-                        )
+                                },
+                                onAllowExactAlarm = {
+                                    val intent = Intent(
+                                        Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                        "package:${context.packageName}".toUri()
+                                    )
+                                    exactAlarmLauncher.launch(intent)
+                                },
+                            )
+                            3 -> UsefulInfoStep(
+                                profile = uiState.userProfile,
+                                activeGroupCount = uiState.activeGroupCount,
+                                trackedMedicineCount = uiState.trackedMedicineCount,
+                                onSetWeightClick = { showWeightDialog = true },
+                                onAddGroupClick = {
+                                    groupEditorOpenCount += 1
+                                    showGroupEditor = true
+                                },
+                                onEnableStockClick = { showStockOnboarding = true },
+                            )
+                        }
                     }
-                }
 
-                OnboardingBottomChrome(
-                    ctaLabel = when (currentStep) {
-                        0 -> stringResource(R.string.onboarding_start_cta)
-                        totalSteps - 1 -> stringResource(R.string.onboarding_open_app)
-                        else -> stringResource(R.string.onboarding_continue)
-                    },
-                    ctaEnabled = when (currentStep) {
-                        1 -> accepted
-                        2 -> notificationsGranted
-                        else -> true
-                    },
-                    secondaryButtonLabel = if (currentStep == 2) {
-                        stringResource(R.string.onboarding_skip_notifications)
-                    } else {
-                        null
-                    },
-                    onSecondaryButtonClick = if (currentStep == 2) {
-                        declineRemindersAndGoNext
-                    } else {
-                        null
-                    },
-                    secondaryButtonEnabled = currentStep != 2 || !notificationsGranted,
-                    onCta = if (currentStep == 2) {
-                        acceptRemindersAndGoNext
-                    } else {
-                        goNext
-                    },
-                )
+                    OnboardingBottomChrome(
+                        ctaLabel = when (currentStep) {
+                            0 -> stringResource(R.string.onboarding_start_cta)
+                            totalSteps - 1 -> stringResource(R.string.onboarding_open_app)
+                            else -> stringResource(R.string.onboarding_continue)
+                        },
+                        ctaEnabled = when (currentStep) {
+                            1 -> accepted
+                            2 -> notificationsGranted
+                            else -> true
+                        },
+                        secondaryButtonLabel = if (currentStep == 2) {
+                            stringResource(R.string.onboarding_skip_notifications)
+                        } else {
+                            null
+                        },
+                        onSecondaryButtonClick = if (currentStep == 2) {
+                            declineRemindersAndGoNext
+                        } else {
+                            null
+                        },
+                        secondaryButtonEnabled = currentStep != 2 || !notificationsGranted,
+                        onCta = if (currentStep == 2) {
+                            acceptRemindersAndGoNext
+                        } else {
+                            goNext
+                        },
+                    )
+                }
             }
         }
     }
@@ -449,6 +479,53 @@ fun OnboardingScreen(
                 )
             },
         )
+    }
+
+    AnimatedVisibility(
+        visible = showStockOnboarding,
+        modifier = Modifier.fillMaxSize(),
+        enter = sharedAxisXEnterTransition(
+            density = density,
+            layoutDirection = layoutDirection,
+            forward = true,
+        ),
+        exit = sharedAxisXExitTransition(
+            density = density,
+            layoutDirection = layoutDirection,
+            forward = false,
+        ),
+        label = "onboarding-stock-medicine-manager",
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            MedicinesScreen(
+                onNavigateBack = { showStockOnboarding = false },
+                onMedicineClick = { /* unreachable in OnboardingStockOptIn mode */ },
+                launchMode = MedicineManagerLaunchMode.OnboardingStockOptIn,
+            )
+        }
+    }
+}
+
+@Composable
+internal fun OnboardingContentFrame(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        val contentWidth = minOf(maxWidth, AppContentMaxWidth)
+        Box(
+            modifier = modifier
+                .width(contentWidth)
+                .fillMaxHeight(),
+        ) {
+            content()
+        }
     }
 }
 
@@ -604,7 +681,7 @@ private fun OnboardingBottomChrome(
             )
             Spacer(modifier = Modifier.size(ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight)))
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                painter = painterResource(R.drawable.ic_arrow_forward),
                 contentDescription = null,
                 modifier = Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)),
             )
@@ -970,7 +1047,11 @@ private fun PermissionCard(
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
-            AllowButton(granted = granted, onClick = { if (!granted) onAllow() })
+            AllowButton(
+                granted = granted,
+                onClick = { if (!granted) onAllow() },
+                actionIconPainter = painterResource(R.drawable.ic_arrow_forward)
+            )
         }
 
     }
@@ -980,34 +1061,35 @@ private fun PermissionCard(
 private fun AllowButton(
     granted: Boolean,
     onClick: () -> Unit,
-    actionIcon: ImageVector = Icons.AutoMirrored.Rounded.ArrowForward
+    actionIconPainter: Painter,
+    actionIconSize: Dp = 18.dp,
 ) {
-    if (granted) {
-        IconButton(
-            onClick = {},
-            enabled = false,
-            colors = IconButtonDefaults.iconButtonColors(
-                disabledContainerColor = MaterialTheme.colorScheme.primary,
-                disabledContentColor = MaterialTheme.colorScheme.onPrimary,
-            ),
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Check,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-    } else {
-        CompositionLocalProvider(
-            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
-        ) {
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+    ) {
+        if (granted) {
+            IconButton(
+                onClick = {},
+                enabled = false,
+                colors = IconButtonDefaults.iconButtonColors(
+                    disabledContainerColor = MaterialTheme.colorScheme.primary,
+                    disabledContentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        } else {
             FilledTonalIconButton(
                 onClick = onClick,
             ) {
                 Icon(
-                    imageVector = actionIcon,
+                    painter = actionIconPainter,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(actionIconSize),
                 )
             }
         }
@@ -1018,8 +1100,10 @@ private fun AllowButton(
 private fun UsefulInfoStep(
     profile: UserProfile,
     activeGroupCount: Int,
+    trackedMedicineCount: Int,
     onSetWeightClick: () -> Unit,
     onAddGroupClick: () -> Unit,
+    onEnableStockClick: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -1042,10 +1126,11 @@ private fun UsefulInfoStep(
                 formatWeightSummary(profile)
             },
             index = 0,
-            count = 2,
+            count = 3,
             actionGranted = profile.weightOriginalValue != null,
             onActionClick = onSetWeightClick,
-            actionIcon = Icons.Rounded.Edit
+            actionIconPainter = painterResource(R.drawable.ic_edit),
+            actionIconSize = 16.dp
         )
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
         val hasGroup = activeGroupCount > 0
@@ -1058,18 +1143,39 @@ private fun UsefulInfoStep(
                 stringResource(R.string.onboarding_useful_plan_desc)
             },
             index = 1,
-            count = 2,
+            count = 3,
             actionGranted = hasGroup,
             onActionClick = if (hasGroup) null else onAddGroupClick,
             showActionWhenGranted = true,
-            actionIcon = Icons.Rounded.Add
+            actionIconPainter = painterResource(R.drawable.ic_add),
+            actionIconSize = 22.dp
+        )
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+        val hasTrackedStock = trackedMedicineCount > 0
+        InfoCard(
+            iconPainter = painterResource(R.drawable.ic_box),
+            title = stringResource(R.string.onboarding_useful_stock_title),
+            desc = if (hasTrackedStock) {
+                stringResource(R.string.onboarding_useful_stock_added)
+            } else {
+                stringResource(R.string.onboarding_useful_stock_desc)
+            },
+            index = 2,
+            count = 3,
+            actionGranted = hasTrackedStock,
+            onActionClick = if (hasTrackedStock) null else onEnableStockClick,
+            showActionWhenGranted = true,
+            actionIconPainter = painterResource(R.drawable.ic_arrow_forward),
+            actionIconSize = 18.dp,
+            iconSize = 22.dp
         )
     }
 }
 
 @Composable
 private fun InfoCard(
-    iconPainter: androidx.compose.ui.graphics.painter.Painter,
+    iconPainter: Painter,
+    iconSize: Dp = 24.dp,
     iconBg: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
     iconFg: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     title: String,
@@ -1078,7 +1184,8 @@ private fun InfoCard(
     count: Int,
     actionGranted: Boolean = false,
     onActionClick: (() -> Unit)? = null,
-    actionIcon: ImageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+    actionIconPainter: Painter,
+    actionIconSize: Dp,
     showActionWhenGranted: Boolean = false,
 ) {
     val showAction = onActionClick != null || (actionGranted && showActionWhenGranted)
@@ -1102,7 +1209,7 @@ private fun InfoCard(
                     painter = iconPainter,
                     contentDescription = null,
                     tint = iconFg,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(iconSize),
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -1127,7 +1234,8 @@ private fun InfoCard(
                 AllowButton(
                     granted = actionGranted,
                     onClick = onActionClick ?: {},
-                    actionIcon = actionIcon
+                    actionIconPainter = actionIconPainter,
+                    actionIconSize = actionIconSize
                 )
             }
         }
@@ -1168,35 +1276,37 @@ private fun OnboardingStepPreviewFrame(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.surface,
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .systemBarsPadding(),
-            ) {
-                OnboardingTopChrome(
-                    showProgress = step >= 1,
-                    progressTotal = 3,
-                    progressCurrent = step,
-                )
-                Box(
+            OnboardingContentFrame {
+                Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
+                        .fillMaxSize()
+                        .systemBarsPadding(),
                 ) {
-                    content()
+                    OnboardingTopChrome(
+                        showProgress = step >= 1,
+                        progressTotal = 3,
+                        progressCurrent = step,
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                    ) {
+                        content()
+                    }
+                    OnboardingBottomChrome(
+                        ctaLabel = ctaLabel,
+                        ctaEnabled = ctaEnabled,
+                        secondaryButtonLabel = secondaryButtonLabel,
+                        onSecondaryButtonClick = if (secondaryButtonLabel != null) {
+                            {}
+                        } else {
+                            null
+                        },
+                        secondaryButtonEnabled = true,
+                        onCta = { },
+                    )
                 }
-                OnboardingBottomChrome(
-                    ctaLabel = ctaLabel,
-                    ctaEnabled = ctaEnabled,
-                    secondaryButtonLabel = secondaryButtonLabel,
-                    onSecondaryButtonClick = if (secondaryButtonLabel != null) {
-                        {}
-                    } else {
-                        null
-                    },
-                    secondaryButtonEnabled = true,
-                    onCta = { },
-                )
             }
         }
     }
@@ -1279,8 +1389,10 @@ private fun OnboardingUsefulInfoPreview() {
         UsefulInfoStep(
             profile = UserProfile(),
             activeGroupCount = 0,
+            trackedMedicineCount = 0,
             onSetWeightClick = {},
             onAddGroupClick = {},
+            onEnableStockClick = {},
         )
     }
 }

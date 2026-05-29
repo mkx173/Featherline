@@ -41,6 +41,7 @@ class MedicationLogRepositoryTest {
     private val dao: MedicationLogDao = mockk(relaxed = true)
     private val medicineDao: MedicineDao = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
+    private val stockMutator: MedicineStockMutator = mockk(relaxed = true)
 
     private lateinit var repository: MedicationLogRepository
 
@@ -53,10 +54,14 @@ class MedicationLogRepositoryTest {
         coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
             firstArg<suspend () -> Unit>().invoke()
         }
+        coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
 
         repository = MedicationLogRepository(
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
             appScope = CoroutineScope(StandardTestDispatcher()),
         )
     }
@@ -238,6 +243,9 @@ class MedicationLogRepositoryTest {
             "medication log applicationType=SUBLINGUAL is not compatible with preparation=CAPSULE.",
             thrown?.message,
         )
+        coVerify(exactly = 0) {
+            stockMutator.resolveDeductionForInsert(any(), any(), any(), any())
+        }
         coVerify(exactly = 0) { dao.insertEntry(any()) }
     }
 
@@ -268,6 +276,29 @@ class MedicationLogRepositoryTest {
             thrown?.message,
         )
         coVerify(exactly = 0) { dao.insertEntry(any()) }
+    }
+
+    @Test
+    fun saveNewEntries_rejectsMissingMedicineBeforeInsert() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns null
+
+        val thrown = runCatching {
+            repository.saveNewEntries(
+                listOf(
+                    MedicationLogEntryInput(
+                        medicineUuid = medicineUuid,
+                        applicationType = MedicationApplicationType.ORAL,
+                        doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                        sourceGroupUuid = null,
+                        appliedAt = Instant.parse("2026-05-22T08:00:00Z"),
+                    )
+                )
+            )
+        }.exceptionOrNull()
+
+        assertEquals("Medicine $medicineUuid was not found.", thrown?.message)
+        coVerify(exactly = 0) { dao.insertEntries(any()) }
     }
 
     @Test
@@ -351,6 +382,7 @@ class MedicationLogRepositoryTest {
         return MedicationLogRepository(
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
             appScope = appScope,
         )
     }

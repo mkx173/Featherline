@@ -11,6 +11,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.Medicine
@@ -18,6 +19,7 @@ import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import io.mockk.coEvery
@@ -40,10 +42,11 @@ class MedicineDetailScreenPatchOffTest {
         val patchOff = patchOffMedicine()
         val medicineRepository: MedicineRepository = mockk()
         val medicationGroupRepository: MedicationGroupRepository = mockk()
+        val stockRepository: MedicineStockRepository = mockk()
         val settingsRepository: SettingsRepository = mockk()
-        every { medicineRepository.observeAllActive() } returns flowOf(listOf(patchOff))
-        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicineRepository.observeByUuid(patchOff.uuid) } returns flowOf(patchOff)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { stockRepository.observeProjections() } returns flowOf(emptyList())
         every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
         coEvery { medicineRepository.isLocked(patchOff.uuid) } returns false
 
@@ -55,6 +58,7 @@ class MedicineDetailScreenPatchOffTest {
                     viewModel = MedicineDetailViewModel(
                         medicineRepository = medicineRepository,
                         medicationGroupRepository = medicationGroupRepository,
+                        stockRepository = stockRepository,
                         settingsRepository = settingsRepository,
                         savedStateHandle = SavedStateHandle(
                             mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to patchOff.uuid.toString()),
@@ -99,5 +103,6 @@ private fun patchOffMedicine(): Medicine {
         createdAt = Instant.EPOCH,
         updatedAt = Instant.EPOCH,
         archivedAt = null,
+        stock = MedicineStock(),
     )
 }

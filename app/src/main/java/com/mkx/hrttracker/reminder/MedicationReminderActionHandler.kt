@@ -3,16 +3,21 @@ package com.mkx.hrttracker.reminder
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogEntryInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import kotlinx.coroutines.CancellationException
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
@@ -23,6 +28,7 @@ import javax.inject.Singleton
 class MedicationReminderActionHandler @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
+    private val medicineStockRepository: MedicineStockRepository,
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
@@ -85,7 +91,13 @@ class MedicationReminderActionHandler @Inject constructor(
                 TAG,
                 "reminder_action_log_now_saved entriesSaved=${entriesToSave.size} slots=${normalizedSlots.size}"
             )
-            reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
+            showPostLogToast(
+                entriesToSave = entriesToSave,
+                now = now,
+                medicineStockRepository = medicineStockRepository,
+                reminderNotificationManager = reminderNotificationManager,
+                hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails,
+            )
         } else {
             // Race: the slot was already fulfilled between the notification firing
             // and the tap. Don't render "Logged 0 doses" — show a separate
@@ -391,5 +403,70 @@ internal fun MedicationReminderSlot.toMedicationGroupSlotKey(): MedicationGroupS
     )
 }
 
+internal suspend fun showPostLogToast(
+    entriesToSave: Collection<MedicationLogEntryInput>,
+    now: LocalDateTime,
+    medicineStockRepository: MedicineStockRepository,
+    reminderNotificationManager: ReminderNotificationManager,
+    hideMedicationDetails: Boolean = false,
+) {
+    val affectedMedicineUuids = entriesToSave
+        .mapNotNull(MedicationLogEntryInput::medicineUuid)
+        .toSet()
+    val warned = runCatching {
+        medicineStockRepository
+            .projectAllOnce(now = Instant.from(now.atZone(ZoneId.systemDefault())))
+            .asSequence()
+            .filter { projection -> projection.medicine.uuid in affectedMedicineUuids }
+            .filter(MedicineStockProjection::isToastWarning)
+            .toList()
+    }.getOrElse { failure ->
+        if (failure is CancellationException) throw failure
+        reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
+        return
+    }
+    if (warned.isEmpty()) {
+        reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
+        return
+    }
+
+    val worstState = warned.minBy { projection -> projection.state.severityOrder() }.state
+    if (!hideMedicationDetails && warned.size == 1) {
+        val medicine = warned.single().medicine
+        when (worstState) {
+            MedicineStockState.OUT -> reminderNotificationManager.showStockOutToast(medicine)
+            MedicineStockState.IMMINENT -> reminderNotificationManager.showStockImminentToast(medicine)
+            MedicineStockState.USER_LOW -> reminderNotificationManager.showStockUserLowToast(medicine)
+            else -> reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
+        }
+        return
+    }
+
+    when (worstState) {
+        MedicineStockState.OUT -> reminderNotificationManager.showStockOutCountToast(warned.size)
+        MedicineStockState.IMMINENT -> reminderNotificationManager.showStockImminentCountToast(warned.size)
+        MedicineStockState.USER_LOW -> reminderNotificationManager.showStockUserLowCountToast(warned.size)
+        else -> reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
+    }
+}
+
 private fun Int?.orZero(): Int = this ?: 0
+
+private fun MedicineStockProjection.isToastWarning(): Boolean {
+    return state == MedicineStockState.OUT ||
+        state == MedicineStockState.IMMINENT ||
+        state == MedicineStockState.USER_LOW
+}
+
+private fun MedicineStockState.severityOrder(): Int {
+    return when (this) {
+        MedicineStockState.OUT -> 0
+        MedicineStockState.IMMINENT -> 1
+        MedicineStockState.USER_LOW -> 2
+        MedicineStockState.HEALTHY,
+        MedicineStockState.UNTRACKED,
+        MedicineStockState.NO_RUNWAY -> Int.MAX_VALUE
+    }
+}
+
 private const val TAG = "MedicationReminderActionHandler"

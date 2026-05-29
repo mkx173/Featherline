@@ -8,16 +8,24 @@ import com.mkx.hrttracker.data.repository.MedicineIdentityCollisionException
 import com.mkx.hrttracker.data.repository.MedicineLockedException
 import com.mkx.hrttracker.data.repository.MedicineReferencedByActiveGroupException
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.data.repository.StockReceived
+import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,8 +40,7 @@ import javax.inject.Inject
 
 /**
  * Backs `MedicineDetailScreen`. Owns:
- *  - the currently-observed [Medicine] (live from
- *    [MedicineRepository.observeAllActive] / [MedicineRepository.observeAllArchived]);
+ *  - the currently-observed [Medicine] (live from [MedicineRepository.observeByUuid]);
  *  - the list of active groups that still reference the medicine — the input
  *    to the archive-blocking guard;
  *  - the locked flag (true if any log row references the medicine, which the
@@ -48,8 +55,9 @@ import javax.inject.Inject
 class MedicineDetailViewModel @Inject constructor(
     private val medicineRepository: MedicineRepository,
     medicationGroupRepository: MedicationGroupRepository,
-    settingsRepository: SettingsRepository,
-    savedStateHandle: SavedStateHandle,
+    private val stockRepository: MedicineStockRepository,
+    private val settingsRepository: SettingsRepository,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val medicineUuid: UUID = run {
@@ -66,8 +74,13 @@ class MedicineDetailViewModel @Inject constructor(
     private val displayNameTextFlow = MutableStateFlow<String?>(null)
     private val archiveResultFlow = MutableStateFlow<MedicineArchiveResult?>(null)
     private val saveResultFlow = MutableStateFlow<MedicineDetailSaveResult?>(null)
+    private val stockMutationResultFlow = MutableStateFlow<MedicineStockMutationResult?>(null)
+    private var stockMutationJob: Job? = null
 
-    private val _uiState = MutableStateFlow(MedicineDetailUiState())
+    // Seed from the eagerly-cached repo StateFlows so the first composition
+    // lands on a populated screen (medicine != null, stock subcard present)
+    // instead of a centered loading spinner that pops to populated content.
+    private val _uiState = MutableStateFlow(initialUiStateFromCaches(medicationGroupRepository))
     val uiState: StateFlow<MedicineDetailUiState> = _uiState.asStateFlow()
 
     init {
@@ -76,40 +89,71 @@ class MedicineDetailViewModel @Inject constructor(
         // setPreparationDraft (UI-owned local state).
         viewModelScope.launch {
             combine(
-                medicineRepository.observeAllActive(),
-                medicineRepository.observeAllArchived(),
+                medicineRepository.observeByUuid(medicineUuid),
                 medicationGroupRepository.observeGroups().map { it.orEmpty() },
                 isLockedFlow,
                 combine(
                     displayNameTextFlow,
-                    archiveResultFlow,
-                    saveResultFlow,
+                    combine(
+                        archiveResultFlow,
+                        saveResultFlow,
+                        stockMutationResultFlow,
+                    ) { archiveResult, saveResult, stockMutationResult ->
+                        MutationResults(
+                            archiveResult = archiveResult,
+                            saveResult = saveResult,
+                            stockMutationResult = stockMutationResult,
+                        )
+                    },
                     settingsRepository.settingsState,
-                ) { displayNameDraft, archiveResult, saveResult, settingsState ->
+                    stockRepository.observeProjections()
+                        .map { projections ->
+                            projections.firstOrNull { projection ->
+                                projection.medicine.uuid == medicineUuid
+                            }
+                        },
+                ) { displayNameDraft, mutationResults, settingsState, stockProjection ->
                     ResultsAndSettings(
                         displayNameDraft = displayNameDraft,
-                        archiveResult = archiveResult,
-                        saveResult = saveResult,
+                        archiveResult = mutationResults.archiveResult,
+                        saveResult = mutationResults.saveResult,
+                        stockMutationResult = mutationResults.stockMutationResult,
                         firstDayOfWeek = settingsState.firstDayOfWeekOption
                             .resolve(systemLocale()),
+                        stockProjection = stockProjection,
                     )
                 },
-            ) { active, archived, groups, isLocked, derived ->
+            ) { medicine, groups, isLocked, derived ->
                 buildState(
-                    active = active,
-                    archived = archived,
+                    medicine = medicine,
                     groups = groups,
                     isLocked = isLocked,
                     displayNameDraft = derived.displayNameDraft,
                     archiveResult = derived.archiveResult,
                     saveResult = derived.saveResult,
+                    stockMutationResult = derived.stockMutationResult,
                     firstDayOfWeek = derived.firstDayOfWeek,
+                    stockProjection = derived.stockProjection,
                 )
             }.collect { state ->
                 _uiState.update { current ->
                     // Preserve preparationDraft from the UI side; nothing
                     // upstream owns it.
-                    state.copy(preparationDraft = current.preparationDraft)
+                    val stockProjection = if (current.archiveInProgress) {
+                        current.stockProjection
+                    } else {
+                        state.stockProjection
+                    }
+                    val preservedState = state.copy(
+                        preparationDraft = current.preparationDraft,
+                        stockProjection = stockProjection,
+                        showAdjustSheet = current.showAdjustSheet,
+                        showDisableConfirmation = current.showDisableConfirmation,
+                        adjustSheetActiveTab = current.adjustSheetActiveTab,
+                        pendingEnableTracking = current.pendingEnableTracking,
+                        archiveInProgress = current.archiveInProgress,
+                    )
+                    consumeOpenOptInRequestIfReady(preservedState)
                 }
             }
         }
@@ -136,8 +180,187 @@ class MedicineDetailViewModel @Inject constructor(
         archiveResultFlow.value = null
     }
 
+    fun clearStockMutationResult() {
+        stockMutationResultFlow.value = null
+    }
+
     fun setPreparationDraft(draft: MedicinePreparationDraftUiState?) {
         _uiState.update { it.copy(preparationDraft = draft) }
+    }
+
+    fun openAdjustSheet(initialTab: AdjustSheetTab = AdjustSheetTab.RECEIVED) {
+        _uiState.update {
+            it.copy(
+                showAdjustSheet = true,
+                adjustSheetActiveTab = initialTab,
+                pendingEnableTracking = false,
+            )
+        }
+    }
+
+    fun closeAdjustSheet() {
+        _uiState.update {
+            it.copy(
+                showAdjustSheet = false,
+                pendingEnableTracking = false,
+            )
+        }
+    }
+
+    fun openOptIn() {
+        _uiState.update {
+            it.copy(
+                showAdjustSheet = true,
+                adjustSheetActiveTab = AdjustSheetTab.RECEIVED,
+                pendingEnableTracking = true,
+            )
+        }
+    }
+
+    fun openOpenContainerDialog() {
+        _uiState.update { it.copy(showOpenContainerDialog = true) }
+    }
+
+    fun closeOpenContainerDialog() {
+        _uiState.update { it.copy(showOpenContainerDialog = false) }
+    }
+
+    fun submitOpenContainerAmount(amount: Double): Job = launchStockMutation {
+        medicineRepository.applySetOpenContainerAmount(medicineUuid, amount)
+        _uiState.update { it.copy(showOpenContainerDialog = false) }
+    }
+
+    fun openDisableConfirmation() {
+        _uiState.update { it.copy(showDisableConfirmation = true) }
+    }
+
+    fun closeDisableConfirmation() {
+        _uiState.update { it.copy(showDisableConfirmation = false) }
+    }
+
+    fun confirmDisableTracking(): Job {
+        _uiState.update { it.copy(showDisableConfirmation = false) }
+        return launchStockMutation(
+            onFailure = {
+                _uiState.update { it.copy(showDisableConfirmation = true) }
+            },
+        ) {
+            medicineRepository.disableTracking(medicineUuid)
+        }
+    }
+
+    fun confirmEnableTracking(
+        unitsRemaining: Double?,
+        openContainerAmount: Double?,
+        unitsLastTotal: Double?,
+    ): Job = launchStockMutation {
+        medicineRepository.enableTracking(
+            uuid = medicineUuid,
+            initialUnitsRemaining = unitsRemaining,
+            initialOpenContainerAmount = openContainerAmount,
+            initialUnitsLastTotal = unitsLastTotal,
+        )
+    }
+
+    fun submitWarnAt(days: Int): Job = launchStockMutation {
+        medicineRepository.updateWarnAtDaysRemaining(medicineUuid, days)
+    }
+
+    fun previewRunway(hypotheticalStock: MedicineStock): RunwayProjection? {
+        return stockRepository.previewRunway(medicineUuid, hypotheticalStock)
+    }
+
+    fun submitRecount(recount: StockRecount): Job {
+        if (!_uiState.value.showAdjustSheet) return ignoredStockMutation()
+        return launchStockMutation {
+            if (closePendingEnableAdjustSheet()) return@launchStockMutation
+            medicineRepository.applyRecount(medicineUuid, recount)
+            _uiState.update { it.copy(showAdjustSheet = false) }
+        }
+    }
+
+    fun submitReceived(received: StockReceived): Job {
+        if (!_uiState.value.showAdjustSheet) return ignoredStockMutation()
+        return launchStockMutation {
+            if (_uiState.value.pendingEnableTracking) {
+                val medicine = _uiState.value.stockProjection?.medicine
+                val initialUnitsRemaining = (medicine?.stock?.unitsRemaining ?: 0.0) +
+                    received.unitsReceived
+                // The stock mutator owns container topology details, including
+                // auto-opening the first received container when no open amount
+                // exists. The sheet passes the counted total and leaves the open
+                // amount unset so that behavior stays centralized.
+                medicineRepository.enableTracking(
+                    uuid = medicineUuid,
+                    initialUnitsRemaining = initialUnitsRemaining,
+                    initialOpenContainerAmount = null,
+                    initialUnitsLastTotal = initialUnitsRemaining,
+                )
+                _uiState.update {
+                    it.copy(
+                        showAdjustSheet = false,
+                        pendingEnableTracking = false,
+                    )
+                }
+            } else {
+                medicineRepository.applyReceived(medicineUuid, received)
+                _uiState.update { it.copy(showAdjustSheet = false) }
+            }
+        }
+    }
+
+    private fun ignoredStockMutation(): Job = viewModelScope.launch {}
+
+    private fun closePendingEnableAdjustSheet(): Boolean {
+        if (!_uiState.value.pendingEnableTracking) return false
+        _uiState.update {
+            it.copy(
+                showAdjustSheet = false,
+                pendingEnableTracking = false,
+            )
+        }
+        return true
+    }
+
+    private fun consumeOpenOptInRequestIfReady(
+        state: MedicineDetailUiState,
+    ): MedicineDetailUiState {
+        if (savedStateHandle.get<Boolean>(OPEN_OPT_IN_ARG) != true) return state
+        val projection = state.stockProjection ?: return state
+        savedStateHandle[OPEN_OPT_IN_ARG] = false
+        if (projection.medicine.stock.trackingEnabled) return state
+        if (projection.medicine.preparation is MedicinePreparation.PatchOff) return state
+        return state.copy(
+            showAdjustSheet = true,
+            adjustSheetActiveTab = AdjustSheetTab.RECEIVED,
+            pendingEnableTracking = true,
+        )
+    }
+
+    private fun launchStockMutation(
+        onFailure: (() -> Unit)? = null,
+        block: suspend () -> Unit,
+    ): Job {
+        stockMutationJob?.takeIf(Job::isActive)?.let { return it }
+
+        lateinit var job: Job
+        job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                block()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                onFailure?.invoke()
+                stockMutationResultFlow.value = MedicineStockMutationResult.FAILURE
+            } finally {
+                if (stockMutationJob == job) {
+                    stockMutationJob = null
+                }
+            }
+        }
+        stockMutationJob = job
+        job.start()
+        return job
     }
 
     fun saveDisplayName(): Job = viewModelScope.launch {
@@ -226,10 +449,12 @@ class MedicineDetailViewModel @Inject constructor(
         if (_uiState.value.linkedActiveSlots.isNotEmpty()) {
             return null
         }
+        _uiState.update { it.copy(archiveInProgress = true) }
         return viewModelScope.launch {
             runCatching { medicineRepository.archive(medicineUuid) }
                 .onSuccess { archiveResultFlow.value = MedicineArchiveResult.SUCCESS }
                 .onFailure { error ->
+                    _uiState.update { it.copy(archiveInProgress = false) }
                     archiveResultFlow.value = when (error) {
                         is MedicineReferencedByActiveGroupException ->
                             MedicineArchiveResult.FAILURE_REFERENCED_BY_ACTIVE_GROUP
@@ -239,17 +464,38 @@ class MedicineDetailViewModel @Inject constructor(
         }
     }
 
+    private fun initialUiStateFromCaches(
+        medicationGroupRepository: MedicationGroupRepository,
+    ): MedicineDetailUiState {
+        val medicine = medicineRepository.getCachedActiveMedicine(medicineUuid)
+        if (medicine == null) {
+            return MedicineDetailUiState()
+        }
+        return buildState(
+            medicine = medicine,
+            groups = medicationGroupRepository.getCachedGroups().orEmpty(),
+            isLocked = false,
+            displayNameDraft = null,
+            archiveResult = null,
+            saveResult = null,
+            stockMutationResult = null,
+            firstDayOfWeek = settingsRepository.settingsState.value.firstDayOfWeekOption
+                .resolve(systemLocale()),
+            stockProjection = stockRepository.getCachedProjection(medicineUuid),
+        )
+    }
+
     private fun buildState(
-        active: List<Medicine>,
-        archived: List<Medicine>,
+        medicine: Medicine?,
         groups: List<MedicationGroup>,
         isLocked: Boolean,
         displayNameDraft: String?,
         archiveResult: MedicineArchiveResult?,
         saveResult: MedicineDetailSaveResult?,
+        stockMutationResult: MedicineStockMutationResult?,
         firstDayOfWeek: DayOfWeek,
+        stockProjection: MedicineStockProjection?,
     ): MedicineDetailUiState {
-        val medicine = (active + archived).firstOrNull { it.uuid == medicineUuid }
         val linkedActiveSlots = if (medicine == null) {
             emptyList()
         } else {
@@ -281,21 +527,33 @@ class MedicineDetailViewModel @Inject constructor(
             displayNameText = displayName,
             archiveResult = archiveResult,
             saveResult = saveResult,
+            stockMutationResult = stockMutationResult,
             firstDayOfWeek = firstDayOfWeek,
+            stockProjection = stockProjection,
         )
     }
+
+    private data class MutationResults(
+        val archiveResult: MedicineArchiveResult?,
+        val saveResult: MedicineDetailSaveResult?,
+        val stockMutationResult: MedicineStockMutationResult?,
+    )
 
     private data class ResultsAndSettings(
         val displayNameDraft: String?,
         val archiveResult: MedicineArchiveResult?,
         val saveResult: MedicineDetailSaveResult?,
+        val stockMutationResult: MedicineStockMutationResult?,
         val firstDayOfWeek: DayOfWeek,
+        val stockProjection: MedicineStockProjection?,
     )
 
     companion object {
         const val MEDICINE_ID_ARG = "medicineId"
+        const val OPEN_OPT_IN_ARG = "openOptIn"
     }
 }
+
 
 data class MedicineDetailUiState(
     val medicine: Medicine? = null,
@@ -306,7 +564,20 @@ data class MedicineDetailUiState(
     val archiveResult: MedicineArchiveResult? = null,
     val saveResult: MedicineDetailSaveResult? = null,
     val firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
+    val stockProjection: MedicineStockProjection? = null,
+    val stockMutationResult: MedicineStockMutationResult? = null,
+    val showAdjustSheet: Boolean = false,
+    val showDisableConfirmation: Boolean = false,
+    val showOpenContainerDialog: Boolean = false,
+    val adjustSheetActiveTab: AdjustSheetTab = AdjustSheetTab.RECEIVED,
+    val pendingEnableTracking: Boolean = false,
+    val archiveInProgress: Boolean = false,
 )
+
+enum class AdjustSheetTab {
+    RECEIVED,
+    RECOUNT,
+}
 
 data class LinkedSlotRow(
     val group: MedicationGroup,
@@ -350,4 +621,9 @@ enum class MedicineDetailSaveResult {
     FAILURE_LOCKED,
     FAILURE_IDENTITY_COLLISION,
     FAILURE_OTHER,
+}
+
+enum class MedicineStockMutationResult {
+    SUCCESS,
+    FAILURE,
 }

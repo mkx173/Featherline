@@ -20,6 +20,7 @@ import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationEditorContent
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
@@ -32,6 +33,7 @@ import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
 import com.mkx.hrttracker.ui.medication.selectedMedicineValidationErrorRes
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
+import com.mkx.hrttracker.ui.medication.stockMutationPreviewDoseMagnitude
 import com.mkx.hrttracker.ui.medication.toDoseInstruction
 import com.mkx.hrttracker.ui.medication.validationErrorRes
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -55,6 +57,7 @@ fun MedicineSlotDraftSheet(
     onConfirm: (MedicineSlotResult) -> Unit,
     modifier: Modifier = Modifier,
     mode: MedicineSlotDraftMode = MedicineSlotDraftMode.GROUP_SLOT,
+    selectedStockProjection: MedicineStockProjection? = null,
     onManualLogSaved: (() -> Unit) -> Unit = { consumeSavedState -> consumeSavedState() },
     onManualLogSaveFailure: () -> Unit = { },
     viewModel: MedicineSlotDraftViewModel = hiltViewModel(),
@@ -62,6 +65,10 @@ fun MedicineSlotDraftSheet(
     val manualLogUiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isManualLogMode = mode == MedicineSlotDraftMode.MANUAL_LOG
     val isSaving = isManualLogMode && (manualLogUiState.isSaving || manualLogUiState.isSaved)
+    var isStockProjectionFrozen by remember(medicine.uuid) { mutableStateOf(false) }
+    var frozenStockProjection: MedicineStockProjection? by remember(medicine.uuid) {
+        mutableStateOf(null)
+    }
     val appLocale = rememberAppLocale()
     val today = remember { LocalDate.now() }
     val dateFormatter = remember(appLocale, today) {
@@ -77,6 +84,8 @@ fun MedicineSlotDraftSheet(
 
     LaunchedEffect(isManualLogMode, manualLogUiState.saveResult) {
         if (isManualLogMode && manualLogUiState.saveResult == MedicineSlotDraftSaveResult.FAILURE) {
+            isStockProjectionFrozen = false
+            frozenStockProjection = null
             onManualLogSaveFailure()
             viewModel.consumeSaveResult()
         }
@@ -102,6 +111,28 @@ fun MedicineSlotDraftSheet(
     }
     var countText by remember(medicine.uuid) { mutableStateOf("1") }
     var errorMessageRes: Int? by remember(medicine.uuid) { mutableStateOf(null) }
+    val previewDoseMagnitude = remember(
+        isManualLogMode,
+        medicine,
+        doseInstructionDraft,
+        countText,
+    ) {
+        if (isManualLogMode) {
+            stockMutationPreviewDoseMagnitude(
+                medicine = medicine,
+                doseInstructionDraft = doseInstructionDraft,
+                countText = countText,
+            )
+        } else {
+            null
+        }
+    }
+    val displayedStockProjection = slotDraftStockProjectionForDisplay(
+        mode = mode,
+        isStockProjectionFrozen = isStockProjectionFrozen,
+        selectedStockProjection = selectedStockProjection,
+        frozenStockProjection = frozenStockProjection,
+    )
 
     MedicationEditorSheetScaffold(
         modifier = modifier,
@@ -156,12 +187,16 @@ fun MedicineSlotDraftSheet(
             )
             when (mode) {
                 MedicineSlotDraftMode.GROUP_SLOT -> onConfirm(slotResult)
-                MedicineSlotDraftMode.MANUAL_LOG -> viewModel.saveManualLog(
-                    medicineUuid = medicine.uuid,
-                    applicationType = applicationType,
-                    doseInstruction = resolvedDose,
-                    count = resolvedCount,
-                )
+                MedicineSlotDraftMode.MANUAL_LOG -> {
+                    frozenStockProjection = displayedStockProjection
+                    isStockProjectionFrozen = true
+                    viewModel.saveManualLog(
+                        medicineUuid = medicine.uuid,
+                        applicationType = applicationType,
+                        doseInstruction = resolvedDose,
+                        count = resolvedCount,
+                    )
+                }
             }
         },
     ) {
@@ -174,6 +209,8 @@ fun MedicineSlotDraftSheet(
             // header is not tappable since the manager itself is the re-pick UI.
             canEditMedicationIdentity = true,
             canRepickMedicine = false,
+            selectedStockProjection = displayedStockProjection,
+            stockMutationPreviewDoseMagnitude = previewDoseMagnitude,
             onMedicineDraftChange = { transform ->
                 val previousDraft = medicineDraft
                 val updatedDraft = transform(previousDraft)
@@ -244,6 +281,19 @@ fun MedicineSlotDraftSheet(
 enum class MedicineSlotDraftMode {
     GROUP_SLOT,
     MANUAL_LOG,
+}
+
+internal fun slotDraftStockProjectionForDisplay(
+    mode: MedicineSlotDraftMode,
+    isStockProjectionFrozen: Boolean,
+    selectedStockProjection: MedicineStockProjection?,
+    frozenStockProjection: MedicineStockProjection?,
+): MedicineStockProjection? {
+    return if (mode == MedicineSlotDraftMode.MANUAL_LOG && isStockProjectionFrozen) {
+        frozenStockProjection
+    } else {
+        selectedStockProjection
+    }
 }
 
 internal fun initialApplicationTypeForSlotDraft(

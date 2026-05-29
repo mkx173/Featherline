@@ -273,23 +273,25 @@ fun MedicationGroupEditorScreen(
             isExactAlarmDialogVisible = exactAlarmUiState.showExactAlarmDialog
         }
     }
+    fun navigateAfterSave(target: MedicationGroupEditorSaveNavigationTarget) {
+        when (target) {
+            MedicationGroupEditorSaveNavigationTarget.BACK -> onGroupSaved()
+            MedicationGroupEditorSaveNavigationTarget.PLAN -> onGroupSavedToPlan()
+        }
+    }
 
     LaunchedEffect(viewModel, openedFromArchivedGroupsPage) {
-        viewModel.completionEvents.collect { event ->
+        viewModel.events.collect { event ->
             when (event) {
-                MedicationGroupEditorCompletionEvent.SAVE_COMPLETED -> {
-                    when (
-                        resolveMedicationGroupEditorSaveNavigationTarget(
-                            uiState = latestUiState,
-                            openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
-                        )
-                    ) {
-                        MedicationGroupEditorSaveNavigationTarget.BACK -> onGroupSaved()
-                        MedicationGroupEditorSaveNavigationTarget.PLAN -> onGroupSavedToPlan()
-                    }
+                MedicationGroupEditorEvent.SaveCompleted -> {
+                    val target = resolveMedicationGroupEditorSaveNavigationTarget(
+                        uiState = latestUiState,
+                        openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+                    )
+                    navigateAfterSave(target)
                 }
 
-                MedicationGroupEditorCompletionEvent.DELETE_OR_ARCHIVE_COMPLETED -> onGroupSaved()
+                MedicationGroupEditorEvent.DeleteOrArchiveCompleted -> onGroupSaved()
             }
         }
     }
@@ -1633,6 +1635,9 @@ private fun MedicationGroupEditorScreenContent(
     uiState.editingMedication?.let { medication ->
         val isEditingExistingMedication = uiState.medications.any { it.localId == medication.localId }
         val canEditMedicationIdentity = !areFieldsRenderedLocked && !isEditingExistingMedication
+        val resolvedMedicine = checkNotNull(medication.resolvedMedicine) {
+            "Medication definition editor requires a resolved medicine."
+        }
         MedicationDefinitionEditorSheet(
             modifier = Modifier,
             title = stringResource(
@@ -1650,7 +1655,7 @@ private fun MedicationGroupEditorScreenContent(
             },
             medicineDraft = medication.medicineDraft,
             doseInstructionDraft = medication.doseInstructionDraft,
-            resolvedMedicine = medication.resolvedMedicine,
+            resolvedMedicine = resolvedMedicine,
             canEditMedicationIdentity = canEditMedicationIdentity,
             onMedicineDraftChange = onMedicineDraftChange,
             onDoseInstructionDraftChange = onDoseInstructionDraftChange,
@@ -2624,5 +2629,6 @@ private fun previewEditorMedicine(
         createdAt = java.time.Instant.EPOCH,
         updatedAt = java.time.Instant.EPOCH,
         archivedAt = null,
+        stock = com.mkx.hrttracker.model.medication.MedicineStock(),
     )
 }

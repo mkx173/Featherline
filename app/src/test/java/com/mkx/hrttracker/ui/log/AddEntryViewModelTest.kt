@@ -2,7 +2,9 @@ package com.mkx.hrttracker.ui.log
 
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -10,9 +12,12 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
@@ -23,8 +28,11 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -50,6 +58,7 @@ class AddEntryViewModelTest {
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicineRepository: MedicineRepository = mockk(relaxed = true)
+    private val medicineStockRepository: MedicineStockRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val dispatcher = StandardTestDispatcher()
 
@@ -69,6 +78,8 @@ class AddEntryViewModelTest {
         coEvery {
             medicineRepository.findOrCreateForCatalog(any(), any(), any())
         } returns estradiolMedicine
+        every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
+        every { medicineStockRepository.getCachedProjections() } returns null
     }
 
     @After
@@ -353,6 +364,13 @@ class AddEntryViewModelTest {
     }
 
     @Test
+    fun addEntryUiState_doesNotExposeEditableIdentityBeforeMedicineResolves() {
+        val state = AddEntryUiState()
+
+        assertFalse(state.canEditMedicationIdentity)
+    }
+
+    @Test
     fun buildQuickLogUiState_uses_planned_dose_metadata() {
         val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
         val group = testMedicationGroup(
@@ -412,6 +430,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.updateDoseInstructionDraft {
             it.copy(
@@ -441,6 +460,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.updateDoseInstructionDraft {
             it.copy(
@@ -459,6 +479,181 @@ class AddEntryViewModelTest {
         assertEquals(MedicinePreparationType.PILL, doseDraft.preparationType)
         assertEquals(1, doseDraft.tabletFractionNumerator)
         assertEquals(2, doseDraft.tabletFractionDenominator)
+    }
+
+    @Test
+    fun selectedStockProjection_followsSelectedMedicineChanges() = runTest {
+        val otherMedicine = testMedicine(
+            uuid = UUID.fromString("bbbb0000-0000-0000-0000-000000000002"),
+            key = MedicationKey.ESTRADIOL_VALERATE,
+        )
+        val estradiolProjection = stockProjection(estradiolMedicine)
+        val otherProjection = stockProjection(otherMedicine)
+        val stockProjections = MutableStateFlow(listOf(estradiolProjection, otherProjection))
+        every { medicineStockRepository.observeProjections() } returns stockProjections
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
+        )
+        advanceUntilIdle()
+
+        viewModel.updateMedicineDraft { draft ->
+            draft.copy(selectedMedicineUuid = estradiolMedicine.uuid)
+        }
+        assertEquals(estradiolProjection, viewModel.uiState.value.selectedStockProjection)
+
+        viewModel.updateMedicineDraft { draft ->
+            draft.copy(selectedMedicineUuid = otherMedicine.uuid)
+        }
+        assertEquals(otherProjection, viewModel.uiState.value.selectedStockProjection)
+
+        stockProjections.value = listOf(estradiolProjection)
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.selectedStockProjection)
+    }
+
+    @Test
+    fun selectedStockProjection_staysFrozenDuringInFlightSave() = runTest {
+        val beforeSaveProjection = stockProjection(
+            medicine = estradiolMedicine,
+            unitsRemaining = 4.0,
+        )
+        val afterSaveProjection = stockProjection(
+            medicine = estradiolMedicine.copy(
+                stock = estradiolMedicine.stock.copy(unitsRemaining = 3.0),
+            ),
+            unitsRemaining = 3.0,
+        )
+        val stockProjections = MutableStateFlow(listOf(beforeSaveProjection))
+        val saveStarted = CompletableDeferred<Unit>()
+        val finishSave = CompletableDeferred<Unit>()
+        every { medicineStockRepository.observeProjections() } returns stockProjections
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = estradiolMedicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+            )
+        } coAnswers {
+            saveStarted.complete(Unit)
+            finishSave.await()
+        }
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
+        )
+        advanceUntilIdle()
+
+        viewModel.updateMedicineDraft { draft ->
+            draft.copy(selectedMedicineUuid = estradiolMedicine.uuid)
+        }
+        assertEquals(beforeSaveProjection, viewModel.uiState.value.selectedStockProjection)
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+        saveStarted.await()
+        assertTrue(viewModel.uiState.value.isSaving)
+
+        stockProjections.value = listOf(afterSaveProjection)
+        advanceUntilIdle()
+
+        assertEquals(beforeSaveProjection, viewModel.uiState.value.selectedStockProjection)
+
+        finishSave.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertEquals(beforeSaveProjection, viewModel.uiState.value.selectedStockProjection)
+    }
+
+    @Test
+    fun selectedStockProjection_staysFrozenDuringInFlightGroupLinkedSave() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.now().withSecond(0).withNano(0)
+        val beforeSaveProjection = stockProjection(
+            medicine = estradiolMedicine,
+            unitsRemaining = 4.0,
+        )
+        val afterSaveProjection = stockProjection(
+            medicine = estradiolMedicine.copy(
+                stock = estradiolMedicine.stock.copy(unitsRemaining = 3.0),
+            ),
+            unitsRemaining = 3.0,
+        )
+        val stockProjections = MutableStateFlow(listOf(beforeSaveProjection))
+        val saveStarted = CompletableDeferred<Unit>()
+        val finishSave = CompletableDeferred<Unit>()
+        every { medicineStockRepository.observeProjections() } returns stockProjections
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns testMedicationGroup(
+            groupId = groupId,
+            name = "Evening",
+            colorKey = MedicationGroupColorKey.INDIGO,
+        )
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = estradiolMedicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = groupId,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 1,
+                appliedAtTimeZoneId = any(),
+            )
+        } coAnswers {
+            saveStarted.complete(Unit)
+            finishSave.await()
+        }
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            medicationCount = 1,
+        )
+        advanceUntilIdle()
+
+        assertEquals(beforeSaveProjection, viewModel.uiState.value.selectedStockProjection)
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+        saveStarted.await()
+        assertTrue(viewModel.uiState.value.isSaving)
+
+        stockProjections.value = listOf(afterSaveProjection)
+        advanceUntilIdle()
+
+        assertEquals(beforeSaveProjection, viewModel.uiState.value.selectedStockProjection)
+
+        finishSave.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertEquals(beforeSaveProjection, viewModel.uiState.value.selectedStockProjection)
     }
 
     @Test
@@ -602,6 +797,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
@@ -641,6 +837,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(
             entryIds = listOf(entryId.toString()),
@@ -685,6 +882,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
@@ -755,6 +953,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(
             entryIds = listOf(entryId.toString()),
@@ -828,6 +1027,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(
             entryIds = listOf(entryId.toString()),
@@ -891,6 +1091,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
@@ -972,6 +1173,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
@@ -1033,6 +1235,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
@@ -1083,6 +1286,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
@@ -1148,6 +1352,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
@@ -1228,6 +1433,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1285,6 +1491,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1343,6 +1550,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1386,6 +1594,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1439,6 +1648,7 @@ class AddEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
@@ -1502,6 +1712,7 @@ class AddEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
@@ -1549,6 +1760,7 @@ class AddEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
@@ -1578,6 +1790,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineRepository = medicineRepository,
+            medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1613,5 +1826,20 @@ private fun testMedicationGroup(
         medications = emptyList(),
         createdAt = testInstant(LocalDateTime.of(2026, 4, 1, 12, 0)),
         updatedAt = testInstant(LocalDateTime.of(2026, 4, 22, 12, 0))
+    )
+}
+
+private fun stockProjection(
+    medicine: Medicine,
+    unitsRemaining: Double = 4.0,
+): MedicineStockProjection {
+    return MedicineStockProjection(
+        medicine = medicine,
+        dosesPerDayMagnitude = 1.0,
+        totalStockUnits = unitsRemaining,
+        runway = RunwayProjection.NoSchedule,
+        intervalDays = null,
+        maxPerAdministration = 1.0,
+        state = MedicineStockState.NO_RUNWAY,
     )
 }

@@ -180,6 +180,8 @@ fun SettingsScreen(
         stringResource(R.string.settings_backup_restore_incompatible_file)
     val backupRestoreFailedMessage = stringResource(R.string.settings_backup_restore_failed)
     val backupRestoreSuccessMessage = stringResource(R.string.settings_backup_restore_success)
+    val weightMutationFailedMessage = stringResource(R.string.personalization_weight_update_failed)
+    val settingsUpdateFailedMessage = stringResource(R.string.settings_update_failed)
 
     // Restore runs in viewModelScope so it survives the activity recreate
     // that the restored app-locale setting triggers. Results come back
@@ -197,6 +199,34 @@ fun SettingsScreen(
             }
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             viewModel.consumeBackupRestoreEvent()
+        }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.weightMutationEvents.collect { event ->
+            when (event) {
+                is WeightMutationEvent.Failure -> {
+                    Toast.makeText(
+                        context,
+                        weightMutationFailedMessage,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+            viewModel.consumeWeightMutationEvent()
+        }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.settingsMutationEvents.collect { event ->
+            when (event) {
+                is SettingsMutationEvent.Failure -> {
+                    Toast.makeText(
+                        context,
+                        settingsUpdateFailedMessage,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+            viewModel.consumeSettingsMutationEvent()
         }
     }
     val diagnosticsExportSuccessMessage = stringResource(R.string.settings_diagnostics_export_success)
@@ -655,7 +685,6 @@ private fun WidgetAppearanceDialog(
                             expanded = isDarkModeMenuExpanded,
                             onDismissRequest = { isDarkModeMenuExpanded = false },
                             modifier = Modifier.width(IntrinsicSize.Min),
-                            anchor = HrtDropdownAnchor.EndAlignedBelow,
                             items = DarkModeOption.entries.map { option ->
                                 HrtDropdownMenuItem(
                                     text = stringResource(option.labelRes),
@@ -685,7 +714,7 @@ private fun WidgetAppearanceDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsScreenContent(
+internal fun SettingsScreenContent(
     modifier: Modifier = Modifier,
     uiState: SettingsUiState,
     hasNotificationAccess: Boolean,
@@ -717,7 +746,6 @@ private fun SettingsScreenContent(
     val settingsState = uiState.settingsState
     val context = LocalContext.current
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
-    var pendingWeightMutationCompletionToken by rememberSaveable { mutableStateOf<Long?>(null) }
     var showExactAlarmRecoveryDialog by rememberSaveable { mutableStateOf(false) }
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingExternalLinkTitleRes by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -779,23 +807,6 @@ private fun SettingsScreenContent(
         }
     }
 
-    LaunchedEffect(
-        showWeightDialog,
-        pendingWeightMutationCompletionToken,
-        uiState.isWeightMutationInProgress,
-        uiState.weightMutationCompletionToken,
-    ) {
-        val pendingToken = pendingWeightMutationCompletionToken ?: return@LaunchedEffect
-        if (
-            showWeightDialog &&
-            !uiState.isWeightMutationInProgress &&
-            uiState.weightMutationCompletionToken > pendingToken
-        ) {
-            pendingWeightMutationCompletionToken = null
-            showWeightDialog = false
-        }
-    }
-
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -821,7 +832,8 @@ private fun SettingsScreenContent(
                     .padding(appContentPaddingValues()),
             ) {
             SettingsSectionTitle(
-                text = stringResource(R.string.settings_personalization)
+                text = stringResource(R.string.settings_personalization),
+                topPadding = false
             )
 
             Column(
@@ -835,7 +847,11 @@ private fun SettingsScreenContent(
                     supportingCjkTextOffsetEnabled = uiState.userProfile.weightOriginalValue == null,
                     index = 0,
                     count = 2,
-                    onClick = { showWeightDialog = true },
+                    onClick = {
+                        if (!uiState.isWeightMutationInProgress) {
+                            showWeightDialog = true
+                        }
+                    },
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             painter = painterResource(R.drawable.ic_monitor_weight)
@@ -1036,10 +1052,36 @@ private fun SettingsScreenContent(
                     dimensionResource(R.dimen.list_segment_gap)
                 )
             ) {
+
+                Box {
+                    SettingsSegmentedListItem(
+                        title = stringResource(R.string.settings_first_day_of_week),
+                        supportingText = stringResource(settingsState.firstDayOfWeekOption.menuLabelRes),
+                        index = 0,
+                        count = 4,
+                        onClick = { setFirstDayOfWeekMenuExpanded(true) },
+                        leadingContent = {
+                            SettingsLeadingIconSlot(
+                                painter = painterResource(R.drawable.ic_today)
+                            )
+                        }
+                    )
+                    HrtDropdownMenu(
+                        expanded = isFirstDayOfWeekMenuExpanded,
+                        onDismissRequest = { setFirstDayOfWeekMenuExpanded(false) },
+                        modifier = Modifier.width(IntrinsicSize.Min),
+                        items = FirstDayOfWeekOption.entries.map { option ->
+                            HrtDropdownMenuItem(
+                                text = stringResource(option.menuLabelRes),
+                                onClick = { onFirstDayOfWeekOptionChange(option) },
+                            )
+                        },
+                    )
+                }
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_hide_reference_ranges),
-                    index = 0,
-                    count = 3,
+                    index = 1,
+                    count = 4,
                     onClick = {
                         onHideReferenceRangesChange(!settingsState.hideReferenceRanges)
                     },
@@ -1065,8 +1107,8 @@ private fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_hide_medication_details),
                     supportingText = stringResource(R.string.settings_hide_medication_details_summary),
-                    index = 1,
-                    count = 3,
+                    index = 2,
+                    count = 4,
                     onClick = {
                         onHideMedicationDetailsChange(!settingsState.hideMedicationDetails)
                     },
@@ -1086,8 +1128,8 @@ private fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_hide_archived_group_records),
                     supportingText = stringResource(R.string.settings_hide_archived_group_records_summary),
-                    index = 2,
-                    count = 3,
+                    index = 3,
+                    count = 4,
                     onClick = {
                         onShowArchivedGroupRecordsChange(!settingsState.showArchivedGroupRecords)
                     },
@@ -1118,12 +1160,26 @@ private fun SettingsScreenContent(
                     dimensionResource(R.dimen.list_segment_gap)
                 )
             ) {
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_widget_appearance),
+                    index = 0,
+                    count = 4,
+                    onClick = { showWidgetAppearanceDialog = true },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_widgets)
+                        )
+                    },
+                    trailingContent = {
+                        SettingsChevronTrailingIcon()
+                    }
+                )
                 Box {
                     SettingsSegmentedListItem(
                         title = stringResource(R.string.settings_app_language),
                         supportingText = stringResource(settingsState.appLanguageOption.labelRes),
-                        index = 0,
-                        count = 5,
+                        index = 1,
+                        count = 4,
                         onClick = { setLanguageMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1146,36 +1202,10 @@ private fun SettingsScreenContent(
 
                 Box {
                     SettingsSegmentedListItem(
-                        title = stringResource(R.string.settings_first_day_of_week),
-                        supportingText = stringResource(settingsState.firstDayOfWeekOption.menuLabelRes),
-                        index = 1,
-                        count = 5,
-                        onClick = { setFirstDayOfWeekMenuExpanded(true) },
-                        leadingContent = {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_today)
-                            )
-                        }
-                    )
-                    HrtDropdownMenu(
-                        expanded = isFirstDayOfWeekMenuExpanded,
-                        onDismissRequest = { setFirstDayOfWeekMenuExpanded(false) },
-                        modifier = Modifier.width(IntrinsicSize.Min),
-                        items = FirstDayOfWeekOption.entries.map { option ->
-                            HrtDropdownMenuItem(
-                                text = stringResource(option.menuLabelRes),
-                                onClick = { onFirstDayOfWeekOptionChange(option) },
-                            )
-                        },
-                    )
-                }
-
-                Box {
-                    SettingsSegmentedListItem(
                         title = stringResource(R.string.settings_dark_mode),
                         supportingText = stringResource(settingsState.darkModeOption.labelRes),
                         index = 2,
-                        count = 5,
+                        count = 4,
                         onClick = { setDarkModeMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1199,7 +1229,7 @@ private fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_adaptive_color),
                     index = 3,
-                    count = 5,
+                    count = 4,
                     onClick = {
                         onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
                     },
@@ -1213,21 +1243,6 @@ private fun SettingsScreenContent(
                             checked = settingsState.adaptiveColorEnabled,
                             onCheckedChange = onAdaptiveColorEnabledChange
                         )
-                    }
-                )
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_widget_appearance),
-                    index = 4,
-                    count = 5,
-                    onClick = { showWidgetAppearanceDialog = true },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_widgets)
-                        )
-                    },
-                    trailingContent = {
-                        SettingsChevronTrailingIcon()
                     }
                 )
             }
@@ -1587,16 +1602,15 @@ private fun SettingsScreenContent(
         WeightDialog(
             profile = uiState.userProfile,
             onSave = { value, unit ->
-                pendingWeightMutationCompletionToken = uiState.weightMutationCompletionToken
+                showWeightDialog = false
                 onWeightSave(value, unit)
             },
             onClear = {
-                pendingWeightMutationCompletionToken = uiState.weightMutationCompletionToken
+                showWeightDialog = false
                 onWeightClear()
             },
             onDismiss = {
                 if (!uiState.isWeightMutationInProgress) {
-                    pendingWeightMutationCompletionToken = null
                     showWeightDialog = false
                 }
             },
@@ -1652,13 +1666,14 @@ internal fun resolveSettingsSecuritySectionLayout(
 @Composable
 private fun SettingsSectionTitle(
     text: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    topPadding: Boolean = true,
 ) {
     Text(
         text = text.uppercase(),
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp)
+        modifier = modifier.fillMaxWidth().padding(bottom = 10.dp, top = if (topPadding) 4.dp else 0.dp)
     )
 }
 

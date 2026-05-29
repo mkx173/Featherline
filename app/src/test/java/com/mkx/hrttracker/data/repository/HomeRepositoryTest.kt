@@ -22,6 +22,10 @@ import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -30,7 +34,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +61,9 @@ class HomeRepositoryTest {
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk()
     private val homeSnapshotStore: HomeSnapshotStore = mockk()
     private val homeSnapshotGenerationStore: HomeSnapshotGenerationStore = mockk()
+    private val medicineStockRepository: MedicineStockRepository = mockk()
+    private val medicineRepository: MedicineRepository = mockk()
+    private val medicationLogRepository: MedicationLogRepository = mockk()
     private val database: HrtTrackerDatabase = mockk()
     private val homeDao: HomeDao = mockk()
     private val medicineDao: MedicineDao = mockk(relaxed = true)
@@ -68,6 +74,13 @@ class HomeRepositoryTest {
         // this signal so medicines edits propagate without an app restart;
         // mockk's relaxed default emits no value, which would deadlock combine.
         every { medicineDao.observeMedicineChangeVersion() } returns MutableStateFlow(0)
+        every { medicineRepository.observeAllActiveTracked() } returns flowOf(emptyList())
+        every {
+            medicationLogRepository.observeScheduledEntriesInWindow(any(), any())
+        } returns flowOf(emptyList())
+        every {
+            medicineStockRepository.projectAll(any(), any(), any(), any())
+        } returns emptyList()
     }
 
     @Test
@@ -132,6 +145,9 @@ class HomeRepositoryTest {
             databaseHolder = databaseHolder,
             settingsRepository = settingsRepository,
             homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
         ).observeHomeStartupInputs(now).first()
 
         assertEquals(1, inputs.activeGroups.size)
@@ -217,7 +233,7 @@ class HomeRepositoryTest {
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
             settingsRepository = settingsRepository,
-            appScope = CoroutineScope(dispatcher),
+            appScope = backgroundScope,
             defaultDispatcher = dispatcher,
         )
 
@@ -225,6 +241,9 @@ class HomeRepositoryTest {
             databaseHolder = databaseHolder,
             settingsRepository = settingsRepository,
             homeSnapshotRepository = snapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
         ).observeHomeSnapshotInputs(now).first()
 
         assertEquals(HomeInputSource.SNAPSHOT, inputs.source)
@@ -279,6 +298,9 @@ class HomeRepositoryTest {
             databaseHolder = databaseHolder,
             settingsRepository = settingsRepository,
             homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
         ).observeHomeInputs(now).first()
 
         assertEquals(HomeInputSource.ROOM, inputs.source)
@@ -290,6 +312,133 @@ class HomeRepositoryTest {
         )
         assertEquals(latestEstradiolEntry.uuid, inputs.latestEstradiolEntry?.uuid.toString())
         verify(exactly = 0) { homeSnapshotRepository.refreshHomeSnapshotAsync(any(), any()) }
+    }
+
+    @Test
+    fun observeHomeInputs_roomEmissionCarriesStockWarnings() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.PG_ML)
+        val medicine = testMedicine(
+            uuid = UUID.fromString(ESTRADIOL_MEDICINE_UUID),
+            stock = MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 0.0,
+                unitsLastTotal = 10.0,
+            ),
+        )
+        val projection = MedicineStockProjection(
+            medicine = medicine,
+            dosesPerDayMagnitude = 1.0,
+            totalStockUnits = 0.0,
+            runway = RunwayProjection.NoSchedule,
+            intervalDays = null,
+            maxPerAdministration = 1.0,
+            state = MedicineStockState.OUT,
+        )
+
+        every { databaseHolder.get() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        every { homeDao.observeActiveGroups() } returns flowOf(emptyList())
+        every { homeDao.observeScheduleEntries(any(), any(), any(), any()) } returns flowOf(emptyList())
+        every { homeDao.observeLatestAntiandrogenEntriesOnOrBefore(any()) } returns flowOf(emptyList())
+        every { homeDao.observeEstradiolPkEntries(any(), any()) } returns flowOf(emptyList())
+        every { homeDao.observeLatestEstradiolEntryOnOrBefore(any()) } returns flowOf(null)
+        every { homeDao.observeProfile() } returns flowOf(null)
+        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every { settingsRepository.homeE2ChartWindowOptionFlow } returns MutableStateFlow(settings.homeE2ChartWindowOption)
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(null)
+        every { homeSnapshotRepository.decodeProjection(null, any(), any()) } returns null
+        every { medicineRepository.observeAllActiveTracked() } returns flowOf(listOf(medicine))
+        every {
+            medicationLogRepository.observeScheduledEntriesInWindow(any(), any())
+        } returns flowOf(emptyList())
+        every {
+            medicineStockRepository.projectAll(
+                medicines = listOf(medicine),
+                activeGroups = emptyList(),
+                logEntries = emptyList(),
+                now = now.atZone(ZoneId.systemDefault()).toInstant(),
+            )
+        } returns listOf(projection)
+
+        val inputs = HomeRepository(
+            databaseHolder = databaseHolder,
+            settingsRepository = settingsRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
+        ).observeHomeInputs(now).first()
+
+        assertEquals(HomeInputSource.ROOM, inputs.source)
+        assertEquals(listOf(projection), inputs.stockWarnings)
+    }
+
+    @Test
+    fun observeHomeSnapshotInputs_derivesStockWarningsFromSnapshotStockInputs() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val zoneId = ZoneId.systemDefault()
+        val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.NG_DL)
+        val medicine = testMedicine(
+            uuid = UUID.fromString(ESTRADIOL_MEDICINE_UUID),
+            stock = MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 0.0,
+                unitsLastTotal = 10.0,
+            ),
+        )
+        val projection = MedicineStockProjection(
+            medicine = medicine,
+            dosesPerDayMagnitude = 1.0,
+            totalStockUnits = 0.0,
+            runway = RunwayProjection.NoSchedule,
+            intervalDays = null,
+            maxPerAdministration = 1.0,
+            state = MedicineStockState.OUT,
+        )
+        val snapshot = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+            anchorDateEpochDay = now.toLocalDate().toEpochDay(),
+            zoneId = zoneId.id,
+            pkProjection = null,
+            activeGroups = emptyList(),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+            stockMedicines = listOf(medicine),
+            stockFulfillmentEntries = emptyList(),
+        )
+
+        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every { settingsRepository.homeE2ChartWindowOptionFlow } returns MutableStateFlow(settings.homeE2ChartWindowOption)
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(snapshot)
+        every {
+            homeSnapshotRepository.isSnapshotUsable(any(), any(), any(), any())
+        } returns true
+        every { homeSnapshotRepository.scheduleEntriesForHome(any(), any(), any()) } returns emptyList()
+        every { homeSnapshotRepository.decodeProjection(null, any(), any()) } returns null
+        every {
+            medicineStockRepository.projectAll(
+                medicines = listOf(medicine),
+                activeGroups = emptyList(),
+                logEntries = emptyList(),
+                now = now.atZone(zoneId).toInstant(),
+            )
+        } returns listOf(projection)
+
+        val inputs = HomeRepository(
+            databaseHolder = databaseHolder,
+            settingsRepository = settingsRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
+        ).observeHomeSnapshotInputs(now).first()
+
+        assertEquals(HomeInputSource.SNAPSHOT, inputs.source)
+        assertEquals(listOf(projection), inputs.stockWarnings)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -361,6 +510,9 @@ class HomeRepositoryTest {
             databaseHolder = databaseHolder,
             settingsRepository = settingsRepository,
             homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
         )
         val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             repository.observeHomeInputs(now).collect { inputs ->
@@ -423,6 +575,9 @@ class HomeRepositoryTest {
             databaseHolder = databaseHolder,
             settingsRepository = settingsRepository,
             homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
         )
         val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             repository.observeHomeInputs(now).collect { inputs ->

@@ -3,6 +3,8 @@ package com.mkx.hrttracker.reminder
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogEntryInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -12,6 +14,9 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
@@ -25,8 +30,10 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -38,6 +45,7 @@ import java.util.UUID
 class MedicationReminderActionHandlerTest {
     private val groupRepository: MedicationGroupRepository = mockk()
     private val logRepository: MedicationLogRepository = mockk()
+    private val medicineStockRepository: MedicineStockRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val reminderScheduler: MedicationReminderScheduler = mockk()
     private val snoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
@@ -51,10 +59,12 @@ class MedicationReminderActionHandlerTest {
         coEvery { reminderScheduler.rescheduleGroup(any(), any()) } just Runs
         coEvery { snoozeScheduler.clearSnoozesForSlots(any()) } just Runs
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
 
         actionHandler = MedicationReminderActionHandler(
             medicationGroupRepository = groupRepository,
             medicationLogRepository = logRepository,
+            medicineStockRepository = medicineStockRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = reminderScheduler,
             medicationReminderSnoozeScheduler = snoozeScheduler,
@@ -237,6 +247,247 @@ class MedicationReminderActionHandlerTest {
             listOf(firstGroup.uuid),
             savedEntries.captured.map { entry -> entry.sourceGroupUuid }
         )
+    }
+
+    @Test
+    fun logNow_singleUserLowMedicineAfterSave_showsUserLowToastInsteadOfLoggedToast() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("8d74b369-cece-4681-88b1-68aaacfc6e96"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val medicine = group.medications.single().medicine!!
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(medicine, MedicineStockState.USER_LOW)
+        )
+
+        actionHandler.logNow(
+            slots = listOf(slot),
+            logTargets = null,
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(10),
+        )
+
+        verify { notificationManager.showStockUserLowToast(medicine) }
+        verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+    }
+
+    @Test
+    fun logNow_singleUserLowMedicineAfterSave_whenMedicationDetailsHidden_showsUserLowCountToast() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("d7193a2c-c4bf-4705-8ce0-20fad5b52471"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val medicine = group.medications.single().medicine!!
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(
+            remindersEnabled = true,
+            hideMedicationDetails = true,
+        )
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(medicine, MedicineStockState.USER_LOW)
+        )
+
+        actionHandler.logNow(
+            slots = listOf(slot),
+            logTargets = null,
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(10),
+        )
+
+        verify { notificationManager.showStockUserLowCountToast(1) }
+        verify(exactly = 0) { notificationManager.showStockUserLowToast(any()) }
+        verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+    }
+
+    @Test
+    fun logNow_twoUserLowMedicinesAfterSave_showsUserLowCountToast() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val firstGroup = medicationGroup(
+            uuid = UUID.fromString("39c14b90-3225-4c96-8375-e509c43b7b4a"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val secondGroup = medicationGroup(
+            uuid = UUID.fromString("743858c0-1478-432e-a53b-2d0ce381efcb"),
+            name = "Spiro",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.SPIRONOLACTONE,
+            medicationCount = 1,
+        )
+        val firstMedicine = firstGroup.medications.single().medicine!!
+        val secondMedicine = secondGroup.medications.single().medicine!!
+        val firstSlot = firstGroup.toReminderSlot(scheduledAt)
+        val secondSlot = secondGroup.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(firstGroup.uuid) } returns firstGroup
+        coEvery { groupRepository.getGroup(secondGroup.uuid) } returns secondGroup
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(firstMedicine, MedicineStockState.USER_LOW),
+            stockProjection(secondMedicine, MedicineStockState.USER_LOW),
+        )
+
+        actionHandler.logNow(
+            slots = listOf(firstSlot, secondSlot),
+            logTargets = null,
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(10),
+        )
+
+        verify { notificationManager.showStockUserLowCountToast(2) }
+        verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+    }
+
+    @Test
+    fun logNow_mixedOutAndHealthyAfterSave_showsSingleOutToast() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val outGroup = medicationGroup(
+            uuid = UUID.fromString("b699d57d-6241-4b71-bb35-ae1c1277389f"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val healthyGroup = medicationGroup(
+            uuid = UUID.fromString("9b2360b0-63d9-4234-89f4-9336f927618a"),
+            name = "Spiro",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.SPIRONOLACTONE,
+            medicationCount = 1,
+        )
+        val outMedicine = outGroup.medications.single().medicine!!
+        val healthyMedicine = healthyGroup.medications.single().medicine!!
+        coEvery { groupRepository.getGroup(outGroup.uuid) } returns outGroup
+        coEvery { groupRepository.getGroup(healthyGroup.uuid) } returns healthyGroup
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(outMedicine, MedicineStockState.OUT),
+            stockProjection(healthyMedicine, MedicineStockState.HEALTHY),
+        )
+
+        actionHandler.logNow(
+            slots = listOf(outGroup.toReminderSlot(scheduledAt), healthyGroup.toReminderSlot(scheduledAt)),
+            logTargets = null,
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(10),
+        )
+
+        verify { notificationManager.showStockOutToast(outMedicine) }
+        verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+    }
+
+    @Test
+    fun logNow_outAndUserLowAfterSave_showsOutCountToastForAllWarnedMedicines() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val outGroup = medicationGroup(
+            uuid = UUID.fromString("6747b45a-c0bb-4588-bf27-fb487df7387e"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val lowGroup = medicationGroup(
+            uuid = UUID.fromString("d0be1fb8-3f7c-4ed5-b05c-7b32259e3b27"),
+            name = "Spiro",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.SPIRONOLACTONE,
+            medicationCount = 1,
+        )
+        val outMedicine = outGroup.medications.single().medicine!!
+        val lowMedicine = lowGroup.medications.single().medicine!!
+        coEvery { groupRepository.getGroup(outGroup.uuid) } returns outGroup
+        coEvery { groupRepository.getGroup(lowGroup.uuid) } returns lowGroup
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(outMedicine, MedicineStockState.OUT),
+            stockProjection(lowMedicine, MedicineStockState.USER_LOW),
+        )
+
+        actionHandler.logNow(
+            slots = listOf(outGroup.toReminderSlot(scheduledAt), lowGroup.toReminderSlot(scheduledAt)),
+            logTargets = null,
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(10),
+        )
+
+        verify { notificationManager.showStockOutCountToast(2) }
+        verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+    }
+
+    @Test
+    fun logNow_projectionFailureAfterSave_stillRunsCleanupAndShowsLoggedToast() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("204b54e8-1eb8-4206-8260-dbca90c798f0"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { medicineStockRepository.projectAllOnce(any()) } throws RuntimeException("projection failed")
+
+        actionHandler.logNow(
+            slots = listOf(slot),
+            logTargets = null,
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(10),
+        )
+
+        verify { notificationManager.showDoseReminderLoggedToast(1) }
+        coVerify { snoozeScheduler.clearSnoozesForSlots(listOf(slot)) }
+        verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
+        coVerify { reminderScheduler.rescheduleGroup(group.uuid, any()) }
+    }
+
+    @Test
+    fun showPostLogToast_rethrowsCancellation() = runTest {
+        val cancellation = CancellationException("projection cancelled")
+        coEvery { medicineStockRepository.projectAllOnce(any()) } throws cancellation
+
+        try {
+            showPostLogToast(
+                entriesToSave = listOf(
+                    MedicationLogEntryInput(
+                        medicineUuid = UUID.fromString("aaaa1111-0000-0000-0000-000000000001"),
+                        applicationType = MedicationApplicationType.ORAL,
+                        doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                        sourceGroupUuid = UUID.fromString("bbbb1111-0000-0000-0000-000000000001"),
+                        appliedAt = Instant.parse("2026-04-20T00:10:00Z"),
+                        count = 1,
+                    )
+                ),
+                now = LocalDateTime.of(2026, 4, 20, 9, 10),
+                medicineStockRepository = medicineStockRepository,
+                reminderNotificationManager = notificationManager,
+            )
+            fail("Expected CancellationException")
+        } catch (exception: CancellationException) {
+            assertEquals("projection cancelled", exception.message)
+        }
+        verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
     }
 
     @Test
@@ -447,6 +698,21 @@ class MedicationReminderActionHandlerTest {
             appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor,
             count = count,
+        )
+    }
+
+    private fun stockProjection(
+        medicine: Medicine,
+        state: MedicineStockState,
+    ): MedicineStockProjection {
+        return MedicineStockProjection(
+            medicine = medicine,
+            dosesPerDayMagnitude = 1.0,
+            totalStockUnits = if (state == MedicineStockState.OUT) 0.0 else 4.0,
+            runway = RunwayProjection.NoSchedule,
+            intervalDays = null,
+            maxPerAdministration = 1.0,
+            state = state,
         )
     }
 }
