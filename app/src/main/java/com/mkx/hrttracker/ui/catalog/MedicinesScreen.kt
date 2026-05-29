@@ -55,6 +55,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -181,6 +182,8 @@ internal fun MedicinesScreen(
     // dose sheet is up; clearing it dismisses the sheet.
     var pendingSlotMedicineUuid by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingStockOptInUuid by rememberSaveable { mutableStateOf<String?>(null) }
+    var isStockOptInProjectionFrozen by remember { mutableStateOf(false) }
+    var frozenStockOptInProjection by remember { mutableStateOf<MedicineStockProjection?>(null) }
     val createMedicineSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val slotDraftSheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
@@ -394,10 +397,14 @@ internal fun MedicinesScreen(
             MedicineStockMutationResult.SUCCESS -> {
                 hideBottomSheet(scope, stockOptInSheetState) {
                     pendingStockOptInUuid = null
+                    isStockOptInProjectionFrozen = false
+                    frozenStockOptInProjection = null
                 }
                 viewModel.clearStockOptInResult()
             }
             MedicineStockMutationResult.FAILURE -> {
+                isStockOptInProjectionFrozen = false
+                frozenStockOptInProjection = null
                 Toast.makeText(context, stockOptInFailureMessage, Toast.LENGTH_SHORT).show()
                 viewModel.clearStockOptInResult()
             }
@@ -409,12 +416,20 @@ internal fun MedicinesScreen(
         launchMode == MedicineManagerLaunchMode.OnboardingStockOptIn &&
         pendingOptInProjection != null
     ) {
+        // Freeze the projection while the enable mutation is in flight so the
+        // "after" preview doesn't jump to the post-mutation stock before the
+        // sheet finishes closing.
+        val displayOptInProjection = adjustSheetStockProjectionForDisplay(
+            isStockProjectionFrozen = isStockOptInProjectionFrozen,
+            stockProjection = pendingOptInProjection,
+            frozenStockProjection = frozenStockOptInProjection,
+        ) ?: pendingOptInProjection
         AdjustStockSheet(
-            projection = pendingOptInProjection,
+            projection = displayOptInProjection,
             initialTab = AdjustSheetTab.RECEIVED,
             receivedOnly = true,
             previewRunway = { hypothetical ->
-                viewModel.previewRunwayFor(pendingOptInProjection.medicine.uuid, hypothetical)
+                viewModel.previewRunwayFor(displayOptInProjection.medicine.uuid, hypothetical)
             },
             onRecount = { },
             onReceived = { received ->
@@ -422,14 +437,20 @@ internal fun MedicinesScreen(
                 // succeeds (observed via stockOptInResult below), so a failed
                 // enable keeps the sheet open and surfaces a toast instead of
                 // silently closing.
+                frozenStockOptInProjection = displayOptInProjection
+                isStockOptInProjectionFrozen = true
                 viewModel.enableTrackingFromReceived(
-                    medicineUuid = pendingOptInProjection.medicine.uuid,
-                    currentUnitsRemaining = pendingOptInProjection.medicine.stock.unitsRemaining ?: 0.0,
+                    medicineUuid = displayOptInProjection.medicine.uuid,
+                    currentUnitsRemaining = displayOptInProjection.medicine.stock.unitsRemaining ?: 0.0,
                     received = received,
                 )
             },
             sheetState = stockOptInSheetState,
-            onDismissRequest = { pendingStockOptInUuid = null },
+            onDismissRequest = {
+                pendingStockOptInUuid = null
+                isStockOptInProjectionFrozen = false
+                frozenStockOptInProjection = null
+            },
         )
     }
 }
