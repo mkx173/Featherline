@@ -328,7 +328,11 @@ an LLM can resolve every step:
 - When the cached projection in the snapshot is absent, expired, or
   fingerprinted for a different home E2 chart window,
   `MainViewModel` falls back to `PkMedicationSimulation.simulateMainEstradiolTrend()`
-  directly over the observed estradiol entries.
+  directly over the observed estradiol entries. On the `SNAPSHOT` path
+  those entries come from the snapshot's embedded `pkEntries` (rebuilt
+  into simulator inputs by the pure `buildEstradiolPkSimulationEntries`),
+  so the fallback recomputes a real curve on cold start without waiting
+  for Room.
 - The PK module reads pharmacokinetic constants from `PkCatalog`.
 
 Write paths run inverse: screen action → ViewModel → repository
@@ -358,12 +362,18 @@ The home screen has two cached layers, both observed by
   (`home_snapshot.pb`) so the home screen paints from cache on cold
   start before live Room observation catches up. The persisted record
   is `HomeSnapshotRecord`. The snapshot codec is at
-  `SNAPSHOT_CODEC_VERSION = 16` and the schema record at
+  `SNAPSHOT_CODEC_VERSION = 17` and the schema record at
   `HOME_SNAPSHOT_SCHEMA_VERSION = 7`; both moved through the
   medicine-identity refactor (slots and log entries now reference a
   medicine by UUID, and the PATCH_OFF singleton round-trips), and the
   codec bumped again when the snapshot began carrying stock inputs so
-  the home low-stock section can paint from cache on cold start.
+  the home low-stock section can paint from cache on cold start. v17
+  appends a `pkEntries` field — the real estradiol log entries over the
+  PK input window — so the snapshot path can re-run the simulation
+  locally (see the fallback note below). The entries are encoded with a
+  deduplicated medicine pool (each distinct medicine serialized once,
+  referenced by index) since a daily doser repeats the same one or two
+  medicines across the whole window.
 
 The persisted snapshot also bundles a `HomePkProjectionRecord` — the
 result of the most recent
@@ -392,9 +402,13 @@ plan-and-fulfillment cache is a known leaky seam:
 - `MainViewModel` carries a manual fallback path: if the cached
   projection's expiry is on or before the live `now`, it drops the
   cached curve and calls `PkMedicationSimulation.simulateMainEstradiolTrend()`
-  directly. Read-side observers also reject any snapshot whose
-  `generation` is older than the durable generation counter, so stale
-  reads cannot survive a concurrent write.
+  directly. Because the snapshot now embeds `pkEntries`, this fallback
+  fires on the `SNAPSHOT` path too, so a missed-dose expiry renders a
+  recomputed curve immediately instead of gating on the `ROOM` emission
+  (`e2TrendReady` stays true whenever a usable projection or embedded PK
+  entries are present). Read-side observers also reject any snapshot
+  whose `generation` is older than the durable generation counter, so
+  stale reads cannot survive a concurrent write.
 
 Both layers are correct under their current invariants; the leak is
 that the plan-and-fulfillment cache and the PK projection share an
