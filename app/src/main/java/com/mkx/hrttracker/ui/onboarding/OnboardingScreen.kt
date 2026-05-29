@@ -12,7 +12,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseInOut
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -72,9 +76,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -117,6 +128,7 @@ import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 internal enum class OnboardingNotificationPermissionAction {
@@ -726,25 +738,70 @@ private fun StartStep() {
     }
 }
 
+private const val FEATHER_VIEWPORT = 512f
+private const val FEATHER_ICON_SCALE = 1.5f
+private const val FEATHER_PATH_DATA =
+    "M335.48,358.35c3.04,1.42,6.33-2.47,4.23-5.21h0c-.32-.53-.84-.95-1.47-1.23-20.93-9.13-38.58-19.78-55.88-33.19-18.88-14.84-35.57-32.01-49.93-51.13-23.66-30.27-39.41-68.32-40.35-72.67-2.48-4.65,4.4-8.12,6.33-3.11-.41.46,29.44,85.8,107.7,135.33.24-5.14,1.92-15.21,10.28-21.4.84-.59.62-2.01-.38-2.27-1.05-.35-8.71-2.69-13.81-1.33,3.84-11.23-8.8-22.1-5-33.08.46-1.17-1.04-2.25-2.03-1.43-.8.63-6.29,5.11-8.32,9.86-2.06-4.58-4.27-11.47-2.03-15.53.74-1.34-1.15-2.67-2.13-1.5-.07.1-4.65,5.42-6.92,12.38-2.76-12.76-10.56-39.9-29.76-60.81-.66-.77-2.06-.42-2.24.59l-.87,3.88c-2.94-8.11-10.32-25.32-23.43-36.75-.81-.69-2.2-.14-2.2.98l-.14,7.06c-5.84-11.15-21.26-37.49-35.46-34.16-16.24,5.11-8.73,41.54-4.96,55.57-5.95,27.48,11.29,50.74,26.16,65.01l-12.1,1.96c-1.08.11-1.52,1.6-.66,2.27.14.14,15,12.8,17.9,16.86,1.82,2.52,12.73,11.09,25.7,16.68-6.4,2.2-10.21,8.64-10.42,8.99-.35.63-.14,1.4.46,1.78,24.2,14.44,43.96,9.13,51.02,6.33-1.01,4.06-1.96,11.51,2.8,17.45.27.34.7.52,1.12.49,1.53-.04,4.87-8.05,12.97-12.9,13.11,8.99,27.7,17.24,43.85,24.23"
+
 @Composable
 private fun AppIconHero() {
-    Box(
-        modifier = Modifier
-            .size(160.dp)
-            .clip(CircleShape)
-    ) {
-        Image(
-            painter = painterResource(R.mipmap.ic_launcher_background),
-            contentDescription = null,
-            contentScale = ContentScale.FillBounds,
-            modifier = Modifier.fillMaxSize().scale(1.5f)
-        )
+    val featherAndroidPath = remember {
+        PathParser().parsePathString(FEATHER_PATH_DATA).toPath().asAndroidPath()
+    }
+    val pathMeasure = remember { android.graphics.PathMeasure(featherAndroidPath, false) }
+    val pathLength = remember { pathMeasure.length }
+    val strokeColor = MaterialTheme.colorScheme.outlineVariant
 
-        Image(
-            painter = painterResource(R.drawable.ic_launcher_foreground),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize().scale(1.5f)
-        )
+    val drawProgress = remember { Animatable(0f) }
+    val iconAlpha = remember { Animatable(0f) }
+
+    LaunchedEffect(Unit) {
+        delay(150)
+        drawProgress.animateTo(1f, animationSpec = tween(durationMillis = 1100, easing = EaseInOut))
+        iconAlpha.animateTo(1f, animationSpec = tween(durationMillis = 450))
+    }
+
+    Box(modifier = Modifier.size(160.dp)) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(1f - iconAlpha.value)
+        ) {
+            val scale = (size.minDimension / FEATHER_VIEWPORT) * FEATHER_ICON_SCALE
+            val segment = android.graphics.Path()
+            pathMeasure.getSegment((1f - drawProgress.value) * pathLength, pathLength, segment, true)
+            withTransform({
+                translate(size.width / 2f, size.height / 2f)
+                scale(scale, scale, pivot = Offset.Zero)
+                translate(-FEATHER_VIEWPORT / 2f, -FEATHER_VIEWPORT / 2f)
+            }) {
+                drawPath(
+                    path = segment.asComposePath(),
+                    color = strokeColor,
+                    style = Stroke(width = 4f, cap = StrokeCap.Round),
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .alpha(iconAlpha.value)
+        ) {
+            Image(
+                painter = painterResource(R.mipmap.ic_launcher_background),
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                modifier = Modifier.fillMaxSize().scale(FEATHER_ICON_SCALE)
+            )
+
+            Image(
+                painter = painterResource(R.drawable.ic_launcher_foreground),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize().scale(FEATHER_ICON_SCALE)
+            )
+        }
     }
 }
 
