@@ -166,6 +166,10 @@ internal fun CreateMedicineForm(
     errorMessageRes: Int?,
     readOnly: Boolean,
     followUpFocusRequester: FocusRequester? = null,
+    // Surfaces the high-dose warning on the strength field for flows that have
+    // no medicine summary card to host it (NewMedicineSlotSheet). Callers that
+    // render the card leave this false and keep the warning in the card.
+    showStrengthDoseWarning: Boolean = false,
 ) {
     val focusManager = LocalFocusManager.current
     // One requester per slot in CreateMedicineField; the set is fixed so the
@@ -290,6 +294,7 @@ internal fun CreateMedicineForm(
         focusRequesters = focusRequesters,
         editableFields = editableFields,
         followUpFocusRequester = followUpFocusRequester,
+        showStrengthDoseWarning = showStrengthDoseWarning,
     )
 }
 
@@ -370,6 +375,7 @@ private fun NewMedicinePreparationForm(
     focusRequesters: Map<CreateMedicineField, FocusRequester>,
     editableFields: List<CreateMedicineField>,
     followUpFocusRequester: FocusRequester? = null,
+    showStrengthDoseWarning: Boolean = false,
 ) {
     val focusManager = LocalFocusManager.current
     val onImeNextFor: (CreateMedicineField) -> () -> Unit = { field ->
@@ -435,6 +441,7 @@ private fun NewMedicinePreparationForm(
                 readOnly = readOnly,
                 isError = errorMessageRes == strengthErrorRes,
                 errorMessageRes = strengthErrorRes.takeIf { errorMessageRes == it },
+                showWarningIcon = showStrengthDoseWarning,
                 onValueChange = { value ->
                     onMedicineDraftChange { it.copy(pillStrengthMg = value) }
                 },
@@ -868,7 +875,7 @@ private fun NumericField(
                 Icon(
                     imageVector = Icons.Rounded.WarningAmber,
                     contentDescription = stringResource(R.string.medication_editor_dose_warning),
-                    tint = MaterialTheme.colorScheme.tertiary,
+                    tint = MaterialTheme.colorScheme.error,
                 )
             }
         } else {

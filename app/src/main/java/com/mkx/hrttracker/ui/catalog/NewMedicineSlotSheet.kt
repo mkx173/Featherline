@@ -22,7 +22,9 @@ import com.mkx.hrttracker.ui.medication.MedicationCountTextField
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicationLogAppliedAtFields
 import com.mkx.hrttracker.ui.medication.doseInstructionHasTextField
+import com.mkx.hrttracker.ui.medication.exceedsDoseWarningThreshold
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
+import com.mkx.hrttracker.ui.medication.parseMedicationCountText
 import com.mkx.hrttracker.ui.medication.requiresEditableDoseInstructionForm
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
@@ -111,6 +113,14 @@ fun NewMedicineSlotSheet(
         // into that field instead of dismissing the keyboard.
         val doseFollowUpRequester = remember { FocusRequester() }
         val extendImeChainIntoDoseForm = doseInstructionHasTextField(activePreparationType)
+        // This sheet has no medicine summary card, so the high-dose warning that
+        // normally rides the card's trailing slot is surfaced on the strength
+        // field instead. Gated on the dose instruction form being present.
+        val showStrengthDoseWarning = requiresEditableDoseInstructionForm(activePreparationType) &&
+            uiState.medicineDraft.exceedsDoseWarningThreshold(
+                uiState.doseInstructionDraft,
+                parseMedicationCountText(uiState.countText),
+            )
         // Controls stay visually enabled while a save is in flight; the VM
         // ignores draft mutations during the lock, text fields stay read-
         // only to avoid input flicker, and the sheet's dismissal lock keeps
@@ -121,6 +131,7 @@ fun NewMedicineSlotSheet(
             errorMessageRes = uiState.errorMessageRes,
             readOnly = isSheetLocked,
             followUpFocusRequester = doseFollowUpRequester.takeIf { extendImeChainIntoDoseForm },
+            showStrengthDoseWarning = showStrengthDoseWarning,
         )
 
         if (
