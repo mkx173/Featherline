@@ -12,6 +12,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.tween
@@ -934,6 +935,7 @@ private fun DisclaimerStep(
 
         AcceptanceCheckbox(
             checked = accepted,
+            locked = !readToBottom,
             label = stringResource(R.string.onboarding_disclaimer_acknowledge_read),
             onToggle = {
                 if (readToBottom) {
@@ -974,6 +976,7 @@ private fun DisclaimerSection(
 @Composable
 private fun AcceptanceCheckbox(
     checked: Boolean,
+    locked: Boolean,
     label: String,
     onToggle: () -> Unit,
     index: Int,
@@ -996,10 +999,25 @@ private fun AcceptanceCheckbox(
         modifier = Modifier.fillMaxWidth(),
         containerColor = containerColor,
         trailingContent = {
-            Checkbox(
-                checked = checked,
-                onCheckedChange = { onToggle() },
-            )
+            Crossfade(targetState = locked, label = "acceptanceTrailing") { isLocked ->
+                Box(
+                    modifier = Modifier.size(48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (isLocked) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_arrow_circle_down),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        Checkbox(
+                            checked = checked,
+                            onCheckedChange = { onToggle() },
+                        )
+                    }
+                }
+            }
         },
     ) {
         Text(
