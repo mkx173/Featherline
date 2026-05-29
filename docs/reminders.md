@@ -210,6 +210,34 @@ from the pre-restore database, so every notification has to be
 dismissed before the user can tap an action that would dispatch with
 stale state.
 
+### Tap (content intent deep link)
+
+Tapping the notification body (as opposed to its actions) opens the app
+on the matching dose rows.
+[`buildReminderNotificationContentIntent`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderNotificationManager.kt#L354)
+constructs a `MainActivity` intent (set via `setContentIntent`) whose
+`data` URI is `hrttracker://medication-reminder-notification/<notificationTag>`.
+The tag-derived URI keeps each bundle's content `PendingIntent` distinct
+under `FLAG_UPDATE_CURRENT` (Android coalesces `PendingIntent`s with equal
+`data`), the same uniqueness trick the alarm and action intents use. The
+intent carries `EXTRA_HIGHLIGHT_KIND = HIGHLIGHT_KIND_SCHEDULED` plus
+`EXTRA_HIGHLIGHT_SCHEDULED_TARGETS`, an `ArrayList` of
+`ScheduledDoseRowHighlightTarget` storage values (one per bundle item:
+`groupUuid|scheduleTimeUuid|scheduledAt`), so a merged reminder spanning
+several groups highlights every row at once.
+
+On the receiving end,
+[`MainActivity.parseDoseRowHighlightIntent`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/MainActivity.kt#L423)
+decodes the targets into `DoseRowHighlightKey.Scheduled` keys and calls
+`MainViewModel.requestDoseRowHighlight(keys)`, which publishes a
+`DoseRowHighlightRequest` and bumps the home deep-link signal. The home
+screen then scrolls to the first matching row and flashes the set — the
+scroll completes before the flash so the highlighted rows are on-screen
+(see commits `d1ee0da7` / `2a569056`). This reuses the same
+`DoseRowHighlightKey` machinery as the widget row-tap deep link (see
+[widget.md](widget.md#highlight-deep-link)); the notification path is the
+multi-key variant.
+
 ## Sub-systems
 
 ### Snooze
