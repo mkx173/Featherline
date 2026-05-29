@@ -19,7 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -1701,7 +1701,10 @@ private fun MainE2ChartMinimap(
                                             scrollablePlotWidth).coerceIn(0f, 1f)
                                 }
 
-                                detectDragGestures(
+                                // Horizontal-only drag detection mirrors Vico's chart, which scrolls
+                                // via Modifier.scrollable(Orientation.Horizontal); vertical drags fall
+                                // through to the page scroll instead of being consumed here.
+                                detectHorizontalDragGestures(
                                     onDragStart = { offset ->
                                         val (viewportLeft, viewportWidth) = viewportMetrics()
                                         dragViewportWidthPx = viewportWidth
@@ -1719,7 +1722,7 @@ private fun MainE2ChartMinimap(
                                             }
                                         onViewportScrollFractionChanged(scrollFractionFor(offset.x))
                                     },
-                                    onDrag = { change, _ ->
+                                    onHorizontalDrag = { change, _ ->
                                         change.consume()
                                         onViewportScrollFractionChanged(
                                             scrollFractionFor(change.position.x)
