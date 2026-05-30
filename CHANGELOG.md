@@ -8,3 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 _Nothing yet._
+
+## [1.0.0] - 2026-05-30
+
+First public release on Google Play.
+
+### Added
+
+- Dose logging across injection, patch, gel, oral, and sublingual routes.
+- Configurable daily and weekly reminder schedules with snooze and exact-alarm handling; reminders survive reboots and time changes.
+- Medication grouping, with schedules applied to grouped doses.
+- Optional medicine stock tracking with low-stock warnings and schedule-aware "days remaining" estimates.
+- Estradiol pharmacokinetic projection from your dose history, using a three-compartment population model.
+- Blood test catalog with automatic unit conversion (pg/mL ↔ pmol/L, ng/dL ↔ nmol/L).
+- Encrypted, compressed backup format with restore validation.
+- App lock with biometric unlock.
+- Home-screen quick-log widget in two sizes, with progress, next-dose, and tap-to-log.
+- English and Simplified Chinese localization.
+- Material 3 interface with dynamic color.
+- Fully on-device, encrypted local storage — no accounts, no telemetry, no network calls.
+
+[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/mkx173/Featherline/releases/tag/v1.0.0
