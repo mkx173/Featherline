@@ -693,6 +693,7 @@ private fun MedicineHeaderCard(
                                 painter = painterResource(R.drawable.ic_edit),
                                 contentDescription = stringResource(R.string.medicine_edit_action),
                                 modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
