@@ -849,12 +849,12 @@ internal fun doseInstructionHasTextField(
 // Conversion helpers
 // ---------------------------------------------------------------------------
 
-private fun parsePositiveDouble(text: String): Double? {
-    return text.trim().toDoubleOrNull()?.takeIf { it > 0.0 && it.isFinite() }
+internal fun parsePositiveDouble(text: String): Double? {
+    return text.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it > 0.0 && it.isFinite() }
 }
 
-private fun parseNonNegativePreviewDouble(text: String): Double? {
-    val trimmed = text.trim()
+internal fun parseNonNegativePreviewDouble(text: String): Double? {
+    val trimmed = text.trim().replace(',', '.')
     if (trimmed.isEmpty()) return 0.0
     return trimmed.toDoubleOrNull()?.takeIf { it >= 0.0 && it.isFinite() } ?: 0.0
 }

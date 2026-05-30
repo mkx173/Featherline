@@ -889,4 +889,23 @@ class MedicationEditorModelsTest {
             ),
         )
     }
+
+    @Test
+    fun parsePositiveDouble_acceptsDotAndCommaDecimalSeparators() {
+        assertEquals(1.5, requireNotNull(parsePositiveDouble("1.5")), 0.0)
+        assertEquals(1.5, requireNotNull(parsePositiveDouble("1,5")), 0.0)
+    }
+
+    @Test
+    fun parsePositiveDouble_rejectsNonPositiveAndMalformedInput() {
+        assertNull(parsePositiveDouble("0"))
+        assertNull(parsePositiveDouble("-1,5"))
+        assertNull(parsePositiveDouble("abc"))
+    }
+
+    @Test
+    fun parseNonNegativePreviewDouble_acceptsDotAndCommaDecimalSeparators() {
+        assertEquals(2.5, requireNotNull(parseNonNegativePreviewDouble("2.5")), 0.0)
+        assertEquals(2.5, requireNotNull(parseNonNegativePreviewDouble("2,5")), 0.0)
+    }
 }
