@@ -236,6 +236,17 @@ class WidgetSnapshotCodecTest {
     }
 
     @Test
+    fun `codec round-trips isFromArchivedGroup flag`() {
+        val archivedRow = baseRecord.doseRows[1].copy(isFromArchivedGroup = true)
+        val activeRow = baseRecord.doseRows.first().copy(isFromArchivedGroup = false)
+        val record = baseRecord.copy(doseRows = listOf(archivedRow, activeRow))
+        val decoded = WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record))
+        assertEquals(record, decoded)
+        assertTrue(decoded.doseRows[0].isFromArchivedGroup)
+        assertFalse(decoded.doseRows[1].isFromArchivedGroup)
+    }
+
+    @Test
     fun `WidgetSnapshotSerializer returns empty state on corrupt bytes`() {
         val serializer = WidgetSnapshotSerializer(PassthroughWidgetCrypto)
         var result: WidgetSnapshotState? = null

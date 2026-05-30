@@ -22,6 +22,7 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
@@ -162,6 +163,7 @@ class WidgetSnapshotBuilderTest {
         val row = snapshot.doseRows.first { !it.isManualRecord }
         assertEquals("Archived group", row.groupName)
         assertEquals(archived.colorKey, row.colorKey)
+        assertTrue(row.isFromArchivedGroup)
         assertEquals(1, snapshot.totalCount)
         assertEquals(1, snapshot.doneCount)
     }

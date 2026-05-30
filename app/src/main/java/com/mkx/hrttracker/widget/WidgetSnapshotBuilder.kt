@@ -4,9 +4,11 @@ import android.content.Context
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.HomePkProjectionRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
+import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -42,6 +44,8 @@ internal fun buildWidgetSnapshotRecord(
     )
     val scheduleGroups = if (settings.showArchivedGroupRecords) allGroups else activeGroups
     val groupColorByUuid = allGroups.associate { group -> group.uuid to group.colorKey }
+    val archivedGroupUuids = allGroups.filter(MedicationGroup::isArchived)
+        .mapTo(mutableSetOf()) { group -> group.uuid }
 
     val isOvernight = now.toLocalTime().isBefore(LocalTime.of(6, 0))
     val lastNightRows = if (isOvernight) {
@@ -57,7 +61,14 @@ internal fun buildWidgetSnapshotRecord(
         val eveningCutoff = LocalTime.of(18, 0)
         val scheduledLastNight = yesterdaySchedule.scheduledEntries
             .filter { entry -> !entry.scheduledFor.toLocalTime().isBefore(eveningCutoff) }
-            .map { entry -> entry.toWidgetDoseRow(context, timeFormatter, WidgetDoseChip.LAST_NIGHT) }
+            .map { entry ->
+                entry.toWidgetDoseRow(
+                    context,
+                    timeFormatter,
+                    WidgetDoseChip.LAST_NIGHT,
+                    isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
+                )
+            }
         val manualLastNight = yesterdaySchedule.unplannedEntries
             .map { entry ->
                 entry.toManualWidgetDoseRow(
@@ -65,6 +76,8 @@ internal fun buildWidgetSnapshotRecord(
                     zoneId = zoneId,
                     colorKey = entry.sourceGroupUuid?.let(groupColorByUuid::get),
                     contextChip = WidgetDoseChip.LAST_NIGHT,
+                    isFromArchivedGroup = entry.sourceGroupUuid != null &&
+                        entry.sourceGroupUuid in archivedGroupUuids,
                 )
             }
             .filter { row -> !row.scheduledAt.toLocalTime().isBefore(eveningCutoff) }
@@ -83,7 +96,14 @@ internal fun buildWidgetSnapshotRecord(
         unloggedArchivedSlotCutoff = now,
     )
     val todayScheduledRows = todaySchedule.scheduledEntries
-        .map { entry -> entry.toWidgetDoseRow(context, timeFormatter, null) }
+        .map { entry ->
+            entry.toWidgetDoseRow(
+                context,
+                timeFormatter,
+                null,
+                isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
+            )
+        }
     val manualRows = todaySchedule.unplannedEntries
         .map { entry ->
             entry.toManualWidgetDoseRow(
@@ -91,6 +111,8 @@ internal fun buildWidgetSnapshotRecord(
                 zoneId = zoneId,
                 colorKey = entry.sourceGroupUuid?.let(groupColorByUuid::get),
                 contextChip = null,
+                isFromArchivedGroup = entry.sourceGroupUuid != null &&
+                    entry.sourceGroupUuid in archivedGroupUuids,
             )
         }
 
@@ -105,7 +127,14 @@ internal fun buildWidgetSnapshotRecord(
         )
         tomorrowSchedule.scheduledEntries
             .filter { entry -> entry.scheduledFor.isBefore(comingUpEnd) }
-            .map { entry -> entry.toWidgetDoseRow(context, timeFormatter, WidgetDoseChip.COMING_UP) }
+            .map { entry ->
+                entry.toWidgetDoseRow(
+                    context,
+                    timeFormatter,
+                    WidgetDoseChip.COMING_UP,
+                    isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
+                )
+            }
     } else {
         emptyList()
     }
@@ -138,6 +167,7 @@ private fun MedicationLogEntry.toManualWidgetDoseRow(
     zoneId: ZoneId,
     colorKey: com.mkx.hrttracker.model.medication.MedicationGroupColorKey?,
     contextChip: WidgetDoseChip?,
+    isFromArchivedGroup: Boolean,
 ): WidgetDoseRow {
     return WidgetDoseRow(
         medicationName = medicationEntryTitle(medicine, applicationType, context),
@@ -152,6 +182,7 @@ private fun MedicationLogEntry.toManualWidgetDoseRow(
         scheduledAt = appliedAt.atZone(zoneId).toLocalDateTime(),
         trailingText = context.getString(R.string.plan_entry_label_manual),
         isManualRecord = true,
+        isFromArchivedGroup = isFromArchivedGroup,
         contextChip = contextChip,
         groupUuid = null,
         scheduleTimeUuid = null,
@@ -163,6 +194,7 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
     context: Context,
     timeFormatter: DateTimeFormatter,
     contextChip: WidgetDoseChip?,
+    isFromArchivedGroup: Boolean,
 ): WidgetDoseRow {
     val status = when {
         isFulfilled -> WidgetDoseStatus.DONE
@@ -192,6 +224,7 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
         scheduledAt = scheduledFor,
         trailingText = displayTime,
         isManualRecord = false,
+        isFromArchivedGroup = isFromArchivedGroup,
         contextChip = contextChip,
         groupUuid = groupUuid.toString(),
         scheduleTimeUuid = scheduleTimeUuid?.toString(),

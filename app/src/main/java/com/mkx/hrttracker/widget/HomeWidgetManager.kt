@@ -91,6 +91,7 @@ class HomeWidgetManager @Inject constructor(
                         settings.widgetDarkModeOption,
                         settings.homeE2DisplayUnit,
                         settings.appLanguageOption,
+                        settings.showArchivedGroupRecords,
                     )
                 }
                 .distinctUntilChanged()

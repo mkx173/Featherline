@@ -467,15 +467,28 @@ internal fun DoseRow(
                     row.doseText.takeIf(String::isNotBlank),
                 ).joinToString(" · ")
                 if (supportingText.isNotBlank()) {
-                    Text(
-                        text = supportingText,
-                        style = TextStyle(
-                            color = colors.onSurfaceVariant,
-                            fontSize = (14f * scale).sp,
-                            fontWeight = FontWeight.Normal,
-                        ),
-                        maxLines = 1,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (row.isFromArchivedGroup) {
+                            Image(
+                                provider = ImageProvider(R.drawable.ic_archive),
+                                contentDescription = context.getString(
+                                    R.string.archived_group_record_indicator
+                                ),
+                                modifier = GlanceModifier.size((14f * scale).dp),
+                                colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
+                            )
+                            Spacer(GlanceModifier.width((4f * scale).dp))
+                        }
+                        Text(
+                            text = supportingText,
+                            style = TextStyle(
+                                color = colors.onSurfaceVariant,
+                                fontSize = (14f * scale).sp,
+                                fontWeight = FontWeight.Normal,
+                            ),
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }
