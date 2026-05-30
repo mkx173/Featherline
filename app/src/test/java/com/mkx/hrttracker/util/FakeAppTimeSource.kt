@@ -15,6 +15,11 @@ class FakeAppTimeSource(initialMinute: LocalDateTime) : AppTimeSource {
 
     override fun now(): Instant = currentInstant
 
+    override fun refresh() {
+        // No-op: tests drive this fake's clock explicitly via setCurrentMinute /
+        // setCurrentInstant, so there is no lazily-cached value to refresh.
+    }
+
     fun setCurrentMinute(currentMinute: LocalDateTime) {
         val normalizedCurrentMinute = currentMinute.withSecond(0).withNano(0)
         mutableCurrentMinute.value = normalizedCurrentMinute
