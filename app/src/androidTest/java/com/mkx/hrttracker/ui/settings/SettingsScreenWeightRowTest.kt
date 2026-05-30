@@ -46,6 +46,7 @@ class SettingsScreenWeightRowTest {
                     onFirstDayOfWeekOptionChange = {},
                     onDarkModeOptionChange = {},
                     onAdaptiveColorEnabledChange = {},
+                    onAmoledModeEnabledChange = {},
                     onShowArchivedGroupRecordsChange = {},
                     onHideReferenceRangesChange = {},
                     onHideMedicationDetailsChange = {},

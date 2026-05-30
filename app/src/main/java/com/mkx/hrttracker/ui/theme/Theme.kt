@@ -7,6 +7,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
@@ -250,18 +251,85 @@ val unspecified_scheme = ColorFamily(
     Color.Unspecified, Color.Unspecified, Color.Unspecified, Color.Unspecified
 )
 
+private val amoledDarkScheme = darkColorScheme(
+    primary = primaryDark,
+    onPrimary = onPrimaryDark,
+    primaryContainer = primaryContainerDark,
+    onPrimaryContainer = onPrimaryContainerDark,
+    secondary = secondaryDark,
+    onSecondary = onSecondaryDark,
+    secondaryContainer = secondaryContainerDark,
+    onSecondaryContainer = onSecondaryContainerDark,
+    tertiary = tertiaryDark,
+    onTertiary = onTertiaryDark,
+    tertiaryContainer = tertiaryContainerDark,
+    onTertiaryContainer = onTertiaryContainerDark,
+    error = errorDark,
+    onError = onErrorDark,
+    errorContainer = errorContainerDark,
+    onErrorContainer = onErrorContainerDark,
+    background = backgroundAmoledDark,
+    onBackground = onBackgroundAmoledDark,
+    surface = surfaceAmoledDark,
+    onSurface = onSurfaceAmoledDark,
+    surfaceVariant = surfaceVariantAmoledDark,
+    onSurfaceVariant = onSurfaceVariantAmoledDark,
+    outline = outlineAmoledDark,
+    outlineVariant = outlineVariantAmoledDark,
+    scrim = scrimAmoledDark,
+    inverseSurface = inverseSurfaceAmoledDark,
+    inverseOnSurface = inverseOnSurfaceAmoledDark,
+    inversePrimary = inversePrimaryAmoledDark,
+    surfaceDim = surfaceDimAmoledDark,
+    surfaceBright = surfaceBrightAmoledDark,
+    surfaceContainerLowest = surfaceContainerLowestAmoledDark,
+    surfaceContainerLow = surfaceContainerLowAmoledDark,
+    surfaceContainer = surfaceContainerAmoledDark,
+    surfaceContainerHigh = surfaceContainerHighAmoledDark,
+    surfaceContainerHighest = surfaceContainerHighestAmoledDark,
+)
+
 @Composable
 fun HrtTrackerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,
+    amoledMode: Boolean = false,
     content: @Composable() () -> Unit
 ) {
-  val colorScheme = when {
-      dynamicColor -> {
-          val context = LocalContext.current
-          if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+  // Cache the dynamic color scheme so toggling amoledMode doesn't regenerate it.
+  val context = LocalContext.current
+  val cachedDynamicScheme = if (dynamicColor) {
+      if (darkTheme) {
+          remember(dynamicColor, darkTheme) { dynamicDarkColorScheme(context) }
+      } else {
+          remember(dynamicColor, darkTheme) { dynamicLightColorScheme(context) }
       }
+  } else {
+      null
+  }
+
+  val colorScheme = when {
+      amoledMode && darkTheme -> {
+          if (dynamicColor && cachedDynamicScheme != null) {
+              cachedDynamicScheme.copy(
+                  background = Color.Black,
+                  onBackground = onBackgroundAmoledDark,
+                  surface = Color.Black,
+                  onSurface = onSurfaceAmoledDark,
+                  surfaceDim = Color.Black,
+                  surfaceBright = Color.Black,
+                  surfaceContainerLowest = Color.Black,
+                  surfaceContainerLow = Color.Black,
+                  surfaceContainer = Color.Black,
+                  surfaceContainerHigh = Color.Black,
+                  surfaceContainerHighest = Color.Black,
+              )
+          } else {
+              amoledDarkScheme
+          }
+      }
+      dynamicColor -> cachedDynamicScheme!!
 
       darkTheme -> darkScheme
       else -> lightScheme

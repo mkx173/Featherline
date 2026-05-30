@@ -159,6 +159,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setAmoledModeEnabled(enabled: Boolean) {
+        launchSettingsMutation {
+            settingsRepository.setAmoledModeEnabled(enabled)
+        }
+    }
+
     fun setShowArchivedGroupRecords(enabled: Boolean) {
         launchSettingsMutation {
             settingsRepository.setShowArchivedGroupRecords(enabled)

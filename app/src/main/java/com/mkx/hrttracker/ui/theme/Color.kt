@@ -217,9 +217,26 @@ val surfaceContainerDarkHighContrast = Color(0xFF382E2F)
 val surfaceContainerHighDarkHighContrast = Color(0xFF43393A)
 val surfaceContainerHighestDarkHighContrast = Color(0xFF4F4446)
 
-
-
-
+// amoled dark add
+val backgroundAmoledDark = Color(0xFF000000)
+val onBackgroundAmoledDark = Color(0xFFEFDEE0)
+val surfaceAmoledDark = Color(0xFF000000)
+val onSurfaceAmoledDark = Color(0xFFEFDEE0)
+val surfaceVariantAmoledDark = Color(0xFF524345)
+val onSurfaceVariantAmoledDark = Color(0xFFD6C2C4)
+val outlineAmoledDark = Color(0xFF9F8C8F)
+val outlineVariantAmoledDark = Color(0xFF524345)
+val scrimAmoledDark = Color(0xFF000000)
+val inverseSurfaceAmoledDark = Color(0xFFEFDEE0)
+val inverseOnSurfaceAmoledDark = Color(0xFF382E2F)
+val inversePrimaryAmoledDark = Color(0xFF8D4959)
+val surfaceDimAmoledDark = Color(0xFF000000)
+val surfaceBrightAmoledDark = Color(0xFF2A2123)
+val surfaceContainerLowestAmoledDark = Color(0xFF000000)
+val surfaceContainerLowAmoledDark = Color(0xFF000000)
+val surfaceContainerAmoledDark = Color(0xFF000000)
+val surfaceContainerHighAmoledDark = Color(0xFF000000)
+val surfaceContainerHighestAmoledDark = Color(0xFF000000)
 
 
 

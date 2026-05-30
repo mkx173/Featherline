@@ -465,6 +465,7 @@ fun SettingsScreen(
         onFirstDayOfWeekOptionChange = viewModel::setFirstDayOfWeekOption,
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
+        onAmoledModeEnabledChange = viewModel::setAmoledModeEnabled,
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
         onHideMedicationDetailsChange = viewModel::setHideMedicationDetails,
@@ -729,6 +730,7 @@ internal fun SettingsScreenContent(
     onFirstDayOfWeekOptionChange: (FirstDayOfWeekOption) -> Unit,
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
+    onAmoledModeEnabledChange: (Boolean) -> Unit,
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
@@ -1158,10 +1160,12 @@ internal fun SettingsScreenContent(
                     dimensionResource(R.dimen.list_segment_gap)
                 )
             ) {
+                val showAmoledOption = settingsState.darkModeOption != DarkModeOption.LIGHT
+
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_widget_appearance),
                     index = 0,
-                    count = 4,
+                    count = if (showAmoledOption) 5 else 4,
                     onClick = { showWidgetAppearanceDialog = true },
                     leadingContent = {
                         SettingsLeadingIconSlot(
@@ -1177,7 +1181,7 @@ internal fun SettingsScreenContent(
                         title = stringResource(R.string.settings_app_language),
                         supportingText = stringResource(settingsState.appLanguageOption.labelRes),
                         index = 1,
-                        count = 4,
+                        count = if (showAmoledOption) 5 else 4,
                         onClick = { setLanguageMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1203,7 +1207,7 @@ internal fun SettingsScreenContent(
                         title = stringResource(R.string.settings_dark_mode),
                         supportingText = stringResource(settingsState.darkModeOption.labelRes),
                         index = 2,
-                        count = 4,
+                        count = if (showAmoledOption) 5 else 4,
                         onClick = { setDarkModeMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1224,10 +1228,33 @@ internal fun SettingsScreenContent(
                     )
                 }
 
+                if (showAmoledOption) {
+                    SettingsSegmentedListItem(
+                        title = stringResource(R.string.settings_amoled_mode),
+                        supportingText = stringResource(R.string.settings_amoled_mode_summary),
+                        index = 3,
+                        count = 5,
+                        onClick = {
+                            onAmoledModeEnabledChange(!settingsState.amoledModeEnabled)
+                        },
+                        leadingContent = {
+                            SettingsLeadingIconSlot(
+                                painter = painterResource(R.drawable.ic_contrast)
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = settingsState.amoledModeEnabled,
+                                onCheckedChange = onAmoledModeEnabledChange
+                            )
+                        }
+                    )
+                }
+
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_adaptive_color),
-                    index = 3,
-                    count = 4,
+                    index = if (showAmoledOption) 4 else 3,
+                    count = if (showAmoledOption) 5 else 4,
                     onClick = {
                         onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
                     },
@@ -1930,6 +1957,7 @@ private fun SettingsScreenPreview() {
             onFirstDayOfWeekOptionChange = { },
             onDarkModeOptionChange = { },
             onAdaptiveColorEnabledChange = { },
+            onAmoledModeEnabledChange = { },
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },

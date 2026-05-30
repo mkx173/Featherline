@@ -449,6 +449,8 @@
     <string name="settings_first_day_of_week">First day of week</string>
     <string name="settings_dark_mode">Dark mode</string>
     <string name="settings_adaptive_color">Adaptive color</string>
+    <string name="settings_amoled_mode">AMOLED dark mode</string>
+    <string name="settings_amoled_mode_summary">Uses true black background in dark mode</string>
     <string name="settings_widget_appearance">Widgets</string>
     <string name="settings_widget_content_scale">Content scale</string>
     <string name="settings_widget_background_opacity">Background opacity</string>

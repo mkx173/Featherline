@@ -78,6 +78,7 @@ class SettingsRepository @Inject constructor(
     private val homeE2ChartWindowKey = stringPreferencesKey("home_e2_chart_window")
     private val darkModeKey = stringPreferencesKey("dark_mode")
     private val adaptiveColorKey = booleanPreferencesKey("adaptive_color")
+    private val amoledModeKey = booleanPreferencesKey("amoled_mode")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
     private val showArchivedGroupRecordsKey = booleanPreferencesKey("show_archived_group_records")
     private val hideReferenceRangesKey = booleanPreferencesKey("hide_reference_ranges")
@@ -171,6 +172,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setAdaptiveColorEnabled(enabled: Boolean) {
         activeDataStore().edit { preferences ->
             preferences[adaptiveColorKey] = enabled
+        }
+    }
+
+    suspend fun setAmoledModeEnabled(enabled: Boolean) {
+        activeDataStore().edit { preferences ->
+            preferences[amoledModeKey] = enabled
         }
     }
 
@@ -337,6 +344,7 @@ class SettingsRepository @Inject constructor(
     suspend fun restoreSettings(
         darkModeOption: DarkModeOption,
         adaptiveColorEnabled: Boolean,
+        amoledModeEnabled: Boolean = false,
         remindersEnabled: Boolean,
         showArchivedGroupRecords: Boolean,
         hideReferenceRanges: Boolean,
@@ -362,6 +370,7 @@ class SettingsRepository @Inject constructor(
         activeDataStore().edit { preferences ->
             preferences[darkModeKey] = darkModeOption.name
             preferences[adaptiveColorKey] = adaptiveColorEnabled
+            preferences[amoledModeKey] = amoledModeEnabled
             preferences[remindersEnabledKey] = remindersEnabled
             preferences[showArchivedGroupRecordsKey] = showArchivedGroupRecords
             preferences[hideReferenceRangesKey] = hideReferenceRanges
@@ -428,6 +437,7 @@ class SettingsRepository @Inject constructor(
         return SettingsState(
             darkModeOption = DarkModeOption.fromStorageValue(preferences[darkModeKey]),
             adaptiveColorEnabled = preferences[adaptiveColorKey] ?: true,
+            amoledModeEnabled = preferences[amoledModeKey] ?: false,
             calibrationDefaultUnits = BloodAnalyteKey.entries.mapNotNull { analyteKey ->
                 preferences[calibrationDefaultUnitKeys.getValue(analyteKey)]
                     ?.let(BloodUnitKey::fromStorageValue)

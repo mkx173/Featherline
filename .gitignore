@@ -49,3 +49,6 @@ keystore.properties
 
 # Superpowers
 .superpowers/
+
+# testfile
+.test/
