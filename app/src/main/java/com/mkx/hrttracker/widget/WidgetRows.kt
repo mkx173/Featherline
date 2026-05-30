@@ -467,33 +467,32 @@ internal fun DoseRow(
                     row.doseText.takeIf(String::isNotBlank),
                 ).joinToString(" · ")
                 if (supportingText.isNotBlank()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (row.isFromArchivedGroup) {
-                            Image(
-                                provider = ImageProvider(R.drawable.ic_archive),
-                                contentDescription = context.getString(
-                                    R.string.archived_group_record_indicator
-                                ),
-                                modifier = GlanceModifier.size((14f * scale).dp),
-                                colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
-                            )
-                            Spacer(GlanceModifier.width((4f * scale).dp))
-                        }
-                        Text(
-                            text = supportingText,
-                            style = TextStyle(
-                                color = colors.onSurfaceVariant,
-                                fontSize = (14f * scale).sp,
-                                fontWeight = FontWeight.Normal,
-                            ),
-                            maxLines = 1,
-                        )
-                    }
+                    Text(
+                        text = supportingText,
+                        style = TextStyle(
+                            color = colors.onSurfaceVariant,
+                            fontSize = (14f * scale).sp,
+                            fontWeight = FontWeight.Normal,
+                        ),
+                        maxLines = 1,
+                    )
                 }
             }
         }
 
         Spacer(GlanceModifier.width(8.dp))
+
+        if (row.isFromArchivedGroup) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_archive),
+                contentDescription = LocalContext.current.getString(
+                    R.string.archived_group_record_indicator
+                ),
+                modifier = GlanceModifier.size((24f * scale).dp),
+                colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
+            )
+            Spacer(GlanceModifier.width(8.dp))
+        }
 
         val showTrailingText = row.trailingText != null && !(hideMedicationDetails && row.isManualRecord)
         if (showTrailingText) {
