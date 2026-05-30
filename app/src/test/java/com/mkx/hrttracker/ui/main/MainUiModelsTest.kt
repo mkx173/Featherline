@@ -96,6 +96,54 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainE2Hero_ignores_future_dated_dose_when_now_is_provided() {
+        // A pre-logged dose stamped after `now` has not actually been taken yet,
+        // so it must not be reported as the last dose. Otherwise the elapsed
+        // label clamps the negative duration to "0 min ago" (see the Room path
+        // which surfaces future-but-today entries), diverging from the snapshot
+        // path which renders "no log yet".
+        val now = LocalDateTime.of(2026, 5, 31, 12, 0)
+        val futureDoseTime = now.plusHours(3)
+
+        val hero = buildMainE2Hero(
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    medicine = defaultEstradiolMedicine,
+                    sourceGroupUuid = null,
+                    appliedAt = testInstant(futureDoseTime),
+                )
+            ),
+            zoneId = testZoneId,
+            now = now,
+        )
+
+        assertNull(hero.lastDoseAt)
+        assertNull(hero.lastDose)
+    }
+
+    @Test
+    fun buildMainE2Hero_keeps_past_dose_when_now_is_provided() {
+        val now = LocalDateTime.of(2026, 5, 31, 12, 0)
+        val pastDoseTime = now.minusHours(2)
+
+        val hero = buildMainE2Hero(
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    medicine = defaultEstradiolMedicine,
+                    sourceGroupUuid = null,
+                    appliedAt = testInstant(pastDoseTime),
+                )
+            ),
+            zoneId = testZoneId,
+            now = now,
+        )
+
+        assertEquals(pastDoseTime, hero.lastDoseAt)
+    }
+
+    @Test
     fun buildMainE2Chart_converts_pk_chart_concentrations_to_display_unit() {
         val chart = buildMainE2Chart(
             trendResult = PkTrendResult(
