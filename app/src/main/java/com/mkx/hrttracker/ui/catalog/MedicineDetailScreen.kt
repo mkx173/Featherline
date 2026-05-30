@@ -1352,8 +1352,8 @@ private fun MedicinePreparationDraftUiState.toPreparationOrNull(): MedicinePrepa
     }.getOrNull()
 }
 
-private fun String.toPositiveDoubleOrThrow(): Double {
-    val value = trim().toDouble()
+internal fun String.toPositiveDoubleOrThrow(): Double {
+    val value = trim().replace(',', '.').toDouble()
     require(value > 0.0 && value.isFinite())
     return value
 }

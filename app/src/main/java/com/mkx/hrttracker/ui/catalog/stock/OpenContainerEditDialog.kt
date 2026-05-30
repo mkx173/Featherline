@@ -49,7 +49,7 @@ fun OpenContainerEditDialog(
     var showError by remember { mutableStateOf(false) }
 
     val submit = {
-        val parsed = valueText.trim().toDoubleOrNull()
+        val parsed = parseOpenContainerAmount(valueText)
         if (parsed == null || parsed < 0.0) {
             showError = true
         } else {
@@ -57,7 +57,7 @@ fun OpenContainerEditDialog(
         }
     }
 
-    val sliderValue = valueText.trim().toDoubleOrNull()
+    val sliderValue = parseOpenContainerAmount(valueText)
         ?.coerceIn(0.0, containerSize)
         ?.toFloat()
         ?: 0f
@@ -113,6 +113,10 @@ fun OpenContainerEditDialog(
             }
         },
     )
+}
+
+internal fun parseOpenContainerAmount(text: String): Double? {
+    return text.trim().replace(',', '.').toDoubleOrNull()
 }
 
 private fun MedicinePreparation.containerSizeOrZero(): Double = when (this) {
