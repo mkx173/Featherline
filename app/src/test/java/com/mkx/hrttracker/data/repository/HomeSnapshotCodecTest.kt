@@ -181,6 +181,65 @@ class HomeSnapshotCodecTest {
     }
 
     @Test
+    fun encodeDecode_preservesArchivedGroups() {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
+            key = MedicationKey.ESTRADIOL,
+        )
+        val group = MedicationGroup(
+            uuid = UUID.fromString("4510ad0b-b565-43c7-b52f-3d8ab73873c1"),
+            name = "Home estradiol",
+            colorKey = MedicationGroupColorKey.PLUM,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.WEEKLY,
+                interval = 2,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
+                times = listOf(LocalTime.of(8, 0)),
+                timeSlots = listOf(
+                    MedicationGroupScheduleTime(
+                        uuid = UUID.fromString("56c99b34-6a42-42e0-b2cc-2c68a4c8e5f5"),
+                        time = LocalTime.of(8, 0),
+                        effectiveFrom = LocalDateTime.of(2026, 4, 1, 0, 0),
+                    )
+                ),
+            ),
+            medications = listOf(
+                MedicationGroupMedication(
+                    uuid = UUID.fromString("d02c3d8a-76e4-4d48-a3c3-795c61a3cd17"),
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 2),
+                    count = 2,
+                )
+            ),
+            notificationsEnabled = true,
+            createdAt = Instant.ofEpochMilli(11L),
+            updatedAt = Instant.ofEpochMilli(12L),
+        )
+        val archivedGroup = group.copy(
+            archivedAt = Instant.parse("2026-05-01T00:00:00Z"),
+        )
+        val record = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 1L,
+            generatedAtEpochMillis = 100L,
+            anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
+            zoneId = "Asia/Tokyo",
+            pkProjection = null,
+            activeGroups = emptyList(),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+            archivedGroups = listOf(archivedGroup),
+        )
+
+        val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+
+        assertEquals(record.archivedGroups, decoded.archivedGroups)
+        assertEquals(record, decoded)
+    }
+
+    @Test
     fun encodeDecode_roundTripsPatchOffSlotWithNullMedicine() {
         // A PATCH_OFF slot is the one application type whose medicine
         // reference may be null. Without explicit nullable-medicine plumbing

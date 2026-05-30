@@ -27,6 +27,26 @@ interface HomeDao {
     )
     suspend fun getActiveGroups(): List<MedicationGroupWithItemsEntity>
 
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM medication_groups
+        WHERE archivedAtEpochMillis IS NOT NULL
+        ORDER BY createdAtEpochMillis ASC, updatedAtEpochMillis DESC, uuid ASC
+        """
+    )
+    fun observeArchivedGroups(): Flow<List<MedicationGroupWithItemsEntity>>
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM medication_groups
+        WHERE archivedAtEpochMillis IS NOT NULL
+        ORDER BY createdAtEpochMillis ASC, updatedAtEpochMillis DESC, uuid ASC
+        """
+    )
+    suspend fun getArchivedGroups(): List<MedicationGroupWithItemsEntity>
+
     @Query(
         """
         SELECT * FROM medication_log_entries

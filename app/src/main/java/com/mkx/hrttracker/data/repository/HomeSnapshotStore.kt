@@ -138,6 +138,8 @@ data class HomeSnapshotRecord(
     // it; refresh always populates both projections in the same pass.
     val widgetPkProjection: HomePkProjectionRecord? = null,
     val activeGroups: List<MedicationGroup>,
+    /** Archived groups, carried so Home/widget can mirror the Plan page. Defaulted for old fixtures/caches. */
+    val archivedGroups: List<MedicationGroup> = emptyList(),
     val scheduleEntries: List<MedicationLogEntry>,
     val antiandrogenHistoryEntries: List<MedicationLogEntry>,
     // Cached so Settings (and any other UserProfile consumer) can render the real
@@ -257,6 +259,7 @@ internal object HomeSnapshotCodec {
             stream.writeHomePkProjectionRecord(record.pkProjection)
             stream.writeHomePkProjectionRecord(record.widgetPkProjection)
             stream.writeList(record.activeGroups) { group -> writeMedicationGroup(group) }
+            stream.writeList(record.archivedGroups) { group -> writeMedicationGroup(group) }
             stream.writeList(record.scheduleEntries) { entry -> writeMedicationLogEntry(entry) }
             stream.writeList(record.antiandrogenHistoryEntries) { entry -> writeMedicationLogEntry(entry) }
             stream.writeUserProfile(record.userProfile)
@@ -282,6 +285,7 @@ internal object HomeSnapshotCodec {
                 pkProjection = stream.readHomePkProjectionRecord(),
                 widgetPkProjection = stream.readHomePkProjectionRecord(),
                 activeGroups = stream.readList { readMedicationGroup() },
+                archivedGroups = stream.readList { readMedicationGroup() },
                 scheduleEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
                 antiandrogenHistoryEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
                 userProfile = stream.readUserProfile(),
@@ -913,7 +917,8 @@ private const val TAG = "HomeSnapshotStore"
 // rejected by codec-version mismatch so tracked stock is never defaulted away.
 // v17 appends the deduped pkEntries pool so the snapshot path can re-simulate
 // the E2 curve locally when the cached projection expires.
-private const val SNAPSHOT_CODEC_VERSION = 17
+// v18 appends archivedGroups (after activeGroups) so Home/widget mirror Plan.
+private const val SNAPSHOT_CODEC_VERSION = 18
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0
