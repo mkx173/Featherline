@@ -101,8 +101,8 @@ import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
-import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
+import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme

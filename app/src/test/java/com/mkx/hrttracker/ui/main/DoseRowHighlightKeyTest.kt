@@ -1,11 +1,11 @@
 package com.mkx.hrttracker.ui.main
 
 import com.mkx.hrttracker.ScheduledDoseRowHighlightTarget
-import com.mkx.hrttracker.scheduledDoseRowHighlightTargetFromStorageValue
-import com.mkx.hrttracker.toStorageValue
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.scheduledDoseRowHighlightTargetFromStorageValue
+import com.mkx.hrttracker.toStorageValue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
