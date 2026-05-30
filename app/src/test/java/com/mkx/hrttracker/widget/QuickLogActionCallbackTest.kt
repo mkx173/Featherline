@@ -220,10 +220,62 @@ class QuickLogActionCallbackTest {
         verify { toast.show() }
     }
 
+    @Test
+    fun onAction_logsForArchivedGroup() = runTest {
+        mockkStatic(EntryPointAccessors::class)
+        val context: Context = mockk()
+        val appContext: Context = mockk()
+        val glanceId: GlanceId = mockk()
+        val entryPoint: WidgetEntryPoint = mockk()
+        val groupRepository: MedicationGroupRepository = mockk()
+        val logRepository: MedicationLogRepository = mockk()
+        val medicineStockRepository: MedicineStockRepository = mockk()
+        val settingsRepository: SettingsRepository = mockk()
+        val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
+        val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        // Archived group: a record was manually deleted and the user re-logs it from the
+        // widget. Quick-log must still write the entry rather than silently no-op.
+        val group = medicationGroup(
+            uuid = UUID.fromString("b6e0f0a2-3c1d-4f5e-9a7b-1c2d3e4f5a6b"),
+            scheduledTime = scheduledAt.toLocalTime(),
+            medicationKey = MedicationKey.ESTRADIOL,
+            archivedAt = Instant.parse("2026-04-15T00:00:00Z"),
+        )
+        val medicine = group.medications.single().medicine!!
+        val parameters = actionParametersOf(
+            GroupUuidKey to group.uuid.toString(),
+            ScheduleTimeUuidKey to group.schedule.timeSlots.single().uuid.toString(),
+            ScheduledAtKey to scheduledAt.toString(),
+        )
+        every { context.applicationContext } returns appContext
+        every {
+            EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        } returns entryPoint
+        every { entryPoint.medicationGroupRepository() } returns groupRepository
+        every { entryPoint.medicationLogRepository() } returns logRepository
+        every { entryPoint.medicineStockRepository() } returns medicineStockRepository
+        every { entryPoint.settingsRepository() } returns settingsRepository
+        every { entryPoint.reminderNotificationManager() } returns notificationManager
+        every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(medicine, MedicineStockState.USER_LOW)
+        )
+
+        QuickLogActionCallback().onAction(context, glanceId, parameters)
+
+        coVerify { logRepository.saveNewEntries(any()) }
+    }
+
     private fun medicationGroup(
         uuid: UUID,
         scheduledTime: LocalTime,
         medicationKey: MedicationKey,
+        archivedAt: Instant? = null,
     ): MedicationGroup {
         return MedicationGroup(
             uuid = uuid,
@@ -247,6 +299,7 @@ class QuickLogActionCallbackTest {
             notificationsEnabled = true,
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
             updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+            archivedAt = archivedAt,
         )
     }
 

@@ -43,7 +43,7 @@ class BuildMissingScheduledLogEntriesTest {
     }
 
     @Test
-    fun returns_empty_list_for_inactive_group() {
+    fun builds_entry_for_archived_group_so_widget_can_relog() {
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
         val group = medicationGroup(
             uuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
@@ -60,7 +60,12 @@ class BuildMissingScheduledLogEntriesTest {
             appliedAt = scheduledAt.plusMinutes(1),
         )
 
-        assertTrue(result.isEmpty())
+        // Archive state is intentionally not gated here — callers decide. The widget
+        // quick-log re-logs a manually deleted dose for an archived group under
+        // showArchivedGroupRecords, so an entry must still be produced. (The reminder
+        // caller filters archived groups upstream in buildMissingReminderLogEntries.)
+        assertEquals(1, result.size)
+        assertEquals(group.uuid, result.first().sourceGroupUuid)
     }
 
     @Test

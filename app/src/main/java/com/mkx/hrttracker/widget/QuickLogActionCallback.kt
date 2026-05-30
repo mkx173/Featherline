@@ -6,7 +6,6 @@ import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.reminder.MedicationReminderSlot
 import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
 import com.mkx.hrttracker.reminder.showPostLogToast
@@ -51,10 +50,9 @@ class QuickLogActionCallback : ActionCallback {
             return
         }
 
-        if (!group.isActive()) {
-            updateAllHrtWidgets(appContext)
-            return
-        }
+        // Archived groups are intentionally quick-loggable: their rows are surfaced under
+        // showArchivedGroupRecords (e.g. to re-log a manually deleted dose), so the tap must
+        // write the entry rather than no-op. Only genuinely missing groups bail (above).
 
         // Restrict to the tapped medication so the callback doesn't log all
         // medications in the group when only one row was tapped. A non-null
