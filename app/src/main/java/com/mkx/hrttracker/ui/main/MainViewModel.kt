@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -180,6 +181,13 @@ class MainViewModel @Inject constructor(
         val homeEntries = (inputs.scheduleEntries + inputs.antiandrogenHistoryEntries)
             .distinctBy { entry -> entry.uuid }
             .sortedByDescending { entry -> entry.appliedAt }
+        val allGroups = inputs.activeGroups + inputs.archivedGroups
+        val visibleEntries = visibleMedicationEntries(
+            homeEntries,
+            allGroups,
+            inputs.settings.showArchivedGroupRecords,
+        )
+        val scheduleGroups = if (inputs.settings.showArchivedGroupRecords) allGroups else inputs.activeGroups
         // HomeInputs was constructed against the date-scoped anchor `now` at
         // flow subscription time. The live `now` ticks per minute and may
         // cross a planned-slot expiry without a fresh upstream emission, so
@@ -260,16 +268,20 @@ class MainViewModel @Inject constructor(
                 zoneId = zoneId,
             ),
             todaySection = buildMainTodaySection(
-                groups = inputs.activeGroups,
-                entries = homeEntries,
+                groups = scheduleGroups,
+                entries = visibleEntries,
                 now = now,
                 zoneId = zoneId,
+                includeUnloggedArchivedSlots = false,
+                unloggedArchivedSlotCutoff = now,
             ),
             lastNightSection = buildMainLastNightSection(
-                groups = inputs.activeGroups,
-                entries = homeEntries,
+                groups = scheduleGroups,
+                entries = visibleEntries,
                 now = now,
                 zoneId = zoneId,
+                includeUnloggedArchivedSlots = false,
+                unloggedArchivedSlotCutoff = now,
             ),
             upcomingSection = buildMainUpcomingSection(
                 groups = inputs.activeGroups,

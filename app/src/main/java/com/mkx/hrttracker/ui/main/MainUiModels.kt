@@ -515,7 +515,9 @@ internal fun buildMainTodaySection(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
-    zoneId: ZoneId = ZoneId.systemDefault()
+    zoneId: ZoneId = ZoneId.systemDefault(),
+    includeUnloggedArchivedSlots: Boolean = true,
+    unloggedArchivedSlotCutoff: LocalDateTime? = null,
 ): MainTodaySectionUiState {
     val today = now.toLocalDate()
     val entriesByUuid = entries.associateBy { it.uuid }
@@ -526,6 +528,8 @@ internal fun buildMainTodaySection(
         entriesByUuid = entriesByUuid,
         now = now,
         zoneId = zoneId,
+        includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
+        unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
     )
     val rows = (todayRows.scheduledRows + todayRows.manualRows)
         .sortedWith(mainTodayDoseRowComparator)
@@ -543,7 +547,9 @@ internal fun buildMainLastNightSection(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
-    zoneId: ZoneId = ZoneId.systemDefault()
+    zoneId: ZoneId = ZoneId.systemDefault(),
+    includeUnloggedArchivedSlots: Boolean = true,
+    unloggedArchivedSlotCutoff: LocalDateTime? = null,
 ): MainLastNightSectionUiState {
     if (!mainIsOvernightTime(now.toLocalTime())) {
         return MainLastNightSectionUiState()
@@ -558,6 +564,8 @@ internal fun buildMainLastNightSection(
         entriesByUuid = entriesByUuid,
         now = now,
         zoneId = zoneId,
+        includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
+        unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
     ).filter { row -> mainIsLastNightTime(row.scheduledAt.toLocalTime()) }
     val rows = (lastNightRows.scheduledRows + lastNightRows.manualRows)
         .sortedWith(mainTodayDoseRowComparator)
@@ -658,13 +666,17 @@ private fun buildMainTodayRowsForDate(
     entriesByUuid: Map<UUID, MedicationLogEntry>,
     now: LocalDateTime,
     zoneId: ZoneId,
+    includeUnloggedArchivedSlots: Boolean,
+    unloggedArchivedSlotCutoff: LocalDateTime?,
 ): MainTodayRowsForDate {
     val daySchedule = buildPlanDaySchedule(
         date = date,
         groups = groups,
         entries = entries,
         now = now,
-        zoneId = zoneId
+        zoneId = zoneId,
+        includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
+        unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
     )
     val groupsByUuid = groups.associateBy { group -> group.uuid }
 
