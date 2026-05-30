@@ -1,6 +1,9 @@
 package com.mkx.hrttracker.widget
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
+import android.content.res.Configuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
@@ -57,6 +60,7 @@ import java.io.File
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
+import androidx.glance.appwidget.GlanceRemoteViews
 import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityFromIntent
 import androidx.glance.appwidget.updateAll as glanceUpdateAll
 import androidx.glance.preview.Preview as GlancePreview
@@ -71,24 +75,39 @@ private suspend fun GlanceAppWidget.provideHrtContent(
     provideContent {
         val state = currentState<WidgetSnapshotState>()
         val snapshot = state.record?.takeIf { it.schemaVersion == WIDGET_SNAPSHOT_SCHEMA_VERSION }
-        val adaptiveEnabled = snapshot?.adaptiveColorEnabled ?: true
-        val alpha = snapshot?.widgetBackgroundAlpha?.coerceIn(0.5f, 1f) ?: 1.0f
-        val scale = snapshot?.widgetContentScale?.coerceIn(0.5f, 1.5f) ?: 1.0f
-        val forcedDark = snapshot?.forcedDark
-        val widgetColors = if (adaptiveEnabled) {
-            dynamicWidgetColorScheme(context, alpha, forcedDark)
-        } else {
-            hardcodedWidgetColorScheme(alpha, forcedDark)
-        }
-        GlanceTheme {
-            CompositionLocalProvider(
-                LocalWidgetColors provides widgetColors,
-                LocalWidgetScale provides scale,
-                LocalWidgetAlpha provides alpha,
-                LocalWidgetForcedDark provides forcedDark,
-            ) {
-                content(snapshot)
-            }
+        HrtWidgetThemed(context, snapshot) { content(it) }
+    }
+}
+
+// Shared theme + CompositionLocal scaffold for the widget content. Used both by the
+// session-backed provideContent path and by the synchronous GlanceRemoteViews.compose
+// path (pushHrtWidgets), so the two render identically.
+@Composable
+private fun HrtWidgetThemed(
+    context: Context,
+    snapshot: WidgetSnapshotRecord?,
+    content: @Composable (snapshot: WidgetSnapshotRecord?) -> Unit,
+) {
+    val adaptiveEnabled = snapshot?.adaptiveColorEnabled ?: true
+    val alpha = snapshot?.widgetBackgroundAlpha?.coerceIn(0.5f, 1f) ?: 1.0f
+    val scale = snapshot?.widgetContentScale?.coerceIn(0.5f, 1.5f) ?: 1.0f
+    val forcedDark = snapshot?.forcedDark
+    val widgetColors = if (adaptiveEnabled) {
+        dynamicWidgetColorScheme(context, alpha, forcedDark)
+    } else {
+        hardcodedWidgetColorScheme(alpha, forcedDark)
+    }
+    GlanceTheme {
+        CompositionLocalProvider(
+            // GlanceRemoteViews.compose does not seed LocalContext the way the session
+            // path does, so provide it explicitly; harmless (same value) on the session path.
+            LocalContext provides context,
+            LocalWidgetColors provides widgetColors,
+            LocalWidgetScale provides scale,
+            LocalWidgetAlpha provides alpha,
+            LocalWidgetForcedDark provides forcedDark,
+        ) {
+            content(snapshot)
         }
     }
 }
@@ -155,6 +174,74 @@ suspend fun updateAllHrtWidgets(context: Context) {
         launch { HrtWidgetMedium().glanceUpdateAll(context) }
         launch { HrtWidgetLarge().glanceUpdateAll(context) }
     }
+}
+
+// Synchronous push that bypasses Glance's lazy session. Glance's update()/updateAll()
+// only signal the session, whose recomposition is driven by the app process's frame
+// clock — backgrounded, no frames are produced and the update stalls until the launcher
+// next draws or the app relaunches. GlanceRemoteViews.compose() runs a one-shot,
+// frame-clock-independent composition; pushing the result via AppWidgetManager updates
+// the (foreground) launcher immediately, even from the background.
+//
+// Tradeoff: we compose a single RemoteViews for the current orientation's size rather
+// than Glance's automatic portrait/landscape variants. Acceptable here because content
+// scale is frozen to the captured per-device baseline.
+@OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
+suspend fun pushHrtWidgets(context: Context, record: WidgetSnapshotRecord) {
+    val appWidgetManager = AppWidgetManager.getInstance(context)
+    coroutineScope {
+        launch { pushHrtWidget(context, appWidgetManager, HrtWidgetMediumReceiver::class.java, record, isMedium = true) }
+        launch { pushHrtWidget(context, appWidgetManager, HrtWidgetLargeReceiver::class.java, record, isMedium = false) }
+    }
+}
+
+@OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
+private suspend fun pushHrtWidget(
+    context: Context,
+    appWidgetManager: AppWidgetManager,
+    receiverClass: Class<*>,
+    record: WidgetSnapshotRecord,
+    isMedium: Boolean,
+) {
+    val appWidgetIds = runCatching {
+        appWidgetManager.getAppWidgetIds(ComponentName(context, receiverClass))
+    }.getOrElse { intArrayOf() }
+    appWidgetIds.forEach { appWidgetId ->
+        val size = currentWidgetSizeDp(context, appWidgetManager, appWidgetId, isMedium)
+        val result = runCatching {
+            GlanceRemoteViews().compose(context = context, size = size) {
+                HrtWidgetThemed(context, record) { snapshot ->
+                    if (isMedium) MediumWidgetContent(snapshot) else LargeWidgetContent(snapshot)
+                }
+            }
+        }.getOrNull() ?: return@forEach
+        runCatching { appWidgetManager.updateAppWidget(appWidgetId, result.remoteViews) }
+    }
+}
+
+// The widget size for the current orientation, derived from the launcher's options.
+// Portrait uses (minWidth, maxHeight); landscape uses (maxWidth, minHeight) — matching
+// how SizeMode.Exact picks the size Glance composes against.
+private fun currentWidgetSizeDp(
+    context: Context,
+    appWidgetManager: AppWidgetManager,
+    appWidgetId: Int,
+    isMedium: Boolean,
+): DpSize {
+    val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+    val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+    val maxWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH)
+    val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
+    val maxHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
+    val landscape = context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val widthDp = if (landscape) maxWidth else minWidth
+    val heightDp = if (landscape) minHeight else maxHeight
+    if (widthDp > 0 && heightDp > 0) {
+        return DpSize(widthDp.dp, heightDp.dp)
+    }
+    // Options not yet reported (e.g. freshly added widget): fall back to the observed
+    // portrait sizes so the one-shot compose still produces a sane layout.
+    return if (isMedium) DpSize(280.dp, 258.dp) else DpSize(483.dp, 258.dp)
 }
 
 // ── Group-aware row collapsing ────────────────────────────────────────────────
