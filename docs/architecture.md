@@ -259,7 +259,10 @@ both installed in `SingletonComponent`:
 - [`AppTimeModule`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/di/AppTimeModule.kt)
   — provides a `java.time.Clock` (system UTC) and an `AppTimeSource`
   that wraps the clock to support tickable test seams and per-minute
-  observation.
+  observation. It also exposes `refresh()`, which `HrtTrackerApplication`
+  wires to `ProcessLifecycleOwner.onStart()` so the home screen reflects
+  clock/time-zone changes made while backgrounded (the per-minute ticker
+  is paused while no UI is subscribed).
 
 Consumer pattern: `@AndroidEntryPoint` on `MainActivity` and the
 reminder broadcast receivers; `@HiltViewModel` on ViewModels. The
@@ -362,7 +365,7 @@ The home screen has two cached layers, both observed by
   (`home_snapshot.pb`) so the home screen paints from cache on cold
   start before live Room observation catches up. The persisted record
   is `HomeSnapshotRecord`. The snapshot codec is at
-  `SNAPSHOT_CODEC_VERSION = 17` and the schema record at
+  `SNAPSHOT_CODEC_VERSION = 18` and the schema record at
   `HOME_SNAPSHOT_SCHEMA_VERSION = 7`; both moved through the
   medicine-identity refactor (slots and log entries now reference a
   medicine by UUID, and the PATCH_OFF singleton round-trips), and the
@@ -373,7 +376,9 @@ The home screen has two cached layers, both observed by
   locally (see the fallback note below). The entries are encoded with a
   deduplicated medicine pool (each distinct medicine serialized once,
   referenced by index) since a daily doser repeats the same one or two
-  medicines across the whole window.
+  medicines across the whole window. v18 appends an `archivedGroups`
+  field so Home and the widget can mirror the Plan page's archived-group
+  doses without re-reading Room.
 
 The persisted snapshot also bundles a `HomePkProjectionRecord` — the
 result of the most recent

@@ -153,6 +153,7 @@ Known non-locale-sensitive time constants:
 ## Number, Unit, and Medical Text
 
 - Medication dose numbers use `Double.formatDose(locale)` in `model/medication/DoseFormatting.kt`, which swaps the decimal separator for the active locale.
+- **Numeric input** is the inverse: European Decimal keyboards emit a comma (e.g. `1,5`), so each input site normalizes comma to dot via `.trim().replace(',', '.')` before `toDoubleOrNull()` (medicine strength/dose, open-container amount, weight/stock/calibration). New numeric fields must do the same or comma entries silently fail to parse.
 - Compose medication text passes `rememberAppLocale()`.
 - Non-Compose medication text uses `Locale.getDefault()` after `SettingsRepository` syncs it.
 - Blood-test unit labels in `BloodValueFormatters.kt` are scientific abbreviations such as `pg/mL` and `pmol/L`; these are currently not Android string resources.
