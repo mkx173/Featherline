@@ -74,6 +74,9 @@ class HomeRepositoryTest {
         // this signal so medicines edits propagate without an app restart;
         // mockk's relaxed default emits no value, which would deadlock combine.
         every { medicineDao.observeMedicineChangeVersion() } returns MutableStateFlow(0)
+        // Archived groups are combined alongside active groups; default to empty so
+        // tests that don't exercise archiving don't deadlock the combine.
+        every { homeDao.observeArchivedGroups() } returns flowOf(emptyList())
         every { medicineRepository.observeAllActiveTracked() } returns flowOf(emptyList())
         every {
             medicationLogRepository.observeScheduledEntriesInWindow(any(), any())
