@@ -78,7 +78,11 @@ class WidgetSnapshotRepository @Inject constructor(
 
     suspend fun clearWidgetSnapshot() {
         widgetSnapshotStore.clearSnapshot()
-        updateAllHrtWidgets(context)
+        // Push the empty state synchronously (record = null) so a widget-facing setting
+        // change made while the app is backgrounded and the home snapshot is empty still
+        // repaints immediately, rather than stalling on the session path until the
+        // launcher next draws.
+        pushHrtWidgets(context, null)
     }
 
     companion object {
