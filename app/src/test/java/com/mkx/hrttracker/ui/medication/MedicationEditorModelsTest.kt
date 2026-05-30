@@ -575,6 +575,18 @@ class MedicationEditorModelsTest {
     }
 
     @Test
+    fun tablet_fraction_third_selection_writes_one_third() {
+        val doseDraft = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+        ).toDoseInstructionDraft()
+
+        val draft = doseDraft.selectTabletFraction(TabletFractionOption.THIRD)
+        assertEquals(DoseInstruction.TabletFraction(1, 3), draft.toDoseInstruction())
+        assertEquals(TabletFractionOption.THIRD, draft.selectedTabletFractionOption())
+    }
+
+    @Test
     fun tablet_fraction_whole_selection_writes_one_over_one() {
         val doseDraft = defaultMedicineDraft(
             category = MedicationCategory.ESTRADIOL,
