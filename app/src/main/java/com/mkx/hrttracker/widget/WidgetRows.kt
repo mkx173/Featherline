@@ -53,7 +53,7 @@ import com.mkx.hrttracker.R
 import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityFromIntent
 
 internal fun isEmptySetup(snapshot: WidgetSnapshotRecord?): Boolean =
-    snapshot == null || !snapshot.hasActiveGroups
+    snapshot == null || (!snapshot.hasActiveGroups && snapshot.doseRows.isEmpty())
 
 internal sealed interface WidgetListItem {
     data class Header(val text: String) : WidgetListItem

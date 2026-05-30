@@ -14,6 +14,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -124,6 +125,29 @@ class WidgetSnapshotBuilderTest {
         assertEquals(0.5, widget.doseMarkers[0].timeH, 0.0001)
         assertEquals(95.0, widget.doseMarkers[0].concentration, 0.0001)
         assertEquals(false, widget.doseMarkers[0].isPlanned)
+    }
+
+    @Test
+    fun showsManualLogWhenNoActiveGroups() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        stubMedicationStrings()
+        val manual = testMedicationLogEntry(
+            sourceGroupUuid = null,
+            appliedAt = now.atZone(zoneId).toInstant(),
+        )
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = context,
+            homeSnapshot = homeSnapshotRecord(now = now, activeGroups = emptyList())
+                .copy(scheduleEntries = listOf(manual)),
+            settings = SettingsState(),
+            now = now,
+            zoneId = zoneId,
+        )
+
+        assertEquals(false, snapshot.hasActiveGroups)
+        assertEquals(1, snapshot.doseRows.size)
+        assertEquals(false, isEmptySetup(snapshot))
     }
 
     private fun stubMedicationStrings() {
