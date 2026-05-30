@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
+import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.doseInstructionText
@@ -32,17 +33,26 @@ internal fun buildWidgetSnapshotRecord(
     val yesterday = today.minusDays(1)
     val comingUpEnd = today.plusDays(1).atTime(6, 0)
     val activeGroups = homeSnapshot.activeGroups
+    val allGroups = activeGroups + homeSnapshot.archivedGroups
     val scheduleEntries = homeSnapshot.scheduleEntries
-    val groupColorByUuid = activeGroups.associate { group -> group.uuid to group.colorKey }
+    val visibleEntries = visibleMedicationEntries(
+        homeSnapshot.scheduleEntries,
+        allGroups,
+        settings.showArchivedGroupRecords,
+    )
+    val scheduleGroups = if (settings.showArchivedGroupRecords) allGroups else activeGroups
+    val groupColorByUuid = allGroups.associate { group -> group.uuid to group.colorKey }
 
     val isOvernight = now.toLocalTime().isBefore(LocalTime.of(6, 0))
     val lastNightRows = if (isOvernight) {
         val yesterdaySchedule = buildPlanDaySchedule(
             date = yesterday,
-            groups = activeGroups,
-            entries = scheduleEntries,
+            groups = scheduleGroups,
+            entries = visibleEntries,
             now = now,
             zoneId = zoneId,
+            includeUnloggedArchivedSlots = false,
+            unloggedArchivedSlotCutoff = now,
         )
         val eveningCutoff = LocalTime.of(18, 0)
         val scheduledLastNight = yesterdaySchedule.scheduledEntries
@@ -65,10 +75,12 @@ internal fun buildWidgetSnapshotRecord(
 
     val todaySchedule = buildPlanDaySchedule(
         date = today,
-        groups = activeGroups,
-        entries = scheduleEntries,
+        groups = scheduleGroups,
+        entries = visibleEntries,
         now = now,
         zoneId = zoneId,
+        includeUnloggedArchivedSlots = false,
+        unloggedArchivedSlotCutoff = now,
     )
     val todayScheduledRows = todaySchedule.scheduledEntries
         .map { entry -> entry.toWidgetDoseRow(context, timeFormatter, null) }

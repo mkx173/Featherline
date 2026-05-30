@@ -128,6 +128,81 @@ class WidgetSnapshotBuilderTest {
     }
 
     @Test
+    fun countsArchivedLoggedDoseWhenSettingOn() {
+        val now = LocalDateTime.of(2026, 5, 6, 12, 0)
+        stubMedicationStrings()
+        val archived = widgetTestGroup(
+            groupName = "Archived group",
+            medicationKey = MedicationKey.BICALUTAMIDE,
+            since = now.toLocalDate().minusDays(10),
+            time = LocalTime.of(8, 0),
+        ).copy(
+            archivedAt = now.atZone(zoneId).toInstant(),
+            archivedAtLocal = now,
+        )
+        val archivedMedication = archived.medications.single()
+        val logged = testMedicationLogEntry(
+            sourceGroupUuid = archived.uuid,
+            scheduledFor = now.toLocalDate().atTime(8, 0),
+            appliedAt = now.toLocalDate().atTime(8, 5).atZone(zoneId).toInstant(),
+            medicine = archivedMedication.medicine,
+            applicationType = archivedMedication.applicationType,
+            doseInstruction = archivedMedication.doseInstruction,
+        )
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = context,
+            homeSnapshot = homeSnapshotRecord(now = now, archivedGroups = listOf(archived))
+                .copy(scheduleEntries = listOf(logged)),
+            settings = SettingsState(showArchivedGroupRecords = true),
+            now = now,
+            zoneId = zoneId,
+        )
+
+        val row = snapshot.doseRows.first { !it.isManualRecord }
+        assertEquals("Archived group", row.groupName)
+        assertEquals(archived.colorKey, row.colorKey)
+        assertEquals(1, snapshot.totalCount)
+        assertEquals(1, snapshot.doneCount)
+    }
+
+    @Test
+    fun dropsArchivedDoseWhenSettingOff() {
+        val now = LocalDateTime.of(2026, 5, 6, 12, 0)
+        stubMedicationStrings()
+        val archived = widgetTestGroup(
+            groupName = "Archived group",
+            medicationKey = MedicationKey.BICALUTAMIDE,
+            since = now.toLocalDate().minusDays(10),
+            time = LocalTime.of(8, 0),
+        ).copy(
+            archivedAt = now.atZone(zoneId).toInstant(),
+            archivedAtLocal = now,
+        )
+        val archivedMedication = archived.medications.single()
+        val logged = testMedicationLogEntry(
+            sourceGroupUuid = archived.uuid,
+            scheduledFor = now.toLocalDate().atTime(8, 0),
+            appliedAt = now.toLocalDate().atTime(8, 5).atZone(zoneId).toInstant(),
+            medicine = archivedMedication.medicine,
+            applicationType = archivedMedication.applicationType,
+            doseInstruction = archivedMedication.doseInstruction,
+        )
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = context,
+            homeSnapshot = homeSnapshotRecord(now = now, archivedGroups = listOf(archived))
+                .copy(scheduleEntries = listOf(logged)),
+            settings = SettingsState(showArchivedGroupRecords = false),
+            now = now,
+            zoneId = zoneId,
+        )
+
+        assertEquals(0, snapshot.totalCount)
+        assertEquals(0, snapshot.doseRows.size)
+    }
+
+    @Test
     fun showsManualLogWhenNoActiveGroups() {
         val now = LocalDateTime.of(2026, 5, 6, 10, 15)
         stubMedicationStrings()
@@ -191,6 +266,7 @@ class WidgetSnapshotBuilderTest {
     private fun homeSnapshotRecord(
         now: LocalDateTime,
         activeGroups: List<MedicationGroup> = emptyList(),
+        archivedGroups: List<MedicationGroup> = emptyList(),
         pkProjection: HomePkProjectionRecord? = null,
         widgetPkProjection: HomePkProjectionRecord? = null,
     ): HomeSnapshotRecord {
@@ -202,6 +278,7 @@ class WidgetSnapshotBuilderTest {
             pkProjection = pkProjection,
             widgetPkProjection = widgetPkProjection,
             activeGroups = activeGroups,
+            archivedGroups = archivedGroups,
             scheduleEntries = emptyList(),
             antiandrogenHistoryEntries = emptyList(),
         )
