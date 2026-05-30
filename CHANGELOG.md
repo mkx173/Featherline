@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.0.2] - 2026-05-30
+
 ### Added
 
 - Doses from archived medication groups can now appear on the Home screen and widget when "show archived group records" is enabled, marked with an archive indicator.
@@ -46,6 +50,7 @@ First public release on Google Play.
 - Material 3 interface with dynamic color.
 - Fully on-device, encrypted local storage — no accounts, no telemetry, no network calls.
 
-[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/mkx173/Featherline/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/mkx173/Featherline/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/mkx173/Featherline/releases/tag/v1.0.0
