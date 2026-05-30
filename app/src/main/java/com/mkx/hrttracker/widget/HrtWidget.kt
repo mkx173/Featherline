@@ -247,6 +247,11 @@ private const val WIDGET_BASELINE_REFERENCE_DP = 276f
 // so we don't permanently lock the device baseline to nonsense.
 private const val WIDGET_BASELINE_MIN_SANE_DP = 50f
 private const val WIDGET_BASELINE_MAX_SANE_DP = 400f
+// Floor for the device-baseline component (baseline / reference) so an unexpectedly
+// small captured baseline can't collapse content to an illegible size. Sits below the
+// normal placed-widget ratio (~0.4–0.58) so it never oversizes a real cell, while still
+// catching pathologically tiny baselines. The user's own scale choice multiplies on top.
+private const val WIDGET_MIN_BASELINE_SCALE_RATIO = 0.35f
 private val LocalPreviewBaselineHeight = compositionLocalOf<Float?> { null }
 // Pre-formatted E2 trend label shown in previews. Bypasses the real
 // PkProjection path (whose windowing is unfriendly to fabricated data) so the
@@ -272,8 +277,14 @@ private fun widgetScale(widgetKey: String): Float {
         }
         resolveWidgetBaselineHeightDp(storedDp, currentHeightDp)
     }
-    return (baselineDp / WIDGET_BASELINE_REFERENCE_DP) * LocalWidgetScale.current
+    return widgetBaselineScaleRatio(baselineDp) * LocalWidgetScale.current
 }
+
+// The device-baseline component of the widget scale, floored so an unexpectedly small
+// captured baseline can't collapse content to an illegible size. The user's own scale
+// choice (LocalWidgetScale) multiplies on top of this.
+internal fun widgetBaselineScaleRatio(baselineDp: Float): Float =
+    (baselineDp / WIDGET_BASELINE_REFERENCE_DP).coerceAtLeast(WIDGET_MIN_BASELINE_SCALE_RATIO)
 
 // SizeMode.Exact composes the widget once per size (portrait + landscape) in a single
 // update, and every composition reads the stored baseline before any persists. Merging

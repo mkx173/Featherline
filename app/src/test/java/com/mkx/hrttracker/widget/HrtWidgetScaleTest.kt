@@ -70,6 +70,22 @@ class HrtWidgetScaleTest {
     }
 
     @Test
+    fun widgetBaselineScaleRatio_leavesNormalCellRatiosUntouched() {
+        // A normally placed cell (sub-reference but sane) keeps its real ratio so content
+        // fits the device's actual cell size — the floor must not oversize it.
+        assertEquals(150f / 276f, widgetBaselineScaleRatio(150f), 1e-6f)
+        assertEquals(1f, widgetBaselineScaleRatio(276f), 1e-6f)
+    }
+
+    @Test
+    fun widgetBaselineScaleRatio_floorsPathologicallySmallBaseline() {
+        // Defensive guard: an unexpectedly tiny captured baseline would collapse content
+        // to an illegible size, so the device-baseline component is floored.
+        assertEquals(0.35f, widgetBaselineScaleRatio(50f), 1e-6f)
+        assertEquals(0.35f, widgetBaselineScaleRatio(80f), 1e-6f)
+    }
+
+    @Test
     fun firstUpdateBatch_locksBaselineToTallestSizeComposition() {
         // SizeMode.Exact composes the widget once per size (portrait + landscape) in a
         // single update; every composition reads storedDp before any persists, so the
