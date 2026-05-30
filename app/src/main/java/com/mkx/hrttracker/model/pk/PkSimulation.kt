@@ -452,7 +452,7 @@ object PkMedicationSimulation {
     }
 
     private fun buildEstradiolEvents(
-        anchor: java.time.Instant,
+        anchor: Instant,
         realEntries: List<MedicationLogEntry>,
         plannedEntries: List<MedicationLogEntry>,
     ): List<PkDoseEvent> {

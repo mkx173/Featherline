@@ -53,7 +53,7 @@ import com.mkx.hrttracker.R
 import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityFromIntent
 
 internal fun isEmptySetup(snapshot: WidgetSnapshotRecord?): Boolean =
-    snapshot == null || !snapshot.hasActiveGroups
+    snapshot == null || (!snapshot.hasActiveGroups && snapshot.doseRows.isEmpty())
 
 internal sealed interface WidgetListItem {
     data class Header(val text: String) : WidgetListItem
@@ -481,6 +481,18 @@ internal fun DoseRow(
         }
 
         Spacer(GlanceModifier.width(8.dp))
+
+        if (row.isFromArchivedGroup) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_archive),
+                contentDescription = LocalContext.current.getString(
+                    R.string.archived_group_record_indicator
+                ),
+                modifier = GlanceModifier.size((22f * scale).dp),
+                colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
+            )
+            Spacer(GlanceModifier.width(8.dp))
+        }
 
         val showTrailingText = row.trailingText != null && !(hideMedicationDetails && row.isManualRecord)
         if (showTrailingText) {

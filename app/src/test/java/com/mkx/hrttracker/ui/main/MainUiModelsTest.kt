@@ -670,6 +670,127 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainTodaySection_countsLoggedArchivedDose() {
+        val now = LocalDateTime.of(2026, 5, 6, 12, 0)
+        val archived = medicationGroup(
+            uuid = UUID.fromString("c1d2e3f4-5678-49ab-8cde-f0123456789a"),
+            name = "Archived estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0)),
+            ),
+        ).copy(
+            archivedAt = testInstant(now.minusDays(1)),
+            archivedAtLocal = now.minusDays(1),
+        )
+        val logged = scheduledEntry(
+            groupUuid = archived.uuid,
+            appliedAt = now.toLocalDate().atTime(8, 5),
+            scheduledFor = now.toLocalDate().atTime(8, 0),
+        )
+
+        val section = buildMainTodaySection(
+            groups = listOf(archived),
+            entries = listOf(logged),
+            now = now,
+            zoneId = testZoneId,
+            includeUnloggedArchivedSlots = false,
+            unloggedArchivedSlotCutoff = now,
+        )
+
+        assertEquals(1, section.totalCount)
+        assertEquals(1, section.doneCount)
+        assertEquals(archived.name, section.rows.first().groupName)
+        assertEquals(MedicationGroupColorKey.PLUM, section.rows.first().groupColorKey)
+    }
+
+    @Test
+    fun buildMainTodaySection_flagsArchivedGroupRows_butNotActiveGroupRows() {
+        val now = LocalDateTime.of(2026, 5, 6, 12, 0)
+        val schedule = MedicationGroupSchedule(
+            type = MedicationGroupScheduleType.DAILY,
+            interval = 1,
+            since = LocalDate.of(2026, 4, 1),
+            weeklyDaysOfWeek = emptySet(),
+            times = listOf(LocalTime.of(8, 0)),
+        )
+        val active = medicationGroup(
+            uuid = UUID.fromString("11111111-1111-41ab-8cde-f0123456789a"),
+            name = "Active estradiol",
+            schedule = schedule,
+        )
+        val archived = medicationGroup(
+            uuid = UUID.fromString("22222222-2222-49ab-8cde-f0123456789a"),
+            name = "Archived estradiol",
+            schedule = schedule,
+        ).copy(
+            archivedAt = testInstant(now.minusDays(1)),
+            archivedAtLocal = now.minusDays(1),
+        )
+        val activeLog = scheduledEntry(
+            groupUuid = active.uuid,
+            appliedAt = now.toLocalDate().atTime(8, 5),
+            scheduledFor = now.toLocalDate().atTime(8, 0),
+        )
+        val archivedLog = scheduledEntry(
+            groupUuid = archived.uuid,
+            appliedAt = now.toLocalDate().atTime(8, 5),
+            scheduledFor = now.toLocalDate().atTime(8, 0),
+        )
+
+        val section = buildMainTodaySection(
+            groups = listOf(active, archived),
+            entries = listOf(activeLog, archivedLog),
+            now = now,
+            zoneId = testZoneId,
+            includeUnloggedArchivedSlots = false,
+            unloggedArchivedSlotCutoff = now,
+        )
+
+        assertEquals(true, section.rows.single { it.groupUuid == archived.uuid }.isFromArchivedGroup)
+        assertEquals(false, section.rows.single { it.groupUuid == active.uuid }.isFromArchivedGroup)
+    }
+
+    @Test
+    fun buildMainTodaySection_includesPastArchivedSlot_excludesFutureArchivedSlot() {
+        val now = LocalDateTime.of(2026, 5, 6, 12, 0)
+        val archived = medicationGroup(
+            uuid = UUID.fromString("a9b8c7d6-5432-41fe-9dcb-a09876543210"),
+            name = "Archived estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
+            ),
+        ).copy(
+            archivedAt = testInstant(now.toLocalDate().atTime(23, 0)),
+            archivedAtLocal = now.toLocalDate().atTime(23, 0),
+        )
+
+        val section = buildMainTodaySection(
+            groups = listOf(archived),
+            entries = emptyList(),
+            now = now,
+            zoneId = testZoneId,
+            includeUnloggedArchivedSlots = false,
+            unloggedArchivedSlotCutoff = now,
+        )
+
+        // The group is archived later today (23:00), so both 08:00 and 20:00
+        // are "owned" unlogged occurrences. With includeUnloggedArchivedSlots
+        // = false and the cutoff at now (12:00): the 08:00 slot is before the
+        // cutoff so it still appears; the 20:00 slot is after the cutoff so it
+        // is suppressed.
+        assertEquals(1, section.totalCount)
+        assertEquals(LocalTime.of(8, 0), section.rows.single().scheduledAt.toLocalTime())
+    }
+
+    @Test
     fun buildMainTodaySection_marks_exactlyOneHourLateSlot_overdue() {
         val group = medicationGroup(
             uuid = UUID.fromString("53f2b974-b2de-49c4-9160-c83a2219f803"),

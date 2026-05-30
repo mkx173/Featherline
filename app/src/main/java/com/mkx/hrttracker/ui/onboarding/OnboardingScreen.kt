@@ -25,9 +25,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -40,12 +40,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Checklist
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -824,7 +820,7 @@ private fun AppIconHero(
 @Composable
 private fun StepHeader(
     icon: ImageVector? = null,
-    iconPainter: androidx.compose.ui.graphics.painter.Painter? = null,
+    iconPainter: Painter? = null,
     iconBg: Color = MaterialTheme.colorScheme.secondaryContainer,
     iconFg: Color = MaterialTheme.colorScheme.onSecondaryContainer,
     title: String,
@@ -1091,7 +1087,7 @@ private fun NotificationsStep(
 @Composable
 private fun PermissionCard(
     icon: ImageVector? = null,
-    iconPainter: androidx.compose.ui.graphics.painter.Painter? = null,
+    iconPainter: Painter? = null,
     title: String,
     desc: String,
     granted: Boolean,

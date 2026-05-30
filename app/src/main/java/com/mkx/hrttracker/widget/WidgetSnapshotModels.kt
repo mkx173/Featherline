@@ -22,6 +22,7 @@ data class WidgetDoseRow(
     val scheduledAt: LocalDateTime,
     val trailingText: String?,
     val isManualRecord: Boolean,
+    val isFromArchivedGroup: Boolean = false,
     val contextChip: WidgetDoseChip?,
     val groupUuid: String?,
     val scheduleTimeUuid: String?,

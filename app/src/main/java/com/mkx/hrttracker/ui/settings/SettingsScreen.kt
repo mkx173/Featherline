@@ -105,7 +105,6 @@ import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.BackupPasswordDialog
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
-import com.mkx.hrttracker.ui.components.HrtDropdownAnchor
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -1105,30 +1104,8 @@ internal fun SettingsScreenContent(
                 )
 
                 SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_hide_medication_details),
-                    supportingText = stringResource(R.string.settings_hide_medication_details_summary),
-                    index = 2,
-                    count = 4,
-                    onClick = {
-                        onHideMedicationDetailsChange(!settingsState.hideMedicationDetails)
-                    },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_pill_off)
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = settingsState.hideMedicationDetails,
-                            onCheckedChange = onHideMedicationDetailsChange
-                        )
-                    }
-                )
-
-                SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_hide_archived_group_records),
-                    supportingText = stringResource(R.string.settings_hide_archived_group_records_summary),
-                    index = 3,
+                    index = 2,
                     count = 4,
                     onClick = {
                         onShowArchivedGroupRecordsChange(!settingsState.showArchivedGroupRecords)
@@ -1144,6 +1121,27 @@ internal fun SettingsScreenContent(
                             onCheckedChange = { hideArchivedGroupRecords ->
                                 onShowArchivedGroupRecordsChange(!hideArchivedGroupRecords)
                             }
+                        )
+                    }
+                )
+
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_hide_medication_details),
+                    supportingText = stringResource(R.string.settings_hide_medication_details_summary),
+                    index = 3,
+                    count = 4,
+                    onClick = {
+                        onHideMedicationDetailsChange(!settingsState.hideMedicationDetails)
+                    },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_pill_off)
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = settingsState.hideMedicationDetails,
+                            onCheckedChange = onHideMedicationDetailsChange
                         )
                     }
                 )

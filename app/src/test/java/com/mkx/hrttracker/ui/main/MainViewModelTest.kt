@@ -333,7 +333,7 @@ class MainViewModelTest {
 
         assertEquals(HomeInputSource.ROOM, viewModel.uiState.value.homeSource)
         assertEquals(
-            latestEstradiolEntry.appliedAt.atZone(java.time.ZoneId.systemDefault()).toLocalDateTime(),
+            latestEstradiolEntry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDateTime(),
             viewModel.uiState.value.e2Hero.lastDoseAt,
         )
         assertTrue(viewModel.uiState.value.e2Hero.currentValue > 0.0)

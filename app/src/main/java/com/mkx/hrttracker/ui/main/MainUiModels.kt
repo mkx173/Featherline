@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
+import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
@@ -123,6 +124,7 @@ data class MainTodayDoseRowUiState(
     val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedCount: Int = 0,
     val isManualRecord: Boolean = false,
+    val isFromArchivedGroup: Boolean = false,
     val groupCreatedAt: Instant = Instant.EPOCH,
     val medicationSortOrder: Int = 0,
     val sourceGroupPreviousScheduledFor: LocalDateTime? = null,
@@ -515,7 +517,9 @@ internal fun buildMainTodaySection(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
-    zoneId: ZoneId = ZoneId.systemDefault()
+    zoneId: ZoneId = ZoneId.systemDefault(),
+    includeUnloggedArchivedSlots: Boolean = true,
+    unloggedArchivedSlotCutoff: LocalDateTime? = null,
 ): MainTodaySectionUiState {
     val today = now.toLocalDate()
     val entriesByUuid = entries.associateBy { it.uuid }
@@ -526,6 +530,8 @@ internal fun buildMainTodaySection(
         entriesByUuid = entriesByUuid,
         now = now,
         zoneId = zoneId,
+        includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
+        unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
     )
     val rows = (todayRows.scheduledRows + todayRows.manualRows)
         .sortedWith(mainTodayDoseRowComparator)
@@ -543,7 +549,9 @@ internal fun buildMainLastNightSection(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
-    zoneId: ZoneId = ZoneId.systemDefault()
+    zoneId: ZoneId = ZoneId.systemDefault(),
+    includeUnloggedArchivedSlots: Boolean = true,
+    unloggedArchivedSlotCutoff: LocalDateTime? = null,
 ): MainLastNightSectionUiState {
     if (!mainIsOvernightTime(now.toLocalTime())) {
         return MainLastNightSectionUiState()
@@ -558,6 +566,8 @@ internal fun buildMainLastNightSection(
         entriesByUuid = entriesByUuid,
         now = now,
         zoneId = zoneId,
+        includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
+        unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
     ).filter { row -> mainIsLastNightTime(row.scheduledAt.toLocalTime()) }
     val rows = (lastNightRows.scheduledRows + lastNightRows.manualRows)
         .sortedWith(mainTodayDoseRowComparator)
@@ -658,15 +668,21 @@ private fun buildMainTodayRowsForDate(
     entriesByUuid: Map<UUID, MedicationLogEntry>,
     now: LocalDateTime,
     zoneId: ZoneId,
+    includeUnloggedArchivedSlots: Boolean,
+    unloggedArchivedSlotCutoff: LocalDateTime?,
 ): MainTodayRowsForDate {
     val daySchedule = buildPlanDaySchedule(
         date = date,
         groups = groups,
         entries = entries,
         now = now,
-        zoneId = zoneId
+        zoneId = zoneId,
+        includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
+        unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
     )
     val groupsByUuid = groups.associateBy { group -> group.uuid }
+    val archivedGroupUuids = groups.filter(MedicationGroup::isArchived)
+        .mapTo(mutableSetOf()) { group -> group.uuid }
 
     val scheduledRows = daySchedule.scheduledEntries.map { scheduledEntry ->
         val scheduledAt = scheduledEntry.scheduledFor
@@ -707,6 +723,7 @@ private fun buildMainTodayRowsForDate(
             fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
             outsideScheduleWindowEntryUuids = scheduledEntry.outsideScheduleWindowEntryUuids,
             loggedCount = scheduledEntry.loggedCount,
+            isFromArchivedGroup = scheduledEntry.groupUuid in archivedGroupUuids,
             groupCreatedAt = scheduledEntry.groupCreatedAt,
             medicationSortOrder = scheduledEntry.medicationSortOrder,
             editSnapshotEntries = editSnapshotEntries,
@@ -735,6 +752,8 @@ private fun buildMainTodayRowsForDate(
             fulfillingEntryUuids = listOf(entry.uuid),
             loggedCount = entry.count,
             isManualRecord = true,
+            isFromArchivedGroup = entry.sourceGroupUuid != null &&
+                entry.sourceGroupUuid in archivedGroupUuids,
             editSnapshotEntries = listOf(entry),
         )
     }

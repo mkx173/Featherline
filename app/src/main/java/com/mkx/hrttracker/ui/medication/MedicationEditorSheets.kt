@@ -101,8 +101,8 @@ import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
-import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
+import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -795,7 +795,7 @@ internal fun preparationTypeLabelRes(preparationType: MedicinePreparationType): 
 }
 
 private fun DoseInstructionDraftUiState.toDoseInstructionOrNull():
-    com.mkx.hrttracker.model.medication.DoseInstruction? {
+    DoseInstruction? {
     return runCatching { toDoseInstruction() }.getOrNull()
 }
 
@@ -826,7 +826,7 @@ private fun medicationSummaryTrailingContent(
 internal fun MedicationLogEntryLinkedMedicationSummary(
     lockedMedicine: Medicine?,
     applicationType: MedicationApplicationType,
-    doseInstruction: com.mkx.hrttracker.model.medication.DoseInstruction?,
+    doseInstruction: DoseInstruction?,
     countText: String,
     sourceGroupName: String?,
     sourceGroupColorKey: MedicationGroupColorKey?,
@@ -855,7 +855,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
     MedicationCardWithStockSubcard(
         medicine = lockedMedicine,
         doseInstruction = doseInstruction
-            ?: com.mkx.hrttracker.model.medication.DoseInstruction.Noop,
+            ?: DoseInstruction.Noop,
         applicationType = applicationType,
         medicationCount = resolvedCount.coerceAtLeast(1),
         groupColorKey = sourceGroupColorKey,

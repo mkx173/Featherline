@@ -471,7 +471,7 @@ class PlanDayOccurrenceTest {
             equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = scheduledFor.plusMinutes(3).toLocalDate().atTime(9, 3)
-                .atZone(java.time.ZoneId.systemDefault())
+                .atZone(ZoneId.systemDefault())
                 .toInstant(),
             scheduledFor = scheduledFor
         )
@@ -508,7 +508,7 @@ class PlanDayOccurrenceTest {
             equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = LocalDateTime.of(2026, 4, 19, 0, 15)
-                .atZone(java.time.ZoneId.systemDefault())
+                .atZone(ZoneId.systemDefault())
                 .toInstant(),
             scheduledFor = scheduledFor
         )
@@ -546,7 +546,7 @@ class PlanDayOccurrenceTest {
             equivalentE2Mg = 2.0,
             sourceGroupUuid = group.uuid,
             appliedAt = LocalDateTime.of(2026, 4, 18, 9, 4)
-                .atZone(java.time.ZoneId.systemDefault())
+                .atZone(ZoneId.systemDefault())
                 .toInstant(),
             scheduledFor = scheduledFor
         )
@@ -647,7 +647,7 @@ class PlanDayOccurrenceTest {
                     equivalentE2Mg = 2.0,
                     sourceGroupUuid = group.uuid,
                     appliedAt = LocalDateTime.of(2026, 4, 18, 9, 3)
-                        .atZone(java.time.ZoneId.systemDefault())
+                        .atZone(ZoneId.systemDefault())
                         .toInstant(),
                     scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0),
                     count = 2

@@ -41,7 +41,7 @@ class MedicineCreateActionsTest {
 
         val result = createMedicineFromDraft(
             medicineRepository = medicineRepository,
-            draft = com.mkx.hrttracker.ui.medication.defaultMedicineDraft().copy(
+            draft = defaultMedicineDraft().copy(
                 selectionKind = MedicationSelectionKind.CATALOG,
                 medicationKey = MedicationKey.ESTRADIOL,
                 pillStrengthMg = "2",
@@ -83,7 +83,7 @@ class MedicineCreateActionsTest {
 
         val result = createMedicineFromDraft(
             medicineRepository = medicineRepository,
-            draft = com.mkx.hrttracker.ui.medication.defaultMedicineDraft().copy(
+            draft = defaultMedicineDraft().copy(
                 pillStrengthMg = "2",
             ),
         )
@@ -104,7 +104,7 @@ class MedicineCreateActionsTest {
         try {
             createMedicineFromDraft(
                 medicineRepository = medicineRepository,
-                draft = com.mkx.hrttracker.ui.medication.defaultMedicineDraft().copy(
+                draft = defaultMedicineDraft().copy(
                     pillStrengthMg = "2",
                 ),
             )

@@ -194,6 +194,7 @@ class HomeSnapshotRepositoryTest {
         coEvery { homeDao.getActiveGroups() } returns listOf(
             groupWithTwoSlotsReferencing(medicineUuid)
         )
+        coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
         coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
@@ -252,6 +253,7 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
+        coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
         coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
@@ -339,6 +341,7 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
+        coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
         coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
@@ -554,6 +557,7 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
+        coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery {
             homeDao.getScheduleEntries(
                 capture(scheduledStartIso),
@@ -637,6 +641,7 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
+        coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
         coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
@@ -706,6 +711,7 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
+        coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
         coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()

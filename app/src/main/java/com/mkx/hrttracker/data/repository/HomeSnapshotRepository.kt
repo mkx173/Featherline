@@ -476,6 +476,7 @@ class HomeSnapshotRepository @Inject constructor(
             val medicineDao = database.medicineDao()
             val medicationLogDao = database.medicationLogDao()
             val activeGroupEntities = homeDao.getActiveGroups()
+            val archivedGroupEntities = homeDao.getArchivedGroups()
             val scheduleEntryEntities = homeDao.getScheduleEntries(
                 scheduledStartIso = snapshotWindow.bufferedScheduledStart.toString(),
                 scheduledEndIso = snapshotWindow.bufferedScheduledEnd.toString(),
@@ -506,12 +507,17 @@ class HomeSnapshotRepository @Inject constructor(
                 scheduledEndIso = stockWindowEndIso,
             )
 
-            val groupMedicinesByUuid = database.resolveMedicinesForGroups(activeGroupEntities)
+            val groupMedicinesByUuid = database.resolveMedicinesForGroups(
+                activeGroupEntities + archivedGroupEntities
+            )
             val entryMedicinesByUuid = database.resolveMedicinesForEntries(
                 scheduleEntryEntities + antiandrogenHistoryEntities + pkEntries +
                     listOfNotNull(latestEstradiolEntryEntity) + stockFulfillmentEntities
             )
             val activeGroups = activeGroupEntities.map { group ->
+                group.toMedicationGroupModel(groupMedicinesByUuid)
+            }
+            val archivedGroups = archivedGroupEntities.map { group ->
                 group.toMedicationGroupModel(groupMedicinesByUuid)
             }
             val scheduleEntries = scheduleEntryEntities.map { entry ->
@@ -532,6 +538,7 @@ class HomeSnapshotRepository @Inject constructor(
             }
             HomeSnapshotBuildInputs(
                 activeGroups = activeGroups,
+                archivedGroups = archivedGroups,
                 scheduleEntries = scheduleEntries,
                 antiandrogenHistoryEntries = antiandrogenHistoryEntries,
                 pkEntries = pkEntryModels,
@@ -548,6 +555,7 @@ class HomeSnapshotRepository @Inject constructor(
             TAG,
             "home_snapshot_refresh_inputs_loaded generation=$refreshGeneration " +
                 "activeGroups=${inputs.activeGroups.size} " +
+                "archivedGroups=${inputs.archivedGroups.size} " +
                 "scheduleEntries=${inputs.scheduleEntries.size} " +
                 "antiandrogenEntries=${inputs.antiandrogenHistoryEntries.size} " +
                 "pkEntries=${inputs.pkEntries.size} " +
@@ -655,6 +663,7 @@ class HomeSnapshotRepository @Inject constructor(
             pkProjection = pkProjectionRecord,
             widgetPkProjection = widgetPkProjectionRecord,
             activeGroups = inputs.activeGroups,
+            archivedGroups = inputs.archivedGroups,
             scheduleEntries = inputs.scheduleEntries,
             antiandrogenHistoryEntries = inputs.antiandrogenHistoryEntries,
             userProfile = inputs.profile,
@@ -691,6 +700,7 @@ class HomeSnapshotRepository @Inject constructor(
 
     private data class HomeSnapshotBuildInputs(
         val activeGroups: List<MedicationGroup>,
+        val archivedGroups: List<MedicationGroup>,
         val scheduleEntries: List<MedicationLogEntry>,
         val antiandrogenHistoryEntries: List<MedicationLogEntry>,
         val pkEntries: List<MedicationLogEntry>,
@@ -880,6 +890,7 @@ private fun HomeSnapshotRecord.diagnosticSummary(): String {
         "anchorDate=${LocalDate.ofEpochDay(anchorDateEpochDay)} " +
         "zone=$zoneId " +
         "groups=${activeGroups.size} " +
+        "archivedGroups=${archivedGroups.size} " +
         "scheduleEntries=${scheduleEntries.size} " +
         "antiandrogenEntries=${antiandrogenHistoryEntries.size} " +
         "hasPkProjection=${pkProjection != null}"

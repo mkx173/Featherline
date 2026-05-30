@@ -40,7 +40,7 @@ internal class MedicineStockMutator @Inject constructor() {
         if (!prepType.isContainerTopology()) {
             val remaining = entity.stockUnitsRemaining ?: 0.0
             val actuallyDeducted = minOf(requestedDose, remaining).coerceAtLeast(0.0)
-            val newRemaining = remaining - actuallyDeducted
+            val newRemaining = (remaining - actuallyDeducted).zeroIfTiny()
             dao.updateStockFields(
                 uuid = entity.uuid,
                 trackingEnabled = true,

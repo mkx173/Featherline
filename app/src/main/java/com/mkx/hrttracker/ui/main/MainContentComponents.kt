@@ -2144,7 +2144,7 @@ private fun rememberEdgeAlignedLineCartesianLayer(
 }
 
 private class EdgeAlignedLineCartesianLayer(
-    lineProvider: LineCartesianLayer.LineProvider,
+    lineProvider: LineProvider,
     pointSpacing: Dp,
     rangeProvider: CartesianLayerRangeProvider,
     drawingModelInterpolator: CartesianLayerDrawingModelInterpolator<
@@ -3393,6 +3393,14 @@ private fun MainTodayTrailingContent(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        if (row.isFromArchivedGroup) {
+            Icon(
+                painter = painterResource(R.drawable.ic_archive),
+                contentDescription = stringResource(R.string.archived_group_record_indicator),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+        }
         if (textLabel != null && textLabel.text.isNotBlank()) {
             Text(
                 text = textLabel.text,

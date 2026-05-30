@@ -109,8 +109,8 @@ class MedicinesViewModel @Inject constructor(
 
     private fun buildSections(
         activeMedicines: List<Medicine>,
-        referenceCounts: Map<java.util.UUID, Int>,
-        stockProjections: Map<java.util.UUID, MedicineStockProjection>,
+        referenceCounts: Map<UUID, Int>,
+        stockProjections: Map<UUID, MedicineStockProjection>,
     ): List<MedicineCategorySection> {
         val visibleMedicines = activeMedicines.visibleInMedicineManager()
         if (visibleMedicines.isEmpty()) {
@@ -145,7 +145,7 @@ class MedicinesViewModel @Inject constructor(
 
     private fun activeGroupReferenceCounts(
         groups: List<MedicationGroup>,
-    ): Map<java.util.UUID, Int> {
+    ): Map<UUID, Int> {
         // Count over groups, not slots: a group with two slots pointing at
         // the same medicine still counts once per group. The archive guard
         // we mirror in MedicineRepository.archive uses the same semantics.
