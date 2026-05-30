@@ -128,8 +128,11 @@ class MainViewModel @Inject constructor(
         _homeDeepLinkSignal.update { it + 1 }
     }
 
-    fun consumeHighlightRequest() {
-        _highlightRequest.value = null
+    fun consumeHighlightRequest(request: DoseRowHighlightRequest) {
+        // Clear only if this is still the active request. A cancellation-time
+        // consume (tab switch) must not clobber a newer request that arrived
+        // from a fresh deep link.
+        _highlightRequest.compareAndSet(request, null)
     }
 
     fun dismissTimeZoneChangeNotice() {
@@ -255,6 +258,7 @@ class MainViewModel @Inject constructor(
                 trendResult = trendResult,
                 displayUnit = homeE2DisplayUnit,
                 zoneId = zoneId,
+                now = now,
             ),
             e2Chart = buildMainE2Chart(
                 trendResult = trendResult,

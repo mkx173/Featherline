@@ -187,9 +187,18 @@ internal fun buildMainE2Hero(
     entries: List<MedicationLogEntry>,
     trendResult: PkTrendResult? = null,
     displayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
-    zoneId: ZoneId = ZoneId.systemDefault()
+    zoneId: ZoneId = ZoneId.systemDefault(),
+    // The Room "latest dose" query is bounded by end-of-today (a deliberately
+    // stable per-day bound), so it can surface a future-applied dose the user
+    // pre-logged earlier today. Such a dose has not been taken yet, so exclude
+    // anything after `now` from the "last dose" the hero reports. When `now` is
+    // null no upper bound is applied (used by previews/tests).
+    now: LocalDateTime? = null,
 ): MainE2HeroUiState {
-    val lastEstradiolEntry = findLastEstradiolEntry(entries)
+    val lastEstradiolEntry = findLastEstradiolEntry(
+        entries = entries,
+        onOrBefore = now?.atZone(zoneId)?.toInstant(),
+    )
     val concentrationUnit = trendResult?.concentrationUnit ?: PkConcentrationUnit.PG_PER_ML
 
     return MainE2HeroUiState(

@@ -64,12 +64,19 @@ internal suspend fun runDoseRowHighlightLifecycle(
     clearDelayMillis: Long,
     consumeHighlightRequest: () -> Unit,
 ) {
-    setFlashReady(false)
-    awaitFirstLayoutFrame()
-    awaitScrollSettled()
-    setFlashReady(true)
-    delay(clearDelayMillis)
-    consumeHighlightRequest()
+    try {
+        setFlashReady(false)
+        awaitFirstLayoutFrame()
+        awaitScrollSettled()
+        setFlashReady(true)
+        delay(clearDelayMillis)
+    } finally {
+        // Consume on normal completion AND on cancellation. Leaving the Home
+        // tab disposes MainScreen, cancelling this coroutine before the clear
+        // delay elapses; without this the request would survive in the
+        // (activity-scoped) ViewModel and replay the highlight on return.
+        consumeHighlightRequest()
+    }
 }
 
 // Assumes the target row's bringIntoView() registers isScrollInProgress (or
@@ -121,7 +128,8 @@ fun MainScreen(
     var highlightFlashReady by remember { mutableStateOf(false) }
 
     LaunchedEffect(highlightRequest, highlightEffectsEnabled) {
-        if (highlightRequest == null || !highlightEffectsEnabled) {
+        val activeRequest = highlightRequest
+        if (activeRequest == null || !highlightEffectsEnabled) {
             highlightFlashReady = false
             return@LaunchedEffect
         }
@@ -137,7 +145,7 @@ fun MainScreen(
                 )
             },
             clearDelayMillis = DoseRowHighlightClearDelayMillis,
-            consumeHighlightRequest = viewModel::consumeHighlightRequest,
+            consumeHighlightRequest = { viewModel.consumeHighlightRequest(activeRequest) },
         )
     }
 

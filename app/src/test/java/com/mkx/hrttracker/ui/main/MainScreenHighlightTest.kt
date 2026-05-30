@@ -3,9 +3,12 @@ package com.mkx.hrttracker.ui.main
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -76,5 +79,32 @@ class MainScreenHighlightTest {
         )
 
         job.cancel()
+    }
+
+    @Test
+    fun runDoseRowHighlightLifecycle_consumesRequest_whenCancelledBeforeClearDelayElapses() = runTest {
+        // Leaving the Home tab disposes MainScreen, cancelling this coroutine
+        // mid clear-delay. The request must still be consumed so it cannot
+        // replay the highlight when the user returns to the tab.
+        val events = mutableListOf<String>()
+        val job = launch {
+            runDoseRowHighlightLifecycle(
+                setFlashReady = { ready -> events += "flashReady=$ready" },
+                awaitFirstLayoutFrame = { },
+                awaitScrollSettled = { },
+                clearDelayMillis = 10_000L,
+                consumeHighlightRequest = { events += "consume" },
+            )
+        }
+
+        runCurrent()
+        advanceTimeBy(1_000L)
+        runCurrent()
+        assertFalse("request consumed before clear delay elapsed", events.contains("consume"))
+
+        job.cancel()
+        job.join()
+
+        assertTrue("request not consumed after cancellation", events.contains("consume"))
     }
 }
