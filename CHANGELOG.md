@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- Doses from archived medication groups can now appear on the Home screen and widget when "show archived group records" is enabled, marked with an archive indicator.
+- 1/3 tablet fraction option when entering a tablet dose.
+
+### Changed
+
+- Reordered the display settings and clarified their summaries.
 
 ## [1.0.1] - 2026-05-30
 
