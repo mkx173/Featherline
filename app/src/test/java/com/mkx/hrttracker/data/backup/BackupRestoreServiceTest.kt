@@ -178,6 +178,56 @@ class BackupRestoreServiceTest {
         assertEquals(logUuid.toString(), restoredLog.uuid)
     }
 
+    @Test
+    fun restoreBackupBytes_acceptsWidgetContentScaleAcrossFullUiRange() = runTest {
+        // The widget appearance slider lets users choose any scale in
+        // 0.5..1.5 and export copies it verbatim. The restore validator must
+        // accept that same domain — a narrower range silently rejects a
+        // legitimately-exported backup as "incompatible". Restoring at both
+        // extremes must succeed and preserve the stored value unchanged.
+        val capturedScales = mutableListOf<Float>()
+        coEvery {
+            settingsRepository.restoreSettings(
+                darkModeOption = any(),
+                adaptiveColorEnabled = any(),
+                remindersEnabled = any(),
+                showArchivedGroupRecords = any(),
+                hideReferenceRanges = any(),
+                appLockGracePeriodOption = any(),
+                hideScreenContentEnabled = any(),
+                onboardingCompleted = any(),
+                appLanguageOption = any(),
+                calibrationDefaultUnits = any(),
+                homeE2DisplayUnit = any(),
+                homeE2ChartWindowOption = any(),
+                lastSeenTimeZoneId = any(),
+                hideMedicationDetails = any(),
+                widgetContentScale = capture(capturedScales),
+                widgetBackgroundAlpha = any(),
+                widgetDarkModeOption = any(),
+                groupNameCounter = any(),
+                firstDayOfWeekOption = any(),
+            )
+        } just Runs
+
+        listOf(0.5f, 1.5f).forEach { scale ->
+            service.restoreBackupBytes(
+                encryptedBytes = backupCrypto.encryptSnapshotJson(
+                    json = BackupSnapshotJsonCodec.encode(snapshotWithWidgetContentScale(scale)),
+                    password = "password".toCharArray(),
+                ),
+                password = "password",
+            )
+        }
+
+        assertEquals(listOf(0.5f, 1.5f), capturedScales)
+    }
+
+    private fun snapshotWithWidgetContentScale(scale: Float): BackupSnapshot {
+        val base = emptySnapshot()
+        return base.copy(settings = base.settings.copy(widgetContentScale = scale))
+    }
+
     private fun emptySnapshot(): BackupSnapshot {
         return BackupSnapshot(
             exportedAtEpochMillis = 1_777_777_777_000L,

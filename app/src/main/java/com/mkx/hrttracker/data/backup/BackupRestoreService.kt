@@ -94,13 +94,42 @@ class BackupRestoreService @Inject constructor(
     suspend fun validateBackupBytes(
         encryptedBytes: ByteArray,
     ) = withContext(Dispatchers.IO) {
+        diagnosticsLogger.info(
+            TAG,
+            "validate_backup_start bytes=${encryptedBytes.size} " +
+                "header=${encryptedBytes.headerPreviewHex()}",
+        )
         try {
             backupCrypto.validateEncryptedBackupContainer(encryptedBytes)
+            diagnosticsLogger.info(
+                TAG,
+                "validate_backup_ok bytes=${encryptedBytes.size}",
+            )
         } catch (error: IllegalArgumentException) {
+            diagnosticsLogger.warning(
+                TAG,
+                "validate_backup_incompatible bytes=${encryptedBytes.size} " +
+                    "header=${encryptedBytes.headerPreviewHex()} reason=${error.message}",
+                error,
+            )
             throw IncompatibleBackupFileException(
                 message = error.message ?: "Selected file is not a compatible backup.",
                 cause = error,
             )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            // Non-IllegalArgument failures (e.g. a malformed buffer that
+            // underflows past the size guards) surface to the user as a
+            // generic "restore failed" rather than "incompatible", so log
+            // them distinctly to tell the two paths apart while debugging.
+            diagnosticsLogger.warning(
+                TAG,
+                "validate_backup_unexpected_error bytes=${encryptedBytes.size} " +
+                    "header=${encryptedBytes.headerPreviewHex()}",
+                error,
+            )
+            throw error
         }
     }
 
@@ -131,6 +160,11 @@ class BackupRestoreService @Inject constructor(
         encryptedBytes: ByteArray,
         password: String,
     ) = withContext(Dispatchers.IO) {
+        diagnosticsLogger.info(
+            TAG,
+            "restore_backup_start bytes=${encryptedBytes.size} " +
+                "expectedPackage=${context.packageName}",
+        )
         val passwordChars = password.toCharArray()
         val json = try {
             backupCrypto.decryptSnapshotJson(
@@ -140,14 +174,37 @@ class BackupRestoreService @Inject constructor(
         } finally {
             passwordChars.fill(' ')
         }
-        val snapshotVersion = BackupSnapshotJsonCodec.peekSnapshotVersion(json)
-            ?: throw IOException("Unable to decode the selected backup file.")
-        require(snapshotVersion in MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION) {
-            "Unsupported backup snapshot version: $snapshotVersion."
+        // The snapshot decode + structural validation below throws
+        // IllegalArgumentException (via require) for anything it considers
+        // malformed; the UI maps every such failure to the generic
+        // "incompatible backup" toast, hiding which specific invariant
+        // tripped. Log the exact reason so a successfully-exported file that
+        // is still rejected can be traced to its failing require().
+        val validatedSnapshot = try {
+            val snapshotVersion = BackupSnapshotJsonCodec.peekSnapshotVersion(json)
+                ?: throw IOException("Unable to decode the selected backup file.")
+            diagnosticsLogger.info(
+                TAG,
+                "restore_backup_decrypted snapshotVersion=$snapshotVersion",
+            )
+            require(snapshotVersion in MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION) {
+                "Unsupported backup snapshot version: $snapshotVersion."
+            }
+            val snapshot = BackupSnapshotJsonCodec.decode(json)
+                ?: throw IOException("Unable to decode the selected backup file.")
+            snapshot.toValidatedSnapshot(expectedPackageName = context.packageName).also {
+                diagnosticsLogger.info(TAG, "restore_backup_validated_ok")
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IllegalArgumentException) {
+            diagnosticsLogger.warning(
+                TAG,
+                "restore_backup_rejected_as_incompatible reason=${error.message}",
+                error,
+            )
+            throw error
         }
-        val snapshot = BackupSnapshotJsonCodec.decode(json)
-            ?: throw IOException("Unable to decode the selected backup file.")
-        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = context.packageName)
 
         // Any visible dose-reminder notification references slot UUIDs from the
         // pre-restore database. Tap-actions afterward dispatch with stale state, so
@@ -742,7 +799,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         homeE2ChartWindowOption = homeE2ChartWindowOption,
         lastSeenTimeZoneId = lastSeenTimeZoneId,
         hideMedicationDetails = hideMedicationDetails,
-        widgetContentScale = widgetContentScale.requireFiniteIn(0.7f..1.3f, "widget content scale"),
+        widgetContentScale = widgetContentScale.requireFiniteIn(0.5f..1.5f, "widget content scale"),
         widgetBackgroundAlpha = widgetBackgroundAlpha.requireFiniteIn(0.5f..1f, "widget background opacity"),
         widgetDarkModeOption = widgetDarkModeOption,
         groupNameCounter = groupNameCounter,
@@ -1309,6 +1366,18 @@ private data class BackupDoseInstructionStorageFields(
     val doseVolumeMl: Double?,
     val doseWeightGrams: Double?,
 )
+
+// Renders the leading container bytes (magic + version + format flags) as
+// hex so a backup wrongly rejected as incompatible can be diagnosed from a
+// log line alone: a wrong/missing magic, an unexpected version byte, or a
+// truncated file all become visible here. Stops well short of the
+// ciphertext, so no decrypted user data is logged.
+private fun ByteArray.headerPreviewHex(byteCount: Int = 40): String {
+    if (isEmpty()) return "<empty>"
+    return take(byteCount).joinToString(separator = " ") { byte ->
+        "%02x".format(byte)
+    }
+}
 
 private inline fun <reified T : Enum<T>> requireEnumName(
     value: String,
