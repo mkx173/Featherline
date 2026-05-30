@@ -1358,11 +1358,6 @@ internal fun String.toPositiveDoubleOrThrow(): Double {
     return value
 }
 
-private fun String.toPositiveDoubleOrNull(): Double? {
-    val value = trim().toDoubleOrNull() ?: return null
-    return value.takeIf { it > 0.0 && it.isFinite() }
-}
-
 private fun Double.toEditableString(): String {
     return java.math.BigDecimal.valueOf(this).stripTrailingZeros().toPlainString()
 }
