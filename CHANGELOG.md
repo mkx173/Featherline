@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _Nothing yet._
 
+## [1.0.1] - 2026-05-30
+
+### Fixed
+
+- Restoring a backup no longer reports a valid file as incompatible when its widget content scale was set outside the previous narrower range.
+- Home-screen widget content can no longer render illegibly small when an unexpectedly small cell baseline is captured.
+
+### Changed
+
+- Updated icons on the medicine details page.
+
 ## [1.0.0] - 2026-05-30
 
 First public release on Google Play.
@@ -28,5 +39,6 @@ First public release on Google Play.
 - Material 3 interface with dynamic color.
 - Fully on-device, encrypted local storage — no accounts, no telemetry, no network calls.
 
-[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/mkx173/Featherline/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/mkx173/Featherline/releases/tag/v1.0.0
