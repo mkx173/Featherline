@@ -403,7 +403,7 @@ private fun MedicineDetailScreenContent(
                                         onClick = { onOpenAdjustSheet(AdjustSheetTab.RECEIVED) },
                                         leadingContent = {
                                             Box(
-                                                modifier = Modifier.size(22.dp),
+                                                modifier = Modifier.size(24.dp),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Icon(
@@ -452,7 +452,7 @@ private fun MedicineDetailScreenContent(
                                                         ),
                                                         contentDescription = null,
                                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        modifier = Modifier.size(20.dp)
+                                                        modifier = Modifier.size(24.dp)
                                                     )
                                                 }
                                             },

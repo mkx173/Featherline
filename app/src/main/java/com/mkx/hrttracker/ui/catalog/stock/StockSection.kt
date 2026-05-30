@@ -197,7 +197,7 @@ private fun StockRows(projection: MedicineStockProjection) {
             var index = 0
             if (showOpenRow) {
                 StockRowCard(
-                    iconRes = R.drawable.ic_humidity_mid,
+                    iconRes = R.drawable.ic_humidity_mid_big,
                     label = stringResource(R.string.stock_row_label_current_vial),
                     trailingCount = stockSectionCountText(
                         numerator = stock.openContainerAmount,
@@ -232,7 +232,7 @@ private fun StockRows(projection: MedicineStockProjection) {
                     denominator = stock.unitsLastTotal,
                 ),
                 progressState = projection.state,
-                iconSize = 20.dp
+                iconSize = 24.dp
             )
             RunwayRowCard(
                 projection = projection,
@@ -247,7 +247,7 @@ private fun StockRows(projection: MedicineStockProjection) {
             var index = 0
             if (showOpenRow) {
                 StockRowCard(
-                    iconRes = R.drawable.ic_humidity_mid,
+                    iconRes = R.drawable.ic_humidity_mid_big,
                     label = stringResource(R.string.stock_row_label_current_container),
                     trailingCount = stockSectionCountText(
                         numerator = stock.openContainerAmount,
@@ -278,7 +278,7 @@ private fun StockRows(projection: MedicineStockProjection) {
                     denominator = stock.unitsLastTotal,
                 ),
                 progressState = projection.state,
-                iconSize = 20.dp
+                iconSize = 24.dp
             )
             RunwayRowCard(
                 projection = projection,
@@ -303,7 +303,7 @@ private fun StockRows(projection: MedicineStockProjection) {
                     denominator = stock.unitsLastTotal,
                 ),
                 progressState = projection.state,
-                iconSize = 20.dp
+                iconSize = 24.dp
             )
             RunwayRowCard(
                 projection = projection,
@@ -515,7 +515,7 @@ private fun RunwayRowCard(
                     painter = painterResource(iconRes),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(24.dp),
                 )
             }
             Spacer(Modifier.width(12.dp))
