@@ -186,8 +186,11 @@ suspend fun updateAllHrtWidgets(context: Context) {
 // Tradeoff: we compose a single RemoteViews for the current orientation's size rather
 // than Glance's automatic portrait/landscape variants. Acceptable here because content
 // scale is frozen to the captured per-device baseline.
+//
+// A null record renders the empty-setup state, so clearWidgetSnapshot can push the empty
+// widget synchronously too rather than falling back to the session path's background stall.
 @OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
-suspend fun pushHrtWidgets(context: Context, record: WidgetSnapshotRecord) {
+suspend fun pushHrtWidgets(context: Context, record: WidgetSnapshotRecord?) {
     val appWidgetManager = AppWidgetManager.getInstance(context)
     coroutineScope {
         launch { pushHrtWidget(context, appWidgetManager, HrtWidgetMediumReceiver::class.java, record, isMedium = true) }
@@ -200,7 +203,7 @@ private suspend fun pushHrtWidget(
     context: Context,
     appWidgetManager: AppWidgetManager,
     receiverClass: Class<*>,
-    record: WidgetSnapshotRecord,
+    record: WidgetSnapshotRecord?,
     isMedium: Boolean,
 ) {
     val appWidgetIds = runCatching {
@@ -239,9 +242,13 @@ private fun currentWidgetSizeDp(
     if (widthDp > 0 && heightDp > 0) {
         return DpSize(widthDp.dp, heightDp.dp)
     }
-    // Options not yet reported (e.g. freshly added widget): fall back to the observed
-    // portrait sizes so the one-shot compose still produces a sane layout.
-    return if (isMedium) DpSize(280.dp, 258.dp) else DpSize(483.dp, 258.dp)
+    // Options not yet reported (e.g. freshly added widget): fall back to a sane size so the
+    // one-shot compose still produces a usable layout. The height matches the baseline
+    // reference, so if this fallback happens to be the first render to capture the device
+    // baseline, it resolves to scale 1.0 rather than a slightly-off value. Widths are
+    // nominal — content fills the launcher-allocated cell width regardless.
+    val fallbackHeight = WIDGET_BASELINE_REFERENCE_DP.dp
+    return if (isMedium) DpSize(280.dp, fallbackHeight) else DpSize(483.dp, fallbackHeight)
 }
 
 // ── Group-aware row collapsing ────────────────────────────────────────────────
