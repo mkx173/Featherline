@@ -8,8 +8,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import com.mkx.hrttracker.util.ToastManager
 import com.mkx.hrttracker.widget.HomeWidgetManager
@@ -38,6 +42,9 @@ class HrtTrackerApplication : Application() {
 
     @Inject
     lateinit var homeWidgetManager: HomeWidgetManager
+
+    @Inject
+    lateinit var appTimeSource: AppTimeSource
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate() {
@@ -96,6 +103,16 @@ class HrtTrackerApplication : Application() {
         diagnosticsLogger.info(TAG, "application_notification_channel_requested")
         timeZoneChangeNoticeController.attachToProcessLifecycle()
         diagnosticsLogger.info(TAG, "application_timezone_notice_controller_attached")
+        // Re-read the wall clock on every foreground so the home/plan/history
+        // screens reflect a date/time change that happened while backgrounded.
+        // The minute-ticker StateFlow otherwise stays stale until its next
+        // monotonic tick (up to a minute, longer while the process is frozen).
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                appTimeSource.refresh()
+            }
+        })
+        diagnosticsLogger.info(TAG, "application_app_time_source_refresh_attached")
         homeWidgetManager.start()
         diagnosticsLogger.info(TAG, "application_home_widget_manager_started")
         diagnosticsLogger.info(TAG, "application_on_create_complete")
