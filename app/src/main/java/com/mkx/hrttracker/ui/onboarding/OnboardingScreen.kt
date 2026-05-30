@@ -824,7 +824,7 @@ private fun AppIconHero(
 @Composable
 private fun StepHeader(
     icon: ImageVector? = null,
-    iconPainter: androidx.compose.ui.graphics.painter.Painter? = null,
+    iconPainter: Painter? = null,
     iconBg: Color = MaterialTheme.colorScheme.secondaryContainer,
     iconFg: Color = MaterialTheme.colorScheme.onSecondaryContainer,
     title: String,
@@ -1091,7 +1091,7 @@ private fun NotificationsStep(
 @Composable
 private fun PermissionCard(
     icon: ImageVector? = null,
-    iconPainter: androidx.compose.ui.graphics.painter.Painter? = null,
+    iconPainter: Painter? = null,
     title: String,
     desc: String,
     granted: Boolean,

@@ -2144,7 +2144,7 @@ private fun rememberEdgeAlignedLineCartesianLayer(
 }
 
 private class EdgeAlignedLineCartesianLayer(
-    lineProvider: LineCartesianLayer.LineProvider,
+    lineProvider: LineProvider,
     pointSpacing: Dp,
     rangeProvider: CartesianLayerRangeProvider,
     drawingModelInterpolator: CartesianLayerDrawingModelInterpolator<

@@ -8,7 +8,7 @@ import org.junit.Test
 class MedicationCatalogTest {
     @Test
     fun estradiol_oral_catalog_includes_required_medications() {
-        val catalog = MedicationCatalog.catalogFor(
+        val catalog = catalogFor(
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.ORAL,
         )
@@ -44,7 +44,7 @@ class MedicationCatalogTest {
     @Test
     fun antiandrogen_only_exposes_oral_route_with_required_medications() {
         val applicationTypes = MedicationCatalog.applicationTypesFor(MedicationCategory.ANTIANDROGEN)
-        val catalog = MedicationCatalog.catalogFor(
+        val catalog = catalogFor(
             category = MedicationCategory.ANTIANDROGEN,
             applicationType = MedicationApplicationType.ORAL,
         )
@@ -234,7 +234,7 @@ class MedicationCatalogTest {
             MedicationApplicationType.SUBLINGUAL,
         )
             .flatMap { applicationType ->
-                MedicationCatalog.catalogFor(
+                catalogFor(
                     category = MedicationCategory.ESTRADIOL,
                     applicationType = applicationType,
                 ).entries

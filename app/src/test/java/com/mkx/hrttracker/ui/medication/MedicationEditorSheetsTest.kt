@@ -87,7 +87,7 @@ class MedicationEditorSheetsTest {
 
     @Test
     fun preparation_type_labels_resolve_for_every_type() {
-        com.mkx.hrttracker.model.medication.MedicinePreparationType.entries.forEach { type ->
+        MedicinePreparationType.entries.forEach { type ->
             assertEquals(
                 preparationTypeLabelRes(type),
                 preparationTypeLabelRes(type),

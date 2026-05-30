@@ -2119,7 +2119,7 @@ internal fun medicationGroupNameFieldLabelPosition(): TextFieldLabelPosition {
 }
 
 private fun maybeRequestExactAlarmAccess(
-    context: android.content.Context,
+    context: Context,
     launch: (Intent) -> Unit
 ) {
     if (canScheduleExactAlarms(context)) {

@@ -2404,7 +2404,7 @@ internal fun MedicationGroupMedication.toItemUiState(): MedicationGroupMedicatio
     val medicineDraft = if (medicine != null) {
         com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine(medicine, applicationType)
     } else {
-        com.mkx.hrttracker.ui.medication.defaultMedicineDraft(
+        defaultMedicineDraft(
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.PATCH_OFF,
         )

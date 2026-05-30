@@ -98,7 +98,7 @@ class EntryDisplayZoneTest {
 
     @Test
     fun appliedAtAsLocalDateTime_uses_entry_zone() {
-        val instant = java.time.LocalDateTime.of(2026, 4, 15, 9, 0)
+        val instant = LocalDateTime.of(2026, 4, 15, 9, 0)
             .atZone(ZoneId.of("Asia/Tokyo"))
             .toInstant()
         val entry = testMedicationLogEntry(
@@ -110,14 +110,14 @@ class EntryDisplayZoneTest {
             appliedAtTimeZoneId = "Asia/Tokyo"
         )
         assertEquals(
-            java.time.LocalDateTime.of(2026, 4, 15, 9, 0),
+            LocalDateTime.of(2026, 4, 15, 9, 0),
             appliedAtAsLocalDateTime(entry, deviceZone = ZoneId.of("America/Los_Angeles"))
         )
     }
 
     @Test
     fun formatEntryWallTime_renders_time_in_entry_zone() {
-        val instant = java.time.LocalDateTime.of(2026, 4, 15, 9, 0)
+        val instant = LocalDateTime.of(2026, 4, 15, 9, 0)
             .atZone(ZoneId.of("Asia/Tokyo"))
             .toInstant()
         val entry = testMedicationLogEntry(

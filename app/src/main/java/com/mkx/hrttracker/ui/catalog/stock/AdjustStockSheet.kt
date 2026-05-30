@@ -662,7 +662,7 @@ private fun AdjustStockSheetPillRecountPreview() {
             projection = previewProjection(
                 medicine = previewMedicine(
                     preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
-                    stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                    stock = MedicineStock(
                         trackingEnabled = true,
                         unitsRemaining = 18.0,
                     ),
@@ -689,7 +689,7 @@ private fun AdjustStockSheetSingleUseVialReceivedPreview() {
                     preparation = MedicinePreparation.InjectionSingleUseVial(
                         strengthMgPerVial = 5.0,
                     ),
-                    stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                    stock = MedicineStock(
                         trackingEnabled = true,
                         unitsRemaining = 3.0,
                     ),
@@ -718,7 +718,7 @@ private fun AdjustStockSheetMultiUseVialReceivedPreview() {
             projection = previewProjection(
                 medicine = previewMedicine(
                     preparation = preparation,
-                    stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                    stock = MedicineStock(
                         trackingEnabled = true,
                         unitsRemaining = 2.0,
                         openContainerAmount = 2.5,

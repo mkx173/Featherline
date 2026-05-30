@@ -825,12 +825,12 @@ private fun MedicinesScreenOnboardingPreview() {
     }
 }
 
-private fun previewMedicine(): com.mkx.hrttracker.model.medication.Medicine {
+private fun previewMedicine(): Medicine {
     val key = com.mkx.hrttracker.model.medication.MedicationKey.ESTRADIOL
-    val preparation = com.mkx.hrttracker.model.medication.MedicinePreparation.Pill(
+    val preparation = MedicinePreparation.Pill(
         strengthMgPerTablet = 2.0,
     )
-    return com.mkx.hrttracker.model.medication.Medicine(
+    return Medicine(
         uuid = UUID.fromString("00000000-0000-0000-0000-000000000010"),
         selection = com.mkx.hrttracker.model.medication.MedicineSelection.Catalog(key),
         category = key.category,

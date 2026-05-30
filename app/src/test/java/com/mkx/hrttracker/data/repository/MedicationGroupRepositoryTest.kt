@@ -1397,11 +1397,11 @@ class MedicationGroupRepositoryTest {
         val itemUuid = UUID.fromString("eeeeeeee-0000-0000-0000-000000000002")
         val medicineUuid = UUID.fromString("ffffffff-0000-0000-0000-000000000003")
 
-        val medicineDao = mockk<com.mkx.hrttracker.data.local.MedicineDao>()
+        val medicineDao = mockk<MedicineDao>()
         val groupsSource = MutableStateFlow(listOf(testGroupWithItem(groupUuid, itemUuid, medicineUuid)))
         val medicineChangeVersion = MutableStateFlow(0)
         val medicineState = MutableStateFlow(
-            com.mkx.hrttracker.data.local.MedicineEntity(
+            MedicineEntity(
                 uuid = medicineUuid.toString(),
                 selectionKind = "CATALOG",
                 medicationKey = "ESTRADIOL",
