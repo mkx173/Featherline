@@ -339,7 +339,11 @@ internal fun buildMissingScheduledLogEntries(
     zoneId: ZoneId = ZoneId.systemDefault(),
     restrictToSignatures: Set<MedicationSignature>? = null,
 ): List<MedicationLogEntryInput> {
-    if (!group.isActive() || group.medications.isEmpty()) {
+    // Archive state is intentionally not gated here: the widget quick-log path logs
+    // archived groups on purpose (re-logging a deleted dose), and the reminder caller
+    // already filters archived/notifications-disabled groups upstream in
+    // buildMissingReminderLogEntries.
+    if (group.medications.isEmpty()) {
         return emptyList()
     }
 
