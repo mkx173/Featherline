@@ -117,6 +117,7 @@ class HomeRepository @Inject constructor(
                 ).stockWarningsOnly()
                 HomeInputs(
                     activeGroups = usable.activeGroups,
+                    archivedGroups = usable.archivedGroups,
                     scheduleEntries = homeSnapshotRepository.scheduleEntriesForHome(
                         snapshot = usable,
                         now = now,
@@ -186,6 +187,7 @@ class HomeRepository @Inject constructor(
             ).stockWarningsOnly()
             HomeInputs(
                 activeGroups = inputs.activeGroups,
+                archivedGroups = inputs.archivedGroups,
                 scheduleEntries = inputs.scheduleEntries,
                 antiandrogenHistoryEntries = inputs.antiandrogenHistoryEntries,
                 profile = inputs.profile,
@@ -299,14 +301,32 @@ class HomeRepository @Inject constructor(
                     // Medicine projection without waiting for the primary
                     // table to also change.
                     val medicineChangeVersion = medicineDao.observeMedicineChangeVersion()
+                    val activeGroupsFlow = combine(
+                        homeDao.observeActiveGroups(),
+                        medicineChangeVersion,
+                    ) { groups, _ ->
+                        val medicinesByUuid = database.resolveMedicinesForGroups(groups)
+                        groups.map { it.toMedicationGroupModel(medicinesByUuid) }
+                    }
+                    val archivedGroupsFlow = combine(
+                        homeDao.observeArchivedGroups(),
+                        medicineChangeVersion,
+                    ) { groups, _ ->
+                        val medicinesByUuid = database.resolveMedicinesForGroups(groups)
+                        groups.map { it.toMedicationGroupModel(medicinesByUuid) }
+                    }
+                    // Pair active + archived groups in a nested combine so the
+                    // outer combine stays at five distinctly-typed flows; Kotlin
+                    // only has typed combine overloads up to five flows (the
+                    // six-flow form is the same-type vararg and breaks inference).
+                    val groupsFlow = combine(
+                        activeGroupsFlow,
+                        archivedGroupsFlow,
+                    ) { activeGroups, archivedGroups ->
+                        activeGroups to archivedGroups
+                    }
                     val basicsFlow = combine(
-                        combine(
-                            homeDao.observeActiveGroups(),
-                            medicineChangeVersion,
-                        ) { groups, _ ->
-                            val medicinesByUuid = database.resolveMedicinesForGroups(groups)
-                            groups.map { it.toMedicationGroupModel(medicinesByUuid) }
-                        },
+                        groupsFlow,
                         combine(
                             homeDao.observeScheduleEntries(
                                 scheduledStartIso = scheduledStartIso,
@@ -332,9 +352,10 @@ class HomeRepository @Inject constructor(
                             profile?.toUserProfileModel() ?: UserProfile()
                         },
                         settingsRepository.settingsState,
-                    ) { activeGroups, scheduleEntries, antiandrogenHistoryEntries, profile, settingsState ->
+                    ) { (activeGroups, archivedGroups), scheduleEntries, antiandrogenHistoryEntries, profile, settingsState ->
                         HomeStartupInputs(
                             activeGroups = activeGroups,
+                            archivedGroups = archivedGroups,
                             scheduleEntries = scheduleEntries,
                             antiandrogenHistoryEntries = antiandrogenHistoryEntries,
                             profile = profile,
@@ -432,6 +453,7 @@ private fun List<MedicineStockProjection>.stockWarningsOnly(): List<MedicineStoc
 
 data class HomeStartupInputs(
     val activeGroups: List<com.mkx.hrttracker.model.medication.MedicationGroup>,
+    val archivedGroups: List<com.mkx.hrttracker.model.medication.MedicationGroup> = emptyList(),
     val scheduleEntries: List<MedicationLogEntry>,
     val antiandrogenHistoryEntries: List<MedicationLogEntry>,
     val profile: UserProfile,
@@ -443,6 +465,7 @@ data class HomeStartupInputs(
 
 data class HomeInputs(
     val activeGroups: List<com.mkx.hrttracker.model.medication.MedicationGroup>,
+    val archivedGroups: List<com.mkx.hrttracker.model.medication.MedicationGroup> = emptyList(),
     val scheduleEntries: List<MedicationLogEntry>,
     val antiandrogenHistoryEntries: List<MedicationLogEntry>,
     val profile: UserProfile,
