@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
+import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
@@ -123,6 +124,7 @@ data class MainTodayDoseRowUiState(
     val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedCount: Int = 0,
     val isManualRecord: Boolean = false,
+    val isFromArchivedGroup: Boolean = false,
     val groupCreatedAt: Instant = Instant.EPOCH,
     val medicationSortOrder: Int = 0,
     val sourceGroupPreviousScheduledFor: LocalDateTime? = null,
@@ -679,6 +681,8 @@ private fun buildMainTodayRowsForDate(
         unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
     )
     val groupsByUuid = groups.associateBy { group -> group.uuid }
+    val archivedGroupUuids = groups.filter(MedicationGroup::isArchived)
+        .mapTo(mutableSetOf()) { group -> group.uuid }
 
     val scheduledRows = daySchedule.scheduledEntries.map { scheduledEntry ->
         val scheduledAt = scheduledEntry.scheduledFor
@@ -719,6 +723,7 @@ private fun buildMainTodayRowsForDate(
             fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
             outsideScheduleWindowEntryUuids = scheduledEntry.outsideScheduleWindowEntryUuids,
             loggedCount = scheduledEntry.loggedCount,
+            isFromArchivedGroup = scheduledEntry.groupUuid in archivedGroupUuids,
             groupCreatedAt = scheduledEntry.groupCreatedAt,
             medicationSortOrder = scheduledEntry.medicationSortOrder,
             editSnapshotEntries = editSnapshotEntries,
@@ -747,6 +752,8 @@ private fun buildMainTodayRowsForDate(
             fulfillingEntryUuids = listOf(entry.uuid),
             loggedCount = entry.count,
             isManualRecord = true,
+            isFromArchivedGroup = entry.sourceGroupUuid != null &&
+                entry.sourceGroupUuid in archivedGroupUuids,
             editSnapshotEntries = listOf(entry),
         )
     }

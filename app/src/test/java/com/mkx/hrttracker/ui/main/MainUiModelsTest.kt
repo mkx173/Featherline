@@ -708,6 +708,53 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainTodaySection_flagsArchivedGroupRows_butNotActiveGroupRows() {
+        val now = LocalDateTime.of(2026, 5, 6, 12, 0)
+        val schedule = MedicationGroupSchedule(
+            type = MedicationGroupScheduleType.DAILY,
+            interval = 1,
+            since = LocalDate.of(2026, 4, 1),
+            weeklyDaysOfWeek = emptySet(),
+            times = listOf(LocalTime.of(8, 0)),
+        )
+        val active = medicationGroup(
+            uuid = UUID.fromString("11111111-1111-41ab-8cde-f0123456789a"),
+            name = "Active estradiol",
+            schedule = schedule,
+        )
+        val archived = medicationGroup(
+            uuid = UUID.fromString("22222222-2222-49ab-8cde-f0123456789a"),
+            name = "Archived estradiol",
+            schedule = schedule,
+        ).copy(
+            archivedAt = testInstant(now.minusDays(1)),
+            archivedAtLocal = now.minusDays(1),
+        )
+        val activeLog = scheduledEntry(
+            groupUuid = active.uuid,
+            appliedAt = now.toLocalDate().atTime(8, 5),
+            scheduledFor = now.toLocalDate().atTime(8, 0),
+        )
+        val archivedLog = scheduledEntry(
+            groupUuid = archived.uuid,
+            appliedAt = now.toLocalDate().atTime(8, 5),
+            scheduledFor = now.toLocalDate().atTime(8, 0),
+        )
+
+        val section = buildMainTodaySection(
+            groups = listOf(active, archived),
+            entries = listOf(activeLog, archivedLog),
+            now = now,
+            zoneId = testZoneId,
+            includeUnloggedArchivedSlots = false,
+            unloggedArchivedSlotCutoff = now,
+        )
+
+        assertEquals(true, section.rows.single { it.groupUuid == archived.uuid }.isFromArchivedGroup)
+        assertEquals(false, section.rows.single { it.groupUuid == active.uuid }.isFromArchivedGroup)
+    }
+
+    @Test
     fun buildMainTodaySection_includesPastArchivedSlot_excludesFutureArchivedSlot() {
         val now = LocalDateTime.of(2026, 5, 6, 12, 0)
         val archived = medicationGroup(
