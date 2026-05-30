@@ -62,7 +62,7 @@ class WidgetSnapshotRepository @Inject constructor(
             timeFormatter = timeFormatter,
         )
         widgetSnapshotStore.writeSnapshot(widgetSnapshot)
-        updateAllHrtWidgets(context)
+        pushHrtWidgets(context, widgetSnapshot)
         diagnosticsLogger.info(
             TAG,
             "widget_snapshot_refreshed rows=${widgetSnapshot.doseRows.size} " +
