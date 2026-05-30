@@ -29,9 +29,9 @@ sequenceDiagram
   WidgetRepo->>Builder: buildWidgetSnapshotRecord(home, settings, now)
   Builder-->>WidgetRepo: WidgetSnapshotRecord
   WidgetRepo->>Store: writeSnapshot(record)
-  WidgetRepo->>Glance: updateAllHrtWidgets(context)
-  Glance->>Store: currentState<WidgetSnapshotState>
-  Glance-->>Launcher: RemoteViews
+  WidgetRepo->>Glance: pushHrtWidgets(record) — GlanceRemoteViews.compose
+  Glance-->>WidgetRepo: RemoteViews
+  WidgetRepo-->>Launcher: AppWidgetManager.updateAppWidget
 ```
 
 The diagram covers the home-driven refresh path. Three orthogonal
@@ -61,6 +61,10 @@ Each `WidgetDoseRow` carries the identity (`groupUuid`,
 `scheduleTimeUuid`, `medicationUuid`, `entryUuid`), the resolved status
 (`DONE` / `DUE_SOON` / `OVERDUE` / `UPCOMING` / `LOGGED_OUT_OF_WINDOW`),
 display strings, and a `MedicationGroupColorKey` for the accent.
+Mirroring the Plan page, unlogged doses from archived groups (the home
+snapshot's `archivedGroups`) also surface as rows, flagged
+`isFromArchivedGroup = true` to draw an archived-group icon in the
+trailing area.
 `medicationUuid` is the per-group slot id (`MedicationGroupMedication.uuid`)
 — the slot itself now FKs to a catalog `Medicine` via `medicineUuid`,
 which the widget does not carry. The PK projection is forwarded verbatim
@@ -228,7 +232,7 @@ graph TD
   mutation[MedicationLogRepository<br/>.saveNewEntries] --> homesnapshot
   manager[HomeWidgetManager] --> repo[WidgetSnapshotRepository]
   repo --> store[widget_snapshot.pb]
-  repo --> glance[updateAllHrtWidgets]
+  repo --> push[pushHrtWidgets<br/>GlanceRemoteViews.compose + updateAppWidget]
 ```
 
 - **Home-data changes.**
@@ -284,12 +288,21 @@ graph TD
   the initial replay) so the snapshot is rebuilt with the new
   formatter without forcing a home rebuild.
 
-The convergence point is `updateAllHrtWidgets(context)` in
-[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L106),
-which calls `glanceUpdateAll` for both `HrtWidgetMedium` and
-`HrtWidgetLarge` in parallel. `WidgetSnapshotRepository.writeSnapshot`
-calls it after every persist; the worker and quick-log paths call it
-directly when the snapshot itself hasn't changed.
+Two render paths exist in
+[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt):
+
+- **`pushHrtWidgets(context, record)`** — composes a one-shot
+  `RemoteViews` via `GlanceRemoteViews().compose(...)` and pushes it
+  with `AppWidgetManager.updateAppWidget`. Used by
+  `writeWidgetSnapshot` after every persist (and `clearWidgetSnapshot`
+  with a `null` record for the empty state). It bypasses Glance's
+  session, whose frame-clock-driven recomposition stalls while the app
+  is backgrounded, so an off-screen settings change applies immediately.
+  Tradeoff: a single composed size instead of Glance's portrait/landscape
+  variants — fine because content scale is frozen to the baseline.
+- **`updateAllHrtWidgets(context)`** — `glanceUpdateAll` for both sizes;
+  the worker and quick-log paths call it when the snapshot hasn't
+  changed (nothing new to push).
 
 ## Quick-log action
 

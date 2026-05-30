@@ -49,14 +49,22 @@ the active medication groups, recent scheduled log entries, and the
 current `LocalDateTime`. For each non-archived group with
 `notificationsEnabled = true` and at least one medication, it walks
 `MedicationGroup.nextOccurrencesInPlanWindowFrom` (a 90-day default
-look-ahead) and returns the first occurrence that isn't already
-fulfilled by a logged entry. Output is a list of
+look-ahead) and returns the first *strictly-future* occurrence
+(`scheduledFor.isAfter(now)`) that isn't already fulfilled by a logged
+entry. Output is a list of
 `MedicationReminderPlan(groupUuid, groupName, scheduledAt,
 scheduleTimeUuid)`, sorted by `scheduledAt`.
 
+The strictly-future filter avoids re-firing a just-tapped reminder on
+same-minute reopen: callers pass the real wall clock
+(`LocalDateTime.now()`), and an occurrence at exactly `now` has already
+fired, so re-arming it would set an alarm in the past that
+`AlarmManager` delivers immediately. (`MainActivity` previously passed
+the minute-truncated `mainUiState.now` and hit this.)
+
 Fulfillment is delegated to the model layer's `isSlotFulfilled`
-predicate; the planner itself owns no time logic beyond the look-ahead
-default.
+predicate; the planner's only time logic is the look-ahead default and
+the strictly-future cutoff.
 
 ### Schedule
 
