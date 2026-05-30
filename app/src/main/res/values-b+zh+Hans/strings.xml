@@ -441,7 +441,6 @@
     <string name="settings_widget_dark_mode">深色模式</string>
     <string name="settings_display">显示</string>
     <string name="settings_hide_archived_group_records">隐藏已归档分组的记录</string>
-    <string name="settings_hide_archived_group_records_summary">在计划和历史中隐藏已归档分组的记录</string>
     <string name="settings_hide_reference_ranges">隐藏参考范围</string>
     <string name="settings_hide_medication_details">隐藏药物详情</string>
     <string name="settings_hide_medication_details_summary">在通知和小部件中隐藏药物名称和剂量</string>
