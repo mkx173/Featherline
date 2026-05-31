@@ -84,6 +84,7 @@ data class NewMedicineRequest(
 )
 
 internal enum class TabletFractionOption(val numerator: Int, val denominator: Int) {
+    EIGHTH(1, 8),
     QUARTER(1, 4),
     THIRD(1, 3),
     HALF(1, 2),
@@ -91,6 +92,7 @@ internal enum class TabletFractionOption(val numerator: Int, val denominator: In
 
     fun label(): String {
         return when (this) {
+            EIGHTH -> "1/8"
             QUARTER -> "1/4"
             THIRD -> "1/3"
             HALF -> "1/2"
