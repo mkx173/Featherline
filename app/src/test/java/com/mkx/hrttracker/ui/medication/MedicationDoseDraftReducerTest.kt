@@ -29,7 +29,7 @@ class MedicationDoseDraftReducerTest {
     // WHY: changing the preparation type makes the prior dose instruction
     // meaningless (a vial volume is nonsense for a pill), so the draft must be
     // rebuilt — otherwise the user can save a dose instruction that doesn't
-    // match the medicine. Mirrors NewMedicineSlotViewModel/AddEntryViewModel.
+    // match the medicine. Mirrors NewMedicineSlotViewModel/MedicationLogEntryViewModel.
     @Test
     fun preparation_change_resets_dose_draft() {
         val pill = draftFor(MedicationCategory.ESTRADIOL, MedicationApplicationType.ORAL)
@@ -193,7 +193,7 @@ class MedicationDoseDraftReducerTest {
     }
 
     // WHY: the log/existing-medicine target validates "a medicine is selected"
-    // first (not the create form), matching AddEntry/GroupEditor/ExistingMedicine.
+    // first (not the create form), matching MedicationLogEntry/GroupEditor/ExistingMedicine.
     @Test
     fun validated_with_can_use_selected_medicine_validation_for_log() {
         val start = draftFor(MedicationCategory.ESTRADIOL, MedicationApplicationType.ORAL)

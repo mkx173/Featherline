@@ -85,8 +85,9 @@ import java.util.UUID
 /**
  * Bottom sheet that edits or creates a history `MedicationLog` entry.
  *
- * Opened from: add-entry and history-log edit flows routed through AddEntryScreen.
- * Hosted by: AddEntryScreen.
+ * Opened from: medication-log-entry quick-log and history-log edit flows
+ *   routed through MedicationLogEntryScreen.
+ * Hosted by: MedicationLogEntryScreen.
  * Produces: a saved history `MedicationLog`; never creates a catalog [Medicine]
  *   and never returns a regimen [MedicineSlotResult].
  * Identity: locked to [lockedMedicine] when editing/logging against an

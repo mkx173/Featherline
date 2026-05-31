@@ -63,9 +63,9 @@ import com.mkx.hrttracker.ui.catalog.MedicinesScreen
 import com.mkx.hrttracker.ui.catalog.medicineManagerLaunchMode
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.history.HistoryScreen
-import com.mkx.hrttracker.ui.log.AddEntryEditSnapshot
-import com.mkx.hrttracker.ui.log.AddEntryQuickLogRequest
-import com.mkx.hrttracker.ui.log.AddEntryScreen
+import com.mkx.hrttracker.ui.log.MedicationLogEntryEditSnapshot
+import com.mkx.hrttracker.ui.log.MedicationLogEntryQuickLogRequest
+import com.mkx.hrttracker.ui.log.MedicationLogEntryScreen
 import com.mkx.hrttracker.ui.main.MainEditEntryRequest
 import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.plan.ArchivedMedicationGroupsScreen
@@ -349,8 +349,8 @@ fun HrtTrackerNavHost(
     highlightEffectsEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
-    var addEntrySheetRequest by rememberSaveable(stateSaver = AddEntrySheetRequestSaver) {
-        mutableStateOf<AddEntrySheetRequest?>(null)
+    var medicationLogEntrySheetRequest by rememberSaveable(stateSaver = MedicationLogEntrySheetRequestSaver) {
+        mutableStateOf<MedicationLogEntrySheetRequest?>(null)
     }
     var mainScrollToTopSignal by remember { mutableIntStateOf(0) }
     var planScrollToTopSignal by remember { mutableIntStateOf(0) }
@@ -533,9 +533,9 @@ fun HrtTrackerNavHost(
                         scrollToTopSignal = mainScrollToTopSignal,
                         highlightEffectsEnabled = homeDeepLinkHighlightEffectsEnabled,
                         onEntryClick = { request ->
-                            addEntrySheetRequest = AddEntrySheetRequest(
+                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
                                 entryIds = request.entryUuids.map(UUID::toString),
-                                editSnapshot = request.toAddEntryEditSnapshot(),
+                                editSnapshot = request.toMedicationLogEntryEditSnapshot(),
                             )
                         },
                         onMedicineDetailClick = { medicineId ->
@@ -558,8 +558,8 @@ fun HrtTrackerNavHost(
                         },
                         onQuickLogDoseClick = { request ->
                             if (request.medicationCount > 0) {
-                                addEntrySheetRequest = AddEntrySheetRequest(
-                                    quickLogRequest = AddEntryQuickLogRequest(
+                                medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                    quickLogRequest = MedicationLogEntryQuickLogRequest(
                                         groupId = request.groupUuid,
                                         scheduleTimeUuid = request.scheduleTimeUuid,
                                         scheduledFor = request.scheduledAt,
@@ -590,14 +590,14 @@ fun HrtTrackerNavHost(
                             )
                         },
                         onEntryClick = { entryIds ->
-                            addEntrySheetRequest = AddEntrySheetRequest(
+                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
                                 entryIds = entryIds.map(UUID::toString)
                             )
                         },
                         onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medication, medicationCount ->
                             if (medicationCount > 0) {
-                                addEntrySheetRequest = AddEntrySheetRequest(
-                                    quickLogRequest = AddEntryQuickLogRequest(
+                                medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                    quickLogRequest = MedicationLogEntryQuickLogRequest(
                                         groupId = groupId,
                                         scheduleTimeUuid = scheduleTimeUuid,
                                         scheduledFor = scheduledAt,
@@ -688,7 +688,7 @@ fun HrtTrackerNavHost(
                         modifier = modifier,
                         onNavigateBack = { navController.popBackStackSafely() },
                         onEntryClick = { entryIds ->
-                            addEntrySheetRequest = AddEntrySheetRequest(
+                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
                                 entryIds = entryIds.map(UUID::toString)
                             )
                         }
@@ -943,13 +943,13 @@ fun HrtTrackerNavHost(
         }
     }
 
-    addEntrySheetRequest?.let { request ->
-        AddEntryScreen(
+    medicationLogEntrySheetRequest?.let { request ->
+        MedicationLogEntryScreen(
             entryIds = request.entryIds,
             quickLogRequest = request.quickLogRequest,
             editSnapshot = request.editSnapshot,
-            onDismissRequest = { addEntrySheetRequest = null },
-            onEntrySaved = { addEntrySheetRequest = null }
+            onDismissRequest = { medicationLogEntrySheetRequest = null },
+            onEntrySaved = { medicationLogEntrySheetRequest = null }
         )
     }
 }
@@ -1004,22 +1004,22 @@ private const val GROUP_SLOT_MEDICINE_RESULT_KEY_PREFIX = "groupSlot_"
 private const val MEDICATION_GROUP_EDITOR_SOURCE_ARG = "source"
 private const val MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS = "archivedGroups"
 
-internal data class AddEntrySheetRequest(
+internal data class MedicationLogEntrySheetRequest(
     val entryIds: List<String> = emptyList(),
-    val quickLogRequest: AddEntryQuickLogRequest? = null,
-    val editSnapshot: AddEntryEditSnapshot? = null,
+    val quickLogRequest: MedicationLogEntryQuickLogRequest? = null,
+    val editSnapshot: MedicationLogEntryEditSnapshot? = null,
 )
 
-internal val AddEntrySheetRequestSaver: Saver<AddEntrySheetRequest?, Any> = Saver(
-    save = { request -> request?.let(::saveAddEntrySheetRequest) ?: SAVED_REQUEST_ABSENT },
+internal val MedicationLogEntrySheetRequestSaver: Saver<MedicationLogEntrySheetRequest?, Any> = Saver(
+    save = { request -> request?.let(::saveMedicationLogEntrySheetRequest) ?: SAVED_REQUEST_ABSENT },
     restore = { saved ->
-        if (saved == SAVED_REQUEST_ABSENT) null else restoreAddEntrySheetRequest(saved)
+        if (saved == SAVED_REQUEST_ABSENT) null else restoreMedicationLogEntrySheetRequest(saved)
     }
 )
 
 private const val SAVED_REQUEST_ABSENT = "absent"
 
-private fun saveAddEntrySheetRequest(request: AddEntrySheetRequest): ArrayList<Any?> {
+private fun saveMedicationLogEntrySheetRequest(request: MedicationLogEntrySheetRequest): ArrayList<Any?> {
     return arrayListOf<Any?>(
         ArrayList(request.entryIds),
         request.quickLogRequest?.let(::saveQuickLogRequest),
@@ -1028,21 +1028,21 @@ private fun saveAddEntrySheetRequest(request: AddEntrySheetRequest): ArrayList<A
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun restoreAddEntrySheetRequest(saved: Any): AddEntrySheetRequest {
+private fun restoreMedicationLogEntrySheetRequest(saved: Any): MedicationLogEntrySheetRequest {
     val list = saved as ArrayList<Any?>
-    return AddEntrySheetRequest(
+    return MedicationLogEntrySheetRequest(
         entryIds = (list[0] as? ArrayList<String>).orEmpty().toList(),
         quickLogRequest = list[1]?.let(::restoreQuickLogRequest),
         editSnapshot = list.getOrNull(2)?.let(::restoreEditSnapshot),
     )
 }
 
-private fun MainEditEntryRequest.toAddEntryEditSnapshot(): AddEntryEditSnapshot? {
+private fun MainEditEntryRequest.toMedicationLogEntryEditSnapshot(): MedicationLogEntryEditSnapshot? {
     if (snapshotEntries.isEmpty()) {
         return null
     }
 
-    return AddEntryEditSnapshot(
+    return MedicationLogEntryEditSnapshot(
         entries = snapshotEntries,
         sourceGroupName = sourceGroupName,
         sourceGroupColorKey = sourceGroupColorKey,
@@ -1051,7 +1051,7 @@ private fun MainEditEntryRequest.toAddEntryEditSnapshot(): AddEntryEditSnapshot?
     )
 }
 
-private fun saveQuickLogRequest(request: AddEntryQuickLogRequest): ArrayList<Any?> {
+private fun saveQuickLogRequest(request: MedicationLogEntryQuickLogRequest): ArrayList<Any?> {
     return arrayListOf(
         request.groupId.toString(),
         request.scheduleTimeUuid?.toString(),
@@ -1069,9 +1069,9 @@ private fun saveQuickLogRequest(request: AddEntryQuickLogRequest): ArrayList<Any
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun restoreQuickLogRequest(saved: Any): AddEntryQuickLogRequest {
+private fun restoreQuickLogRequest(saved: Any): MedicationLogEntryQuickLogRequest {
     val list = saved as ArrayList<Any?>
-    return AddEntryQuickLogRequest(
+    return MedicationLogEntryQuickLogRequest(
         groupId = UUID.fromString(list[0] as String),
         scheduleTimeUuid = (list[1] as? String)?.let(UUID::fromString),
         scheduledFor = LocalDateTime.parse(list[2] as String),
@@ -1090,7 +1090,7 @@ private fun restoreMedicationGroupColorKey(value: String): MedicationGroupColorK
     return MedicationGroupColorKey.entries.firstOrNull { colorKey -> colorKey.name == value }
 }
 
-private fun saveEditSnapshot(snapshot: AddEntryEditSnapshot): ArrayList<Any?> {
+private fun saveEditSnapshot(snapshot: MedicationLogEntryEditSnapshot): ArrayList<Any?> {
     return arrayListOf(
         ArrayList(snapshot.entries.map(::saveMedicationLogEntry)),
         snapshot.sourceGroupName,
@@ -1100,9 +1100,9 @@ private fun saveEditSnapshot(snapshot: AddEntryEditSnapshot): ArrayList<Any?> {
     )
 }
 
-private fun restoreEditSnapshot(saved: Any): AddEntryEditSnapshot {
+private fun restoreEditSnapshot(saved: Any): MedicationLogEntryEditSnapshot {
     val list = saved as ArrayList<Any?>
-    return AddEntryEditSnapshot(
+    return MedicationLogEntryEditSnapshot(
         entries = (list[0] as? ArrayList<*>)
             .orEmpty()
             .mapNotNull { entry -> entry?.let(::restoreMedicationLogEntry) },

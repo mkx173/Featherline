@@ -51,7 +51,7 @@ import java.time.ZoneId
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class AddEntryViewModelTest {
+class MedicationLogEntryViewModelTest {
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicineStockRepository: MedicineStockRepository = mockk()
@@ -321,10 +321,10 @@ class AddEntryViewModelTest {
     }
 
     @Test
-    fun addEntryUiState_allows_delete_only_while_editing() {
-        assertFalse(AddEntryUiState().canDelete)
+    fun medicationLogEntryUiState_allows_delete_only_while_editing() {
+        assertFalse(MedicationLogEntryUiState().canDelete)
         assertTrue(
-            AddEntryUiState(
+            MedicationLogEntryUiState(
                 editingEntryIds = listOf(UUID.fromString("3885b7c7-45db-44ae-b512-429145f3bc6f").toString())
             ).canDelete
         )
@@ -429,7 +429,7 @@ class AddEntryViewModelTest {
         }
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -497,7 +497,7 @@ class AddEntryViewModelTest {
             finishSave.await()
         }
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -668,7 +668,7 @@ class AddEntryViewModelTest {
         val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         every { medicationGroupRepository.getCachedGroup(groupId) } returns group
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -706,7 +706,7 @@ class AddEntryViewModelTest {
         )
         coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns emptyList()
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -714,7 +714,7 @@ class AddEntryViewModelTest {
         )
         viewModel.initialize(
             entryIds = listOf(entryId.toString()),
-            editSnapshot = AddEntryEditSnapshot(
+            editSnapshot = MedicationLogEntryEditSnapshot(
                 entries = listOf(entry),
                 sourceGroupName = "Snapshot estradiol",
                 sourceGroupColorKey = MedicationGroupColorKey.PLUM,
@@ -749,7 +749,7 @@ class AddEntryViewModelTest {
         every { medicationGroupRepository.getCachedGroup(groupId) } returns null
         coEvery { medicationGroupRepository.getGroup(groupId) } returns null
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -819,7 +819,7 @@ class AddEntryViewModelTest {
         } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -827,7 +827,7 @@ class AddEntryViewModelTest {
         )
         viewModel.initialize(
             entryIds = listOf(entryId.toString()),
-            editSnapshot = AddEntryEditSnapshot(
+            editSnapshot = MedicationLogEntryEditSnapshot(
                 entries = listOf(entry),
                 sourceGroupName = "Snapshot estradiol",
                 sourceGroupColorKey = MedicationGroupColorKey.PLUM,
@@ -892,7 +892,7 @@ class AddEntryViewModelTest {
         )
         coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns emptyList()
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -900,7 +900,7 @@ class AddEntryViewModelTest {
         )
         viewModel.initialize(
             entryIds = listOf(entryId.toString()),
-            editSnapshot = AddEntryEditSnapshot(
+            editSnapshot = MedicationLogEntryEditSnapshot(
                 entries = listOf(entry),
                 sourceGroupName = "Snapshot estradiol",
                 sourceGroupColorKey = MedicationGroupColorKey.PLUM,
@@ -955,7 +955,7 @@ class AddEntryViewModelTest {
         } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -1036,7 +1036,7 @@ class AddEntryViewModelTest {
         } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -1097,7 +1097,7 @@ class AddEntryViewModelTest {
         } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -1147,7 +1147,7 @@ class AddEntryViewModelTest {
         val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         every { medicationGroupRepository.getCachedGroup(groupId) } returns group
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -1212,7 +1212,7 @@ class AddEntryViewModelTest {
         } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -1292,7 +1292,7 @@ class AddEntryViewModelTest {
         } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -1349,7 +1349,7 @@ class AddEntryViewModelTest {
             )
         } throws RuntimeException("save failed")
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -1407,7 +1407,7 @@ class AddEntryViewModelTest {
         } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } throws RuntimeException("schedule failed")
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -1450,7 +1450,7 @@ class AddEntryViewModelTest {
         coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(entry)
         coEvery { medicationLogRepository.deleteEntries(listOf(entryId)) } throws RuntimeException("delete failed")
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -1504,7 +1504,7 @@ class AddEntryViewModelTest {
         } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicineStockRepository = medicineStockRepository,
@@ -1567,7 +1567,7 @@ class AddEntryViewModelTest {
         ) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicineStockRepository = medicineStockRepository,
@@ -1614,7 +1614,7 @@ class AddEntryViewModelTest {
         ) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicineStockRepository = medicineStockRepository,
@@ -1642,7 +1642,7 @@ class AddEntryViewModelTest {
         coEvery { medicationLogRepository.deleteEntries(listOf(entryId)) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } throws RuntimeException("schedule failed")
 
-        val viewModel = AddEntryViewModel(
+        val viewModel = MedicationLogEntryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
