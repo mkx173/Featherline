@@ -917,7 +917,7 @@ private fun previewSnapshot(context: Context): WidgetSnapshotRecord {
                 groupName = cpaName,
                 colorKey = MedicationGroupColorKey.TEAL,
                 routeLabel = oralLabel,
-                doseText = "12.5 mg",
+                doseText = context.getString(R.string.widget_preview_dose_text_cpa),
                 status = WidgetDoseStatus.DONE,
                 scheduledAt = morningDoseTime,
                 trailingText = null,

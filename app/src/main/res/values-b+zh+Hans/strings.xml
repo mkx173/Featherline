@@ -706,7 +706,8 @@
     <string name="widget_preview_dose_supporting">口服 · 2 mg</string>
     <string name="widget_preview_dose_time">09:00</string>
     <string name="widget_preview_large_header">今天 · 1/3 已完成</string>
-    <string name="widget_preview_dose_supporting_cpa">口服 · 12.5 mg</string>
+    <string name="widget_preview_dose_text_cpa">1/4 片 · 12.5 mg</string>
+    <string name="widget_preview_dose_supporting_cpa">口服 · 1/4 片 · 12.5 mg</string>
     <string name="widget_preview_dose_supporting_progesterone">口服 · 200 mg</string>
     <string name="widget_preview_dose_time_evening">21:00</string>
 
