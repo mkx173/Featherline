@@ -55,6 +55,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -169,10 +170,28 @@ internal fun resolveOnboardingNotificationPermissionAction(
     }
 }
 
-// SCHEDULE_EXACT_ALARM does not exist before API 31; exact alarms are granted
-// implicitly there, so the onboarding permission card is only meaningful from API 31.
-internal fun shouldShowExactAlarmOnboardingCard(sdkInt: Int = Build.VERSION.SDK_INT): Boolean {
-    return sdkInt >= Build.VERSION_CODES.S
+internal fun shouldShowNotificationPermissionOnboardingCard(notificationsGranted: Boolean): Boolean {
+    return !notificationsGranted
+}
+
+internal fun shouldShowReminderMasterOnboardingCard(notificationsGranted: Boolean): Boolean {
+    return notificationsGranted
+}
+
+internal fun resolveOnboardingReminderChoice(
+    notificationsGranted: Boolean,
+    reminderChoiceOverride: Boolean?,
+): Boolean {
+    return reminderChoiceOverride ?: notificationsGranted
+}
+
+// SCHEDULE_EXACT_ALARM does not exist before API 31. From API 31 onward the
+// special-access card is only useful when the current capability check fails.
+internal fun shouldShowExactAlarmOnboardingCard(
+    sdkInt: Int = Build.VERSION.SDK_INT,
+    exactAlarmGranted: Boolean,
+): Boolean {
+    return sdkInt >= Build.VERSION_CODES.S && !exactAlarmGranted
 }
 
 @Composable
@@ -194,7 +213,7 @@ fun OnboardingScreen(
     var showGroupEditor by rememberSaveable { mutableStateOf(false) }
     var showStockOnboarding by rememberSaveable { mutableStateOf(false) }
     var groupEditorOpenCount by rememberSaveable { mutableIntStateOf(0) }
-    var remindersAcceptedDuringOnboarding by rememberSaveable { mutableStateOf(false) }
+    var reminderChoiceOverride by rememberSaveable { mutableStateOf<Boolean?>(null) }
 
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -205,11 +224,23 @@ fun OnboardingScreen(
     val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
     val notificationsGranted = reminderCapabilityState.hasNotificationAccess
     val exactAlarmGranted = reminderCapabilityState.hasExactAlarmAccess
-    val showExactAlarmCard = shouldShowExactAlarmOnboardingCard()
+    val showNotificationPermissionCard =
+        shouldShowNotificationPermissionOnboardingCard(notificationsGranted)
+    val showExactAlarmCard = shouldShowExactAlarmOnboardingCard(
+        exactAlarmGranted = exactAlarmGranted,
+    )
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
+    val remindersAcceptedDuringOnboarding = resolveOnboardingReminderChoice(
+        notificationsGranted = notificationsGranted,
+        reminderChoiceOverride = reminderChoiceOverride,
+    )
     val notificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
     val onboardingUpdateFailedMessage = stringResource(R.string.onboarding_update_failed)
+
+    LaunchedEffect(reminderCapabilityReconciler) {
+        reminderCapabilityReconciler.requestReconcile("onboarding_start")
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.onboardingMutationEvents.collect { event ->
@@ -258,18 +289,18 @@ fun OnboardingScreen(
     val goPrev = {
         if (step > 0) step -= 1
     }
-    val acceptRemindersAndGoNext: () -> Unit = {
-        remindersAcceptedDuringOnboarding = true
+    val declineRemindersAndGoNext: () -> Unit = {
+        reminderChoiceOverride = false
         coroutineScope.launch {
-            if (viewModel.setRemindersEnabledDuringOnboarding(true)) {
+            if (viewModel.setRemindersEnabledDuringOnboarding(false)) {
                 goNext()
             }
         }
     }
-    val declineRemindersAndGoNext: () -> Unit = {
-        remindersAcceptedDuringOnboarding = false
+    val saveReminderChoiceAndGoNext: () -> Unit = {
+        val enabled = remindersAcceptedDuringOnboarding
         coroutineScope.launch {
-            if (viewModel.setRemindersEnabledDuringOnboarding(false)) {
+            if (viewModel.setRemindersEnabledDuringOnboarding(enabled)) {
                 goNext()
             }
         }
@@ -336,6 +367,10 @@ fun OnboardingScreen(
                                 notificationsGranted = notificationsGranted,
                                 exactAlarmGranted = exactAlarmGranted,
                                 showExactAlarmCard = showExactAlarmCard,
+                                remindersEnabled = remindersAcceptedDuringOnboarding,
+                                onRemindersEnabledChange = {
+                                    reminderChoiceOverride = it
+                                },
                                 onAllowNotifications = {
                                     val hasRuntimePerm: Boolean
                                     val shouldShowRationale: Boolean
@@ -420,19 +455,19 @@ fun OnboardingScreen(
                             2 -> notificationsGranted
                             else -> true
                         },
-                        secondaryButtonLabel = if (currentStep == 2) {
+                        secondaryButtonLabel = if (currentStep == 2 && showNotificationPermissionCard) {
                             stringResource(R.string.onboarding_skip_notifications)
                         } else {
                             null
                         },
-                        onSecondaryButtonClick = if (currentStep == 2) {
+                        onSecondaryButtonClick = if (currentStep == 2 && showNotificationPermissionCard) {
                             declineRemindersAndGoNext
                         } else {
                             null
                         },
-                        secondaryButtonEnabled = currentStep != 2 || !notificationsGranted,
+                        secondaryButtonEnabled = true,
                         onCta = if (currentStep == 2) {
-                            acceptRemindersAndGoNext
+                            saveReminderChoiceAndGoNext
                         } else {
                             goNext
                         },
@@ -1056,9 +1091,15 @@ private fun NotificationsStep(
     notificationsGranted: Boolean,
     exactAlarmGranted: Boolean,
     showExactAlarmCard: Boolean,
+    remindersEnabled: Boolean,
+    onRemindersEnabledChange: (Boolean) -> Unit,
     onAllowNotifications: () -> Unit,
     onAllowExactAlarm: () -> Unit,
 ) {
+    val showNotificationPermissionCard =
+        shouldShowNotificationPermissionOnboardingCard(notificationsGranted)
+    val showReminderMasterCard = shouldShowReminderMasterOnboardingCard(notificationsGranted)
+    val cardCount = 1 + if (showExactAlarmCard) 1 else 0
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1068,19 +1109,43 @@ private fun NotificationsStep(
         StepHeader(
             iconPainter = painterResource(R.drawable.ic_notifications),
             title = stringResource(R.string.onboarding_notifications_title),
-            desc = stringResource(R.string.onboarding_notifications_subtitle),
+            desc = stringResource(
+                when {
+                    showNotificationPermissionCard && showExactAlarmCard ->
+                        R.string.onboarding_notifications_subtitle
+                    showNotificationPermissionCard ->
+                        R.string.onboarding_notifications_permission_subtitle
+                    showExactAlarmCard ->
+                        R.string.onboarding_notifications_master_alarm_subtitle
+                    else ->
+                        R.string.onboarding_notifications_master_subtitle
+                }
+            ),
         )
 
-        PermissionCard(
-            iconPainter = painterResource(R.drawable.ic_notifications),
-            title = stringResource(R.string.onboarding_notifications_app_title),
-            desc = stringResource(R.string.onboarding_notifications_app_desc),
-            granted = notificationsGranted,
-            optional = false,
-            onAllow = onAllowNotifications,
-            index = 0,
-            count = if (showExactAlarmCard) 2 else 1,
-        )
+        if (showNotificationPermissionCard) {
+            PermissionCard(
+                iconPainter = painterResource(R.drawable.ic_notifications),
+                title = stringResource(R.string.onboarding_notifications_app_title),
+                desc = stringResource(R.string.onboarding_notifications_app_desc),
+                granted = false,
+                optional = false,
+                onAllow = onAllowNotifications,
+                index = 0,
+                count = cardCount,
+            )
+        }
+        if (showReminderMasterCard) {
+            ReminderMasterCard(
+                iconPainter = painterResource(R.drawable.ic_notifications),
+                title = stringResource(R.string.settings_reminders),
+                desc = stringResource(R.string.settings_reminders_summary),
+                remindersEnabled = remindersEnabled,
+                onRemindersEnabledChange = onRemindersEnabledChange,
+                index = 0,
+                count = cardCount,
+            )
+        }
         if (showExactAlarmCard) {
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
             PermissionCard(
@@ -1091,7 +1156,82 @@ private fun NotificationsStep(
                 optional = true,
                 onAllow = onAllowExactAlarm,
                 index = 1,
-                count = 2,
+                count = cardCount,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReminderMasterCard(
+    iconPainter: Painter,
+    title: String,
+    desc: String,
+    remindersEnabled: Boolean,
+    onRemindersEnabledChange: (Boolean) -> Unit,
+    index: Int,
+    count: Int,
+) {
+    val containerColor = if (remindersEnabled) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    }
+    val iconContainerColor = if (remindersEnabled) {
+        MaterialTheme.colorScheme.secondary
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    val iconColor = if (remindersEnabled) {
+        MaterialTheme.colorScheme.onSecondary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        onClick = { onRemindersEnabledChange(!remindersEnabled) },
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = containerColor,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(iconContainerColor),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = iconPainter,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.cjkTextOffset(title)
+                )
+                Text(
+                    text = desc,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.cjkTextOffset(desc)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Switch(
+                checked = remindersEnabled,
+                onCheckedChange = onRemindersEnabledChange,
             )
         }
     }
@@ -1493,6 +1633,8 @@ private fun OnboardingNotificationsPreview() {
             notificationsGranted = false,
             exactAlarmGranted = false,
             showExactAlarmCard = true,
+            remindersEnabled = false,
+            onRemindersEnabledChange = { },
             onAllowNotifications = { },
             onAllowExactAlarm = { },
         )

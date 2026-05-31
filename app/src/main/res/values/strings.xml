@@ -633,6 +633,9 @@
     <string name="onboarding_continue">Continue</string>
     <string name="onboarding_notifications_title">Enable dose reminders</string>
     <string name="onboarding_notifications_subtitle">To send reminders at your scheduled dose times, Featherline needs the following two permissions. You can revoke them at any time in your system settings.</string>
+    <string name="onboarding_notifications_permission_subtitle">To send reminders at your scheduled dose times, Featherline needs notification access. You can revoke it at any time in your system settings.</string>
+    <string name="onboarding_notifications_master_subtitle">Notifications are already available. Choose whether to turn dose reminders on now.</string>
+    <string name="onboarding_notifications_master_alarm_subtitle">Notifications are already available. Choose whether to turn dose reminders on now, and optionally allow exact alarms for more precise timing.</string>
     <string name="onboarding_notifications_app_title">App notifications</string>
     <string name="onboarding_notifications_app_desc">Send reminders at your scheduled dose times.</string>
     <string name="onboarding_notifications_alarm_title">Exact alarms</string>

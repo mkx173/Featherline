@@ -8,9 +8,52 @@ import org.junit.Test
 
 class OnboardingNotificationPermissionActionTest {
     @Test
-    fun exactAlarmCard_hiddenBelowS_shownFromS() {
-        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = 30))
-        assertTrue(shouldShowExactAlarmOnboardingCard(sdkInt = 31))
+    fun exactAlarmCard_hiddenBelowS_shownFromS_whenNotGranted() {
+        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = 30, exactAlarmGranted = false))
+        assertTrue(shouldShowExactAlarmOnboardingCard(sdkInt = 31, exactAlarmGranted = false))
+    }
+
+    @Test
+    fun exactAlarmCard_hidden_whenAlreadyGranted() {
+        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = 31, exactAlarmGranted = true))
+        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = Build.VERSION_CODES.TIRAMISU, exactAlarmGranted = true))
+        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = Build.VERSION_CODES.UPSIDE_DOWN_CAKE, exactAlarmGranted = true))
+    }
+
+    @Test
+    fun notificationOnboardingCardMode_followsGrantState() {
+        assertTrue(shouldShowNotificationPermissionOnboardingCard(notificationsGranted = false))
+        assertFalse(shouldShowNotificationPermissionOnboardingCard(notificationsGranted = true))
+        assertFalse(shouldShowReminderMasterOnboardingCard(notificationsGranted = false))
+        assertTrue(shouldShowReminderMasterOnboardingCard(notificationsGranted = true))
+    }
+
+    @Test
+    fun reminderChoice_defaultsToNotificationGrantState_untilUserOverrides() {
+        assertFalse(
+            resolveOnboardingReminderChoice(
+                notificationsGranted = false,
+                reminderChoiceOverride = null,
+            )
+        )
+        assertTrue(
+            resolveOnboardingReminderChoice(
+                notificationsGranted = true,
+                reminderChoiceOverride = null,
+            )
+        )
+        assertFalse(
+            resolveOnboardingReminderChoice(
+                notificationsGranted = true,
+                reminderChoiceOverride = false,
+            )
+        )
+        assertTrue(
+            resolveOnboardingReminderChoice(
+                notificationsGranted = false,
+                reminderChoiceOverride = true,
+            )
+        )
     }
 
     @Test
