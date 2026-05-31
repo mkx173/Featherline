@@ -123,14 +123,10 @@ internal fun MedicationEditorSheetScaffold(
                         dimensionResource(R.dimen.padding_small),
                     ),
                 ) {
-                    HrtButton(
+                    HrtFilledTonalButton(
                         text = destructiveButtonText,
                         onClick = { if (!isSaving) destructiveAction() },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        ),
                     )
                     HrtButton(
                         text = confirmButtonText,
