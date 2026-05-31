@@ -20,23 +20,22 @@ import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
+import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
+import com.mkx.hrttracker.ui.medication.applyMedicinePicker
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction
-import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
-import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
 import com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine
 import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import com.mkx.hrttracker.ui.medication.parseMedicationCountText
-import com.mkx.hrttracker.ui.medication.resolveMedicationCountTextAfterDraftChange
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
-import com.mkx.hrttracker.ui.medication.sanitizeMedicationCountText
 import com.mkx.hrttracker.ui.medication.selectedMedicineValidationErrorRes
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
 import com.mkx.hrttracker.ui.medication.toDoseInstruction
 import com.mkx.hrttracker.ui.medication.toDoseInstructionDraft
-import com.mkx.hrttracker.ui.medication.validationErrorRes
+import com.mkx.hrttracker.ui.medication.validatedWith
+import com.mkx.hrttracker.ui.medication.withCountText
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.zoneDisplayName
@@ -212,32 +211,19 @@ class AddEntryViewModel @Inject constructor(
         transform: (MedicinePickerUiState) -> MedicinePickerUiState
     ) {
         _uiState.update { currentState ->
-            val updatedDraft = transform(currentState.medicineDraft)
-            val shouldResetDoseDraft =
-                currentState.medicineDraft.inferredOrSelectedPreparationType() !=
-                    updatedDraft.inferredOrSelectedPreparationType()
+            val reduced = MedicationDoseDraft(
+                medicineDraft = currentState.medicineDraft,
+                doseInstructionDraft = currentState.doseInstructionDraft,
+                countText = currentState.countText,
+                resolvedMedicine = currentState.resolvedMedicine,
+            ).applyMedicinePicker(transform)
             currentState.copy(
-                medicineDraft = updatedDraft,
-                resolvedMedicine = if (updatedDraft.selectedMedicineUuid == null) {
-                    null
-                } else {
-                    currentState.resolvedMedicine
-                },
-                doseInstructionDraft = if (shouldResetDoseDraft) {
-                    updatedDraft.toDoseInstructionDraft()
-                } else {
-                    currentState.doseInstructionDraft.copy(
-                        preparationType = updatedDraft.inferredOrSelectedPreparationType()
-                            ?: currentState.doseInstructionDraft.preparationType,
-                    )
-                },
-                countText = resolveMedicationCountTextAfterDraftChange(
-                    previousDraft = currentState.medicineDraft,
-                    updatedDraft = updatedDraft,
-                    currentCountText = currentState.countText
-                ),
-                errorMessageRes = null,
-                isScheduleFulfillmentWarningVisible = false
+                medicineDraft = reduced.medicineDraft,
+                resolvedMedicine = reduced.resolvedMedicine,
+                doseInstructionDraft = reduced.doseInstructionDraft,
+                countText = reduced.countText,
+                errorMessageRes = reduced.errorMessageRes,
+                isScheduleFulfillmentWarningVisible = false,
             ).withSelectedStockProjection()
         }
     }
@@ -256,9 +242,15 @@ class AddEntryViewModel @Inject constructor(
 
     fun updateCountText(countText: String) {
         _uiState.update { currentState ->
+            val reduced = MedicationDoseDraft(
+                medicineDraft = currentState.medicineDraft,
+                doseInstructionDraft = currentState.doseInstructionDraft,
+                countText = currentState.countText,
+                resolvedMedicine = currentState.resolvedMedicine,
+            ).withCountText(countText)
             currentState.copy(
-                countText = sanitizeMedicationCountText(countText),
-                errorMessageRes = null,
+                countText = reduced.countText,
+                errorMessageRes = reduced.errorMessageRes,
                 isScheduleFulfillmentWarningVisible = false
             )
         }
@@ -341,13 +333,15 @@ class AddEntryViewModel @Inject constructor(
         val appliedAtTimeZoneId = currentState.appliedZoneId.id
         val applicationType = resolvedApplicationType(currentState)
         val preparationType = resolvedPreparationType(currentState)
-        val errorRes = currentState.medicineDraft.selectedMedicineValidationErrorRes()
-            ?: currentState.doseInstructionDraft.validationErrorRes()
-            ?: medicationCountValidationErrorRes(
-                applicationType = applicationType,
-                countText = currentState.countText,
-                preparationType = preparationType,
-            )
+        val errorRes = MedicationDoseDraft(
+            medicineDraft = currentState.medicineDraft,
+            doseInstructionDraft = currentState.doseInstructionDraft,
+            countText = currentState.countText,
+            resolvedMedicine = currentState.resolvedMedicine,
+        ).validatedWith(
+            preparationType = preparationType,
+            validateMedicineDraft = { it.selectedMedicineValidationErrorRes() },
+        ).errorMessageRes
 
         if (errorRes != null) {
             _uiState.update {
