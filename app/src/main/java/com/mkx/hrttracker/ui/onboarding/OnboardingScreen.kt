@@ -110,10 +110,10 @@ import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.catalog.MedicineManagerLaunchMode
 import com.mkx.hrttracker.ui.catalog.MedicinesScreen
-import com.mkx.hrttracker.ui.catalog.NewMedicineSlotSheet
-import com.mkx.hrttracker.ui.catalog.NewMedicineSlotSheetMode
+import com.mkx.hrttracker.ui.catalog.CreateMedicineThenDoseSheet
+import com.mkx.hrttracker.ui.catalog.CreateMedicineThenDoseSheetMode
 import com.mkx.hrttracker.ui.catalog.NewMedicineSlotViewModel
-import com.mkx.hrttracker.ui.catalog.canHideNewMedicineSlotSheet
+import com.mkx.hrttracker.ui.catalog.canHideCreateMedicineThenDoseSheet
 import com.mkx.hrttracker.ui.components.AppContentMaxWidth
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
@@ -565,7 +565,7 @@ private fun OnboardingNewMedicineSlotHost(
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
         confirmValueChange = { value ->
-            canHideNewMedicineSlotSheet(
+            canHideCreateMedicineThenDoseSheet(
                 value = value,
                 isSlotLocked = isSlotLockedState.value,
                 allowCompletionHide = allowCompletionHideState.value,
@@ -576,7 +576,7 @@ private fun OnboardingNewMedicineSlotHost(
 
     LaunchedEffect(pendingLocalId) { viewModel.reset() }
 
-    NewMedicineSlotSheet(
+    CreateMedicineThenDoseSheet(
         sheetState = sheetState,
         onDismissRequest = {
             if (!isSlotLockedState.value) onDismiss()
@@ -598,7 +598,7 @@ private fun OnboardingNewMedicineSlotHost(
                 onDismiss()
             }
         },
-        mode = NewMedicineSlotSheetMode.GROUP_SLOT,
+        mode = CreateMedicineThenDoseSheetMode.GROUP_SLOT,
         viewModel = viewModel,
     )
 }

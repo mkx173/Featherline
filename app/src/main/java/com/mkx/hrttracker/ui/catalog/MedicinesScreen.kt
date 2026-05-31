@@ -83,7 +83,7 @@ internal sealed interface MedicineManagerLaunchMode {
 internal sealed interface MedicineManagerAddNewTarget {
     data object CreateMedicine : MedicineManagerAddNewTarget
     data class NewMedicineSlot(
-        val mode: NewMedicineSlotSheetMode,
+        val mode: CreateMedicineThenDoseSheetMode,
     ) : MedicineManagerAddNewTarget
 }
 
@@ -106,9 +106,9 @@ internal fun medicineManagerAddNewTarget(
         MedicineManagerLaunchMode.OnboardingStockOptIn ->
             MedicineManagerAddNewTarget.CreateMedicine
         is MedicineManagerLaunchMode.GroupSlot ->
-            MedicineManagerAddNewTarget.NewMedicineSlot(NewMedicineSlotSheetMode.GROUP_SLOT)
+            MedicineManagerAddNewTarget.NewMedicineSlot(CreateMedicineThenDoseSheetMode.GROUP_SLOT)
         MedicineManagerLaunchMode.ManualLog ->
-            MedicineManagerAddNewTarget.NewMedicineSlot(NewMedicineSlotSheetMode.MANUAL_LOG)
+            MedicineManagerAddNewTarget.NewMedicineSlot(CreateMedicineThenDoseSheetMode.MANUAL_LOG)
     }
 }
 
@@ -177,7 +177,7 @@ internal fun MedicinesScreen(
     val isNewSlotLockedState = rememberUpdatedState(isNewSlotLocked)
     val allowManualSlotCompletionHideState = remember { mutableStateOf(false) }
     var showCreateMedicineSheet by rememberSaveable { mutableStateOf(false) }
-    var showNewMedicineSlotSheet by rememberSaveable { mutableStateOf(false) }
+    var showCreateMedicineThenDoseSheet by rememberSaveable { mutableStateOf(false) }
     // The slot-result flow keeps the picked medicine in this state while the
     // dose sheet is up; clearing it dismisses the sheet.
     var pendingSlotMedicineUuid by rememberSaveable { mutableStateOf<String?>(null) }
@@ -195,10 +195,10 @@ internal fun MedicinesScreen(
             )
         },
     )
-    val newMedicineSlotSheetState = rememberModalBottomSheetState(
+    val createMedicineThenDoseSheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
         confirmValueChange = { value ->
-            canHideNewMedicineSlotSheet(
+            canHideCreateMedicineThenDoseSheet(
                 value = value,
                 isSlotLocked = isNewSlotLockedState.value,
                 allowCompletionHide = allowManualSlotCompletionHideState.value,
@@ -217,8 +217,8 @@ internal fun MedicinesScreen(
         if (showCreateMedicineSheet) createMedicineViewModel.reset()
     }
 
-    LaunchedEffect(showNewMedicineSlotSheet) {
-        if (showNewMedicineSlotSheet) newMedicineSlotViewModel.reset()
+    LaunchedEffect(showCreateMedicineThenDoseSheet) {
+        if (showCreateMedicineThenDoseSheet) newMedicineSlotViewModel.reset()
     }
 
     val handleMedicineTap: (UUID) -> Unit = remember(
@@ -251,7 +251,7 @@ internal fun MedicinesScreen(
         onAddNewMedicine = {
             when (medicineManagerAddNewTarget(launchMode)) {
                 MedicineManagerAddNewTarget.CreateMedicine -> showCreateMedicineSheet = true
-                is MedicineManagerAddNewTarget.NewMedicineSlot -> showNewMedicineSlotSheet = true
+                is MedicineManagerAddNewTarget.NewMedicineSlot -> showCreateMedicineThenDoseSheet = true
             }
         },
         showOnboardingBanner = launchMode == MedicineManagerLaunchMode.OnboardingStockOptIn,
@@ -278,23 +278,23 @@ internal fun MedicinesScreen(
         )
     }
 
-    if (showNewMedicineSlotSheet) {
-        NewMedicineSlotSheet(
-            sheetState = newMedicineSlotSheetState,
+    if (showCreateMedicineThenDoseSheet) {
+        CreateMedicineThenDoseSheet(
+            sheetState = createMedicineThenDoseSheetState,
             onDismissRequest = {
-                if (!isNewSlotLockedState.value) showNewMedicineSlotSheet = false
+                if (!isNewSlotLockedState.value) showCreateMedicineThenDoseSheet = false
             },
             onCloseClick = {
                 if (!isNewSlotLockedState.value) {
-                    hideBottomSheet(scope, newMedicineSlotSheetState) {
-                        showNewMedicineSlotSheet = false
+                    hideBottomSheet(scope, createMedicineThenDoseSheetState) {
+                        showCreateMedicineThenDoseSheet = false
                     }
                 }
             },
             onGroupSlotResolved = { slotResult, consumeSavedState ->
                 allowManualSlotCompletionHideState.value = true
-                hideBottomSheet(scope, newMedicineSlotSheetState) {
-                    showNewMedicineSlotSheet = false
+                hideBottomSheet(scope, createMedicineThenDoseSheetState) {
+                    showCreateMedicineThenDoseSheet = false
                     allowManualSlotCompletionHideState.value = false
                     consumeSavedState()
                     onSlotResolved(slotResult)
@@ -302,11 +302,11 @@ internal fun MedicinesScreen(
             },
             mode = (medicineManagerAddNewTarget(launchMode) as? MedicineManagerAddNewTarget.NewMedicineSlot)
                 ?.mode
-                ?: error("NewMedicineSlotSheet is not used in manager mode."),
+                ?: error("CreateMedicineThenDoseSheet is not used in manager mode."),
             onManualLogSaved = { consumeSavedState ->
                 allowManualSlotCompletionHideState.value = true
-                hideBottomSheet(scope, newMedicineSlotSheetState) {
-                    showNewMedicineSlotSheet = false
+                hideBottomSheet(scope, createMedicineThenDoseSheetState) {
+                    showCreateMedicineThenDoseSheet = false
                     allowManualSlotCompletionHideState.value = false
                     consumeSavedState()
                     onManualLogSaved()

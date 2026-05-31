@@ -55,9 +55,9 @@ class MedicineSlotDraftSheetTest {
     }
 
     @Test
-    fun canHideNewMedicineSlotSheet_allowsCompletionHideWhileLocked() {
+    fun canHideCreateMedicineThenDoseSheet_allowsCompletionHideWhileLocked() {
         assertTrue(
-            canHideNewMedicineSlotSheet(
+            canHideCreateMedicineThenDoseSheet(
                 value = SheetValue.Hidden,
                 isSlotLocked = true,
                 allowCompletionHide = true,
@@ -66,9 +66,9 @@ class MedicineSlotDraftSheetTest {
     }
 
     @Test
-    fun canHideNewMedicineSlotSheet_blocksUserHideWhileLocked() {
+    fun canHideCreateMedicineThenDoseSheet_blocksUserHideWhileLocked() {
         assertFalse(
-            canHideNewMedicineSlotSheet(
+            canHideCreateMedicineThenDoseSheet(
                 value = SheetValue.Hidden,
                 isSlotLocked = true,
                 allowCompletionHide = false,
@@ -77,9 +77,9 @@ class MedicineSlotDraftSheetTest {
     }
 
     @Test
-    fun canHideNewMedicineSlotSheet_allowsUserHideWhileUnlocked() {
+    fun canHideCreateMedicineThenDoseSheet_allowsUserHideWhileUnlocked() {
         assertTrue(
-            canHideNewMedicineSlotSheet(
+            canHideCreateMedicineThenDoseSheet(
                 value = SheetValue.Hidden,
                 isSlotLocked = false,
                 allowCompletionHide = false,
@@ -88,9 +88,9 @@ class MedicineSlotDraftSheetTest {
     }
 
     @Test
-    fun canHideNewMedicineSlotSheet_allowsNonHiddenTransitionsWhileLocked() {
+    fun canHideCreateMedicineThenDoseSheet_allowsNonHiddenTransitionsWhileLocked() {
         assertTrue(
-            canHideNewMedicineSlotSheet(
+            canHideCreateMedicineThenDoseSheet(
                 value = SheetValue.Expanded,
                 isSlotLocked = true,
                 allowCompletionHide = false,
