@@ -1085,6 +1085,18 @@ internal fun MainE2ChartCard(
                     x = listOf(currentTimeXHours),
                     y = listOf(currentTimeConcentration),
                 )
+                val lower68 = section.lower68Points
+                val upper68 = section.upper68Points
+                if (lower68 != null && upper68 != null && lower68.size == pointXHours.size) {
+                    series(x = pointXHours, y = lower68)
+                    series(x = pointXHours, y = upper68)
+                }
+                val lower95 = section.lower95Points
+                val upper95 = section.upper95Points
+                if (lower95 != null && upper95 != null && lower95.size == pointXHours.size) {
+                    series(x = pointXHours, y = lower95)
+                    series(x = pointXHours, y = upper95)
+                }
                 // Logged dose markers (primary color) and planned ones
                 // (secondary color) live in separate slots so they can use
                 // different point styles. Both series are emitted whenever

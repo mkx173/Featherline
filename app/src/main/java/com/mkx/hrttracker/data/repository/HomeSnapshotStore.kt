@@ -172,6 +172,10 @@ data class HomePkProjectionRecord(
     val concentrationUnit: String,
     val timeH: List<Double>,
     val concentrations: List<Double>,
+    val lower68: List<Double>? = null,
+    val upper68: List<Double>? = null,
+    val lower95: List<Double>? = null,
+    val upper95: List<Double>? = null,
     val doseMarkers: List<HomePkProjectionDoseMarkerRecord>,
     val latestEstradiolEntry: MedicationLogEntry?,
     // Sampling fingerprint: validator compares these against the resolved

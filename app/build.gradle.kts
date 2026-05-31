@@ -157,7 +157,7 @@ androidComponents {
 }
 
 kotlin {
-    jvmToolchain(17)
+
 }
 
 dependencies {
