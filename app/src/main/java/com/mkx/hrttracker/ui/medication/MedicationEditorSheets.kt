@@ -124,7 +124,7 @@ import kotlin.math.roundToInt
 //   CreateMedicineSheet            — creates a catalog Medicine only. (keep)
 //   NewMedicineSlotSheet           — → CreateMedicineThenDoseSheet (creates Medicine, then returns slot OR saves log)
 //   MedicineSlotDraftSheet         — → ExistingMedicineDoseSheet (existing Medicine, then returns slot OR saves log)
-//   MedicationDefinitionEditorSheet— → MedicationGroupSlotEditorSheet (edits a regimen slot in the group editor)
+//   MedicationGroupSlotEditorSheet — edits a regimen slot in the group editor. (keep)
 //   MedicationLogEntryEditorSheet  — edits/creates a history MedicationLog entry. (keep)
 //   AddEntryScreenContent          — private host adapter for MedicationLogEntryEditorSheet. (keep, private)
 
@@ -144,7 +144,7 @@ import kotlin.math.roundToInt
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MedicationDefinitionEditorSheet(
+fun MedicationGroupSlotEditorSheet(
     modifier: Modifier = Modifier,
     title: String,
     sheetState: SheetState,
@@ -1329,14 +1329,14 @@ private const val MINUTES_PER_DAY = 24L * MINUTES_PER_HOUR
 // ---------------------------------------------------------------------------
 
 @Preview(
-    name = "Medication Definition Editor",
+    name = "Medication Group Slot Editor",
     showBackground = true,
     widthDp = 420,
     heightDp = 920,
 )
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MedicationDefinitionEditorSheetPreview() {
+private fun MedicationGroupSlotEditorSheetPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         val draft = defaultMedicineDraft(
             category = MedicationCategory.ESTRADIOL,
@@ -1346,7 +1346,7 @@ private fun MedicationDefinitionEditorSheetPreview() {
             key = MedicationKey.ESTRADIOL,
             preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
         )
-        MedicationDefinitionEditorSheet(
+        MedicationGroupSlotEditorSheet(
             title = "Edit medication",
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             confirmButtonText = "Save",

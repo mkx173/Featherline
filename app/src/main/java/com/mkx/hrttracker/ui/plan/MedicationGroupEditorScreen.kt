@@ -129,7 +129,7 @@ import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
-import com.mkx.hrttracker.ui.medication.MedicationDefinitionEditorSheet
+import com.mkx.hrttracker.ui.medication.MedicationGroupSlotEditorSheet
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -1636,9 +1636,9 @@ private fun MedicationGroupEditorScreenContent(
         val isEditingExistingMedication = uiState.medications.any { it.localId == medication.localId }
         val canEditMedicationIdentity = !areFieldsRenderedLocked && !isEditingExistingMedication
         val resolvedMedicine = checkNotNull(medication.resolvedMedicine) {
-            "Medication definition editor requires a resolved medicine."
+            "Medication group slot editor requires a resolved medicine."
         }
-        MedicationDefinitionEditorSheet(
+        MedicationGroupSlotEditorSheet(
             modifier = Modifier,
             title = stringResource(
                 if (uiState.medications.any { it.localId == medication.localId }) {
