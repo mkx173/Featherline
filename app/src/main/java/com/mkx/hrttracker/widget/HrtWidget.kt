@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.res.Configuration
+import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
@@ -173,27 +174,37 @@ suspend fun updateAllHrtWidgets(context: Context) {
     }
 }
 
-// Synchronous push that bypasses Glance's lazy session. Glance's update()/updateAll()
+// Widget push entry point. Android 13+ uses a synchronous push that bypasses Glance's lazy session.
+// Glance's update()/updateAll()
 // only signal the session, whose recomposition is driven by the app process's frame
 // clock — backgrounded, no frames are produced and the update stalls until the launcher
 // next draws or the app relaunches. GlanceRemoteViews.compose() runs a one-shot,
 // frame-clock-independent composition; pushing the result via AppWidgetManager updates
 // the (foreground) launcher immediately, even from the background.
+// API 26-32 use the original session-backed update path because the synchronous RemoteViews
+// composition path is unreliable there.
 //
 // Tradeoff: we compose a single RemoteViews for the current orientation's size rather
 // than Glance's automatic portrait/landscape variants. Acceptable here because content
 // scale is frozen to the captured per-device baseline.
 //
-// A null record renders the empty-setup state, so clearWidgetSnapshot can push the empty
-// widget synchronously too rather than falling back to the session path's background stall.
+// A null record renders the empty-setup state, so clearWidgetSnapshot can reuse the same
+// API-selected widget update path.
 @OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
 suspend fun pushHrtWidgets(context: Context, record: WidgetSnapshotRecord?) {
+    if (!shouldUseSynchronousWidgetPush()) {
+        updateAllHrtWidgets(context)
+        return
+    }
     val appWidgetManager = AppWidgetManager.getInstance(context)
     coroutineScope {
         launch { pushHrtWidget(context, appWidgetManager, HrtWidgetMediumReceiver::class.java, record, isMedium = true) }
         launch { pushHrtWidget(context, appWidgetManager, HrtWidgetLargeReceiver::class.java, record, isMedium = false) }
     }
 }
+
+internal fun shouldUseSynchronousWidgetPush(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
+    sdkInt >= Build.VERSION_CODES.TIRAMISU
 
 @OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
 private suspend fun pushHrtWidget(
