@@ -793,6 +793,7 @@ internal fun SettingsScreenContent(
     }
     val scrollState = rememberScrollState()
     val weightSummary = formatWeightSummary(uiState.userProfile)
+    val appearanceLayout = resolveSettingsAppearanceSectionLayout()
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
@@ -1164,8 +1165,8 @@ internal fun SettingsScreenContent(
             ) {
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_widget_appearance),
-                    index = 0,
-                    count = 5,
+                    index = appearanceLayout.widgetAppearanceIndex,
+                    count = appearanceLayout.itemCount,
                     onClick = { showWidgetAppearanceDialog = true },
                     leadingContent = {
                         SettingsLeadingIconSlot(
@@ -1180,8 +1181,8 @@ internal fun SettingsScreenContent(
                     SettingsSegmentedListItem(
                         title = stringResource(R.string.settings_app_language),
                         supportingText = stringResource(settingsState.appLanguageOption.labelRes),
-                        index = 1,
-                        count = 5,
+                        index = appearanceLayout.appLanguageIndex,
+                        count = appearanceLayout.itemCount,
                         onClick = { setLanguageMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1206,8 +1207,8 @@ internal fun SettingsScreenContent(
                     SettingsSegmentedListItem(
                         title = stringResource(R.string.settings_dark_mode),
                         supportingText = stringResource(settingsState.darkModeOption.labelRes),
-                        index = 2,
-                        count = 5,
+                        index = appearanceLayout.darkModeIndex,
+                        count = appearanceLayout.itemCount,
                         onClick = { setDarkModeMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1228,30 +1229,32 @@ internal fun SettingsScreenContent(
                     )
                 }
 
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_adaptive_color),
-                    index = 3,
-                    count = 5,
-                    onClick = {
-                        onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
-                    },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_palette)
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = settingsState.adaptiveColorEnabled,
-                            onCheckedChange = onAdaptiveColorEnabledChange
-                        )
-                    }
-                )
+                appearanceLayout.adaptiveColorIndex?.let { adaptiveColorIndex ->
+                    SettingsSegmentedListItem(
+                        title = stringResource(R.string.settings_adaptive_color),
+                        index = adaptiveColorIndex,
+                        count = appearanceLayout.itemCount,
+                        onClick = {
+                            onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
+                        },
+                        leadingContent = {
+                            SettingsLeadingIconSlot(
+                                painter = painterResource(R.drawable.ic_palette)
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = settingsState.adaptiveColorEnabled,
+                                onCheckedChange = onAdaptiveColorEnabledChange
+                            )
+                        }
+                    )
+                }
 
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_amoled_black),
-                    index = 4,
-                    count = 5,
+                    index = appearanceLayout.pureBlackIndex,
+                    count = appearanceLayout.itemCount,
                     onClick = {
                         onPureBlackEnabledChange(!settingsState.pureBlackEnabled)
                     },
@@ -1646,6 +1649,15 @@ internal data class SettingsSecuritySectionLayout(
     val hideScreenContentIndex: Int,
 )
 
+internal data class SettingsAppearanceSectionLayout(
+    val itemCount: Int,
+    val widgetAppearanceIndex: Int,
+    val appLanguageIndex: Int,
+    val darkModeIndex: Int,
+    val adaptiveColorIndex: Int?,
+    val pureBlackIndex: Int,
+)
+
 internal enum class SettingsReminderSupportState {
     NONE,
     NOTIFICATION_OFF,
@@ -1681,6 +1693,30 @@ internal fun resolveSettingsSecuritySectionLayout(
         SettingsSecuritySectionLayout(
             itemCount = 2,
             hideScreenContentIndex = 1,
+        )
+    }
+}
+
+internal fun resolveSettingsAppearanceSectionLayout(
+    sdkInt: Int = Build.VERSION.SDK_INT,
+): SettingsAppearanceSectionLayout {
+    return if (sdkInt >= Build.VERSION_CODES.S) {
+        SettingsAppearanceSectionLayout(
+            itemCount = 5,
+            widgetAppearanceIndex = 0,
+            appLanguageIndex = 1,
+            darkModeIndex = 2,
+            adaptiveColorIndex = 3,
+            pureBlackIndex = 4,
+        )
+    } else {
+        SettingsAppearanceSectionLayout(
+            itemCount = 4,
+            widgetAppearanceIndex = 0,
+            appLanguageIndex = 1,
+            darkModeIndex = 2,
+            adaptiveColorIndex = null,
+            pureBlackIndex = 3,
         )
     }
 }
