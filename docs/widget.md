@@ -346,6 +346,16 @@ no stock data — `WidgetSnapshotRecord` is unchanged and
 `WIDGET_SNAPSHOT_SCHEMA_VERSION` stays `12`; low-stock state surfaces in
 the app (home section + toasts), not on the widget.
 
+### Archived-group doses
+
+Unlogged doses from archived groups surface as rows (flagged
+`isFromArchivedGroup`, see above) and can be quick-logged. That
+render-time flag is carried into the action as `ArchivedGroupRowKey`, and
+the callback only re-logs into an archived group when the tapped row was
+actually *rendered* as archived. A still-active row whose group was
+archived after it was composed is treated as stale: the callback refreshes
+the widget and bails instead of logging into the now-archived group.
+
 ### Group collapsing
 
 When several scheduled rows share the same group and scheduled time,
