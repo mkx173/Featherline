@@ -44,7 +44,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import com.mkx.hrttracker.data.repository.HomeInputSource
@@ -141,9 +140,12 @@ class MainActivity : AppCompatActivity() {
                 packageName.endsWith(".benchmark")
         StartupTiming.reset(enabled = startupTimingEnabled)
         val splashScreen = installSplashScreen()
-        enableEdgeToEdge()
 
         super.onCreate(savedInstanceState)
+        // Must run after super.onCreate(): the detectDarkMode lambda reads the
+        // Hilt-injected settingsRepository, which is only available once Hilt
+        // has injected during super.onCreate().
+        applyEdgeToEdgeSystemBars()
         parseWidgetHighlightIntent(intent)
         diagnosticsLogger.info(
             TAG,
@@ -176,20 +178,15 @@ class MainActivity : AppCompatActivity() {
             }
 
             DisposableEffect(isDarkTheme) {
-                val barStyle = if (isDarkTheme) {
-                    SystemBarStyle.dark(Color.Transparent.toArgb())
-                } else {
-                    SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
-                }
-
-                enableEdgeToEdge(
-                    statusBarStyle = barStyle,
-                    navigationBarStyle = barStyle
-                )
-
-                val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-                windowInsetsController.isAppearanceLightStatusBars = !isDarkTheme
-                windowInsetsController.isAppearanceLightNavigationBars = !isDarkTheme
+                // Re-apply edge-to-edge immediately so an in-app theme toggle
+                // updates the system bar appearance right away rather than
+                // waiting on the configuration-change observer. Both this call
+                // and the persistent observer installed in onCreate resolve the
+                // appearance from the same live source (see
+                // applyEdgeToEdgeSystemBars), so they can never disagree — which
+                // is what previously left the navigation bar stale on API 30+,
+                // where appearance is applied through WindowInsetsController.
+                applyEdgeToEdgeSystemBars()
                 onDispose { }
             }
 
@@ -437,6 +434,56 @@ class MainActivity : AppCompatActivity() {
             diagnosticsLogger.info(TAG, "main_activity_on_stop backgrounding=false reason=configuration_change")
         }
         super.onStop()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // The edge-to-edge observer re-runs on every handled config change
+        // (uiMode/locale/layoutDirection) and re-enables nav-bar contrast
+        // enforcement. Post so this lands after that observer, regardless of
+        // dispatch order, keeping the navigation bar fully transparent.
+        window.decorView.post { disableNavigationBarContrast() }
+    }
+
+    /**
+     * Registers/refreshes edge-to-edge with a [SystemBarStyle.auto] whose
+     * detectDarkMode lambda reads the resolved theme live. androidx.activity
+     * installs a single persistent observer (added on the first call only) that
+     * re-runs this style resolution on every configuration change — including
+     * the uiMode change AppCompat dispatches when night mode is toggled, since
+     * the manifest handles uiMode in-process. Deriving the appearance from the
+     * live source of truth here keeps the status/navigation bars correct on
+     * API 30+, where bar appearance is applied through WindowInsetsController and
+     * a stale observer would otherwise race with — and clobber — the value set
+     * for the current theme.
+     *
+     * [SystemBarStyle.auto] enables navigation-bar contrast enforcement (its
+     * nightMode is 0), which draws a scrim behind 3-button navigation. We want a
+     * fully transparent navigation bar, so disable it here; [onConfigurationChanged]
+     * re-disables it after the observer re-enables it on later config changes.
+     */
+    private fun applyEdgeToEdgeSystemBars() {
+        val barStyle = SystemBarStyle.auto(
+            Color.Transparent.toArgb(),
+            Color.Transparent.toArgb(),
+        ) { resources -> resolveSystemBarsDarkAppearance(resources) }
+        enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
+        disableNavigationBarContrast()
+    }
+
+    /** Keeps the navigation bar fully transparent (no enforced contrast scrim). */
+    private fun disableNavigationBarContrast() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
+    }
+
+    private fun resolveSystemBarsDarkAppearance(resources: Resources): Boolean {
+        val systemInDarkTheme =
+            (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                Configuration.UI_MODE_NIGHT_YES
+        return settingsRepository.settingsState.value.darkModeOption
+            .resolveDarkTheme(systemInDarkTheme)
     }
 
     private fun applyHideScreenContent(enabled: Boolean) {
