@@ -8,50 +8,59 @@ import org.junit.Test
 
 class OnboardingNotificationPermissionActionTest {
     @Test
-    fun exactAlarmCard_hiddenBelowS_shownFromS_whenNotGranted() {
-        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = 30, exactAlarmGranted = false))
-        assertTrue(shouldShowExactAlarmOnboardingCard(sdkInt = 31, exactAlarmGranted = false))
+    fun exactAlarmCard_hiddenBelowS_regardlessOfGrant() {
+        // SCHEDULE_EXACT_ALARM does not exist before API 31, so the card never applies.
+        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = 30, exactAlarmGrantedAtStart = false))
+        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = 30, exactAlarmGrantedAtStart = true))
     }
 
     @Test
-    fun exactAlarmCard_hidden_whenAlreadyGranted() {
-        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = 31, exactAlarmGranted = true))
-        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = Build.VERSION_CODES.TIRAMISU, exactAlarmGranted = true))
-        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = Build.VERSION_CODES.UPSIDE_DOWN_CAKE, exactAlarmGranted = true))
+    fun exactAlarmCard_hidden_whenGrantedAtStart() {
+        // From API 31 the permission is granted by default; if the user still has
+        // it when onboarding begins there is nothing to ask, so the card is skipped.
+        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = 31, exactAlarmGrantedAtStart = true))
+        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = Build.VERSION_CODES.TIRAMISU, exactAlarmGrantedAtStart = true))
+        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = Build.VERSION_CODES.UPSIDE_DOWN_CAKE, exactAlarmGrantedAtStart = true))
     }
 
     @Test
-    fun notificationOnboardingCardMode_followsGrantState() {
-        assertTrue(shouldShowNotificationPermissionOnboardingCard(notificationsGranted = false))
-        assertFalse(shouldShowNotificationPermissionOnboardingCard(notificationsGranted = true))
-        assertFalse(shouldShowReminderMasterOnboardingCard(notificationsGranted = false))
-        assertTrue(shouldShowReminderMasterOnboardingCard(notificationsGranted = true))
+    fun exactAlarmCard_shown_whenRevokedAtStart_andStaysVisibleAfterGranting() {
+        // Edge case: user revoked exact alarms before onboarding. We surface the
+        // card, and because visibility keys off the captured start state it stays
+        // visible (does not vanish) once the user re-grants during onboarding.
+        assertTrue(shouldShowExactAlarmOnboardingCard(sdkInt = 31, exactAlarmGrantedAtStart = false))
     }
 
     @Test
-    fun reminderChoice_defaultsToNotificationGrantState_untilUserOverrides() {
+    fun notificationPermissionCard_keysOffStartState_andStaysStable() {
+        // Missing access at start: card is shown and stays shown through an
+        // in-onboarding grant (it flips to a granted state rather than vanishing).
+        assertTrue(shouldShowNotificationPermissionOnboardingCard(notificationsGrantedAtStart = false))
+        // Already had access at start: no permission card (the master toggle is used).
+        assertFalse(shouldShowNotificationPermissionOnboardingCard(notificationsGrantedAtStart = true))
+    }
+
+    @Test
+    fun reminderMasterCard_onlyShownWhenAccessPredatedOnboarding() {
+        // No access at all: nothing to toggle.
         assertFalse(
-            resolveOnboardingReminderChoice(
+            shouldShowReminderMasterOnboardingCard(
                 notificationsGranted = false,
-                reminderChoiceOverride = null,
+                notificationsGrantedAtStart = false,
             )
         )
-        assertTrue(
-            resolveOnboardingReminderChoice(
-                notificationsGranted = true,
-                reminderChoiceOverride = null,
-            )
-        )
+        // Granted during onboarding: the grant is the opt-in, so we skip the toggle.
         assertFalse(
-            resolveOnboardingReminderChoice(
+            shouldShowReminderMasterOnboardingCard(
                 notificationsGranted = true,
-                reminderChoiceOverride = false,
+                notificationsGrantedAtStart = false,
             )
         )
+        // Already had access before onboarding: ask whether to enable reminders.
         assertTrue(
-            resolveOnboardingReminderChoice(
-                notificationsGranted = false,
-                reminderChoiceOverride = true,
+            shouldShowReminderMasterOnboardingCard(
+                notificationsGranted = true,
+                notificationsGrantedAtStart = true,
             )
         )
     }

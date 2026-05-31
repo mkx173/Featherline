@@ -616,9 +616,9 @@
     <string name="onboarding_continue">继续</string>
     <string name="onboarding_notifications_title">开启用药提醒</string>
     <string name="onboarding_notifications_subtitle">为了在您预定的服药时间发送提醒，Featherline 需要以下两项权限，您可以随时在系统设置中关闭它们</string>
-    <string name="onboarding_notifications_permission_subtitle">为了在您预定的服药时间发送提醒，Featherline 需要通知权限，您可以随时在系统设置中关闭它</string>
-    <string name="onboarding_notifications_master_subtitle">通知权限已可用，请选择是否现在开启用药提醒</string>
-    <string name="onboarding_notifications_master_alarm_subtitle">通知权限已可用，请选择是否现在开启用药提醒，并可选择开启精确闹钟以提升提醒准时性</string>
+    <string name="onboarding_notifications_permission_subtitle">为了在您预定的服药时间发送提醒，Featherline 需要以下权限，您可以随时在系统设置中关闭它</string>
+    <string name="onboarding_notifications_master_subtitle">Featherline 可在您预定的服药时间发送提醒，您可以随时在设置中关闭它</string>
+    <string name="onboarding_notifications_master_alarm_subtitle">Featherline 可在您预定的服药时间发送提醒，您还可以开启精确闹钟以使通知更准时</string>
     <string name="onboarding_notifications_app_title">通知权限</string>
     <string name="onboarding_notifications_app_desc">在预定的服药时间发送提醒</string>
     <string name="onboarding_notifications_alarm_title">精确闹钟</string>

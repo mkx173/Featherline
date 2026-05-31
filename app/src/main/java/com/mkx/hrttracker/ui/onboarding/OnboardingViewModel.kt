@@ -42,13 +42,18 @@ class OnboardingViewModel @Inject constructor(
         userProfileRepository.observeProfile(),
         medicationGroupRepository.observeGroups(),
         medicineRepository.observeAllActiveOrNull(),
-    ) { completed, profile, groups, medicines ->
+        settingsRepository.settingsState,
+    ) { completed, profile, groups, medicines, settings ->
         OnboardingUiState(
             isLoaded = true,
             isCompleted = completed,
             userProfile = profile ?: UserProfile(),
             activeGroupCount = groups.orEmpty().count { it.archivedAt == null },
             trackedMedicineCount = medicines.orEmpty().count { it.stock.trackingEnabled },
+            // Persisted reminder master state, so onboarding reflects changes made
+            // elsewhere during the flow (e.g. enabling reminders in the step-3
+            // group editor) instead of tracking a stale local choice.
+            remindersEnabled = settings.remindersEnabled,
         )
     }
         .stateIn(
@@ -153,6 +158,7 @@ data class OnboardingUiState(
     val userProfile: UserProfile = UserProfile(),
     val activeGroupCount: Int = 0,
     val trackedMedicineCount: Int = 0,
+    val remindersEnabled: Boolean = false,
 ) {
     val shouldShowOnboarding: Boolean
         get() = isLoaded && !isCompleted
