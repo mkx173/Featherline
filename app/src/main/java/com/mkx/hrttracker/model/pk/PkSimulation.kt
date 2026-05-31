@@ -100,6 +100,10 @@ data class PkSimulationResult(
     val timeH: List<Double>,
     val concentrations: List<Double>,
     val auc: Double,
+    val lower68: List<Double>? = null,
+    val upper68: List<Double>? = null,
+    val lower95: List<Double>? = null,
+    val upper95: List<Double>? = null,
     val metadata: PkSimulationMetadata,
 ) {
     fun concentrationAt(hour: Double): Double? {
@@ -148,6 +152,10 @@ data class PkTrendResult(
     val dailyConcentrations: List<Double>,
     val concentrationUnit: PkConcentrationUnit,
     val chartConcentrations: List<Double> = dailyConcentrations,
+    val chartLower68: List<Double>? = null,
+    val chartUpper68: List<Double>? = null,
+    val chartLower95: List<Double>? = null,
+    val chartUpper95: List<Double>? = null,
     val chartSampleIntervalHours: Int = 24,
     val chartTimeH: List<Double> = chartConcentrations.indices.map { index ->
         index * chartSampleIntervalHours.toDouble()
@@ -396,6 +404,7 @@ object PkMedicationSimulation {
         plannedEntries: List<MedicationLogEntry> = emptyList(),
         option: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
         futureDays: Long = option.projectionFutureDays(),
+        labResults: List<LabResult> = emptyList(),
     ): PkProjectionResult {
         val resolvedBodyWeightKg =
             bodyWeightKg?.takeIf { it.isFinite() && it > 0 } ?: DefaultBodyWeightKg
@@ -427,14 +436,29 @@ object PkMedicationSimulation {
             generatedAtTimeH = generatedAtTimeH,
             option = option,
         )
-        val result = PkSimulationEngine(
+        val engine = PkSimulationEngine(
             events = events,
             hormone = PkHormone.ESTRADIOL,
             bodyWeightKg = resolvedBodyWeightKg,
             startTimeH = 0.0,
             endTimeH = windowHours,
-            numberOfSteps = ceil(windowHours).toInt().coerceAtLeast(1) + 1,
-        ).run(sampleTimeH = sampleTimeH)
+            numberOfSteps = kotlin.math.ceil(windowHours).toInt().coerceAtLeast(1) + 1,
+        )
+
+        val timeline = if (labResults.isNotEmpty()) {
+            val pipeline = PkCalibrationPipeline(engine)
+            pipeline.runCalibration(labResults, events)
+        } else {
+            null
+        }
+
+        val models = if (timeline != null) {
+            engine.getEventModelsWithTimeline(timeline)
+        } else {
+            null
+        }
+
+        val result = engine.run(sampleTimeH = sampleTimeH, customModels = models, timeline = timeline)
         val doseMarkers = buildDoseMarkers(
             events = events,
             windowEndHours = windowHours,
@@ -643,17 +667,40 @@ class PkSimulationEngine(
         .filter { event -> event.hormone == hormone && event.route != PkRoute.PATCH_REMOVE }
         .map { event -> PrecomputedPkEventModel(event, sortedEvents) }
         .toList()
+    fun getEventModels(logAmplitude: Double = 0.0, logClearance: Double = 0.0): List<PrecomputedPkEventModel> {
+        return sortedEvents
+            .asSequence()
+            .filter { event -> event.hormone == hormone && event.route != PkRoute.PATCH_REMOVE }
+            .map { event -> PrecomputedPkEventModel(event, sortedEvents, logAmplitude, logClearance) }
+            .toList()
+    }
+
+    fun getEventModelsWithTimeline(timeline: Map<String, EkfState>): List<PrecomputedPkEventModel> {
+        return sortedEvents
+            .asSequence()
+            .filter { event -> event.hormone == hormone && event.route != PkRoute.PATCH_REMOVE }
+            .map { event ->
+                val state = timeline[event.id.toString()] ?: EkfState(doubleArrayOf(0.0, 0.0), arrayOf(doubleArrayOf(0.1, 0.0), doubleArrayOf(0.0, 0.1)))
+                PrecomputedPkEventModel(event, sortedEvents, state.mean[0], state.mean[1])
+            }
+            .toList()
+    }
     private val metadata = PkSimulationMetadata(
         hormone = hormone,
         concentrationUnit = PkCatalog.defaultConcentrationUnit(hormone),
     )
     private val plasmaVolumeMl = PkCatalog.coreParams(hormone).vdPerKg * bodyWeightKg * 1000.0
 
-    fun run(sampleTimeH: List<Double>? = null): PkSimulationResult {
+    fun run(sampleTimeH: List<Double>? = null, customModels: List<PrecomputedPkEventModel>? = null, timeline: Map<String, EkfState>? = null): PkSimulationResult {
+        val activeModels = customModels ?: eventModels
         if (startTimeH >= endTimeH || numberOfSteps <= 1 || plasmaVolumeMl <= 0.0) {
             return PkSimulationResult(
                 timeH = emptyList(),
                 concentrations = emptyList(),
+                lower68 = null,
+                upper68 = null,
+                lower95 = null,
+                upper95 = null,
                 auc = 0.0,
                 metadata = metadata,
             )
@@ -702,13 +749,15 @@ class PkSimulationEngine(
     }
 }
 
-private class PrecomputedPkEventModel(
+class PrecomputedPkEventModel(
     event: PkDoseEvent,
     allEvents: List<PkDoseEvent>,
+    logAmplitude: Double = 0.0,
+    logClearance: Double = 0.0
 ) {
     private val startTime = event.timeH
     private val dose = event.doseMg
-    private val params = PkParameterResolver.resolve(event)
+    private val params = PkParameterResolver.resolve(event, logAmplitude, logClearance)
     private val oneCompParams = PkParams(
         fracFast = 1.0,
         k1Fast = params.k1Fast,
@@ -784,13 +833,17 @@ private class PrecomputedPkEventModel(
 }
 
 private object PkParameterResolver {
-    fun resolve(event: PkDoseEvent): PkParams {
+    fun resolve(event: PkDoseEvent, logAmplitude: Double = 0.0, logClearance: Double = 0.0): PkParams {
         val core = PkCatalog.coreParams(event.hormone)
-        val k3 = if (event.route == PkRoute.INJECTION) {
+        val amplitudeScale = kotlin.math.exp(logAmplitude)
+        val clearanceScale = kotlin.math.exp(logClearance)
+
+        val baseK3 = if (event.route == PkRoute.INJECTION) {
             core.kClearInjection
         } else {
             core.kClear
         }
+        val k3 = baseK3 * clearanceScale
 
         return when (event.route) {
             PkRoute.INJECTION -> {
@@ -804,10 +857,10 @@ private object PkParameterResolver {
                     k1Slow = k1Slow,
                     k2 = PkCatalog.hydrolysisK2(event.compound) ?: 0.0,
                     k3 = k3,
-                    bioavailability = formationFraction,
+                    bioavailability = formationFraction * amplitudeScale,
                     rateMgH = 0.0,
-                    fastBioavailability = formationFraction,
-                    slowBioavailability = formationFraction,
+                    fastBioavailability = formationFraction * amplitudeScale,
+                    slowBioavailability = formationFraction * amplitudeScale,
                 )
             }
 

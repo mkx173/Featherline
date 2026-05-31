@@ -43,6 +43,7 @@ class HomeSnapshotRepository @Inject constructor(
     private val homeSnapshotStore: HomeSnapshotStore,
     private val homeSnapshotGenerationStore: HomeSnapshotGenerationStore,
     private val settingsRepository: SettingsRepository,
+    private val bloodTestRepository: dagger.Lazy<BloodTestRepository>,
     @param:AppScope private val appScope: CoroutineScope,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
@@ -587,8 +588,14 @@ class HomeSnapshotRepository @Inject constructor(
         // body state from already-logged doses only, so its projection must
         // exclude `plannedEntries`. Otherwise a planned dose 30 min from now
         // would inflate the widget's "current" reading.
+        val labs = bloodTestRepository.get().getBuiltinTrendPoints(com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey.E2)
+        val windowStart = now.toLocalDate().atStartOfDay().minusDays(option.pastDays.toLong()).atZone(zoneId).toInstant()
         val (projection, widgetProjection) = coroutineScope {
             val homeAsync = async(defaultDispatcher) {
+                val labResults = labs.map { lab -> com.mkx.hrttracker.model.pk.LabResult(
+                    timeH = java.time.Duration.between(windowStart, lab.collectedAt).toMillis() / 3600000.0,
+                    concentrationPgMl = lab.canonicalValue
+                )}
                 PkMedicationSimulation.simulateMainEstradiolProjection(
                     entries = simulationEntries.real,
                     plannedEntries = simulationEntries.planned,
@@ -596,6 +603,7 @@ class HomeSnapshotRepository @Inject constructor(
                     generatedAt = now,
                     zoneId = zoneId,
                     option = option,
+                    labResults = labResults
                 )
             }
             val widgetAsync = async(defaultDispatcher) {
