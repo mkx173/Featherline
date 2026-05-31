@@ -60,10 +60,11 @@ class BuildMissingScheduledLogEntriesTest {
             appliedAt = scheduledAt.plusMinutes(1),
         )
 
-        // Archive state is intentionally not gated here — callers decide. The widget
-        // quick-log re-logs a manually deleted dose for an archived group under
-        // showArchivedGroupRecords, so an entry must still be produced. (The reminder
-        // caller filters archived groups upstream in buildMissingReminderLogEntries.)
+        // Archive state is intentionally not gated here — callers decide. Both explicit
+        // log actions (widget quick-log and the reminder "Log all") re-log a manually
+        // deleted dose for an archived group, so an entry must still be produced. (The
+        // snooze / remind-later paths filter archived groups upstream in
+        // loadRepresentedGroups instead.)
         assertEquals(1, result.size)
         assertEquals(group.uuid, result.first().sourceGroupUuid)
     }
