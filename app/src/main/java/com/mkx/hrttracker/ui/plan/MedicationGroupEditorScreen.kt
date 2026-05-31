@@ -1283,6 +1283,7 @@ private fun MedicationGroupEditorScreenContent(
                         SupportMessageListItem(
                             text = stringResource(R.string.group_medications_empty),
                             painter = painterResource(R.drawable.ic_info),
+                            leadingIconSize = 22.dp
                         )
                     } else {
                         Column(

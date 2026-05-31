@@ -1268,9 +1268,15 @@ internal fun SettingsScreenContent(
                             onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
                         },
                         leadingContent = {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_palette)
-                            )
+                            Box(
+                                modifier = Modifier.size(24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_palette),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         },
                         trailingContent = {
                             Switch(
@@ -1854,11 +1860,17 @@ private fun SettingsSupportMessage(
             onClick = onClick ?: {},
             modifier = Modifier.wrapContentHeight(),
             leadingContent = {
-                SettingsLeadingIconSlot(
-                    icon = icon,
-                    painter = painter,
-                    tint = MaterialTheme.colorScheme.tertiary,
-                )
+                Box(
+                    modifier = Modifier.size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    SettingsLeadingIconSlot(
+                        icon = icon,
+                        painter = painter,
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             },
             trailingContent = if (showChevron) {
                 { SettingsChevronTrailingIcon() }
