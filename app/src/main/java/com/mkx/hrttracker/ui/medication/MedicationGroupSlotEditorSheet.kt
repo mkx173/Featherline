@@ -14,7 +14,6 @@ import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
-import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.time.Instant
 import java.util.UUID
@@ -77,7 +76,10 @@ fun MedicationGroupSlotEditorSheet(
         // fill-max-size hole below the buttons looks broken.
         fillAvailableHeight = false,
         isSaving = isSaving,
-        disclaimerKinds = MedicalDisclaimerSets.medicationEditor,
+        // MedicationEditorContent exposes no preset-dose chips, so the
+        // medication-editor disclaimer about preset values being illustrative
+        // has nothing to caveat in this sheet (cf. ExistingMedicineDoseSheet).
+        disclaimerKinds = emptyList(),
         onConfirm = onConfirm,
     ) {
         MedicationEditorContent(
