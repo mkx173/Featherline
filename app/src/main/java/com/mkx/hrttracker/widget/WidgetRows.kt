@@ -480,6 +480,8 @@ internal fun DoseRow(
             )
         }
 
+        val showTrailingText = row.trailingText != null && !(hideMedicationDetails && row.isManualRecord)
+
         Spacer(GlanceModifier.width(8.dp))
 
         if (row.isFromArchivedGroup) {
@@ -491,10 +493,11 @@ internal fun DoseRow(
                 modifier = GlanceModifier.size((18f * scale).dp),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
             )
-            Spacer(GlanceModifier.width(8.dp))
+            // Only separate the archive icon from the trailing text when that text is shown.
+            // The text node is structurally retained even when empty, so an unconditional spacer
+            // here would double up with the pre-button spacer and over-pad an icon-only row.
+            Spacer(GlanceModifier.width((if (showTrailingText) 8 else 0).dp))
         }
-
-        val showTrailingText = row.trailingText != null && !(hideMedicationDetails && row.isManualRecord)
         // Keep this node even when hidden. The synchronous GlanceRemoteViews path can reuse
         // layout IDs across updates, so toggling privacy must not change the RemoteViews tree
         // (a manual record's trailing label is hidden under hideMedicationDetails).
