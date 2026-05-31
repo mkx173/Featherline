@@ -28,22 +28,23 @@ import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
+import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
+import com.mkx.hrttracker.ui.medication.applyMedicinePicker
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
 import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import com.mkx.hrttracker.ui.medication.parseMedicationCountText
 import com.mkx.hrttracker.ui.medication.requiresCustomName
-import com.mkx.hrttracker.ui.medication.resolveMedicationCountTextAfterDraftChange
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
-import com.mkx.hrttracker.ui.medication.sanitizeMedicationCountText
 import com.mkx.hrttracker.ui.medication.selectedMedicineValidationErrorRes
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
 import com.mkx.hrttracker.ui.medication.toDoseInstruction
 import com.mkx.hrttracker.ui.medication.toDoseInstructionDraft
 import com.mkx.hrttracker.ui.medication.validationErrorRes
+import com.mkx.hrttracker.ui.medication.withCountText
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -496,9 +497,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateEditingMedicationCountText(countText: String) {
         updateEditingMedication { medication ->
-            medication.copy(
-                countText = sanitizeMedicationCountText(countText)
-            )
+            val reduced = MedicationDoseDraft(
+                medicineDraft = medication.medicineDraft,
+                doseInstructionDraft = medication.doseInstructionDraft,
+                countText = medication.countText,
+                resolvedMedicine = medication.resolvedMedicine,
+            ).withCountText(countText)
+            medication.copy(countText = reduced.countText)
         }
     }
 
@@ -549,31 +554,17 @@ class MedicationGroupEditorViewModel @Inject constructor(
         transform: (MedicinePickerUiState) -> MedicinePickerUiState
     ) {
         updateEditingMedication { medication ->
-            val updatedDraft = transform(medication.medicineDraft)
-            val shouldResetDoseDraft =
-                medication.medicineDraft.inferredOrSelectedPreparationType() !=
-                    updatedDraft.inferredOrSelectedPreparationType()
+            val reduced = MedicationDoseDraft(
+                medicineDraft = medication.medicineDraft,
+                doseInstructionDraft = medication.doseInstructionDraft,
+                countText = medication.countText,
+                resolvedMedicine = medication.resolvedMedicine,
+            ).applyMedicinePicker(transform)
             medication.copy(
-                medicineDraft = updatedDraft,
-                // A picker edit invalidates a previously-resolved medicine.
-                resolvedMedicine = if (updatedDraft.selectedMedicineUuid == null) {
-                    null
-                } else {
-                    medication.resolvedMedicine
-                },
-                doseInstructionDraft = if (shouldResetDoseDraft) {
-                    updatedDraft.toDoseInstructionDraft()
-                } else {
-                    medication.doseInstructionDraft.copy(
-                        preparationType = updatedDraft.inferredOrSelectedPreparationType()
-                            ?: medication.doseInstructionDraft.preparationType,
-                    )
-                },
-                countText = resolveMedicationCountTextAfterDraftChange(
-                    previousDraft = medication.medicineDraft,
-                    updatedDraft = updatedDraft,
-                    currentCountText = medication.countText
-                )
+                medicineDraft = reduced.medicineDraft,
+                resolvedMedicine = reduced.resolvedMedicine,
+                doseInstructionDraft = reduced.doseInstructionDraft,
+                countText = reduced.countText,
             )
         }
     }

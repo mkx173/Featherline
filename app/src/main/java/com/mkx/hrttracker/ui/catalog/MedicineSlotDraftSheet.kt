@@ -22,13 +22,14 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
+import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
+import com.mkx.hrttracker.ui.medication.MedicationDoseResetPolicy
 import com.mkx.hrttracker.ui.medication.MedicationEditorContent
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicationLogAppliedAtFields
-import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
+import com.mkx.hrttracker.ui.medication.applyMedicinePicker
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
 import com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine
-import com.mkx.hrttracker.ui.medication.resolveMedicationCountTextAfterDraftChange
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
 import com.mkx.hrttracker.ui.medication.selectedMedicineValidationErrorRes
@@ -36,6 +37,7 @@ import com.mkx.hrttracker.ui.medication.stepMedicationCount
 import com.mkx.hrttracker.ui.medication.stockMutationPreviewDoseMagnitude
 import com.mkx.hrttracker.ui.medication.toDoseInstruction
 import com.mkx.hrttracker.ui.medication.validationErrorRes
+import com.mkx.hrttracker.ui.medication.withCountText
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
@@ -215,19 +217,19 @@ fun MedicineSlotDraftSheet(
             selectedStockProjection = displayedStockProjection,
             stockMutationPreviewDoseMagnitude = previewDoseMagnitude,
             onMedicineDraftChange = { transform ->
-                val previousDraft = medicineDraft
-                val updatedDraft = transform(previousDraft)
-                medicineDraft = updatedDraft
-                doseInstructionDraft = doseInstructionDraft.copy(
-                    preparationType = updatedDraft.inferredOrSelectedPreparationType()
-                        ?: doseInstructionDraft.preparationType,
+                val reduced = MedicationDoseDraft(
+                    medicineDraft = medicineDraft,
+                    doseInstructionDraft = doseInstructionDraft,
+                    countText = countText,
+                    resolvedMedicine = medicine,
+                ).applyMedicinePicker(
+                    transform = transform,
+                    resetPolicy = MedicationDoseResetPolicy.KEEP_EXISTING_DOSE,
                 )
-                countText = resolveMedicationCountTextAfterDraftChange(
-                    previousDraft = previousDraft,
-                    updatedDraft = updatedDraft,
-                    currentCountText = countText,
-                )
-                errorMessageRes = null
+                medicineDraft = reduced.medicineDraft
+                doseInstructionDraft = reduced.doseInstructionDraft
+                countText = reduced.countText
+                errorMessageRes = reduced.errorMessageRes
             },
             onDoseInstructionDraftChange = { transform ->
                 doseInstructionDraft = transform(doseInstructionDraft)
@@ -237,8 +239,14 @@ fun MedicineSlotDraftSheet(
             onOpenMedicinePicker = { },
             countText = countText,
             onCountTextChange = { value ->
-                countText = value
-                errorMessageRes = null
+                val reduced = MedicationDoseDraft(
+                    medicineDraft = medicineDraft,
+                    doseInstructionDraft = doseInstructionDraft,
+                    countText = countText,
+                    resolvedMedicine = medicine,
+                ).withCountText(value)
+                countText = reduced.countText
+                errorMessageRes = reduced.errorMessageRes
             },
             onDecreaseCountClick = {
                 countText = stepMedicationCount(
