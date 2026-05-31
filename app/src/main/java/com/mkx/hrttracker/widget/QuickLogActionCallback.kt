@@ -6,6 +6,7 @@ import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.reminder.MedicationReminderSlot
 import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
 import com.mkx.hrttracker.reminder.showPostLogToast
@@ -24,6 +25,7 @@ class QuickLogActionCallback : ActionCallback {
         val scheduleTimeUuidStr = parameters[ScheduleTimeUuidKey]
         val scheduledAtStr = parameters[ScheduledAtKey] ?: return
         val medicationUuidStr = parameters[MedicationUuidKey]
+        val wasRenderedAsArchivedGroup = parameters[ArchivedGroupRowKey] ?: false
 
         val groupUuid = runCatching { UUID.fromString(groupUuidStr) }.getOrNull() ?: return
         val scheduleTimeUuid = scheduleTimeUuidStr?.takeIf { it.isNotEmpty() }
@@ -50,9 +52,14 @@ class QuickLogActionCallback : ActionCallback {
             return
         }
 
-        // Archived groups are intentionally quick-loggable: their rows are surfaced under
-        // showArchivedGroupRecords (e.g. to re-log a manually deleted dose), so the tap must
-        // write the entry rather than no-op. Only genuinely missing groups bail (above).
+        if (group.isArchived() && !wasRenderedAsArchivedGroup) {
+            // The group may have been archived after an active widget row was rendered.
+            // Only rows that were already rendered as archived are allowed to re-log
+            // archived-group doses.
+            diagnosticsLogger.info(TAG, "widget_quick_log_stale_active_row_archived_group uuid=$groupUuid")
+            updateAllHrtWidgets(appContext)
+            return
+        }
 
         // Restrict to the tapped medication so the callback doesn't log all
         // medications in the group when only one row was tapped. A non-null
@@ -150,3 +157,4 @@ val GroupUuidKey = ActionParameters.Key<String>("widget_group_uuid")
 val ScheduleTimeUuidKey = ActionParameters.Key<String>("widget_schedule_time_uuid")
 val ScheduledAtKey = ActionParameters.Key<String>("widget_scheduled_at")
 val MedicationUuidKey = ActionParameters.Key<String>("widget_medication_uuid")
+val ArchivedGroupRowKey = ActionParameters.Key<Boolean>("widget_archived_group_row")
