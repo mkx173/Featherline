@@ -249,7 +249,8 @@ graph TD
   `settingsRepository.settingsState`, projects it to the tuple
   (`hideMedicationDetails`, `adaptiveColorEnabled`,
   `widgetContentScale`, `widgetBackgroundAlpha`,
-  `widgetDarkModeOption`, `homeE2DisplayUnit`, `appLanguageOption`),
+  `widgetDarkModeOption`, `homeE2DisplayUnit`, `appLanguageOption`,
+  `showArchivedGroupRecords`),
   `distinctUntilChanged().drop(1)`, and calls
   `refreshWidgetSnapshot()`. This re-derives the widget snapshot from
   the current home snapshot without forcing a home rebuild — the home
@@ -300,6 +301,11 @@ Two render paths exist in
   is backgrounded, so an off-screen settings change applies immediately.
   Tradeoff: a single composed size instead of Glance's portrait/landscape
   variants — fine because content scale is frozen to the baseline.
+  This path also imposes a **structural-stability requirement** on the
+  composables (see [Notable invariants](#notable-invariants)): because
+  `updateAppWidget` reuses the launcher's existing `LazyColumn` collection
+  adapter, the composed `RemoteViews` tree must keep the same shape across
+  updates, or the adapter recycles a stale/blank item view.
 - **`updateAllHrtWidgets(context)`** — `glanceUpdateAll` for both sizes;
   the worker and quick-log paths call it when the snapshot hasn't
   changed (nothing new to push).
@@ -405,3 +411,13 @@ renders the `RemoteViews`.
   to defend against repeated app starts.
 - The 15-minute worker interval is the WorkManager floor for periodic
   work — do not lower it expecting tighter cadence.
+- **Keep the `RemoteViews` tree structurally stable across updates.** The
+  synchronous `pushHrtWidgets` path pushes a freshly composed `RemoteViews`
+  into the launcher's *existing* `LazyColumn` collection adapter via
+  `updateAppWidget`; the adapter recycles item views by layout id, so if a
+  row's tree shape changes between updates it binds into a stale slot and
+  renders blank. `DoseRow` and `MediumWidgetContent` therefore emit their
+  optional elements (supporting route/dose line, trailing-time/label) as
+  always-present `Text` nodes, blanked under `hideMedicationDetails` rather
+  than omitted. Do not "tidy" these into `if (…) { Text(…) }` — that
+  reintroduces the toggle-driven blank-row bug.

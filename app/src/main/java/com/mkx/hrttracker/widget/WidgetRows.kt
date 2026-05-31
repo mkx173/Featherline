@@ -447,6 +447,11 @@ internal fun DoseRow(
                 hideMedicationDetails -> row.groupName
                 else -> row.medicationName
             }
+            val supportingText = listOfNotNull(
+                row.routeLabel.takeIf(String::isNotBlank),
+                row.doseText.takeIf(String::isNotBlank),
+            ).joinToString(" · ")
+            val showSupportingText = !hideMedicationDetails && supportingText.isNotBlank()
             Text(
                 text = fullName,
                 modifier = GlanceModifier.fillMaxWidth(),
@@ -461,23 +466,17 @@ internal fun DoseRow(
                 ),
                 maxLines = 1,
             )
-            if (!hideMedicationDetails && (row.routeLabel.isNotBlank() || row.doseText.isNotBlank())) {
-                val supportingText = listOfNotNull(
-                    row.routeLabel.takeIf(String::isNotBlank),
-                    row.doseText.takeIf(String::isNotBlank),
-                ).joinToString(" · ")
-                if (supportingText.isNotBlank()) {
-                    Text(
-                        text = supportingText,
-                        style = TextStyle(
-                            color = colors.onSurfaceVariant,
-                            fontSize = (14f * scale).sp,
-                            fontWeight = FontWeight.Normal,
-                        ),
-                        maxLines = 1,
-                    )
-                }
-            }
+            // Keep this node even when hidden. The synchronous GlanceRemoteViews path can reuse
+            // layout IDs across updates, so toggling privacy must not change the RemoteViews tree.
+            Text(
+                text = supportingText.takeIf { showSupportingText }.orEmpty(),
+                style = TextStyle(
+                    color = colors.onSurfaceVariant,
+                    fontSize = ((if (showSupportingText) 14f else 1f) * scale).sp,
+                    fontWeight = FontWeight.Normal,
+                ),
+                maxLines = 1,
+            )
         }
 
         Spacer(GlanceModifier.width(8.dp))
@@ -495,18 +494,19 @@ internal fun DoseRow(
         }
 
         val showTrailingText = row.trailingText != null && !(hideMedicationDetails && row.isManualRecord)
-        if (showTrailingText) {
-            Text(
-                text = row.trailingText,
-                style = TextStyle(
-                    color = colors.onSurface,
-                    fontSize = (16f * scale).sp,
-                    fontWeight = FontWeight.Medium,
-                ),
-                maxLines = 1,
-            )
-            Spacer(GlanceModifier.width(8.dp))
-        }
+        // Keep this node even when hidden. The synchronous GlanceRemoteViews path can reuse
+        // layout IDs across updates, so toggling privacy must not change the RemoteViews tree
+        // (a manual record's trailing label is hidden under hideMedicationDetails).
+        Text(
+            text = row.trailingText?.takeIf { showTrailingText }.orEmpty(),
+            style = TextStyle(
+                color = colors.onSurface,
+                fontSize = ((if (showTrailingText) 16f else 1f) * scale).sp,
+                fontWeight = FontWeight.Medium,
+            ),
+            maxLines = 1,
+        )
+        Spacer(GlanceModifier.width(8.dp))
         TrailingButton(row, showLogAction, highlightIntent)
     }
 }
