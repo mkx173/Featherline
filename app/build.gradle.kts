@@ -58,7 +58,7 @@ android {
         minSdk = 31
         targetSdk = 37
         versionCode = gitCommitCount
-        versionName = "1.0.2"
+        versionName = "1.0.3"
 
         buildConfigField(
             "String",

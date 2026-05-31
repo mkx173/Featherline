@@ -163,7 +163,13 @@ implements the three user-facing actions:
   edits made between display and tap (delete, dose change) drop out
   naturally instead of re-logging a stale set. A slot that's missing
   from the parsed target map restricts to nothing rather than falling
-  through to unrestricted behaviour.
+  through to unrestricted behaviour. An explicit "Log all" tap is
+  unambiguous intent to log the fired dose, so the group reload it uses
+  (`loadRepresentedGroups(forLogAll = true)`) skips the
+  `isActive() && notificationsEnabled` gate the planner applies — a group
+  archived or muted in-app after the notification posted still logs.
+  `remindLater`/`showSnoozedReminder` keep the gate (default `false`), so
+  they never resurrect such a group for future nagging.
 - `remindLater(slots, notificationTag)` — filters to the still-
   unfulfilled slots, hands them to
   `MedicationReminderSnoozeScheduler.snoozeSlots`, shows a "snoozed for
