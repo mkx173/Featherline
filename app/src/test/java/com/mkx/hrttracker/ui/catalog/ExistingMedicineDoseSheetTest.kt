@@ -15,7 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalMaterial3Api::class)
-class MedicineSlotDraftSheetTest {
+class ExistingMedicineDoseSheetTest {
     @Test
     fun initialApplicationTypeForSlotDraft_usesPatchOffForPatchOffSingleton() {
         assertEquals(

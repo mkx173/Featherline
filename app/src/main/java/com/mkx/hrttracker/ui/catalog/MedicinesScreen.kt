@@ -323,7 +323,7 @@ internal fun MedicinesScreen(
         uiState.findMedicineItemByUuid(runCatching { UUID.fromString(uuid) }.getOrNull())
     }
     if (pendingMedicineItem != null) {
-        MedicineSlotDraftSheet(
+        ExistingMedicineDoseSheet(
             medicine = pendingMedicineItem.medicine,
             selectedStockProjection = pendingMedicineItem.stockProjection,
             sheetState = slotDraftSheetState,
