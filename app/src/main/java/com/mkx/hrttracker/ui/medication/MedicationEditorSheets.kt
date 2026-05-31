@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.medication
 
-import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -62,7 +61,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -510,7 +508,7 @@ internal fun MedicationEditorContent(
         )
 
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-        NumericField(
+        MedicationNumericField(
             value = "",
             label = stringResource(R.string.medication_editor_patch_off_hint),
             leadingIconRes = medicationApplicationOutlinedIconRes(MedicationApplicationType.PATCH_OFF),
@@ -733,9 +731,9 @@ internal fun DoseInstructionForm(
         // PATCH_OFF emits a Noop dose; no per-instruction form to render.
         MedicinePreparationType.PATCH_OFF -> Unit // whole-unit dose; no input needed.
 
-        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> NumericField(
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicationNumericField(
             value = doseInstructionDraft.volumeMl,
-            label = doseInstructionFieldLabelWithUnit(
+            label = medicationEditorFieldLabelWithUnit(
                 R.string.field_dose_volume_ml,
                 R.string.unit_ml,
             ),
@@ -751,9 +749,9 @@ internal fun DoseInstructionForm(
         )
 
         MedicinePreparationType.GEL_CONTAINER -> {
-            NumericField(
+            MedicationNumericField(
                 value = doseInstructionDraft.weightGrams,
-                label = doseInstructionFieldLabelWithUnit(
+                label = medicationEditorFieldLabelWithUnit(
                     R.string.field_dose_weight_grams,
                     R.string.unit_grams,
                 ),
@@ -1115,90 +1113,6 @@ private fun MedicationEditorGroupInfoCard(
             }
         }
     }
-}
-
-// ---------------------------------------------------------------------------
-// Reusable fields
-// ---------------------------------------------------------------------------
-
-// Mirrors fieldLabelWithUnit in CreateMedicineSheet — keeps the unit visible
-// in the label's resting state while the trailing suffix continues to remind
-// the user while they type.
-@Composable
-private fun doseInstructionFieldLabelWithUnit(
-    @StringRes labelRes: Int,
-    @StringRes unitRes: Int,
-): String {
-    return "${stringResource(labelRes)} (${stringResource(unitRes)})"
-}
-
-@Composable
-private fun NumericField(
-    value: String,
-    label: String,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    suffix: String? = null,
-    placeholder: String? = null,
-    isError: Boolean = false,
-    @StringRes errorMessageRes: Int? = null,
-    @DrawableRes leadingIconRes: Int? = null,
-    keyboardType: KeyboardType = KeyboardType.Decimal,
-    showWarningIcon: Boolean = false,
-    enabled: Boolean = true,
-    readOnly: Boolean = false,
-    focusRequester: FocusRequester? = null,
-) {
-    val focusManager = LocalFocusManager.current
-    val fieldModifier = if (focusRequester != null) {
-        modifier.fillMaxWidth().focusRequester(focusRequester)
-    } else {
-        modifier.fillMaxWidth()
-    }
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        enabled = enabled,
-        readOnly = readOnly,
-        isError = isError,
-        label = { Text(text = label) },
-        placeholder = placeholder?.let { placeholderText -> { Text(text = placeholderText) } },
-        suffix = suffix?.let { suffixText -> { Text(text = suffixText) } },
-        leadingIcon = leadingIconRes?.let { iconRes ->
-            {
-                Icon(
-                    painter = painterResource(iconRes),
-                    contentDescription = null,
-                )
-            }
-        },
-        trailingIcon = if (showWarningIcon) {
-            {
-                Icon(
-                    imageVector = Icons.Rounded.WarningAmber,
-                    contentDescription = stringResource(R.string.medication_editor_dose_warning),
-                    tint = MaterialTheme.colorScheme.tertiary,
-                )
-            }
-        } else {
-            null
-        },
-        supportingText = errorMessageRes?.let { messageRes ->
-            {
-                Text(
-                    text = stringResource(messageRes),
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-        },
-        modifier = fieldModifier,
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(
-            keyboardType = keyboardType,
-            imeAction = ImeAction.Done,
-        ),
-        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-    )
 }
 
 @Composable
