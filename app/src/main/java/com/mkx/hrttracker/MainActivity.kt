@@ -187,7 +187,8 @@ class MainActivity : AppCompatActivity() {
 
             HrtTrackerTheme(
                 darkTheme = isDarkTheme,
-                dynamicColor = settingsState.adaptiveColorEnabled
+                dynamicColor = settingsState.adaptiveColorEnabled,
+                amoled = settingsState.pureBlackEnabled,
             ) {
                 val navController = rememberNavController()
                 val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()

@@ -465,6 +465,7 @@ fun SettingsScreen(
         onFirstDayOfWeekOptionChange = viewModel::setFirstDayOfWeekOption,
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
+        onPureBlackEnabledChange = viewModel::setPureBlackEnabled,
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
         onHideMedicationDetailsChange = viewModel::setHideMedicationDetails,
@@ -729,6 +730,7 @@ internal fun SettingsScreenContent(
     onFirstDayOfWeekOptionChange: (FirstDayOfWeekOption) -> Unit,
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
+    onPureBlackEnabledChange: (Boolean) -> Unit,
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
@@ -1161,7 +1163,7 @@ internal fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_widget_appearance),
                     index = 0,
-                    count = 4,
+                    count = 5,
                     onClick = { showWidgetAppearanceDialog = true },
                     leadingContent = {
                         SettingsLeadingIconSlot(
@@ -1177,7 +1179,7 @@ internal fun SettingsScreenContent(
                         title = stringResource(R.string.settings_app_language),
                         supportingText = stringResource(settingsState.appLanguageOption.labelRes),
                         index = 1,
-                        count = 4,
+                        count = 5,
                         onClick = { setLanguageMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1203,7 +1205,7 @@ internal fun SettingsScreenContent(
                         title = stringResource(R.string.settings_dark_mode),
                         supportingText = stringResource(settingsState.darkModeOption.labelRes),
                         index = 2,
-                        count = 4,
+                        count = 5,
                         onClick = { setDarkModeMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1227,7 +1229,7 @@ internal fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_adaptive_color),
                     index = 3,
-                    count = 4,
+                    count = 5,
                     onClick = {
                         onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
                     },
@@ -1240,6 +1242,26 @@ internal fun SettingsScreenContent(
                         Switch(
                             checked = settingsState.adaptiveColorEnabled,
                             onCheckedChange = onAdaptiveColorEnabledChange
+                        )
+                    }
+                )
+
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_amoled_black),
+                    index = 4,
+                    count = 5,
+                    onClick = {
+                        onPureBlackEnabledChange(!settingsState.pureBlackEnabled)
+                    },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_dark_mode)
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = settingsState.pureBlackEnabled,
+                            onCheckedChange = onPureBlackEnabledChange
                         )
                     }
                 )
@@ -1930,6 +1952,7 @@ private fun SettingsScreenPreview() {
             onFirstDayOfWeekOptionChange = { },
             onDarkModeOptionChange = { },
             onAdaptiveColorEnabledChange = { },
+            onPureBlackEnabledChange = { },
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },
