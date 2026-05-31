@@ -50,20 +50,24 @@ class MedicineDetailScreenPatchOffTest {
         every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
         coEvery { medicineRepository.isLocked(patchOff.uuid) } returns false
 
+        // Construct the view model outside setContent: building one inside a
+        // composable trips the ViewModelConstructorInComposable lint check.
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to patchOff.uuid.toString()),
+            ),
+        )
+
         composeRule.setContent {
             HrtTrackerTheme(dynamicColor = false) {
                 MedicineDetailScreen(
                     onNavigateBack = { },
                     onGroupClick = { },
-                    viewModel = MedicineDetailViewModel(
-                        medicineRepository = medicineRepository,
-                        medicationGroupRepository = medicationGroupRepository,
-                        stockRepository = stockRepository,
-                        settingsRepository = settingsRepository,
-                        savedStateHandle = SavedStateHandle(
-                            mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to patchOff.uuid.toString()),
-                        ),
-                    ),
+                    viewModel = viewModel,
                 )
             }
         }
