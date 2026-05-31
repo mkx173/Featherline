@@ -371,7 +371,6 @@ private fun PlanBatchAddRangeSelector(
                 text = stringResource(R.string.plan_batch_add_select_group_prompt),
                 painter = painterResource(R.drawable.ic_info),
                 leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                leadingIconSize = 24.dp,
                 index = 0,
                 count = 1
             )
