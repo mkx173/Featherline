@@ -247,6 +247,7 @@ class QuickLogActionCallbackTest {
             GroupUuidKey to group.uuid.toString(),
             ScheduleTimeUuidKey to group.schedule.timeSlots.single().uuid.toString(),
             ScheduledAtKey to scheduledAt.toString(),
+            ArchivedGroupRowKey to true,
         )
         every { context.applicationContext } returns appContext
         every {
@@ -269,6 +270,59 @@ class QuickLogActionCallbackTest {
         QuickLogActionCallback().onAction(context, glanceId, parameters)
 
         coVerify { logRepository.saveNewEntries(any()) }
+    }
+
+    @Test
+    fun onAction_refreshesWithoutLoggingWhenActiveRenderedRowNowResolvesToArchivedGroup() = runTest {
+        mockkStatic(EntryPointAccessors::class)
+        mockkStatic("com.mkx.hrttracker.widget.HrtWidgetKt")
+        val context: Context = mockk()
+        val appContext: Context = mockk()
+        val glanceId: GlanceId = mockk()
+        val entryPoint: WidgetEntryPoint = mockk()
+        val groupRepository: MedicationGroupRepository = mockk()
+        val logRepository: MedicationLogRepository = mockk()
+        val medicineStockRepository: MedicineStockRepository = mockk()
+        val settingsRepository: SettingsRepository = mockk()
+        val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
+        val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("49ea9a73-73d8-4760-81c9-efca554ef79e"),
+            scheduledTime = scheduledAt.toLocalTime(),
+            medicationKey = MedicationKey.ESTRADIOL,
+            archivedAt = Instant.parse("2026-04-20T00:05:00Z"),
+        )
+        val medicine = group.medications.single().medicine!!
+        val parameters = actionParametersOf(
+            GroupUuidKey to group.uuid.toString(),
+            ScheduleTimeUuidKey to group.schedule.timeSlots.single().uuid.toString(),
+            ScheduledAtKey to scheduledAt.toString(),
+        )
+        every { context.applicationContext } returns appContext
+        every {
+            EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        } returns entryPoint
+        every { entryPoint.medicationGroupRepository() } returns groupRepository
+        every { entryPoint.medicationLogRepository() } returns logRepository
+        every { entryPoint.medicineStockRepository() } returns medicineStockRepository
+        every { entryPoint.settingsRepository() } returns settingsRepository
+        every { entryPoint.reminderNotificationManager() } returns notificationManager
+        every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(medicine, MedicineStockState.USER_LOW)
+        )
+        coEvery { updateAllHrtWidgets(appContext) } just Runs
+
+        QuickLogActionCallback().onAction(context, glanceId, parameters)
+
+        coVerify { updateAllHrtWidgets(appContext) }
+        coVerify(exactly = 0) { logRepository.getScheduledGroupEntriesSince(any()) }
+        coVerify(exactly = 0) { logRepository.saveNewEntries(any()) }
     }
 
     private fun medicationGroup(

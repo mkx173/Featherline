@@ -288,6 +288,7 @@ internal fun TrailingButton(
                     ScheduleTimeUuidKey to (row.scheduleTimeUuid ?: ""),
                     ScheduledAtKey to row.scheduledAt.toString(),
                     MedicationUuidKey to (row.medicationUuid ?: ""),
+                    ArchivedGroupRowKey to row.isFromArchivedGroup,
                 )
             )
         )
