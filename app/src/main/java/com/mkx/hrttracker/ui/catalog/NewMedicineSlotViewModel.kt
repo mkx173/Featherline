@@ -10,17 +10,17 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
+import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
+import com.mkx.hrttracker.ui.medication.applyMedicinePicker
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
-import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
-import com.mkx.hrttracker.ui.medication.resolveMedicationCountTextAfterDraftChange
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
-import com.mkx.hrttracker.ui.medication.sanitizeMedicationCountText
 import com.mkx.hrttracker.ui.medication.toDoseInstruction
 import com.mkx.hrttracker.ui.medication.toDoseInstructionDraft
-import com.mkx.hrttracker.ui.medication.validationErrorRes
+import com.mkx.hrttracker.ui.medication.validatedWith
+import com.mkx.hrttracker.ui.medication.withCountText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -71,26 +71,16 @@ class NewMedicineSlotViewModel @Inject constructor(
             if (state.isLockedForUpdates()) {
                 state
             } else {
-                val updatedDraft = transform(state.medicineDraft)
-                val shouldResetDoseDraft =
-                    state.medicineDraft.inferredOrSelectedPreparationType() !=
-                        updatedDraft.inferredOrSelectedPreparationType()
+                val reduced = MedicationDoseDraft(
+                    medicineDraft = state.medicineDraft,
+                    doseInstructionDraft = state.doseInstructionDraft,
+                    countText = state.countText,
+                ).applyMedicinePicker(transform)
                 state.copy(
-                    medicineDraft = updatedDraft,
-                    doseInstructionDraft = if (shouldResetDoseDraft) {
-                        updatedDraft.toDoseInstructionDraft()
-                    } else {
-                        state.doseInstructionDraft.copy(
-                            preparationType = updatedDraft.inferredOrSelectedPreparationType()
-                                ?: state.doseInstructionDraft.preparationType,
-                        )
-                    },
-                    countText = resolveMedicationCountTextAfterDraftChange(
-                        previousDraft = state.medicineDraft,
-                        updatedDraft = updatedDraft,
-                        currentCountText = state.countText,
-                    ),
-                    errorMessageRes = null,
+                    medicineDraft = reduced.medicineDraft,
+                    doseInstructionDraft = reduced.doseInstructionDraft,
+                    countText = reduced.countText,
+                    errorMessageRes = reduced.errorMessageRes,
                     createSaveResult = null,
                     manualLogSaveResult = null,
                     slotResult = null,
@@ -122,9 +112,14 @@ class NewMedicineSlotViewModel @Inject constructor(
             if (state.isLockedForUpdates()) {
                 state
             } else {
+                val reduced = MedicationDoseDraft(
+                    medicineDraft = state.medicineDraft,
+                    doseInstructionDraft = state.doseInstructionDraft,
+                    countText = state.countText,
+                ).withCountText(countText)
                 state.copy(
-                    countText = sanitizeMedicationCountText(countText),
-                    errorMessageRes = null,
+                    countText = reduced.countText,
+                    errorMessageRes = reduced.errorMessageRes,
                     createSaveResult = null,
                     manualLogSaveResult = null,
                     slotResult = null,
@@ -329,13 +324,14 @@ class NewMedicineSlotViewModel @Inject constructor(
 
     @StringRes
     private fun validateSlot(state: NewMedicineSlotUiState): Int? {
-        validateMedicineDraftForCreate(state.medicineDraft)?.let { return it }
-        state.doseInstructionDraft.validationErrorRes()?.let { return it }
-        return medicationCountValidationErrorRes(
-            applicationType = resolvedApplicationType(state),
+        return MedicationDoseDraft(
+            medicineDraft = state.medicineDraft,
+            doseInstructionDraft = state.doseInstructionDraft,
             countText = state.countText,
+        ).validatedWith(
             preparationType = resolvedPreparationType(state),
-        )
+            validateMedicineDraft = ::validateMedicineDraftForCreate,
+        ).errorMessageRes
     }
 
     private fun resolvedApplicationType(state: NewMedicineSlotUiState): MedicationApplicationType {
