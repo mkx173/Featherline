@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicColorScheme
 
 @Immutable
@@ -37,6 +38,7 @@ fun HrtTrackerTheme(
         seedColor = seed,
         isDark = darkTheme,
         isAmoled = darkTheme && amoled,
+        specVersion = ColorSpec.SpecVersion.SPEC_2025
     )
 
     MaterialTheme(

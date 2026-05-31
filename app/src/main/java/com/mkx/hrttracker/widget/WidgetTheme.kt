@@ -4,6 +4,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.glance.unit.ColorProvider
 import com.materialkolor.dynamicColorScheme
+import com.materialkolor.dynamiccolor.ColorSpec
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.theme.DefaultSeedColor
 import com.mkx.hrttracker.ui.theme.MedicationGroupPalettes
@@ -46,8 +47,8 @@ internal fun widgetColorScheme(
     alpha: Float = 1.0f,
     forcedDark: Boolean? = null,
 ): WidgetColorScheme {
-    val light = dynamicColorScheme(seedColor = seed, isDark = false)
-    val dark = dynamicColorScheme(seedColor = seed, isDark = true)
+    val light = dynamicColorScheme(seedColor = seed, isDark = false, specVersion = ColorSpec.SpecVersion.SPEC_2025)
+    val dark = dynamicColorScheme(seedColor = seed, isDark = true, specVersion = ColorSpec.SpecVersion.SPEC_2025)
     fun provider(lightColor: Color, darkColor: Color) = colorProvider(lightColor, darkColor, forcedDark)
     return WidgetColorScheme(
         primary = provider(light.primary, dark.primary),
