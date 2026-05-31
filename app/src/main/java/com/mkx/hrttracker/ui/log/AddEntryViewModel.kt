@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
-import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -57,18 +56,10 @@ import javax.inject.Inject
 class AddEntryViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val medicationGroupRepository: MedicationGroupRepository,
-    private val medicineRepository: MedicineRepository,
     private val medicineStockRepository: MedicineStockRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(
-        // Seed from the eagerly-cached active list so the first composition,
-        // which happens before the LaunchedEffect-driven initialize*() call,
-        // already has medicines available — the subsequent initialize() call
-        // can then resolve the selected stock projection on the very next
-        // composition instead of waiting for the cold collector below.
-        AddEntryUiState(activeMedicines = medicineRepository.getCachedActiveMedicines().orEmpty())
-    )
+    private val _uiState = MutableStateFlow(AddEntryUiState())
     val uiState: StateFlow<AddEntryUiState> = _uiState.asStateFlow()
     private var loadEntryJob: Job? = null
     private var pendingSave: PendingSaveRequest? = null
@@ -77,11 +68,6 @@ class AddEntryViewModel @Inject constructor(
         medicineStockRepository.getCachedProjections().orEmpty()
 
     init {
-        viewModelScope.launch {
-            medicineRepository.observeAllActive().collect { medicines ->
-                _uiState.update { current -> current.copy(activeMedicines = medicines) }
-            }
-        }
         viewModelScope.launch {
             medicineStockRepository.observeProjections().collect { projections ->
                 stockProjections = projections
@@ -578,7 +564,6 @@ data class AddEntryUiState(
     val doseInstructionDraft: DoseInstructionDraftUiState =
         defaultMedicineDraft().toDoseInstructionDraft(),
     val resolvedMedicine: Medicine? = null,
-    val activeMedicines: List<Medicine> = emptyList(),
     val selectedStockProjection: MedicineStockProjection? = null,
     val sourceGroupUuid: UUID? = null,
     val scheduleTimeUuid: UUID? = null,
