@@ -166,6 +166,16 @@ fun AddEntryScreen(
     )
 }
 
+/**
+ * Private host adapter for [MedicationLogEntryEditorSheet], not a separate sheet concept.
+ *
+ * Opened from: the add-entry screen route for creating or editing medication logs.
+ * Hosted by: AddEntryScreen.
+ * Produces: a saved history `MedicationLog` through [MedicationLogEntryEditorSheet];
+ *   never creates a catalog `Medicine` and never returns a regimen `MedicineSlotResult`.
+ * Identity: follows [MedicationLogEntryEditorSheet] - editable for standalone logs
+ *   or locked when the log is tied to an existing medicine.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddEntryScreenContent(
