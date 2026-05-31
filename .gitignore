@@ -33,9 +33,11 @@ google-services.json
 # Android Profiling
 *.hprof
 
-# Claude
+# Agents
 .claude/
 AGENTS.md
+CLAUDE.md
+CONTEXT.md
 
 # Personal notes (in-progress design docs, screenshots seed, etc.)
 notes/
@@ -49,3 +51,7 @@ keystore.properties
 
 # Superpowers
 .superpowers/
+docs/superpowers/
+
+# Codegraph
+.codegraph/
