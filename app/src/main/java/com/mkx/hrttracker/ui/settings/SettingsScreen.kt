@@ -118,6 +118,7 @@ import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.rememberAppLocale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -1180,7 +1181,16 @@ internal fun SettingsScreenContent(
                 Box {
                     SettingsSegmentedListItem(
                         title = stringResource(R.string.settings_app_language),
-                        supportingText = stringResource(settingsState.appLanguageOption.labelRes),
+                        // Derive the displayed language from the locale the UI is actually
+                        // rendering in (LocalConfiguration), not the ViewModel's
+                        // appLanguageOption. Both mirror the same setting, but the global
+                        // locale flips a frame before the ViewModel's combine/stateIn relays
+                        // the new option, which made this row briefly show the old language
+                        // name. Reading the live locale keeps it in lockstep with the rest of
+                        // the re-localized UI.
+                        supportingText = stringResource(
+                            AppLanguageOption.fromLocale(rememberAppLocale()).labelRes
+                        ),
                         index = appearanceLayout.appLanguageIndex,
                         count = appearanceLayout.itemCount,
                         onClick = { setLanguageMenuExpanded(true) },
