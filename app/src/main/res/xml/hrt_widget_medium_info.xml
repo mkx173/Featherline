@@ -7,6 +7,7 @@
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/glance_default_loading_layout"
     android:previewLayout="@layout/hrt_widget_medium_preview"
+    android:previewImage="@drawable/widget_preview_medium"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:description="@string/widget_medium_description" />
