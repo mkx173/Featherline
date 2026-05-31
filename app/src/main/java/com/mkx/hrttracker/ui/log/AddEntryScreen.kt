@@ -25,16 +25,13 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.hideBottomSheet
-import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationLogEntryEditorSheet
-import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.stockMutationPreviewDoseMagnitude
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.ZoneId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,7 +40,6 @@ fun AddEntryScreen(
     modifier: Modifier = Modifier,
     quickLogRequest: AddEntryQuickLogRequest? = null,
     editSnapshot: AddEntryEditSnapshot? = null,
-    onOpenMedicinePicker: () -> Unit,
     onDismissRequest: () -> Unit,
     onEntrySaved: () -> Unit,
     viewModel: AddEntryViewModel = hiltViewModel()
@@ -136,67 +132,39 @@ fun AddEntryScreen(
         viewModel.consumeCrossZoneToast()
     }
 
-    AddEntryScreenContent(
+    AddEntryScreenBody(
+        modifier = modifier,
         uiState = uiState,
         sheetState = sheetState,
-        onDismissRequest = {
-            if (!isSheetLockedState.value) {
-                onDismissRequest()
-            }
-        },
+        isSheetLocked = isSheetLockedState.value,
+        onDismissRequest = onDismissRequest,
         onCloseClick = {
-            if (!isSheetLockedState.value) {
-                hideBottomSheet(scope, sheetState, onDismissRequest)
-            }
+            hideBottomSheet(scope, sheetState, onDismissRequest)
         },
-        onMedicineDraftChange = viewModel::updateMedicineDraft,
-        onDoseInstructionDraftChange = viewModel::updateDoseInstructionDraft,
-        onOpenMedicinePicker = onOpenMedicinePicker,
-        onCountTextChange = viewModel::updateCountText,
-        onDecreaseCountClick = viewModel::decreaseCount,
-        onIncreaseCountClick = viewModel::increaseCount,
         onAppliedDateChange = viewModel::updateAppliedDate,
         onAppliedTimeChange = viewModel::updateAppliedTime,
-        appliedZoneId = uiState.appliedZoneId,
         onDeleteClick = viewModel::deleteEntry,
         onSaveClick = viewModel::saveEntry,
         onSaveAfterFulfillmentWarningClick = viewModel::saveEntryAfterFulfillmentWarning,
         onScheduleFulfillmentWarningDismiss = viewModel::dismissScheduleFulfillmentWarning,
-        modifier = modifier
     )
 }
 
-/**
- * Private host adapter for [MedicationLogEntryEditorSheet], not a separate sheet concept.
- *
- * Opened from: the add-entry screen route for creating or editing medication logs.
- * Hosted by: AddEntryScreen.
- * Produces: a saved history `MedicationLog` through [MedicationLogEntryEditorSheet];
- *   never creates a catalog `Medicine` and never returns a regimen `MedicineSlotResult`.
- * Identity: follows [MedicationLogEntryEditorSheet] - editable for standalone logs
- *   or locked when the log is tied to an existing medicine.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddEntryScreenContent(
+private fun AddEntryScreenBody(
     modifier: Modifier = Modifier,
     uiState: AddEntryUiState,
     sheetState: SheetState,
+    isSheetLocked: Boolean,
     onDismissRequest: () -> Unit,
     onCloseClick: () -> Unit,
-    onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
-    onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
-    onOpenMedicinePicker: () -> Unit,
-    onCountTextChange: (String) -> Unit,
-    onDecreaseCountClick: () -> Unit,
-    onIncreaseCountClick: () -> Unit,
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
-    appliedZoneId: ZoneId = ZoneId.systemDefault(),
     onDeleteClick: () -> Unit,
     onSaveClick: () -> Unit,
     onSaveAfterFulfillmentWarningClick: () -> Unit,
-    onScheduleFulfillmentWarningDismiss: () -> Unit
+    onScheduleFulfillmentWarningDismiss: () -> Unit,
 ) {
     var isDeleteConfirmationVisible by remember(uiState.canDelete) { mutableStateOf(false) }
     val previewDoseMagnitude = remember(
@@ -221,12 +189,18 @@ private fun AddEntryScreenContent(
         sheetState = sheetState,
         title = stringResource(if (uiState.isEditing) R.string.edit_entry else R.string.add_entry),
         confirmButtonText = stringResource(R.string.save),
-        onDismissRequest = onDismissRequest,
-        onCloseClick = onCloseClick,
+        onDismissRequest = {
+            if (!isSheetLocked) {
+                onDismissRequest()
+            }
+        },
+        onCloseClick = {
+            if (!isSheetLocked) {
+                onCloseClick()
+            }
+        },
         medicineDraft = uiState.medicineDraft,
         doseInstructionDraft = uiState.doseInstructionDraft,
-        resolvedMedicine = uiState.resolvedMedicine,
-        canEditMedicationIdentity = uiState.canEditMedicationIdentity,
         lockedMedicine = uiState.resolvedMedicine,
         selectedStockProjection = uiState.selectedStockProjection,
         stockMutationPreviewDoseMagnitude = previewDoseMagnitude,
@@ -236,23 +210,12 @@ private fun AddEntryScreenContent(
         sourceGroupScheduleOffsetOutsideFulfillmentWindow = uiState.shouldWarnScheduleWillNotBeFulfilled(
             LocalDateTime.of(uiState.appliedDate, uiState.appliedTime)
         ),
-        onMedicineDraftChange = onMedicineDraftChange,
-        onDoseInstructionDraftChange = onDoseInstructionDraftChange,
-        onOpenMedicinePicker = {
-            if (uiState.canEditMedicationIdentity) {
-                onOpenMedicinePicker()
-            }
-        },
         countText = uiState.countText,
-        onCountTextChange = onCountTextChange,
-        onDecreaseCountClick = onDecreaseCountClick,
-        onIncreaseCountClick = onIncreaseCountClick,
         appliedDate = uiState.appliedDate,
         appliedTime = uiState.appliedTime,
-        appliedZoneId = appliedZoneId,
+        appliedZoneId = uiState.appliedZoneId,
         onAppliedDateChange = onAppliedDateChange,
         onAppliedTimeChange = onAppliedTimeChange,
-        errorMessageRes = uiState.errorMessageRes,
         isSaving = uiState.isSaving || uiState.isDeleting || uiState.isSaved,
         destructiveButtonText = if (uiState.canDelete) {
             stringResource(R.string.delete_entries_confirm)
@@ -344,7 +307,7 @@ private fun AddEntryScreenContent(
 @Composable
 private fun AddEntryScreenPreview() {
     HrtTrackerTheme(dynamicColor = false) {
-        AddEntryScreenContent(
+        AddEntryScreenBody(
             uiState = AddEntryUiState(
                 editingEntryIds = listOf("f16ec8a7-5115-410a-b12d-f376fdb6f76b"),
                 medicineDraft = defaultMedicineDraft(),
@@ -352,20 +315,15 @@ private fun AddEntryScreenPreview() {
                 appliedTime = LocalTime.of(21, 15),
             ),
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            isSheetLocked = false,
             onDismissRequest = { },
             onCloseClick = { },
-            onMedicineDraftChange = { },
-            onDoseInstructionDraftChange = { },
-            onOpenMedicinePicker = { },
-            onCountTextChange = { },
-            onDecreaseCountClick = { },
-            onIncreaseCountClick = { },
             onAppliedDateChange = { },
             onAppliedTimeChange = { },
             onDeleteClick = { },
             onSaveClick = { },
             onSaveAfterFulfillmentWarningClick = { },
-            onScheduleFulfillmentWarningDismiss = { }
+            onScheduleFulfillmentWarningDismiss = { },
         )
     }
 }

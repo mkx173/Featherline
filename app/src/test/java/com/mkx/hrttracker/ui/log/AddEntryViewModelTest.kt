@@ -14,7 +14,6 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
-import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
@@ -23,7 +22,6 @@ import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.ui.medication.changeForm
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -145,7 +143,6 @@ class AddEntryViewModelTest {
         assertEquals(LocalTime.of(21, 15), uiState.appliedTime)
         assertEquals(1, uiState.count)
         assertTrue(uiState.isBulkEditing)
-        assertFalse(uiState.canEditMedicationIdentity)
     }
 
     @Test
@@ -202,7 +199,6 @@ class AddEntryViewModelTest {
         assertEquals(MedicationGroupColorKey.PLUM, uiState.sourceGroupColorKey)
         assertEquals(scheduledFor.minusDays(1), uiState.sourceGroupPreviousScheduledFor)
         assertEquals(scheduledFor.plusDays(1), uiState.sourceGroupNextScheduledFor)
-        assertFalse(uiState.canEditMedicationIdentity)
     }
 
     @Test
@@ -235,26 +231,6 @@ class AddEntryViewModelTest {
         requireNotNull(uiState)
         assertEquals(listOf(firstId.toString()), uiState.editingEntryIds)
         assertFalse(uiState.isBulkEditing)
-        assertFalse(uiState.canEditMedicationIdentity)
-    }
-
-    @Test
-    fun editingManualLogCannotEditMedicationIdentity() {
-        // Medicine identity is immutable once a log exists — editing any
-        // log, manual or group-linked, locks the picker (Task 7 Step 5).
-        val entry = testMedicationLogEntry(
-            uuid = UUID.fromString("3885b7c7-45db-44ae-b512-429145f3bc6f"),
-            medicine = estradiolMedicine,
-            applicationType = MedicationApplicationType.ORAL,
-            equivalentE2Mg = 2.0,
-            sourceGroupUuid = null,
-            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15))
-        )
-
-        val uiState = buildEditingUiState(listOf(entry))
-
-        requireNotNull(uiState)
-        assertFalse(uiState.canEditMedicationIdentity)
     }
 
     @Test
@@ -294,7 +270,6 @@ class AddEntryViewModelTest {
 
         requireNotNull(uiState)
         assertEquals(2, uiState.count)
-        assertFalse(uiState.canEditMedicationIdentity)
     }
 
     @Test
@@ -364,13 +339,6 @@ class AddEntryViewModelTest {
     }
 
     @Test
-    fun addEntryUiState_doesNotExposeEditableIdentityBeforeMedicineResolves() {
-        val state = AddEntryUiState()
-
-        assertFalse(state.canEditMedicationIdentity)
-    }
-
-    @Test
     fun buildQuickLogUiState_uses_planned_dose_metadata() {
         val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
         val group = testMedicationGroup(
@@ -403,7 +371,6 @@ class AddEntryViewModelTest {
         assertEquals(2, uiState.count)
         assertEquals(LocalDate.of(2026, 4, 22), uiState.appliedDate)
         assertEquals(LocalTime.of(21, 15), uiState.appliedTime)
-        assertFalse(uiState.canEditMedicationIdentity)
         assertFalse(uiState.canDelete)
     }
 
@@ -424,100 +391,17 @@ class AddEntryViewModelTest {
     }
 
     @Test
-    fun updateMedicineDraft_resetsDoseDraftWhenPreparationTypeChanges() = runTest {
-        val viewModel = AddEntryViewModel(
-            medicationLogRepository = medicationLogRepository,
-            medicationGroupRepository = medicationGroupRepository,
-            medicationReminderScheduler = medicationReminderScheduler,
-            medicineRepository = medicineRepository,
-            medicineStockRepository = medicineStockRepository,
-        )
-        viewModel.updateDoseInstructionDraft {
-            it.copy(
-                applicationType = MedicationApplicationType.SUBLINGUAL,
-                tabletFractionNumerator = 1,
-                tabletFractionDenominator = 2,
-                volumeMl = "0.5",
-            )
-        }
-
-        viewModel.updateMedicineDraft { draft ->
-            draft.changeForm(MedicinePreparationForm.INJECTION)
-        }
-
-        val doseDraft = viewModel.uiState.value.doseInstructionDraft
-        assertEquals(MedicationApplicationType.INJECTION, doseDraft.applicationType)
-        assertEquals(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL, doseDraft.preparationType)
-        assertEquals("", doseDraft.volumeMl)
-        assertEquals(1, doseDraft.tabletFractionNumerator)
-        assertEquals(1, doseDraft.tabletFractionDenominator)
-    }
-
-    @Test
-    fun updateMedicineDraft_preservesDoseDraftWhenPreparationTypeStaysSame() = runTest {
-        val viewModel = AddEntryViewModel(
-            medicationLogRepository = medicationLogRepository,
-            medicationGroupRepository = medicationGroupRepository,
-            medicationReminderScheduler = medicationReminderScheduler,
-            medicineRepository = medicineRepository,
-            medicineStockRepository = medicineStockRepository,
-        )
-        viewModel.updateDoseInstructionDraft {
-            it.copy(
-                applicationType = MedicationApplicationType.SUBLINGUAL,
-                tabletFractionNumerator = 1,
-                tabletFractionDenominator = 2,
-            )
-        }
-
-        viewModel.updateMedicineDraft { draft ->
-            draft.copy(pillStrengthMg = "2")
-        }
-
-        val doseDraft = viewModel.uiState.value.doseInstructionDraft
-        assertEquals(MedicationApplicationType.SUBLINGUAL, doseDraft.applicationType)
-        assertEquals(MedicinePreparationType.PILL, doseDraft.preparationType)
-        assertEquals(1, doseDraft.tabletFractionNumerator)
-        assertEquals(2, doseDraft.tabletFractionDenominator)
-    }
-
-    @Test
-    fun selectedStockProjection_followsSelectedMedicineChanges() = runTest {
-        val otherMedicine = testMedicine(
-            uuid = UUID.fromString("bbbb0000-0000-0000-0000-000000000002"),
-            key = MedicationKey.ESTRADIOL_VALERATE,
-        )
-        val estradiolProjection = stockProjection(estradiolMedicine)
-        val otherProjection = stockProjection(otherMedicine)
-        val stockProjections = MutableStateFlow(listOf(estradiolProjection, otherProjection))
-        every { medicineStockRepository.observeProjections() } returns stockProjections
-
-        val viewModel = AddEntryViewModel(
-            medicationLogRepository = medicationLogRepository,
-            medicationGroupRepository = medicationGroupRepository,
-            medicationReminderScheduler = medicationReminderScheduler,
-            medicineRepository = medicineRepository,
-            medicineStockRepository = medicineStockRepository,
-        )
-        advanceUntilIdle()
-
-        viewModel.updateMedicineDraft { draft ->
-            draft.copy(selectedMedicineUuid = estradiolMedicine.uuid)
-        }
-        assertEquals(estradiolProjection, viewModel.uiState.value.selectedStockProjection)
-
-        viewModel.updateMedicineDraft { draft ->
-            draft.copy(selectedMedicineUuid = otherMedicine.uuid)
-        }
-        assertEquals(otherProjection, viewModel.uiState.value.selectedStockProjection)
-
-        stockProjections.value = listOf(estradiolProjection)
-        advanceUntilIdle()
-        assertNull(viewModel.uiState.value.selectedStockProjection)
-    }
-
-    @Test
     fun selectedStockProjection_staysFrozenDuringInFlightSave() = runTest {
+        val entryId = UUID.fromString("fe0f5e91-9ad9-484d-9a21-46a74167e2f8")
+        val entry = testMedicationLogEntry(
+            uuid = entryId,
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            equivalentE2Mg = 2.0,
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+        )
         val beforeSaveProjection = stockProjection(
             medicine = estradiolMedicine,
             unitsRemaining = 4.0,
@@ -531,22 +415,27 @@ class AddEntryViewModelTest {
         val stockProjections = MutableStateFlow(listOf(beforeSaveProjection))
         val saveStarted = CompletableDeferred<Unit>()
         val finishSave = CompletableDeferred<Unit>()
+        every { medicineStockRepository.getCachedProjections() } returns listOf(beforeSaveProjection)
         every { medicineStockRepository.observeProjections() } returns stockProjections
+        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(entry)
         coEvery {
             medicationLogRepository.saveEntry(
-                uuid = null,
+                uuid = entryId,
                 medicineUuid = estradiolMedicine.uuid,
                 applicationType = MedicationApplicationType.ORAL,
                 doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 sourceGroupUuid = null,
+                scheduleTimeUuid = null,
                 appliedAt = any(),
                 scheduledFor = null,
                 count = 1,
+                appliedAtTimeZoneId = any(),
             )
         } coAnswers {
             saveStarted.complete(Unit)
             finishSave.await()
         }
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
         val viewModel = AddEntryViewModel(
             medicationLogRepository = medicationLogRepository,
@@ -555,11 +444,8 @@ class AddEntryViewModelTest {
             medicineRepository = medicineRepository,
             medicineStockRepository = medicineStockRepository,
         )
+        viewModel.initialize(entryIds = listOf(entryId.toString()))
         advanceUntilIdle()
-
-        viewModel.updateMedicineDraft { draft ->
-            draft.copy(selectedMedicineUuid = estradiolMedicine.uuid)
-        }
         assertEquals(beforeSaveProjection, viewModel.uiState.value.selectedStockProjection)
 
         viewModel.saveEntry()
@@ -813,7 +699,6 @@ class AddEntryViewModelTest {
         assertEquals(groupId, uiState.sourceGroupUuid)
         assertEquals("Nightly estradiol", uiState.sourceGroupName)
         assertEquals(2, uiState.count)
-        assertFalse(uiState.canEditMedicationIdentity)
     }
 
     @Test
@@ -856,7 +741,6 @@ class AddEntryViewModelTest {
         assertEquals(groupId, initialState.sourceGroupUuid)
         assertEquals("Snapshot estradiol", initialState.sourceGroupName)
         assertEquals(MedicationGroupColorKey.PLUM, initialState.sourceGroupColorKey)
-        assertFalse(initialState.canEditMedicationIdentity)
 
         advanceUntilIdle()
 

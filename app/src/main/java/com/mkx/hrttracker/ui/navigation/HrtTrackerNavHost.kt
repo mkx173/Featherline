@@ -948,10 +948,6 @@ fun HrtTrackerNavHost(
             entryIds = request.entryIds,
             quickLogRequest = request.quickLogRequest,
             editSnapshot = request.editSnapshot,
-            // Direct manual logs now save from the medicine manager's slot
-            // sheet. Existing AddEntry usages are edit/quick-log flows, where
-            // medicine identity is locked, so there is no routed picker here.
-            onOpenMedicinePicker = { },
             onDismissRequest = { addEntrySheetRequest = null },
             onEntrySaved = { addEntrySheetRequest = null }
         )

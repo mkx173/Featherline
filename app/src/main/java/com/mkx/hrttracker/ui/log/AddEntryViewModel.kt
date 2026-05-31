@@ -22,7 +22,6 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
-import com.mkx.hrttracker.ui.medication.applyMedicinePicker
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction
 import com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine
@@ -31,11 +30,9 @@ import com.mkx.hrttracker.ui.medication.parseMedicationCountText
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
 import com.mkx.hrttracker.ui.medication.selectedMedicineValidationErrorRes
-import com.mkx.hrttracker.ui.medication.stepMedicationCount
 import com.mkx.hrttracker.ui.medication.toDoseInstruction
 import com.mkx.hrttracker.ui.medication.toDoseInstructionDraft
 import com.mkx.hrttracker.ui.medication.validatedWith
-import com.mkx.hrttracker.ui.medication.withCountText
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.zoneDisplayName
@@ -204,85 +201,6 @@ class AddEntryViewModel @Inject constructor(
                     currentState
                 }
             }
-        }
-    }
-
-    fun updateMedicineDraft(
-        transform: (MedicinePickerUiState) -> MedicinePickerUiState
-    ) {
-        _uiState.update { currentState ->
-            val reduced = MedicationDoseDraft(
-                medicineDraft = currentState.medicineDraft,
-                doseInstructionDraft = currentState.doseInstructionDraft,
-                countText = currentState.countText,
-                resolvedMedicine = currentState.resolvedMedicine,
-            ).applyMedicinePicker(transform)
-            currentState.copy(
-                medicineDraft = reduced.medicineDraft,
-                resolvedMedicine = reduced.resolvedMedicine,
-                doseInstructionDraft = reduced.doseInstructionDraft,
-                countText = reduced.countText,
-                errorMessageRes = reduced.errorMessageRes,
-                isScheduleFulfillmentWarningVisible = false,
-            ).withSelectedStockProjection()
-        }
-    }
-
-    fun updateDoseInstructionDraft(
-        transform: (DoseInstructionDraftUiState) -> DoseInstructionDraftUiState
-    ) {
-        _uiState.update { currentState ->
-            currentState.copy(
-                doseInstructionDraft = transform(currentState.doseInstructionDraft),
-                errorMessageRes = null,
-                isScheduleFulfillmentWarningVisible = false,
-            )
-        }
-    }
-
-    fun updateCountText(countText: String) {
-        _uiState.update { currentState ->
-            val reduced = MedicationDoseDraft(
-                medicineDraft = currentState.medicineDraft,
-                doseInstructionDraft = currentState.doseInstructionDraft,
-                countText = currentState.countText,
-                resolvedMedicine = currentState.resolvedMedicine,
-            ).withCountText(countText)
-            currentState.copy(
-                countText = reduced.countText,
-                errorMessageRes = reduced.errorMessageRes,
-                isScheduleFulfillmentWarningVisible = false
-            )
-        }
-    }
-
-    fun decreaseCount() {
-        _uiState.update { currentState ->
-            currentState.copy(
-                countText = stepMedicationCount(
-                    applicationType = resolvedApplicationType(currentState),
-                    countText = currentState.countText,
-                    delta = -1,
-                    preparationType = resolvedPreparationType(currentState),
-                ).toString(),
-                errorMessageRes = null,
-                isScheduleFulfillmentWarningVisible = false
-            )
-        }
-    }
-
-    fun increaseCount() {
-        _uiState.update { currentState ->
-            currentState.copy(
-                countText = stepMedicationCount(
-                    applicationType = resolvedApplicationType(currentState),
-                    countText = currentState.countText,
-                    delta = 1,
-                    preparationType = resolvedPreparationType(currentState),
-                ).toString(),
-                errorMessageRes = null,
-                isScheduleFulfillmentWarningVisible = false
-            )
         }
     }
 
@@ -691,15 +609,6 @@ data class AddEntryUiState(
 
     val isBulkEditing: Boolean
         get() = editingEntryIds.size > 1
-
-    // Identity is editable only for resolved, free-form manual entries:
-    // - Editing an existing entry (any number) preserves its medicine identity.
-    // - Quick-log entries are bound to a group slot's medicine; users change
-    //   what's in the slot via the group editor, not the log editor.
-    // - The first composition before initialize()/initializeQuickLog() runs has
-    //   no resolved medicine and must not enter the editable editor branch.
-    val canEditMedicationIdentity: Boolean
-        get() = resolvedMedicine != null && !isEditing && sourceGroupUuid == null
 
     val canDelete: Boolean
         get() = isEditing
