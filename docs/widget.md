@@ -314,12 +314,13 @@ Two render paths exist in
 
 [`QuickLogActionCallback`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/QuickLogActionCallback.kt)
 is the `ActionCallback` wired to the medium widget's action button and
-the large widget's per-row log buttons. Its parameter contract is four
+the large widget's per-row log buttons. Its parameter contract is five
 keys: `GroupUuidKey`, `ScheduleTimeUuidKey` (nullable), `ScheduledAtKey`
-(serialized `LocalDateTime`), and `MedicationUuidKey` (empty/null for
+(serialized `LocalDateTime`), `MedicationUuidKey` (empty/null for
 whole-group logging and set to the slot's
 `MedicationGroupMedication.uuid` for single-slot logging, not the
-catalog `Medicine.uuid`).
+catalog `Medicine.uuid`), and `ArchivedGroupRowKey` (whether the tapped
+row was rendered as an archived-group row).
 
 The callback resolves the group via the
 [`WidgetEntryPoint`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/widget/WidgetEntryPoint.kt)
