@@ -1,12 +1,16 @@
 package com.mkx.hrttracker
 
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.content.res.Configuration
+import android.content.res.Resources
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -22,14 +26,17 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -68,6 +75,7 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.AndroidEntryPoint
 import java.time.LocalDateTime
+import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Provider
@@ -185,6 +193,33 @@ class MainActivity : AppCompatActivity() {
                 onDispose { }
             }
 
+            val baseContext = LocalContext.current
+            val baseConfiguration = LocalConfiguration.current
+            val appLanguageTag = settingsState.appLanguageOption.languageTag
+            // Apply the chosen UI language in place through the composition
+            // locals so a language change re-localizes the whole UI — including
+            // date/time formatters that read LocalConfiguration — without
+            // recreating the activity (which would flash a blank screen).
+            val localizedContext = remember(baseContext, baseConfiguration, appLanguageTag) {
+                val locale = Locale.forLanguageTag(appLanguageTag)
+                val configuration = Configuration(baseConfiguration).apply { setLocale(locale) }
+                val localizedResources =
+                    baseContext.createConfigurationContext(configuration).resources
+                // Wrap the activity (rather than returning the config context) so the
+                // context still unwraps to the Activity — required by hiltViewModel()
+                // and LocalActivity — while serving localized resources.
+                object : ContextWrapper(baseContext) {
+                    override fun getResources(): Resources = localizedResources
+                }
+            }
+
+            CompositionLocalProvider(
+                LocalContext provides localizedContext,
+                LocalConfiguration provides localizedContext.resources.configuration,
+                // Overriding LocalContext detaches the Activity that LocalActivity
+                // resolves by walking the context chain, so provide it explicitly.
+                LocalActivity provides this@MainActivity,
+            ) {
             HrtTrackerTheme(
                 darkTheme = isDarkTheme,
                 dynamicColor = settingsState.adaptiveColorEnabled,
@@ -382,6 +417,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
+            }
             }
         }
     }
