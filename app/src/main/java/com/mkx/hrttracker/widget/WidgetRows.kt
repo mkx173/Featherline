@@ -5,6 +5,7 @@ import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
+import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.unit.Dp
@@ -21,13 +22,16 @@ import androidx.glance.LocalContext
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
+import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
+import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
+import androidx.glance.layout.RowScope
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
@@ -60,6 +64,97 @@ internal sealed interface WidgetListItem {
     data class Row(val row: WidgetDoseRow) : WidgetListItem
 }
 
+private val WidgetShellPadding = 12.dp
+
+internal enum class WidgetRoundedShape(
+    val maskRes: Int,
+    private val radiusDp: Int,
+) {
+    Shell(R.drawable.widget_shell_rounded_mask, 22),
+    Card(R.drawable.widget_card_rounded_mask, 10),
+    Pill(R.drawable.widget_pill_rounded_mask, 999);
+
+    val radius: Dp get() = radiusDp.dp
+}
+
+@Composable
+private fun RoundedMaskImage(
+    shape: WidgetRoundedShape,
+    color: ColorProvider,
+    modifier: GlanceModifier = GlanceModifier.fillMaxSize(),
+) {
+    val resolvedColor = color.getColor(LocalContext.current)
+    Image(
+        provider = ImageProvider(shape.maskRes),
+        contentDescription = null,
+        alpha = resolvedColor.alpha,
+        modifier = modifier,
+        contentScale = ContentScale.FillBounds,
+        colorFilter = ColorFilter.tint(ColorProvider(resolvedColor.copy(alpha = 1f))),
+    )
+}
+
+@Composable
+internal fun RoundedBackgroundBox(
+    modifier: GlanceModifier,
+    color: ColorProvider,
+    shape: WidgetRoundedShape,
+    contentAlignment: Alignment = Alignment.TopStart,
+    content: @Composable () -> Unit = {},
+) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        Box(
+            modifier = modifier
+                .background(color)
+                .cornerRadius(shape.radius),
+            contentAlignment = contentAlignment,
+        ) {
+            content()
+        }
+    } else {
+        Box(
+            modifier = modifier,
+            contentAlignment = contentAlignment,
+        ) {
+            RoundedMaskImage(shape = shape, color = color)
+            content()
+        }
+    }
+}
+
+@Composable
+internal fun RoundedBackgroundRow(
+    modifier: GlanceModifier,
+    color: ColorProvider,
+    shape: WidgetRoundedShape,
+    contentModifier: GlanceModifier = GlanceModifier,
+    content: @Composable RowScope.() -> Unit,
+) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        Row(
+            modifier = modifier
+                .background(color)
+                .cornerRadius(shape.radius)
+                .then(contentModifier),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            content()
+        }
+    } else {
+        Box(modifier = modifier) {
+            RoundedMaskImage(shape = shape, color = color)
+            Row(
+                modifier = GlanceModifier
+                    .fillMaxSize()
+                    .then(contentModifier),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                content()
+            }
+        }
+    }
+}
+
 @Composable
 internal fun WidgetShell(
     scale: Float,
@@ -68,16 +163,42 @@ internal fun WidgetShell(
 ) {
     val colors = LocalWidgetColors.current
     CompositionLocalProvider(LocalWidgetScale provides scale) {
-        Box(
-            modifier = GlanceModifier
-                .fillMaxSize()
-                .background(colors.surface)
-                .cornerRadius(22.dp)
-                .clickable(actionStartActivity<MainActivity>())
-                .padding(12.dp),
-            contentAlignment = contentAlignment,
-        ) {
-            content()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Box(
+                modifier = GlanceModifier
+                    .fillMaxSize()
+                    .appWidgetBackground()
+                    .background(colors.surface)
+                    .cornerRadius(WidgetRoundedShape.Shell.radius)
+                    .clickable(actionStartActivity<MainActivity>())
+                    .padding(WidgetShellPadding),
+                contentAlignment = contentAlignment,
+            ) {
+                content()
+            }
+        } else {
+            Box(
+                modifier = GlanceModifier
+                    .fillMaxSize()
+                    .clickable(actionStartActivity<MainActivity>()),
+                contentAlignment = contentAlignment,
+            ) {
+                RoundedMaskImage(
+                    shape = WidgetRoundedShape.Shell,
+                    color = colors.surface,
+                    modifier = GlanceModifier
+                        .fillMaxSize()
+                        .appWidgetBackground(),
+                )
+                Box(
+                    modifier = GlanceModifier
+                        .fillMaxSize()
+                        .padding(WidgetShellPadding),
+                    contentAlignment = contentAlignment,
+                ) {
+                    content()
+                }
+            }
         }
     }
 }
@@ -118,10 +239,10 @@ internal fun EmptyWidgetContent(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = GlanceModifier.size((32f * scale).dp)
-                .background(backgroundColor)
-                .cornerRadius(999.dp),
+        RoundedBackgroundBox(
+            modifier = GlanceModifier.size((32f * scale).dp),
+            color = backgroundColor,
+            shape = WidgetRoundedShape.Pill,
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -158,12 +279,12 @@ internal fun ProgressBar(
     Row(modifier = modifier.height((6f * scale).dp)) {
         for (i in 0 until renderTotal) {
             if (i > 0) Spacer(GlanceModifier.width((3f * scale).dp))
-            Box(
+            RoundedBackgroundBox(
                 modifier = GlanceModifier
                     .defaultWeight()
-                    .fillMaxHeight()
-                    .background(if (i < doneCount) colors.primary else colors.outlineVariant)
-                    .cornerRadius(999.dp),
+                    .fillMaxHeight(),
+                color = if (i < doneCount) colors.primary else colors.outlineVariant,
+                shape = WidgetRoundedShape.Pill,
             ) {}
         }
     }
@@ -302,10 +423,10 @@ internal fun TrailingButton(
     }
 
     when (row.status) {
-        WidgetDoseStatus.DONE -> Box(
-            modifier = GlanceModifier.size(buttonSize)
-                .background(colors.primaryContainer)
-                .cornerRadius(999.dp),
+        WidgetDoseStatus.DONE -> RoundedBackgroundBox(
+            modifier = GlanceModifier.size(buttonSize),
+            color = colors.primaryContainer,
+            shape = WidgetRoundedShape.Pill,
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -316,11 +437,11 @@ internal fun TrailingButton(
             )
         }
 
-        WidgetDoseStatus.DUE_SOON -> Box(
+        WidgetDoseStatus.DUE_SOON -> RoundedBackgroundBox(
             modifier = GlanceModifier.size(buttonSize)
-                .background(colors.tertiaryContainer)
-                .cornerRadius(999.dp)
                 .then(logModifier),
+            color = colors.tertiaryContainer,
+            shape = WidgetRoundedShape.Pill,
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -331,11 +452,11 @@ internal fun TrailingButton(
             )
         }
 
-        WidgetDoseStatus.OVERDUE -> Box(
+        WidgetDoseStatus.OVERDUE -> RoundedBackgroundBox(
             modifier = GlanceModifier.size(buttonSize)
-                .background(colors.surfaceVariant)
-                .cornerRadius(999.dp)
                 .then(logModifier),
+            color = colors.surfaceVariant,
+            shape = WidgetRoundedShape.Pill,
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -346,10 +467,10 @@ internal fun TrailingButton(
             )
         }
 
-        WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> Box(
-            modifier = GlanceModifier.size(buttonSize)
-                .background(colors.surfaceVariant)
-                .cornerRadius(999.dp),
+        WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> RoundedBackgroundBox(
+            modifier = GlanceModifier.size(buttonSize),
+            color = colors.surfaceVariant,
+            shape = WidgetRoundedShape.Pill,
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -360,11 +481,11 @@ internal fun TrailingButton(
             )
         }
 
-        else -> Box(
+        else -> RoundedBackgroundBox(
             modifier = GlanceModifier.size(buttonSize)
-                .background(colors.surfaceVariant)
-                .cornerRadius(999.dp)
                 .then(navigateModifier),
+            color = colors.surfaceVariant,
+            shape = WidgetRoundedShape.Pill,
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -422,21 +543,21 @@ internal fun DoseRow(
     val rowModifier = GlanceModifier
         .fillMaxWidth()
         .height((64f * scale).dp)
-        .background(colors.surfaceContainerLow)
-        .cornerRadius(10.dp)
-        .padding(horizontal = (16f * scale).dp)
-        .then(rowClickModifier)
 
-    Row(
+    RoundedBackgroundRow(
         modifier = rowModifier,
-        verticalAlignment = Alignment.CenterVertically,
+        color = colors.surfaceContainerLow,
+        shape = WidgetRoundedShape.Card,
+        contentModifier = GlanceModifier
+            .padding(horizontal = (16f * scale).dp)
+            .then(rowClickModifier),
     ) {
-        Box(
+        RoundedBackgroundBox(
             modifier = GlanceModifier
                 .width((6f * scale).dp)
-                .height((44f * scale).dp)
-                .background(groupAccentColor(row.colorKey, LocalWidgetForcedDark.current))
-                .cornerRadius(999.dp),
+                .height((44f * scale).dp),
+            color = groupAccentColor(row.colorKey, LocalWidgetForcedDark.current),
+            shape = WidgetRoundedShape.Pill,
         ) {}
 
         Spacer(GlanceModifier.width((10f * scale).dp))

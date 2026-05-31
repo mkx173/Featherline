@@ -26,11 +26,9 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.PreviewSizeMode
 import androidx.glance.appwidget.SizeMode
-import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.itemsIndexed
 import androidx.glance.appwidget.provideContent
-import androidx.glance.background
 import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -542,10 +540,10 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(
-                            modifier = GlanceModifier.size((30f * scale).dp)
-                                .background(badgeBackground)
-                                .cornerRadius(999.dp),
+                        RoundedBackgroundBox(
+                            modifier = GlanceModifier.size((30f * scale).dp),
+                            color = badgeBackground,
+                            shape = WidgetRoundedShape.Pill,
                             contentAlignment = Alignment.Center,
                         ) {
                             Image(
@@ -607,22 +605,22 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                     SectionHeader(text = context.getString(R.string.widget_upcoming), topPadding = 0.dp)
                     Spacer(modifier = GlanceModifier.height((4 * scale).dp))
-                    Row(
+                    RoundedBackgroundRow(
                         modifier = GlanceModifier
                             .fillMaxWidth()
-                            .height((64f * scale).dp)
-                            .background(colors.surfaceContainerLow)
-                            .cornerRadius(10.dp)
+                            .height((64f * scale).dp),
+                        color = colors.surfaceContainerLow,
+                        shape = WidgetRoundedShape.Card,
+                        contentModifier = GlanceModifier
                             .padding(horizontal = (16f * scale).dp)
                             .then(cardClickModifier),
-                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(
+                        RoundedBackgroundBox(
                             modifier = GlanceModifier
                                 .width((6f * scale).dp)
-                                .height((44f * scale).dp)
-                                .background(groupAccentColor(activeRow.colorKey, LocalWidgetForcedDark.current))
-                                .cornerRadius(999.dp),
+                                .height((44f * scale).dp),
+                            color = groupAccentColor(activeRow.colorKey, LocalWidgetForcedDark.current),
+                            shape = WidgetRoundedShape.Pill,
                         ) {}
                         Spacer(GlanceModifier.width((10f * scale).dp))
                         Column(modifier = GlanceModifier.defaultWeight()) {
@@ -835,10 +833,10 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(
-                            modifier = GlanceModifier.size((30f * scale).dp)
-                                .background(colors.primary)
-                                .cornerRadius(999.dp),
+                        RoundedBackgroundBox(
+                            modifier = GlanceModifier.size((30f * scale).dp),
+                            color = colors.primary,
+                            shape = WidgetRoundedShape.Pill,
                             contentAlignment = Alignment.Center,
                         ) {
                             Image(
