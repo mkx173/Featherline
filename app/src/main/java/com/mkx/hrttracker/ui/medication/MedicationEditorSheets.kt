@@ -693,8 +693,7 @@ internal fun DoseInstructionForm(
                     }
                 },
                 valueRange = 0f..(options.size - 1).toFloat(),
-                // Slider.steps counts intermediate stops between the endpoints,
-                // so 3 selectable options (1/4, 1/2, 1) need 1 intermediate step.
+                // Slider.steps counts intermediate stops between the endpoints.
                 steps = options.size - 2,
             )
         }

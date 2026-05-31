@@ -575,6 +575,37 @@ class MedicationEditorModelsTest {
     }
 
     @Test
+    fun tablet_fraction_options_include_one_eighth() {
+        assertEquals(
+            listOf(
+                "1/8" to DoseInstruction.TabletFraction(1, 8),
+                "1/4" to DoseInstruction.TabletFraction(1, 4),
+                "1/3" to DoseInstruction.TabletFraction(1, 3),
+                "1/2" to DoseInstruction.TabletFraction(1, 2),
+                "1" to DoseInstruction.TabletFraction(1, 1),
+            ),
+            TabletFractionOption.entries.map { option ->
+                option.label() to DoseInstruction.TabletFraction(
+                    numerator = option.numerator,
+                    denominator = option.denominator,
+                )
+            },
+        )
+    }
+
+    @Test
+    fun existing_one_eighth_tablet_fraction_selects_one_eighth_option() {
+        val doseDraft = DoseInstructionDraftUiState(
+            applicationType = MedicationApplicationType.ORAL,
+            preparationType = MedicinePreparationType.PILL,
+            tabletFractionNumerator = 1,
+            tabletFractionDenominator = 8,
+        )
+
+        assertEquals("1/8", doseDraft.selectedTabletFractionOption().label())
+    }
+
+    @Test
     fun tablet_fraction_third_selection_writes_one_third() {
         val doseDraft = defaultMedicineDraft(
             category = MedicationCategory.ESTRADIOL,
