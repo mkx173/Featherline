@@ -488,7 +488,7 @@ internal fun DoseRow(
                 contentDescription = LocalContext.current.getString(
                     R.string.archived_group_record_indicator
                 ),
-                modifier = GlanceModifier.size((22f * scale).dp),
+                modifier = GlanceModifier.size((18f * scale).dp),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
             )
             Spacer(GlanceModifier.width(8.dp))

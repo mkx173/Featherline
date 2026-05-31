@@ -664,6 +664,15 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         horizontalAlignment = Alignment.End,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        if (activeRow.isFromArchivedGroup) {
+                            Image(
+                                provider = ImageProvider(R.drawable.ic_archive),
+                                contentDescription = context.getString(R.string.archived_group_record_indicator),
+                                modifier = GlanceModifier.size((20f * scale).dp),
+                                colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
+                            )
+                            Spacer(GlanceModifier.width(8.dp))
+                        }
                         val showTrailingText = activeRow.trailingText != null &&
                                 !(record.hideMedicationDetails && activeRow.isManualRecord)
                         if (showTrailingText) {
