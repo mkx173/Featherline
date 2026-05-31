@@ -68,11 +68,12 @@ private val WidgetShellPadding = 12.dp
 
 internal enum class WidgetRoundedShape(
     val maskRes: Int,
+    val rippleRes: Int,
     private val radiusDp: Int,
 ) {
-    Shell(R.drawable.widget_shell_rounded_mask, 22),
-    Card(R.drawable.widget_card_rounded_mask, 10),
-    Pill(R.drawable.widget_pill_rounded_mask, 999);
+    Shell(R.drawable.widget_shell_rounded_mask, R.drawable.widget_shell_ripple, 22),
+    Card(R.drawable.widget_card_rounded_mask, R.drawable.widget_card_ripple, 10),
+    Pill(R.drawable.widget_pill_rounded_mask, R.drawable.widget_pill_ripple, 999);
 
     val radius: Dp get() = radiusDp.dp
 }
@@ -170,7 +171,10 @@ internal fun WidgetShell(
                     .appWidgetBackground()
                     .background(colors.surface)
                     .cornerRadius(WidgetRoundedShape.Shell.radius)
-                    .clickable(actionStartActivity<MainActivity>())
+                    .clickable(
+                        onClick = actionStartActivity<MainActivity>(),
+                        rippleOverride = WidgetRoundedShape.Shell.rippleRes,
+                    )
                     .padding(WidgetShellPadding),
                 contentAlignment = contentAlignment,
             ) {
@@ -180,7 +184,10 @@ internal fun WidgetShell(
             Box(
                 modifier = GlanceModifier
                     .fillMaxSize()
-                    .clickable(actionStartActivity<MainActivity>()),
+                    .clickable(
+                        onClick = actionStartActivity<MainActivity>(),
+                        rippleOverride = WidgetRoundedShape.Shell.rippleRes,
+                    ),
                 contentAlignment = contentAlignment,
             ) {
                 RoundedMaskImage(
@@ -403,7 +410,7 @@ internal fun TrailingButton(
     val groupUuid = row.groupUuid
     val logModifier = if (showLogAction && groupUuid != null) {
         GlanceModifier.clickable(
-            actionRunCallback<QuickLogActionCallback>(
+            onClick = actionRunCallback<QuickLogActionCallback>(
                 actionParametersOf(
                     GroupUuidKey to groupUuid,
                     ScheduleTimeUuidKey to (row.scheduleTimeUuid ?: ""),
@@ -411,13 +418,17 @@ internal fun TrailingButton(
                     MedicationUuidKey to (row.medicationUuid ?: ""),
                     ArchivedGroupRowKey to row.isFromArchivedGroup,
                 )
-            )
+            ),
+            rippleOverride = WidgetRoundedShape.Pill.rippleRes,
         )
     } else {
         GlanceModifier
     }
     val navigateModifier = if (navigateIntent != null) {
-        GlanceModifier.clickable(actionStartActivityFromIntent(navigateIntent))
+        GlanceModifier.clickable(
+            onClick = actionStartActivityFromIntent(navigateIntent),
+            rippleOverride = WidgetRoundedShape.Pill.rippleRes,
+        )
     } else {
         GlanceModifier
     }
@@ -536,7 +547,10 @@ internal fun DoseRow(
     val colors = LocalWidgetColors.current
     val scale = LocalWidgetScale.current
     val rowClickModifier = if (highlightIntent != null) {
-        GlanceModifier.clickable(actionStartActivityFromIntent(highlightIntent))
+        GlanceModifier.clickable(
+            onClick = actionStartActivityFromIntent(highlightIntent),
+            rippleOverride = WidgetRoundedShape.Card.rippleRes,
+        )
     } else {
         GlanceModifier
     }

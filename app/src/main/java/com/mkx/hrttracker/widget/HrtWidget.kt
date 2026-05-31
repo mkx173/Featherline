@@ -598,7 +598,10 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 }
                 val highlightIntent = widgetRowHighlightIntent(context, highlightIntentRow)
                 val cardClickModifier = if (highlightIntent != null) {
-                    GlanceModifier.clickable(actionStartActivityFromIntent(highlightIntent))
+                    GlanceModifier.clickable(
+                        onClick = actionStartActivityFromIntent(highlightIntent),
+                        rippleOverride = WidgetRoundedShape.Card.rippleRes,
+                    )
                 } else {
                     GlanceModifier
                 }
