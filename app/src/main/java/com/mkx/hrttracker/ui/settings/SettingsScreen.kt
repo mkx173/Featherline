@@ -1229,6 +1229,26 @@ internal fun SettingsScreenContent(
                     )
                 }
 
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_amoled_black),
+                    index = appearanceLayout.pureBlackIndex,
+                    count = appearanceLayout.itemCount,
+                    onClick = {
+                        onPureBlackEnabledChange(!settingsState.pureBlackEnabled)
+                    },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_invert_colors)
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = settingsState.pureBlackEnabled,
+                            onCheckedChange = onPureBlackEnabledChange
+                        )
+                    }
+                )
+
                 appearanceLayout.adaptiveColorIndex?.let { adaptiveColorIndex ->
                     SettingsSegmentedListItem(
                         title = stringResource(R.string.settings_adaptive_color),
@@ -1250,26 +1270,6 @@ internal fun SettingsScreenContent(
                         }
                     )
                 }
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_amoled_black),
-                    index = appearanceLayout.pureBlackIndex,
-                    count = appearanceLayout.itemCount,
-                    onClick = {
-                        onPureBlackEnabledChange(!settingsState.pureBlackEnabled)
-                    },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_dark_mode)
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = settingsState.pureBlackEnabled,
-                            onCheckedChange = onPureBlackEnabledChange
-                        )
-                    }
-                )
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
@@ -1706,8 +1706,8 @@ internal fun resolveSettingsAppearanceSectionLayout(
             widgetAppearanceIndex = 0,
             appLanguageIndex = 1,
             darkModeIndex = 2,
-            adaptiveColorIndex = 3,
-            pureBlackIndex = 4,
+            pureBlackIndex = 3,
+            adaptiveColorIndex = 4,
         )
     } else {
         SettingsAppearanceSectionLayout(

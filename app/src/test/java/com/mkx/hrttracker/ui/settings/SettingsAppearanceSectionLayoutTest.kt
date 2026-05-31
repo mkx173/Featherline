@@ -26,7 +26,7 @@ class SettingsAppearanceSectionLayoutTest {
         assertEquals(0, layout.widgetAppearanceIndex)
         assertEquals(1, layout.appLanguageIndex)
         assertEquals(2, layout.darkModeIndex)
-        assertEquals(3, layout.adaptiveColorIndex)
-        assertEquals(4, layout.pureBlackIndex)
+        assertEquals(3, layout.pureBlackIndex)
+        assertEquals(4, layout.adaptiveColorIndex)
     }
 }
