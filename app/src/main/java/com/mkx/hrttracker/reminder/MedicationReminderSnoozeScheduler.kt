@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.core.net.toUri
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -18,11 +19,36 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class MedicationReminderSnoozeScheduler @Inject constructor(
-    @param:ApplicationContext private val context: Context,
+class MedicationReminderSnoozeScheduler private constructor(
+    private val context: Context,
     private val snoozeStore: MedicationReminderSnoozeStore,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
+    private val sdkIntProvider: () -> Int,
 ) {
+    @Inject
+    constructor(
+        @ApplicationContext context: Context,
+        snoozeStore: MedicationReminderSnoozeStore,
+        diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
+    ) : this(
+        context = context,
+        snoozeStore = snoozeStore,
+        diagnosticsLogger = diagnosticsLogger,
+        sdkIntProvider = { Build.VERSION.SDK_INT },
+    )
+
+    internal constructor(
+        context: Context,
+        snoozeStore: MedicationReminderSnoozeStore,
+        diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
+        sdkInt: Int,
+    ) : this(
+        context = context,
+        snoozeStore = snoozeStore,
+        diagnosticsLogger = diagnosticsLogger,
+        sdkIntProvider = { sdkInt },
+    )
+
     private val alarmManager: AlarmManager
         get() = context.getSystemService(AlarmManager::class.java)
 
@@ -182,7 +208,7 @@ class MedicationReminderSnoozeScheduler @Inject constructor(
             .toInstant()
             .toEpochMilli()
         val pendingIntent = buildSnoozePendingIntent(records)
-        val exactAlarm = alarmManager.canScheduleExactAlarms()
+        val exactAlarm = canScheduleExactAlarms(alarmManager, sdkIntProvider())
 
         diagnosticsLogger.info(
             TAG,

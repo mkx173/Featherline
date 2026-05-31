@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.reminder
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.content.Context
 import android.content.pm.PackageManager
@@ -25,13 +26,35 @@ fun canPostNotifications(context: Context): Boolean {
         ) == PackageManager.PERMISSION_GRANTED
 }
 
-fun canScheduleExactAlarms(context: Context): Boolean {
+fun canScheduleExactAlarms(
+    context: Context,
+    sdkInt: Int = Build.VERSION.SDK_INT,
+): Boolean {
+    if (sdkInt < Build.VERSION_CODES.S) return true
     return try {
-        context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return false
+        canScheduleExactAlarms(alarmManager, sdkInt)
     } catch (_: Throwable) {
         // AlarmManager unavailable (preview/test). Default to false so the scheduler
         // takes the inexact path; an optimistic true would push the caller down the
         // setExactAndAllowWhileIdle path and risk SecurityException on real devices.
+        false
+    }
+}
+
+internal fun canScheduleExactAlarms(
+    alarmManager: AlarmManager,
+    sdkInt: Int = Build.VERSION.SDK_INT,
+): Boolean {
+    if (sdkInt < Build.VERSION_CODES.S) return true
+    return canScheduleExactAlarmsOnSOrAbove(alarmManager)
+}
+
+@SuppressLint("NewApi")
+private fun canScheduleExactAlarmsOnSOrAbove(alarmManager: AlarmManager): Boolean {
+    return try {
+        alarmManager.canScheduleExactAlarms()
+    } catch (_: Throwable) {
         false
     }
 }

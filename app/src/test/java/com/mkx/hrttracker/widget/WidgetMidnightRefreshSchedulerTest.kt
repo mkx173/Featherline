@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.every
 import io.mockk.mockk
@@ -84,6 +85,7 @@ class WidgetMidnightRefreshSchedulerTest {
             context = context,
             now = LocalDateTime.of(2026, 5, 22, 16, 45),
             diagnosticsLogger = diagnosticsLogger,
+            sdkInt = Build.VERSION_CODES.S,
         )
 
         verify(exactly = 0) {
