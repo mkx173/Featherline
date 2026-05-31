@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Splash icon for the androidx core-splashscreen compat path (API < 31).
+  Below API 31 the library renders this drawable directly into the icon slot
+  with no extra inset, so the full-bleed adaptive launcher icon would fill the
+  whole slot and clip. Wrapping it in a ~17% inset reproduces the ~2/3 sizing
+  the platform applies automatically on API 31+.
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@mipmap/ic_launcher"
+    android:inset="17%" />
