@@ -131,8 +131,9 @@ render size, which follows the launcher cell allocation declared in the
 `appwidget-provider` XML.
 
 Both widgets share a `provideHrtContent` shell that loads the snapshot,
-resolves the color scheme (dynamic Material 3 on API 31+ when adaptive
-colors are enabled, else a hard-coded scheme), and stacks
+resolves the color scheme (a shared seed expanded into a Material 3
+scheme by MaterialKolor — `system_accent1_500` on API 31+ when adaptive
+colors are enabled, else the baked `DefaultSeedColor`), and stacks
 `CompositionLocalProvider`s for the color scheme, content scale,
 background alpha, and forced-dark override. Shared Glance components
 live in
