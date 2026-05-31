@@ -53,6 +53,8 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
+import com.mkx.hrttracker.ui.theme.DefaultSeedColor
+import com.mkx.hrttracker.ui.theme.resolveSeedColor
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -92,11 +94,8 @@ private fun HrtWidgetThemed(
     val alpha = snapshot?.widgetBackgroundAlpha?.coerceIn(0.5f, 1f) ?: 1.0f
     val scale = snapshot?.widgetContentScale?.coerceIn(0.5f, 1.5f) ?: 1.0f
     val forcedDark = snapshot?.forcedDark
-    val widgetColors = if (adaptiveEnabled) {
-        dynamicWidgetColorScheme(context, alpha, forcedDark)
-    } else {
-        hardcodedWidgetColorScheme(alpha, forcedDark)
-    }
+    val seed = resolveSeedColor(context, adaptiveEnabled = adaptiveEnabled)
+    val widgetColors = widgetColorScheme(seed, alpha, forcedDark)
     GlanceTheme {
         CompositionLocalProvider(
             // GlanceRemoteViews.compose does not seed LocalContext the way the session
@@ -127,7 +126,7 @@ private fun HrtPreviewContent(
     val context = LocalContext.current
     GlanceTheme {
         CompositionLocalProvider(
-            LocalWidgetColors provides hardcodedWidgetColorScheme(),
+            LocalWidgetColors provides widgetColorScheme(DefaultSeedColor),
             LocalWidgetScale provides WIDGET_PREVIEW_CONTENT_SCALE,
             LocalPreviewBaselineHeight provides WIDGET_BASELINE_REFERENCE_DP,
             LocalPreviewE2Text provides formatWidgetE2Text(

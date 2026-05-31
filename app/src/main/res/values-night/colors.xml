@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="widget_preview_surface">#191113</color>
-    <color name="widget_preview_surface_container_low">#22191B</color>
-    <color name="widget_preview_on_surface">#EFDEE0</color>
-    <color name="widget_preview_on_surface_variant">#D6C2C4</color>
-    <color name="widget_preview_outline_variant">#524345</color>
-    <color name="widget_preview_primary">#FFB1C0</color>
-    <color name="widget_preview_primary_container">#713342</color>
-    <color name="widget_preview_on_primary_container">#FFD9DF</color>
-    <color name="widget_preview_tertiary_container">#5F401D</color>
-    <color name="widget_preview_on_tertiary_container">#FFDCBC</color>
-    <color name="widget_preview_surface_variant">#524345</color>
+    <color name="widget_preview_surface">#121318</color>
+    <color name="widget_preview_surface_container_low">#1A1B21</color>
+    <color name="widget_preview_on_surface">#E2E2E9</color>
+    <color name="widget_preview_on_surface_variant">#C5C6D0</color>
+    <color name="widget_preview_outline_variant">#44464F</color>
+    <color name="widget_preview_primary">#B1C5FF</color>
+    <color name="widget_preview_primary_container">#2F4578</color>
+    <color name="widget_preview_on_primary_container">#DAE2FF</color>
+    <color name="widget_preview_tertiary_container">#593D59</color>
+    <color name="widget_preview_on_tertiary_container">#FDD7FA</color>
+    <color name="widget_preview_surface_variant">#44464F</color>
     <color name="widget_preview_accent_rose">#FF8A88</color>
     <color name="widget_preview_accent_teal">#0AD8B6</color>
     <color name="widget_preview_accent_indigo">#9DB1FF</color>

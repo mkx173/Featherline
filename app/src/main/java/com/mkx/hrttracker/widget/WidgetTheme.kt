@@ -1,48 +1,12 @@
 package com.mkx.hrttracker.widget
 
-import android.content.Context
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.glance.unit.ColorProvider
 import com.materialkolor.dynamicColorScheme
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.ui.theme.DefaultSeedColor
 import com.mkx.hrttracker.ui.theme.MedicationGroupPalettes
-import com.mkx.hrttracker.ui.theme.onPrimaryContainerDark
-import com.mkx.hrttracker.ui.theme.onPrimaryContainerLight
-import com.mkx.hrttracker.ui.theme.onPrimaryDark
-import com.mkx.hrttracker.ui.theme.onPrimaryLight
-import com.mkx.hrttracker.ui.theme.onSecondaryContainerDark
-import com.mkx.hrttracker.ui.theme.onSecondaryContainerLight
-import com.mkx.hrttracker.ui.theme.onSecondaryDark
-import com.mkx.hrttracker.ui.theme.onSecondaryLight
-import com.mkx.hrttracker.ui.theme.onSurfaceDark
-import com.mkx.hrttracker.ui.theme.onSurfaceLight
-import com.mkx.hrttracker.ui.theme.onSurfaceVariantDark
-import com.mkx.hrttracker.ui.theme.onSurfaceVariantLight
-import com.mkx.hrttracker.ui.theme.onTertiaryContainerDark
-import com.mkx.hrttracker.ui.theme.onTertiaryContainerLight
-import com.mkx.hrttracker.ui.theme.outlineDark
-import com.mkx.hrttracker.ui.theme.outlineLight
-import com.mkx.hrttracker.ui.theme.outlineVariantDark
-import com.mkx.hrttracker.ui.theme.outlineVariantLight
-import com.mkx.hrttracker.ui.theme.primaryContainerDark
-import com.mkx.hrttracker.ui.theme.primaryContainerLight
-import com.mkx.hrttracker.ui.theme.primaryDark
-import com.mkx.hrttracker.ui.theme.primaryLight
-import com.mkx.hrttracker.ui.theme.secondaryContainerDark
-import com.mkx.hrttracker.ui.theme.secondaryContainerLight
-import com.mkx.hrttracker.ui.theme.secondaryDark
-import com.mkx.hrttracker.ui.theme.secondaryLight
-import com.mkx.hrttracker.ui.theme.surfaceContainerLowDark
-import com.mkx.hrttracker.ui.theme.surfaceContainerLowLight
-import com.mkx.hrttracker.ui.theme.surfaceDark
-import com.mkx.hrttracker.ui.theme.surfaceLight
-import com.mkx.hrttracker.ui.theme.surfaceVariantDark
-import com.mkx.hrttracker.ui.theme.surfaceVariantLight
-import com.mkx.hrttracker.ui.theme.tertiaryContainerDark
-import com.mkx.hrttracker.ui.theme.tertiaryContainerLight
 import androidx.glance.color.ColorProvider as DayNightColorProvider
 
 internal data class WidgetColorScheme(
@@ -77,47 +41,13 @@ private fun colorProvider(light: Color, dark: Color, forcedDark: Boolean?): Colo
         null -> DayNightColorProvider(light, dark)
     }
 
-internal fun hardcodedWidgetColorScheme(
+internal fun widgetColorScheme(
+    seed: Color,
     alpha: Float = 1.0f,
     forcedDark: Boolean? = null,
 ): WidgetColorScheme {
-    fun provider(day: Color, night: Color) = colorProvider(day, night, forcedDark)
-    return WidgetColorScheme(
-        primary = provider(primaryLight, primaryDark),
-        onPrimary = provider(onPrimaryLight, onPrimaryDark),
-        primaryContainer = provider(primaryContainerLight, primaryContainerDark),
-        onPrimaryContainer = provider(onPrimaryContainerLight, onPrimaryContainerDark),
-        secondary = provider(secondaryLight, secondaryDark),
-        onSecondary = provider(onSecondaryLight, onSecondaryDark),
-        secondaryContainer = provider(secondaryContainerLight, secondaryContainerDark),
-        onSecondaryContainer = provider(onSecondaryContainerLight, onSecondaryContainerDark),
-        tertiaryContainer = provider(tertiaryContainerLight, tertiaryContainerDark),
-        onTertiaryContainer = provider(onTertiaryContainerLight, onTertiaryContainerDark),
-        surfaceVariant = provider(surfaceVariantLight, surfaceVariantDark),
-        onSurfaceVariant = provider(onSurfaceVariantLight, onSurfaceVariantDark),
-        surfaceContainerLow = provider(
-            surfaceContainerLowLight.copy(alpha = alpha * 0.85f),
-            surfaceContainerLowDark.copy(alpha = alpha * 0.85f),
-        ),
-        surface = provider(
-            surfaceLight.copy(alpha = alpha),
-            surfaceDark.copy(alpha = alpha),
-        ),
-        onSurface = provider(onSurfaceLight, onSurfaceDark),
-        outline = provider(outlineLight, outlineDark),
-        outlineVariant = provider(outlineVariantLight, outlineVariantDark),
-    )
-}
-
-@RequiresApi(Build.VERSION_CODES.S)
-internal fun dynamicWidgetColorScheme(
-    context: Context,
-    alpha: Float = 1.0f,
-    forcedDark: Boolean? = null,
-): WidgetColorScheme {
-    val seed = Color(context.getColor(android.R.color.system_accent1_500))
-    val light = dynamicColorScheme(seed, isDark = false)
-    val dark = dynamicColorScheme(seed, isDark = true)
+    val light = dynamicColorScheme(seedColor = seed, isDark = false)
+    val dark = dynamicColorScheme(seedColor = seed, isDark = true)
     fun provider(lightColor: Color, darkColor: Color) = colorProvider(lightColor, darkColor, forcedDark)
     return WidgetColorScheme(
         primary = provider(light.primary, dark.primary),
@@ -143,7 +73,7 @@ internal fun dynamicWidgetColorScheme(
     )
 }
 
-internal val LocalWidgetColors = compositionLocalOf { hardcodedWidgetColorScheme() }
+internal val LocalWidgetColors = compositionLocalOf { widgetColorScheme(DefaultSeedColor) }
 internal val LocalWidgetScale = compositionLocalOf { 1.0f }
 internal val LocalWidgetAlpha = compositionLocalOf { 1.0f }
 internal val LocalWidgetForcedDark = compositionLocalOf<Boolean?> { null }
