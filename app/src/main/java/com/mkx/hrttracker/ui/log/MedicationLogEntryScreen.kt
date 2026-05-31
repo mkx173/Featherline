@@ -35,14 +35,14 @@ import java.time.LocalTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddEntryScreen(
+fun MedicationLogEntryScreen(
     entryIds: List<String>,
     modifier: Modifier = Modifier,
-    quickLogRequest: AddEntryQuickLogRequest? = null,
-    editSnapshot: AddEntryEditSnapshot? = null,
+    quickLogRequest: MedicationLogEntryQuickLogRequest? = null,
+    editSnapshot: MedicationLogEntryEditSnapshot? = null,
     onDismissRequest: () -> Unit,
     onEntrySaved: () -> Unit,
-    viewModel: AddEntryViewModel = hiltViewModel()
+    viewModel: MedicationLogEntryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isSheetLockedState = rememberUpdatedState(
@@ -132,7 +132,7 @@ fun AddEntryScreen(
         viewModel.consumeCrossZoneToast()
     }
 
-    AddEntryScreenBody(
+    MedicationLogEntryScreenBody(
         modifier = modifier,
         uiState = uiState,
         sheetState = sheetState,
@@ -152,9 +152,9 @@ fun AddEntryScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddEntryScreenBody(
+private fun MedicationLogEntryScreenBody(
     modifier: Modifier = Modifier,
-    uiState: AddEntryUiState,
+    uiState: MedicationLogEntryUiState,
     sheetState: SheetState,
     isSheetLocked: Boolean,
     onDismissRequest: () -> Unit,
@@ -305,10 +305,10 @@ private fun AddEntryScreenBody(
 @Preview(showBackground = true)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddEntryScreenPreview() {
+private fun MedicationLogEntryScreenPreview() {
     HrtTrackerTheme(dynamicColor = false) {
-        AddEntryScreenBody(
-            uiState = AddEntryUiState(
+        MedicationLogEntryScreenBody(
+            uiState = MedicationLogEntryUiState(
                 editingEntryIds = listOf("f16ec8a7-5115-410a-b12d-f376fdb6f76b"),
                 medicineDraft = defaultMedicineDraft(),
                 appliedDate = LocalDate.of(2026, 4, 16),

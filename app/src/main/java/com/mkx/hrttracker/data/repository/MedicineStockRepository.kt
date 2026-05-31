@@ -40,7 +40,7 @@ class MedicineStockRepository @Inject constructor(
     // Tracks both the projection list and whether it was derived from live
     // upstream data or from the home snapshot. The medicine manager only
     // wants live data (so the manager rows don't visibly shift from
-    // snapshot-derived to live values). The AddEntry sheet wants whatever's
+    // snapshot-derived to live values). The medication-log-entry sheet wants whatever's
     // cached, including the snapshot, so its subcard renders on frame 1
     // before Room finishes opening.
     private data class ProjectionsCache(

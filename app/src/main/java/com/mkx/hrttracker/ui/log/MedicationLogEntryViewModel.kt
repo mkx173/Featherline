@@ -53,14 +53,14 @@ import java.util.UUID
 import javax.inject.Inject
 
 @HiltViewModel
-class AddEntryViewModel @Inject constructor(
+class MedicationLogEntryViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicineStockRepository: MedicineStockRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(AddEntryUiState())
-    val uiState: StateFlow<AddEntryUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(MedicationLogEntryUiState())
+    val uiState: StateFlow<MedicationLogEntryUiState> = _uiState.asStateFlow()
     private var loadEntryJob: Job? = null
     private var pendingSave: PendingSaveRequest? = null
     private var pendingDelete: PendingDeleteRequest? = null
@@ -84,7 +84,7 @@ class AddEntryViewModel @Inject constructor(
 
     fun initialize(
         entryIds: List<String>,
-        editSnapshot: AddEntryEditSnapshot? = null,
+        editSnapshot: MedicationLogEntryEditSnapshot? = null,
     ) {
         loadEntryJob?.cancel()
         pendingSave = null
@@ -95,7 +95,7 @@ class AddEntryViewModel @Inject constructor(
         val initialEditingState = matchingEditSnapshot?.toEditingUiState()
         val initialState = initialEditingState
             ?.copy(isLoading = normalizedEntryIds.isNotEmpty())
-            ?: AddEntryUiState(
+            ?: MedicationLogEntryUiState(
                 editingEntryIds = normalizedEntryIds,
                 isLoading = normalizedEntryIds.isNotEmpty()
             )
@@ -468,21 +468,21 @@ class AddEntryViewModel @Inject constructor(
         _uiState.update { it.copy(savedCrossZoneZoneText = null) }
     }
 
-    private fun resolvedApplicationType(state: AddEntryUiState): MedicationApplicationType {
+    private fun resolvedApplicationType(state: MedicationLogEntryUiState): MedicationApplicationType {
         return resolvedApplicationTypeForDose(
             preparationType = resolvedPreparationType(state),
             doseInstructionDraft = state.doseInstructionDraft,
         )
     }
 
-    private fun resolvedPreparationType(state: AddEntryUiState): MedicinePreparationType {
+    private fun resolvedPreparationType(state: MedicationLogEntryUiState): MedicinePreparationType {
         return state.resolvedMedicine?.preparation?.type
             ?: state.doseInstructionDraft.preparationType
     }
 
     private fun loadEntriesForEditing(
         entryIds: List<String>,
-        editSnapshot: AddEntryEditSnapshot? = null,
+        editSnapshot: MedicationLogEntryEditSnapshot? = null,
     ) {
         loadEntryJob = viewModelScope.launch {
             val entries = medicationLogRepository.getEntries(entryIds.map(UUID::fromString))
@@ -534,12 +534,12 @@ class AddEntryViewModel @Inject constructor(
             ) ?: editSnapshot
                 ?.toEditingUiState()
                 ?.copy(isLoading = false)
-                ?: AddEntryUiState()
+                ?: MedicationLogEntryUiState()
             _uiState.value = _uiState.value.withSelectedStockProjection()
         }
     }
 
-    private fun AddEntryUiState.withSelectedStockProjection(): AddEntryUiState {
+    private fun MedicationLogEntryUiState.withSelectedStockProjection(): MedicationLogEntryUiState {
         val selectedMedicineUuid = selectedMedicineUuidForStock()
         return copy(
             selectedStockProjection = stockProjections.firstOrNull { projection ->
@@ -548,7 +548,7 @@ class AddEntryViewModel @Inject constructor(
         )
     }
 
-    private fun AddEntryUiState.selectedMedicineUuidForStock(): UUID? {
+    private fun MedicationLogEntryUiState.selectedMedicineUuidForStock(): UUID? {
         return when {
             isEditing -> resolvedMedicine?.uuid
             sourceGroupUuid != null -> resolvedMedicine?.uuid
@@ -558,7 +558,7 @@ class AddEntryViewModel @Inject constructor(
 
 }
 
-data class AddEntryUiState(
+data class MedicationLogEntryUiState(
     val editingEntryIds: List<String> = emptyList(),
     val medicineDraft: MedicinePickerUiState = defaultMedicineDraft(),
     val doseInstructionDraft: DoseInstructionDraftUiState =
@@ -609,7 +609,7 @@ data class AddEntryUiState(
     }
 }
 
-data class AddEntryQuickLogRequest(
+data class MedicationLogEntryQuickLogRequest(
     val groupId: UUID,
     val scheduleTimeUuid: UUID? = null,
     val scheduledFor: LocalDateTime,
@@ -624,7 +624,7 @@ data class AddEntryQuickLogRequest(
     val sourceGroupNextScheduledFor: LocalDateTime? = null,
 )
 
-data class AddEntryEditSnapshot(
+data class MedicationLogEntryEditSnapshot(
     val entries: List<MedicationLogEntry>,
     val sourceGroupName: String? = null,
     val sourceGroupColorKey: MedicationGroupColorKey? = null,
@@ -661,7 +661,7 @@ enum class DeleteEntryResult {
     FAILURE,
 }
 
-internal fun isAddEntryBusy(uiState: AddEntryUiState): Boolean {
+internal fun isMedicationLogEntryBusy(uiState: MedicationLogEntryUiState): Boolean {
     return uiState.isLoading ||
         uiState.isSaving ||
         uiState.isDeleting ||
@@ -681,7 +681,7 @@ internal fun buildEditingUiState(
     sourceGroupColorKey: MedicationGroupColorKey? = null,
     sourceGroupPreviousScheduledFor: LocalDateTime? = null,
     sourceGroupNextScheduledFor: LocalDateTime? = null,
-): AddEntryUiState? {
+): MedicationLogEntryUiState? {
     val representativeEntry = entries.firstOrNull() ?: return null
     val editableEntries = if (canBulkEditTogether(entries)) entries else listOf(representativeEntry)
     val appliedAtLocal = appliedAtAsLocalDateTime(representativeEntry)
@@ -691,7 +691,7 @@ internal fun buildEditingUiState(
     val hasMatchingSourceGroupSnapshot = representativeEntry.sourceGroupUuid != null &&
         !sourceGroupName.isNullOrBlank()
 
-    return AddEntryUiState(
+    return MedicationLogEntryUiState(
         editingEntryIds = editableEntries.map { entry -> entry.uuid.toString() },
         medicineDraft = medicineDraftForEntry(representativeEntry),
         doseInstructionDraft = doseInstructionDraftForEntry(representativeEntry),
@@ -761,7 +761,7 @@ private fun medicineDraftForQuickLog(
     }
 }
 
-private fun AddEntryEditSnapshot.matchingEntries(entryUuids: List<UUID>): AddEntryEditSnapshot? {
+private fun MedicationLogEntryEditSnapshot.matchingEntries(entryUuids: List<UUID>): MedicationLogEntryEditSnapshot? {
     if (entryUuids.isEmpty()) {
         return null
     }
@@ -771,7 +771,7 @@ private fun AddEntryEditSnapshot.matchingEntries(entryUuids: List<UUID>): AddEnt
     return takeIf { matchingEntries.isNotEmpty() }?.copy(entries = matchingEntries)
 }
 
-private fun AddEntryEditSnapshot.toEditingUiState(): AddEntryUiState? {
+private fun MedicationLogEntryEditSnapshot.toEditingUiState(): MedicationLogEntryUiState? {
     return buildEditingUiState(
         entries = entries,
         sourceGroupName = sourceGroupName,
@@ -796,8 +796,8 @@ internal fun buildQuickLogUiState(
     sourceGroupNextScheduledFor: LocalDateTime? = null,
     appliedAt: LocalDateTime,
     isLoading: Boolean = false,
-): AddEntryUiState {
-    return AddEntryUiState(
+): MedicationLogEntryUiState {
+    return MedicationLogEntryUiState(
         medicineDraft = medicineDraftForQuickLog(medicine, applicationType),
         doseInstructionDraft = doseInstructionDraftFromInstruction(
             applicationType = applicationType,

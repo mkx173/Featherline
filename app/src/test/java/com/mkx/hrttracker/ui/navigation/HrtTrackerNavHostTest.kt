@@ -10,8 +10,8 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicine
-import com.mkx.hrttracker.ui.log.AddEntryEditSnapshot
-import com.mkx.hrttracker.ui.log.AddEntryQuickLogRequest
+import com.mkx.hrttracker.ui.log.MedicationLogEntryEditSnapshot
+import com.mkx.hrttracker.ui.log.MedicationLogEntryQuickLogRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -235,16 +235,16 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
-    fun addEntrySheetRequestSaver_roundTripsNull() {
-        val saver = AddEntrySheetRequestSaver
+    fun medicationLogEntrySheetRequestSaver_roundTripsNull() {
+        val saver = MedicationLogEntrySheetRequestSaver
         val saved = with(saver) { scope.save(null) }
         assertNotNull(saved)
         assertNull(saver.restore(saved!!))
     }
 
     @Test
-    fun addEntrySheetRequestSaver_roundTripsEditEntries() {
-        val original = AddEntrySheetRequest(
+    fun medicationLogEntrySheetRequestSaver_roundTripsEditEntries() {
+        val original = MedicationLogEntrySheetRequest(
             entryIds = listOf("11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"),
         )
 
@@ -252,7 +252,7 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
-    fun addEntrySheetRequestSaver_roundTripsQuickLogRequestForEveryDoseShape() {
+    fun medicationLogEntrySheetRequestSaver_roundTripsQuickLogRequestForEveryDoseShape() {
         // Cover every DoseInstruction branch so future additions break the test.
         val doseCases = listOf(
             Triple(
@@ -303,8 +303,8 @@ class HrtTrackerNavHostTest {
             ),
         )
         doseCases.forEach { (doseInstruction, medicine, applicationType) ->
-            val request = AddEntrySheetRequest(
-                quickLogRequest = AddEntryQuickLogRequest(
+            val request = MedicationLogEntrySheetRequest(
+                quickLogRequest = MedicationLogEntryQuickLogRequest(
                     groupId = UUID.fromString("33333333-3333-3333-3333-333333333333"),
                     scheduleTimeUuid = UUID.fromString("44444444-4444-4444-4444-444444444444"),
                     scheduledFor = LocalDateTime.of(2026, 5, 11, 9, 30),
@@ -319,10 +319,10 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
-    fun addEntrySheetRequestSaver_roundTripsPatchOffQuickLogWithNullMedicine() {
+    fun medicationLogEntrySheetRequestSaver_roundTripsPatchOffQuickLogWithNullMedicine() {
         // A PATCH_OFF quick-log carries no medicine; the Saver must survive null.
-        val request = AddEntrySheetRequest(
-            quickLogRequest = AddEntryQuickLogRequest(
+        val request = MedicationLogEntrySheetRequest(
+            quickLogRequest = MedicationLogEntryQuickLogRequest(
                 groupId = UUID.fromString("33333333-3333-3333-3333-333333333333"),
                 scheduleTimeUuid = UUID.fromString("44444444-4444-4444-4444-444444444444"),
                 scheduledFor = LocalDateTime.of(2026, 5, 11, 9, 30),
@@ -337,9 +337,9 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
-    fun addEntrySheetRequestSaver_roundTripsCustomSelectionAndOptionalScheduleTime() {
-        val request = AddEntrySheetRequest(
-            quickLogRequest = AddEntryQuickLogRequest(
+    fun medicationLogEntrySheetRequestSaver_roundTripsCustomSelectionAndOptionalScheduleTime() {
+        val request = MedicationLogEntrySheetRequest(
+            quickLogRequest = MedicationLogEntryQuickLogRequest(
                 groupId = UUID.fromString("55555555-5555-5555-5555-555555555555"),
                 scheduleTimeUuid = null,
                 scheduledFor = LocalDateTime.of(2026, 5, 11, 21, 0),
@@ -358,9 +358,9 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
-    fun addEntrySheetRequestSaver_roundTripsSnapshotGroupContext() {
-        val request = AddEntrySheetRequest(
-            quickLogRequest = AddEntryQuickLogRequest(
+    fun medicationLogEntrySheetRequestSaver_roundTripsSnapshotGroupContext() {
+        val request = MedicationLogEntrySheetRequest(
+            quickLogRequest = MedicationLogEntryQuickLogRequest(
                 groupId = UUID.fromString("66666666-6666-6666-6666-666666666666"),
                 scheduleTimeUuid = UUID.fromString("77777777-7777-7777-7777-777777777777"),
                 scheduledFor = LocalDateTime.of(2026, 5, 11, 21, 0),
@@ -382,7 +382,7 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
-    fun addEntrySheetRequestSaver_roundTripsEditSnapshot() {
+    fun medicationLogEntrySheetRequestSaver_roundTripsEditSnapshot() {
         val groupId = UUID.fromString("88888888-8888-8888-8888-888888888888")
         val scheduleTimeId = UUID.fromString("99999999-9999-9999-9999-999999999999")
         val entryId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
@@ -404,9 +404,9 @@ class HrtTrackerNavHostTest {
             scheduledFor = scheduledFor,
             count = 2,
         )
-        val request = AddEntrySheetRequest(
+        val request = MedicationLogEntrySheetRequest(
             entryIds = listOf(entryId.toString()),
-            editSnapshot = AddEntryEditSnapshot(
+            editSnapshot = MedicationLogEntryEditSnapshot(
                 entries = listOf(entry),
                 sourceGroupName = "Snapshot estradiol",
                 sourceGroupColorKey = MedicationGroupColorKey.PLUM,
@@ -420,8 +420,8 @@ class HrtTrackerNavHostTest {
 
     private val scope = SaverScope { true }
 
-    private fun roundTrip(request: AddEntrySheetRequest?): AddEntrySheetRequest? {
-        val saver = AddEntrySheetRequestSaver
+    private fun roundTrip(request: MedicationLogEntrySheetRequest?): MedicationLogEntrySheetRequest? {
+        val saver = MedicationLogEntrySheetRequestSaver
         val saved = with(saver) { scope.save(request) } ?: error("saver returned null")
         return saver.restore(saved)
     }

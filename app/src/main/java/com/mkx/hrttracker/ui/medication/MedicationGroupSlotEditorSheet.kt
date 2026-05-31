@@ -24,7 +24,7 @@ import java.util.UUID
 //   ExistingMedicineDoseSheet      — existing Medicine, then returns slot OR saves log. (keep)
 //   MedicationGroupSlotEditorSheet — edits a regimen slot in the group editor. (keep)
 //   MedicationLogEntryEditorSheet  — edits/creates a history MedicationLog entry. (keep)
-//   AddEntryScreenContent          — private host adapter for MedicationLogEntryEditorSheet. (keep, private)
+//   MedicationLogEntryScreenBody   — private host adapter for MedicationLogEntryEditorSheet. (keep, private)
 
 // ---------------------------------------------------------------------------
 // Group slot sheet entry point.
