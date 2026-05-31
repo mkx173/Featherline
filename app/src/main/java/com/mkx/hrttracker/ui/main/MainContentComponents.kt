@@ -3391,37 +3391,43 @@ private fun MainTodayTrailingContent(
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (row.isFromArchivedGroup) {
-            Icon(
-                painter = painterResource(R.drawable.ic_archive),
-                contentDescription = stringResource(R.string.archived_group_record_indicator),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-        if (textLabel != null && textLabel.text.isNotBlank()) {
-            Text(
-                text = textLabel.text,
-                style = if (textLabel.isDelta) {
-                    MaterialTheme.typography.labelLarge
-                } else {
-                    MaterialTheme.typography.titleMedium
-                },
-                color = if (textLabel.isDelta) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-                fontWeight = if (textLabel.isDelta) {
-                    FontWeight.Normal
-                } else {
-                    FontWeight.Medium
-                },
-                textAlign = TextAlign.End,
-                maxLines = 1
-            )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (row.isFromArchivedGroup) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_archive),
+                    contentDescription = stringResource(R.string.archived_group_record_indicator),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            if (textLabel != null && textLabel.text.isNotBlank()) {
+                Text(
+                    text = textLabel.text,
+                    style = if (textLabel.isDelta) {
+                        MaterialTheme.typography.labelLarge
+                    } else {
+                        MaterialTheme.typography.titleMedium
+                    },
+                    color = if (textLabel.isDelta) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    fontWeight = if (textLabel.isDelta) {
+                        FontWeight.Normal
+                    } else {
+                        FontWeight.Medium
+                    },
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    modifier = Modifier.cjkTextOffset(textLabel.text)
+                )
+            }
         }
         MainTodayTrailingStatusButton(
             isLogged = isLogged,
