@@ -58,7 +58,6 @@ import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
-import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
 import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.TimePickerModal
@@ -87,11 +86,11 @@ import java.util.UUID
  * Bottom sheet that edits or creates a history `MedicationLog` entry.
  *
  * Opened from: add-entry and history-log edit flows routed through AddEntryScreen.
- * Hosted by: AddEntryScreenContent.
+ * Hosted by: AddEntryScreen.
  * Produces: a saved history `MedicationLog`; never creates a catalog [Medicine]
  *   and never returns a regimen [MedicineSlotResult].
- * Identity: editable when creating a standalone log, or locked to
- *   [lockedMedicine] when editing/logging against an existing medicine.
+ * Identity: locked to [lockedMedicine] when editing/logging against an
+ *   existing medicine.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -104,8 +103,6 @@ fun MedicationLogEntryEditorSheet(
     onCloseClick: () -> Unit,
     medicineDraft: MedicinePickerUiState,
     doseInstructionDraft: DoseInstructionDraftUiState?,
-    resolvedMedicine: Medicine?,
-    canEditMedicationIdentity: Boolean,
     lockedMedicine: Medicine?,
     selectedStockProjection: MedicineStockProjection? = null,
     stockMutationPreviewDoseMagnitude: Double? = null,
@@ -113,19 +110,12 @@ fun MedicationLogEntryEditorSheet(
     sourceGroupColorKey: MedicationGroupColorKey? = null,
     sourceGroupScheduledFor: LocalDateTime? = null,
     sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean = false,
-    onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
-    onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
-    onOpenMedicinePicker: () -> Unit,
     countText: String,
-    onCountTextChange: (String) -> Unit,
-    onDecreaseCountClick: () -> Unit,
-    onIncreaseCountClick: () -> Unit,
     appliedDate: LocalDate,
     appliedTime: LocalTime,
     appliedZoneId: ZoneId = ZoneId.systemDefault(),
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
-    errorMessageRes: Int? = null,
     isSaving: Boolean = false,
     destructiveButtonText: String? = null,
     onDestructiveAction: (() -> Unit)? = null,
@@ -163,59 +153,32 @@ fun MedicationLogEntryEditorSheet(
         confirmButtonText = confirmButtonText,
         onDismissRequest = onDismissRequest,
         onCloseClick = onCloseClick,
-        fillAvailableHeight = canEditMedicationIdentity,
+        fillAvailableHeight = false,
         isSaving = isSaving,
         destructiveButtonText = destructiveButtonText,
         onDestructiveAction = onDestructiveAction,
-        disclaimerKinds = if (canEditMedicationIdentity) {
-            MedicalDisclaimerSets.medicationEditor
-        } else {
-            emptyList()
-        },
+        disclaimerKinds = emptyList(),
         onConfirm = onConfirm,
     ) {
-        if (canEditMedicationIdentity) {
-            val editableMedicine = checkNotNull(resolvedMedicine) {
-                "Editable medication log content requires a resolved medicine."
+        val linkedApplicationType = doseInstructionDraft?.let { draft ->
+            lockedMedicine?.let { medicine ->
+                resolvedApplicationTypeForDose(medicine.preparation.type, draft)
             }
-            MedicationEditorContent(
-                medicineDraft = medicineDraft,
-                doseInstructionDraft = doseInstructionDraft,
-                resolvedMedicine = editableMedicine,
-                canEditMedicationIdentity = true,
-                selectedStockProjection = selectedStockProjection,
-                stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
-                onMedicineDraftChange = onMedicineDraftChange,
-                onDoseInstructionDraftChange = onDoseInstructionDraftChange,
-                onOpenMedicinePicker = onOpenMedicinePicker,
-                countText = countText,
-                onCountTextChange = onCountTextChange,
-                onDecreaseCountClick = onDecreaseCountClick,
-                onIncreaseCountClick = onIncreaseCountClick,
-                errorMessageRes = errorMessageRes,
-                isSaving = isSaving,
-            )
-        } else {
-            val linkedApplicationType = doseInstructionDraft?.let { draft ->
-                lockedMedicine?.let { medicine ->
-                    resolvedApplicationTypeForDose(medicine.preparation.type, draft)
-                }
-            } ?: medicineDraft.catalogFilterApplicationType
-            MedicationLogEntryLinkedMedicationSummary(
-                lockedMedicine = lockedMedicine,
-                applicationType = linkedApplicationType,
-                doseInstruction = doseInstructionDraft?.toDoseInstructionOrNull(),
-                countText = countText,
-                sourceGroupName = sourceGroupName,
-                sourceGroupColorKey = sourceGroupColorKey,
-                sourceGroupScheduledForText = sourceGroupScheduledForText,
-                sourceGroupScheduleOffsetText = sourceGroupScheduleOffsetText,
-                sourceGroupScheduleOffsetOutsideFulfillmentWindow =
-                    sourceGroupScheduleOffsetOutsideFulfillmentWindow,
-                selectedStockProjection = selectedStockProjection,
-                stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
-            )
-        }
+        } ?: medicineDraft.catalogFilterApplicationType
+        MedicationLogEntryLinkedMedicationSummary(
+            lockedMedicine = lockedMedicine,
+            applicationType = linkedApplicationType,
+            doseInstruction = doseInstructionDraft?.toDoseInstructionOrNull(),
+            countText = countText,
+            sourceGroupName = sourceGroupName,
+            sourceGroupColorKey = sourceGroupColorKey,
+            sourceGroupScheduledForText = sourceGroupScheduledForText,
+            sourceGroupScheduleOffsetText = sourceGroupScheduleOffsetText,
+            sourceGroupScheduleOffsetOutsideFulfillmentWindow =
+                sourceGroupScheduleOffsetOutsideFulfillmentWindow,
+            selectedStockProjection = selectedStockProjection,
+            stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
+        )
 
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
@@ -591,19 +554,11 @@ private fun MedicationLogEntryEditorSheetPreview() {
             onCloseClick = { },
             medicineDraft = draft,
             doseInstructionDraft = draft.toDoseInstructionDraft(),
-            resolvedMedicine = medicine,
-            canEditMedicationIdentity = false,
             lockedMedicine = medicine,
             sourceGroupName = "Nightly estradiol",
             sourceGroupColorKey = MedicationGroupColorKey.INDIGO,
             sourceGroupScheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0),
-            onMedicineDraftChange = { },
-            onDoseInstructionDraftChange = { },
-            onOpenMedicinePicker = { },
             countText = "1",
-            onCountTextChange = { },
-            onDecreaseCountClick = { },
-            onIncreaseCountClick = { },
             appliedDate = LocalDate.of(2026, 4, 22),
             appliedTime = LocalTime.of(20, 30),
             onAppliedDateChange = { },
