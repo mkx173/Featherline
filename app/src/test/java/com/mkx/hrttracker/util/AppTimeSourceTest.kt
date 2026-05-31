@@ -138,6 +138,54 @@ class AppTimeSourceTest {
     }
 
     @Test
+    fun refresh_realignsTickerToNewWallClockBoundary() = runTest {
+        val originalTimeZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            val clock = MutableInstantClock(
+                instant = Instant.parse("2026-04-25T12:00:00Z"),
+                zone = ZoneOffset.UTC,
+            )
+            val source = DefaultAppTimeSource(clock = clock, appScope = backgroundScope)
+
+            val collector = launch { source.currentMinute.collect {} }
+            runCurrent()
+            // Ticker emitted 12:00 and is now sleeping until the 12:01 boundary,
+            // i.e. for a full 60s of monotonic time.
+            assertEquals(
+                LocalDateTime.of(2026, 4, 25, 12, 0),
+                source.currentMinute.value,
+            )
+
+            // 1s into that sleep the app backgrounds; the wall clock is moved to
+            // 13:30:59 and the app is foregrounded -> refresh().
+            advanceTimeBy(1_000)
+            clock.instant = Instant.parse("2026-04-25T13:30:59Z")
+            source.refresh()
+            runCurrent()
+            assertEquals(
+                LocalDateTime.of(2026, 4, 25, 13, 30),
+                source.currentMinute.value,
+            )
+
+            // 1 real second later the wall clock crosses 13:31:00. The minute
+            // label must advance promptly, NOT wait out the original ~59s sleep
+            // that was scheduled against the pre-jump clock.
+            advanceTimeBy(1_000)
+            clock.instant = Instant.parse("2026-04-25T13:31:00Z")
+            runCurrent()
+            assertEquals(
+                LocalDateTime.of(2026, 4, 25, 13, 31),
+                source.currentMinute.value,
+            )
+
+            collector.cancel()
+        } finally {
+            TimeZone.setDefault(originalTimeZone)
+        }
+    }
+
+    @Test
     fun currentMinute_usesUpdatedSystemDefaultZone() {
         val originalTimeZone = TimeZone.getDefault()
         val clock = Clock.fixed(

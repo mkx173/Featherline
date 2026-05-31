@@ -1,15 +1,16 @@
 package com.mkx.hrttracker.util
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
 import java.time.Duration
@@ -40,15 +41,16 @@ class DefaultAppTimeSource(
     // lets refresh() emit without suspending even when no collector is active.
     private val refreshSignals = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    override val currentMinute: StateFlow<LocalDateTime> = merge(
-        currentMinuteTicker(clock),
-        // The ticker only re-reads the wall clock when its monotonic delay
-        // fires (up to a minute away, and paused while the process is frozen).
-        // A refresh re-reads it on demand so foregrounding after a background
-        // date/time change reflects immediately.
-        refreshSignals.map { currentMinute(clock) },
-    )
-        .distinctUntilChanged()
+    // Each refresh restarts the ticker via flatMapLatest. Restarting (rather
+    // than just re-emitting the current minute) re-reads the wall clock AND
+    // recomputes the next-boundary delay against it. Otherwise a refresh after
+    // a background clock jump would correct the displayed minute but leave the
+    // old pending delay running, so the next minute boundary could be missed by
+    // up to the original remaining sleep. onStart drives the initial run.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override val currentMinute: StateFlow<LocalDateTime> = refreshSignals
+        .onStart { emit(Unit) }
+        .flatMapLatest { currentMinuteTicker(clock) }
         .stateIn(
             scope = appScope,
             started = SharingStarted.WhileSubscribed(stopTimeoutMillis),
