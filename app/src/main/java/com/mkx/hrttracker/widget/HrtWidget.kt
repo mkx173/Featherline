@@ -627,6 +627,13 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         ) {}
                         Spacer(GlanceModifier.width((10f * scale).dp))
                         Column(modifier = GlanceModifier.defaultWeight()) {
+                            val supporting = listOfNotNull(
+                                activeRow.routeLabel.takeIf(String::isNotBlank),
+                                activeRow.doseText.takeIf(String::isNotBlank),
+                            ).joinToString(" · ")
+                            val showSupporting = !record.hideMedicationDetails &&
+                                    !isMultiMedGroup &&
+                                    supporting.isNotBlank()
                             Text(
                                 text = displayName,
                                 modifier = GlanceModifier.fillMaxWidth(),
@@ -637,23 +644,18 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 ),
                                 maxLines = 1,
                             )
-                            if (!record.hideMedicationDetails && !isMultiMedGroup) {
-                                val supporting = listOfNotNull(
-                                    activeRow.routeLabel.takeIf(String::isNotBlank),
-                                    activeRow.doseText.takeIf(String::isNotBlank),
-                                ).joinToString(" · ")
-                                if (supporting.isNotBlank()) {
-                                    Text(
-                                        text = supporting,
-                                        style = TextStyle(
-                                            color = colors.onSurfaceVariant,
-                                            fontSize = (14f * scale).sp,
-                                            fontWeight = FontWeight.Normal,
-                                        ),
-                                        maxLines = 1,
-                                    )
-                                }
-                            }
+                            // Keep this node even when hidden. The synchronous GlanceRemoteViews
+                            // path can reuse layout IDs across updates, so privacy toggles must
+                            // not change the RemoteViews tree.
+                            Text(
+                                text = supporting.takeIf { showSupporting }.orEmpty(),
+                                style = TextStyle(
+                                    color = colors.onSurfaceVariant,
+                                    fontSize = ((if (showSupporting) 14f else 1f) * scale).sp,
+                                    fontWeight = FontWeight.Normal,
+                                ),
+                                maxLines = 1,
+                            )
                         }
                     }
                     Spacer(GlanceModifier.defaultWeight())
