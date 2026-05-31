@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.catalog
 
-import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -15,7 +14,6 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Label
-import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -41,7 +39,6 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -59,6 +56,8 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.medication.DoseAssistPresetRow
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
+import com.mkx.hrttracker.ui.medication.MedicationEditorSectionLabel
+import com.mkx.hrttracker.ui.medication.MedicationNumericField
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
 import com.mkx.hrttracker.ui.medication.activeDoseAssistPresets
@@ -72,6 +71,7 @@ import com.mkx.hrttracker.ui.medication.changePreparationType
 import com.mkx.hrttracker.ui.medication.editorMedicationCategories
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
 import com.mkx.hrttracker.ui.medication.medicinePreparationFormIconRes
+import com.mkx.hrttracker.ui.medication.medicationEditorFieldLabelWithUnit
 import com.mkx.hrttracker.ui.medication.preparationTypeLabelRes
 import com.mkx.hrttracker.ui.medication.requiresCustomName
 import com.mkx.hrttracker.ui.medication.requiresPreparationTypeSelection
@@ -190,7 +190,7 @@ internal fun CreateMedicineForm(
     }
     val editableFields = editableFields(medicineDraft)
 
-    EditorSectionLabel(stringResource(R.string.field_medication_category), topPadding = false)
+    MedicationEditorSectionLabel(stringResource(R.string.field_medication_category), topPadding = false)
     ConnectedButtonGroup(
         options = editorMedicationCategories(),
         selectedOption = medicineDraft.category,
@@ -202,7 +202,7 @@ internal fun CreateMedicineForm(
 
     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
-    EditorSectionLabel(stringResource(R.string.field_preparation_form))
+    MedicationEditorSectionLabel(stringResource(R.string.field_preparation_form))
     PreparationFormButtonGroup(
         options = MedicationCatalog.preparationFormsFor(medicineDraft.category),
         selectedOption = medicineDraft.form,
@@ -218,7 +218,7 @@ internal fun CreateMedicineForm(
         medicineDraft.selectionKind == MedicationSelectionKind.CATALOG &&
         catalogKeys.size > 1
     ) {
-        EditorSectionLabel(stringResource(R.string.field_medication))
+        MedicationEditorSectionLabel(stringResource(R.string.field_medication))
         ConnectedButtonGroup(
             options = catalogKeys,
             selectedOption = medicineDraft.medicationKey ?: catalogKeys.first(),
@@ -408,7 +408,7 @@ private fun NewMedicinePreparationForm(
         }
     }
     if (medicineDraft.requiresPreparationTypeSelection()) {
-        EditorSectionLabel(stringResource(R.string.field_preparation_type))
+        MedicationEditorSectionLabel(stringResource(R.string.field_preparation_type))
         val options = ambiguousPreparationTypes(medicineDraft.form)
         ConnectedButtonGroup(
             options = options,
@@ -438,12 +438,12 @@ private fun NewMedicinePreparationForm(
             } else {
                 R.string.validation_pill_strength_required
             }
-            NumericField(
+            MedicationNumericField(
                 value = medicineDraft.pillStrengthMg,
                 label = if (isCapsule) {
-                    fieldLabelWithUnit(R.string.field_capsule_strength_mg, rawMassUnit)
+                    medicationEditorFieldLabelWithUnit(R.string.field_capsule_strength_mg, rawMassUnit)
                 } else {
-                    fieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit)
+                    medicationEditorFieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit)
                 },
                 suffix = stringResource(rawMassUnit),
                 leadingIconRes = R.drawable.ic_medication,
@@ -472,9 +472,9 @@ private fun NewMedicinePreparationForm(
         }
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> {
-            NumericField(
+            MedicationNumericField(
                 value = medicineDraft.singleUseVialStrengthMg,
-                label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
+                label = medicationEditorFieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
                 suffix = stringResource(rawMassUnit),
                 leadingIconRes = R.drawable.ic_vaccines,
                 readOnly = readOnly,
@@ -502,9 +502,9 @@ private fun NewMedicinePreparationForm(
         }
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
-            NumericField(
+            MedicationNumericField(
                 value = medicineDraft.concentrationMgPerMl,
-                label = fieldLabelWithUnit(R.string.field_concentration_mg_per_ml, R.string.unit_mg_per_ml),
+                label = medicationEditorFieldLabelWithUnit(R.string.field_concentration_mg_per_ml, R.string.unit_mg_per_ml),
                 suffix = stringResource(R.string.unit_mg_per_ml),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
                 readOnly = readOnly,
@@ -526,9 +526,9 @@ private fun NewMedicinePreparationForm(
                 },
             )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-            NumericField(
+            MedicationNumericField(
                 value = medicineDraft.vialVolumeMl,
-                label = fieldLabelWithUnit(R.string.field_vial_volume_ml, R.string.unit_ml),
+                label = medicationEditorFieldLabelWithUnit(R.string.field_vial_volume_ml, R.string.unit_ml),
                 suffix = stringResource(R.string.unit_ml),
                 leadingIconRes = R.drawable.ic_fluid,
                 readOnly = readOnly,
@@ -552,9 +552,9 @@ private fun NewMedicinePreparationForm(
         }
 
         MedicinePreparationType.GEL_SACHET -> {
-            NumericField(
+            MedicationNumericField(
                 value = medicineDraft.gelConcentrationPercent,
-                label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
+                label = medicationEditorFieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
                 suffix = stringResource(R.string.unit_percent),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
                 readOnly = readOnly,
@@ -576,9 +576,9 @@ private fun NewMedicinePreparationForm(
                 },
             )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-            NumericField(
+            MedicationNumericField(
                 value = medicineDraft.sachetWeightGrams,
-                label = fieldLabelWithUnit(R.string.field_sachet_weight_grams, R.string.unit_grams),
+                label = medicationEditorFieldLabelWithUnit(R.string.field_sachet_weight_grams, R.string.unit_grams),
                 suffix = stringResource(R.string.unit_grams),
                 leadingIconRes = R.drawable.ic_weight,
                 readOnly = readOnly,
@@ -602,9 +602,9 @@ private fun NewMedicinePreparationForm(
         }
 
         MedicinePreparationType.GEL_CONTAINER -> {
-            NumericField(
+            MedicationNumericField(
                 value = medicineDraft.gelConcentrationPercent,
-                label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
+                label = medicationEditorFieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
                 suffix = stringResource(R.string.unit_percent),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
                 readOnly = readOnly,
@@ -626,9 +626,9 @@ private fun NewMedicinePreparationForm(
                 },
             )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-            NumericField(
+            MedicationNumericField(
                 value = medicineDraft.containerWeightGrams,
-                label = fieldLabelWithUnit(R.string.field_container_weight_grams, R.string.unit_grams),
+                label = medicationEditorFieldLabelWithUnit(R.string.field_container_weight_grams, R.string.unit_grams),
                 suffix = stringResource(R.string.unit_grams),
                 leadingIconRes = R.drawable.ic_weight,
                 readOnly = readOnly,
@@ -652,7 +652,7 @@ private fun NewMedicinePreparationForm(
         }
 
         MedicinePreparationType.PATCH -> {
-            EditorSectionLabel(stringResource(R.string.field_patch_spec_kind))
+            MedicationEditorSectionLabel(stringResource(R.string.field_patch_spec_kind))
             ConnectedButtonGroup(
                 options = PatchSpecKind.entries,
                 selectedOption = medicineDraft.patchSpecKind,
@@ -671,9 +671,9 @@ private fun NewMedicinePreparationForm(
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             when (medicineDraft.patchSpecKind) {
                 PatchSpecKind.TOTAL_MG -> {
-                    NumericField(
+                    MedicationNumericField(
                         value = medicineDraft.patchTotalMg,
-                        label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
+                        label = medicationEditorFieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
                         suffix = stringResource(rawMassUnit),
                         leadingIconRes = R.drawable.ic_chronic,
                         readOnly = readOnly,
@@ -701,9 +701,9 @@ private fun NewMedicinePreparationForm(
                 }
 
                 PatchSpecKind.RELEASE_RATE -> {
-                    NumericField(
+                    MedicationNumericField(
                         value = medicineDraft.patchReleaseRateMcgPerDay,
-                        label = fieldLabelWithUnit(
+                        label = medicationEditorFieldLabelWithUnit(
                             R.string.field_patch_release_rate,
                             R.string.unit_mcg_day,
                         ),
@@ -821,98 +821,6 @@ private fun CustomDoseUnitPicker(
             )
         }
     }
-}
-
-// "Tablet strength" + "mg" → "Tablet strength (mg)". Used as the OutlinedTextField
-// label so the user can tell what unit they're typing in without scanning to the
-// trailing suffix (which is now redundant and dropped at each call site).
-@Composable
-private fun fieldLabelWithUnit(
-    @StringRes labelRes: Int,
-    @StringRes unitRes: Int,
-): String {
-    return "${stringResource(labelRes)} (${stringResource(unitRes)})"
-}
-
-@Composable
-private fun EditorSectionLabel(text: String, topPadding: Boolean = true) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 4.dp, top = if (topPadding) 4.dp else 0.dp),
-    )
-}
-
-@Composable
-private fun NumericField(
-    value: String,
-    label: String,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    suffix: String? = null,
-    readOnly: Boolean = false,
-    isError: Boolean = false,
-    @StringRes errorMessageRes: Int? = null,
-    @DrawableRes leadingIconRes: Int? = null,
-    keyboardType: KeyboardType = KeyboardType.Decimal,
-    showWarningIcon: Boolean = false,
-    focusRequester: FocusRequester? = null,
-    imeAction: ImeAction = ImeAction.Done,
-    onImeNext: (() -> Unit)? = null,
-) {
-    val focusManager = LocalFocusManager.current
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        readOnly = readOnly,
-        isError = isError,
-        label = { Text(text = label) },
-        suffix = suffix?.let { suffixText -> { Text(text = suffixText) } },
-        leadingIcon = leadingIconRes?.let { iconRes ->
-            {
-                Icon(
-                    painter = painterResource(iconRes),
-                    contentDescription = null,
-                )
-            }
-        },
-        trailingIcon = if (showWarningIcon) {
-            {
-                Icon(
-                    imageVector = Icons.Rounded.WarningAmber,
-                    contentDescription = stringResource(R.string.medication_editor_dose_warning),
-                    tint = MaterialTheme.colorScheme.error,
-                )
-            }
-        } else {
-            null
-        },
-        supportingText = errorMessageRes?.let { messageRes ->
-            {
-                Text(
-                    text = stringResource(messageRes),
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-        },
-        modifier = modifier
-            .fillMaxWidth()
-            .let { if (focusRequester != null) it.focusRequester(focusRequester) else it },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(
-            keyboardType = keyboardType,
-            imeAction = imeAction,
-        ),
-        keyboardActions = KeyboardActions(
-            onNext = {
-                onImeNext?.invoke() ?: focusManager.clearFocus()
-            },
-            onDone = { focusManager.clearFocus() },
-        ),
-    )
 }
 
 // The set of editable text fields in CreateMedicineSheet, in render order.
