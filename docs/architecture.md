@@ -220,19 +220,27 @@ Feature sub-packages, one screen tree each:
   including the optional stock-tracking opt-in step.
 - [`ui/catalog`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/catalog) — the medicine manager: list of
   catalog `Medicine` rows, the create-medicine bottom sheet, the
-  medicine detail/edit screen, the combined "new medicine slot" sheet
-  used when a slot needs a brand-new medicine, and the shared
-  manual-log-save helper. This is the surface that owns `Medicine`
-  identity; `ui/medication` (below) and `ui/log` consume it. The nested
+  medicine detail/edit screen, the two dose sheets that turn a medicine
+  into a slot result or a manual log (`CreateMedicineThenDoseSheet` for a
+  brand-new medicine, `ExistingMedicineDoseSheet` for an existing one),
+  and the shared manual-log-save helper. This is the surface that owns
+  `Medicine` identity; `ui/medication` (below) and `ui/log` consume it. The nested
   `ui/catalog/stock` package holds the per-medicine stock controls — the
   `StockSection` block on the detail screen, the `AdjustStockSheet`
   (recount / received forms), and the `OpenContainerEditDialog`.
-- [`ui/medication`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/medication) — slot editor sheets and
-  application-type icons reused across plan and log. Picks an existing
-  `Medicine` (via `ui/catalog`) and edits the slot's dose instruction
-  and times; does not own medicine identity.
-- [`ui/log`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/log) — the add-entry bottom sheet
-  (single-entry log, batch quick-log, edit-existing-entry).
+- [`ui/medication`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/medication) — the medication-editor
+  building blocks shared across the plan and log surfaces: shared field
+  primitives (`MedicationEditorFields`), a pure dose-draft reducer
+  (`MedicationDoseDraft`) that the slot and log view-models round-trip
+  through, the shared editor content and scaffold, and the two named
+  sheet entry points — `MedicationGroupSlotEditorSheet` (edits a regimen
+  slot) and `MedicationLogEntryEditorSheet` (edits/displays a history
+  entry). Consumes `Medicine` identity from `ui/catalog`; does not own it.
+- [`ui/log`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/log) — the medication-log-entry sheet
+  (`MedicationLogEntryScreen`): edit an existing entry, or quick-log a
+  scheduled dose from a group. Medicine identity is locked and only the
+  applied date/time is editable — direct manual logs are created from the
+  catalog dose sheets above, not here.
 
 Shared sub-packages:
 
