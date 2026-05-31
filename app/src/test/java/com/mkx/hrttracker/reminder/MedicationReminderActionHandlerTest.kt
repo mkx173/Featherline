@@ -463,6 +463,155 @@ class MedicationReminderActionHandlerTest {
     }
 
     @Test
+    fun logNow_logsGroupArchivedAfterNotificationFired() = runTest {
+        // The notification fired while the group was active; the user then archived the
+        // group in-app (which cancels the future alarm but leaves the posted notification
+        // up) and tapped "Log all". An explicit Log-all must still write the dose rather
+        // than silently no-op.
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("a1b2c3d4-0000-0000-0000-000000000001"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+            archivedAt = Instant.parse("2026-04-20T00:05:00Z"),
+        )
+        val slot = group.toReminderSlot(scheduledAt)
+        val savedEntries = slot<Collection<MedicationLogEntryInput>>()
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } just Runs
+
+        actionHandler.logNow(
+            slots = listOf(slot),
+            logTargets = null,
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(10),
+        )
+
+        assertEquals(listOf(group.uuid), savedEntries.captured.map { it.sourceGroupUuid })
+    }
+
+    @Test
+    fun logNow_logsGroupWithNotificationsDisabledAfterNotificationFired() = runTest {
+        // Same shape as the archive case, but the post-fire change is disabling the
+        // group's notifications. An explicit Log-all tap on the still-visible
+        // notification must still write the dose.
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("a1b2c3d4-0000-0000-0000-000000000002"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+            notificationsEnabled = false,
+        )
+        val slot = group.toReminderSlot(scheduledAt)
+        val savedEntries = slot<Collection<MedicationLogEntryInput>>()
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } just Runs
+
+        actionHandler.logNow(
+            slots = listOf(slot),
+            logTargets = null,
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(10),
+        )
+
+        assertEquals(listOf(group.uuid), savedEntries.captured.map { it.sourceGroupUuid })
+    }
+
+    @Test
+    fun logNow_inMixedBundle_logsBothActiveAndArchivedGroups() = runTest {
+        // A bundle spanning two groups fired; one was archived afterwards. Log-all writes
+        // both — the archived group (explicit re-log) and, critically, the still-active
+        // group, which must not be collateral-dropped because a sibling went archived.
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val archivedGroup = medicationGroup(
+            uuid = UUID.fromString("a1b2c3d4-0000-0000-0000-000000000003"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+            archivedAt = Instant.parse("2026-04-20T00:05:00Z"),
+        )
+        val activeGroup = medicationGroup(
+            uuid = UUID.fromString("a1b2c3d4-0000-0000-0000-000000000004"),
+            name = "Spiro",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.SPIRONOLACTONE,
+            medicationCount = 1,
+        )
+        val archivedSlot = archivedGroup.toReminderSlot(scheduledAt)
+        val activeSlot = activeGroup.toReminderSlot(scheduledAt)
+        val savedEntries = slot<Collection<MedicationLogEntryInput>>()
+        coEvery { groupRepository.getGroup(archivedGroup.uuid) } returns archivedGroup
+        coEvery { groupRepository.getGroup(activeGroup.uuid) } returns activeGroup
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } just Runs
+
+        actionHandler.logNow(
+            slots = listOf(archivedSlot, activeSlot),
+            logTargets = null,
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(10),
+        )
+
+        assertEquals(
+            listOf(archivedGroup.uuid, activeGroup.uuid),
+            savedEntries.captured.map { it.sourceGroupUuid },
+        )
+    }
+
+    @Test
+    fun remindLater_inMixedBundle_snoozesOnlyActiveGroup() = runTest {
+        // Boundary opposite to Log-all: snooze must NOT resurrect a group archived after
+        // the bundle fired. The archived slot is dropped and only the active group's slot
+        // is snoozed — re-nagging about an archived group would be wrong.
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val archivedGroup = medicationGroup(
+            uuid = UUID.fromString("a1b2c3d4-0000-0000-0000-000000000005"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+            archivedAt = Instant.parse("2026-04-20T00:05:00Z"),
+        )
+        val activeGroup = medicationGroup(
+            uuid = UUID.fromString("a1b2c3d4-0000-0000-0000-000000000006"),
+            name = "Spiro",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.SPIRONOLACTONE,
+            medicationCount = 1,
+        )
+        val archivedSlot = archivedGroup.toReminderSlot(scheduledAt)
+        val activeSlot = activeGroup.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(archivedGroup.uuid) } returns archivedGroup
+        coEvery { groupRepository.getGroup(activeGroup.uuid) } returns activeGroup
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery {
+            snoozeScheduler.snoozeSlots(slots = listOf(activeSlot), now = scheduledAt.plusMinutes(1))
+        } returns listOf(
+            MedicationReminderSnoozeRecord(
+                slot = activeSlot,
+                snoozeAt = scheduledAt.plusMinutes(16),
+                snoozeCount = 1,
+            )
+        )
+
+        actionHandler.remindLater(
+            slots = listOf(archivedSlot, activeSlot),
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(1),
+        )
+
+        coVerify { snoozeScheduler.snoozeSlots(slots = listOf(activeSlot), now = scheduledAt.plusMinutes(1)) }
+        coVerify(exactly = 0) { snoozeScheduler.snoozeSlots(slots = match { archivedSlot in it }, now = any()) }
+    }
+
+    @Test
     fun showPostLogToast_rethrowsCancellation() = runTest {
         val cancellation = CancellationException("projection cancelled")
         coEvery { medicineStockRepository.projectAllOnce(any()) } throws cancellation
@@ -650,6 +799,8 @@ class MedicationReminderActionHandlerTest {
         time: LocalTime,
         medicationKey: MedicationKey,
         medicationCount: Int,
+        notificationsEnabled: Boolean = true,
+        archivedAt: Instant? = null,
     ): MedicationGroup {
         return MedicationGroup(
             uuid = uuid,
@@ -669,9 +820,10 @@ class MedicationReminderActionHandlerTest {
                     count = medicationCount,
                 )
             ),
-            notificationsEnabled = true,
+            notificationsEnabled = notificationsEnabled,
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
             updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+            archivedAt = archivedAt,
         )
     }
 

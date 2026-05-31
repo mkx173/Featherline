@@ -57,7 +57,7 @@ class MedicationReminderActionHandler @Inject constructor(
         val entries = medicationLogRepository.getScheduledGroupEntriesSince(
             normalizedSlots.minOf(MedicationReminderSlot::scheduledAt)
         )
-        val groupsByUuid = loadRepresentedGroups(normalizedSlots)
+        val groupsByUuid = loadRepresentedGroups(normalizedSlots, forLogAll = true)
         // null logTargets = legacy pending intent posted before the shipping
         // format existed; preserve the previous "log everything missing"
         // behaviour for that case so the action still does something useful.
@@ -76,7 +76,7 @@ class MedicationReminderActionHandler @Inject constructor(
             } else {
                 null
             }
-            buildMissingReminderLogEntries(
+            buildMissingScheduledLogEntries(
                 group = group,
                 slot = slot,
                 entries = entries,
@@ -299,14 +299,20 @@ class MedicationReminderActionHandler @Inject constructor(
         return unfulfilledSlots
     }
 
+    // forLogAll relaxes the archive/notifications gate for the explicit "Log all" action:
+    // once a notification has fired and the user taps it, the dose should be written even
+    // if the group was archived or had its notifications disabled afterwards. The snooze
+    // and remind-later paths keep the gate (default false) so they never resurrect such a
+    // group for future nagging.
     private suspend fun loadRepresentedGroups(
         slots: List<MedicationReminderSlot>,
+        forLogAll: Boolean = false,
     ): Map<UUID, MedicationGroup> {
         val requestedGroupUuids = slots.map(MedicationReminderSlot::groupUuid).distinct()
         val groups = requestedGroupUuids
             .mapNotNull { groupUuid ->
                 medicationGroupRepository.getGroup(groupUuid)
-                    ?.takeIf { group -> group.isActive() && group.notificationsEnabled }
+                    ?.takeIf { group -> forLogAll || (group.isActive() && group.notificationsEnabled) }
             }
             .associateBy(MedicationGroup::uuid)
         diagnosticsLogger.info(
@@ -317,20 +323,6 @@ class MedicationReminderActionHandler @Inject constructor(
     }
 }
 
-internal fun buildMissingReminderLogEntries(
-    group: MedicationGroup,
-    slot: MedicationReminderSlot,
-    entries: List<MedicationLogEntry>,
-    appliedAt: LocalDateTime,
-    zoneId: ZoneId = ZoneId.systemDefault(),
-    restrictToSignatures: Set<MedicationSignature>? = null,
-): List<MedicationLogEntryInput> {
-    if (!group.isActive() || !group.notificationsEnabled || group.medications.isEmpty()) {
-        return emptyList()
-    }
-    return buildMissingScheduledLogEntries(group, slot, entries, appliedAt, zoneId, restrictToSignatures)
-}
-
 internal fun buildMissingScheduledLogEntries(
     group: MedicationGroup,
     slot: MedicationReminderSlot,
@@ -339,10 +331,10 @@ internal fun buildMissingScheduledLogEntries(
     zoneId: ZoneId = ZoneId.systemDefault(),
     restrictToSignatures: Set<MedicationSignature>? = null,
 ): List<MedicationLogEntryInput> {
-    // Archive state is intentionally not gated here: the widget quick-log path logs
-    // archived groups on purpose (re-logging a deleted dose), and the reminder caller
-    // already filters archived/notifications-disabled groups upstream in
-    // buildMissingReminderLogEntries.
+    // Archive / notification state is intentionally not gated here — callers decide. Both
+    // explicit log actions (widget quick-log and the reminder "Log all") log archived or
+    // notifications-disabled groups on purpose, e.g. re-logging a deleted dose. The snooze
+    // and remind-later paths filter such groups upstream in loadRepresentedGroups instead.
     if (group.medications.isEmpty()) {
         return emptyList()
     }
