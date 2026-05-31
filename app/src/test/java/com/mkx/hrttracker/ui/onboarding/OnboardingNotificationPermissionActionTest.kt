@@ -2,9 +2,17 @@ package com.mkx.hrttracker.ui.onboarding
 
 import android.os.Build
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OnboardingNotificationPermissionActionTest {
+    @Test
+    fun exactAlarmCard_hiddenBelowS_shownFromS() {
+        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = 30))
+        assertTrue(shouldShowExactAlarmOnboardingCard(sdkInt = 31))
+    }
+
     @Test
     fun resolveOnboardingNotificationPermissionAction_shows_toast_when_runtime_dialog_is_suppressed() {
         assertEquals(

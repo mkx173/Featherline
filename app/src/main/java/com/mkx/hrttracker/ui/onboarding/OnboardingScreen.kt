@@ -169,6 +169,12 @@ internal fun resolveOnboardingNotificationPermissionAction(
     }
 }
 
+// SCHEDULE_EXACT_ALARM does not exist before API 31; exact alarms are granted
+// implicitly there, so the onboarding permission card is only meaningful from API 31.
+internal fun shouldShowExactAlarmOnboardingCard(sdkInt: Int = Build.VERSION.SDK_INT): Boolean {
+    return sdkInt >= Build.VERSION_CODES.S
+}
+
 @Composable
 fun OnboardingScreen(
     onOpenPrivacyPolicy: () -> Unit,
@@ -199,6 +205,7 @@ fun OnboardingScreen(
     val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
     val notificationsGranted = reminderCapabilityState.hasNotificationAccess
     val exactAlarmGranted = reminderCapabilityState.hasExactAlarmAccess
+    val showExactAlarmCard = shouldShowExactAlarmOnboardingCard()
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     val notificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
@@ -328,6 +335,7 @@ fun OnboardingScreen(
                             2 -> NotificationsStep(
                                 notificationsGranted = notificationsGranted,
                                 exactAlarmGranted = exactAlarmGranted,
+                                showExactAlarmCard = showExactAlarmCard,
                                 onAllowNotifications = {
                                     val hasRuntimePerm: Boolean
                                     val shouldShowRationale: Boolean
@@ -378,11 +386,13 @@ fun OnboardingScreen(
                                     }
                                 },
                                 onAllowExactAlarm = {
-                                    val intent = Intent(
-                                        Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                                        "package:${context.packageName}".toUri()
-                                    )
-                                    exactAlarmLauncher.launch(intent)
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        val intent = Intent(
+                                            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                            "package:${context.packageName}".toUri()
+                                        )
+                                        exactAlarmLauncher.launch(intent)
+                                    }
                                 },
                             )
                             3 -> UsefulInfoStep(
@@ -1045,6 +1055,7 @@ private fun AcceptanceCheckbox(
 private fun NotificationsStep(
     notificationsGranted: Boolean,
     exactAlarmGranted: Boolean,
+    showExactAlarmCard: Boolean,
     onAllowNotifications: () -> Unit,
     onAllowExactAlarm: () -> Unit,
 ) {
@@ -1068,19 +1079,21 @@ private fun NotificationsStep(
             optional = false,
             onAllow = onAllowNotifications,
             index = 0,
-            count = 2,
+            count = if (showExactAlarmCard) 2 else 1,
         )
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-        PermissionCard(
-            iconPainter = painterResource(R.drawable.ic_alarm_filled),
-            title = stringResource(R.string.onboarding_notifications_alarm_title),
-            desc = stringResource(R.string.onboarding_notifications_alarm_desc),
-            granted = exactAlarmGranted,
-            optional = true,
-            onAllow = onAllowExactAlarm,
-            index = 1,
-            count = 2,
-        )
+        if (showExactAlarmCard) {
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+            PermissionCard(
+                iconPainter = painterResource(R.drawable.ic_alarm_filled),
+                title = stringResource(R.string.onboarding_notifications_alarm_title),
+                desc = stringResource(R.string.onboarding_notifications_alarm_desc),
+                granted = exactAlarmGranted,
+                optional = true,
+                onAllow = onAllowExactAlarm,
+                index = 1,
+                count = 2,
+            )
+        }
     }
 }
 
@@ -1479,6 +1492,7 @@ private fun OnboardingNotificationsPreview() {
         NotificationsStep(
             notificationsGranted = false,
             exactAlarmGranted = false,
+            showExactAlarmCard = true,
             onAllowNotifications = { },
             onAllowExactAlarm = { },
         )
