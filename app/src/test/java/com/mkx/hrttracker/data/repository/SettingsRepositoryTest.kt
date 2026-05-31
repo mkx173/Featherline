@@ -15,7 +15,7 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
-import com.mkx.hrttracker.util.currentAppLocale
+import com.mkx.hrttracker.util.appLanguageLocale
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -54,7 +54,7 @@ class SettingsRepositoryTest {
     fun setUp() {
         mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
         val context: Context = mockk()
-        every { context.currentAppLocale() } returns Locale.ENGLISH
+        every { appLanguageLocale() } returns Locale.ENGLISH
 
         dataStore = PreferenceDataStoreFactory.create(
             scope = testScope,

@@ -25,7 +25,7 @@ import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.SettingsState
-import com.mkx.hrttracker.util.currentAppLocale
+import com.mkx.hrttracker.util.appLanguageLocale
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -429,8 +429,8 @@ class SettingsRepository @Inject constructor(
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(option.languageTag))
     }
 
-    fun refreshAppLanguageOption(sourceContext: Context = context) {
-        appLanguageOption.value = AppLanguageOption.fromLocale(sourceContext.currentAppLocale())
+    fun refreshAppLanguageOption() {
+        appLanguageOption.value = AppLanguageOption.fromLocale(appLanguageLocale())
     }
 
     private fun preferencesToStoredSettingsState(preferences: Preferences): SettingsState {
@@ -516,6 +516,6 @@ class SettingsRepository @Inject constructor(
     }
 
     private fun resolveCurrentAppLanguage(): AppLanguageOption {
-        return AppLanguageOption.fromLocale(context.currentAppLocale())
+        return AppLanguageOption.fromLocale(appLanguageLocale())
     }
 }

@@ -151,7 +151,7 @@ class MainActivity : AppCompatActivity() {
                 (shouldWaitForHomeShell && !mainViewModel.uiState.value.splashReady)
         }
         diagnosticsLogger.info(TAG, "main_activity_splash_condition_installed")
-        settingsRepository.refreshAppLanguageOption(this)
+        settingsRepository.refreshAppLanguageOption()
         diagnosticsLogger.info(TAG, "main_activity_language_refresh_requested")
 
         setContent {

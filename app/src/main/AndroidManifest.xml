@@ -27,7 +27,7 @@
             android:windowSoftInputMode="adjustResize"
             android:exported="true"
             android:launchMode="singleTop"
-            android:configChanges="uiMode|locale|layoutDirection"
+            android:configChanges="uiMode|layoutDirection"
             android:theme="@style/AppTheme.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

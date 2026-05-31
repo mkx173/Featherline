@@ -47,6 +47,7 @@ import com.mkx.hrttracker.ui.medication.validationErrorRes
 import com.mkx.hrttracker.ui.medication.withCountText
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
+import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.NonCancellable
@@ -203,7 +204,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 _uiState.update { currentState ->
                     applyDefaultGroupNameToEditorState(
                         currentState = currentState,
-                        defaultGroupName = context.getString(
+                        defaultGroupName = context.withAppLanguage().getString(
                             R.string.default_group_name_format, index
                         )
                     )
@@ -854,7 +855,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
 
         val index = settingsRepository.consumeNextGroupNameIndex()
-        return context.getString(R.string.default_group_name_format, index)
+        return context.withAppLanguage().getString(R.string.default_group_name_format, index)
     }
 
     fun saveGroup(
