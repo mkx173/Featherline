@@ -133,7 +133,7 @@ class MedicationEditorSheetsTest {
 
     @Test
     fun medicationEditorContentAndSummaryRequireResolvedMedicine() {
-        val source = Files.readString(medicationEditorSheetsSourcePath())
+        val source = Files.readString(medicationDoseEditorContentSourcePath())
 
         assertTrue(
             source.contains(
@@ -215,11 +215,11 @@ class MedicationEditorSheetsTest {
         )
     }
 
-    private fun medicationEditorSheetsSourcePath(): Path {
+    private fun medicationDoseEditorContentSourcePath(): Path {
         val userDir = Path.of(System.getProperty("user.dir"))
         return listOf(
-            userDir.resolve("src/main/java/com/mkx/hrttracker/ui/medication/MedicationEditorSheets.kt"),
-            userDir.resolve("app/src/main/java/com/mkx/hrttracker/ui/medication/MedicationEditorSheets.kt"),
+            userDir.resolve("src/main/java/com/mkx/hrttracker/ui/medication/MedicationDoseEditorContent.kt"),
+            userDir.resolve("app/src/main/java/com/mkx/hrttracker/ui/medication/MedicationDoseEditorContent.kt"),
         ).first(Files::exists)
     }
 }
