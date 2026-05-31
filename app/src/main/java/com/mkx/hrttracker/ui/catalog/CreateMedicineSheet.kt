@@ -81,6 +81,15 @@ import com.mkx.hrttracker.ui.medication.supportsCatalogSelection
 import com.mkx.hrttracker.util.labelRes
 import java.util.UUID
 
+/**
+ * Bottom sheet that creates a catalog `Medicine` and nothing else.
+ *
+ * Opened from: the medicine manager ("add medicine").
+ * Hosted by: MedicinesScreen.
+ * Produces: a catalog `Medicine` (CreateMedicineSaveResult); never returns a
+ *   regimen slot and never writes a history log.
+ * Identity: fully editable - this sheet is the identity editor.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateMedicineSheet(

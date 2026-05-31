@@ -122,10 +122,28 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.math.roundToInt
 
+// Sheet entry-point map (see notes/superpowers/plans/2026-05-31-medication-sheet-refactor.md):
+//   CreateMedicineSheet            — creates a catalog Medicine only. (keep)
+//   NewMedicineSlotSheet           — → CreateMedicineThenDoseSheet (creates Medicine, then returns slot OR saves log)
+//   MedicineSlotDraftSheet         — → ExistingMedicineDoseSheet (existing Medicine, then returns slot OR saves log)
+//   MedicationDefinitionEditorSheet— → MedicationGroupSlotEditorSheet (edits a regimen slot in the group editor)
+//   MedicationLogEntryEditorSheet  — edits/creates a history MedicationLog entry. (keep)
+//   AddEntryScreenContent          — private host adapter for MedicationLogEntryEditorSheet. (keep, private)
+
 // ---------------------------------------------------------------------------
 // Public sheet entry points (Task 6 Step 5).
 // ---------------------------------------------------------------------------
 
+/**
+ * Bottom sheet that edits a medication slot inside a regimen group.
+ *
+ * Opened from: the medication group editor when adding or editing a group slot.
+ * Hosted by: MedicationGroupEditorScreen.
+ * Produces: a regimen `MedicineSlotResult`; never creates a catalog [Medicine]
+ *   and never writes a history `MedicationLog`.
+ * Identity: editable only when [canEditMedicationIdentity] is true; otherwise
+ *   locked to [resolvedMedicine].
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MedicationDefinitionEditorSheet(
@@ -183,6 +201,16 @@ fun MedicationDefinitionEditorSheet(
     }
 }
 
+/**
+ * Bottom sheet that edits or creates a history `MedicationLog` entry.
+ *
+ * Opened from: add-entry and history-log edit flows routed through AddEntryScreen.
+ * Hosted by: AddEntryScreenContent.
+ * Produces: a saved history `MedicationLog`; never creates a catalog [Medicine]
+ *   and never returns a regimen [MedicineSlotResult].
+ * Identity: editable when creating a standalone log, or locked to
+ *   [lockedMedicine] when editing/logging against an existing medicine.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MedicationLogEntryEditorSheet(

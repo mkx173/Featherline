@@ -42,10 +42,13 @@ import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import java.time.LocalDate
 
 /**
- * Dose-instruction sheet hosted by the medicine manager when a picker tap
- * needs to return a complete slot (route + dose + count). The sheet starts
- * pre-filled from the resolved medicine and refuses to save until the draft
- * validates; only then does the result flow back to the caller.
+ * Bottom sheet that starts from an existing catalog `Medicine` and captures dose details.
+ *
+ * Opened from: medicine-picking flows that already resolved a catalog medicine.
+ * Hosted by: MedicinesScreen.
+ * Produces: either a regimen `MedicineSlotResult` or a saved history `MedicationLog`;
+ *   never creates a catalog medicine.
+ * Identity: locked to the provided `Medicine`; only dose/log details are editable.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

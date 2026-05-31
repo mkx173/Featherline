@@ -34,6 +34,15 @@ import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import java.time.LocalDate
 
+/**
+ * Bottom sheet that creates a catalog `Medicine` and then captures dose details.
+ *
+ * Opened from: the medicine manager and onboarding create-then-dose flows.
+ * Hosted by: MedicinesScreen / OnboardingScreen.
+ * Produces: a catalog `Medicine` first, then either a regimen
+ *   `MedicineSlotResult` or a saved history `MedicationLog`.
+ * Identity: fully editable while creating the catalog medicine.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewMedicineSlotSheet(
