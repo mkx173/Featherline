@@ -176,7 +176,7 @@ internal fun CreateMedicineForm(
     readOnly: Boolean,
     followUpFocusRequester: FocusRequester? = null,
     // Surfaces the high-dose warning on the strength field for flows that have
-    // no medicine summary card to host it (NewMedicineSlotSheet). Callers that
+    // no medicine summary card to host it (CreateMedicineThenDoseSheet). Callers that
     // render the card leave this false and keep the warning in the card.
     showStrengthDoseWarning: Boolean = false,
 ) {

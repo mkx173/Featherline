@@ -45,19 +45,19 @@ import java.time.LocalDate
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NewMedicineSlotSheet(
+fun CreateMedicineThenDoseSheet(
     sheetState: SheetState,
     onDismissRequest: () -> Unit,
     onCloseClick: () -> Unit,
     onGroupSlotResolved: (MedicineSlotResult, () -> Unit) -> Unit,
     modifier: Modifier = Modifier,
-    mode: NewMedicineSlotSheetMode = NewMedicineSlotSheetMode.GROUP_SLOT,
+    mode: CreateMedicineThenDoseSheetMode = CreateMedicineThenDoseSheetMode.GROUP_SLOT,
     onManualLogSaved: (() -> Unit) -> Unit = { consumeSavedState -> consumeSavedState() },
     onManualLogSaveFailure: () -> Unit = { },
     viewModel: NewMedicineSlotViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val isManualLogMode = mode == NewMedicineSlotSheetMode.MANUAL_LOG
+    val isManualLogMode = mode == CreateMedicineThenDoseSheetMode.MANUAL_LOG
     val isSheetLocked = uiState.isSaving || uiState.isSaved
     val appLocale = rememberAppLocale()
     val today = remember { LocalDate.now() }
@@ -110,8 +110,8 @@ fun NewMedicineSlotSheet(
         disclaimerKinds = MedicalDisclaimerSets.medicationEditor,
         onConfirm = {
             when (mode) {
-                NewMedicineSlotSheetMode.GROUP_SLOT -> viewModel.saveGroupSlot()
-                NewMedicineSlotSheetMode.MANUAL_LOG -> viewModel.saveManualLog()
+                CreateMedicineThenDoseSheetMode.GROUP_SLOT -> viewModel.saveGroupSlot()
+                CreateMedicineThenDoseSheetMode.MANUAL_LOG -> viewModel.saveManualLog()
             }
         },
     ) {
@@ -202,13 +202,13 @@ fun NewMedicineSlotSheet(
     }
 }
 
-enum class NewMedicineSlotSheetMode {
+enum class CreateMedicineThenDoseSheetMode {
     GROUP_SLOT,
     MANUAL_LOG,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-internal fun canHideNewMedicineSlotSheet(
+internal fun canHideCreateMedicineThenDoseSheet(
     value: SheetValue,
     isSlotLocked: Boolean,
     allowCompletionHide: Boolean,

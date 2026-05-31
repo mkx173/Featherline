@@ -68,7 +68,7 @@ class MedicinesScreenLayoutTest {
     @Test
     fun medicineManagerAddNewTarget_usesCombinedSheetForGroupSlotMode() {
         assertEquals(
-            MedicineManagerAddNewTarget.NewMedicineSlot(NewMedicineSlotSheetMode.GROUP_SLOT),
+            MedicineManagerAddNewTarget.NewMedicineSlot(CreateMedicineThenDoseSheetMode.GROUP_SLOT),
             medicineManagerAddNewTarget(MedicineManagerLaunchMode.GroupSlot("group-slot-1")),
         )
     }
@@ -76,7 +76,7 @@ class MedicinesScreenLayoutTest {
     @Test
     fun medicineManagerAddNewTarget_usesCombinedSheetForManualLogMode() {
         assertEquals(
-            MedicineManagerAddNewTarget.NewMedicineSlot(NewMedicineSlotSheetMode.MANUAL_LOG),
+            MedicineManagerAddNewTarget.NewMedicineSlot(CreateMedicineThenDoseSheetMode.MANUAL_LOG),
             medicineManagerAddNewTarget(MedicineManagerLaunchMode.ManualLog),
         )
     }

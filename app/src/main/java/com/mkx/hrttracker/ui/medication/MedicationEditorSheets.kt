@@ -122,7 +122,7 @@ import kotlin.math.roundToInt
 
 // Sheet entry-point map (see notes/superpowers/plans/2026-05-31-medication-sheet-refactor.md):
 //   CreateMedicineSheet            — creates a catalog Medicine only. (keep)
-//   NewMedicineSlotSheet           — → CreateMedicineThenDoseSheet (creates Medicine, then returns slot OR saves log)
+//   CreateMedicineThenDoseSheet    — creates Medicine, then returns slot OR saves log. (keep)
 //   MedicineSlotDraftSheet         — → ExistingMedicineDoseSheet (existing Medicine, then returns slot OR saves log)
 //   MedicationGroupSlotEditorSheet — edits a regimen slot in the group editor. (keep)
 //   MedicationLogEntryEditorSheet  — edits/creates a history MedicationLog entry. (keep)
