@@ -1,11 +1,13 @@
 package com.mkx.hrttracker.ui.settings
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -1874,12 +1876,28 @@ private fun resolveAppVersionInfo(context: Context): AppVersionInfo {
         @Suppress("DEPRECATION")
         context.packageManager.getPackageInfo(context.packageName, 0)
     }
-    val versionCode = packageInfo.longVersionCode
+    val versionCode = resolvePackageVersionCode(packageInfo)
     val versionName = packageInfo.versionName?.takeIf { it.isNotBlank() } ?: versionCode.toString()
     return AppVersionInfo(
         versionName = versionName,
         versionCode = versionCode
     )
+}
+
+internal fun resolvePackageVersionCode(
+    packageInfo: PackageInfo,
+    sdkInt: Int = Build.VERSION.SDK_INT,
+): Long {
+    if (sdkInt < Build.VERSION_CODES.P) {
+        @Suppress("DEPRECATION")
+        return packageInfo.versionCode.toLong()
+    }
+    return resolveLongPackageVersionCode(packageInfo)
+}
+
+@SuppressLint("NewApi")
+private fun resolveLongPackageVersionCode(packageInfo: PackageInfo): Long {
+    return packageInfo.longVersionCode
 }
 
 private fun launchFeedbackEmail(
