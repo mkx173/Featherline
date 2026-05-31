@@ -112,6 +112,15 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `pure black setting persists and defaults off`() = runTest(testDispatcher) {
+        assertEquals(false, settingsRepository.getCurrentSettings().pureBlackEnabled)
+
+        settingsRepository.setPureBlackEnabled(true)
+
+        assertEquals(true, settingsRepository.getCurrentSettings().pureBlackEnabled)
+    }
+
+    @Test
     fun `group name counter peek is stable and consume advances`() = runTest(testDispatcher) {
         assertEquals(1, settingsRepository.peekNextGroupNameIndex())
         assertEquals(1, settingsRepository.peekNextGroupNameIndex())
@@ -285,6 +294,7 @@ class SettingsRepositoryTest {
         settingsRepository.restoreSettings(
             darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
             adaptiveColorEnabled = true,
+            pureBlackEnabled = false,
             remindersEnabled = true,
             showArchivedGroupRecords = true,
             hideReferenceRanges = false,

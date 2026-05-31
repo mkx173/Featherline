@@ -159,6 +159,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setPureBlackEnabled(enabled: Boolean) {
+        launchSettingsMutation {
+            settingsRepository.setPureBlackEnabled(enabled)
+        }
+    }
+
     fun setShowArchivedGroupRecords(enabled: Boolean) {
         launchSettingsMutation {
             settingsRepository.setShowArchivedGroupRecords(enabled)

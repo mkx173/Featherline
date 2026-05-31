@@ -266,6 +266,7 @@ class BackupRestoreService @Inject constructor(
         settingsRepository.restoreSettings(
             darkModeOption = validatedSnapshot.settings.darkModeOption,
             adaptiveColorEnabled = validatedSnapshot.settings.adaptiveColorEnabled,
+            pureBlackEnabled = validatedSnapshot.settings.pureBlackEnabled,
             remindersEnabled = validatedSnapshot.settings.remindersEnabled,
             showArchivedGroupRecords = validatedSnapshot.settings.showArchivedGroupRecords,
             hideReferenceRanges = validatedSnapshot.settings.hideReferenceRanges,
@@ -787,6 +788,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
     return ValidatedBackupSettings(
         darkModeOption = darkModeOption,
         adaptiveColorEnabled = adaptiveColorEnabled,
+        pureBlackEnabled = pureBlackEnabled,
         remindersEnabled = remindersEnabled,
         showArchivedGroupRecords = showArchivedGroupRecords,
         hideReferenceRanges = hideReferenceRanges,
@@ -1154,6 +1156,7 @@ internal data class ValidatedBackupSnapshot(
 internal data class ValidatedBackupSettings(
     val darkModeOption: DarkModeOption,
     val adaptiveColorEnabled: Boolean,
+    val pureBlackEnabled: Boolean,
     val remindersEnabled: Boolean,
     val showArchivedGroupRecords: Boolean,
     val hideReferenceRanges: Boolean,

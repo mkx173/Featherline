@@ -69,6 +69,7 @@ class SettingsViewModelTest {
         coEvery { settingsRepository.setRemindersEnabled(any()) } just Runs
         coEvery { settingsRepository.setScreenLockProtectionEnabled(any()) } just Runs
         coEvery { settingsRepository.setHideScreenContentEnabled(any()) } just Runs
+        coEvery { settingsRepository.setPureBlackEnabled(any()) } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
         coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
         every { diagnosticsExportService.buildExportFileName(any(), any()) } returns
@@ -370,6 +371,17 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { settingsRepository.setHideScreenContentEnabled(false) }
+    }
+
+    @Test
+    fun setPureBlackEnabled_delegatesToRepository() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setPureBlackEnabled(true)
+        advanceUntilIdle()
+
+        coVerify { settingsRepository.setPureBlackEnabled(true) }
     }
 
     @Test
