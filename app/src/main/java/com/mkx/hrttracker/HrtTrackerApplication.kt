@@ -1,7 +1,9 @@
 package com.mkx.hrttracker
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.app.UiModeManager
+import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.material3.ComposeMaterial3Flags
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -130,10 +132,30 @@ class HrtTrackerApplication : Application() {
             DarkModeOption.DARK -> UiModeManager.MODE_NIGHT_YES
         }
         AppCompatDelegate.setDefaultNightMode(appCompatNightMode)
-        getSystemService(UiModeManager::class.java).setApplicationNightMode(applicationNightMode)
+        applyApplicationNightModeIfAvailable(
+            uiModeManager = getSystemService(UiModeManager::class.java),
+            applicationNightMode = applicationNightMode,
+        )
     }
 
     private companion object {
         const val TAG = "HrtTrackerApplication"
     }
+}
+
+internal fun applyApplicationNightModeIfAvailable(
+    uiModeManager: UiModeManager,
+    applicationNightMode: Int,
+    sdkInt: Int = Build.VERSION.SDK_INT,
+) {
+    if (sdkInt < Build.VERSION_CODES.S) return
+    applyApplicationNightModeOnSOrAbove(uiModeManager, applicationNightMode)
+}
+
+@SuppressLint("NewApi")
+private fun applyApplicationNightModeOnSOrAbove(
+    uiModeManager: UiModeManager,
+    applicationNightMode: Int,
+) {
+    uiModeManager.setApplicationNightMode(applicationNightMode)
 }
