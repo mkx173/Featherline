@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BloodTestResultEntity::class,
         CustomBloodAnalyteEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
@@ -104,5 +104,13 @@ internal val MIGRATION_3_4: Migration = object : Migration(3, 4) {
         )
         db.execSQL("DROP TABLE medication_log_entries")
         db.execSQL("ALTER TABLE medication_log_entries_new RENAME TO medication_log_entries")
+    }
+}
+
+internal val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE medication_log_entries ADD COLUMN doseAmountDelta REAL"
+        )
     }
 }
