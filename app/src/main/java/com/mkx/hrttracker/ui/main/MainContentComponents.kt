@@ -3638,7 +3638,11 @@ private fun MainSectionHeader(
                 } else {
                     MaterialTheme.typography.labelMedium
                 },
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (emphasize) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 modifier = Modifier.alignByBaseline().cjkTextOffset(summary),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

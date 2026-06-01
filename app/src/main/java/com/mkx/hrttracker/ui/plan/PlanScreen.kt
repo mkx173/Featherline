@@ -749,7 +749,6 @@ private fun RegimenSection(
             SupportMessageListItem(
                 text = stringResource(R.string.plan_empty_state),
                 painter = painterResource(R.drawable.ic_info),
-                modifier = Modifier.padding(top = 4.dp)
             )
         } else {
             Column(

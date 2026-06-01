@@ -35,7 +35,7 @@ fun DangerZoneListItem(
         modifier = modifier.alpha(if (enabled) 1f else 0.72f),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         titleTextStyle = MaterialTheme.typography.titleMedium,
-        titleColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        titleColor = MaterialTheme.colorScheme.onSurface,
         leadingContent = {
             if (iconPainter != null) {
                 Icon(
