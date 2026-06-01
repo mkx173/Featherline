@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -277,6 +278,12 @@ private fun HomeMoreOptionsMenu(
 ) {
     var menuState by rememberSaveable { mutableStateOf(HomeMoreOptionsMenuState.CLOSED) }
     val menuExpansion = menuState.toHomeMoreOptionsMenuExpansion()
+    // Apply the picked unit only after the submenu has finished dismissing. Switching it
+    // immediately re-renders the chart underneath the menu on the same frame, which
+    // janks and swallows the dropdown's short dismiss animation. Deferring to onDispose
+    // lets the menu animate out first, then applies the change. (Mirrors the settings
+    // dropdowns' onExitFinished deferral.)
+    var pendingUnit by remember { mutableStateOf<BloodUnitKey?>(null) }
 
     fun updateMenuState(action: HomeMoreOptionsMenuAction) {
         menuState = reduceHomeMoreOptionsMenuState(menuState, action)
@@ -322,10 +329,18 @@ private fun HomeMoreOptionsMenu(
             expanded = menuExpansion.displayUnitExpanded,
             onDismissRequest = ::dismissMenus,
         ) {
+            DisposableEffect(Unit) {
+                onDispose {
+                    pendingUnit?.let { unit ->
+                        onUnitSelected(unit)
+                        pendingUnit = null
+                    }
+                }
+            }
             HomeDisplayUnitSubmenu(
                 selectedUnit = selectedUnit,
                 onUnitSelected = { unit ->
-                    onUnitSelected(unit)
+                    pendingUnit = unit
                     dismissMenus()
                 },
             )
