@@ -5,16 +5,22 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
+import com.mkx.hrttracker.ui.medication.adjustedActualDoseDelta
 import com.mkx.hrttracker.ui.medication.applyMedicinePicker
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
+import com.mkx.hrttracker.ui.medication.effectiveActualDoseAmount
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
+import com.mkx.hrttracker.ui.medication.parsePositiveDouble
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
 import com.mkx.hrttracker.ui.medication.toDoseInstruction
@@ -38,6 +44,7 @@ import javax.inject.Inject
 class NewMedicineSlotViewModel @Inject constructor(
     private val medicineRepository: MedicineRepository,
     private val medicationLogRepository: MedicationLogRepository,
+    private val medicineStockRepository: MedicineStockRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
@@ -49,11 +56,13 @@ class NewMedicineSlotViewModel @Inject constructor(
     internal constructor(
         medicineRepository: MedicineRepository,
         medicationLogRepository: MedicationLogRepository,
+        medicineStockRepository: MedicineStockRepository,
         medicationReminderScheduler: MedicationReminderScheduler,
         initialAppliedZoneId: ZoneId,
     ) : this(
         medicineRepository = medicineRepository,
         medicationLogRepository = medicationLogRepository,
+        medicineStockRepository = medicineStockRepository,
         medicationReminderScheduler = medicationReminderScheduler,
     ) {
         _uiState.value = NewMedicineSlotUiState(appliedZoneId = initialAppliedZoneId)
@@ -80,6 +89,7 @@ class NewMedicineSlotViewModel @Inject constructor(
                     medicineDraft = reduced.medicineDraft,
                     doseInstructionDraft = reduced.doseInstructionDraft,
                     countText = reduced.countText,
+                    doseAmountDelta = null,
                     errorMessageRes = reduced.errorMessageRes,
                     createSaveResult = null,
                     manualLogSaveResult = null,
@@ -98,6 +108,7 @@ class NewMedicineSlotViewModel @Inject constructor(
             } else {
                 state.copy(
                     doseInstructionDraft = transform(state.doseInstructionDraft),
+                    doseAmountDelta = null,
                     errorMessageRes = null,
                     createSaveResult = null,
                     manualLogSaveResult = null,
@@ -151,6 +162,26 @@ class NewMedicineSlotViewModel @Inject constructor(
                     manualLogSaveResult = null,
                 )
             }
+        }
+    }
+
+    fun adjustDoseAmountDelta(step: Double) {
+        _uiState.update { state ->
+            if (state.isLockedForUpdates()) {
+                return@update state
+            }
+            val scheduledAmount = state.scheduledNativeAmount ?: return@update state
+            if (!state.allowsActualDoseDelta) {
+                return@update state
+            }
+            state.copy(
+                doseAmountDelta = adjustedActualDoseDelta(
+                    scheduledAmount = scheduledAmount,
+                    currentDoseAmountDelta = state.doseAmountDelta,
+                    step = step,
+                ),
+                manualLogSaveResult = null,
+            )
         }
     }
 
@@ -242,6 +273,7 @@ class NewMedicineSlotViewModel @Inject constructor(
                     val applicationType = resolvedApplicationType(currentState)
                     val saveResult = saveManualMedicineLog(
                         medicationLogRepository = medicationLogRepository,
+                        medicineStockRepository = medicineStockRepository,
                         medicationReminderScheduler = medicationReminderScheduler,
                         medicineUuid = medicine.uuid,
                         resolvedApplicationType = applicationType,
@@ -251,6 +283,8 @@ class NewMedicineSlotViewModel @Inject constructor(
                             countText = currentState.countText,
                             preparationType = resolvedPreparationType(currentState),
                         ),
+                        doseAmountDelta = currentState.doseAmountDelta
+                            ?.takeIf { currentState.allowsActualDoseDelta },
                         appliedDate = currentState.appliedDate,
                         appliedTime = currentState.appliedTime,
                         appliedZoneId = currentState.appliedZoneId,
@@ -258,8 +292,9 @@ class NewMedicineSlotViewModel @Inject constructor(
                     updateIfCurrent(operationGeneration) {
                         it.copy(
                             isSaving = false,
-                            isSaved = saveResult == null,
-                            manualLogSaveResult = saveResult,
+                            isSaved = saveResult.isSuccess,
+                            manualLogSaveResult = saveResult.saveResult,
+                            postLogStockWarning = saveResult.postLogStockWarning,
                         )
                     }
                 }
@@ -274,6 +309,7 @@ class NewMedicineSlotViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 isSaved = false,
+                postLogStockWarning = null,
                 slotResult = null,
             )
         }
@@ -391,10 +427,67 @@ data class NewMedicineSlotUiState(
     val appliedDate: LocalDate = LocalDate.now(),
     val appliedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val appliedZoneId: ZoneId,
+    val doseAmountDelta: Double? = null,
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
     @param:StringRes val errorMessageRes: Int? = null,
     val createSaveResult: CreateMedicineSaveResult? = null,
     val manualLogSaveResult: MedicineSlotDraftSaveResult? = null,
+    val postLogStockWarning: PostLogStockWarning? = null,
     val slotResult: MedicineSlotResult? = null,
-)
+) {
+    val allowsActualDoseDelta: Boolean
+        get() {
+            val preparationType = resolvedPreparationType
+            val applicationType = resolvedApplicationTypeForDose(
+                preparationType = preparationType,
+                doseInstructionDraft = doseInstructionDraft,
+            )
+            return applicationType == preparationType.requiredActualDoseApplicationType &&
+                scheduledNativeAmount != null
+        }
+
+    val effectiveActualAmount: Double?
+        get() {
+            val scheduledAmount = scheduledNativeAmount ?: return null
+            return effectiveActualDoseAmount(
+                scheduledAmount = scheduledAmount,
+                doseAmountDelta = doseAmountDelta,
+            )
+        }
+
+    private val resolvedPreparationType: MedicinePreparationType
+        get() = medicineDraft.inferredOrSelectedPreparationType()
+            ?: doseInstructionDraft.preparationType
+
+    internal val scheduledNativeAmount: Double?
+        get() {
+            val instruction = runCatching { doseInstructionDraft.toDoseInstruction() }.getOrNull()
+                ?: return null
+            return when (resolvedPreparationType) {
+                MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
+                    if (instruction == DoseInstruction.WholeUnit) {
+                        parsePositiveDouble(medicineDraft.singleUseVialStrengthMg)
+                            ?.let(medicineDraft.customDoseUnit::toMg)
+                    } else {
+                        null
+                    }
+
+                MedicinePreparationType.INJECTION_MULTI_USE_VIAL ->
+                    (instruction as? DoseInstruction.VolumeMl)?.valueMl
+
+                MedicinePreparationType.GEL_CONTAINER ->
+                    (instruction as? DoseInstruction.WeightGrams)?.valueGrams
+
+                else -> null
+            }
+        }
+}
+
+private val MedicinePreparationType.requiredActualDoseApplicationType: MedicationApplicationType?
+    get() = when (this) {
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicationApplicationType.INJECTION
+        MedicinePreparationType.GEL_CONTAINER -> MedicationApplicationType.GEL
+        else -> null
+    }

@@ -3,7 +3,6 @@ package com.mkx.hrttracker.ui.log
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
-import com.mkx.hrttracker.data.repository.DoseInstructionCalculator
 import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -464,12 +463,12 @@ class MedicationLogEntryViewModelTest {
 
         val uiState = viewModel.uiState.value
         assertEquals(
-            DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON,
+            0.1,
             uiState.effectiveActualAmount ?: error("Missing effective actual amount"),
             1e-12,
         )
         assertEquals(
-            DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON - 0.2,
+            -0.1,
             uiState.doseAmountDelta ?: error("Missing dose amount delta"),
             0.0,
         )
@@ -1355,6 +1354,112 @@ class MedicationLogEntryViewModelTest {
 
         assertTrue(viewModel.uiState.value.isSaved)
         assertNull(viewModel.uiState.value.postLogStockWarning)
+    }
+
+    @Test
+    fun saveEntry_editDoesNotComputePostLogStockWarning() = runTest {
+        val entryId = UUID.fromString("8cc17f1e-3343-45dd-b3ce-5c8f20686f21")
+        val entry = testMedicationLogEntry(
+            uuid = entryId,
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+        )
+        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(entry)
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = entryId,
+                medicineUuid = estradiolMedicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+            )
+        } returns Unit
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(
+                medicine = estradiolMedicine,
+                state = MedicineStockState.OUT,
+            )
+        )
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = MedicationLogEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initialize(listOf(entryId.toString()))
+        advanceUntilIdle()
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.postLogStockWarning)
+        coVerify(exactly = 0) { medicineStockRepository.projectAllOnce(any()) }
+    }
+
+    @Test
+    fun saveEntry_bulkEditDoesNotComputePostLogStockWarning() = runTest {
+        val firstEntryId = UUID.fromString("8cc17f1e-3343-45dd-b3ce-5c8f20686f22")
+        val secondEntryId = UUID.fromString("8cc17f1e-3343-45dd-b3ce-5c8f20686f23")
+        val entries = listOf(
+            testMedicationLogEntry(
+                uuid = firstEntryId,
+                medicine = estradiolMedicine,
+                applicationType = MedicationApplicationType.ORAL,
+                sourceGroupUuid = null,
+                appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+            ),
+            testMedicationLogEntry(
+                uuid = secondEntryId,
+                medicine = estradiolMedicine,
+                applicationType = MedicationApplicationType.ORAL,
+                sourceGroupUuid = null,
+                appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+            ),
+        )
+        coEvery { medicationLogRepository.getEntries(listOf(firstEntryId, secondEntryId)) } returns entries
+        coEvery {
+            medicationLogRepository.saveEntries(
+                uuids = listOf(firstEntryId, secondEntryId),
+                medicineUuid = estradiolMedicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+            )
+        } returns Unit
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(
+                medicine = estradiolMedicine,
+                state = MedicineStockState.OUT,
+            )
+        )
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = MedicationLogEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initialize(listOf(firstEntryId.toString(), secondEntryId.toString()))
+        advanceUntilIdle()
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.postLogStockWarning)
+        coVerify(exactly = 0) { medicineStockRepository.projectAllOnce(any()) }
     }
 
     @Test

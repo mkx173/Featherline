@@ -56,6 +56,7 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -160,7 +161,7 @@ internal fun MedicinesScreen(
     modifier: Modifier = Modifier,
     launchMode: MedicineManagerLaunchMode = MedicineManagerLaunchMode.Manager,
     onSlotResolved: (MedicineSlotResult) -> Unit = { },
-    onManualLogSaved: () -> Unit = { },
+    onManualLogSaved: (PostLogStockWarning?) -> Unit = { },
     viewModel: MedicinesViewModel = hiltViewModel(),
     createMedicineViewModel: CreateMedicineViewModel = hiltViewModel(),
     slotDraftViewModel: MedicineSlotDraftViewModel = hiltViewModel(),
@@ -303,13 +304,13 @@ internal fun MedicinesScreen(
             mode = (medicineManagerAddNewTarget(launchMode) as? MedicineManagerAddNewTarget.NewMedicineSlot)
                 ?.mode
                 ?: error("CreateMedicineThenDoseSheet is not used in manager mode."),
-            onManualLogSaved = { consumeSavedState ->
+            onManualLogSaved = { warning, consumeSavedState ->
                 allowManualSlotCompletionHideState.value = true
                 hideBottomSheet(scope, createMedicineThenDoseSheetState) {
                     showCreateMedicineThenDoseSheet = false
                     allowManualSlotCompletionHideState.value = false
                     consumeSavedState()
-                    onManualLogSaved()
+                    onManualLogSaved(warning)
                 }
             },
             onManualLogSaveFailure = {
@@ -351,13 +352,13 @@ internal fun MedicinesScreen(
                 MedicineManagerLaunchMode.OnboardingStockOptIn,
                 is MedicineManagerLaunchMode.GroupSlot -> MedicineSlotDraftMode.GROUP_SLOT
             },
-            onManualLogSaved = { consumeSavedState ->
+            onManualLogSaved = { warning, consumeSavedState ->
                 allowManualSlotCompletionHideState.value = true
                 hideBottomSheet(scope, slotDraftSheetState) {
                     pendingSlotMedicineUuid = null
                     allowManualSlotCompletionHideState.value = false
                     consumeSavedState()
-                    onManualLogSaved()
+                    onManualLogSaved(warning)
                 }
             },
             onManualLogSaveFailure = {

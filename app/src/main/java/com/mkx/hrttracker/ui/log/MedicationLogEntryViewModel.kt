@@ -2,7 +2,6 @@ package com.mkx.hrttracker.ui.log
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mkx.hrttracker.data.repository.DoseInstructionCalculator
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
@@ -26,8 +25,10 @@ import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
+import com.mkx.hrttracker.ui.medication.adjustedActualDoseDelta
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction
+import com.mkx.hrttracker.ui.medication.effectiveActualDoseAmount
 import com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine
 import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import com.mkx.hrttracker.ui.medication.parseMedicationCountText
@@ -57,7 +58,6 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
-import kotlin.math.abs
 
 @HiltViewModel
 class MedicationLogEntryViewModel @Inject constructor(
@@ -240,16 +240,12 @@ class MedicationLogEntryViewModel @Inject constructor(
             if (!currentState.allowsActualDoseDelta) {
                 return@update currentState
             }
-            val currentDelta = currentState.doseAmountDelta ?: 0.0
-            val effectiveAmount = (scheduledAmount + currentDelta + step)
-                .coerceAtLeast(DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON)
-            val newDelta = effectiveAmount - scheduledAmount
             currentState.copy(
-                doseAmountDelta = if (abs(newDelta) < DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON) {
-                    null
-                } else {
-                    newDelta
-                },
+                doseAmountDelta = adjustedActualDoseDelta(
+                    scheduledAmount = scheduledAmount,
+                    currentDoseAmountDelta = currentState.doseAmountDelta,
+                    step = step,
+                ),
             )
         }
     }
@@ -398,7 +394,8 @@ class MedicationLogEntryViewModel @Inject constructor(
                 onFailure = { SaveEntryResult.FAILURE },
             )
             val isSaved = saveResult == null
-            val postLogStockWarning = if (isSaved && medicineUuid != null) {
+            val isNewInsert = request.editingEntryUuids.isEmpty()
+            val postLogStockWarning = if (isSaved && isNewInsert && medicineUuid != null) {
                 runCatching {
                     resolvePostLogStockWarning(
                         projections = medicineStockRepository.projectAllOnce(now = Instant.now()),
@@ -669,8 +666,10 @@ data class MedicationLogEntryUiState(
     val effectiveActualAmount: Double?
         get() {
             val scheduledAmount = scheduledNativeAmount ?: return null
-            return (scheduledAmount + (doseAmountDelta ?: 0.0))
-                .coerceAtLeast(DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON)
+            return effectiveActualDoseAmount(
+                scheduledAmount = scheduledAmount,
+                doseAmountDelta = doseAmountDelta,
+            )
         }
 
     internal val scheduledNativeAmount: Double?

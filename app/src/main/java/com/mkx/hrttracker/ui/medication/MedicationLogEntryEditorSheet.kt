@@ -56,6 +56,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
@@ -193,7 +194,7 @@ fun MedicationLogEntryEditorSheet(
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
         ActualAmountStepperCard(
-            lockedMedicine = lockedMedicine,
+            preparationType = lockedMedicine?.preparation?.type,
             allowsActualDoseDelta = allowsActualDoseDelta,
             doseAmountDelta = doseAmountDelta,
             effectiveActualAmount = effectiveActualAmount,
@@ -221,8 +222,8 @@ fun MedicationLogEntryEditorSheet(
 }
 
 @Composable
-private fun ActualAmountStepperCard(
-    lockedMedicine: Medicine?,
+internal fun ActualAmountStepperCard(
+    preparationType: MedicinePreparationType?,
     allowsActualDoseDelta: Boolean,
     doseAmountDelta: Double?,
     effectiveActualAmount: Double?,
@@ -231,7 +232,7 @@ private fun ActualAmountStepperCard(
     if (!allowsActualDoseDelta || effectiveActualAmount == null) {
         return
     }
-    val unitText = actualAmountUnitText(lockedMedicine?.preparation) ?: return
+    val unitText = actualAmountUnitText(preparationType) ?: return
     val delta = doseAmountDelta ?: 0.0
 
     EditorSegmentedListItem(
@@ -291,11 +292,11 @@ private fun ActualAmountStepperCard(
 }
 
 @Composable
-private fun actualAmountUnitText(preparation: MedicinePreparation?): String? {
-    val unitRes = when (preparation) {
-        is MedicinePreparation.InjectionSingleUseVial -> R.string.unit_mg
-        is MedicinePreparation.InjectionMultiUseVial -> R.string.unit_ml
-        is MedicinePreparation.GelContainer -> R.string.unit_grams
+private fun actualAmountUnitText(preparationType: MedicinePreparationType?): String? {
+    val unitRes = when (preparationType) {
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> R.string.unit_mg
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> R.string.unit_ml
+        MedicinePreparationType.GEL_CONTAINER -> R.string.unit_grams
         else -> return null
     }
     return stringResource(unitRes)

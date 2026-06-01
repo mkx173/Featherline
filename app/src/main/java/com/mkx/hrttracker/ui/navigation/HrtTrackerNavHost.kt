@@ -822,8 +822,11 @@ fun HrtTrackerNavHost(
                                 ?.set(groupSlotMode.resultKey, slotResult.toBundle())
                             navController.popBackStackSafely()
                         },
-                        onManualLogSaved = {
+                        onManualLogSaved = { warning ->
                             navController.popBackStackSafely()
+                            if (warning != null) {
+                                showPostLogStockWarning(warning)
+                            }
                         },
                     )
                 }

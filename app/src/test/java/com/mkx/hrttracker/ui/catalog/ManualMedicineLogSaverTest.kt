@@ -1,9 +1,17 @@
 package com.mkx.hrttracker.ui.catalog
 
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
+import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -22,6 +30,7 @@ import java.util.UUID
 
 class ManualMedicineLogSaverTest {
     private val medicationLogRepository: MedicationLogRepository = mockk()
+    private val medicineStockRepository: MedicineStockRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
 
     @Test
@@ -45,10 +54,12 @@ class ManualMedicineLogSaverTest {
                 appliedAtTimeZoneId = zoneId.id,
             )
         } returns Unit
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
         val result = saveManualMedicineLog(
             medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineUuid = medicineUuid,
             resolvedApplicationType = MedicationApplicationType.INJECTION,
@@ -59,17 +70,69 @@ class ManualMedicineLogSaverTest {
             appliedZoneId = zoneId,
         )
 
-        assertNull(result)
+        assertNull(result.saveResult)
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
     @Test
+    fun saveManualMedicineLog_passesDoseAmountDeltaAndReturnsPostLogWarning() = runTest {
+        val medicineUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000207")
+        val medicine = testMedicine(
+            uuid = medicineUuid,
+            key = MedicationKey.ESTRADIOL_VALERATE,
+        )
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicineUuid,
+                applicationType = MedicationApplicationType.INJECTION,
+                doseInstruction = DoseInstruction.VolumeMl(0.5),
+                sourceGroupUuid = null,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                doseAmountDelta = 0.1,
+            )
+        } returns Unit
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(
+                medicine = medicine,
+                state = MedicineStockState.IMMINENT,
+            )
+        )
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val result = saveManualMedicineLog(
+            medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineUuid = medicineUuid,
+            resolvedApplicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = DoseInstruction.VolumeMl(0.5),
+            count = 1,
+            doseAmountDelta = 0.1,
+            appliedDate = LocalDate.of(2026, 5, 24),
+            appliedTime = LocalTime.of(9, 0),
+            appliedZoneId = ZoneId.of("Asia/Tokyo"),
+        )
+
+        assertNull(result.saveResult)
+        assertEquals(
+            PostLogStockWarning.Single(medicine, MedicineStockState.IMMINENT),
+            result.postLogStockWarning,
+        )
+    }
+
+    @Test
     fun saveManualMedicineLog_failureReturnsFailureAndDoesNotReschedule() = runTest {
-        coEvery { medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } throws
+        coEvery { medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } throws
             IllegalStateException("save failed")
 
         val result = saveManualMedicineLog(
             medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000202"),
             resolvedApplicationType = MedicationApplicationType.ORAL,
@@ -80,7 +143,7 @@ class ManualMedicineLogSaverTest {
             appliedZoneId = ZoneId.of("Asia/Tokyo"),
         )
 
-        assertSame(MedicineSlotDraftSaveResult.FAILURE, result)
+        assertSame(MedicineSlotDraftSaveResult.FAILURE, result.saveResult)
         coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
@@ -100,10 +163,12 @@ class ManualMedicineLogSaverTest {
                 appliedAtTimeZoneId = "Asia/Tokyo",
             )
         } returns Unit
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
         val result = saveManualMedicineLog(
             medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000203"),
             resolvedApplicationType = MedicationApplicationType.PATCH_OFF,
@@ -114,7 +179,7 @@ class ManualMedicineLogSaverTest {
             appliedZoneId = ZoneId.of("Asia/Tokyo"),
         )
 
-        assertNull(result)
+        assertNull(result.saveResult)
     }
 
     @Test
@@ -133,10 +198,12 @@ class ManualMedicineLogSaverTest {
                 appliedAtTimeZoneId = "Asia/Tokyo",
             )
         } returns Unit
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
         val result = saveManualMedicineLog(
             medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000204"),
             resolvedApplicationType = MedicationApplicationType.ORAL,
@@ -147,16 +214,18 @@ class ManualMedicineLogSaverTest {
             appliedZoneId = ZoneId.of("Asia/Tokyo"),
         )
 
-        assertNull(result)
+        assertNull(result.saveResult)
     }
 
     @Test
     fun saveManualMedicineLog_schedulerFailureStillReturnsSuccess() = runTest {
-        coEvery { medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery { medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } throws IllegalStateException("scheduler failed")
 
         val result = saveManualMedicineLog(
             medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicineUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000205"),
             resolvedApplicationType = MedicationApplicationType.ORAL,
@@ -167,17 +236,18 @@ class ManualMedicineLogSaverTest {
             appliedZoneId = ZoneId.of("Asia/Tokyo"),
         )
 
-        assertNull(result)
+        assertNull(result.saveResult)
     }
 
     @Test
     fun saveManualMedicineLog_saveCancellationIsRethrownAndDoesNotReschedule() = runTest {
-        coEvery { medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } throws
+        coEvery { medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } throws
             CancellationException("save cancelled")
 
         try {
             saveManualMedicineLog(
                 medicationLogRepository = medicationLogRepository,
+                medicineStockRepository = medicineStockRepository,
                 medicationReminderScheduler = medicationReminderScheduler,
                 medicineUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000206"),
                 resolvedApplicationType = MedicationApplicationType.ORAL,
@@ -193,4 +263,19 @@ class ManualMedicineLogSaverTest {
         }
         coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
     }
+}
+
+private fun stockProjection(
+    medicine: Medicine,
+    state: MedicineStockState,
+): MedicineStockProjection {
+    return MedicineStockProjection(
+        medicine = medicine,
+        dosesPerDayMagnitude = 1.0,
+        totalStockUnits = medicine.stock.unitsRemaining ?: 1.0,
+        runway = RunwayProjection.NoSchedule,
+        intervalDays = null,
+        maxPerAdministration = 1.0,
+        state = state,
+    )
 }

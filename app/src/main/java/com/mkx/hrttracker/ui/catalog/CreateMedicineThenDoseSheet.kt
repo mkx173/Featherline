@@ -16,6 +16,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.ui.medication.ActualAmountStepperCard
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.medication.DoseInstructionForm
 import com.mkx.hrttracker.ui.medication.MedicationCountTextField
@@ -52,7 +54,9 @@ fun CreateMedicineThenDoseSheet(
     onGroupSlotResolved: (MedicineSlotResult, () -> Unit) -> Unit,
     modifier: Modifier = Modifier,
     mode: CreateMedicineThenDoseSheetMode = CreateMedicineThenDoseSheetMode.GROUP_SLOT,
-    onManualLogSaved: (() -> Unit) -> Unit = { consumeSavedState -> consumeSavedState() },
+    onManualLogSaved: (PostLogStockWarning?, () -> Unit) -> Unit = { _, consumeSavedState ->
+        consumeSavedState()
+    },
     onManualLogSaveFailure: () -> Unit = { },
     viewModel: NewMedicineSlotViewModel = hiltViewModel(),
 ) {
@@ -82,7 +86,7 @@ fun CreateMedicineThenDoseSheet(
 
     LaunchedEffect(isManualLogMode, uiState.isSaved) {
         if (isManualLogMode && uiState.isSaved) {
-            onManualLogSaved(viewModel::consumeSavedState)
+            onManualLogSaved(uiState.postLogStockWarning, viewModel::consumeSavedState)
         }
     }
 
@@ -188,6 +192,20 @@ fun CreateMedicineThenDoseSheet(
         }
 
         if (isManualLogMode) {
+            if (uiState.allowsActualDoseDelta && uiState.effectiveActualAmount != null) {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                ActualAmountStepperCard(
+                    preparationType = activePreparationType,
+                    allowsActualDoseDelta = uiState.allowsActualDoseDelta,
+                    doseAmountDelta = uiState.doseAmountDelta,
+                    effectiveActualAmount = uiState.effectiveActualAmount,
+                    onAdjustDoseAmountDelta = {
+                        if (!isSheetLocked) {
+                            viewModel.adjustDoseAmountDelta(it)
+                        }
+                    },
+                )
+            }
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             MedicationLogAppliedAtFields(
                 appliedDate = uiState.appliedDate,
