@@ -85,6 +85,12 @@ data class WidgetSnapshotRecord(
     val widgetContentScale: Float,
     val widgetBackgroundAlpha: Float,
     val e2DisplayUnit: String,
+    // The app UI language (BCP-47 tag) captured when the snapshot was built. The
+    // live-rendered widget chrome (section headers, "done" label, E2 label) resolves
+    // its strings against this so it matches the medication/dose strings already baked
+    // into the snapshot. Persisted because below API 33 a freshly-spawned widget
+    // process can't read the per-app locale back from AppCompatDelegate/the app context.
+    val appLanguageTag: String,
     // Resolved app dark-mode preference. null = follow the launcher's day/night;
     // true/false = force dark/light regardless of what Glance auto-detects.
     val forcedDark: Boolean?,

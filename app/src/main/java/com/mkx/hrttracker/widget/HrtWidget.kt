@@ -54,6 +54,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.ui.theme.DefaultSeedColor
 import com.mkx.hrttracker.ui.theme.resolveSeedColor
+import com.mkx.hrttracker.util.currentAppLocale
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -93,13 +94,18 @@ private fun HrtWidgetThemed(
     val alpha = snapshot?.widgetBackgroundAlpha?.coerceIn(0.5f, 1f) ?: 1.0f
     val scale = snapshot?.widgetContentScale?.coerceIn(0.5f, 1.5f) ?: 1.0f
     val forcedDark = snapshot?.forcedDark
-    val seed = resolveSeedColor(context, adaptiveEnabled = adaptiveEnabled)
+    // Resolve the live-rendered chrome strings against the snapshot's app language, not
+    // the raw widget context. Below API 33 the widget process context stays on the system
+    // locale, so without this the chrome ("TODAY", "DONE", E2 label) renders in the system
+    // language while the snapshot's baked medication/dose strings are in the app language.
+    val localizedContext = context.withLanguageTag(snapshot?.appLanguageTag)
+    val seed = resolveSeedColor(localizedContext, adaptiveEnabled = adaptiveEnabled)
     val widgetColors = widgetColorScheme(seed, alpha, forcedDark)
     GlanceTheme {
         CompositionLocalProvider(
             // GlanceRemoteViews.compose does not seed LocalContext the way the session
             // path does, so provide it explicitly; harmless (same value) on the session path.
-            LocalContext provides context,
+            LocalContext provides localizedContext,
             LocalWidgetColors provides widgetColors,
             LocalWidgetScale provides scale,
             LocalWidgetAlpha provides alpha,
@@ -108,6 +114,18 @@ private fun HrtWidgetThemed(
             content(snapshot)
         }
     }
+}
+
+// Returns a context whose resources resolve strings in [languageTag] (BCP-47). Mirrors
+// WidgetSnapshotRepository.withAppLocale: createConfigurationContext + setLocale works on
+// every supported API level, unlike reading the per-app locale back from the app context.
+// Returns the receiver unchanged when the tag is null/blank or already the active locale.
+private fun Context.withLanguageTag(languageTag: String?): Context {
+    if (languageTag.isNullOrBlank()) return this
+    val locale = Locale.forLanguageTag(languageTag)
+    if (locale == currentAppLocale()) return this
+    val config = Configuration(resources.configuration).apply { setLocale(locale) }
+    return createConfigurationContext(config)
 }
 
 private suspend fun GlanceAppWidget.provideHrtPreviewContent(
@@ -922,6 +940,7 @@ private fun previewSnapshot(context: Context): WidgetSnapshotRecord {
         widgetContentScale = 1.0f,
         widgetBackgroundAlpha = 1.0f,
         e2DisplayUnit = BloodUnitKey.PG_ML.storageValue,
+        appLanguageTag = context.currentAppLocale().toLanguageTag(),
         forcedDark = null,
         doseRows = listOf(
             WidgetDoseRow(

@@ -17,6 +17,7 @@ import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
+import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.every
 import io.mockk.mockk
@@ -61,6 +62,25 @@ class WidgetSnapshotBuilderTest {
         assertEquals(1, snapshot.totalCount)
         assertEquals(0, snapshot.doneCount)
         assertEquals(now.toLocalDate().toEpochDay(), snapshot.anchorDateEpochDay)
+    }
+
+    @Test
+    fun capturesAppLanguageTagFromSettings() {
+        // The widget chrome (section headers, "done"/E2 labels) is rendered live against
+        // this tag so it matches the medication/dose strings baked into the snapshot,
+        // even when the widget re-renders in a process that lost the per-app locale.
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        stubMedicationStrings()
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = context,
+            homeSnapshot = homeSnapshotRecord(now = now),
+            settings = SettingsState(appLanguageOption = AppLanguageOption.SIMPLIFIED_CHINESE),
+            now = now,
+            zoneId = zoneId,
+        )
+
+        assertEquals("zh-Hans", snapshot.appLanguageTag)
     }
 
     @Test

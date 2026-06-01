@@ -24,6 +24,7 @@ class WidgetSnapshotCodecTest {
         widgetContentScale = 1.0f,
         widgetBackgroundAlpha = 0.85f,
         e2DisplayUnit = "pg_ml",
+        appLanguageTag = "zh-Hans",
         forcedDark = null,
         doseRows = listOf(
             WidgetDoseRow(
@@ -168,6 +169,15 @@ class WidgetSnapshotCodecTest {
     fun `codec round-trips e2DisplayUnit`() {
         val record = baseRecord.copy(e2DisplayUnit = "pmol_l")
         assertEquals("pmol_l", WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)).e2DisplayUnit)
+    }
+
+    @Test
+    fun `codec round-trips appLanguageTag`() {
+        // The live-rendered widget chrome resolves its strings against this tag, so it
+        // must survive process death intact or the chrome would fall back to the system
+        // language while the baked medication strings stay in the app language.
+        val record = baseRecord.copy(appLanguageTag = "en")
+        assertEquals("en", WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)).appLanguageTag)
     }
 
     @Test

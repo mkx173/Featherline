@@ -25,6 +25,7 @@ internal object WidgetSnapshotCodec {
             stream.writeFloat(record.widgetContentScale)
             stream.writeFloat(record.widgetBackgroundAlpha)
             stream.writeString(record.e2DisplayUnit)
+            stream.writeString(record.appLanguageTag)
             stream.writeNullableBoolean(record.forcedDark)
             stream.writeList(record.doseRows) { writeDoseRow(it) }
             stream.writePkProjection(record.pkProjection)
@@ -51,6 +52,7 @@ internal object WidgetSnapshotCodec {
                 widgetContentScale = stream.readFloat(),
                 widgetBackgroundAlpha = stream.readFloat(),
                 e2DisplayUnit = stream.readString(),
+                appLanguageTag = stream.readString(),
                 forcedDark = stream.readNullableBoolean(),
                 doseRows = stream.readList { readDoseRow() },
                 pkProjection = stream.readPkProjection(),
@@ -192,5 +194,5 @@ internal object WidgetSnapshotCodec {
     }
 }
 
-private const val WIDGET_SNAPSHOT_CODEC_VERSION = 12
+private const val WIDGET_SNAPSHOT_CODEC_VERSION = 13
 private const val BYTE_MASK = 0xff
