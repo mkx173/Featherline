@@ -76,26 +76,6 @@ internal fun effectiveActualDoseAmount(
         .coerceAtLeast(minimumDisplayableActualDoseAmount(scheduledAmount))
 }
 
-internal fun adjustedActualDoseDelta(
-    scheduledAmount: Double,
-    currentDoseAmountDelta: Double?,
-    step: Double,
-): Double? {
-    if (!scheduledAmount.isFinite() || scheduledAmount <= 0.0 || !step.isFinite()) {
-        return currentDoseAmountDelta
-    }
-    val effectiveAmount = effectiveActualDoseAmount(
-        scheduledAmount = scheduledAmount,
-        doseAmountDelta = (currentDoseAmountDelta ?: 0.0) + step,
-    )
-    val newDelta = effectiveAmount - scheduledAmount
-    return if (abs(newDelta) < DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON) {
-        null
-    } else {
-        newDelta
-    }
-}
-
 private fun minimumDisplayableActualDoseAmount(scheduledAmount: Double): Double {
     return scheduledAmount
         .coerceAtMost(ACTUAL_DOSE_DELTA_STEP)
