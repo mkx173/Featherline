@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -455,7 +456,7 @@ internal fun ActualAmountRulerCard(
                 style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(56.dp)) {
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(74.dp)) {
                 val sidePadding = (maxWidth - tickSpacing) / 2
                 val viewportWidthPx = with(density) { maxWidth.toPx() }
                 val overscrollScale by animateFloatAsState(
@@ -469,6 +470,10 @@ internal fun ActualAmountRulerCard(
                     ),
                     label = "ActualAmountRulerOverscrollScale",
                 )
+                // Tick marks occupy the top strip; signed-delta labels sit below.
+                // The selection indicator spans only the tick strip so it never
+                // crosses the labels.
+                val tickAreaHeight = 44.dp
                 LazyRow(
                     state = listState,
                     flingBehavior = flingBehavior,
@@ -483,28 +488,47 @@ internal fun ActualAmountRulerCard(
                         },
                 ) {
                     items(deltas.size) { i ->
-                        val isMajor = i == 0 ||
-                            i == deltas.size - 1 ||
-                            abs(deltas[i]) < DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON
-                        Box(
+                        val isEndpoint = i == 0 || i == deltas.size - 1
+                        val isMajor = isActualDoseDeltaMajorTick(
+                            delta = deltas[i],
+                            step = range.step,
+                            isEndpoint = isEndpoint,
+                        )
+                        Column(
                             modifier = Modifier.width(tickSpacing).fillMaxHeight(),
-                            contentAlignment = Alignment.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Box(
-                                modifier = Modifier
-                                    .width(2.dp)
-                                    .fillMaxHeight(if (isMajor) 0.6f else 0.35f)
-                                    .background(MaterialTheme.colorScheme.outlineVariant),
-                            )
+                                modifier = Modifier.height(tickAreaHeight).fillMaxWidth(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(2.dp)
+                                        .fillMaxHeight(if (isMajor) 0.6f else 0.35f)
+                                        .background(MaterialTheme.colorScheme.outlineVariant),
+                                )
+                            }
+                            if (isMajor) {
+                                Text(
+                                    text = formatActualDoseDeltaTickLabel(deltas[i]),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    // Labels are wider than the 14.dp item; let them
+                                    // spill into the neighbouring minor-tick gaps.
+                                    modifier = Modifier.wrapContentWidth(unbounded = true),
+                                )
+                            }
                         }
                     }
                 }
-                // Fixed center indicator.
+                // Fixed selection indicator - spans the tick strip only.
                 Box(
                     modifier = Modifier
-                        .align(Alignment.Center)
+                        .align(Alignment.TopCenter)
+                        .height(tickAreaHeight)
                         .width(2.dp)
-                        .fillMaxHeight(0.85f)
                         .background(MaterialTheme.colorScheme.primary),
                 )
             }
@@ -583,6 +607,14 @@ private fun actualAmountUnitText(preparationType: MedicinePreparationType?): Str
 private fun formatSignedActualAmountDelta(value: Double): String {
     val sign = if (value >= 0.0) "+" else "-"
     return sign + formatActualAmount(kotlin.math.abs(value))
+}
+
+private fun formatActualDoseDeltaTickLabel(delta: Double): String {
+    return if (abs(delta) < DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON) {
+        "0"
+    } else {
+        formatSignedActualAmountDelta(delta)
+    }
 }
 
 private fun formatActualAmount(value: Double): String {
