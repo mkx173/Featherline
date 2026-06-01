@@ -179,6 +179,83 @@ class MedicationLogRepositoryTest {
     }
 
     @Test
+    fun saveEntry_multiUseVial_deductsDeltaAdjustedVolume() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val capturedEntry = slot<MedicationLogEntryEntity>()
+        coEvery {
+            medicineDao.getByUuid(medicineUuid.toString())
+        } returns testMedicineEntity(
+            uuid = medicineUuid.toString(),
+            medicationKey = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 20.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
+        coEvery { dao.insertEntry(capture(capturedEntry)) } returns Unit
+
+        repository.saveEntry(
+            uuid = null,
+            medicineUuid = medicineUuid,
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = DoseInstruction.VolumeMl(0.5),
+            sourceGroupUuid = null,
+            appliedAt = Instant.EPOCH,
+            count = 1,
+            doseAmountDelta = 0.1,
+        )
+
+        coVerify(exactly = 1) {
+            stockMutator.resolveDeductionForInsert(
+                database = database,
+                medicineUuid = medicineUuid,
+                requestedDose = 0.6,
+                now = any(),
+            )
+        }
+        assertEquals(12.0, capturedEntry.captured.equivalentE2Mg!!, 1e-9)
+        assertEquals(0.1, capturedEntry.captured.doseAmountDelta!!, 1e-9)
+    }
+
+    @Test
+    fun saveEntry_singleUseVial_deductsWholeUnitAndStoresDeltaAdjustedE2() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val capturedEntry = slot<MedicationLogEntryEntity>()
+        coEvery {
+            medicineDao.getByUuid(medicineUuid.toString())
+        } returns testMedicineEntity(
+            uuid = medicineUuid.toString(),
+            medicationKey = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.InjectionSingleUseVial(
+                strengthMgPerVial = 10.0,
+            ),
+        )
+        coEvery { dao.insertEntry(capture(capturedEntry)) } returns Unit
+
+        repository.saveEntry(
+            uuid = null,
+            medicineUuid = medicineUuid,
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = DoseInstruction.WholeUnit,
+            sourceGroupUuid = null,
+            appliedAt = Instant.EPOCH,
+            count = 1,
+            doseAmountDelta = 2.0,
+        )
+
+        coVerify(exactly = 1) {
+            stockMutator.resolveDeductionForInsert(
+                database = database,
+                medicineUuid = medicineUuid,
+                requestedDose = 1.0,
+                now = any(),
+            )
+        }
+        assertEquals(12.0, capturedEntry.captured.equivalentE2Mg!!, 1e-9)
+        assertEquals(2.0, capturedEntry.captured.doseAmountDelta!!, 1e-9)
+    }
+
+    @Test
     fun saveEntry_editOnlyUpdatesDateTimeAndCount() = runTest {
         val entryUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000000")
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")

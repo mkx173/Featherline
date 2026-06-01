@@ -201,6 +201,7 @@ class MedicationLogRepository @Inject internal constructor(
         scheduledFor: LocalDateTime? = null,
         count: Int = 1,
         appliedAtTimeZoneId: String = ZoneId.systemDefault().id,
+        doseAmountDelta: Double? = null,
     ) {
         if (uuid != null) {
             // Editing an existing log: medication identity is immutable; only
@@ -235,6 +236,7 @@ class MedicationLogRepository @Inject internal constructor(
                         preparation = trackedMedicine.preparation,
                         doseInstruction = doseInstruction,
                         count = count.coerceAtLeast(1),
+                        doseAmountDelta = doseAmountDelta,
                     )
                     requested?.let { requestedDose ->
                         stockMutator.resolveDeductionForInsert(
@@ -257,6 +259,7 @@ class MedicationLogRepository @Inject internal constructor(
                         scheduledFor = scheduledFor,
                         count = count.coerceAtLeast(1),
                         appliedAtTimeZoneId = appliedAtTimeZoneId,
+                        doseAmountDelta = doseAmountDelta,
                     )
                 )
             }
@@ -404,6 +407,7 @@ class MedicationLogRepository @Inject internal constructor(
         scheduledFor: LocalDateTime?,
         count: Int,
         appliedAtTimeZoneId: String,
+        doseAmountDelta: Double? = null,
     ): MedicationLogEntryEntity {
         validateMedicationCompatibility(
             fieldPrefix = "medication log",
@@ -416,6 +420,7 @@ class MedicationLogRepository @Inject internal constructor(
             DoseInstructionCalculator.perUnitEquivalentE2Mg(
                 medicine = it,
                 doseInstruction = doseInstruction,
+                doseAmountDelta = doseAmountDelta,
             )
         }
         val doseInstructionFields = doseInstruction.toStorageFields()
@@ -437,6 +442,7 @@ class MedicationLogRepository @Inject internal constructor(
             scheduledForIso = scheduledFor?.toString(),
             count = count.coerceAtLeast(1),
             gelApplicationArea = MedicationGelApplicationArea.DEFAULT.name,
+            doseAmountDelta = doseAmountDelta,
         )
     }
 }
@@ -459,6 +465,7 @@ internal fun resolveRequestedDoseForStock(
     preparation: MedicinePreparation,
     doseInstruction: DoseInstruction,
     count: Int,
+    doseAmountDelta: Double? = null,
 ): Double? {
     val perAdministration = when (val dose = doseInstruction) {
         is DoseInstruction.TabletFraction -> {
@@ -480,7 +487,11 @@ internal fun resolveRequestedDoseForStock(
 
         is DoseInstruction.VolumeMl -> {
             if (preparation is MedicinePreparation.InjectionMultiUseVial) {
-                dose.valueMl
+                DoseInstructionCalculator.effectivePerAdministrationStockAmount(
+                    preparation = preparation,
+                    doseInstruction = dose,
+                    doseAmountDelta = doseAmountDelta,
+                ) ?: dose.valueMl
             } else {
                 return null
             }
@@ -488,7 +499,11 @@ internal fun resolveRequestedDoseForStock(
 
         is DoseInstruction.WeightGrams -> {
             if (preparation is MedicinePreparation.GelContainer) {
-                dose.valueGrams
+                DoseInstructionCalculator.effectivePerAdministrationStockAmount(
+                    preparation = preparation,
+                    doseInstruction = dose,
+                    doseAmountDelta = doseAmountDelta,
+                ) ?: dose.valueGrams
             } else {
                 return null
             }
