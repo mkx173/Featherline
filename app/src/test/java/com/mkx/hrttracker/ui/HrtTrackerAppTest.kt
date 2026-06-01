@@ -7,10 +7,12 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.ui.navigation.Screen
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.util.UUID
 
 class HrtTrackerAppTest {
     private val context: Context = mockk(relaxed = true)
@@ -88,5 +90,26 @@ class HrtTrackerAppTest {
                 context = context,
             ),
         )
+    }
+
+    @Test
+    fun postLogStockWarningDestination_singleDeepLinksToThatMedicineDetail() {
+        val uuid = UUID.fromString("11111111-2222-3333-4444-555555555555")
+        val medicine = testMedicine(uuid = uuid)
+
+        val destination = postLogStockWarningDestination(
+            PostLogStockWarning.Single(medicine, MedicineStockState.OUT),
+        )
+
+        assertEquals(Screen.MedicineDetail.createRoute(uuid.toString()), destination)
+    }
+
+    @Test
+    fun postLogStockWarningDestination_manyOpensMedicinesList() {
+        val destination = postLogStockWarningDestination(
+            PostLogStockWarning.Many(3, MedicineStockState.USER_LOW),
+        )
+
+        assertEquals(Screen.Medicines.createRoute(), destination)
     }
 }
