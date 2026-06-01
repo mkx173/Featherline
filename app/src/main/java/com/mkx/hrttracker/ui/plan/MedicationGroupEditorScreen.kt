@@ -37,7 +37,6 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -80,7 +79,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -2225,35 +2223,32 @@ private fun MedicationGroupColorSwatchGrid(
                         },
                         absoluteIndex,
                     )
-                    val borderColor = if (isSelected) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        Color.Transparent
-                    }
+                    // Selection carves a small inner ring in the surface
+                    // colour instead of showing a check, so the swatch reads
+                    // as a framed chip.
                     Box(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
                             .background(scheme.primary)
-                            .border(
-                                width = 1.dp,
-                                color = borderColor,
-                                shape = CircleShape,
-                            )
                             .clickable(onClickLabel = swatchDescription) {
                                 onColorSelected(key)
                             },
-                        contentAlignment = Alignment.Center,
                     ) {
                         if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null,
-                                tint = scheme.onPrimary,
-                                modifier = Modifier.size(18.dp),
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .padding(2.5.dp)
+                                    .border(
+                                        width = 2.5.dp,
+                                        color = MaterialTheme.colorScheme.surfaceContainer,
+                                        shape = CircleShape,
+                                    ),
                             )
                         }
                     }
+
                     if (indexInRow < row.lastIndex) {
                         // No spacer needed: Row's horizontalArrangement
                         // already handles gaps. Keeping the index check so
