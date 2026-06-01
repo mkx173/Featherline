@@ -378,22 +378,6 @@ fun HrtTrackerNavHost(
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
     val snackbarContext = LocalContext.current
-    val showPostLogStockWarning: (PostLogStockWarning) -> Unit = { warning ->
-        val message = postLogStockWarningSnackbarMessage(warning, snackbarContext)
-        val actionLabel = snackbarContext.getString(R.string.stock_snackbar_action_view)
-        snackbarScope.launch {
-            val result = snackbarHostState.showSnackbar(
-                message = message,
-                actionLabel = actionLabel,
-                withDismissAction = true,
-            )
-            if (result == SnackbarResult.ActionPerformed) {
-                navController.navigate(postLogStockWarningDestination(warning)) {
-                    launchSingleTop = true
-                }
-            }
-        }
-    }
     val layoutDirection = LocalLayoutDirection.current
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
@@ -405,6 +389,26 @@ fun HrtTrackerNavHost(
                 currentDestination?.hierarchy?.any { it.route == navItem.screen.route } == true
             }?.screen
             ?: Screen.Main
+    val showPostLogStockWarning: (PostLogStockWarning) -> Unit = { warning ->
+        val message = postLogStockWarningSnackbarMessage(warning, snackbarContext)
+        val actionLabel = snackbarContext.getString(R.string.stock_snackbar_action_view)
+        snackbarScope.launch {
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = actionLabel,
+                withDismissAction = true,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                // Root the destination under the tab the user is on now so the
+                // highlighted tab stays put and back returns there directly.
+                navController.navigate(
+                    postLogStockWarningDestination(warning, selectedBottomScreen.route),
+                ) {
+                    launchSingleTop = true
+                }
+            }
+        }
+    }
 
     var lastHandledHomeDeepLinkSignal by rememberSaveable { mutableIntStateOf(0) }
     var pendingHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
@@ -578,10 +582,13 @@ fun HrtTrackerNavHost(
                             )
                         },
                         onMedicineDetailClick = { medicineId ->
+                            // Root the detail under the current tab (Home) so the
+                            // highlighted tab stays put and back returns straight
+                            // here, instead of stacking under a different tab.
                             navController.navigate(
                                 Screen.MedicineDetail.createRoute(
                                     medicineId = medicineId.toString(),
-                                    topLevelParentRoute = Screen.Main.route,
+                                    topLevelParentRoute = selectedBottomScreen.route,
                                 ),
                             )
                         },

@@ -27,12 +27,20 @@ fun HrtTrackerApp(
 
 // Single-medicine warnings deep-link to that medicine's detail page (where
 // stock is managed); multi-medicine warnings open the Medicines manager list.
-internal fun postLogStockWarningDestination(warning: PostLogStockWarning): String {
+// Both are rooted under the caller's current top-level tab so the highlighted
+// tab stays put and the back stack doesn't accumulate cross-tab entries.
+internal fun postLogStockWarningDestination(
+    warning: PostLogStockWarning,
+    topLevelParentRoute: String,
+): String {
     return when (warning) {
         is PostLogStockWarning.Single ->
-            Screen.MedicineDetail.createRoute(warning.medicine.uuid.toString())
+            Screen.MedicineDetail.createRoute(
+                medicineId = warning.medicine.uuid.toString(),
+                topLevelParentRoute = topLevelParentRoute,
+            )
         is PostLogStockWarning.Many ->
-            Screen.Medicines.createRoute()
+            Screen.Medicines.createRoute(topLevelParentRoute = topLevelParentRoute)
     }
 }
 
