@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.isActive
@@ -409,50 +410,71 @@ internal suspend fun showPostLogToast(
     val affectedMedicineUuids = entriesToSave
         .mapNotNull(MedicationLogEntryInput::medicineUuid)
         .toSet()
-    val warned = runCatching {
+    val projections = runCatching {
         medicineStockRepository
             .projectAllOnce(now = Instant.from(now.atZone(ZoneId.systemDefault())))
-            .asSequence()
-            .filter { projection -> projection.medicine.uuid in affectedMedicineUuids }
-            .filter(MedicineStockProjection::isToastWarning)
-            .toList()
     }.getOrElse { failure ->
         if (failure is CancellationException) throw failure
         reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
         return
     }
-    if (warned.isEmpty()) {
-        reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
-        return
-    }
 
-    val worstState = warned.minBy { projection -> projection.state.severityOrder() }.state
-    if (!hideMedicationDetails && warned.size == 1) {
-        val medicine = warned.single().medicine
-        when (worstState) {
-            MedicineStockState.OUT -> reminderNotificationManager.showStockOutToast(medicine)
-            MedicineStockState.IMMINENT -> reminderNotificationManager.showStockImminentToast(medicine)
-            MedicineStockState.USER_LOW -> reminderNotificationManager.showStockUserLowToast(medicine)
-            else -> reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
+    when (val warning = resolvePostLogStockWarning(projections, affectedMedicineUuids)) {
+        null -> reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
+        is PostLogStockWarning.Single -> {
+            if (hideMedicationDetails) {
+                when (warning.state) {
+                    MedicineStockState.OUT -> reminderNotificationManager.showStockOutCountToast(1)
+                    MedicineStockState.IMMINENT -> reminderNotificationManager.showStockImminentCountToast(1)
+                    MedicineStockState.USER_LOW -> reminderNotificationManager.showStockUserLowCountToast(1)
+                    else -> reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
+                }
+            } else {
+                when (warning.state) {
+                    MedicineStockState.OUT -> reminderNotificationManager.showStockOutToast(warning.medicine)
+                    MedicineStockState.IMMINENT -> reminderNotificationManager.showStockImminentToast(warning.medicine)
+                    MedicineStockState.USER_LOW -> reminderNotificationManager.showStockUserLowToast(warning.medicine)
+                    else -> reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
+                }
+            }
         }
-        return
+        is PostLogStockWarning.Many -> {
+            when (warning.state) {
+                MedicineStockState.OUT -> reminderNotificationManager.showStockOutCountToast(warning.count)
+                MedicineStockState.IMMINENT -> reminderNotificationManager.showStockImminentCountToast(warning.count)
+                MedicineStockState.USER_LOW -> reminderNotificationManager.showStockUserLowCountToast(warning.count)
+                else -> reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
+            }
+        }
     }
+}
 
-    when (worstState) {
-        MedicineStockState.OUT -> reminderNotificationManager.showStockOutCountToast(warned.size)
-        MedicineStockState.IMMINENT -> reminderNotificationManager.showStockImminentCountToast(warned.size)
-        MedicineStockState.USER_LOW -> reminderNotificationManager.showStockUserLowCountToast(warned.size)
-        else -> reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
+sealed interface PostLogStockWarning {
+    data class Single(val medicine: Medicine, val state: MedicineStockState) : PostLogStockWarning
+    data class Many(val count: Int, val state: MedicineStockState) : PostLogStockWarning
+}
+
+internal fun resolvePostLogStockWarning(
+    projections: List<MedicineStockProjection>,
+    affectedMedicineUuids: Set<UUID>,
+): PostLogStockWarning? {
+    val warned = projections
+        .filter { it.medicine.uuid in affectedMedicineUuids }
+        .filter {
+            it.state == MedicineStockState.OUT ||
+                it.state == MedicineStockState.IMMINENT ||
+                it.state == MedicineStockState.USER_LOW
+        }
+    if (warned.isEmpty()) return null
+    val worst = warned.minBy { it.state.severityOrder() }.state
+    return if (warned.size == 1) {
+        PostLogStockWarning.Single(warned.single().medicine, worst)
+    } else {
+        PostLogStockWarning.Many(warned.size, worst)
     }
 }
 
 private fun Int?.orZero(): Int = this ?: 0
-
-private fun MedicineStockProjection.isToastWarning(): Boolean {
-    return state == MedicineStockState.OUT ||
-        state == MedicineStockState.IMMINENT ||
-        state == MedicineStockState.USER_LOW
-}
 
 private fun MedicineStockState.severityOrder(): Int {
     return when (this) {
