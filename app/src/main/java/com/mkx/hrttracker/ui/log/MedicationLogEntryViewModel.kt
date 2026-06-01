@@ -21,6 +21,8 @@ import com.mkx.hrttracker.model.medication.isWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
@@ -39,6 +41,7 @@ import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.zoneDisplayName
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -336,6 +339,7 @@ class MedicationLogEntryViewModel @Inject constructor(
                 isSaving = true,
                 errorMessageRes = null,
                 saveEntryResult = null,
+                postLogStockWarning = null,
                 isScheduleFulfillmentWarningVisible = false,
             )
         }
@@ -352,14 +356,14 @@ class MedicationLogEntryViewModel @Inject constructor(
 
     private fun performSave(request: PendingSaveRequest) {
         viewModelScope.launch {
+            val medicineUuid = if (request.isEditing) {
+                request.lockedMedicineUuid
+            } else {
+                request.selectedMedicineUuid
+            }
             val saveResult = runCatching {
                 // On edit the repository ignores medicine identity (locked); on a
                 // new log the routed picker already resolved a Medicine UUID.
-                val medicineUuid = if (request.isEditing) {
-                    request.lockedMedicineUuid
-                } else {
-                    request.selectedMedicineUuid
-                }
                 if (request.editingEntryUuids.size > 1) {
                     medicationLogRepository.saveEntries(
                         uuids = request.editingEntryUuids,
@@ -394,6 +398,19 @@ class MedicationLogEntryViewModel @Inject constructor(
                 onFailure = { SaveEntryResult.FAILURE },
             )
             val isSaved = saveResult == null
+            val postLogStockWarning = if (isSaved && medicineUuid != null) {
+                runCatching {
+                    resolvePostLogStockWarning(
+                        projections = medicineStockRepository.projectAllOnce(now = Instant.now()),
+                        affectedMedicineUuids = setOf(medicineUuid),
+                    )
+                }.getOrElse { failure ->
+                    if (failure is CancellationException) throw failure
+                    null
+                }
+            } else {
+                null
+            }
             val crossZoneText = if (isSaved) {
                 val pickerOffset = request.appliedZoneId.rules.getOffset(request.appliedAt)
                 val deviceOffset = ZoneId.systemDefault().rules.getOffset(request.appliedAt)
@@ -415,6 +432,7 @@ class MedicationLogEntryViewModel @Inject constructor(
                     saveEntryResult = saveResult,
                     isScheduleFulfillmentWarningVisible = false,
                     savedCrossZoneZoneText = crossZoneText,
+                    postLogStockWarning = postLogStockWarning,
                 )
                 if (isSaved) updated else updated.withSelectedStockProjection()
             }
@@ -497,6 +515,10 @@ class MedicationLogEntryViewModel @Inject constructor(
 
     fun consumeCrossZoneToast() {
         _uiState.update { it.copy(savedCrossZoneZoneText = null) }
+    }
+
+    fun consumePostLogStockWarning() {
+        _uiState.update { it.copy(postLogStockWarning = null) }
     }
 
     private fun resolvedApplicationType(state: MedicationLogEntryUiState): MedicationApplicationType {
@@ -617,6 +639,7 @@ data class MedicationLogEntryUiState(
     val deleteEntryResult: DeleteEntryResult? = null,
     val isScheduleFulfillmentWarningVisible: Boolean = false,
     val savedCrossZoneZoneText: String? = null,
+    val postLogStockWarning: PostLogStockWarning? = null,
 ) {
     val count: Int
         get() = parseMedicationCountText(countText)

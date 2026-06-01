@@ -22,11 +22,13 @@ import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,6 +74,7 @@ class MedicationLogEntryViewModelTest {
         Dispatchers.setMain(dispatcher)
         every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
         every { medicineStockRepository.getCachedProjections() } returns null
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
     }
 
     @After
@@ -1236,6 +1239,233 @@ class MedicationLogEntryViewModelTest {
     }
 
     @Test
+    fun saveEntry_afterSuccessfulSaveSetsPostLogStockWarningWhenLoggedMedicineBecomesUserLow() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val group = testMedicationGroup(
+            groupId = groupId,
+            name = "Nightly estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO
+        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns group
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
+                sourceGroupUuid = groupId,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 1,
+            )
+        } returns Unit
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(
+                medicine = medicine,
+                state = MedicineStockState.USER_LOW,
+            )
+        )
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = MedicationLogEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
+            medicationCount = 1
+        )
+        advanceUntilIdle()
+        viewModel.updateAppliedDate(scheduledFor.toLocalDate())
+        viewModel.updateAppliedTime(scheduledFor.toLocalTime().plusMinutes(15))
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertEquals(
+            PostLogStockWarning.Single(medicine, MedicineStockState.USER_LOW),
+            viewModel.uiState.value.postLogStockWarning,
+        )
+
+        viewModel.consumePostLogStockWarning()
+        assertNull(viewModel.uiState.value.postLogStockWarning)
+    }
+
+    @Test
+    fun saveEntry_afterHealthySaveLeavesPostLogStockWarningNull() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val group = testMedicationGroup(
+            groupId = groupId,
+            name = "Nightly estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO
+        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns group
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
+                sourceGroupUuid = groupId,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 1,
+            )
+        } returns Unit
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(
+                medicine = medicine,
+                state = MedicineStockState.HEALTHY,
+            )
+        )
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = MedicationLogEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
+            medicationCount = 1
+        )
+        advanceUntilIdle()
+        viewModel.updateAppliedDate(scheduledFor.toLocalDate())
+        viewModel.updateAppliedTime(scheduledFor.toLocalTime().plusMinutes(15))
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.postLogStockWarning)
+    }
+
+    @Test
+    fun saveEntry_whenPostLogStockProjectionFailsStillSavesAndLeavesWarningNull() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val group = testMedicationGroup(
+            groupId = groupId,
+            name = "Nightly estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO
+        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns group
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
+                sourceGroupUuid = groupId,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 1,
+            )
+        } returns Unit
+        coEvery { medicineStockRepository.projectAllOnce(any()) } throws RuntimeException("projection failed")
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = MedicationLogEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
+            medicationCount = 1
+        )
+        advanceUntilIdle()
+        viewModel.updateAppliedDate(scheduledFor.toLocalDate())
+        viewModel.updateAppliedTime(scheduledFor.toLocalTime().plusMinutes(15))
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.saveEntryResult)
+        assertNull(viewModel.uiState.value.postLogStockWarning)
+    }
+
+    @Test
+    fun saveEntry_whenPostLogStockProjectionIsCancelledRethrowsCancellation() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val group = testMedicationGroup(
+            groupId = groupId,
+            name = "Nightly estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO
+        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
+        val cancellation = CancellationException("projection cancelled")
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns group
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
+                sourceGroupUuid = groupId,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 1,
+            )
+        } returns Unit
+        coEvery { medicineStockRepository.projectAllOnce(any()) } throws cancellation
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = MedicationLogEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
+            medicationCount = 1
+        )
+        advanceUntilIdle()
+        viewModel.updateAppliedDate(scheduledFor.toLocalDate())
+        viewModel.updateAppliedTime(scheduledFor.toLocalTime().plusMinutes(15))
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaving)
+        assertFalse(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.postLogStockWarning)
+        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
     fun saveEntry_forPatchOffQuickLogWithNullMedicineSavesPatchOffRoute() = runTest {
         val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
@@ -1850,6 +2080,7 @@ private fun testMedicationGroup(
 private fun stockProjection(
     medicine: Medicine,
     unitsRemaining: Double = 4.0,
+    state: MedicineStockState = MedicineStockState.NO_RUNWAY,
 ): MedicineStockProjection {
     return MedicineStockProjection(
         medicine = medicine,
@@ -1858,6 +2089,6 @@ private fun stockProjection(
         runway = RunwayProjection.NoSchedule,
         intervalDays = null,
         maxPerAdministration = 1.0,
-        state = MedicineStockState.NO_RUNWAY,
+        state = state,
     )
 }
