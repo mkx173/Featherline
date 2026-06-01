@@ -182,6 +182,7 @@ fun MedicationLogEntryEditorSheet(
             lockedMedicine = lockedMedicine,
             applicationType = linkedApplicationType,
             doseInstruction = doseInstructionDraft?.toDoseInstructionOrNull(),
+            doseAmountDelta = doseAmountDelta,
             countText = countText,
             sourceGroupName = sourceGroupName,
             sourceGroupColorKey = sourceGroupColorKey,
@@ -383,6 +384,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
     lockedMedicine: Medicine?,
     applicationType: MedicationApplicationType,
     doseInstruction: DoseInstruction?,
+    doseAmountDelta: Double? = null,
     countText: String,
     sourceGroupName: String?,
     sourceGroupColorKey: MedicationGroupColorKey?,
@@ -415,6 +417,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
         applicationType = applicationType,
         medicationCount = resolvedCount.coerceAtLeast(1),
         groupColorKey = sourceGroupColorKey,
+        doseAmountDelta = doseAmountDelta,
         stockProjection = selectedStockProjection.takeIf {
             medicationSummaryShouldShowStockSubcard(
                 hasMedicine = lockedMedicine != null,

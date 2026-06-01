@@ -220,6 +220,7 @@ fun medicationEntrySupportingText(
     applicationType: MedicationApplicationType,
     count: Int,
     extraSupportingText: String? = null,
+    doseAmountDelta: Double? = null,
 ): String {
     val applicationTypeLabel = stringResource(applicationType.labelRes)
         .takeIf {
@@ -228,7 +229,7 @@ fun medicationEntrySupportingText(
                 applicationType = applicationType,
             )
         }
-    val doseText = medicine?.let { doseInstructionSummary(it, doseInstruction) }
+    val doseText = medicine?.let { doseInstructionSummary(it, doseInstruction, doseAmountDelta) }
     return listOfNotNull(
         applicationTypeLabel,
         medicationCountIndicatorText(count),
