@@ -38,7 +38,7 @@ class MedicationLogEntryScreenPreviewDoseMagnitudeTest {
     }
 
     @Test
-    fun previewDoseMagnitudeForSingleUseVialKeepsWholeUnitCount() {
+    fun previewDoseMagnitudeForSingleUseVialIgnoresTypedCount() {
         val medicine = testMedicine(
             preparation = MedicinePreparation.InjectionSingleUseVial(
                 strengthMgPerVial = 10.0,
@@ -50,6 +50,9 @@ class MedicationLogEntryScreenPreviewDoseMagnitudeTest {
             doseInstruction = DoseInstruction.WholeUnit,
         )
 
+        // Single-use vials no longer expose a count editor: one ampule per
+        // administration, regardless of any stale typed count, so the stock
+        // preview always deducts a single vial.
         val previewDoseMagnitude = medicationLogEntryPreviewDoseMagnitude(
             isEditing = false,
             medicine = medicine,
@@ -59,7 +62,7 @@ class MedicationLogEntryScreenPreviewDoseMagnitudeTest {
             effectiveActualAmount = 10.25,
         )
 
-        assertEquals(2.0, previewDoseMagnitude ?: error("Missing preview dose"), 0.0)
+        assertEquals(1.0, previewDoseMagnitude ?: error("Missing preview dose"), 0.0)
     }
 
     @Test

@@ -450,7 +450,10 @@ fun DoseInstructionDraftUiState.applyDoseAssistPreset(
 // ---------------------------------------------------------------------------
 
 fun MedicationApplicationType.supportsMedicationCountEditor(
-    // Two preparation types override their parent application route's default:
+    // Three preparation types override their parent application route's default:
+    //   INJECTION_SINGLE_USE_VIAL — one ampule per administration; users adjust
+    //     the actual drawn amount via the dose delta, not a count, so the editor
+    //     is hidden and the saved count is forced to 1.
     //   INJECTION_MULTI_USE_VIAL — dose is the drawn volume; "N injections" is
     //     not how users describe it, so the count editor is hidden and the
     //     saved count is forced to 1.
@@ -460,6 +463,7 @@ fun MedicationApplicationType.supportsMedicationCountEditor(
     preparationType: MedicinePreparationType? = null,
 ): Boolean {
     when (preparationType) {
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> return false
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> return false
         MedicinePreparationType.GEL_SACHET -> return true
         else -> Unit
@@ -468,10 +472,9 @@ fun MedicationApplicationType.supportsMedicationCountEditor(
         MedicationApplicationType.ORAL,
         MedicationApplicationType.SUBLINGUAL,
         MedicationApplicationType.PATCH_ON,
-        // Injection count expresses "N vials / N injections of the given dose"
-        // (e.g. 2 single-use vials at once, or 2 separate multi-use shots);
-        // DoseInstructionCalculator already multiplies the per-unit equivalent
-        // by count, so PK math handles this correctly.
+        // Injection route with an as-yet-unresolved preparation; both concrete
+        // injection preparations above hide the count editor, so this only
+        // affects transient drafts before a preparation is inferred.
         MedicationApplicationType.INJECTION -> true
 
         MedicationApplicationType.GEL,
