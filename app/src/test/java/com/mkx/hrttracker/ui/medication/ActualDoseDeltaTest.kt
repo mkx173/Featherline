@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.medication
 
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -82,5 +83,34 @@ class ActualDoseDeltaTest {
         assertEquals(1.04f, actualAmountRulerOverscrollScale(-40f, viewportWidthPx = 1000f), 1e-6f)
         assertEquals(1.08f, actualAmountRulerOverscrollScale(500f, viewportWidthPx = 1000f), 1e-6f)
         assertEquals(1.0f, actualAmountRulerOverscrollScale(40f, viewportWidthPx = 0f), 0f)
+    }
+
+    @Test
+    fun majorTick_endpointIsAlwaysMajor() {
+        // A non-multiple delta still counts as major when it's a band endpoint,
+        // so tight bands (gel) always label their extremes.
+        assertTrue(isActualDoseDeltaMajorTick(delta = 0.02, step = 0.01, isEndpoint = true))
+    }
+
+    @Test
+    fun majorTick_zeroAndMultiplesOfFiveStepsAreMajor() {
+        assertTrue(isActualDoseDeltaMajorTick(0.0, step = 0.01, isEndpoint = false))
+        assertTrue(isActualDoseDeltaMajorTick(0.05, step = 0.01, isEndpoint = false))
+        assertTrue(isActualDoseDeltaMajorTick(-0.05, step = 0.01, isEndpoint = false))
+        // ampule grid: 5 * 0.1 = 0.5
+        assertTrue(isActualDoseDeltaMajorTick(-0.5, step = 0.1, isEndpoint = false))
+        assertTrue(isActualDoseDeltaMajorTick(-2.0, step = 0.1, isEndpoint = false))
+    }
+
+    @Test
+    fun majorTick_nonMultiplesAreMinor() {
+        assertFalse(isActualDoseDeltaMajorTick(0.02, step = 0.01, isEndpoint = false))
+        assertFalse(isActualDoseDeltaMajorTick(0.03, step = 0.01, isEndpoint = false))
+        assertFalse(isActualDoseDeltaMajorTick(-0.3, step = 0.1, isEndpoint = false))
+    }
+
+    @Test
+    fun majorTick_degenerateStepIsMinor() {
+        assertFalse(isActualDoseDeltaMajorTick(0.0, step = 0.0, isEndpoint = false))
     }
 }

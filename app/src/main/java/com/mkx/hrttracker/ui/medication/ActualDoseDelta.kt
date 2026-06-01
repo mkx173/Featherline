@@ -7,6 +7,10 @@ import kotlin.math.roundToLong
 
 internal const val ACTUAL_DOSE_DELTA_STEP = 0.1
 
+// Every 5th step from the planned point (delta 0) is a labeled major tick, so
+// majors land on round delta values (0.05 mL, 0.5 g, 0.5 mg for the three forms).
+internal const val ACTUAL_DOSE_DELTA_MAJOR_TICK_EVERY = 5L
+
 internal data class ActualDoseDeltaRange(
     val min: Double,
     val max: Double,
@@ -66,6 +70,21 @@ internal fun doseAmountDeltaForActual(
     )
     val delta = clampedActual - scheduledAmount
     return if (abs(delta) < DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON) null else delta
+}
+
+// A ruler tick is major (taller + labeled) when it is a band endpoint or its
+// delta is a whole multiple of ACTUAL_DOSE_DELTA_MAJOR_TICK_EVERY * step. Ticks
+// sit exactly at integer multiples of step, so the multiple test is exact via
+// the rounded step count.
+internal fun isActualDoseDeltaMajorTick(
+    delta: Double,
+    step: Double,
+    isEndpoint: Boolean,
+): Boolean {
+    if (isEndpoint) return true
+    if (!delta.isFinite() || !step.isFinite() || step <= 0.0) return false
+    val steps = (delta / step).roundToLong()
+    return steps % ACTUAL_DOSE_DELTA_MAJOR_TICK_EVERY == 0L
 }
 
 internal fun effectiveActualDoseAmount(
