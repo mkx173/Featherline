@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.log
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
+import com.mkx.hrttracker.data.repository.DoseInstructionCalculator
 import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -49,6 +50,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
+import kotlin.math.abs
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MedicationLogEntryViewModelTest {
@@ -380,6 +382,166 @@ class MedicationLogEntryViewModelTest {
         )
 
         assertEquals(MedicinePreparationType.PATCH_OFF, uiState.doseInstructionDraft.preparationType)
+    }
+
+    @Test
+    fun allowsActualDoseDelta_trueForMultiUseVialNewLog() {
+        val uiState = buildQuickLogUiState(
+            groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
+            group = null,
+            scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0),
+            medicine = testMedicine(
+                preparation = MedicinePreparation.InjectionMultiUseVial(
+                    concentrationMgPerMl = 40.0,
+                    vialVolumeMl = 5.0,
+                ),
+            ),
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = DoseInstruction.VolumeMl(0.2),
+            medicationCount = 1,
+            appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15),
+        )
+
+        assertTrue(uiState.allowsActualDoseDelta)
+        assertEquals(0.2, uiState.effectiveActualAmount ?: error("Missing effective actual amount"), 0.0)
+    }
+
+    @Test
+    fun allowsActualDoseDelta_falseWhenEditing() {
+        val entry = testMedicationLogEntry(
+            medicine = testMedicine(
+                preparation = MedicinePreparation.GelContainer(
+                    concentrationPercent = 0.06,
+                    containerWeightGrams = 80.0,
+                ),
+            ),
+            applicationType = MedicationApplicationType.GEL,
+            doseInstruction = DoseInstruction.WeightGrams(1.0),
+            equivalentE2Mg = 0.6,
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+        )
+
+        val uiState = buildEditingUiState(listOf(entry))
+
+        requireNotNull(uiState)
+        assertFalse(uiState.allowsActualDoseDelta)
+        assertEquals(1.0, uiState.effectiveActualAmount ?: error("Missing effective actual amount"), 0.0)
+    }
+
+    @Test
+    fun adjustDoseAmountDelta_clampsActualAboveZero() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns testMedicationGroup(
+            groupId = groupId,
+            name = "Nightly estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO,
+        )
+        val viewModel = MedicationLogEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0),
+            medicine = testMedicine(
+                preparation = MedicinePreparation.InjectionMultiUseVial(
+                    concentrationMgPerMl = 40.0,
+                    vialVolumeMl = 5.0,
+                ),
+            ),
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = DoseInstruction.VolumeMl(0.2),
+            medicationCount = 1,
+        )
+
+        viewModel.adjustDoseAmountDelta(-999.0)
+
+        val uiState = viewModel.uiState.value
+        assertEquals(
+            DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON,
+            uiState.effectiveActualAmount ?: error("Missing effective actual amount"),
+            1e-12,
+        )
+        assertEquals(
+            DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON - 0.2,
+            uiState.doseAmountDelta ?: error("Missing dose amount delta"),
+            0.0,
+        )
+    }
+
+    @Test
+    fun saveEntry_forMultiUseVialQuickLog_afterDoseDeltaPassesDelta() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 40.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
+        val doseInstruction = DoseInstruction.VolumeMl(0.2)
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns testMedicationGroup(
+            groupId = groupId,
+            name = "Nightly estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO,
+        )
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.INJECTION,
+                doseInstruction = doseInstruction,
+                sourceGroupUuid = groupId,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 1,
+                appliedAtTimeZoneId = any(),
+                doseAmountDelta = match { abs(it - 0.1) < 1e-12 },
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = MedicationLogEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = doseInstruction,
+            medicationCount = 1,
+        )
+        advanceUntilIdle()
+        viewModel.updateAppliedDate(scheduledFor.toLocalDate())
+        viewModel.updateAppliedTime(scheduledFor.toLocalTime().plusMinutes(15))
+
+        viewModel.adjustDoseAmountDelta(0.1)
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        coVerify(exactly = 1) {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.INJECTION,
+                doseInstruction = doseInstruction,
+                sourceGroupUuid = groupId,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 1,
+                appliedAtTimeZoneId = any(),
+                doseAmountDelta = match { abs(it - 0.1) < 1e-12 },
+            )
+        }
     }
 
     @Test
