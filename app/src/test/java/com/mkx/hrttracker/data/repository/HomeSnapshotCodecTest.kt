@@ -407,6 +407,30 @@ class HomeSnapshotCodecTest {
     }
 
     @Test
+    fun encodeDecode_preservesDoseAmountDelta() {
+        val record = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 1L,
+            generatedAtEpochMillis = 100L,
+            anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
+            zoneId = "Asia/Tokyo",
+            pkProjection = null,
+            activeGroups = emptyList(),
+            scheduleEntries = listOf(
+                testMedicationLogEntry(
+                    sourceGroupUuid = null,
+                    appliedAt = Instant.ofEpochMilli(1_000L),
+                ).copy(doseAmountDelta = 0.1)
+            ),
+            antiandrogenHistoryEntries = emptyList(),
+        )
+
+        val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+
+        assertEquals(0.1, decoded.scheduleEntries.single().doseAmountDelta)
+    }
+
+    @Test
     fun encode_dedupesMedicineSharedAcrossPkEntries() {
         // A medicine shared across many entries must be serialized once. Encode
         // 40 entries that share one medicine vs 40 that each carry a distinct

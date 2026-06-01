@@ -505,6 +505,7 @@ internal object HomeSnapshotCodec {
         writeString(entry.appliedAtTimeZoneId)
         writeNullableString(entry.scheduledFor?.toString())
         writeInt(entry.count)
+        writeNullableDouble(entry.doseAmountDelta)
     }
 
     private fun DataInputStream.readMedicationLogEntryBody(
@@ -524,6 +525,7 @@ internal object HomeSnapshotCodec {
             appliedAtTimeZoneId = readString(),
             scheduledFor = readNullableString()?.let(LocalDateTime::parse),
             count = readInt(),
+            doseAmountDelta = readNullableDouble(),
         )
     }
 
@@ -918,7 +920,8 @@ private const val TAG = "HomeSnapshotStore"
 // v17 appends the deduped pkEntries pool so the snapshot path can re-simulate
 // the E2 curve locally when the cached projection expires.
 // v18 appends archivedGroups (after activeGroups) so Home/widget mirror Plan.
-private const val SNAPSHOT_CODEC_VERSION = 18
+// v19 appends doseAmountDelta to medication log entries for stock deltas.
+private const val SNAPSHOT_CODEC_VERSION = 19
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0
