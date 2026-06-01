@@ -150,7 +150,7 @@ fun MedicationLogEntryScreen(
         },
         onAppliedDateChange = viewModel::updateAppliedDate,
         onAppliedTimeChange = viewModel::updateAppliedTime,
-        onAdjustDoseAmountDelta = viewModel::adjustDoseAmountDelta,
+        onDoseAmountDeltaChange = viewModel::setDoseAmountDelta,
         onDeleteClick = viewModel::deleteEntry,
         onSaveClick = viewModel::saveEntry,
         onSaveAfterFulfillmentWarningClick = viewModel::saveEntryAfterFulfillmentWarning,
@@ -169,7 +169,7 @@ private fun MedicationLogEntryScreenBody(
     onCloseClick: () -> Unit,
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
-    onAdjustDoseAmountDelta: (Double) -> Unit,
+    onDoseAmountDeltaChange: (Double?) -> Unit,
     onDeleteClick: () -> Unit,
     onSaveClick: () -> Unit,
     onSaveAfterFulfillmentWarningClick: () -> Unit,
@@ -231,11 +231,12 @@ private fun MedicationLogEntryScreenBody(
         appliedZoneId = uiState.appliedZoneId,
         onAppliedDateChange = onAppliedDateChange,
         onAppliedTimeChange = onAppliedTimeChange,
-        onAdjustDoseAmountDelta = { step ->
+        onDoseAmountDeltaChange = { delta ->
             if (!uiState.isSaving && !uiState.isDeleting && !uiState.isSaved) {
-                onAdjustDoseAmountDelta(step)
+                onDoseAmountDeltaChange(delta)
             }
         },
+        plannedDoseAmount = uiState.scheduledNativeAmount,
         isSaving = uiState.isSaving || uiState.isDeleting || uiState.isSaved,
         destructiveButtonText = if (uiState.canDelete) {
             stringResource(R.string.delete_entries_confirm)
@@ -375,7 +376,7 @@ private fun MedicationLogEntryScreenPreview() {
             onCloseClick = { },
             onAppliedDateChange = { },
             onAppliedTimeChange = { },
-            onAdjustDoseAmountDelta = { },
+            onDoseAmountDeltaChange = { },
             onDeleteClick = { },
             onSaveClick = { },
             onSaveAfterFulfillmentWarningClick = { },

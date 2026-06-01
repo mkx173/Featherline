@@ -26,12 +26,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -129,6 +126,7 @@ fun MedicationLogEntryEditorSheet(
     showActualDoseDeltaReadOnly: Boolean = false,
     doseAmountDelta: Double? = null,
     scheduledDoseAmount: Double? = null,
+    plannedDoseAmount: Double? = null,
     effectiveActualAmount: Double? = null,
     sourceGroupName: String? = null,
     sourceGroupColorKey: MedicationGroupColorKey? = null,
@@ -140,7 +138,7 @@ fun MedicationLogEntryEditorSheet(
     appliedZoneId: ZoneId = ZoneId.systemDefault(),
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
-    onAdjustDoseAmountDelta: (Double) -> Unit = { },
+    onDoseAmountDeltaChange: (Double?) -> Unit = { },
     isSaving: Boolean = false,
     destructiveButtonText: String? = null,
     onDestructiveAction: (() -> Unit)? = null,
@@ -208,16 +206,13 @@ fun MedicationLogEntryEditorSheet(
 
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
-        ActualAmountStepperCard(
+        ActualAmountRulerCard(
             preparationType = lockedMedicine?.preparation?.type,
             allowsActualDoseDelta = allowsActualDoseDelta,
+            plannedAmount = plannedDoseAmount,
             doseAmountDelta = doseAmountDelta,
-            effectiveActualAmount = effectiveActualAmount,
-            onAdjustDoseAmountDelta = {
-                if (!isSaving) {
-                    onAdjustDoseAmountDelta(it)
-                }
-            },
+            isSaving = isSaving,
+            onDoseAmountDeltaChange = onDoseAmountDeltaChange,
         )
 
         ActualAmountReadOnlyCard(
@@ -242,76 +237,6 @@ fun MedicationLogEntryEditorSheet(
             appliedZoneId = appliedZoneId,
             onAppliedDateChange = { if (!isSaving) onAppliedDateChange(it) },
             onAppliedTimeChange = { if (!isSaving) onAppliedTimeChange(it) },
-        )
-    }
-}
-
-@Composable
-internal fun ActualAmountStepperCard(
-    preparationType: MedicinePreparationType?,
-    allowsActualDoseDelta: Boolean,
-    doseAmountDelta: Double?,
-    effectiveActualAmount: Double?,
-    onAdjustDoseAmountDelta: (Double) -> Unit,
-) {
-    if (!allowsActualDoseDelta || effectiveActualAmount == null) {
-        return
-    }
-    val unitText = actualAmountUnitText(preparationType) ?: return
-    val delta = doseAmountDelta ?: 0.0
-
-    EditorSegmentedListItem(
-        index = 0,
-        count = 1,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        overlineContent = {
-            Text(
-                text = stringResource(R.string.medication_log_actual_amount),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        trailingContent = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                FilledTonalIconButton(
-                    onClick = { onAdjustDoseAmountDelta(-0.1) },
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Remove,
-                        contentDescription = stringResource(
-                            R.string.medication_log_actual_amount_decrease,
-                        ),
-                    )
-                }
-                FilledTonalIconButton(
-                    onClick = { onAdjustDoseAmountDelta(0.1) },
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = stringResource(
-                            R.string.medication_log_actual_amount_increase,
-                        ),
-                    )
-                }
-            }
-        },
-        supportingContent = {
-            Text(
-                text = "${formatSignedActualAmountDelta(delta)} $unitText",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-    ) {
-        Text(
-            text = "${formatActualAmount(effectiveActualAmount)} $unitText",
-            style = MaterialTheme.typography.headlineSmall.copy(
-                fontWeight = FontWeight.SemiBold,
-            ),
-            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }

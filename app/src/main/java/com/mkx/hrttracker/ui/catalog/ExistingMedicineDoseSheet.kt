@@ -23,14 +23,13 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.reminder.PostLogStockWarning
-import com.mkx.hrttracker.ui.medication.ActualAmountStepperCard
+import com.mkx.hrttracker.ui.medication.ActualAmountRulerCard
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
 import com.mkx.hrttracker.ui.medication.MedicationDoseResetPolicy
 import com.mkx.hrttracker.ui.medication.MedicationEditorContent
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicationLogAppliedAtFields
-import com.mkx.hrttracker.ui.medication.adjustedActualDoseDelta
 import com.mkx.hrttracker.ui.medication.applyMedicinePicker
 import com.mkx.hrttracker.ui.medication.effectiveActualDoseAmount
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
@@ -311,21 +310,13 @@ fun ExistingMedicineDoseSheet(
         if (isManualLogMode) {
             if (allowsActualDoseDelta && effectiveActualAmount != null) {
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-                ActualAmountStepperCard(
+                ActualAmountRulerCard(
                     preparationType = medicine.preparation.type,
                     allowsActualDoseDelta = allowsActualDoseDelta,
+                    plannedAmount = scheduledNativeAmount,
                     doseAmountDelta = doseAmountDelta,
-                    effectiveActualAmount = effectiveActualAmount,
-                    onAdjustDoseAmountDelta = { step ->
-                        if (!isSaving) {
-                            val scheduledAmount = checkNotNull(scheduledNativeAmount)
-                            doseAmountDelta = adjustedActualDoseDelta(
-                                scheduledAmount = scheduledAmount,
-                                currentDoseAmountDelta = doseAmountDelta,
-                                step = step,
-                            )
-                        }
-                    },
+                    isSaving = isSaving,
+                    onDoseAmountDeltaChange = { doseAmountDelta = it },
                 )
             }
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))

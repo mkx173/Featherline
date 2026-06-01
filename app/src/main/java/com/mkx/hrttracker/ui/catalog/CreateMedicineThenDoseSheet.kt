@@ -17,7 +17,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.reminder.PostLogStockWarning
-import com.mkx.hrttracker.ui.medication.ActualAmountStepperCard
+import com.mkx.hrttracker.ui.medication.ActualAmountRulerCard
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.medication.DoseInstructionForm
 import com.mkx.hrttracker.ui.medication.MedicationCountTextField
@@ -194,16 +194,13 @@ fun CreateMedicineThenDoseSheet(
         if (isManualLogMode) {
             if (uiState.allowsActualDoseDelta && uiState.effectiveActualAmount != null) {
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-                ActualAmountStepperCard(
+                ActualAmountRulerCard(
                     preparationType = activePreparationType,
                     allowsActualDoseDelta = uiState.allowsActualDoseDelta,
+                    plannedAmount = uiState.scheduledNativeAmount,
                     doseAmountDelta = uiState.doseAmountDelta,
-                    effectiveActualAmount = uiState.effectiveActualAmount,
-                    onAdjustDoseAmountDelta = {
-                        if (!isSheetLocked) {
-                            viewModel.adjustDoseAmountDelta(it)
-                        }
-                    },
+                    isSaving = isSheetLocked,
+                    onDoseAmountDeltaChange = { viewModel.setDoseAmountDelta(it) },
                 )
             }
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
