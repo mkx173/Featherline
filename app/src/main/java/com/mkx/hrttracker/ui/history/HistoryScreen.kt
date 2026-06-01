@@ -2187,7 +2187,9 @@ private fun buildHistoryEntrySupportingText(
     count: Int,
     groupName: String?
 ): String {
-    val doseText = entry.medicine?.let { doseInstructionSummary(it, entry.doseInstruction) }
+    val doseText = entry.medicine?.let {
+        doseInstructionSummary(it, entry.doseInstruction, entry.doseAmountDelta)
+    }
     val countText = medicationCountIndicatorText(count)
     val fallbackText = stringResource(entry.applicationType.labelRes)
     return historyEntrySupportingText(

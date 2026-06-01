@@ -177,7 +177,7 @@ private fun MedicationLogEntry.toManualWidgetDoseRow(
         routeLabel = medicationRouteLabel(applicationType, context),
         doseText = listOfNotNull(
             medicationCountIndicatorText(context, count),
-            doseInstructionText(context, medicine, doseInstruction),
+            doseInstructionText(context, medicine, doseInstruction, doseAmountDelta),
         ).joinToString(separator = " · "),
         status = WidgetDoseStatus.DONE,
         scheduledAt = appliedAt.atZone(zoneId).toLocalDateTime(),

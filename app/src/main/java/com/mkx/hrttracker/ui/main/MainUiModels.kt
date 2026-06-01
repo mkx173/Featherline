@@ -57,6 +57,7 @@ data class LastDoseDisplay(
     val medicine: com.mkx.hrttracker.model.medication.Medicine?,
     val applicationType: com.mkx.hrttracker.model.medication.MedicationApplicationType,
     val doseInstruction: com.mkx.hrttracker.model.medication.DoseInstruction,
+    val doseAmountDelta: Double? = null,
 )
 
 data class MainE2HeroUiState(
@@ -878,6 +879,7 @@ private fun MedicationLogEntry.toLastDoseDisplay(): LastDoseDisplay {
         medicine = medicine,
         applicationType = applicationType,
         doseInstruction = doseInstruction,
+        doseAmountDelta = doseAmountDelta,
     )
 }
 

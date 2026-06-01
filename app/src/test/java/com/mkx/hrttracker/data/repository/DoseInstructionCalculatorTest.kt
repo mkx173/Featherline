@@ -62,6 +62,56 @@ class DoseInstructionCalculatorTest {
     }
 
     @Test
+    fun effectiveDoseInstructionForDisplay_substitutesActualVolumeForMultiUseVial() {
+        val effective = DoseInstructionCalculator.effectiveDoseInstructionForDisplay(
+            preparation = multiUseVial(concentrationMgPerMl = 20.0).preparation,
+            doseInstruction = DoseInstruction.VolumeMl(0.5),
+            doseAmountDelta = 0.1,
+        )
+        assertEquals(0.6, (effective as DoseInstruction.VolumeMl).valueMl, 1e-9)
+    }
+
+    @Test
+    fun effectiveDoseInstructionForDisplay_substitutesActualWeightForGelContainer() {
+        val gel = medicine(
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_GEL),
+            preparation = MedicinePreparation.GelContainer(
+                concentrationPercent = 0.06,
+                containerWeightGrams = 80.0,
+            ),
+        )
+        val effective = DoseInstructionCalculator.effectiveDoseInstructionForDisplay(
+            preparation = gel.preparation,
+            doseInstruction = DoseInstruction.WeightGrams(1.25),
+            doseAmountDelta = -0.25,
+        )
+        assertEquals(1.0, (effective as DoseInstruction.WeightGrams).valueGrams, 1e-9)
+    }
+
+    @Test
+    fun effectiveDoseInstructionForDisplay_leavesAmpuleAndNullDeltaUnchanged() {
+        // Single-use vial carries no portion amount; the delta lands on the mg
+        // line, so the displayed instruction stays WholeUnit.
+        assertEquals(
+            DoseInstruction.WholeUnit,
+            DoseInstructionCalculator.effectiveDoseInstructionForDisplay(
+                preparation = singleUseVial(strengthMgPerVial = 5.0).preparation,
+                doseInstruction = DoseInstruction.WholeUnit,
+                doseAmountDelta = 0.2,
+            ),
+        )
+        // A null delta is a no-op regardless of preparation.
+        assertEquals(
+            DoseInstruction.VolumeMl(0.5),
+            DoseInstructionCalculator.effectiveDoseInstructionForDisplay(
+                preparation = multiUseVial(concentrationMgPerMl = 20.0).preparation,
+                doseInstruction = DoseInstruction.VolumeMl(0.5),
+                doseAmountDelta = null,
+            ),
+        )
+    }
+
+    @Test
     fun pillFractionMultipliesStrengthFractionAndCount() {
         val medicine = medicine(
             selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL),

@@ -99,6 +99,32 @@ object DoseInstructionCalculator {
         }
     }
 
+    // The dose instruction to render for display purposes. The stored
+    // instruction always reflects the scheduled amount; for measured forms
+    // (multi-use vial volume, gel-container weight) we substitute the actual
+    // administered amount (scheduled + delta, clamped positive) so summaries
+    // show what was really taken. Ampules carry the delta on the mg line, not
+    // a portion, so their WholeUnit instruction is returned unchanged.
+    fun effectiveDoseInstructionForDisplay(
+        preparation: MedicinePreparation,
+        doseInstruction: DoseInstruction,
+        doseAmountDelta: Double?,
+    ): DoseInstruction {
+        if (doseAmountDelta == null) {
+            return doseInstruction
+        }
+        val effectiveAmount = effectivePerAdministrationStockAmount(
+            preparation = preparation,
+            doseInstruction = doseInstruction,
+            doseAmountDelta = doseAmountDelta,
+        ) ?: return doseInstruction
+        return when (doseInstruction) {
+            is DoseInstruction.VolumeMl -> DoseInstruction.VolumeMl(effectiveAmount)
+            is DoseInstruction.WeightGrams -> DoseInstruction.WeightGrams(effectiveAmount)
+            else -> doseInstruction
+        }
+    }
+
     fun perUnitAmountMg(
         medicine: Medicine,
         doseInstruction: DoseInstruction,
