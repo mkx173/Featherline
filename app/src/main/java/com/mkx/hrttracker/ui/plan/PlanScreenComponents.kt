@@ -281,7 +281,8 @@ private fun SelectedDayRow(
         doseInstruction = row.doseInstruction,
         applicationType = row.applicationType,
         count = row.medicationCount,
-        extraSupportingText = row.groupName
+        extraSupportingText = row.groupName,
+        doseAmountDelta = row.doseAmountDelta,
     )
     val timeLabel = when (row) {
         is SelectedDayRowModel.Scheduled -> if (displayedLoggedAt != null) {
@@ -925,6 +926,7 @@ private sealed interface SelectedDayRowModel {
     // PATCH_OFF rows carry no medicine; null medicine suppresses the dose line.
     val medicine: com.mkx.hrttracker.model.medication.Medicine?
     val doseInstruction: com.mkx.hrttracker.model.medication.DoseInstruction
+    val doseAmountDelta: Double?
     val applicationType: MedicationApplicationType
     val medicationCount: Int
     val groupName: String?
@@ -936,6 +938,7 @@ private sealed interface SelectedDayRowModel {
         override val sortTime: LocalTime = entry.scheduledTime
         override val medicine = entry.medication.medicine
         override val doseInstruction = entry.medication.doseInstruction
+        override val doseAmountDelta: Double? = entry.doseAmountDelta
         override val applicationType = entry.medication.applicationType
         override val medicationCount: Int = entry.medication.count
         override val groupName: String = entry.groupName
@@ -948,6 +951,7 @@ private sealed interface SelectedDayRowModel {
     ) : SelectedDayRowModel {
         override val medicine = entry.medicine
         override val doseInstruction = entry.doseInstruction
+        override val doseAmountDelta: Double? = entry.doseAmountDelta
         override val applicationType = entry.applicationType
         override val medicationCount: Int = entry.count
         override val groupName: String? = null

@@ -2111,6 +2111,7 @@ private fun HistoryEntryCard(
         applicationType = entry.applicationType,
         medicationCount = entry.count,
         groupColorKey = groupColorKey,
+        doseAmountDelta = entry.doseAmountDelta,
         // Manual entries have no source group; render the leading icon in
         // the neutral group palette to match other manual-log surfaces
         // instead of falling through to secondaryContainer.

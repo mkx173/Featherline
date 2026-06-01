@@ -354,6 +354,39 @@ class PlanViewModelTest {
         }
     }
 
+    @Test
+    fun fulfilledScheduleEntryCarriesActualDoseDeltaFromLog() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 18, 10, 0))
+        val group = medicationGroup(times = listOf(LocalTime.of(8, 0)))
+        val medication = group.medications.single()
+        val entry = testMedicationLogEntry(
+            medicine = medication.medicine,
+            applicationType = medication.applicationType,
+            doseInstruction = medication.doseInstruction,
+            equivalentE2Mg = 2.0,
+            sourceGroupUuid = group.uuid,
+            appliedAt = Instant.parse("2026-04-18T00:05:00Z"),
+            scheduledFor = LocalDateTime.of(2026, 4, 18, 8, 0),
+        ).copy(doseAmountDelta = 0.1)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(entry))
+
+        val viewModel = PlanViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val scheduledEntry = viewModel.uiState.value.daySchedule.scheduledEntries.single()
+        assertTrue(scheduledEntry.isFulfilled)
+        // The fulfilled schedule row exposes the actual administered delta so
+        // the plan/home rows can render the actual dose, not the planned one.
+        assertEquals(0.1, scheduledEntry.doseAmountDelta!!, 1e-9)
+    }
+
     private fun medicationGroup(times: List<LocalTime>): MedicationGroup {
         return MedicationGroup(
             uuid = UUID.fromString("ec6ed1ff-9a50-4f40-894b-80801f6a611d"),

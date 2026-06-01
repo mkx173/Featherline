@@ -119,6 +119,9 @@ data class MainTodayDoseRowUiState(
     val scheduledAt: LocalDateTime,
     val medication: MedicationGroupMedication,
     val status: MainTodayDoseStatus,
+    // Actual administered-amount delta of the fulfilling/manual log, so done
+    // rows render the actual dose rather than the planned one.
+    val doseAmountDelta: Double? = null,
     val loggedAt: LocalDateTime? = null,
     val outsideScheduleWindowLoggedAt: LocalDateTime? = null,
     val fulfillingEntryUuids: List<UUID> = emptyList(),
@@ -728,6 +731,7 @@ private fun buildMainTodayRowsForDate(
                 scheduledAt.isBefore(now) -> MainTodayDoseStatus.OVERDUE
                 else -> MainTodayDoseStatus.UPCOMING
             },
+            doseAmountDelta = lastFulfillingEntry?.doseAmountDelta,
             loggedAt = lastFulfillingEntry?.let { appliedAtAsLocalDateTime(it, zoneId) },
             outsideScheduleWindowLoggedAt = scheduledEntry.outsideScheduleWindowLoggedAt,
             fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
@@ -758,6 +762,7 @@ private fun buildMainTodayRowsForDate(
                 count = entry.count
             ),
             status = MainTodayDoseStatus.DONE,
+            doseAmountDelta = entry.doseAmountDelta,
             loggedAt = appliedAt,
             fulfillingEntryUuids = listOf(entry.uuid),
             loggedCount = entry.count,

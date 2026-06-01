@@ -21,6 +21,9 @@ data class PlanDayScheduleEntry(
     val medication: MedicationGroupMedication,
     val medicationSortOrder: Int = 0,
     val fulfillingEntryUuids: List<UUID>,
+    // Actual administered-amount delta of the last fulfilling log, so fulfilled
+    // schedule rows can render the actual dose rather than the planned one.
+    val doseAmountDelta: Double? = null,
     val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedAt: LocalDateTime? = null,
     val isLastFulfillingEntryCrossZone: Boolean = false,
@@ -121,6 +124,7 @@ fun buildPlanDaySchedule(
                         medication = indexedMedicationsForSignature.first().value.copy(count = requiredCount),
                         medicationSortOrder = medicationSortOrder,
                         fulfillingEntryUuids = matchingLogs.map { it.uuid },
+                        doseAmountDelta = lastFulfillingEntry?.doseAmountDelta,
                         outsideScheduleWindowEntryUuids = outsideWindowLogs.map { it.uuid },
                         loggedAt = lastFulfillingEntry?.let { appliedAtAsLocalDateTime(it, zoneId) },
                         isLastFulfillingEntryCrossZone = lastFulfillingEntry?.let { isCrossZone(it, zoneId) } == true,

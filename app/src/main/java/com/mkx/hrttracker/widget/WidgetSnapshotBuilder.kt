@@ -219,7 +219,7 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
         routeLabel = medicationRouteLabel(medication.applicationType, context),
         doseText = listOfNotNull(
             medicationCountIndicatorText(context, medication.count),
-            doseInstructionText(context, medication.medicine, medication.doseInstruction),
+            doseInstructionText(context, medication.medicine, medication.doseInstruction, doseAmountDelta),
         ).joinToString(separator = " · "),
         status = status,
         scheduledAt = scheduledFor,

@@ -3105,7 +3105,9 @@ private fun MainTodayDoseRow(
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val headline = medicationEntryTitle(medication.medicine, medication.applicationType)
     val routeLabel = stringResource(medication.applicationType.labelRes)
-    val doseText = medication.medicine?.let { doseInstructionSummary(it, medication.doseInstruction) }
+    val doseText = medication.medicine?.let {
+        doseInstructionSummary(it, medication.doseInstruction, row.doseAmountDelta)
+    }
     val supportingText = listOfNotNull(
         routeLabel,
         medicationCountIndicatorText(row.medication.count),
