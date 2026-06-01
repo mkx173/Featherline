@@ -12,6 +12,9 @@ import androidx.compose.material3.MenuAnchorPosition
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.window.PopupProperties
@@ -45,11 +48,17 @@ fun HrtDropdownMenu(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = MenuDefaults.DropdownMenuGroupContentPadding,
     properties: PopupProperties = PopupProperties(focusable = true),
+    // Invoked once the popup has fully dismissed (after its exit animation), when the
+    // menu content actually leaves the composition. Callers that must avoid disrupting
+    // the UI while the menu is still animating out — e.g. a language switch that
+    // re-localizes the whole screen — can defer that work until here.
+    onExitFinished: () -> Unit = {},
 ) {
     if (items.isEmpty()) {
         return
     }
     val scrollState = rememberScrollState()
+    val currentOnExitFinished by rememberUpdatedState(onExitFinished)
 
     DropdownMenuPopup(
         expanded = expanded,
@@ -57,6 +66,9 @@ fun HrtDropdownMenu(
         modifier = modifier,
         properties = properties,
     ) {
+        DisposableEffect(Unit) {
+            onDispose { currentOnExitFinished() }
+        }
         DropdownMenuGroup(
             modifier = Modifier.verticalScroll(scrollState),
             shapes = MenuDefaults.groupShapes(),

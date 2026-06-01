@@ -760,6 +760,22 @@ internal fun SettingsScreenContent(
         remember { mutableStateOf(false) }
     val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
     val (isLanguageMenuExpanded, setLanguageMenuExpanded) = remember { mutableStateOf(false) }
+    // Hold the chosen language until the dropdown has fully closed, then apply it.
+    // Applying immediately re-localizes the whole screen (~one frame after the tap)
+    // while the menu is still playing its exit animation, so the menu visibly lingers
+    // over the already-translated UI. Deferring to onExitFinished keeps the switch from
+    // overlapping the dismiss.
+    var pendingLanguageOption by remember { mutableStateOf<AppLanguageOption?>(null) }
+    // Same deferral for dark mode: applying it immediately re-themes the whole screen
+    // while the dropdown is still animating out, leaving the menu lingering over the
+    // already-recolored UI. The row's supporting text still reflects the pick right away
+    // (see below); only the theme switch waits for the dismiss.
+    var pendingDarkModeOption by remember { mutableStateOf<DarkModeOption?>(null) }
+    // Drop the optimistic value once the committed setting catches up, so the row tracks
+    // the source of truth again without flickering back to the previous option.
+    LaunchedEffect(settingsState.darkModeOption, pendingDarkModeOption) {
+        if (pendingDarkModeOption == settingsState.darkModeOption) pendingDarkModeOption = null
+    }
     val (isFirstDayOfWeekMenuExpanded, setFirstDayOfWeekMenuExpanded) =
         remember { mutableStateOf(false) }
     val appName = stringResource(R.string.app_name)
@@ -1207,8 +1223,14 @@ internal fun SettingsScreenContent(
                         items = AppLanguageOption.entries.map { option ->
                             HrtDropdownMenuItem(
                                 text = stringResource(option.labelRes),
-                                onClick = { onAppLanguageOptionChange(option) },
+                                onClick = { pendingLanguageOption = option },
                             )
+                        },
+                        onExitFinished = {
+                            pendingLanguageOption?.let { option ->
+                                onAppLanguageOptionChange(option)
+                                pendingLanguageOption = null
+                            }
                         },
                     )
                 }
@@ -1216,7 +1238,11 @@ internal fun SettingsScreenContent(
                 Box {
                     SettingsSegmentedListItem(
                         title = stringResource(R.string.settings_dark_mode),
-                        supportingText = stringResource(settingsState.darkModeOption.labelRes),
+                        // Show the just-picked option immediately even though the actual
+                        // theme switch is deferred until the dropdown finishes dismissing.
+                        supportingText = stringResource(
+                            (pendingDarkModeOption ?: settingsState.darkModeOption).labelRes
+                        ),
                         index = appearanceLayout.darkModeIndex,
                         count = appearanceLayout.itemCount,
                         onClick = { setDarkModeMenuExpanded(true) },
@@ -1233,8 +1259,14 @@ internal fun SettingsScreenContent(
                         items = DarkModeOption.entries.map { option ->
                             HrtDropdownMenuItem(
                                 text = stringResource(option.labelRes),
-                                onClick = { onDarkModeOptionChange(option) },
+                                onClick = { pendingDarkModeOption = option },
                             )
+                        },
+                        onExitFinished = {
+                            // Apply the deferred switch once the menu is gone. The pending
+                            // value is cleared by the LaunchedEffect above once the committed
+                            // setting catches up, so the row never flickers back.
+                            pendingDarkModeOption?.let(onDarkModeOptionChange)
                         },
                     )
                 }
