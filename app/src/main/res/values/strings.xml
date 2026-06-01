@@ -201,6 +201,7 @@
     <string name="medication_log_actual_amount_decrease">Decrease actual amount</string>
     <string name="medication_log_actual_amount_increase">Increase actual amount</string>
     <string name="medication_log_actual_amount_reset">Reset actual amount</string>
+    <string name="medication_log_actual_amount_at_planned">At planned dose</string>
     <string name="field_count">Count</string>
     <string name="unit_mg">mg</string>
     <string name="unit_mg_per_ml">mg/mL</string>
