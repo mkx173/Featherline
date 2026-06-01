@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-class MedicationLogEntryEditorSheetTest {
+class ActualAmountCardTest {
     @Test
     fun summaryDoseAmountDelta_ignoresInteractiveRulerDeltaUntilLogIsSaved() {
         val summaryDelta = medicationLogEntrySummaryDoseAmountDelta(
