@@ -74,4 +74,13 @@ class ActualDoseDeltaTest {
         val delta = doseAmountDeltaForActual(scheduledAmount = 0.25, actualAmount = -1.0)!!
         assertTrue(0.25 + delta > 0.0)
     }
+
+    @Test
+    fun rulerOverscrollScale_isCenteredStretchCappedByViewport() {
+        assertEquals(1.0f, actualAmountRulerOverscrollScale(0f, viewportWidthPx = 1000f), 0f)
+        assertEquals(1.04f, actualAmountRulerOverscrollScale(40f, viewportWidthPx = 1000f), 1e-6f)
+        assertEquals(1.04f, actualAmountRulerOverscrollScale(-40f, viewportWidthPx = 1000f), 1e-6f)
+        assertEquals(1.08f, actualAmountRulerOverscrollScale(500f, viewportWidthPx = 1000f), 1e-6f)
+        assertEquals(1.0f, actualAmountRulerOverscrollScale(40f, viewportWidthPx = 0f), 0f)
+    }
 }

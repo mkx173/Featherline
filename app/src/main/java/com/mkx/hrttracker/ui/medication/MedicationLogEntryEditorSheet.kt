@@ -1,9 +1,14 @@
 package com.mkx.hrttracker.ui.medication
 
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.OverscrollEffect
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.snapping.SnapPosition
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
@@ -26,10 +31,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
@@ -37,21 +44,35 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource.Companion.UserInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.DoseInstructionCalculator
@@ -92,6 +113,10 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 
 // ---------------------------------------------------------------------------
 // Log entry sheet entry point.
@@ -270,10 +295,31 @@ internal fun ActualAmountRulerCard(
         val target = doseAmountDelta ?: 0.0
         deltas.indices.minByOrNull { abs(deltas[it] - target) } ?: 0
     }
+    val resetIndex = remember(deltas) {
+        deltas.indices.minByOrNull { abs(deltas[it]) } ?: initialIndex
+    }
 
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
-    val flingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
+    val flingBehavior = rememberSnapFlingBehavior(
+        lazyListState = listState,
+        snapPosition = SnapPosition.Center,
+    )
     val tickSpacing = 14.dp
+    val density = LocalDensity.current
+    val overscrollPullPx = remember { mutableFloatStateOf(0f) }
+    val maxOverscrollPx = with(density) { 64.dp.toPx() }
+    val rulerOverscrollEffect = remember(maxOverscrollPx) {
+        ActualAmountRulerOverscrollEffect(
+            overscrollPx = overscrollPullPx,
+            maxOverscrollPx = maxOverscrollPx,
+        )
+    }
+    val currentDoseAmountDelta by rememberUpdatedState(doseAmountDelta)
+    val currentOnDoseAmountDeltaChange by rememberUpdatedState(onDoseAmountDeltaChange)
+    val haptic = LocalHapticFeedback.current
+    val coroutineScope = rememberCoroutineScope()
+    var lastHapticIndex by remember { mutableStateOf(initialIndex) }
+    var resetScrollInProgress by remember { mutableStateOf(false) }
 
     val centeredIndex by remember {
         derivedStateOf {
@@ -289,21 +335,41 @@ internal fun ActualAmountRulerCard(
         }
     }
 
+    LaunchedEffect(centeredIndex, listState.isScrollInProgress, isSaving, resetScrollInProgress) {
+        if (centeredIndex == lastHapticIndex) return@LaunchedEffect
+
+        lastHapticIndex = centeredIndex
+        if (!isSaving && listState.isScrollInProgress && !resetScrollInProgress) {
+            haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+        }
+    }
+
     // Center the initial selection once the row is laid out.
     LaunchedEffect(Unit) { listState.scrollToItem(initialIndex) }
 
-    // Emit the centered tick's delta once scrolling settles.
-    LaunchedEffect(listState.isScrollInProgress) {
-        if (!listState.isScrollInProgress) {
-            val tickDelta = deltas.getOrElse(centeredIndex) { 0.0 }
-            onDoseAmountDeltaChange(
-                doseAmountDeltaForActual(plannedAmount, plannedAmount + tickDelta),
-            )
-        }
+    // Emit only after the row stays idle; drag/fling/snap can briefly report
+    // false between phases, and reacting to that gap causes duplicate snaps.
+    LaunchedEffect(listState, deltas, plannedAmount) {
+        snapshotFlow { listState.isScrollInProgress to centeredIndex }
+            .distinctUntilChanged()
+            .collectLatest { (isScrollInProgress, settledIndex) ->
+                if (isScrollInProgress) return@collectLatest
+                delay(ACTUAL_AMOUNT_RULER_SETTLE_DEBOUNCE_MILLIS)
+                if (listState.isScrollInProgress) return@collectLatest
+
+                val tickDelta = deltas.getOrElse(settledIndex) { 0.0 }
+                val nextDelta = doseAmountDeltaForActual(plannedAmount, plannedAmount + tickDelta)
+                if (!actualAmountDeltasEquivalent(nextDelta, currentDoseAmountDelta)) {
+                    currentOnDoseAmountDeltaChange(nextDelta)
+                }
+            }
     }
 
     val liveDelta = deltas.getOrElse(centeredIndex) { 0.0 }
     val liveActual = plannedAmount + liveDelta
+    val resetEnabled = !isSaving &&
+        abs(liveDelta) >= DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON
+    val resetContentDescription = stringResource(R.string.medication_log_actual_amount_reset)
 
     EditorSegmentedListItem(
         index = 0,
@@ -323,6 +389,27 @@ internal fun ActualAmountRulerCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         },
+        trailingContent = {
+            IconButton(
+                enabled = resetEnabled,
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                    coroutineScope.launch {
+                        resetScrollInProgress = true
+                        try {
+                            listState.animateScrollToItem(resetIndex)
+                        } finally {
+                            resetScrollInProgress = false
+                        }
+                    }
+                },
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.RestartAlt,
+                    contentDescription = resetContentDescription,
+                )
+            }
+        },
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
@@ -332,12 +419,30 @@ internal fun ActualAmountRulerCard(
             )
             BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(56.dp)) {
                 val sidePadding = (maxWidth - tickSpacing) / 2
+                val viewportWidthPx = with(density) { maxWidth.toPx() }
+                val overscrollScale by animateFloatAsState(
+                    targetValue = actualAmountRulerOverscrollScale(
+                        overscrollPx = overscrollPullPx.floatValue,
+                        viewportWidthPx = viewportWidthPx,
+                    ),
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                    label = "ActualAmountRulerOverscrollScale",
+                )
                 LazyRow(
                     state = listState,
                     flingBehavior = flingBehavior,
                     userScrollEnabled = !isSaving,
+                    overscrollEffect = rulerOverscrollEffect,
                     contentPadding = PaddingValues(horizontal = sidePadding),
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = overscrollScale
+                            transformOrigin = TransformOrigin.Center
+                        },
                 ) {
                     items(deltas.size) { i ->
                         val isMajor = i == 0 ||
@@ -439,6 +544,66 @@ private fun formatActualAmount(value: Double): String {
         .stripTrailingZeros()
         .toPlainString()
 }
+
+private fun actualAmountDeltasEquivalent(first: Double?, second: Double?): Boolean {
+    return abs((first ?: 0.0) - (second ?: 0.0)) <
+        DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON
+}
+
+internal fun actualAmountRulerOverscrollScale(
+    overscrollPx: Float,
+    viewportWidthPx: Float,
+): Float {
+    if (viewportWidthPx <= 0f) return 1f
+    return 1f + (abs(overscrollPx) / viewportWidthPx).coerceAtMost(
+        ACTUAL_AMOUNT_RULER_MAX_OVERSCROLL_SCALE - 1f,
+    )
+}
+
+private class ActualAmountRulerOverscrollEffect(
+    private val overscrollPx: MutableFloatState,
+    private val maxOverscrollPx: Float,
+) : OverscrollEffect {
+    override fun applyToScroll(
+        delta: Offset,
+        source: NestedScrollSource,
+        performScroll: (Offset) -> Offset,
+    ): Offset {
+        val consumed = performScroll(delta)
+        val unconsumedX = delta.x - consumed.x
+
+        if (source == UserInput && unconsumedX != 0f) {
+            overscrollPx.floatValue = (
+                overscrollPx.floatValue +
+                    unconsumedX * ACTUAL_AMOUNT_RULER_OVERSCROLL_PULL_DAMPING
+                ).coerceIn(-maxOverscrollPx, maxOverscrollPx)
+            return consumed + Offset(x = unconsumedX, y = 0f)
+        }
+
+        if (consumed.x != 0f && overscrollPx.floatValue != 0f) {
+            overscrollPx.floatValue = 0f
+        }
+        return consumed
+    }
+
+    override suspend fun applyToFling(
+        velocity: Velocity,
+        performFling: suspend (Velocity) -> Velocity,
+    ) {
+        try {
+            performFling(velocity)
+        } finally {
+            overscrollPx.floatValue = 0f
+        }
+    }
+
+    override val isInProgress: Boolean
+        get() = abs(overscrollPx.floatValue) > 0.5f
+}
+
+private const val ACTUAL_AMOUNT_RULER_SETTLE_DEBOUNCE_MILLIS = 48L
+private const val ACTUAL_AMOUNT_RULER_OVERSCROLL_PULL_DAMPING = 0.35f
+private const val ACTUAL_AMOUNT_RULER_MAX_OVERSCROLL_SCALE = 1.08f
 
 // ---------------------------------------------------------------------------
 // Linked (locked) medication summary for group-linked log edits.
