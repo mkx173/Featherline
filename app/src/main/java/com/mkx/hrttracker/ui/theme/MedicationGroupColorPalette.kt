@@ -5,8 +5,6 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import com.materialkolor.hct.Hct
 import com.materialkolor.ktx.darken
 import com.materialkolor.ktx.harmonize
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
@@ -36,19 +34,6 @@ fun rememberMedicationGroupColorScheme(
         // Carries the high-contrast text-on-container color (used for chip body text;
         // icons keep using onPrimaryContainer = accent).
         onPrimaryFixed = finalOnContainer,
-    )
-}
-
-fun Color.desaturateHct(factor: Double = 0.7): Color {
-    val source = Hct.fromInt(toArgb())
-    val safeFactor = factor.coerceIn(0.0, 1.0)
-
-    return Color(
-        Hct.from(
-            source.hue,
-            source.chroma * safeFactor,
-            source.tone,
-        ).toInt()
     )
 }
 

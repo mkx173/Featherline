@@ -3,23 +3,9 @@ package com.mkx.hrttracker.ui.theme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicColorScheme
-
-@Immutable
-data class ColorFamily(
-    val color: Color,
-    val onColor: Color,
-    val colorContainer: Color,
-    val onColorContainer: Color
-)
-
-val unspecified_scheme = ColorFamily(
-    Color.Unspecified, Color.Unspecified, Color.Unspecified, Color.Unspecified
-)
 
 @Composable
 fun HrtTrackerTheme(
@@ -38,7 +24,10 @@ fun HrtTrackerTheme(
         seedColor = seed,
         isDark = darkTheme,
         isAmoled = darkTheme && amoled,
-        specVersion = ColorSpec.SpecVersion.SPEC_2025
+        specVersion = ColorSpec.SpecVersion.SPEC_2025,
+        modifyColorScheme = { scheme ->
+            if (darkTheme && amoled) scheme.amoledContainers() else scheme
+        },
     )
 
     MaterialTheme(
