@@ -44,6 +44,7 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -420,7 +421,7 @@ internal fun ActualAmountRulerCard(
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // Header: label + signed delta on the left; reset then the live
             // amount on the right. The ruler below carries its own delta labels,
@@ -494,80 +495,95 @@ internal fun ActualAmountRulerCard(
                     }
                 }
             }
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val sidePadding = (maxWidth - tickSpacing) / 2
-                val viewportWidthPx = with(density) { maxWidth.toPx() }
-                val overscrollScale by animateFloatAsState(
-                    targetValue = actualAmountRulerOverscrollScale(
-                        overscrollPx = overscrollPullPx.floatValue,
-                        viewportWidthPx = viewportWidthPx,
-                    ),
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMediumLow,
-                    ),
-                    label = "ActualAmountRulerOverscrollScale",
-                )
-                // Tick marks occupy the top strip; signed-delta labels sit below.
-                // The selection indicator spans only the tick strip so it never
-                // crosses the labels.
-                val tickAreaHeight = 28.dp
-                LazyRow(
-                    state = listState,
-                    flingBehavior = flingBehavior,
-                    userScrollEnabled = !isSaving,
-                    overscrollEffect = rulerOverscrollEffect,
-                    contentPadding = PaddingValues(horizontal = sidePadding),
-                    modifier = Modifier
-                        .graphicsLayer {
-                            scaleX = overscrollScale
-                            transformOrigin = TransformOrigin.Center
-                        },
-                ) {
-                    items(deltas.size) { i ->
-                        val isEndpoint = i == 0 || i == deltas.size - 1
-                        val isMajor = isActualDoseDeltaMajorTick(
-                            delta = deltas[i],
-                            step = range.step,
-                            isEndpoint = isEndpoint,
-                        )
-                        Column(
-                            modifier = Modifier.width(tickSpacing),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Box(
-                                modifier = Modifier.height(tickAreaHeight).fillMaxWidth(),
-                                contentAlignment = Alignment.Center,
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.padding(bottom = 4.dp)
+            ) {
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val sidePadding = (maxWidth - tickSpacing) / 2
+                    val viewportWidthPx = with(density) { maxWidth.toPx() }
+                    val overscrollScale by animateFloatAsState(
+                        targetValue = actualAmountRulerOverscrollScale(
+                            overscrollPx = overscrollPullPx.floatValue,
+                            viewportWidthPx = viewportWidthPx,
+                        ),
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow,
+                        ),
+                        label = "ActualAmountRulerOverscrollScale",
+                    )
+                    // Tick marks occupy the top strip; signed-delta labels sit below.
+                    // The selection indicator spans only the tick strip so it never
+                    // crosses the labels.
+                    val tickAreaHeight = 28.dp
+                    LazyRow(
+                        state = listState,
+                        flingBehavior = flingBehavior,
+                        userScrollEnabled = !isSaving,
+                        overscrollEffect = rulerOverscrollEffect,
+                        contentPadding = PaddingValues(horizontal = sidePadding),
+                        modifier = Modifier
+                            .padding(vertical = 8.dp)
+                            .graphicsLayer {
+                                scaleX = overscrollScale
+                                transformOrigin = TransformOrigin.Center
+                            },
+                    ) {
+                        items(deltas.size) { i ->
+                            val isEndpoint = i == 0 || i == deltas.size - 1
+                            val isMajor = isActualDoseDeltaMajorTick(
+                                delta = deltas[i],
+                                step = range.step,
+                                isEndpoint = isEndpoint,
+                            )
+                            Column(
+                                modifier = Modifier.width(tickSpacing),
+                                horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
                                 Box(
-                                    modifier = Modifier
-                                        .width(2.dp)
-                                        .fillMaxHeight(if (isMajor) 0.6f else 0.35f)
-                                        .background(MaterialTheme.colorScheme.outlineVariant),
-                                )
-                            }
-                            if (isMajor) {
-                                Text(
-                                    text = formatActualDoseDeltaTickLabel(deltas[i]),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    // Labels are wider than the 14.dp item; let them
-                                    // spill into the neighbouring minor-tick gaps.
-                                    modifier = Modifier.wrapContentWidth(unbounded = true),
-                                )
+                                    modifier = Modifier.height(tickAreaHeight).fillMaxWidth(),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(2.dp)
+                                            .fillMaxHeight(if (isMajor) 0.6f else 0.35f)
+                                            .background(
+                                                MaterialTheme.colorScheme.outlineVariant,
+                                                RoundedCornerShape(1.dp),
+                                            ),
+                                    )
+                                }
+                                if (isMajor) {
+                                    Text(
+                                        text = formatActualDoseDeltaTickLabel(deltas[i]),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        // Labels are wider than the 14.dp item; let them
+                                        // spill into the neighbouring minor-tick gaps.
+                                        modifier = Modifier.wrapContentWidth(unbounded = true),
+                                    )
+                                }
                             }
                         }
                     }
+                    // Fixed selection indicator - centered on the tick strip, a
+                    // touch taller than a major tick without spilling into labels.
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 12.dp)
+                            .align(Alignment.TopCenter)
+                            .height(20.dp)
+                            .width(2.dp)
+                            .background(
+                                MaterialTheme.colorScheme.primary,
+                                RoundedCornerShape(1.dp),
+                            ),
+                    )
                 }
-                // Fixed selection indicator - spans the tick strip only.
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .height(tickAreaHeight)
-                        .width(2.dp)
-                        .background(MaterialTheme.colorScheme.primary),
-                )
             }
         }
     }
