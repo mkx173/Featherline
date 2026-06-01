@@ -142,6 +142,74 @@ class MedicationLogEntryViewModelTest {
     }
 
     @Test
+    fun buildEditingUiState_singleAdjustedInjectionLog_exposesReadOnlyDelta() {
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 40.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
+        val entry = testMedicationLogEntry(
+            medicine = medicine,
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = DoseInstruction.VolumeMl(0.25),
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+        ).copy(doseAmountDelta = 0.1)
+
+        val uiState = requireNotNull(buildEditingUiState(listOf(entry)))
+
+        // Editing surfaces the frozen delta read-only; the interactive stepper
+        // stays off (deltas are not re-editable after logging).
+        assertEquals(0.1, uiState.doseAmountDelta!!, 1e-9)
+        assertTrue(uiState.showActualDoseDeltaReadOnly)
+        assertFalse(uiState.allowsActualDoseDelta)
+        assertEquals(0.25, uiState.scheduledNativeAmount!!, 1e-9)
+        assertEquals(0.35, uiState.effectiveActualAmount!!, 1e-9)
+    }
+
+    @Test
+    fun buildEditingUiState_bulkEdit_dropsDeltaAndHidesReadOnlyLine() {
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 40.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
+        val groupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15))
+        val entries = listOf(
+            testMedicationLogEntry(
+                uuid = UUID.fromString("59969483-c584-48ba-972a-8291e2ec4d55"),
+                medicine = medicine,
+                applicationType = MedicationApplicationType.INJECTION,
+                doseInstruction = DoseInstruction.VolumeMl(0.25),
+                sourceGroupUuid = groupUuid,
+                appliedAt = appliedAt,
+                scheduledFor = scheduledFor,
+            ).copy(doseAmountDelta = 0.1),
+            testMedicationLogEntry(
+                uuid = UUID.fromString("3b4dd714-6d0e-4293-b955-b89ab0b76386"),
+                medicine = medicine,
+                applicationType = MedicationApplicationType.INJECTION,
+                doseInstruction = DoseInstruction.VolumeMl(0.25),
+                sourceGroupUuid = groupUuid,
+                appliedAt = appliedAt,
+                scheduledFor = scheduledFor,
+            ).copy(doseAmountDelta = 0.2),
+        )
+
+        val uiState = requireNotNull(buildEditingUiState(entries))
+
+        // Bulk edits may span differing deltas, so neither the value nor the
+        // read-only line is shown.
+        assertTrue(uiState.isBulkEditing)
+        assertNull(uiState.doseAmountDelta)
+        assertFalse(uiState.showActualDoseDeltaReadOnly)
+    }
+
+    @Test
     fun buildEditingUiState_keeps_source_group_metadata_for_group_linked_entries() {
         val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
         val entry = testMedicationLogEntry(

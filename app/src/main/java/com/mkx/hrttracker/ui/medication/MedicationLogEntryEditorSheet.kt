@@ -114,7 +114,9 @@ fun MedicationLogEntryEditorSheet(
     selectedStockProjection: MedicineStockProjection? = null,
     stockMutationPreviewDoseMagnitude: Double? = null,
     allowsActualDoseDelta: Boolean = false,
+    showActualDoseDeltaReadOnly: Boolean = false,
     doseAmountDelta: Double? = null,
+    scheduledDoseAmount: Double? = null,
     effectiveActualAmount: Double? = null,
     sourceGroupName: String? = null,
     sourceGroupColorKey: MedicationGroupColorKey? = null,
@@ -205,7 +207,17 @@ fun MedicationLogEntryEditorSheet(
             },
         )
 
-        if (allowsActualDoseDelta && effectiveActualAmount != null) {
+        ActualAmountReadOnlyCard(
+            preparationType = lockedMedicine?.preparation?.type,
+            showActualDoseDeltaReadOnly = showActualDoseDeltaReadOnly,
+            scheduledDoseAmount = scheduledDoseAmount,
+            doseAmountDelta = doseAmountDelta,
+            effectiveActualAmount = effectiveActualAmount,
+        )
+
+        val showsActualAmountSection = (allowsActualDoseDelta || showActualDoseDeltaReadOnly) &&
+            effectiveActualAmount != null
+        if (showsActualAmountSection) {
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         }
 
@@ -276,6 +288,54 @@ internal fun ActualAmountStepperCard(
         supportingContent = {
             Text(
                 text = "${formatSignedActualAmountDelta(delta)} $unitText",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+    ) {
+        Text(
+            text = "${formatActualAmount(effectiveActualAmount)} $unitText",
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+@Composable
+internal fun ActualAmountReadOnlyCard(
+    preparationType: MedicinePreparationType?,
+    showActualDoseDeltaReadOnly: Boolean,
+    scheduledDoseAmount: Double?,
+    doseAmountDelta: Double?,
+    effectiveActualAmount: Double?,
+) {
+    if (!showActualDoseDeltaReadOnly ||
+        scheduledDoseAmount == null ||
+        doseAmountDelta == null ||
+        effectiveActualAmount == null
+    ) {
+        return
+    }
+    val unitText = actualAmountUnitText(preparationType) ?: return
+
+    EditorSegmentedListItem(
+        index = 0,
+        count = 1,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        overlineContent = {
+            Text(
+                text = stringResource(R.string.medication_log_actual_amount),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        supportingContent = {
+            // Planned amount with the frozen adjustment, e.g. "0.25 mL (+0.1 mL)".
+            Text(
+                text = "${formatActualAmount(scheduledDoseAmount)} $unitText " +
+                    "(${formatSignedActualAmountDelta(doseAmountDelta)} $unitText)",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

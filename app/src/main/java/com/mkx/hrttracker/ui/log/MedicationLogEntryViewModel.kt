@@ -650,17 +650,30 @@ data class MedicationLogEntryUiState(
     val canDelete: Boolean
         get() = isEditing
 
-    val allowsActualDoseDelta: Boolean
-        get() = !isEditing &&
-            isActualDoseDeltaForm(
+    private val isActualDoseDeltaCapableForm: Boolean
+        get() = isActualDoseDeltaForm(
+            preparationType = resolvedMedicine?.preparation?.type
+                ?: doseInstructionDraft.preparationType,
+            applicationType = resolvedApplicationTypeForDose(
                 preparationType = resolvedMedicine?.preparation?.type
                     ?: doseInstructionDraft.preparationType,
-                applicationType = resolvedApplicationTypeForDose(
-                    preparationType = resolvedMedicine?.preparation?.type
-                        ?: doseInstructionDraft.preparationType,
-                    doseInstructionDraft = doseInstructionDraft,
-                ),
-            ) &&
+                doseInstructionDraft = doseInstructionDraft,
+            ),
+        )
+
+    // New logs of measured forms get the interactive stepper.
+    val allowsActualDoseDelta: Boolean
+        get() = !isEditing &&
+            isActualDoseDeltaCapableForm &&
+            scheduledNativeAmount != null
+
+    // Reopening a logged measured dose that was adjusted shows the planned
+    // amount and its delta read-only (the delta is frozen at log time and is
+    // not re-editable). Only single-entry edits carry a delta into state.
+    val showActualDoseDeltaReadOnly: Boolean
+        get() = isEditing &&
+            (doseAmountDelta ?: 0.0) != 0.0 &&
+            isActualDoseDeltaCapableForm &&
             scheduledNativeAmount != null
 
     val effectiveActualAmount: Double?
@@ -818,6 +831,10 @@ internal fun buildEditingUiState(
             count = representativeEntry.count,
             preparationType = representativeEntry.medicine?.preparation?.type,
         ).toString(),
+        // Carry the frozen delta only for single-entry edits; bulk edits may span
+        // entries with differing deltas, so the read-only line is suppressed.
+        doseAmountDelta = representativeEntry.doseAmountDelta
+            .takeIf { editableEntries.size == 1 },
         appliedZoneId = displayZoneOf(representativeEntry),
         appliedDate = appliedAtLocal.toLocalDate(),
         appliedTime = appliedAtLocal.toLocalTime().withSecond(0).withNano(0)
