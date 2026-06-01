@@ -195,6 +195,9 @@
     <string name="medication_editor_schedule_offset_hours_earlier">-%1$dh</string>
     <string name="medication_editor_schedule_offset_days_later">+%1$dd</string>
     <string name="medication_editor_schedule_offset_days_earlier">-%1$dd</string>
+    <string name="medication_log_actual_amount">Actual amount</string>
+    <string name="medication_log_actual_amount_decrease">Decrease actual amount</string>
+    <string name="medication_log_actual_amount_increase">Increase actual amount</string>
     <string name="field_count">Count</string>
     <string name="unit_mg">mg</string>
     <string name="unit_mg_per_ml">mg/mL</string>

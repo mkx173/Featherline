@@ -19,9 +19,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -70,6 +73,8 @@ import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -107,6 +112,9 @@ fun MedicationLogEntryEditorSheet(
     lockedMedicine: Medicine?,
     selectedStockProjection: MedicineStockProjection? = null,
     stockMutationPreviewDoseMagnitude: Double? = null,
+    allowsActualDoseDelta: Boolean = false,
+    doseAmountDelta: Double? = null,
+    effectiveActualAmount: Double? = null,
     sourceGroupName: String? = null,
     sourceGroupColorKey: MedicationGroupColorKey? = null,
     sourceGroupScheduledFor: LocalDateTime? = null,
@@ -117,6 +125,7 @@ fun MedicationLogEntryEditorSheet(
     appliedZoneId: ZoneId = ZoneId.systemDefault(),
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
+    onAdjustDoseAmountDelta: (Double) -> Unit = { },
     isSaving: Boolean = false,
     destructiveButtonText: String? = null,
     onDestructiveAction: (() -> Unit)? = null,
@@ -183,6 +192,22 @@ fun MedicationLogEntryEditorSheet(
 
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
+        ActualAmountStepperCard(
+            lockedMedicine = lockedMedicine,
+            allowsActualDoseDelta = allowsActualDoseDelta,
+            doseAmountDelta = doseAmountDelta,
+            effectiveActualAmount = effectiveActualAmount,
+            onAdjustDoseAmountDelta = {
+                if (!isSaving) {
+                    onAdjustDoseAmountDelta(it)
+                }
+            },
+        )
+
+        if (allowsActualDoseDelta && effectiveActualAmount != null) {
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+        }
+
         MedicationLogAppliedAtFields(
             appliedDate = appliedDate,
             appliedTime = appliedTime,
@@ -193,6 +218,99 @@ fun MedicationLogEntryEditorSheet(
             onAppliedTimeChange = { if (!isSaving) onAppliedTimeChange(it) },
         )
     }
+}
+
+@Composable
+private fun ActualAmountStepperCard(
+    lockedMedicine: Medicine?,
+    allowsActualDoseDelta: Boolean,
+    doseAmountDelta: Double?,
+    effectiveActualAmount: Double?,
+    onAdjustDoseAmountDelta: (Double) -> Unit,
+) {
+    if (!allowsActualDoseDelta || effectiveActualAmount == null) {
+        return
+    }
+    val unitText = actualAmountUnitText(lockedMedicine?.preparation) ?: return
+    val delta = doseAmountDelta ?: 0.0
+
+    EditorSegmentedListItem(
+        index = 0,
+        count = 1,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        overlineContent = {
+            Text(
+                text = stringResource(R.string.medication_log_actual_amount),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        trailingContent = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FilledTonalIconButton(
+                    onClick = { onAdjustDoseAmountDelta(-0.1) },
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Remove,
+                        contentDescription = stringResource(
+                            R.string.medication_log_actual_amount_decrease,
+                        ),
+                    )
+                }
+                FilledTonalIconButton(
+                    onClick = { onAdjustDoseAmountDelta(0.1) },
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = stringResource(
+                            R.string.medication_log_actual_amount_increase,
+                        ),
+                    )
+                }
+            }
+        },
+        supportingContent = {
+            Text(
+                text = "${formatSignedActualAmountDelta(delta)} $unitText",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+    ) {
+        Text(
+            text = "${formatActualAmount(effectiveActualAmount)} $unitText",
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+@Composable
+private fun actualAmountUnitText(preparation: MedicinePreparation?): String? {
+    val unitRes = when (preparation) {
+        is MedicinePreparation.InjectionSingleUseVial -> R.string.unit_mg
+        is MedicinePreparation.InjectionMultiUseVial -> R.string.unit_ml
+        is MedicinePreparation.GelContainer -> R.string.unit_grams
+        else -> return null
+    }
+    return stringResource(unitRes)
+}
+
+private fun formatSignedActualAmountDelta(value: Double): String {
+    val sign = if (value >= 0.0) "+" else "-"
+    return sign + formatActualAmount(kotlin.math.abs(value))
+}
+
+private fun formatActualAmount(value: Double): String {
+    return BigDecimal.valueOf(value)
+        .setScale(2, RoundingMode.HALF_UP)
+        .stripTrailingZeros()
+        .toPlainString()
 }
 
 // ---------------------------------------------------------------------------
