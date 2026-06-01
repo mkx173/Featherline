@@ -10,11 +10,57 @@ import com.mkx.hrttracker.model.medication.MedicineStock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 import java.util.UUID
 
 class DoseInstructionCalculatorTest {
+    private fun multiUseVial(concentrationMgPerMl: Double): Medicine = medicine(
+        selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),
+        preparation = MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = concentrationMgPerMl,
+            vialVolumeMl = 10.0,
+        ),
+    )
+
+    private fun singleUseVial(strengthMgPerVial: Double): Medicine = medicine(
+        selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),
+        preparation = MedicinePreparation.InjectionSingleUseVial(
+            strengthMgPerVial = strengthMgPerVial,
+        ),
+    )
+
+    @Test
+    fun perUnitAmountMg_appliesDeltaForMultiUseVial() {
+        val mg = DoseInstructionCalculator.perUnitAmountMg(
+            medicine = multiUseVial(concentrationMgPerMl = 20.0),
+            doseInstruction = DoseInstruction.VolumeMl(0.5),
+            doseAmountDelta = 0.1,
+        )
+        assertEquals(12.0, mg!!, 1e-9)
+    }
+
+    @Test
+    fun perUnitAmountMg_appliesDeltaForSingleUseVialInMg() {
+        val mg = DoseInstructionCalculator.perUnitAmountMg(
+            medicine = singleUseVial(strengthMgPerVial = 5.0),
+            doseInstruction = DoseInstruction.WholeUnit,
+            doseAmountDelta = 0.2,
+        )
+        assertEquals(5.2, mg!!, 1e-9)
+    }
+
+    @Test
+    fun perUnitAmountMg_clampsEffectiveAmountAboveZero() {
+        val mg = DoseInstructionCalculator.perUnitAmountMg(
+            medicine = multiUseVial(concentrationMgPerMl = 20.0),
+            doseInstruction = DoseInstruction.VolumeMl(0.5),
+            doseAmountDelta = -0.5,
+        )
+        assertTrue(mg!! > 0.0)
+    }
+
     @Test
     fun pillFractionMultipliesStrengthFractionAndCount() {
         val medicine = medicine(
