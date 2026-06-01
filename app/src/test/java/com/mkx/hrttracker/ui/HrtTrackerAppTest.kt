@@ -60,39 +60,6 @@ class HrtTrackerAppTest {
     }
 
     @Test
-    fun postLogStockWarningSnackbarMessage_manyUsesQuantityResources() {
-        every { context.resources } returns resources
-        every { resources.getQuantityString(R.plurals.stock_toast_out_multiple, 2, 2) } returns
-            "2 medicines out of stock"
-        every { resources.getQuantityString(R.plurals.stock_toast_imminent_multiple, 2, 2) } returns
-            "2 medicines almost out"
-        every { resources.getQuantityString(R.plurals.stock_toast_user_low_multiple, 2, 2) } returns
-            "2 medicines low on stock"
-
-        assertEquals(
-            "2 medicines out of stock",
-            postLogStockWarningSnackbarMessage(
-                warning = PostLogStockWarning.Many(2, MedicineStockState.OUT),
-                context = context,
-            ),
-        )
-        assertEquals(
-            "2 medicines almost out",
-            postLogStockWarningSnackbarMessage(
-                warning = PostLogStockWarning.Many(2, MedicineStockState.IMMINENT),
-                context = context,
-            ),
-        )
-        assertEquals(
-            "2 medicines low on stock",
-            postLogStockWarningSnackbarMessage(
-                warning = PostLogStockWarning.Many(2, MedicineStockState.USER_LOW),
-                context = context,
-            ),
-        )
-    }
-
-    @Test
     fun postLogStockWarningDestination_singleDeepLinksToThatMedicineDetailUnderCurrentTab() {
         val uuid = UUID.fromString("11111111-2222-3333-4444-555555555555")
         val medicine = testMedicine(uuid = uuid)
@@ -109,19 +76,6 @@ class HrtTrackerAppTest {
                 medicineId = uuid.toString(),
                 topLevelParentRoute = Screen.Main.route,
             ),
-            destination,
-        )
-    }
-
-    @Test
-    fun postLogStockWarningDestination_manyOpensMedicinesListUnderCurrentTab() {
-        val destination = postLogStockWarningDestination(
-            PostLogStockWarning.Many(3, MedicineStockState.USER_LOW),
-            topLevelParentRoute = Screen.Main.route,
-        )
-
-        assertEquals(
-            Screen.Medicines.createRoute(topLevelParentRoute = Screen.Main.route),
             destination,
         )
     }

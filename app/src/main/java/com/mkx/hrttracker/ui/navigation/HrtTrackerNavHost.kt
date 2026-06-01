@@ -389,7 +389,7 @@ fun HrtTrackerNavHost(
                 currentDestination?.hierarchy?.any { it.route == navItem.screen.route } == true
             }?.screen
             ?: Screen.Main
-    val showPostLogStockWarning: (PostLogStockWarning) -> Unit = { warning ->
+    val showPostLogStockWarning: (PostLogStockWarning.Single) -> Unit = { warning ->
         val message = postLogStockWarningSnackbarMessage(warning, snackbarContext)
         val actionLabel = snackbarContext.getString(R.string.stock_snackbar_action_view)
         snackbarScope.launch {
@@ -868,7 +868,7 @@ fun HrtTrackerNavHost(
                         },
                         onManualLogSaved = { warning ->
                             navController.popBackStackSafely()
-                            if (warning != null) {
+                            if (warning is PostLogStockWarning.Single) {
                                 showPostLogStockWarning(warning)
                             }
                         },
@@ -1007,7 +1007,7 @@ fun HrtTrackerNavHost(
             onDismissRequest = { medicationLogEntrySheetRequest = null },
             onEntrySaved = { warning ->
                 medicationLogEntrySheetRequest = null
-                if (warning != null) {
+                if (warning is PostLogStockWarning.Single) {
                     showPostLogStockWarning(warning)
                 }
             },
