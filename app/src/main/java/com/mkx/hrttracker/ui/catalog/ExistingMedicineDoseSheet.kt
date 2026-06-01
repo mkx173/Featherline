@@ -423,14 +423,10 @@ internal fun manualLogAllowsActualDoseDelta(
     preparationType: MedicinePreparationType,
     applicationType: MedicationApplicationType,
 ): Boolean {
-    return when (preparationType) {
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-        MedicinePreparationType.INJECTION_MULTI_USE_VIAL ->
-            applicationType == MedicationApplicationType.INJECTION
-
-        MedicinePreparationType.GEL_CONTAINER ->
-            applicationType == MedicationApplicationType.GEL
-
-        else -> false
-    }
+    // Manual logs ask for the dose directly, so multi-use vial (mL) and gel
+    // container (g) already capture the actual amount — no delta stepper needed.
+    // Single-use vials (ampules) have no amount field; the +/- mg delta is the
+    // only way to record drawing slightly more or less than the nominal vial.
+    return preparationType == MedicinePreparationType.INJECTION_SINGLE_USE_VIAL &&
+        applicationType == MedicationApplicationType.INJECTION
 }

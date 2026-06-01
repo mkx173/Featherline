@@ -439,6 +439,11 @@ data class NewMedicineSlotUiState(
     val allowsActualDoseDelta: Boolean
         get() {
             val preparationType = resolvedPreparationType
+            // Manual logs capture the dose directly for measured forms (mL, g),
+            // so only ampules — which have no amount field — need the mg delta.
+            if (preparationType != MedicinePreparationType.INJECTION_SINGLE_USE_VIAL) {
+                return false
+            }
             val applicationType = resolvedApplicationTypeForDose(
                 preparationType = preparationType,
                 doseInstructionDraft = doseInstructionDraft,
