@@ -500,7 +500,7 @@ class MedicationLogEntryViewModelTest {
     }
 
     @Test
-    fun adjustDoseAmountDelta_clampsActualAboveZero() = runTest {
+    fun setDoseAmountDelta_clampsActualAboveZero() = runTest {
         val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
         every { medicationGroupRepository.getCachedGroup(groupId) } returns testMedicationGroup(
             groupId = groupId,
@@ -527,7 +527,7 @@ class MedicationLogEntryViewModelTest {
             medicationCount = 1,
         )
 
-        viewModel.adjustDoseAmountDelta(-999.0)
+        viewModel.setDoseAmountDelta(-999.0)
 
         val uiState = viewModel.uiState.value
         assertEquals(
@@ -540,6 +540,45 @@ class MedicationLogEntryViewModelTest {
             uiState.doseAmountDelta ?: error("Missing dose amount delta"),
             0.0,
         )
+    }
+
+    @Test
+    fun setDoseAmountDelta_storesSanitizedDeltaForMeasuredForm() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 40.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns testMedicationGroup(
+            groupId = groupId,
+            name = "Nightly estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO,
+        )
+        val viewModel = MedicationLogEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicineStockRepository = medicineStockRepository,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduleTimeUuid = null,
+            scheduledFor = scheduledFor,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = DoseInstruction.VolumeMl(0.5),
+            medicationCount = 1,
+        )
+        advanceUntilIdle()
+
+        viewModel.setDoseAmountDelta(0.05)
+        assertEquals(0.05, viewModel.uiState.value.doseAmountDelta!!, 1e-9)
+
+        viewModel.setDoseAmountDelta(0.0)
+        assertNull(viewModel.uiState.value.doseAmountDelta)
     }
 
     @Test
@@ -592,7 +631,7 @@ class MedicationLogEntryViewModelTest {
         viewModel.updateAppliedDate(scheduledFor.toLocalDate())
         viewModel.updateAppliedTime(scheduledFor.toLocalTime().plusMinutes(15))
 
-        viewModel.adjustDoseAmountDelta(0.1)
+        viewModel.setDoseAmountDelta(0.1)
         viewModel.saveEntry()
         advanceUntilIdle()
 

@@ -15,9 +15,9 @@ import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
-import com.mkx.hrttracker.ui.medication.adjustedActualDoseDelta
 import com.mkx.hrttracker.ui.medication.applyMedicinePicker
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
+import com.mkx.hrttracker.ui.medication.doseAmountDeltaForActual
 import com.mkx.hrttracker.ui.medication.effectiveActualDoseAmount
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
 import com.mkx.hrttracker.ui.medication.parsePositiveDouble
@@ -165,7 +165,7 @@ class NewMedicineSlotViewModel @Inject constructor(
         }
     }
 
-    fun adjustDoseAmountDelta(step: Double) {
+    fun setDoseAmountDelta(delta: Double?) {
         _uiState.update { state ->
             if (state.isLockedForUpdates()) {
                 return@update state
@@ -175,10 +175,9 @@ class NewMedicineSlotViewModel @Inject constructor(
                 return@update state
             }
             state.copy(
-                doseAmountDelta = adjustedActualDoseDelta(
+                doseAmountDelta = doseAmountDeltaForActual(
                     scheduledAmount = scheduledAmount,
-                    currentDoseAmountDelta = state.doseAmountDelta,
-                    step = step,
+                    actualAmount = scheduledAmount + (delta ?: 0.0),
                 ),
                 manualLogSaveResult = null,
             )

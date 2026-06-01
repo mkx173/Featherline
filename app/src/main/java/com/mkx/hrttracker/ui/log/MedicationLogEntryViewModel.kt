@@ -25,8 +25,8 @@ import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
-import com.mkx.hrttracker.ui.medication.adjustedActualDoseDelta
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
+import com.mkx.hrttracker.ui.medication.doseAmountDeltaForActual
 import com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction
 import com.mkx.hrttracker.ui.medication.effectiveActualDoseAmount
 import com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine
@@ -231,20 +231,16 @@ class MedicationLogEntryViewModel @Inject constructor(
         }
     }
 
-    fun adjustDoseAmountDelta(step: Double) {
-        if (!step.isFinite()) {
-            return
-        }
+    fun setDoseAmountDelta(delta: Double?) {
         _uiState.update { currentState ->
             val scheduledAmount = currentState.scheduledNativeAmount ?: return@update currentState
             if (!currentState.allowsActualDoseDelta) {
                 return@update currentState
             }
             currentState.copy(
-                doseAmountDelta = adjustedActualDoseDelta(
+                doseAmountDelta = doseAmountDeltaForActual(
                     scheduledAmount = scheduledAmount,
-                    currentDoseAmountDelta = currentState.doseAmountDelta,
-                    step = step,
+                    actualAmount = scheduledAmount + (delta ?: 0.0),
                 ),
             )
         }

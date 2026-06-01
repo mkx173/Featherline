@@ -302,7 +302,7 @@ class NewMedicineSlotViewModelTest {
                 singleUseVialStrengthMg = "5",
             )
         }
-        viewModel.adjustDoseAmountDelta(0.1)
+        viewModel.setDoseAmountDelta(0.1)
 
         viewModel.saveManualLog()
         advanceUntilIdle()
@@ -327,7 +327,7 @@ class NewMedicineSlotViewModelTest {
 
     @Test
     fun saveManualLog_forMultiUseVialDoesNotPassDelta() = runTest {
-        // Measured forms ask for the dose directly, so adjustDoseAmountDelta is
+        // Measured forms ask for the dose directly, so setDoseAmountDelta is
         // a no-op and no delta reaches the saved log.
         val medicine = testMedicine(
             uuid = UUID.fromString("cccccccc-0000-0000-0000-00000000030b"),
@@ -364,7 +364,7 @@ class NewMedicineSlotViewModelTest {
             )
         }
         viewModel.updateDoseInstructionDraft { it.copy(volumeMl = "0.5") }
-        viewModel.adjustDoseAmountDelta(0.1)
+        viewModel.setDoseAmountDelta(0.1)
 
         viewModel.saveManualLog()
         advanceUntilIdle()
