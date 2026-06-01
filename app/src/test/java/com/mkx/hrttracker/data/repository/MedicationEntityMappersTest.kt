@@ -115,6 +115,29 @@ class MedicationEntityMappersTest {
         assertEquals(DoseInstruction.TabletFraction(1, 1), model.doseInstruction)
     }
 
+    @Test
+    fun toModel_carriesDoseAmountDelta() {
+        val entity = MedicationLogEntryEntity(
+            uuid = "aaaaaaaa-0000-0000-0000-000000000011",
+            category = MedicationCategory.ESTRADIOL.name,
+            medicineUuid = null,
+            applicationType = MedicationApplicationType.PATCH_OFF.name,
+            doseInstructionKind = DoseInstructionKind.NOOP.name,
+            tabletFractionNumerator = null,
+            tabletFractionDenominator = null,
+            doseVolumeMl = null,
+            doseWeightGrams = null,
+            equivalentE2Mg = null,
+            sourceGroupUuid = null,
+            appliedAtEpochMillis = 0L,
+            doseAmountDelta = 0.1,
+        )
+
+        val model = entity.toMedicationLogEntryModel(emptyMap())
+
+        assertEquals(0.1, model.doseAmountDelta)
+    }
+
     private fun groupItemEntity(index: Int, doseInstruction: DoseInstruction): MedicationGroupItemEntity {
         return MedicationGroupItemEntity(
             uuid = "aaaaaaaa-0000-0000-0000-00000000000$index",
