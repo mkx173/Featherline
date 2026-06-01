@@ -569,7 +569,7 @@ private fun OptInCard(
         PreferenceSegmentedListItem(
             title = stringResource(R.string.stock_optin_title),
             index = 0,
-            count = 2,
+            count = 1,
             onClick = onClick,
             leadingContent = {
                 Icon(
