@@ -607,6 +607,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             doseVolumeMl = validatedMedication.doseVolumeMl,
             doseWeightGrams = validatedMedication.doseWeightGrams,
             equivalentE2Mg = log.equivalentE2Mg,
+            doseAmountDelta = log.doseAmountDelta,
             sourceGroupUuid = sourceGroupUuid,
             scheduleTimeUuid = resolvedScheduleTimeUuid,
             appliedAtEpochMillis = log.appliedAtEpochMillis,

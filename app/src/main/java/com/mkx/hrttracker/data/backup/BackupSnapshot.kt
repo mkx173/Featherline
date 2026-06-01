@@ -168,6 +168,7 @@ data class BackupMedicationLogSnapshot(
     // Snapshotted PK input — null for PATCH_OFF and for custom medicines whose
     // estradiol equivalence is unknown.
     val equivalentE2Mg: Double?,
+    val doseAmountDelta: Double? = null,
     val sourceGroupUuid: String?,
     val scheduleTimeUuid: String? = null,
     val appliedAtEpochMillis: Long,
@@ -222,4 +223,6 @@ data class BackupBloodTestResultSnapshot(
 // The 2→3 bump added the CAPSULE preparationType enum value. Older apps
 // coerce unknown preparationType strings to PILL on restore, which would
 // silently misclassify capsules — non-additive, hence the bump.
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 3
+//
+// The 3→4 bump added MedicationLogEntry.doseAmountDelta to archive logs.
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 4

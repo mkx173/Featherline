@@ -92,8 +92,8 @@ class BackupExportServiceTest {
     }
 
     @Test
-    fun backupExport_usesVersion3AfterCapsuleEnumAddition() {
-        assertEquals(3, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    fun backupExport_usesVersion4AfterDoseAmountDeltaAddition() {
+        assertEquals(4, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     @Test
@@ -134,6 +134,10 @@ class BackupExportServiceTest {
             uuid = medicineUuid,
             medicationName = "Tracked med",
             category = MedicationCategory.CUSTOM,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 40.0,
+                vialVolumeMl = 1.0,
+            ),
             stock = MedicineStock(
                 trackingEnabled = true,
                 unitsRemaining = 87.0,
@@ -154,9 +158,10 @@ class BackupExportServiceTest {
                 uuid = logUuid,
                 medicine = medicine,
                 category = MedicationCategory.CUSTOM,
-                applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                applicationType = MedicationApplicationType.INJECTION,
+                doseInstruction = DoseInstruction.VolumeMl(0.05),
                 equivalentE2Mg = null,
+                doseAmountDelta = 0.1,
                 sourceGroupUuid = null,
                 appliedAt = Instant.parse("2026-04-26T01:00:00Z"),
                 appliedAtTimeZoneId = "Asia/Tokyo",
@@ -179,6 +184,9 @@ class BackupExportServiceTest {
 
         val log = snapshot.medicationLogs.single()
         assertEquals(logUuid.toString(), log.uuid)
+        assertEquals("INJECTION", log.applicationType)
+        assertEquals(0.05, log.doseVolumeMl!!, 1e-9)
+        assertEquals(0.1, log.doseAmountDelta!!, 1e-9)
     }
 
     @Test
@@ -346,7 +354,7 @@ class BackupExportServiceTest {
         snapshot!!
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, snapshot.snapshotVersion)
-        assertEquals(3, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
+        assertEquals(4, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)
