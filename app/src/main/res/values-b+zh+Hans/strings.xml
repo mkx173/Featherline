@@ -85,6 +85,7 @@
         <item quantity="other">%1$d 种药品库存不足</item>
     </plurals>
     <string name="stock_snackbar_action_view">查看</string>
+    <string name="stock_snackbar_action_dismiss">关闭</string>
     <string name="fab_add_entry">添加用药记录</string>
     <string name="plan_empty_state">暂无用药分组</string>
     <string name="plan_selected_day_records_empty">这一天暂无记录</string>
