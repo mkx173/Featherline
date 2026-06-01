@@ -1,19 +1,7 @@
 package com.mkx.hrttracker.ui
 
 import android.content.Context
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicineStockState
@@ -21,7 +9,6 @@ import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.navigation.HrtTrackerNavHost
 import com.mkx.hrttracker.ui.navigation.Screen
 import com.mkx.hrttracker.util.medicineDisplayName
-import kotlinx.coroutines.launch
 
 @Composable
 fun HrtTrackerApp(
@@ -29,40 +16,13 @@ fun HrtTrackerApp(
     homeDeepLinkSignal: Int,
     highlightEffectsEnabled: Boolean,
 ) {
-    val context = LocalContext.current
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        HrtTrackerNavHost(
-            navController = navController,
-            homeDeepLinkSignal = homeDeepLinkSignal,
-            highlightEffectsEnabled = highlightEffectsEnabled,
-            showPostLogStockWarning = { warning ->
-                val message = postLogStockWarningSnackbarMessage(warning, context)
-                val actionLabel = context.getString(R.string.stock_snackbar_action_view)
-                scope.launch {
-                    val result = snackbarHostState.showSnackbar(
-                        message = message,
-                        actionLabel = actionLabel,
-                        withDismissAction = true,
-                    )
-                    if (result == SnackbarResult.ActionPerformed) {
-                        navController.navigate(postLogStockWarningDestination(warning)) {
-                            launchSingleTop = true
-                        }
-                    }
-                }
-            },
-        )
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .imePadding(),
-        )
-    }
+    // The post-log stock snackbar is hosted inside HrtTrackerNavHost so it sits
+    // above the app's bottom navigation bar rather than overlapping it.
+    HrtTrackerNavHost(
+        navController = navController,
+        homeDeepLinkSignal = homeDeepLinkSignal,
+        highlightEffectsEnabled = highlightEffectsEnabled,
+    )
 }
 
 // Single-medicine warnings deep-link to that medicine's detail page (where

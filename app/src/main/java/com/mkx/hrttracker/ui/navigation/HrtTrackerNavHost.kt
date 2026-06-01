@@ -3,10 +3,16 @@ package com.mkx.hrttracker.ui.navigation
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
@@ -19,11 +25,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
@@ -75,7 +84,10 @@ import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanBatchAddScreen
 import com.mkx.hrttracker.ui.plan.PlanScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
+import com.mkx.hrttracker.ui.postLogStockWarningDestination
+import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
 import java.util.UUID
@@ -349,7 +361,6 @@ fun HrtTrackerNavHost(
     homeDeepLinkSignal: Int = 0,
     highlightEffectsEnabled: Boolean = true,
     modifier: Modifier = Modifier,
-    showPostLogStockWarning: (PostLogStockWarning) -> Unit = {},
 ) {
     var medicationLogEntrySheetRequest by rememberSaveable(stateSaver = MedicationLogEntrySheetRequestSaver) {
         mutableStateOf<MedicationLogEntrySheetRequest?>(null)
@@ -358,6 +369,31 @@ fun HrtTrackerNavHost(
     var planScrollToTopSignal by remember { mutableIntStateOf(0) }
     var settingsScrollToTopSignal by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
+
+    // Post-log stock snackbar. Hosted inside the navigation scaffold's content
+    // region (below) so it rides above the app's bottom navigation bar rather
+    // than overlapping it. Lives above the log sheets so it survives their
+    // teardown; the saved-warning callbacks fire it after the sheet/back-stack
+    // is cleared.
+    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
+    val snackbarContext = LocalContext.current
+    val showPostLogStockWarning: (PostLogStockWarning) -> Unit = { warning ->
+        val message = postLogStockWarningSnackbarMessage(warning, snackbarContext)
+        val actionLabel = snackbarContext.getString(R.string.stock_snackbar_action_view)
+        snackbarScope.launch {
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = actionLabel,
+                withDismissAction = true,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                navController.navigate(postLogStockWarningDestination(warning)) {
+                    launchSingleTop = true
+                }
+            }
+        }
+    }
     val layoutDirection = LocalLayoutDirection.current
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
@@ -520,6 +556,7 @@ fun HrtTrackerNavHost(
                 }
             }
         ) {
+            Box(modifier = Modifier.fillMaxSize()) {
             NavHost(
                 navController = navController,
                 startDestination = Screen.Main.route,
@@ -944,6 +981,13 @@ fun HrtTrackerNavHost(
                         },
                     )
                 }
+            }
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .imePadding(),
+                )
             }
         }
     }
