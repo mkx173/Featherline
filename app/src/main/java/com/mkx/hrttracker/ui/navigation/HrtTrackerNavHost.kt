@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -71,6 +72,7 @@ import com.mkx.hrttracker.ui.catalog.MedicineDetailViewModel
 import com.mkx.hrttracker.ui.catalog.MedicineManagerLaunchMode
 import com.mkx.hrttracker.ui.catalog.MedicinesScreen
 import com.mkx.hrttracker.ui.catalog.medicineManagerLaunchMode
+import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.MedicationLogEntryEditSnapshot
@@ -397,6 +399,9 @@ fun HrtTrackerNavHost(
                 message = message,
                 actionLabel = actionLabel,
                 withDismissAction = true,
+                // HrtSnackbar owns the 5s countdown/dismissal; keep the host
+                // from auto-dismissing on its own timer.
+                duration = SnackbarDuration.Indefinite,
             )
             if (result == SnackbarResult.ActionPerformed) {
                 // Root the destination under the tab the user is on now so the
@@ -994,6 +999,7 @@ fun HrtTrackerNavHost(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .imePadding(),
+                    snackbar = { snackbarData -> HrtSnackbar(snackbarData) },
                 )
             }
         }
