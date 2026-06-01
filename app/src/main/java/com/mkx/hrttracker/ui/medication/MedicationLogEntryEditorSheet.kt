@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,12 +39,15 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.derivedStateOf
@@ -73,6 +77,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
@@ -412,51 +417,84 @@ internal fun ActualAmountRulerCard(
         index = 0,
         count = 1,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        overlineContent = {
-            Text(
-                text = stringResource(R.string.medication_log_actual_amount),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        supportingContent = {
-            Text(
-                text = "${formatSignedActualAmountDelta(liveDelta)} $unitText",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        trailingContent = {
-            IconButton(
-                enabled = resetEnabled,
-                onClick = {
-                    // Re-entrancy guard only; `enabled` already gates saving and
-                    // the at-rest zero state.
-                    if (programmaticScrollInProgress) return@IconButton
-                    programmaticScrollInProgress = true
-                    coroutineScope.launch {
-                        try {
-                            listState.animateScrollToItem(resetIndex)
-                        } finally {
-                            programmaticScrollInProgress = false
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Header: label + signed delta on the left; reset then the live
+            // amount on the right. The ruler below carries its own delta labels,
+            // so the value is shown exactly once, here.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
+                    Text(
+                        text = stringResource(R.string.medication_log_actual_amount),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    val isAdjusted =
+                        abs(liveDelta) >= DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON
+                    Text(
+                        text = if (isAdjusted) {
+                            "${formatSignedActualAmountDelta(liveDelta)} $unitText"
+                        } else {
+                            "+0 $unitText"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (isAdjusted) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.outline
+                        },
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "${formatActualAmount(liveActual)} $unitText",
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = FontWeight.Medium,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    CompositionLocalProvider(
+                        LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+                    ) {
+                        IconButton(
+                            enabled = resetEnabled,
+                            onClick = {
+                                // Re-entrancy guard only; `enabled` already gates
+                                // saving and the at-rest zero state.
+                                if (programmaticScrollInProgress) return@IconButton
+                                programmaticScrollInProgress = true
+                                coroutineScope.launch {
+                                    try {
+                                        listState.animateScrollToItem(resetIndex)
+                                    } finally {
+                                        programmaticScrollInProgress = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier.size(36.dp).offset(x = 4.dp),
+                            colors = IconButtonDefaults.iconButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.RestartAlt,
+                                contentDescription = resetContentDescription,
+                                modifier = Modifier.size(26.dp)
+                            )
                         }
                     }
-                },
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.RestartAlt,
-                    contentDescription = resetContentDescription,
-                )
+                }
             }
-        },
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = "${formatActualAmount(liveActual)} $unitText",
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(74.dp)) {
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                 val sidePadding = (maxWidth - tickSpacing) / 2
                 val viewportWidthPx = with(density) { maxWidth.toPx() }
                 val overscrollScale by animateFloatAsState(
@@ -473,7 +511,7 @@ internal fun ActualAmountRulerCard(
                 // Tick marks occupy the top strip; signed-delta labels sit below.
                 // The selection indicator spans only the tick strip so it never
                 // crosses the labels.
-                val tickAreaHeight = 44.dp
+                val tickAreaHeight = 28.dp
                 LazyRow(
                     state = listState,
                     flingBehavior = flingBehavior,
@@ -481,7 +519,6 @@ internal fun ActualAmountRulerCard(
                     overscrollEffect = rulerOverscrollEffect,
                     contentPadding = PaddingValues(horizontal = sidePadding),
                     modifier = Modifier
-                        .fillMaxSize()
                         .graphicsLayer {
                             scaleX = overscrollScale
                             transformOrigin = TransformOrigin.Center
@@ -495,7 +532,7 @@ internal fun ActualAmountRulerCard(
                             isEndpoint = isEndpoint,
                         )
                         Column(
-                            modifier = Modifier.width(tickSpacing).fillMaxHeight(),
+                            modifier = Modifier.width(tickSpacing),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Box(
@@ -532,6 +569,23 @@ internal fun ActualAmountRulerCard(
                         .background(MaterialTheme.colorScheme.primary),
                 )
             }
+        }
+    }
+}
+
+@Preview(name = "Actual amount ruler", showBackground = true, widthDp = 400)
+@Composable
+private fun ActualAmountRulerCardPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        Box(modifier = Modifier.padding(16.dp)) {
+            ActualAmountRulerCard(
+                preparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+                allowsActualDoseDelta = true,
+                plannedAmount = 0.25,
+                doseAmountDelta = 0.05,
+                isSaving = false,
+                onDoseAmountDeltaChange = {},
+            )
         }
     }
 }
