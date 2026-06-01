@@ -295,6 +295,49 @@ class MedicationLogRepositoryTest {
     }
 
     @Test
+    fun saveEntries_bulkEdit_preservesDoseAmountDeltaAndE2() = runTest {
+        val entryUuids = listOf(
+            UUID.fromString("bbbbbbbb-0000-0000-0000-000000000001"),
+            UUID.fromString("bbbbbbbb-0000-0000-0000-000000000002"),
+        )
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val appliedAt = Instant.ofEpochSecond(1000)
+
+        coEvery {
+            dao.updateEditableLogFieldsForUuids(
+                uuids = entryUuids.map(UUID::toString),
+                appliedAtEpochMillis = appliedAt.toEpochMilli(),
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                scheduledForIso = null,
+                count = 1,
+            )
+        } returns Unit
+
+        repository.saveEntries(
+            uuids = entryUuids,
+            medicineUuid = medicineUuid,
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = DoseInstruction.VolumeMl(0.5),
+            sourceGroupUuid = null,
+            appliedAt = appliedAt,
+            count = 1,
+            appliedAtTimeZoneId = "Asia/Tokyo",
+        )
+
+        coVerify(exactly = 1) {
+            dao.updateEditableLogFieldsForUuids(
+                uuids = entryUuids.map(UUID::toString),
+                appliedAtEpochMillis = appliedAt.toEpochMilli(),
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                scheduledForIso = null,
+                count = 1,
+            )
+        }
+        coVerify(exactly = 0) { dao.insertEntries(any()) }
+        coVerify(exactly = 0) { medicineDao.getByUuid(any()) }
+    }
+
+    @Test
     fun saveEntry_rejectsIncompatibleApplicationTypeBeforeInsert() = runTest {
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
         coEvery {

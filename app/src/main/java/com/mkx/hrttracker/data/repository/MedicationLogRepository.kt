@@ -297,27 +297,13 @@ class MedicationLogRepository @Inject internal constructor(
 
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
-                val dao = database.medicationLogDao()
-                val medicine = medicineUuid?.let { mu ->
-                    checkNotNull(database.medicineDao().getByUuid(mu.toString())) {
-                        "Medicine $mu was not found."
-                    }.toMedicineModel()
-                }
-                val entities = targetUuids.map { uuid ->
-                    buildEntryEntity(
-                        uuid = uuid,
-                        medicine = medicine,
-                        applicationType = applicationType,
-                        doseInstruction = doseInstruction,
-                        sourceGroupUuid = sourceGroupUuid,
-                        scheduleTimeUuid = scheduleTimeUuid,
-                        appliedAt = appliedAt,
-                        scheduledFor = scheduledFor,
-                        count = count,
-                        appliedAtTimeZoneId = appliedAtTimeZoneId,
-                    )
-                }
-                dao.insertEntries(entities)
+                database.medicationLogDao().updateEditableLogFieldsForUuids(
+                    uuids = targetUuids.map(UUID::toString),
+                    appliedAtEpochMillis = appliedAt.toEpochMilli(),
+                    appliedAtTimeZoneId = appliedAtTimeZoneId,
+                    scheduledForIso = scheduledFor?.toString(),
+                    count = count.coerceAtLeast(1),
+                )
             }
         }
     }
