@@ -2182,39 +2182,6 @@ private fun HistoryEmptyStateCard(
     )
 }
 
-@Composable
-private fun buildHistoryEntrySupportingText(
-    entry: MedicationLogEntry,
-    count: Int,
-    groupName: String?
-): String {
-    val doseText = entry.medicine?.let {
-        doseInstructionSummary(it, entry.doseInstruction, entry.doseAmountDelta)
-    }
-    val countText = medicationCountIndicatorText(count)
-    val fallbackText = stringResource(entry.applicationType.labelRes)
-    return historyEntrySupportingText(
-        primaryText = doseText ?: fallbackText,
-        countText = countText,
-        groupName = groupName
-    )
-}
-
-internal fun historyEntrySupportingText(
-    primaryText: String,
-    countText: String?,
-    groupName: String?
-): String {
-    val parts = buildList {
-        countText?.let(::add)
-        add(primaryText)
-        if (!groupName.isNullOrBlank()) {
-            add(groupName)
-        }
-    }
-    return parts.joinToString(" \u00B7 ")
-}
-
 @Preview(
     name = "History Month",
     showBackground = true,
