@@ -120,7 +120,7 @@ flattened into the parent's JSON.
 - `BackupAppSnapshot` — just `packageName`; restore rejects
   cross-app files.
 - `BackupSettingsSnapshot` — flat DataStore values (dark mode,
-  adaptive color, reminders, archived-record visibility,
+  adaptive color, AMOLED pure-black, reminders, archived-record visibility,
   reference-range visibility, app-lock grace period, hide-screen-content,
   onboarding, language, `firstDayOfWeekOption`, home E2 display unit,
   home E2 chart window, per-analyte calibration default units,

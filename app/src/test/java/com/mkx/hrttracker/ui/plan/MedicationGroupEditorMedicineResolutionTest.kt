@@ -19,10 +19,13 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.FakeAppTimeSource
+import com.mkx.hrttracker.util.withAppLanguage
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.slot
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,11 +72,14 @@ class MedicationGroupEditorMedicineResolutionTest {
         every {
             context.getString(R.string.default_group_name_format, any())
         } returns "Group 1"
+        mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
+        every { context.withAppLanguage() } returns context
     }
 
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        unmockkStatic("com.mkx.hrttracker.util.LocalizationKt")
     }
 
     // Fix 3 intent: the save path passes `medications.map { it.toInput() }` as

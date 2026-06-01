@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.core.net.toUri
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
@@ -20,15 +21,56 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class MedicationReminderScheduler @Inject constructor(
-    @param:ApplicationContext private val context: Context,
+class MedicationReminderScheduler private constructor(
+    private val context: Context,
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
     private val settingsRepository: SettingsRepository,
     private val reminderScheduleStore: ReminderScheduleStore,
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
+    private val sdkIntProvider: () -> Int,
 ) {
+    @Inject
+    constructor(
+        @ApplicationContext context: Context,
+        medicationGroupRepository: MedicationGroupRepository,
+        medicationLogRepository: MedicationLogRepository,
+        settingsRepository: SettingsRepository,
+        reminderScheduleStore: ReminderScheduleStore,
+        medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
+        diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
+    ) : this(
+        context = context,
+        medicationGroupRepository = medicationGroupRepository,
+        medicationLogRepository = medicationLogRepository,
+        settingsRepository = settingsRepository,
+        reminderScheduleStore = reminderScheduleStore,
+        medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+        diagnosticsLogger = diagnosticsLogger,
+        sdkIntProvider = { Build.VERSION.SDK_INT },
+    )
+
+    internal constructor(
+        context: Context,
+        medicationGroupRepository: MedicationGroupRepository,
+        medicationLogRepository: MedicationLogRepository,
+        settingsRepository: SettingsRepository,
+        reminderScheduleStore: ReminderScheduleStore,
+        medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
+        diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
+        sdkInt: Int,
+    ) : this(
+        context = context,
+        medicationGroupRepository = medicationGroupRepository,
+        medicationLogRepository = medicationLogRepository,
+        settingsRepository = settingsRepository,
+        reminderScheduleStore = reminderScheduleStore,
+        medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+        diagnosticsLogger = diagnosticsLogger,
+        sdkIntProvider = { sdkInt },
+    )
+
     private val alarmManager: AlarmManager
         get() = context.getSystemService(AlarmManager::class.java)
 
@@ -193,7 +235,7 @@ class MedicationReminderScheduler @Inject constructor(
     }
 
     fun canScheduleExactReminders(): Boolean {
-        return alarmManager.canScheduleExactAlarms()
+        return canScheduleExactAlarms(alarmManager, sdkIntProvider())
     }
 
     private fun scheduleReminder(plan: MedicationReminderPlan) {

@@ -81,6 +81,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(),
+                any(),
             )
         } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
@@ -190,6 +191,7 @@ class BackupRestoreServiceTest {
             settingsRepository.restoreSettings(
                 darkModeOption = any(),
                 adaptiveColorEnabled = any(),
+                pureBlackEnabled = any(),
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
@@ -221,6 +223,48 @@ class BackupRestoreServiceTest {
         }
 
         assertEquals(listOf(0.5f, 1.5f), capturedScales)
+    }
+
+    @Test
+    fun restoreBackupBytes_restoresPureBlackSetting() = runTest {
+        val capturedValues = mutableListOf<Boolean>()
+        coEvery {
+            settingsRepository.restoreSettings(
+                darkModeOption = any(),
+                adaptiveColorEnabled = any(),
+                pureBlackEnabled = capture(capturedValues),
+                remindersEnabled = any(),
+                showArchivedGroupRecords = any(),
+                hideReferenceRanges = any(),
+                appLockGracePeriodOption = any(),
+                hideScreenContentEnabled = any(),
+                onboardingCompleted = any(),
+                appLanguageOption = any(),
+                calibrationDefaultUnits = any(),
+                homeE2DisplayUnit = any(),
+                homeE2ChartWindowOption = any(),
+                lastSeenTimeZoneId = any(),
+                hideMedicationDetails = any(),
+                widgetContentScale = any(),
+                widgetBackgroundAlpha = any(),
+                widgetDarkModeOption = any(),
+                groupNameCounter = any(),
+                firstDayOfWeekOption = any(),
+            )
+        } just Runs
+
+        val snapshot = emptySnapshot().let { base ->
+            base.copy(settings = base.settings.copy(pureBlackEnabled = true))
+        }
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        assertEquals(listOf(true), capturedValues)
     }
 
     private fun snapshotWithWidgetContentScale(scale: Float): BackupSnapshot {

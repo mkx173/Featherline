@@ -25,11 +25,6 @@ fun DangerZoneListItem(
     count: Int = 1,
     supportText: String? = null,
 ) {
-    val contentColor = if (enabled) {
-        MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.38f)
-    }
 
     PreferenceSegmentedListItem(
         title = label,
@@ -38,23 +33,23 @@ fun DangerZoneListItem(
         enabled = enabled,
         onClick = onClick,
         modifier = modifier.alpha(if (enabled) 1f else 0.72f),
-        containerColor = MaterialTheme.colorScheme.errorContainer,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         titleTextStyle = MaterialTheme.typography.titleMedium,
-        titleColor = contentColor,
+        titleColor = MaterialTheme.colorScheme.onSurfaceVariant,
         leadingContent = {
             if (iconPainter != null) {
                 Icon(
                     painter = iconPainter,
                     contentDescription = null,
                     modifier = Modifier.size(24.dp),
-                    tint = contentColor,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     modifier = Modifier.size(24.dp),
-                    tint = contentColor,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
@@ -62,7 +57,7 @@ fun DangerZoneListItem(
             Icon(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = null,
-                tint = contentColor,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         },
         supportingText = supportText,

@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
@@ -52,6 +53,7 @@ class MedicationReminderSnoozeSchedulerTest {
         scheduler = MedicationReminderSnoozeScheduler(
             context = context,
             snoozeStore = snoozeStore,
+            sdkInt = Build.VERSION_CODES.S,
         )
     }
 

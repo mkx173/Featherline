@@ -6,7 +6,7 @@ How to build Featherline from source. Two Gradle modules (`:app`, `:macrobenchma
 
 - JDK 17. The build enforces it via [`jvmToolchain(17)`](https://github.com/mkx173/Featherline/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/app/build.gradle.kts#L149-L151); newer JDKs work as long as Gradle's `foojay-resolver-convention` plugin (set up in [`settings.gradle.kts`](https://github.com/mkx173/Featherline/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/settings.gradle.kts)) can auto-provision JDK 17.
 - A recent Android Studio (Ladybug Feature Drop or newer). The Gradle wrapper pins everything else — the IDE just needs to recognize AGP 9.2.1.
-- Android SDK with `compileSdk = 37` and `targetSdk = 37` available (`minSdk = 31`). Read from [`app/build.gradle.kts`](https://github.com/mkx173/Featherline/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/app/build.gradle.kts#L30-L55).
+- Android SDK with `compileSdk = 37` and `targetSdk = 37` available (`minSdk = 26`). Read from [`app/build.gradle.kts`](https://github.com/mkx173/Featherline/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/app/build.gradle.kts#L30-L55).
 - Exact library and plugin versions live in [`gradle/libs.versions.toml`](https://github.com/mkx173/Featherline/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/gradle/libs.versions.toml). Use this as the source of truth — never hand-edit version strings in `build.gradle.kts`.
 
 ## Quick start

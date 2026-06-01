@@ -4,7 +4,9 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.core.net.toUri
+import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -18,6 +20,7 @@ internal fun scheduleNextWidgetDateRefresh(
     context: Context,
     now: LocalDateTime = LocalDateTime.now(),
     diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
+    sdkInt: Int = Build.VERSION.SDK_INT,
 ) {
     val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
     val triggerAt = nextWidgetDateRefreshAt(now)
@@ -26,7 +29,7 @@ internal fun scheduleNextWidgetDateRefresh(
         .toInstant()
         .toEpochMilli()
     val pendingIntent = widgetDateRefreshPendingIntent(context)
-    val exactAlarm = runCatching { alarmManager.canScheduleExactAlarms() }.getOrDefault(false)
+    val exactAlarm = canScheduleExactAlarms(alarmManager, sdkInt)
 
     diagnosticsLogger.info(
         WIDGET_DATE_REFRESH_TAG,

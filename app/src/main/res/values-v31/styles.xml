@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      On API 31+ the platform draws the splash and, when no icon is specified,
+      automatically uses the launcher icon with the correct adaptive-icon inset.
+      Deliberately do NOT set windowSplashScreenAnimatedIcon here so the system
+      keeps that correctly sized default (overriding it makes the icon too large).
+    -->
+    <style name="AppTheme.Splash" parent="Theme.SplashScreen">
+        <item name="postSplashScreenTheme">@style/AppTheme</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+    </style>
+</resources>

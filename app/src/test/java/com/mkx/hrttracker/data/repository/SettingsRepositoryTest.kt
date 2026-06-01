@@ -15,7 +15,7 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
-import com.mkx.hrttracker.util.currentAppLocale
+import com.mkx.hrttracker.util.appLanguageLocale
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -54,7 +54,7 @@ class SettingsRepositoryTest {
     fun setUp() {
         mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
         val context: Context = mockk()
-        every { context.currentAppLocale() } returns Locale.ENGLISH
+        every { appLanguageLocale() } returns Locale.ENGLISH
 
         dataStore = PreferenceDataStoreFactory.create(
             scope = testScope,
@@ -109,6 +109,15 @@ class SettingsRepositoryTest {
             FirstDayOfWeekOption.FOLLOW_SYSTEM,
             settingsRepository.getCurrentSettings().firstDayOfWeekOption,
         )
+    }
+
+    @Test
+    fun `pure black setting persists and defaults off`() = runTest(testDispatcher) {
+        assertEquals(false, settingsRepository.getCurrentSettings().pureBlackEnabled)
+
+        settingsRepository.setPureBlackEnabled(true)
+
+        assertEquals(true, settingsRepository.getCurrentSettings().pureBlackEnabled)
     }
 
     @Test
@@ -285,6 +294,7 @@ class SettingsRepositoryTest {
         settingsRepository.restoreSettings(
             darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
             adaptiveColorEnabled = true,
+            pureBlackEnabled = false,
             remindersEnabled = true,
             showArchivedGroupRecords = true,
             hideReferenceRanges = false,

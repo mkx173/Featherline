@@ -55,7 +55,7 @@ android {
 
     defaultConfig {
         applicationId = "com.mkx.hrttracker"
-        minSdk = 31
+        minSdk = 26
         targetSdk = 37
         versionCode = gitCommitCount
         versionName = "1.0.3"

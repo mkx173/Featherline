@@ -1,12 +1,16 @@
 package com.mkx.hrttracker
 
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.content.res.Configuration
+import android.content.res.Resources
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -22,14 +26,17 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -37,7 +44,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import com.mkx.hrttracker.data.repository.HomeInputSource
@@ -68,6 +74,7 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.AndroidEntryPoint
 import java.time.LocalDateTime
+import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Provider
@@ -133,9 +140,12 @@ class MainActivity : AppCompatActivity() {
                 packageName.endsWith(".benchmark")
         StartupTiming.reset(enabled = startupTimingEnabled)
         val splashScreen = installSplashScreen()
-        enableEdgeToEdge()
 
         super.onCreate(savedInstanceState)
+        // Must run after super.onCreate(): the detectDarkMode lambda reads the
+        // Hilt-injected settingsRepository, which is only available once Hilt
+        // has injected during super.onCreate().
+        applyEdgeToEdgeSystemBars()
         parseWidgetHighlightIntent(intent)
         diagnosticsLogger.info(
             TAG,
@@ -151,7 +161,7 @@ class MainActivity : AppCompatActivity() {
                 (shouldWaitForHomeShell && !mainViewModel.uiState.value.splashReady)
         }
         diagnosticsLogger.info(TAG, "main_activity_splash_condition_installed")
-        settingsRepository.refreshAppLanguageOption(this)
+        settingsRepository.refreshAppLanguageOption()
         diagnosticsLogger.info(TAG, "main_activity_language_refresh_requested")
 
         setContent {
@@ -168,26 +178,49 @@ class MainActivity : AppCompatActivity() {
             }
 
             DisposableEffect(isDarkTheme) {
-                val barStyle = if (isDarkTheme) {
-                    SystemBarStyle.dark(Color.Transparent.toArgb())
-                } else {
-                    SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
-                }
-
-                enableEdgeToEdge(
-                    statusBarStyle = barStyle,
-                    navigationBarStyle = barStyle
-                )
-
-                val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-                windowInsetsController.isAppearanceLightStatusBars = !isDarkTheme
-                windowInsetsController.isAppearanceLightNavigationBars = !isDarkTheme
+                // Re-apply edge-to-edge immediately so an in-app theme toggle
+                // updates the system bar appearance right away rather than
+                // waiting on the configuration-change observer. Both this call
+                // and the persistent observer installed in onCreate resolve the
+                // appearance from the same live source (see
+                // applyEdgeToEdgeSystemBars), so they can never disagree — which
+                // is what previously left the navigation bar stale on API 30+,
+                // where appearance is applied through WindowInsetsController.
+                applyEdgeToEdgeSystemBars()
                 onDispose { }
             }
 
+            val baseContext = LocalContext.current
+            val baseConfiguration = LocalConfiguration.current
+            val appLanguageTag = settingsState.appLanguageOption.languageTag
+            // Apply the chosen UI language in place through the composition
+            // locals so a language change re-localizes the whole UI — including
+            // date/time formatters that read LocalConfiguration — without
+            // recreating the activity (which would flash a blank screen).
+            val localizedContext = remember(baseContext, baseConfiguration, appLanguageTag) {
+                val locale = Locale.forLanguageTag(appLanguageTag)
+                val configuration = Configuration(baseConfiguration).apply { setLocale(locale) }
+                val localizedResources =
+                    baseContext.createConfigurationContext(configuration).resources
+                // Wrap the activity (rather than returning the config context) so the
+                // context still unwraps to the Activity — required by hiltViewModel()
+                // and LocalActivity — while serving localized resources.
+                object : ContextWrapper(baseContext) {
+                    override fun getResources(): Resources = localizedResources
+                }
+            }
+
+            CompositionLocalProvider(
+                LocalContext provides localizedContext,
+                LocalConfiguration provides localizedContext.resources.configuration,
+                // Overriding LocalContext detaches the Activity that LocalActivity
+                // resolves by walking the context chain, so provide it explicitly.
+                LocalActivity provides this@MainActivity,
+            ) {
             HrtTrackerTheme(
                 darkTheme = isDarkTheme,
-                dynamicColor = settingsState.adaptiveColorEnabled
+                dynamicColor = settingsState.adaptiveColorEnabled,
+                amoled = settingsState.pureBlackEnabled,
             ) {
                 val navController = rememberNavController()
                 val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
@@ -382,6 +415,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
+            }
         }
     }
 
@@ -400,6 +434,56 @@ class MainActivity : AppCompatActivity() {
             diagnosticsLogger.info(TAG, "main_activity_on_stop backgrounding=false reason=configuration_change")
         }
         super.onStop()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // The edge-to-edge observer re-runs on every handled config change
+        // (uiMode/locale/layoutDirection) and re-enables nav-bar contrast
+        // enforcement. Post so this lands after that observer, regardless of
+        // dispatch order, keeping the navigation bar fully transparent.
+        window.decorView.post { disableNavigationBarContrast() }
+    }
+
+    /**
+     * Registers/refreshes edge-to-edge with a [SystemBarStyle.auto] whose
+     * detectDarkMode lambda reads the resolved theme live. androidx.activity
+     * installs a single persistent observer (added on the first call only) that
+     * re-runs this style resolution on every configuration change — including
+     * the uiMode change AppCompat dispatches when night mode is toggled, since
+     * the manifest handles uiMode in-process. Deriving the appearance from the
+     * live source of truth here keeps the status/navigation bars correct on
+     * API 30+, where bar appearance is applied through WindowInsetsController and
+     * a stale observer would otherwise race with — and clobber — the value set
+     * for the current theme.
+     *
+     * [SystemBarStyle.auto] enables navigation-bar contrast enforcement (its
+     * nightMode is 0), which draws a scrim behind 3-button navigation. We want a
+     * fully transparent navigation bar, so disable it here; [onConfigurationChanged]
+     * re-disables it after the observer re-enables it on later config changes.
+     */
+    private fun applyEdgeToEdgeSystemBars() {
+        val barStyle = SystemBarStyle.auto(
+            Color.Transparent.toArgb(),
+            Color.Transparent.toArgb(),
+        ) { resources -> resolveSystemBarsDarkAppearance(resources) }
+        enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
+        disableNavigationBarContrast()
+    }
+
+    /** Keeps the navigation bar fully transparent (no enforced contrast scrim). */
+    private fun disableNavigationBarContrast() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
+    }
+
+    private fun resolveSystemBarsDarkAppearance(resources: Resources): Boolean {
+        val systemInDarkTheme =
+            (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                Configuration.UI_MODE_NIGHT_YES
+        return settingsRepository.settingsState.value.darkModeOption
+            .resolveDarkTheme(systemInDarkTheme)
     }
 
     private fun applyHideScreenContent(enabled: Boolean) {

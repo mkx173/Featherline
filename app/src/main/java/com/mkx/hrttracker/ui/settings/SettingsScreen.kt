@@ -1,11 +1,13 @@
 package com.mkx.hrttracker.ui.settings
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -116,6 +118,7 @@ import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.rememberAppLocale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -465,6 +468,7 @@ fun SettingsScreen(
         onFirstDayOfWeekOptionChange = viewModel::setFirstDayOfWeekOption,
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
+        onPureBlackEnabledChange = viewModel::setPureBlackEnabled,
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
         onHideMedicationDetailsChange = viewModel::setHideMedicationDetails,
@@ -729,6 +733,7 @@ internal fun SettingsScreenContent(
     onFirstDayOfWeekOptionChange: (FirstDayOfWeekOption) -> Unit,
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
+    onPureBlackEnabledChange: (Boolean) -> Unit,
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
@@ -755,6 +760,22 @@ internal fun SettingsScreenContent(
         remember { mutableStateOf(false) }
     val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
     val (isLanguageMenuExpanded, setLanguageMenuExpanded) = remember { mutableStateOf(false) }
+    // Hold the chosen language until the dropdown has fully closed, then apply it.
+    // Applying immediately re-localizes the whole screen (~one frame after the tap)
+    // while the menu is still playing its exit animation, so the menu visibly lingers
+    // over the already-translated UI. Deferring to onExitFinished keeps the switch from
+    // overlapping the dismiss.
+    var pendingLanguageOption by remember { mutableStateOf<AppLanguageOption?>(null) }
+    // Same deferral for dark mode: applying it immediately re-themes the whole screen
+    // while the dropdown is still animating out, leaving the menu lingering over the
+    // already-recolored UI. The row's supporting text still reflects the pick right away
+    // (see below); only the theme switch waits for the dismiss.
+    var pendingDarkModeOption by remember { mutableStateOf<DarkModeOption?>(null) }
+    // Drop the optimistic value once the committed setting catches up, so the row tracks
+    // the source of truth again without flickering back to the previous option.
+    LaunchedEffect(settingsState.darkModeOption, pendingDarkModeOption) {
+        if (pendingDarkModeOption == settingsState.darkModeOption) pendingDarkModeOption = null
+    }
     val (isFirstDayOfWeekMenuExpanded, setFirstDayOfWeekMenuExpanded) =
         remember { mutableStateOf(false) }
     val appName = stringResource(R.string.app_name)
@@ -789,6 +810,7 @@ internal fun SettingsScreenContent(
     }
     val scrollState = rememberScrollState()
     val weightSummary = formatWeightSummary(uiState.userProfile)
+    val appearanceLayout = resolveSettingsAppearanceSectionLayout()
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
@@ -1160,8 +1182,8 @@ internal fun SettingsScreenContent(
             ) {
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_widget_appearance),
-                    index = 0,
-                    count = 4,
+                    index = appearanceLayout.widgetAppearanceIndex,
+                    count = appearanceLayout.itemCount,
                     onClick = { showWidgetAppearanceDialog = true },
                     leadingContent = {
                         SettingsLeadingIconSlot(
@@ -1175,9 +1197,18 @@ internal fun SettingsScreenContent(
                 Box {
                     SettingsSegmentedListItem(
                         title = stringResource(R.string.settings_app_language),
-                        supportingText = stringResource(settingsState.appLanguageOption.labelRes),
-                        index = 1,
-                        count = 4,
+                        // Derive the displayed language from the locale the UI is actually
+                        // rendering in (LocalConfiguration), not the ViewModel's
+                        // appLanguageOption. Both mirror the same setting, but the global
+                        // locale flips a frame before the ViewModel's combine/stateIn relays
+                        // the new option, which made this row briefly show the old language
+                        // name. Reading the live locale keeps it in lockstep with the rest of
+                        // the re-localized UI.
+                        supportingText = stringResource(
+                            AppLanguageOption.fromLocale(rememberAppLocale()).labelRes
+                        ),
+                        index = appearanceLayout.appLanguageIndex,
+                        count = appearanceLayout.itemCount,
                         onClick = { setLanguageMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1192,8 +1223,14 @@ internal fun SettingsScreenContent(
                         items = AppLanguageOption.entries.map { option ->
                             HrtDropdownMenuItem(
                                 text = stringResource(option.labelRes),
-                                onClick = { onAppLanguageOptionChange(option) },
+                                onClick = { pendingLanguageOption = option },
                             )
+                        },
+                        onExitFinished = {
+                            pendingLanguageOption?.let { option ->
+                                onAppLanguageOptionChange(option)
+                                pendingLanguageOption = null
+                            }
                         },
                     )
                 }
@@ -1201,9 +1238,13 @@ internal fun SettingsScreenContent(
                 Box {
                     SettingsSegmentedListItem(
                         title = stringResource(R.string.settings_dark_mode),
-                        supportingText = stringResource(settingsState.darkModeOption.labelRes),
-                        index = 2,
-                        count = 4,
+                        // Show the just-picked option immediately even though the actual
+                        // theme switch is deferred until the dropdown finishes dismissing.
+                        supportingText = stringResource(
+                            (pendingDarkModeOption ?: settingsState.darkModeOption).labelRes
+                        ),
+                        index = appearanceLayout.darkModeIndex,
+                        count = appearanceLayout.itemCount,
                         onClick = { setDarkModeMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1218,31 +1259,65 @@ internal fun SettingsScreenContent(
                         items = DarkModeOption.entries.map { option ->
                             HrtDropdownMenuItem(
                                 text = stringResource(option.labelRes),
-                                onClick = { onDarkModeOptionChange(option) },
+                                onClick = { pendingDarkModeOption = option },
                             )
+                        },
+                        onExitFinished = {
+                            // Apply the deferred switch once the menu is gone. The pending
+                            // value is cleared by the LaunchedEffect above once the committed
+                            // setting catches up, so the row never flickers back.
+                            pendingDarkModeOption?.let(onDarkModeOptionChange)
                         },
                     )
                 }
 
                 SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_adaptive_color),
-                    index = 3,
-                    count = 4,
+                    title = stringResource(R.string.settings_amoled_black),
+                    index = appearanceLayout.pureBlackIndex,
+                    count = appearanceLayout.itemCount,
                     onClick = {
-                        onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
+                        onPureBlackEnabledChange(!settingsState.pureBlackEnabled)
                     },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_palette)
+                            painter = painterResource(R.drawable.ic_invert_colors)
                         )
                     },
                     trailingContent = {
                         Switch(
-                            checked = settingsState.adaptiveColorEnabled,
-                            onCheckedChange = onAdaptiveColorEnabledChange
+                            checked = settingsState.pureBlackEnabled,
+                            onCheckedChange = onPureBlackEnabledChange
                         )
                     }
                 )
+
+                appearanceLayout.adaptiveColorIndex?.let { adaptiveColorIndex ->
+                    SettingsSegmentedListItem(
+                        title = stringResource(R.string.settings_adaptive_color),
+                        index = adaptiveColorIndex,
+                        count = appearanceLayout.itemCount,
+                        onClick = {
+                            onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
+                        },
+                        leadingContent = {
+                            Box(
+                                modifier = Modifier.size(24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_palette),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = settingsState.adaptiveColorEnabled,
+                                onCheckedChange = onAdaptiveColorEnabledChange
+                            )
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
@@ -1622,6 +1697,15 @@ internal data class SettingsSecuritySectionLayout(
     val hideScreenContentIndex: Int,
 )
 
+internal data class SettingsAppearanceSectionLayout(
+    val itemCount: Int,
+    val widgetAppearanceIndex: Int,
+    val appLanguageIndex: Int,
+    val darkModeIndex: Int,
+    val adaptiveColorIndex: Int?,
+    val pureBlackIndex: Int,
+)
+
 internal enum class SettingsReminderSupportState {
     NONE,
     NOTIFICATION_OFF,
@@ -1657,6 +1741,30 @@ internal fun resolveSettingsSecuritySectionLayout(
         SettingsSecuritySectionLayout(
             itemCount = 2,
             hideScreenContentIndex = 1,
+        )
+    }
+}
+
+internal fun resolveSettingsAppearanceSectionLayout(
+    sdkInt: Int = Build.VERSION.SDK_INT,
+): SettingsAppearanceSectionLayout {
+    return if (sdkInt >= Build.VERSION_CODES.S) {
+        SettingsAppearanceSectionLayout(
+            itemCount = 5,
+            widgetAppearanceIndex = 0,
+            appLanguageIndex = 1,
+            darkModeIndex = 2,
+            pureBlackIndex = 3,
+            adaptiveColorIndex = 4,
+        )
+    } else {
+        SettingsAppearanceSectionLayout(
+            itemCount = 4,
+            widgetAppearanceIndex = 0,
+            appLanguageIndex = 1,
+            darkModeIndex = 2,
+            adaptiveColorIndex = null,
+            pureBlackIndex = 3,
         )
     }
 }
@@ -1784,11 +1892,17 @@ private fun SettingsSupportMessage(
             onClick = onClick ?: {},
             modifier = Modifier.wrapContentHeight(),
             leadingContent = {
-                SettingsLeadingIconSlot(
-                    icon = icon,
-                    painter = painter,
-                    tint = MaterialTheme.colorScheme.tertiary,
-                )
+                Box(
+                    modifier = Modifier.size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    SettingsLeadingIconSlot(
+                        icon = icon,
+                        painter = painter,
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             },
             trailingContent = if (showChevron) {
                 { SettingsChevronTrailingIcon() }
@@ -1852,12 +1966,28 @@ private fun resolveAppVersionInfo(context: Context): AppVersionInfo {
         @Suppress("DEPRECATION")
         context.packageManager.getPackageInfo(context.packageName, 0)
     }
-    val versionCode = packageInfo.longVersionCode
+    val versionCode = resolvePackageVersionCode(packageInfo)
     val versionName = packageInfo.versionName?.takeIf { it.isNotBlank() } ?: versionCode.toString()
     return AppVersionInfo(
         versionName = versionName,
         versionCode = versionCode
     )
+}
+
+internal fun resolvePackageVersionCode(
+    packageInfo: PackageInfo,
+    sdkInt: Int = Build.VERSION.SDK_INT,
+): Long {
+    if (sdkInt < Build.VERSION_CODES.P) {
+        @Suppress("DEPRECATION")
+        return packageInfo.versionCode.toLong()
+    }
+    return resolveLongPackageVersionCode(packageInfo)
+}
+
+@SuppressLint("NewApi")
+private fun resolveLongPackageVersionCode(packageInfo: PackageInfo): Long {
+    return packageInfo.longVersionCode
 }
 
 private fun launchFeedbackEmail(
@@ -1930,6 +2060,7 @@ private fun SettingsScreenPreview() {
             onFirstDayOfWeekOptionChange = { },
             onDarkModeOptionChange = { },
             onAdaptiveColorEnabledChange = { },
+            onPureBlackEnabledChange = { },
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },

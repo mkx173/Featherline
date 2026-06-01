@@ -226,7 +226,7 @@ private fun StockRows(projection: MedicineStockProjection) {
                     denominator = stock.unitsLastTotal,
                 ),
                 progressState = projection.state,
-                iconSize = 24.dp
+                iconSize = 22.dp
             )
             RunwayRowCard(
                 projection = projection,
@@ -272,7 +272,7 @@ private fun StockRows(projection: MedicineStockProjection) {
                     denominator = stock.unitsLastTotal,
                 ),
                 progressState = projection.state,
-                iconSize = 24.dp
+                iconSize = 22.dp
             )
             RunwayRowCard(
                 projection = projection,
@@ -297,7 +297,7 @@ private fun StockRows(projection: MedicineStockProjection) {
                     denominator = stock.unitsLastTotal,
                 ),
                 progressState = projection.state,
-                iconSize = 24.dp
+                iconSize = 22.dp
             )
             RunwayRowCard(
                 projection = projection,
@@ -509,7 +509,7 @@ private fun RunwayRowCard(
                     painter = painterResource(iconRes),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(22.dp),
                 )
             }
             Spacer(Modifier.width(12.dp))

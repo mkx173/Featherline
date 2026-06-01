@@ -55,6 +55,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -169,6 +170,38 @@ internal fun resolveOnboardingNotificationPermissionAction(
     }
 }
 
+internal fun shouldShowNotificationPermissionOnboardingCard(
+    notificationsGrantedAtStart: Boolean,
+): Boolean {
+    // Show the permission card whenever access was missing as onboarding began.
+    // Visibility keys off the captured start state so the card — and the step's
+    // subtitle — stay stable: granting during onboarding flips the card to a
+    // granted state instead of making it disappear.
+    return !notificationsGrantedAtStart
+}
+
+internal fun shouldShowReminderMasterOnboardingCard(
+    notificationsGranted: Boolean,
+    notificationsGrantedAtStart: Boolean,
+): Boolean {
+    // Only ask whether to enable reminders when the user already had
+    // notification access as onboarding began. Granting access during
+    // onboarding is itself the opt-in, so the extra toggle is skipped.
+    return notificationsGranted && notificationsGrantedAtStart
+}
+
+// SCHEDULE_EXACT_ALARM does not exist before API 31, and from API 31 onward it
+// is granted by default. We therefore only surface the card when the user had
+// revoked it before onboarding began (edge case). Visibility keys off the
+// captured start state, so once shown the card stays stable — it does not
+// vanish when the user re-grants the permission during onboarding.
+internal fun shouldShowExactAlarmOnboardingCard(
+    sdkInt: Int = Build.VERSION.SDK_INT,
+    exactAlarmGrantedAtStart: Boolean,
+): Boolean {
+    return sdkInt >= Build.VERSION_CODES.S && !exactAlarmGrantedAtStart
+}
+
 @Composable
 fun OnboardingScreen(
     onOpenPrivacyPolicy: () -> Unit,
@@ -188,7 +221,12 @@ fun OnboardingScreen(
     var showGroupEditor by rememberSaveable { mutableStateOf(false) }
     var showStockOnboarding by rememberSaveable { mutableStateOf(false) }
     var groupEditorOpenCount by rememberSaveable { mutableIntStateOf(0) }
-    var remindersAcceptedDuringOnboarding by rememberSaveable { mutableStateOf(false) }
+    // Onboarding starts every user from an opt-in baseline (reminders off) and
+    // only enables them through an explicit action. Both flags are one-shot and
+    // survive process death so the baseline/auto-enable writes never clobber a
+    // later choice (e.g. enabling reminders in the step-3 group editor).
+    var reminderBaselineApplied by rememberSaveable { mutableStateOf(false) }
+    var remindersAutoEnabled by rememberSaveable { mutableStateOf(false) }
 
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -199,10 +237,60 @@ fun OnboardingScreen(
     val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
     val notificationsGranted = reminderCapabilityState.hasNotificationAccess
     val exactAlarmGranted = reminderCapabilityState.hasExactAlarmAccess
+    // Capture the grant state as onboarding begins. The reconciler is seeded
+    // with the real capability state on construction, so the first composition
+    // value is accurate. These drive whether we ask the user to opt in versus
+    // treating an in-onboarding grant as the opt-in itself.
+    val notificationsGrantedAtStart = rememberSaveable { notificationsGranted }
+    val exactAlarmGrantedAtStart = rememberSaveable { exactAlarmGranted }
+    val showNotificationPermissionCard =
+        shouldShowNotificationPermissionOnboardingCard(notificationsGrantedAtStart)
+    val showReminderMasterCard = shouldShowReminderMasterOnboardingCard(
+        notificationsGranted = notificationsGranted,
+        notificationsGrantedAtStart = notificationsGrantedAtStart,
+    )
+    val showExactAlarmCard = shouldShowExactAlarmOnboardingCard(
+        exactAlarmGrantedAtStart = exactAlarmGrantedAtStart,
+    )
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
+    // The master switch and finish decision read the persisted setting (gated by
+    // notification access) so they always mirror reality, including changes made
+    // outside step 2.
+    val remindersEnabledEffective = notificationsGranted && uiState.remindersEnabled
     val notificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
     val onboardingUpdateFailedMessage = stringResource(R.string.onboarding_update_failed)
+
+    LaunchedEffect(reminderCapabilityReconciler) {
+        reminderCapabilityReconciler.requestReconcile("onboarding_start")
+    }
+
+    // Establish the opt-in baseline once, before any in-onboarding choice, so the
+    // persisted setting starts from a known "off" regardless of its prior value.
+    LaunchedEffect(Unit) {
+        if (!reminderBaselineApplied) {
+            reminderBaselineApplied = true
+            viewModel.setRemindersEnabledDuringOnboarding(false)
+        }
+    }
+
+    // Granting notification access during onboarding is itself the opt-in, so we
+    // enable reminders once when access first appears.
+    LaunchedEffect(notificationsGranted) {
+        if (notificationsGranted && !notificationsGrantedAtStart && !remindersAutoEnabled) {
+            remindersAutoEnabled = true
+            viewModel.setRemindersEnabledDuringOnboarding(true)
+        }
+    }
+
+    // The step-3 group editor can grant notification/exact-alarm access. Reconcile
+    // when its overlay closes so step 2 reflects that access on return (e.g. the
+    // Skip button disables once there is nothing left to skip).
+    LaunchedEffect(showGroupEditor) {
+        if (!showGroupEditor) {
+            reminderCapabilityReconciler.requestReconcile("onboarding_group_editor_dismissed")
+        }
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.onboardingMutationEvents.collect { event ->
@@ -238,7 +326,7 @@ fun OnboardingScreen(
     }
 
     val finishOnboarding = {
-        if (remindersAcceptedDuringOnboarding) onCompleteEnabled() else onCompleteDeclined()
+        if (remindersEnabledEffective) onCompleteEnabled() else onCompleteDeclined()
     }
 
     val goNext = {
@@ -251,16 +339,7 @@ fun OnboardingScreen(
     val goPrev = {
         if (step > 0) step -= 1
     }
-    val acceptRemindersAndGoNext: () -> Unit = {
-        remindersAcceptedDuringOnboarding = true
-        coroutineScope.launch {
-            if (viewModel.setRemindersEnabledDuringOnboarding(true)) {
-                goNext()
-            }
-        }
-    }
     val declineRemindersAndGoNext: () -> Unit = {
-        remindersAcceptedDuringOnboarding = false
         coroutineScope.launch {
             if (viewModel.setRemindersEnabledDuringOnboarding(false)) {
                 goNext()
@@ -328,6 +407,15 @@ fun OnboardingScreen(
                             2 -> NotificationsStep(
                                 notificationsGranted = notificationsGranted,
                                 exactAlarmGranted = exactAlarmGranted,
+                                showNotificationPermissionCard = showNotificationPermissionCard,
+                                showReminderMasterCard = showReminderMasterCard,
+                                showExactAlarmCard = showExactAlarmCard,
+                                remindersEnabled = remindersEnabledEffective,
+                                onRemindersEnabledChange = { enabled ->
+                                    coroutineScope.launch {
+                                        viewModel.setRemindersEnabledDuringOnboarding(enabled)
+                                    }
+                                },
                                 onAllowNotifications = {
                                     val hasRuntimePerm: Boolean
                                     val shouldShowRationale: Boolean
@@ -378,11 +466,13 @@ fun OnboardingScreen(
                                     }
                                 },
                                 onAllowExactAlarm = {
-                                    val intent = Intent(
-                                        Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                                        "package:${context.packageName}".toUri()
-                                    )
-                                    exactAlarmLauncher.launch(intent)
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        val intent = Intent(
+                                            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                            "package:${context.packageName}".toUri()
+                                        )
+                                        exactAlarmLauncher.launch(intent)
+                                    }
                                 },
                             )
                             3 -> UsefulInfoStep(
@@ -410,22 +500,20 @@ fun OnboardingScreen(
                             2 -> notificationsGranted
                             else -> true
                         },
-                        secondaryButtonLabel = if (currentStep == 2) {
+                        secondaryButtonLabel = if (currentStep == 2 && showNotificationPermissionCard) {
                             stringResource(R.string.onboarding_skip_notifications)
                         } else {
                             null
                         },
-                        onSecondaryButtonClick = if (currentStep == 2) {
+                        onSecondaryButtonClick = if (currentStep == 2 && showNotificationPermissionCard) {
                             declineRemindersAndGoNext
                         } else {
                             null
                         },
-                        secondaryButtonEnabled = currentStep != 2 || !notificationsGranted,
-                        onCta = if (currentStep == 2) {
-                            acceptRemindersAndGoNext
-                        } else {
-                            goNext
-                        },
+                        // Once access is granted there is nothing left to skip, so
+                        // the Skip action is disabled (kept in place for stability).
+                        secondaryButtonEnabled = !notificationsGranted,
+                        onCta = goNext,
                     )
                 }
             }
@@ -1045,9 +1133,20 @@ private fun AcceptanceCheckbox(
 private fun NotificationsStep(
     notificationsGranted: Boolean,
     exactAlarmGranted: Boolean,
+    showNotificationPermissionCard: Boolean,
+    showReminderMasterCard: Boolean,
+    showExactAlarmCard: Boolean,
+    remindersEnabled: Boolean,
+    onRemindersEnabledChange: (Boolean) -> Unit,
     onAllowNotifications: () -> Unit,
     onAllowExactAlarm: () -> Unit,
 ) {
+    // The notification permission and reminder master cards are mutually
+    // exclusive primary cards; either, both-absent, or neither may be shown.
+    val primaryCardShown = showNotificationPermissionCard || showReminderMasterCard
+    val cardCount =
+        (if (primaryCardShown) 1 else 0) + (if (showExactAlarmCard) 1 else 0)
+    val exactAlarmIndex = if (primaryCardShown) 1 else 0
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1057,30 +1156,117 @@ private fun NotificationsStep(
         StepHeader(
             iconPainter = painterResource(R.drawable.ic_notifications),
             title = stringResource(R.string.onboarding_notifications_title),
-            desc = stringResource(R.string.onboarding_notifications_subtitle),
+            desc = stringResource(
+                when {
+                    showNotificationPermissionCard && showExactAlarmCard ->
+                        R.string.onboarding_notifications_subtitle
+                    showNotificationPermissionCard ->
+                        R.string.onboarding_notifications_permission_subtitle
+                    showExactAlarmCard ->
+                        R.string.onboarding_notifications_master_alarm_subtitle
+                    else ->
+                        R.string.onboarding_notifications_master_subtitle
+                }
+            ),
         )
 
-        PermissionCard(
-            iconPainter = painterResource(R.drawable.ic_notifications),
-            title = stringResource(R.string.onboarding_notifications_app_title),
-            desc = stringResource(R.string.onboarding_notifications_app_desc),
-            granted = notificationsGranted,
-            optional = false,
-            onAllow = onAllowNotifications,
-            index = 0,
-            count = 2,
-        )
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-        PermissionCard(
-            iconPainter = painterResource(R.drawable.ic_alarm_filled),
-            title = stringResource(R.string.onboarding_notifications_alarm_title),
-            desc = stringResource(R.string.onboarding_notifications_alarm_desc),
-            granted = exactAlarmGranted,
-            optional = true,
-            onAllow = onAllowExactAlarm,
-            index = 1,
-            count = 2,
-        )
+        if (showNotificationPermissionCard) {
+            PermissionCard(
+                iconPainter = painterResource(R.drawable.ic_notifications),
+                title = stringResource(R.string.onboarding_notifications_app_title),
+                desc = stringResource(R.string.onboarding_notifications_app_desc),
+                granted = notificationsGranted,
+                optional = false,
+                onAllow = onAllowNotifications,
+                index = 0,
+                count = cardCount,
+            )
+        }
+        if (showReminderMasterCard) {
+            ReminderMasterCard(
+                iconPainter = painterResource(R.drawable.ic_notifications),
+                title = stringResource(R.string.settings_reminders),
+                desc = stringResource(R.string.onboarding_notifications_app_desc),
+                remindersEnabled = remindersEnabled,
+                onRemindersEnabledChange = onRemindersEnabledChange,
+                index = 0,
+                count = cardCount,
+            )
+        }
+        if (showExactAlarmCard) {
+            if (primaryCardShown) {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+            }
+            PermissionCard(
+                iconPainter = painterResource(R.drawable.ic_alarm_filled),
+                title = stringResource(R.string.onboarding_notifications_alarm_title),
+                desc = stringResource(R.string.onboarding_notifications_alarm_desc),
+                granted = exactAlarmGranted,
+                optional = true,
+                onAllow = onAllowExactAlarm,
+                index = exactAlarmIndex,
+                count = cardCount,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReminderMasterCard(
+    iconPainter: Painter,
+    title: String,
+    desc: String,
+    remindersEnabled: Boolean,
+    onRemindersEnabledChange: (Boolean) -> Unit,
+    index: Int,
+    count: Int,
+) {
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        onClick = { onRemindersEnabledChange(!remindersEnabled) },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = iconPainter,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.cjkTextOffset(title)
+                )
+                Text(
+                    text = desc,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.cjkTextOffset(desc)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Switch(
+                checked = remindersEnabled,
+                onCheckedChange = onRemindersEnabledChange,
+            )
+        }
     }
 }
 
@@ -1479,6 +1665,11 @@ private fun OnboardingNotificationsPreview() {
         NotificationsStep(
             notificationsGranted = false,
             exactAlarmGranted = false,
+            showNotificationPermissionCard = true,
+            showReminderMasterCard = false,
+            showExactAlarmCard = true,
+            remindersEnabled = false,
+            onRemindersEnabledChange = { },
             onAllowNotifications = { },
             onAllowExactAlarm = { },
         )

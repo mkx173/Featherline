@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.calibration
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,6 +69,7 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
+import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -216,7 +218,10 @@ fun CalibrationEditorScreen(
                         viewModel.delete()
                     },
                 ) {
-                    Text(text = stringResource(R.string.delete_entries_confirm))
+                    Text(
+                        text = stringResource(R.string.delete_entries_confirm),
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             dismissButton = {
@@ -535,7 +540,7 @@ private fun CalibrationEditorScreenContent(
 
                 if (uiState.isEditing) {
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                    HrtButton(
+                    HrtFilledTonalButton(
                         text = stringResource(R.string.delete_entries_confirm),
                         onClick = onDeleteClick,
                         modifier = Modifier.fillMaxWidth(),
@@ -544,10 +549,6 @@ private fun CalibrationEditorScreenContent(
                             ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
                         ),
                         iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        ),
                     )
                 }
 

@@ -121,6 +121,7 @@ class StartupFixtureActivity : AppCompatActivity() {
         settingsRepository.restoreSettings(
             darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
             adaptiveColorEnabled = false,
+            pureBlackEnabled = false,
             remindersEnabled = false,
             showArchivedGroupRecords = true,
             hideReferenceRanges = false,
