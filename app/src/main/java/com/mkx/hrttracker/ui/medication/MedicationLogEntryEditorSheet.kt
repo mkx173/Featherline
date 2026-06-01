@@ -4,19 +4,26 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -32,6 +39,8 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -83,6 +93,8 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 // ---------------------------------------------------------------------------
 // Log entry sheet entry point.
@@ -301,6 +313,134 @@ internal fun ActualAmountStepperCard(
             ),
             color = MaterialTheme.colorScheme.onSurface,
         )
+    }
+}
+
+@Composable
+internal fun ActualAmountRulerCard(
+    preparationType: MedicinePreparationType?,
+    allowsActualDoseDelta: Boolean,
+    plannedAmount: Double?,
+    doseAmountDelta: Double?,
+    isSaving: Boolean,
+    onDoseAmountDeltaChange: (Double?) -> Unit,
+) {
+    if (!allowsActualDoseDelta ||
+        plannedAmount == null ||
+        !plannedAmount.isFinite() ||
+        plannedAmount <= 0.0
+    ) {
+        return
+    }
+    val params = actualDoseDeltaFormParams(preparationType) ?: return
+    val unitText = actualAmountUnitText(preparationType) ?: return
+    val range = remember(plannedAmount, params) {
+        actualDoseDeltaRange(plannedAmount, params.fraction, params.step, params.underDrawOnly)
+    }
+    val deltas = remember(range) {
+        val count = (((range.max - range.min) / range.step).roundToInt() + 1).coerceAtLeast(1)
+        List(count) { i -> range.min + i * range.step }
+    }
+    val initialIndex = remember(deltas) {
+        val target = doseAmountDelta ?: 0.0
+        deltas.indices.minByOrNull { abs(deltas[it] - target) } ?: 0
+    }
+
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+    val flingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
+    val tickSpacing = 14.dp
+
+    val centeredIndex by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            if (info.visibleItemsInfo.isEmpty()) {
+                initialIndex
+            } else {
+                val center = (info.viewportStartOffset + info.viewportEndOffset) / 2f
+                info.visibleItemsInfo
+                    .minByOrNull { abs((it.offset + it.size / 2f) - center) }
+                    ?.index ?: initialIndex
+            }
+        }
+    }
+
+    // Center the initial selection once the row is laid out.
+    LaunchedEffect(Unit) { listState.scrollToItem(initialIndex) }
+
+    // Emit the centered tick's delta once scrolling settles.
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (!listState.isScrollInProgress) {
+            val tickDelta = deltas.getOrElse(centeredIndex) { 0.0 }
+            onDoseAmountDeltaChange(
+                doseAmountDeltaForActual(plannedAmount, plannedAmount + tickDelta),
+            )
+        }
+    }
+
+    val liveDelta = deltas.getOrElse(centeredIndex) { 0.0 }
+    val liveActual = plannedAmount + liveDelta
+
+    EditorSegmentedListItem(
+        index = 0,
+        count = 1,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        overlineContent = {
+            Text(
+                text = stringResource(R.string.medication_log_actual_amount),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        supportingContent = {
+            Text(
+                text = "${formatSignedActualAmountDelta(liveDelta)} $unitText",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "${formatActualAmount(liveActual)} $unitText",
+                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                val sidePadding = (maxWidth - tickSpacing) / 2
+                LazyRow(
+                    state = listState,
+                    flingBehavior = flingBehavior,
+                    userScrollEnabled = !isSaving,
+                    contentPadding = PaddingValues(horizontal = sidePadding),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    items(deltas.size) { i ->
+                        val isMajor = i == 0 ||
+                            i == deltas.size - 1 ||
+                            abs(deltas[i]) < DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON
+                        Box(
+                            modifier = Modifier.width(tickSpacing).fillMaxHeight(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(2.dp)
+                                    .fillMaxHeight(if (isMajor) 0.6f else 0.35f)
+                                    .background(MaterialTheme.colorScheme.outlineVariant),
+                            )
+                        }
+                    }
+                }
+                // Fixed center indicator.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .width(2.dp)
+                        .fillMaxHeight(0.85f)
+                        .background(MaterialTheme.colorScheme.primary),
+                )
+            }
+        }
     }
 }
 
