@@ -176,6 +176,11 @@ private fun MedicationLogEntryScreenBody(
     onScheduleFulfillmentWarningDismiss: () -> Unit,
 ) {
     var isDeleteConfirmationVisible by remember(uiState.canDelete) { mutableStateOf(false) }
+    // Live actual amount streamed from the ruler while the user scrubs, so the
+    // stock subcard's after-mutation amount tracks the scrub in real time rather
+    // than waiting for the debounced delta commit. Ignored unless the ruler is
+    // active; the ruler re-emits on (re)composition, so it never goes stale.
+    var liveActualAmount by remember { mutableStateOf<Double?>(null) }
     val previewDoseMagnitude = remember(
         uiState.isEditing,
         uiState.resolvedMedicine,
@@ -183,6 +188,7 @@ private fun MedicationLogEntryScreenBody(
         uiState.countText,
         uiState.allowsActualDoseDelta,
         uiState.effectiveActualAmount,
+        liveActualAmount,
     ) {
         medicationLogEntryPreviewDoseMagnitude(
             isEditing = uiState.isEditing,
@@ -190,7 +196,11 @@ private fun MedicationLogEntryScreenBody(
             doseInstructionDraft = uiState.doseInstructionDraft,
             countText = uiState.countText,
             allowsActualDoseDelta = uiState.allowsActualDoseDelta,
-            effectiveActualAmount = uiState.effectiveActualAmount,
+            effectiveActualAmount = if (uiState.allowsActualDoseDelta) {
+                liveActualAmount ?: uiState.effectiveActualAmount
+            } else {
+                uiState.effectiveActualAmount
+            },
         )
     }
 
@@ -236,6 +246,7 @@ private fun MedicationLogEntryScreenBody(
                 onDoseAmountDeltaChange(delta)
             }
         },
+        onLiveActualAmountChange = { liveActualAmount = it },
         plannedDoseAmount = uiState.scheduledNativeAmount,
         isSaving = uiState.isSaving || uiState.isDeleting || uiState.isSaved,
         destructiveButtonText = if (uiState.canDelete) {

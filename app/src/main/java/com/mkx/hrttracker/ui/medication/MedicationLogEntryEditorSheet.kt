@@ -164,6 +164,7 @@ fun MedicationLogEntryEditorSheet(
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
     onDoseAmountDeltaChange: (Double?) -> Unit = { },
+    onLiveActualAmountChange: (Double) -> Unit = { },
     isSaving: Boolean = false,
     destructiveButtonText: String? = null,
     onDestructiveAction: (() -> Unit)? = null,
@@ -217,7 +218,11 @@ fun MedicationLogEntryEditorSheet(
             lockedMedicine = lockedMedicine,
             applicationType = linkedApplicationType,
             doseInstruction = doseInstructionDraft?.toDoseInstructionOrNull(),
-            doseAmountDelta = doseAmountDelta,
+            doseAmountDelta = medicationLogEntrySummaryDoseAmountDelta(
+                allowsActualDoseDelta = allowsActualDoseDelta,
+                showActualDoseDeltaReadOnly = showActualDoseDeltaReadOnly,
+                doseAmountDelta = doseAmountDelta,
+            ),
             countText = countText,
             sourceGroupName = sourceGroupName,
             sourceGroupColorKey = sourceGroupColorKey,
@@ -238,6 +243,7 @@ fun MedicationLogEntryEditorSheet(
             doseAmountDelta = doseAmountDelta,
             isSaving = isSaving,
             onDoseAmountDeltaChange = onDoseAmountDeltaChange,
+            onLiveActualAmountChange = onLiveActualAmountChange,
         )
 
         ActualAmountReadOnlyCard(
@@ -274,6 +280,7 @@ internal fun ActualAmountRulerCard(
     doseAmountDelta: Double?,
     isSaving: Boolean,
     onDoseAmountDeltaChange: (Double?) -> Unit,
+    onLiveActualAmountChange: (Double) -> Unit = {},
 ) {
     if (!allowsActualDoseDelta ||
         plannedAmount == null ||
@@ -291,15 +298,15 @@ internal fun ActualAmountRulerCard(
         val count = (((range.max - range.min) / range.step).roundToInt() + 1).coerceAtLeast(1)
         List(count) { i -> range.min + i * range.step }
     }
-    val initialIndex = remember(deltas) {
+    val selectedIndex = remember(deltas, doseAmountDelta) {
         val target = doseAmountDelta ?: 0.0
         deltas.indices.minByOrNull { abs(deltas[it] - target) } ?: 0
     }
     val resetIndex = remember(deltas) {
-        deltas.indices.minByOrNull { abs(deltas[it]) } ?: initialIndex
+        deltas.indices.minByOrNull { abs(deltas[it]) } ?: selectedIndex
     }
 
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
     val flingBehavior = rememberSnapFlingBehavior(
         lazyListState = listState,
         snapPosition = SnapPosition.Center,
@@ -316,36 +323,52 @@ internal fun ActualAmountRulerCard(
     }
     val currentDoseAmountDelta by rememberUpdatedState(doseAmountDelta)
     val currentOnDoseAmountDeltaChange by rememberUpdatedState(onDoseAmountDeltaChange)
+    val currentOnLiveActualAmountChange by rememberUpdatedState(onLiveActualAmountChange)
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
-    var lastHapticIndex by remember { mutableStateOf(initialIndex) }
-    var resetScrollInProgress by remember { mutableStateOf(false) }
+    var lastHapticIndex by remember { mutableStateOf(selectedIndex) }
+    var programmaticScrollInProgress by remember { mutableStateOf(false) }
 
     val centeredIndex by remember {
         derivedStateOf {
             val info = listState.layoutInfo
             if (info.visibleItemsInfo.isEmpty()) {
-                initialIndex
+                selectedIndex
             } else {
                 val center = (info.viewportStartOffset + info.viewportEndOffset) / 2f
                 info.visibleItemsInfo
                     .minByOrNull { abs((it.offset + it.size / 2f) - center) }
-                    ?.index ?: initialIndex
+                    ?.index ?: selectedIndex
             }
         }
     }
 
-    LaunchedEffect(centeredIndex, listState.isScrollInProgress, isSaving, resetScrollInProgress) {
+    LaunchedEffect(
+        centeredIndex,
+        listState.isScrollInProgress,
+        isSaving,
+        programmaticScrollInProgress,
+    ) {
         if (centeredIndex == lastHapticIndex) return@LaunchedEffect
 
         lastHapticIndex = centeredIndex
-        if (!isSaving && listState.isScrollInProgress && !resetScrollInProgress) {
+        if (!isSaving && listState.isScrollInProgress && !programmaticScrollInProgress) {
             haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
         }
     }
 
-    // Center the initial selection once the row is laid out.
-    LaunchedEffect(Unit) { listState.scrollToItem(initialIndex) }
+    // Keep the ruler aligned with caller-owned state. Reopening the sheet can
+    // reset the external delta while this composable instance is reused.
+    LaunchedEffect(selectedIndex) {
+        if (centeredIndex == selectedIndex) return@LaunchedEffect
+
+        programmaticScrollInProgress = true
+        try {
+            listState.scrollToItem(selectedIndex)
+        } finally {
+            programmaticScrollInProgress = false
+        }
+    }
 
     // Emit only after the row stays idle; drag/fling/snap can briefly report
     // false between phases, and reacting to that gap causes duplicate snaps.
@@ -367,8 +390,21 @@ internal fun ActualAmountRulerCard(
 
     val liveDelta = deltas.getOrElse(centeredIndex) { 0.0 }
     val liveActual = plannedAmount + liveDelta
-    val resetEnabled = !isSaving &&
-        abs(liveDelta) >= DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON
+
+    // Surface the live centered amount immediately so dependent UI (e.g. the
+    // stock subcard's after-mutation amount) tracks the scrub in real time,
+    // independent of the debounced commit on `onDoseAmountDeltaChange`.
+    LaunchedEffect(liveActual) { currentOnLiveActualAmountChange(liveActual) }
+    // Track the live centered delta so the enabled state flips the instant the
+    // row settles (no settle-debounce / state round-trip lag), and hold it
+    // enabled while the *user* is scrolling: scrubbing across the planned point
+    // drives the live delta through ~0, and without the hold that blinks the
+    // button off for a tick. A programmatic scroll (the reset animation itself)
+    // force-disables instead, so the button greys out the instant reset is
+    // tapped rather than at the end of its animation.
+    val resetEnabled = !isSaving && !programmaticScrollInProgress &&
+        (listState.isScrollInProgress ||
+            abs(liveDelta) >= DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON)
     val resetContentDescription = stringResource(R.string.medication_log_actual_amount_reset)
 
     EditorSegmentedListItem(
@@ -393,13 +429,15 @@ internal fun ActualAmountRulerCard(
             IconButton(
                 enabled = resetEnabled,
                 onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                    // Re-entrancy guard only; `enabled` already gates saving and
+                    // the at-rest zero state.
+                    if (programmaticScrollInProgress) return@IconButton
+                    programmaticScrollInProgress = true
                     coroutineScope.launch {
-                        resetScrollInProgress = true
                         try {
                             listState.animateScrollToItem(resetIndex)
                         } finally {
-                            resetScrollInProgress = false
+                            programmaticScrollInProgress = false
                         }
                     }
                 },
@@ -472,6 +510,15 @@ internal fun ActualAmountRulerCard(
             }
         }
     }
+}
+
+internal fun medicationLogEntrySummaryDoseAmountDelta(
+    allowsActualDoseDelta: Boolean,
+    showActualDoseDeltaReadOnly: Boolean,
+    doseAmountDelta: Double?,
+): Double? {
+    if (allowsActualDoseDelta) return null
+    return doseAmountDelta.takeIf { showActualDoseDeltaReadOnly }
 }
 
 @Composable
