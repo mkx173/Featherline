@@ -52,6 +52,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
 import com.mkx.hrttracker.ui.calibration.CalibrationScreen
@@ -348,6 +349,7 @@ fun HrtTrackerNavHost(
     homeDeepLinkSignal: Int = 0,
     highlightEffectsEnabled: Boolean = true,
     modifier: Modifier = Modifier,
+    showPostLogStockWarning: (PostLogStockWarning) -> Unit = {},
 ) {
     var medicationLogEntrySheetRequest by rememberSaveable(stateSaver = MedicationLogEntrySheetRequestSaver) {
         mutableStateOf<MedicationLogEntrySheetRequest?>(null)
@@ -949,7 +951,12 @@ fun HrtTrackerNavHost(
             quickLogRequest = request.quickLogRequest,
             editSnapshot = request.editSnapshot,
             onDismissRequest = { medicationLogEntrySheetRequest = null },
-            onEntrySaved = { medicationLogEntrySheetRequest = null }
+            onEntrySaved = { warning ->
+                medicationLogEntrySheetRequest = null
+                if (warning != null) {
+                    showPostLogStockWarning(warning)
+                }
+            },
         )
     }
 }

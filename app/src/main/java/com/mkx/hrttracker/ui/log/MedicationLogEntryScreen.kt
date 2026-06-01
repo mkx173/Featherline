@@ -27,6 +27,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationLogEntryEditorSheet
@@ -45,7 +46,7 @@ fun MedicationLogEntryScreen(
     quickLogRequest: MedicationLogEntryQuickLogRequest? = null,
     editSnapshot: MedicationLogEntryEditSnapshot? = null,
     onDismissRequest: () -> Unit,
-    onEntrySaved: () -> Unit,
+    onEntrySaved: (PostLogStockWarning?) -> Unit,
     viewModel: MedicationLogEntryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -85,9 +86,11 @@ fun MedicationLogEntryScreen(
 
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
+            val warning = uiState.postLogStockWarning
             hideBottomSheet(scope, sheetState) {
                 viewModel.consumeSavedState()
-                onEntrySaved()
+                viewModel.consumePostLogStockWarning()
+                onEntrySaved(warning)
             }
         }
     }
