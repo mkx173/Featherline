@@ -507,6 +507,54 @@ class NewMedicineSlotViewModelTest {
     }
 
     @Test
+    fun saveManualLog_afterLogFailureRetrySucceeds_stillPublishesCreatedMedicineUuid() = runTest {
+        // The medicine row persists when the first log save fails, so the retry's
+        // findOrCreate returns it as pre-existing (createdNew == false). The
+        // stock-tracking nudge must still fire for the medicine we created, so the
+        // published createdMedicineUuid has to survive the failed attempt rather
+        // than being lost because the successful log landed on a later attempt.
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-00000000030e"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        var findOrCreateCall = 0
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } coAnswers {
+            findOrCreateCall += 1
+            if (findOrCreateCall == 1) {
+                medicine.asNewlyCreated(invocation.args[2] as Instant)
+            } else {
+                medicine
+            }
+        }
+        var saveEntryCall = 0
+        coEvery {
+            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } coAnswers {
+            saveEntryCall += 1
+            if (saveEntryCall == 1) throw IllegalStateException("save failed")
+        }
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
+
+        viewModel.saveManualLog()
+        advanceUntilIdle()
+
+        // First attempt: medicine created, log failed, no nudge yet.
+        assertFalse(viewModel.uiState.value.isSaved)
+        assertEquals(MedicineSlotDraftSaveResult.FAILURE, viewModel.uiState.value.manualLogSaveResult)
+        assertNull(viewModel.uiState.value.createdMedicineUuid)
+
+        viewModel.saveManualLog()
+        advanceUntilIdle()
+
+        // Retry: log succeeds, nudge fires for the medicine created on attempt one.
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertEquals(medicine.uuid, viewModel.uiState.value.createdMedicineUuid)
+    }
+
+    @Test
     fun resetClearsMedicineDoseAppliedAndMessagesForNextOpen() = runTest {
         val zoneId = ZoneId.of("Asia/Tokyo")
         val viewModel = newViewModel(zoneId)
