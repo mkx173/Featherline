@@ -281,7 +281,6 @@ private fun SelectedDayRow(
         doseInstruction = row.doseInstruction,
         applicationType = row.applicationType,
         count = row.medicationCount,
-        extraSupportingText = row.groupName,
         doseAmountDelta = row.doseAmountDelta,
     )
     val timeLabel = when (row) {
@@ -929,7 +928,6 @@ private sealed interface SelectedDayRowModel {
     val doseAmountDelta: Double?
     val applicationType: MedicationApplicationType
     val medicationCount: Int
-    val groupName: String?
     val groupColorKey: MedicationGroupColorKey?
 
     data class Scheduled(
@@ -941,7 +939,6 @@ private sealed interface SelectedDayRowModel {
         override val doseAmountDelta: Double? = entry.doseAmountDelta
         override val applicationType = entry.medication.applicationType
         override val medicationCount: Int = entry.medication.count
-        override val groupName: String = entry.groupName
         override val groupColorKey: MedicationGroupColorKey = entry.groupColorKey
     }
 
@@ -954,7 +951,6 @@ private sealed interface SelectedDayRowModel {
         override val doseAmountDelta: Double? = entry.doseAmountDelta
         override val applicationType = entry.applicationType
         override val medicationCount: Int = entry.count
-        override val groupName: String? = null
         override val groupColorKey: MedicationGroupColorKey? = null
     }
 }
