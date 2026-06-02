@@ -287,6 +287,7 @@
     <string name="increase_medication_count">增加药物数量</string>
     <string name="decrease_medication_count">减少药物数量</string>
     <string name="remove_medication_from_group">移除药物</string>
+    <string name="remove">移除</string>
     <string name="remove_time">移除</string>
     <string name="quick_add_group_planned_slot_today">今天</string>
     <string name="cancel">取消</string>

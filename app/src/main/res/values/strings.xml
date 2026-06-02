@@ -300,6 +300,7 @@
     <string name="increase_medication_count">Increase medication count</string>
     <string name="decrease_medication_count">Decrease medication count</string>
     <string name="remove_medication_from_group">Remove medication</string>
+    <string name="remove">Remove</string>
     <string name="remove_time">Remove</string>
     <string name="quick_add_group_planned_slot_today">Today</string>
     <string name="cancel">Cancel</string>
