@@ -331,11 +331,12 @@ class HomeSnapshotRepository @Inject constructor(
     fun refreshHomeSnapshotAsync(
         now: LocalDateTime = LocalDateTime.now(),
         force: Boolean = false,
+        zoneId: ZoneId = ZoneId.systemDefault(),
     ) {
         diagnosticsLogger.info(TAG, "home_snapshot_refresh_async_enqueued force=$force now=$now")
         appScope.launch {
             try {
-                refreshHomeSnapshotIfNeeded(now = now, force = force)
+                refreshHomeSnapshotIfNeeded(now = now, force = force, zoneId = zoneId)
             } catch (throwable: Throwable) {
                 if (throwable is CancellationException) {
                     throw throwable
@@ -358,9 +359,9 @@ class HomeSnapshotRepository @Inject constructor(
     suspend fun refreshHomeSnapshotIfNeeded(
         now: LocalDateTime = LocalDateTime.now(),
         force: Boolean = false,
+        zoneId: ZoneId = ZoneId.systemDefault(),
     ) {
         diagnosticsLogger.info(TAG, "home_snapshot_refresh_start force=$force now=$now")
-        val zoneId = ZoneId.systemDefault()
         // Suspends on first call until the observer has captured the raw
         // DataStore value; subsequent calls return immediately.
         val option = settingsRepository.homeE2ChartWindowOptionFlow.first()
@@ -398,9 +399,9 @@ class HomeSnapshotRepository @Inject constructor(
     private suspend fun refreshHomeSnapshotIfNeededLocked(
         now: LocalDateTime = LocalDateTime.now(),
         force: Boolean = false,
+        zoneId: ZoneId = ZoneId.systemDefault(),
     ) {
         diagnosticsLogger.info(TAG, "home_snapshot_refresh_start force=$force now=$now")
-        val zoneId = ZoneId.systemDefault()
         val option = settingsRepository.homeE2ChartWindowOptionFlow.first()
         val cacheWindow = HomePkProjectionWindow.forNow(now = now, zoneId = zoneId, option = option)
         val snapshotWindow = HomeSnapshotWindow.forNow(now = now, zoneId = zoneId)
@@ -849,9 +850,10 @@ class HomeSnapshotRepository @Inject constructor(
     private suspend fun refreshHomeSnapshotBestEffort(
         now: LocalDateTime = LocalDateTime.now(),
         force: Boolean = false,
+        zoneId: ZoneId = ZoneId.systemDefault(),
     ) {
         runCatching {
-            refreshHomeSnapshotIfNeeded(now = now, force = force)
+            refreshHomeSnapshotIfNeeded(now = now, force = force, zoneId = zoneId)
         }.onFailure { throwable ->
             if (throwable is CancellationException) {
                 throw throwable
@@ -867,9 +869,10 @@ class HomeSnapshotRepository @Inject constructor(
     private suspend fun refreshHomeSnapshotBestEffortLocked(
         now: LocalDateTime = LocalDateTime.now(),
         force: Boolean = false,
+        zoneId: ZoneId = ZoneId.systemDefault(),
     ) {
         runCatching {
-            refreshHomeSnapshotIfNeededLocked(now = now, force = force)
+            refreshHomeSnapshotIfNeededLocked(now = now, force = force, zoneId = zoneId)
         }.onFailure { throwable ->
             if (throwable is CancellationException) {
                 throw throwable

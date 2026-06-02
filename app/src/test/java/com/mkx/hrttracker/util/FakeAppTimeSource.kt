@@ -22,6 +22,7 @@ class FakeAppTimeSource(
     private var currentInstant = mutableCurrentSnapshot.value.minute
         .atZone(mutableCurrentSnapshot.value.zone)
         .toInstant()
+    private var refreshGeneration = mutableCurrentSnapshot.value.refreshGeneration
 
     override val currentSnapshot: StateFlow<AppTimeSnapshot> = mutableCurrentSnapshot
     override val currentMinute: StateFlow<LocalDateTime> = mutableCurrentMinute
@@ -30,15 +31,26 @@ class FakeAppTimeSource(
     override fun now(): Instant = currentInstant
 
     override fun refresh() {
-        // No-op: tests drive this fake's clock explicitly via setters, so
-        // there is no lazily-cached value to refresh.
+        setCurrentSnapshot(
+            currentMinute = mutableCurrentSnapshot.value.minute,
+            zoneId = mutableCurrentSnapshot.value.zone,
+            refresh = true,
+        )
     }
 
-    fun setCurrentSnapshot(currentMinute: LocalDateTime, zoneId: ZoneId) {
+    fun setCurrentSnapshot(
+        currentMinute: LocalDateTime,
+        zoneId: ZoneId,
+        refresh: Boolean = false,
+    ) {
         val normalizedCurrentMinute = currentMinute.truncatedTo(ChronoUnit.MINUTES)
+        if (refresh) {
+            refreshGeneration += 1L
+        }
         val snapshot = AppTimeSnapshot(
             minute = normalizedCurrentMinute,
             zone = zoneId,
+            refreshGeneration = refreshGeneration,
         )
         mutableCurrentSnapshot.value = snapshot
         mutableCurrentMinute.value = snapshot.minute
@@ -60,6 +72,14 @@ class FakeAppTimeSource(
         )
     }
 
+    fun refreshToSnapshot(currentMinute: LocalDateTime, zoneId: ZoneId) {
+        setCurrentSnapshot(
+            currentMinute = currentMinute,
+            zoneId = zoneId,
+            refresh = true,
+        )
+    }
+
     fun setCurrentInstant(currentInstant: Instant) {
         this.currentInstant = currentInstant
         val currentZone = mutableCurrentSnapshot.value.zone
@@ -69,6 +89,7 @@ class FakeAppTimeSource(
         mutableCurrentSnapshot.value = AppTimeSnapshot(
             minute = currentMinute,
             zone = currentZone,
+            refreshGeneration = refreshGeneration,
         )
         mutableCurrentMinute.value = currentMinute
         mutableCurrentZone.value = currentZone

@@ -375,8 +375,8 @@ fold every "the world changed" event into a single re-derivation:
   Cancelling and re-arming every alarm at its newly-mapped `RTC`
   timestamp is simpler than tracking which alarms moved. The receiver
   also refreshes `AppTimeSource` synchronously so foreground Home UI and
-  timezone notices observe the new `(minute, zone)` without a lifecycle
-  round trip, and forces a
+  timezone notices observe the new minute/zone plus explicit refresh
+  generation without a lifecycle round trip, and forces a
   `HomeSnapshotRepository.refreshHomeSnapshotAsync` because the snapshot
   caches a `zoneId` at write time and would otherwise stay stale on disk.
 - `SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED` — the user just

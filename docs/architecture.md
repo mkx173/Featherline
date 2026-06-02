@@ -274,8 +274,8 @@ both installed in `SingletonComponent`:
 - [`AppTimeModule`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/di/AppTimeModule.kt)
   — provides a `java.time.Clock` (system UTC) and an `AppTimeSource`
   that wraps the clock to support tickable test seams and atomic
-  `(minute, zone)` observation. `HrtTrackerApplication` refreshes it on
-  process `onStart`, and `MedicationReminderRescheduleReceiver`
+  `(minute, zone, refresh generation)` observation. `HrtTrackerApplication`
+  refreshes it on process `onStart`, and `MedicationReminderRescheduleReceiver`
   refreshes it synchronously for `TIME_SET` / `TIMEZONE_CHANGED`
   broadcasts so foreground Home UI and timezone notices update without a
   lifecycle round trip (the per-minute ticker is paused while no UI is

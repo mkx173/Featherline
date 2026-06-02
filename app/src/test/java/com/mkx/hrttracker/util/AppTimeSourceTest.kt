@@ -87,6 +87,50 @@ class AppTimeSourceTest {
     }
 
     @Test
+    fun appTimeSnapshotTicker_keepsExplicitRefreshGenerationAcrossMinuteTicks() = runTest {
+        val originalTimeZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            val utcZone = ZoneId.of("UTC")
+            val clock = SchedulerClock(
+                scheduler = testScheduler,
+                baseInstant = Instant.parse("2026-04-25T12:00:43.500Z"),
+                zone = ZoneOffset.UTC
+            )
+            val emissions = mutableListOf<AppTimeSnapshot>()
+
+            val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+                appTimeSnapshotTicker(clock, refreshGeneration = 7L)
+                    .take(2)
+                    .toList(emissions)
+            }
+
+            advanceTimeBy(16_500)
+            runCurrent()
+
+            assertEquals(
+                listOf(
+                    AppTimeSnapshot(
+                        minute = LocalDateTime.of(2026, 4, 25, 12, 0),
+                        zone = utcZone,
+                        refreshGeneration = 7L,
+                    ),
+                    AppTimeSnapshot(
+                        minute = LocalDateTime.of(2026, 4, 25, 12, 1),
+                        zone = utcZone,
+                        refreshGeneration = 7L,
+                    ),
+                ),
+                emissions,
+            )
+
+            job.cancel()
+        } finally {
+            TimeZone.setDefault(originalTimeZone)
+        }
+    }
+
+    @Test
     fun refresh_reReadsZoneAndMinuteForActiveSnapshotSubscribers() = runTest {
         val originalTimeZone = TimeZone.getDefault()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
@@ -112,10 +156,44 @@ class AppTimeSourceTest {
             val expectedSnapshot = AppTimeSnapshot(
                 minute = LocalDateTime.of(2026, 4, 25, 21, 0),
                 zone = tokyoZone,
+                refreshGeneration = 1L,
             )
             assertEquals(expectedSnapshot, source.currentSnapshot.value)
             assertEquals(expectedSnapshot.minute, source.currentMinute.value)
             assertEquals(expectedSnapshot.zone, source.currentZone.value)
+
+            collector.cancel()
+        } finally {
+            TimeZone.setDefault(originalTimeZone)
+        }
+    }
+
+    @Test
+    fun refresh_incrementsExplicitRefreshGeneration() = runTest {
+        val originalTimeZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            val clock = MutableInstantClock(
+                instant = Instant.parse("2026-04-25T12:00:30Z"),
+                zone = ZoneOffset.UTC,
+            )
+            val source = DefaultAppTimeSource(clock = clock, appScope = backgroundScope)
+
+            val collector = launch { source.currentSnapshot.collect {} }
+            runCurrent()
+            assertEquals(0L, source.currentSnapshot.value.refreshGeneration)
+
+            clock.instant = Instant.parse("2026-04-25T13:30:30Z")
+            source.refresh()
+            runCurrent()
+
+            assertEquals(1L, source.currentSnapshot.value.refreshGeneration)
+
+            advanceTimeBy(30_000)
+            clock.instant = Instant.parse("2026-04-25T13:31:00Z")
+            runCurrent()
+
+            assertEquals(1L, source.currentSnapshot.value.refreshGeneration)
 
             collector.cancel()
         } finally {

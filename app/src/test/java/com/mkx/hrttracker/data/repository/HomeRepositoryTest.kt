@@ -488,7 +488,7 @@ class HomeRepositoryTest {
         } returns MutableStateFlow(settings.homeE2ChartWindowOption)
         every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(null)
         every { homeSnapshotRepository.decodeProjection(null, any(), any()) } returns null
-        every { homeSnapshotRepository.refreshHomeSnapshotAsync(any(), any()) } returns Unit
+        every { homeSnapshotRepository.refreshHomeSnapshotAsync(any(), any(), any()) } returns Unit
 
         val inputs = HomeRepository(
             databaseHolder = databaseHolder,
@@ -507,7 +507,31 @@ class HomeRepositoryTest {
             inputs.estradiolPkEntries.any { it.uuid.toString() == latestEstradiolEntry.uuid },
         )
         assertEquals(latestEstradiolEntry.uuid, inputs.latestEstradiolEntry?.uuid.toString())
-        verify(exactly = 0) { homeSnapshotRepository.refreshHomeSnapshotAsync(any(), any()) }
+        verify(exactly = 0) { homeSnapshotRepository.refreshHomeSnapshotAsync(any(), any(), any()) }
+    }
+
+    @Test
+    fun refreshHomeSnapshotAsync_forwardsProvidedZone() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val zoneId = ZoneId.of("America/New_York")
+        every { homeSnapshotRepository.refreshHomeSnapshotAsync(any(), any(), any()) } returns Unit
+
+        HomeRepository(
+            databaseHolder = databaseHolder,
+            settingsRepository = settingsRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
+        ).refreshHomeSnapshotAsync(now = now, force = true, zoneId = zoneId)
+
+        verify(exactly = 1) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(
+                now = now,
+                force = true,
+                zoneId = zoneId,
+            )
+        }
     }
 
     @Test

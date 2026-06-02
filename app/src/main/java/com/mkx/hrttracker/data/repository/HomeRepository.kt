@@ -425,8 +425,9 @@ class HomeRepository @Inject constructor(
     fun refreshHomeSnapshotAsync(
         now: LocalDateTime,
         force: Boolean = false,
+        zoneId: ZoneId = ZoneId.systemDefault(),
     ) {
-        homeSnapshotRepository.refreshHomeSnapshotAsync(now = now, force = force)
+        homeSnapshotRepository.refreshHomeSnapshotAsync(now = now, force = force, zoneId = zoneId)
     }
 
     private companion object {

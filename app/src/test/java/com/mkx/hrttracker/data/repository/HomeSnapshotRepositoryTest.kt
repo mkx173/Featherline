@@ -51,6 +51,7 @@ import java.io.IOException
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.TimeZone
 import java.util.UUID
 
 class HomeSnapshotRepositoryTest {
@@ -604,6 +605,72 @@ class HomeSnapshotRepositoryTest {
             expectedProjectionWindowEnd,
             checkNotNull(writtenSnapshot.captured.pkProjection).windowEndEpochMillis,
         )
+    }
+
+    @Test
+    fun refreshHomeSnapshotIfNeeded_usesProvidedZoneForSnapshotWindows() = runTest {
+        val originalTimeZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+            val anchorDate = now.toLocalDate()
+            val zoneId = ZoneId.of("America/New_York")
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val database: HrtTrackerDatabase = mockk()
+            val homeDao: HomeDao = mockk()
+            val medicineDao: MedicineDao = mockk()
+            val medicationLogDao: MedicationLogDao = mockk()
+            val userProfileDao: UserProfileDao = mockk()
+            val writtenSnapshot = slot<HomeSnapshotRecord>()
+            val manualStartEpochMillis = slot<Long>()
+            val manualEndEpochMillis = slot<Long>()
+
+            coEvery { homeSnapshotStore.readSnapshot() } returns null
+            coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
+            every { databaseHolder.get() } returns database
+            every { database.homeDao() } returns homeDao
+            every { database.medicineDao() } returns medicineDao
+            every { database.medicationLogDao() } returns medicationLogDao
+            every { database.userProfileDao() } returns userProfileDao
+            coEvery { homeDao.getActiveGroups() } returns emptyList()
+            coEvery { homeDao.getArchivedGroups() } returns emptyList()
+            coEvery {
+                homeDao.getScheduleEntries(
+                    any(),
+                    any(),
+                    capture(manualStartEpochMillis),
+                    capture(manualEndEpochMillis),
+                )
+            } returns emptyList()
+            coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
+            coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
+            coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+            coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+            coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
+            coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
+            coEvery { userProfileDao.getProfile() } returns null
+
+            HomeSnapshotRepository(
+                databaseHolder = databaseHolder,
+                homeSnapshotStore = homeSnapshotStore,
+                homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+                settingsRepository = settingsRepository,
+                appScope = CoroutineScope(dispatcher),
+                defaultDispatcher = dispatcher,
+            ).refreshHomeSnapshotIfNeeded(now = now, force = true, zoneId = zoneId)
+
+            assertEquals(
+                anchorDate.minusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli(),
+                manualStartEpochMillis.captured,
+            )
+            assertEquals(
+                anchorDate.plusDays(11).atStartOfDay(zoneId).toInstant().toEpochMilli(),
+                manualEndEpochMillis.captured,
+            )
+            assertEquals(zoneId.id, writtenSnapshot.captured.zoneId)
+        } finally {
+            TimeZone.setDefault(originalTimeZone)
+        }
     }
 
     @Test
