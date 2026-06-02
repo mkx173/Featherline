@@ -469,6 +469,7 @@ fun SettingsScreen(
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
         onPureBlackEnabledChange = viewModel::setPureBlackEnabled,
+        onCjkTextOffsetEnabledChange = viewModel::setCjkTextOffsetEnabled,
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
         onHideMedicationDetailsChange = viewModel::setHideMedicationDetails,
@@ -734,6 +735,7 @@ internal fun SettingsScreenContent(
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
     onPureBlackEnabledChange: (Boolean) -> Unit,
+    onCjkTextOffsetEnabledChange: (Boolean) -> Unit,
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
@@ -810,7 +812,10 @@ internal fun SettingsScreenContent(
     }
     val scrollState = rememberScrollState()
     val weightSummary = formatWeightSummary(uiState.userProfile)
-    val appearanceLayout = resolveSettingsAppearanceSectionLayout()
+    val appLanguageOption = AppLanguageOption.fromLocale(rememberAppLocale())
+    val appearanceLayout = resolveSettingsAppearanceSectionLayout(
+        showCjkTextOffset = appLanguageOption == AppLanguageOption.SIMPLIFIED_CHINESE,
+    )
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
@@ -1204,9 +1209,7 @@ internal fun SettingsScreenContent(
                         // the new option, which made this row briefly show the old language
                         // name. Reading the live locale keeps it in lockstep with the rest of
                         // the re-localized UI.
-                        supportingText = stringResource(
-                            AppLanguageOption.fromLocale(rememberAppLocale()).labelRes
-                        ),
+                        supportingText = stringResource(appLanguageOption.labelRes),
                         index = appearanceLayout.appLanguageIndex,
                         count = appearanceLayout.itemCount,
                         onClick = { setLanguageMenuExpanded(true) },
@@ -1314,6 +1317,29 @@ internal fun SettingsScreenContent(
                             Switch(
                                 checked = settingsState.adaptiveColorEnabled,
                                 onCheckedChange = onAdaptiveColorEnabledChange
+                            )
+                        }
+                    )
+                }
+
+                appearanceLayout.cjkTextOffsetIndex?.let { cjkTextOffsetIndex ->
+                    SettingsSegmentedListItem(
+                        title = stringResource(R.string.settings_cjk_text_offset),
+                        supportingText = stringResource(R.string.settings_cjk_text_offset_summary),
+                        index = cjkTextOffsetIndex,
+                        count = appearanceLayout.itemCount,
+                        onClick = {
+                            onCjkTextOffsetEnabledChange(!settingsState.cjkTextOffsetEnabled)
+                        },
+                        leadingContent = {
+                            SettingsLeadingIconSlot(
+                                painter = painterResource(R.drawable.ic_text_up)
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = settingsState.cjkTextOffsetEnabled,
+                                onCheckedChange = onCjkTextOffsetEnabledChange
                             )
                         }
                     )
@@ -1701,6 +1727,7 @@ internal data class SettingsAppearanceSectionLayout(
     val itemCount: Int,
     val widgetAppearanceIndex: Int,
     val appLanguageIndex: Int,
+    val cjkTextOffsetIndex: Int?,
     val darkModeIndex: Int,
     val adaptiveColorIndex: Int?,
     val pureBlackIndex: Int,
@@ -1747,26 +1774,25 @@ internal fun resolveSettingsSecuritySectionLayout(
 
 internal fun resolveSettingsAppearanceSectionLayout(
     sdkInt: Int = Build.VERSION.SDK_INT,
+    showCjkTextOffset: Boolean = false,
 ): SettingsAppearanceSectionLayout {
-    return if (sdkInt >= Build.VERSION_CODES.S) {
-        SettingsAppearanceSectionLayout(
-            itemCount = 5,
-            widgetAppearanceIndex = 0,
-            appLanguageIndex = 1,
-            darkModeIndex = 2,
-            pureBlackIndex = 3,
-            adaptiveColorIndex = 4,
-        )
-    } else {
-        SettingsAppearanceSectionLayout(
-            itemCount = 4,
-            widgetAppearanceIndex = 0,
-            appLanguageIndex = 1,
-            darkModeIndex = 2,
-            adaptiveColorIndex = null,
-            pureBlackIndex = 3,
-        )
-    }
+    var nextIndex = 0
+    val widgetAppearanceIndex = nextIndex++
+    val appLanguageIndex = nextIndex++
+    val darkModeIndex = nextIndex++
+    val pureBlackIndex = nextIndex++
+    val adaptiveColorIndex = if (sdkInt >= Build.VERSION_CODES.S) nextIndex++ else null
+    val cjkTextOffsetIndex = if (showCjkTextOffset) nextIndex++ else null
+
+    return SettingsAppearanceSectionLayout(
+        itemCount = nextIndex,
+        widgetAppearanceIndex = widgetAppearanceIndex,
+        appLanguageIndex = appLanguageIndex,
+        cjkTextOffsetIndex = cjkTextOffsetIndex,
+        darkModeIndex = darkModeIndex,
+        adaptiveColorIndex = adaptiveColorIndex,
+        pureBlackIndex = pureBlackIndex,
+    )
 }
 
 @Composable
@@ -2061,6 +2087,7 @@ private fun SettingsScreenPreview() {
             onDarkModeOptionChange = { },
             onAdaptiveColorEnabledChange = { },
             onPureBlackEnabledChange = { },
+            onCjkTextOffsetEnabledChange = { },
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },

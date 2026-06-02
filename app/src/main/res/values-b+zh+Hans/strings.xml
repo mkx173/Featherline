@@ -444,6 +444,8 @@
     <string name="settings_reminders_notifications_unavailable">请在系统设置中开启应用通知</string>
     <string name="settings_appearance">外观</string>
     <string name="settings_app_language">应用语言</string>
+    <string name="settings_cjk_text_offset">调整中文文字显示</string>
+    <string name="settings_cjk_text_offset_summary">如遇到文字对齐问题可尝试调整此项</string>
     <string name="settings_first_day_of_week">每周第一天</string>
     <string name="settings_dark_mode">深色模式</string>
     <string name="settings_adaptive_color">自适应配色</string>

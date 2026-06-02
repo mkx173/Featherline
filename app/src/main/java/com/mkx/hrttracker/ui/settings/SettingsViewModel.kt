@@ -165,6 +165,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setCjkTextOffsetEnabled(enabled: Boolean) {
+        launchSettingsMutation {
+            settingsRepository.setCjkTextOffsetEnabled(enabled)
+        }
+    }
+
     fun setShowArchivedGroupRecords(enabled: Boolean) {
         launchSettingsMutation {
             settingsRepository.setShowArchivedGroupRecords(enabled)

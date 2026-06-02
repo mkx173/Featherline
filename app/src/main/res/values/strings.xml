@@ -458,6 +458,8 @@
     <string name="settings_reminders_notifications_unavailable">Enable app notifications in system settings.</string>
     <string name="settings_appearance">Appearance</string>
     <string name="settings_app_language">App language</string>
+    <string name="settings_cjk_text_offset">Adjust Chinese text display</string>
+    <string name="settings_cjk_text_offset_summary">Try this if Chinese text alignment looks off.</string>
     <string name="settings_first_day_of_week">First day of week</string>
     <string name="settings_dark_mode">Dark mode</string>
     <string name="settings_adaptive_color">Adaptive color</string>

@@ -249,6 +249,7 @@ class BackupExportServiceTest {
             appLockGracePeriodOption = AppLockGracePeriodOption.FIVE_MINUTES,
             hideScreenContentEnabled = true,
             pureBlackEnabled = true,
+            cjkTextOffsetEnabled = true,
             widgetContentScale = 0.8f,
             widgetBackgroundAlpha = 0.6f,
         )
@@ -380,6 +381,7 @@ class BackupExportServiceTest {
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)
+        assertEquals(true, snapshot.settings.cjkTextOffsetEnabled)
 
         // Medicine appears in the standalone medicines list — the restore path
         // builds its FK-validation set from this collection before walking
