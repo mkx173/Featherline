@@ -214,6 +214,7 @@ private fun RecountForm(
             label = stringResource(R.string.stock_adjust_field_current_stock),
             value = unitsRemainingText,
             unit = adjustStockUnitLabel(projection.medicine.preparation),
+            unitPluralRes = stockUnitNounPluralRes(projection.medicine.preparation),
             leadingIconRes = R.drawable.ic_box_edit,
             placeholder = placeholderText,
             allowDecimal = allowDecimal,
@@ -294,6 +295,7 @@ private fun ReceivedForm(
             label = stringResource(R.string.stock_adjust_field_add_to_stock),
             value = receivedText,
             unit = adjustStockUnitLabel(projection.medicine.preparation),
+            unitPluralRes = stockUnitNounPluralRes(projection.medicine.preparation),
             leadingIconRes = R.drawable.ic_box_add,
             allowDecimal = allowDecimal,
             onValueChange = { receivedText = it },
@@ -411,6 +413,7 @@ private fun StockStepperCard(
     label: String,
     value: String,
     unit: String,
+    @PluralsRes unitPluralRes: Int?,
     @DrawableRes leadingIconRes: Int,
     onValueChange: (String) -> Unit,
     onStep: (Int) -> Unit,
@@ -418,6 +421,9 @@ private fun StockStepperCard(
     allowDecimal: Boolean,
 ) {
     val effectiveCount = parseAdjustStockCount(value.ifEmpty { placeholder }, allowDecimal) ?: 0.0
+    val unitLabel = unitPluralRes?.let {
+        pluralStringResource(it, stockCountPluralQuantity(effectiveCount))
+    } ?: unit
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
@@ -514,7 +520,7 @@ private fun StockStepperCard(
                 )
             }
             Text(
-                text = unit,
+                text = unitLabel,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.alignByBaseline(),
