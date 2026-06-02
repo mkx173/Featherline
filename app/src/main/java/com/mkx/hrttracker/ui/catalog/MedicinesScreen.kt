@@ -269,10 +269,12 @@ internal fun MedicinesScreen(
                     showCreateMedicineSheet = false
                 }
             },
-            onCreated = { _ ->
-                // Manager mode stays in the medicine manager after creation; the UUID is intentionally ignored.
+            onCreated = { createdUuid ->
+                // Manager mode opens the newly-created medicine's detail page so
+                // the user can immediately set stock / fine-tune it.
                 hideBottomSheet(scope, createMedicineSheetState) {
                     showCreateMedicineSheet = false
+                    onMedicineClick(createdUuid)
                 }
             },
             viewModel = createMedicineViewModel,
