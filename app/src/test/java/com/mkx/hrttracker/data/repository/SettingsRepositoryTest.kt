@@ -133,6 +133,40 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `stockNudgeEnabledFlow defaults to true`() = runTest(testDispatcher) {
+        assertEquals(true, settingsRepository.stockNudgeEnabledFlow.first())
+    }
+
+    @Test
+    fun `setStockNudgeEnabled false then flow emits false`() = runTest(testDispatcher) {
+        settingsRepository.setStockNudgeEnabled(false)
+        assertEquals(false, settingsRepository.stockNudgeEnabledFlow.first())
+    }
+
+    @Test
+    fun `incrementStockNudgeDismissCount returns increasing values`() = runTest(testDispatcher) {
+        assertEquals(1, settingsRepository.incrementStockNudgeDismissCount())
+        assertEquals(2, settingsRepository.incrementStockNudgeDismissCount())
+        assertEquals(3, settingsRepository.incrementStockNudgeDismissCount())
+    }
+
+    @Test
+    fun `setStockNudgeEnabled true resets dismiss count to zero`() = runTest(testDispatcher) {
+        settingsRepository.incrementStockNudgeDismissCount()
+        settingsRepository.incrementStockNudgeDismissCount()
+        settingsRepository.setStockNudgeEnabled(true)
+        assertEquals(1, settingsRepository.incrementStockNudgeDismissCount())
+    }
+
+    @Test
+    fun `setStockNudgeEnabled false leaves dismiss count alone`() = runTest(testDispatcher) {
+        settingsRepository.incrementStockNudgeDismissCount()
+        settingsRepository.incrementStockNudgeDismissCount()
+        settingsRepository.setStockNudgeEnabled(false)
+        assertEquals(3, settingsRepository.incrementStockNudgeDismissCount())
+    }
+
+    @Test
     fun `homeE2DisplayUnitFlow emits canonical unit after setting canonical unit`() = runTest(testDispatcher) {
         val nonCanonical = BloodTestCatalog.definitionFor(BloodAnalyteKey.E2)
             .allowedUnits

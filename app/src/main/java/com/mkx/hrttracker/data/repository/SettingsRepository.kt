@@ -89,6 +89,8 @@ class SettingsRepository @Inject constructor(
         booleanPreferencesKey("home_low_stock_section_expanded")
     private val homeLowStockAcknowledgedWarningStatesKey =
         stringSetPreferencesKey("home_low_stock_acknowledged_warning_states")
+    private val stockNudgeEnabledKey = booleanPreferencesKey("stock_nudge_enabled")
+    private val stockNudgeDismissCountKey = intPreferencesKey("stock_nudge_dismiss_count")
     private val lastSeenTimeZoneIdKey = stringPreferencesKey("last_seen_time_zone_id")
     private val hideMedicationDetailsKey = booleanPreferencesKey("hide_medication_details")
     private val widgetContentScaleKey = floatPreferencesKey("widget_content_scale")
@@ -130,6 +132,10 @@ class SettingsRepository @Inject constructor(
                 )
             }
             .distinctUntilChanged()
+
+    val stockNudgeEnabledFlow: Flow<Boolean> = storedPreferences
+        .map { it[stockNudgeEnabledKey] ?: true }
+        .distinctUntilChanged()
 
     // Raw DataStore-backed flow that intentionally bypasses [settingsState]'s
     // eager `initialValue` so consumers can distinguish the persisted option
@@ -237,6 +243,25 @@ class SettingsRepository @Inject constructor(
         activeDataStore().edit { preferences ->
             preferences.remove(homeLowStockAcknowledgedWarningStatesKey)
         }
+    }
+
+    suspend fun setStockNudgeEnabled(enabled: Boolean) {
+        activeDataStore().edit { preferences ->
+            preferences[stockNudgeEnabledKey] = enabled
+            if (enabled) {
+                preferences.remove(stockNudgeDismissCountKey)
+            }
+        }
+    }
+
+    suspend fun incrementStockNudgeDismissCount(): Int {
+        var result = 0
+        activeDataStore().edit { preferences ->
+            val next = (preferences[stockNudgeDismissCountKey] ?: 0) + 1
+            preferences[stockNudgeDismissCountKey] = next
+            result = next
+        }
+        return result
     }
 
     suspend fun setRemindersEnabled(enabled: Boolean) {
