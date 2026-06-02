@@ -674,7 +674,7 @@ private fun OnboardingNewMedicineSlotHost(
                 hideBottomSheet(scope, sheetState) { onDismiss() }
             }
         },
-        onGroupSlotResolved = { slotResult, consumeSavedState ->
+        onGroupSlotResolved = { slotResult, _, consumeSavedState ->
             // Append the medication synchronously so the editor underneath
             // reflects it while the sheet is still sliding away, instead of
             // popping in after the dismiss animation completes.

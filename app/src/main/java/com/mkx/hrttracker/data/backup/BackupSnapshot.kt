@@ -28,6 +28,7 @@ data class BackupSettingsSnapshot(
     val darkModeOption: String,
     val adaptiveColorEnabled: Boolean,
     val pureBlackEnabled: Boolean = false,
+    val cjkTextOffsetEnabled: Boolean = false,
     val remindersEnabled: Boolean,
     val showArchivedGroupRecords: Boolean = true,
     val hideReferenceRanges: Boolean = false,
@@ -45,6 +46,8 @@ data class BackupSettingsSnapshot(
     val widgetDarkModeOption: String = "FOLLOW_SYSTEM",
     val groupNameCounter: Int = 0,
     val firstDayOfWeekOption: String = "FOLLOW_SYSTEM",
+    val stockNudgeEnabled: Boolean = true,
+    val stockNudgeUserEnabled: Boolean = false,
 )
 
 

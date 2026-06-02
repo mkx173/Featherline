@@ -115,6 +115,12 @@ class CreateMedicineViewModel @Inject constructor(
         }
     }
 
+    // Clears the save result after a failure has been surfaced as a toast so it
+    // doesn't re-trigger on recomposition or configuration change.
+    fun consumeSaveResult() {
+        _uiState.update { it.copy(saveResult = null) }
+    }
+
     private fun nextCreateGeneration(): Int {
         createGeneration += 1
         return createGeneration

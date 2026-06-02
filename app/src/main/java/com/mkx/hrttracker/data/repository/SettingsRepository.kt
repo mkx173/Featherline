@@ -79,6 +79,7 @@ class SettingsRepository @Inject constructor(
     private val darkModeKey = stringPreferencesKey("dark_mode")
     private val adaptiveColorKey = booleanPreferencesKey("adaptive_color")
     private val pureBlackKey = booleanPreferencesKey("pure_black")
+    private val cjkTextOffsetKey = booleanPreferencesKey("cjk_text_offset")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
     private val showArchivedGroupRecordsKey = booleanPreferencesKey("show_archived_group_records")
     private val hideReferenceRangesKey = booleanPreferencesKey("hide_reference_ranges")
@@ -89,6 +90,9 @@ class SettingsRepository @Inject constructor(
         booleanPreferencesKey("home_low_stock_section_expanded")
     private val homeLowStockAcknowledgedWarningStatesKey =
         stringSetPreferencesKey("home_low_stock_acknowledged_warning_states")
+    private val stockNudgeEnabledKey = booleanPreferencesKey("stock_nudge_enabled")
+    private val stockNudgeDismissCountKey = intPreferencesKey("stock_nudge_dismiss_count")
+    private val stockNudgeUserEnabledKey = booleanPreferencesKey("stock_nudge_user_enabled")
     private val lastSeenTimeZoneIdKey = stringPreferencesKey("last_seen_time_zone_id")
     private val hideMedicationDetailsKey = booleanPreferencesKey("hide_medication_details")
     private val widgetContentScaleKey = floatPreferencesKey("widget_content_scale")
@@ -130,6 +134,18 @@ class SettingsRepository @Inject constructor(
                 )
             }
             .distinctUntilChanged()
+
+    val stockNudgeEnabledFlow: Flow<Boolean> = storedPreferences
+        .map { it[stockNudgeEnabledKey] ?: true }
+        .distinctUntilChanged()
+
+    // True once the user has explicitly switched the nudge on via the menu
+    // toggle. While set, [recordStockNudgeDismissal] never auto-disables: a
+    // voluntary opt-in outranks the dismiss-threshold policy. Persisted and
+    // carried through backup/restore so the choice survives across devices.
+    val stockNudgeUserEnabledFlow: Flow<Boolean> = storedPreferences
+        .map { it[stockNudgeUserEnabledKey] ?: false }
+        .distinctUntilChanged()
 
     // Raw DataStore-backed flow that intentionally bypasses [settingsState]'s
     // eager `initialValue` so consumers can distinguish the persisted option
@@ -178,6 +194,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setPureBlackEnabled(enabled: Boolean) {
         activeDataStore().edit { preferences ->
             preferences[pureBlackKey] = enabled
+        }
+    }
+
+    suspend fun setCjkTextOffsetEnabled(enabled: Boolean) {
+        activeDataStore().edit { preferences ->
+            preferences[cjkTextOffsetKey] = enabled
         }
     }
 
@@ -237,6 +259,46 @@ class SettingsRepository @Inject constructor(
         activeDataStore().edit { preferences ->
             preferences.remove(homeLowStockAcknowledgedWarningStatesKey)
         }
+    }
+
+    suspend fun setStockNudgeEnabled(enabled: Boolean) {
+        activeDataStore().edit { preferences ->
+            preferences[stockNudgeEnabledKey] = enabled
+            if (enabled) {
+                preferences.remove(stockNudgeDismissCountKey)
+                // Switching the nudge on via the menu is a voluntary opt-in;
+                // record it so the dismiss-threshold policy stops auto-disabling
+                // it. Sticky once set — re-asserted on every enable, untouched on
+                // disable (it's moot while the nudge is off).
+                preferences[stockNudgeUserEnabledKey] = true
+            }
+        }
+    }
+
+    /**
+     * Atomically records an explicit nudge dismissal and, when the running count
+     * reaches [dismissLimit], disables the nudge in the same edit. Returns true iff
+     * this dismissal crossed the threshold (just disabled the nudge), so the caller
+     * can fire a one-shot notice. Combining both writes in a single edit avoids a
+     * torn state — count persisted but the disable lost to process death — which
+     * would otherwise leave the nudge unable to ever auto-disable.
+     *
+     * Once the user has voluntarily enabled the nudge ([stockNudgeUserEnabledKey]),
+     * the threshold policy is suppressed entirely: the dismissal is a no-op here
+     * (the caller still hides the current nudge), and it can never auto-disable.
+     */
+    suspend fun recordStockNudgeDismissal(dismissLimit: Int): Boolean {
+        var justDisabled = false
+        activeDataStore().edit { preferences ->
+            if (preferences[stockNudgeUserEnabledKey] == true) return@edit
+            val next = (preferences[stockNudgeDismissCountKey] ?: 0) + 1
+            preferences[stockNudgeDismissCountKey] = next
+            if (next == dismissLimit) {
+                preferences[stockNudgeEnabledKey] = false
+                justDisabled = true
+            }
+        }
+        return justDisabled
     }
 
     suspend fun setRemindersEnabled(enabled: Boolean) {
@@ -345,6 +407,7 @@ class SettingsRepository @Inject constructor(
         darkModeOption: DarkModeOption,
         adaptiveColorEnabled: Boolean,
         pureBlackEnabled: Boolean,
+        cjkTextOffsetEnabled: Boolean = false,
         remindersEnabled: Boolean,
         showArchivedGroupRecords: Boolean,
         hideReferenceRanges: Boolean,
@@ -362,6 +425,8 @@ class SettingsRepository @Inject constructor(
         widgetDarkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
         groupNameCounter: Int = 0,
         firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
+        stockNudgeEnabled: Boolean = true,
+        stockNudgeUserEnabled: Boolean = false,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
             "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
@@ -371,6 +436,7 @@ class SettingsRepository @Inject constructor(
             preferences[darkModeKey] = darkModeOption.name
             preferences[adaptiveColorKey] = adaptiveColorEnabled
             preferences[pureBlackKey] = pureBlackEnabled
+            preferences[cjkTextOffsetKey] = cjkTextOffsetEnabled
             preferences[remindersEnabledKey] = remindersEnabled
             preferences[showArchivedGroupRecordsKey] = showArchivedGroupRecords
             preferences[hideReferenceRangesKey] = hideReferenceRanges
@@ -413,6 +479,9 @@ class SettingsRepository @Inject constructor(
             } else {
                 preferences[firstDayOfWeekKey] = firstDayOfWeekOption.name
             }
+            preferences[stockNudgeEnabledKey] = stockNudgeEnabled
+            preferences[stockNudgeUserEnabledKey] = stockNudgeUserEnabled
+            preferences.remove(stockNudgeDismissCountKey)
 
             preferences.remove(homeLowStockAcknowledgedWarningStatesKey)
         }
@@ -438,6 +507,7 @@ class SettingsRepository @Inject constructor(
             darkModeOption = DarkModeOption.fromStorageValue(preferences[darkModeKey]),
             adaptiveColorEnabled = preferences[adaptiveColorKey] ?: true,
             pureBlackEnabled = preferences[pureBlackKey] ?: false,
+            cjkTextOffsetEnabled = preferences[cjkTextOffsetKey] ?: false,
             calibrationDefaultUnits = BloodAnalyteKey.entries.mapNotNull { analyteKey ->
                 preferences[calibrationDefaultUnitKeys.getValue(analyteKey)]
                     ?.let(BloodUnitKey::fromStorageValue)

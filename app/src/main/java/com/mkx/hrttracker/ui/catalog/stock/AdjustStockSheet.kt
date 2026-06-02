@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.catalog.stock
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +55,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -74,6 +76,8 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
+import com.mkx.hrttracker.ui.components.stockCountPluralQuantity
+import com.mkx.hrttracker.ui.components.stockUnitNounPluralRes
 import com.mkx.hrttracker.ui.hideBottomSheet
 import java.math.BigDecimal
 import java.util.Locale
@@ -210,6 +214,7 @@ private fun RecountForm(
             label = stringResource(R.string.stock_adjust_field_current_stock),
             value = unitsRemainingText,
             unit = adjustStockUnitLabel(projection.medicine.preparation),
+            unitPluralRes = stockUnitNounPluralRes(projection.medicine.preparation),
             leadingIconRes = R.drawable.ic_box_edit,
             placeholder = placeholderText,
             allowDecimal = allowDecimal,
@@ -290,6 +295,7 @@ private fun ReceivedForm(
             label = stringResource(R.string.stock_adjust_field_add_to_stock),
             value = receivedText,
             unit = adjustStockUnitLabel(projection.medicine.preparation),
+            unitPluralRes = stockUnitNounPluralRes(projection.medicine.preparation),
             leadingIconRes = R.drawable.ic_box_add,
             allowDecimal = allowDecimal,
             onValueChange = { receivedText = it },
@@ -334,10 +340,13 @@ private fun AfterPreview(
         adjustPreviewRunwayText(runwayProjection)
     }?.resolve()
     val displayCount = hypotheticalStock.unitsRemaining ?: 0.0
+    val unitLabel = adjustStockAfterUnitPluralRes(preparation)?.let { pluralRes ->
+        pluralStringResource(pluralRes, stockCountPluralQuantity(displayCount))
+    } ?: adjustStockUnitLabel(preparation)
     val title = stringResource(
         R.string.stock_adjust_after,
         formatCount(displayCount),
-        adjustStockUnitLabel(preparation),
+        unitLabel,
     )
     PreferenceSegmentedListItem(
         title = title,
@@ -370,14 +379,15 @@ private fun MedicineStock.adjustPreviewStock(
 }
 
 internal data class AdjustPreviewRunwayText(
-    @param:StringRes val resId: Int,
+    @param:StringRes val resId: Int? = null,
+    @param:PluralsRes val pluralResId: Int? = null,
     val intArg: Int? = null,
 )
 
 internal fun adjustPreviewRunwayText(runway: RunwayProjection): AdjustPreviewRunwayText? {
     return when (runway) {
         is RunwayProjection.Days -> AdjustPreviewRunwayText(
-            resId = R.string.stock_runway_days_remaining,
+            pluralResId = R.plurals.stock_runway_days_remaining,
             intArg = runway.days,
         )
         RunwayProjection.BeyondHorizon -> AdjustPreviewRunwayText(
@@ -389,10 +399,11 @@ internal fun adjustPreviewRunwayText(runway: RunwayProjection): AdjustPreviewRun
 
 @Composable
 private fun AdjustPreviewRunwayText.resolve(): String {
-    return if (intArg == null) {
-        stringResource(resId)
-    } else {
-        stringResource(resId, intArg)
+    return when {
+        pluralResId != null && intArg != null ->
+            pluralStringResource(pluralResId, intArg, intArg)
+        resId != null -> stringResource(resId)
+        else -> ""
     }
 }
 
@@ -402,6 +413,7 @@ private fun StockStepperCard(
     label: String,
     value: String,
     unit: String,
+    @PluralsRes unitPluralRes: Int?,
     @DrawableRes leadingIconRes: Int,
     onValueChange: (String) -> Unit,
     onStep: (Int) -> Unit,
@@ -409,6 +421,9 @@ private fun StockStepperCard(
     allowDecimal: Boolean,
 ) {
     val effectiveCount = parseAdjustStockCount(value.ifEmpty { placeholder }, allowDecimal) ?: 0.0
+    val unitLabel = unitPluralRes?.let {
+        pluralStringResource(it, stockCountPluralQuantity(effectiveCount))
+    } ?: unit
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
@@ -505,7 +520,7 @@ private fun StockStepperCard(
                 )
             }
             Text(
-                text = unit,
+                text = unitLabel,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.alignByBaseline(),
@@ -550,6 +565,11 @@ private fun adjustStockUnitLabel(preparation: MedicinePreparation): String {
         else -> stockUnitRes(preparation)
     }
     return if (unitRes != null) stringResource(unitRes) else ""
+}
+
+@PluralsRes
+internal fun adjustStockAfterUnitPluralRes(preparation: MedicinePreparation): Int? {
+    return stockUnitNounPluralRes(preparation)
 }
 
 internal fun parseAdjustStockCount(

@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.components
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -88,7 +90,8 @@ internal data class MedicationStockSubcardSealedSupplement(
 )
 
 internal data class MedicationStockSubcardText(
-    @param:StringRes val resId: Int,
+    @param:StringRes val resId: Int? = null,
+    @param:PluralsRes val pluralResId: Int? = null,
     val intArg: Int? = null,
 )
 
@@ -97,6 +100,8 @@ internal data class MedicationStockSubcardRowModel(
     val valueText: String,
     val previewValueText: String? = null,
     @param:StringRes val valueUnitRes: Int? = null,
+    val valuePluralCount: Double? = null,
+    val previewPluralCount: Double? = null,
     val progress: Float,
     val sealedSupplement: MedicationStockSubcardSealedSupplement? = null,
 ) {
@@ -340,6 +345,7 @@ private fun StockSubcardValueText(
             text = resolvedStockValueText(
                 valueText = row.valueText,
                 unitRes = row.valueUnitRes,
+                pluralCount = row.valuePluralCount,
             ),
             style = textStyle,
             color = MaterialTheme.colorScheme.onSurface,
@@ -376,6 +382,7 @@ private fun StockSubcardValueText(
             text = resolvedStockValueText(
                 valueText = previewValueText,
                 unitRes = row.valueUnitRes,
+                pluralCount = row.previewPluralCount,
             ),
             style = textStyle,
             color = MaterialTheme.colorScheme.onSurface,
@@ -392,21 +399,29 @@ private fun StockSubcardValueText(
 private fun resolvedStockValueText(
     valueText: String,
     @StringRes unitRes: Int?,
+    pluralCount: Double?,
 ): String {
     unitRes ?: return valueText
+    val pluralRes = stockUnitNounPluralForUnitRes(unitRes)
+    val unit = if (pluralRes != null && pluralCount != null) {
+        pluralStringResource(pluralRes, stockCountPluralQuantity(pluralCount))
+    } else {
+        stringResource(unitRes)
+    }
     return stringResource(
         R.string.stock_row_count_with_unit,
         valueText,
-        stringResource(unitRes),
+        unit,
     )
 }
 
 @Composable
 private fun MedicationStockSubcardText.resolve(): String {
-    return if (intArg == null) {
-        stringResource(resId)
-    } else {
-        stringResource(resId, intArg)
+    return when {
+        pluralResId != null && intArg != null ->
+            pluralStringResource(pluralResId, intArg, intArg)
+        resId != null -> stringResource(resId)
+        else -> ""
     }
 }
 
@@ -541,6 +556,8 @@ private fun openContainerStockSubcardRow(
         valueText = valueText.currentText,
         previewValueText = valueText.previewText,
         valueUnitRes = valueUnitRes,
+        valuePluralCount = capacity,
+        previewPluralCount = capacity,
         progress = stockSubcardProgress(
             numerator = openAmount,
             denominator = capacity,
@@ -566,6 +583,8 @@ private fun stockPoolSubcardRow(
         valueText = valueText.currentText,
         previewValueText = valueText.previewText,
         valueUnitRes = stockInventoryUnitRes(preparation),
+        valuePluralCount = stock.unitsLastTotal ?: stock.unitsRemaining,
+        previewPluralCount = stock.unitsLastTotal ?: mutationPreview?.unitsRemainingAfter,
         progress = stockSubcardProgress(
             numerator = stock.unitsRemaining,
             denominator = stock.unitsLastTotal,
@@ -612,7 +631,7 @@ private fun stockSubcardRunwayText(
 ): MedicationStockSubcardText? {
     return when (runway) {
         is RunwayProjection.Days -> MedicationStockSubcardText(
-            resId = R.string.stock_subcard_runway_days,
+            pluralResId = R.plurals.stock_subcard_runway_days,
             intArg = runway.days,
         )
         RunwayProjection.BeyondHorizon -> MedicationStockSubcardText(

@@ -86,6 +86,7 @@ data class SettingsState(
     val darkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
     val adaptiveColorEnabled: Boolean = true,
     val pureBlackEnabled: Boolean = false,
+    val cjkTextOffsetEnabled: Boolean = false,
     val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
     val firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
     val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey> = emptyMap(),

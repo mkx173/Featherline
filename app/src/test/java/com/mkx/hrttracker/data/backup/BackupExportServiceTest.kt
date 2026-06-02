@@ -73,6 +73,8 @@ class BackupExportServiceTest {
         every { context.packageName } returns "com.mkx.hrttracker"
         cacheDir = Files.createTempDirectory("backup-export-service-test-").toFile()
         every { context.cacheDir } returns cacheDir
+        every { settingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
+        every { settingsRepository.stockNudgeUserEnabledFlow } returns flowOf(false)
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
         service = BackupExportService(
             context = context,
@@ -96,6 +98,25 @@ class BackupExportServiceTest {
         // doseAmountDelta is a nullable additive field, so it ships without a
         // version bump — older readers default it to null. Catches a stale bump.
         assertEquals(3, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_exportsStockNudgeEnabledFalse() = runTest {
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.stockNudgeEnabledFlow } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+        val snapshot = BackupSnapshotJsonCodec.decode(
+            service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+        )!!
+
+        assertEquals(false, snapshot.settings.stockNudgeEnabled)
     }
 
     @Test
@@ -229,6 +250,7 @@ class BackupExportServiceTest {
             appLockGracePeriodOption = AppLockGracePeriodOption.FIVE_MINUTES,
             hideScreenContentEnabled = true,
             pureBlackEnabled = true,
+            cjkTextOffsetEnabled = true,
             widgetContentScale = 0.8f,
             widgetBackgroundAlpha = 0.6f,
         )
@@ -360,6 +382,7 @@ class BackupExportServiceTest {
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)
+        assertEquals(true, snapshot.settings.cjkTextOffsetEnabled)
 
         // Medicine appears in the standalone medicines list — the restore path
         // builds its FK-validation set from this collection before walking

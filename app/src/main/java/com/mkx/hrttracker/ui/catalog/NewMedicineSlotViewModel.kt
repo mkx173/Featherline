@@ -53,6 +53,12 @@ class NewMedicineSlotViewModel @Inject constructor(
     val uiState: StateFlow<NewMedicineSlotUiState> = _uiState.asStateFlow()
     private var saveGeneration = 0
 
+    // Medicine creation and the manual-log write are not one transaction: a newly
+    // created medicine persists even if its log save fails, so a retry sees it as
+    // pre-existing (createdNew == false). Remember it here so the stock-tracking
+    // nudge still fires once the log finally succeeds on a later attempt.
+    private var pendingManualLogCreatedMedicineUuid: java.util.UUID? = null
+
     internal constructor(
         medicineRepository: MedicineRepository,
         medicationLogRepository: MedicationLogRepository,
@@ -70,6 +76,7 @@ class NewMedicineSlotViewModel @Inject constructor(
 
     fun reset() {
         saveGeneration += 1
+        pendingManualLogCreatedMedicineUuid = null
         _uiState.update {
             NewMedicineSlotUiState(appliedZoneId = it.appliedZoneId)
         }
@@ -195,6 +202,7 @@ class NewMedicineSlotViewModel @Inject constructor(
                     errorMessageRes = errorMessageRes,
                     createSaveResult = null,
                     manualLogSaveResult = null,
+                    createdMedicineUuid = null,
                     slotResult = null,
                 )
             }
@@ -208,17 +216,19 @@ class NewMedicineSlotViewModel @Inject constructor(
                 errorMessageRes = null,
                 createSaveResult = null,
                 manualLogSaveResult = null,
+                createdMedicineUuid = null,
                 slotResult = null,
             )
         }
         return viewModelScope.launch {
             try {
-                saveMedicineThen(currentState, operationGeneration) { medicine ->
+                saveMedicineThen(currentState, operationGeneration) { medicine, createdNew ->
                     val applicationType = resolvedApplicationType(currentState)
                     updateIfCurrent(operationGeneration) {
                         it.copy(
                             isSaving = false,
                             isSaved = true,
+                            createdMedicineUuid = medicine.uuid.takeIf { createdNew },
                             slotResult = MedicineSlotResult(
                                 medicineUuid = medicine.uuid,
                                 applicationType = applicationType,
@@ -250,6 +260,7 @@ class NewMedicineSlotViewModel @Inject constructor(
                     errorMessageRes = errorMessageRes,
                     createSaveResult = null,
                     manualLogSaveResult = null,
+                    createdMedicineUuid = null,
                     slotResult = null,
                 )
             }
@@ -263,12 +274,20 @@ class NewMedicineSlotViewModel @Inject constructor(
                 errorMessageRes = null,
                 createSaveResult = null,
                 manualLogSaveResult = null,
+                createdMedicineUuid = null,
                 slotResult = null,
             )
         }
         return viewModelScope.launch {
             try {
-                saveMedicineThen(currentState, operationGeneration) { medicine ->
+                saveMedicineThen(currentState, operationGeneration) { medicine, createdNew ->
+                    if (createdNew) {
+                        pendingManualLogCreatedMedicineUuid = medicine.uuid
+                    }
+                    // A prior attempt may have created this medicine before its log
+                    // save failed, so treat the matching pending UUID as newly created too.
+                    val isNewlyCreatedMedicine =
+                        createdNew || pendingManualLogCreatedMedicineUuid == medicine.uuid
                     val applicationType = resolvedApplicationType(currentState)
                     val saveResult = saveManualMedicineLog(
                         medicationLogRepository = medicationLogRepository,
@@ -288,12 +307,18 @@ class NewMedicineSlotViewModel @Inject constructor(
                         appliedTime = currentState.appliedTime,
                         appliedZoneId = currentState.appliedZoneId,
                     )
+                    if (saveResult.isSuccess) {
+                        pendingManualLogCreatedMedicineUuid = null
+                    }
                     updateIfCurrent(operationGeneration) {
                         it.copy(
                             isSaving = false,
                             isSaved = saveResult.isSuccess,
                             manualLogSaveResult = saveResult.saveResult,
                             postLogStockWarning = saveResult.postLogStockWarning,
+                            createdMedicineUuid = medicine.uuid.takeIf {
+                                saveResult.isSuccess && isNewlyCreatedMedicine
+                            },
                         )
                     }
                 }
@@ -309,6 +334,7 @@ class NewMedicineSlotViewModel @Inject constructor(
             it.copy(
                 isSaved = false,
                 postLogStockWarning = null,
+                createdMedicineUuid = null,
                 slotResult = null,
             )
         }
@@ -318,10 +344,16 @@ class NewMedicineSlotViewModel @Inject constructor(
         _uiState.update { it.copy(manualLogSaveResult = null) }
     }
 
+    // Clears the create-medicine save result after a failure has been surfaced as
+    // a toast so it doesn't re-trigger on recomposition or configuration change.
+    fun consumeCreateSaveResult() {
+        _uiState.update { it.copy(createSaveResult = null) }
+    }
+
     private suspend fun saveMedicineThen(
         state: NewMedicineSlotUiState,
         operationGeneration: Int,
-        onCreated: suspend (Medicine) -> Unit,
+        onCreated: suspend (Medicine, Boolean) -> Unit,
     ) {
         // validateSlot already ran before this point; validate again inside the shared create helper as a defensive guard.
         when (
@@ -332,7 +364,7 @@ class NewMedicineSlotViewModel @Inject constructor(
         ) {
             is MedicineCreateResult.Success -> {
                 if (isCurrentSave(operationGeneration)) {
-                    onCreated(result.medicine)
+                    onCreated(result.medicine, result.createdNew)
                 }
             }
 
@@ -342,6 +374,7 @@ class NewMedicineSlotViewModel @Inject constructor(
                         isSaving = false,
                         errorMessageRes = result.messageRes,
                         createSaveResult = null,
+                        createdMedicineUuid = null,
                     )
                 }
             }
@@ -351,6 +384,7 @@ class NewMedicineSlotViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         createSaveResult = result.saveResult,
+                        createdMedicineUuid = null,
                     )
                 }
             }
@@ -433,6 +467,7 @@ data class NewMedicineSlotUiState(
     val createSaveResult: CreateMedicineSaveResult? = null,
     val manualLogSaveResult: MedicineSlotDraftSaveResult? = null,
     val postLogStockWarning: PostLogStockWarning? = null,
+    val createdMedicineUuid: java.util.UUID? = null,
     val slotResult: MedicineSlotResult? = null,
 ) {
     val allowsActualDoseDelta: Boolean

@@ -91,6 +91,11 @@
     </plurals>
     <string name="stock_snackbar_action_view">View</string>
     <string name="stock_snackbar_action_dismiss">Dismiss</string>
+    <string name="stock_nudge_message">Enable stock tracking for %1$s?</string>
+    <string name="stock_nudge_action_enable">Enable</string>
+    <string name="stock_nudge_added_toast">Added %1$s to stock</string>
+    <string name="stock_nudge_disabled_toast">Tips disabled. Turn them back on from the medicine menu.</string>
+    <string name="stock_nudge_menu_label">Stock tracking tips</string>
     <string name="fab_add_entry">Add medication log entry</string>
     <string name="plan_empty_state">No medication groups yet.</string>
     <string name="plan_selected_day_records_empty">No records for this day.</string>
@@ -401,7 +406,7 @@
     <string name="medication_preparation_summary_patch_total">Patch · %1$s mg</string>
     <string name="medication_preparation_summary_patch_total_with_unit">Patch · %1$s %2$s</string>
     <string name="medication_preparation_summary_patch_release_rate">Patch · %1$s μg/day</string>
-    <string name="dose_instruction_summary_tablet_fraction">%1$s tablet</string>
+    <string name="dose_instruction_summary_tablet_fraction">%1$s tablets</string>
     <string name="dose_instruction_summary_volume_ml">%1$s mL</string>
     <string name="dose_instruction_summary_weight_grams">%1$s g</string>
     <string name="dose_instruction_summary_active_amount">%1$s %2$s</string>
@@ -453,6 +458,8 @@
     <string name="settings_reminders_notifications_unavailable">Enable app notifications in system settings.</string>
     <string name="settings_appearance">Appearance</string>
     <string name="settings_app_language">App language</string>
+    <string name="settings_cjk_text_offset">Adjust Chinese text display</string>
+    <string name="settings_cjk_text_offset_summary">Try this if Chinese text alignment looks off.</string>
     <string name="settings_first_day_of_week">First day of week</string>
     <string name="settings_dark_mode">Dark mode</string>
     <string name="settings_adaptive_color">Adaptive color</string>
@@ -758,13 +765,16 @@
 
     <!-- Stock section -->
     <string name="stock_section_title">Stock tracking</string>
-    <string name="stock_chip_low">LOW</string>
-    <string name="stock_chip_out">OUT</string>
-    <string name="stock_chip_imminent">ALMOST OUT</string>
+    <string name="stock_chip_low">Low</string>
+    <string name="stock_chip_out">Out</string>
+    <string name="stock_chip_imminent">Almost out</string>
     <string name="stock_runway_unknown_title">Runway unknown</string>
     <string name="stock_runway_unknown_body">Add this medicine to a group to forecast.</string>
     <string name="stock_runway_more_than_one_year">>1 year remaining</string>
-    <string name="stock_runway_days_remaining">~%1$d days remaining</string>
+    <plurals name="stock_runway_days_remaining">
+        <item quantity="one">~%1$d day remaining</item>
+        <item quantity="other">~%1$d days remaining</item>
+    </plurals>
 
     <!-- Compact stock subcard -->
     <string name="stock_subcard_chip_in_stock">In stock</string>
@@ -772,7 +782,10 @@
     <string name="stock_subcard_chip_almost_out">Almost out</string>
     <string name="stock_subcard_chip_out">Out</string>
     <string name="stock_subcard_runway_more_than_one_year">>1 year</string>
-    <string name="stock_subcard_runway_days">~%1$d days</string>
+    <plurals name="stock_subcard_runway_days">
+        <item quantity="one">~%1$d day</item>
+        <item quantity="other">~%1$d days</item>
+    </plurals>
     <string name="stock_subcard_cd_stock_pool">Stock pool</string>
     <string name="stock_subcard_cd_open_vial">Open vial</string>
     <string name="stock_subcard_cd_open_container">Open container</string>
@@ -801,6 +814,31 @@
     <string name="stock_unit_containers">containers</string>
     <string name="stock_unit_ml">mL</string>
     <string name="stock_unit_g">g</string>
+    <!-- Stock unit nouns for count + unit phrases. -->
+    <plurals name="stock_count_tablets">
+        <item quantity="one">tablet</item>
+        <item quantity="other">tablets</item>
+    </plurals>
+    <plurals name="stock_count_capsules">
+        <item quantity="one">capsule</item>
+        <item quantity="other">capsules</item>
+    </plurals>
+    <plurals name="stock_count_patches">
+        <item quantity="one">patch</item>
+        <item quantity="other">patches</item>
+    </plurals>
+    <plurals name="stock_count_sachets">
+        <item quantity="one">sachet</item>
+        <item quantity="other">sachets</item>
+    </plurals>
+    <plurals name="stock_count_vials">
+        <item quantity="one">vial</item>
+        <item quantity="other">vials</item>
+    </plurals>
+    <plurals name="stock_count_containers">
+        <item quantity="one">container</item>
+        <item quantity="other">containers</item>
+    </plurals>
 
     <!-- Adjust sheet -->
     <string name="stock_adjust_row_label">Adjust stock</string>

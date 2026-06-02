@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -49,7 +50,9 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.StockStatusIndicator
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
+import com.mkx.hrttracker.ui.components.stockCountPluralQuantity
 import com.mkx.hrttracker.ui.components.stockInventoryUnitRes
+import com.mkx.hrttracker.ui.components.stockUnitNounPluralForUnitRes
 import com.mkx.hrttracker.ui.components.stockRateUnitRes
 import java.util.Locale
 
@@ -374,6 +377,7 @@ internal data class StockSectionCountText(
     val numeratorText: String,
     val denominatorText: String?,
     @param:StringRes val unitRes: Int? = null,
+    val pluralCount: Double? = null,
 ) {
     val valueText: String
         get() = if (denominatorText == null) {
@@ -391,10 +395,16 @@ private fun StockSectionCountText.resolve(): String {
         stringResource(R.string.stock_row_count_over_total, numeratorText, denominatorText)
     }
     val unitRes = unitRes ?: return countText
+    val pluralRes = stockUnitNounPluralForUnitRes(unitRes)
+    val unit = if (pluralRes != null && pluralCount != null) {
+        pluralStringResource(pluralRes, stockCountPluralQuantity(pluralCount))
+    } else {
+        stringResource(unitRes)
+    }
     return stringResource(
         R.string.stock_row_count_with_unit,
         countText,
-        stringResource(unitRes),
+        unit,
     )
 }
 
@@ -479,8 +489,9 @@ private fun RunwayRowCard(
         RunwayProjection.NoSchedule -> R.drawable.ic_help
     }
     val titleText = when (runway) {
-        is RunwayProjection.Days -> stringResource(
-            R.string.stock_runway_days_remaining,
+        is RunwayProjection.Days -> pluralStringResource(
+            R.plurals.stock_runway_days_remaining,
+            runway.days,
             runway.days,
         )
         RunwayProjection.BeyondHorizon -> stringResource(R.string.stock_runway_more_than_one_year)
@@ -595,14 +606,23 @@ private fun rateLabel(projection: MedicineStockProjection): String? {
     val dosesPerDay = projection.dosesPerDayMagnitude
     if (dosesPerDay <= 0.0) return null
     val unitRes = stockRateUnitRes(projection.medicine.preparation) ?: return null
-    val unit = stringResource(unitRes)
     // Sub-once-a-day cadence reads better as a weekly rate: a multi-use vial
     // at 0.4 mL/wk is more legible than 0.06 mL/day.
-    return if (dosesPerDay >= 0.5) {
-        stringResource(R.string.stock_rate_per_day, formatRate(dosesPerDay), unit)
+    val perDay = dosesPerDay >= 0.5
+    val rateValue = if (perDay) dosesPerDay else dosesPerDay * 7
+    // Agree the unit noun with the displayed rate (e.g. "1 tablet / day", not
+    // "1 tablets / day"). mL/g have no plural form and fall back to the label.
+    val pluralRes = stockUnitNounPluralForUnitRes(unitRes)
+    val unit = if (pluralRes != null) {
+        pluralStringResource(pluralRes, stockCountPluralQuantity(rateValue))
     } else {
-        stringResource(R.string.stock_rate_per_week, formatRate(dosesPerDay * 7), unit)
+        stringResource(unitRes)
     }
+    return stringResource(
+        if (perDay) R.string.stock_rate_per_day else R.string.stock_rate_per_week,
+        formatRate(rateValue),
+        unit,
+    )
 }
 
 internal fun stockUnitRes(preparation: MedicinePreparation): Int? = stockRateUnitRes(preparation)
@@ -642,6 +662,7 @@ internal fun stockSectionCountText(
         numeratorText = formatCount(numerator),
         denominatorText = denominatorText,
         unitRes = unitRes,
+        pluralCount = denominator ?: numerator,
     )
 }
 

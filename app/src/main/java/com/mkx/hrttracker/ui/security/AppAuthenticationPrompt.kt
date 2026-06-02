@@ -1,5 +1,7 @@
 package com.mkx.hrttracker.ui.security
 
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.annotation.StringRes
 import androidx.biometric.BiometricPrompt
 import androidx.compose.runtime.Composable
@@ -25,18 +27,23 @@ fun AppAuthenticationPromptEffect(
     onError: (Int) -> Unit,
 ) {
     val context = LocalContext.current
-    val activity = context as? FragmentActivity ?: return
+    // LocalContext is a ContextWrapper that serves the in-app locale's resources
+    // (provided by MainActivity), so a direct cast to FragmentActivity fails.
+    // Walk the base-context chain to reach the hosting activity.
+    val activity = context.findFragmentActivity() ?: return
     val currentOnAuthenticated by rememberUpdatedState(onAuthenticated)
     val currentOnError by rememberUpdatedState(onError)
 
     LaunchedEffect(request?.id) {
         val currentRequest = request ?: return@LaunchedEffect
+        // Resolve prompt strings through the localized context, not the raw
+        // activity, so the prompt honors the in-app language selection.
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle(activity.getString(currentRequest.titleRes))
+            .setTitle(context.getString(currentRequest.titleRes))
             .setAllowedAuthenticators(AppLockSecurityManager.ALLOWED_AUTHENTICATORS)
             .apply {
-                currentRequest.subtitleRes?.let { setSubtitle(activity.getString(it)) }
-                currentRequest.descriptionRes?.let { setDescription(activity.getString(it)) }
+                currentRequest.subtitleRes?.let { setSubtitle(context.getString(it)) }
+                currentRequest.descriptionRes?.let { setDescription(context.getString(it)) }
             }
             .build()
 
@@ -56,4 +63,10 @@ fun AppAuthenticationPromptEffect(
 
         biometricPrompt.authenticate(promptInfo)
     }
+}
+
+private tailrec fun Context.findFragmentActivity(): FragmentActivity? = when (this) {
+    is FragmentActivity -> this
+    is ContextWrapper -> baseContext.findFragmentActivity()
+    else -> null
 }

@@ -55,3 +55,6 @@ docs/superpowers/
 
 # Codegraph
 .codegraph/
+
+# Kotlin
+.kotlin/

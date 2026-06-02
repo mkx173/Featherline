@@ -112,6 +112,19 @@ class StockSectionTest {
 
         assertEquals("4 / 10", countText.valueText)
         assertEquals(R.string.stock_unit_tablets, countText.unitRes)
+        assertEquals(10.0, countText.pluralCount)
+    }
+
+    @Test
+    fun stockCountTextUsesNumeratorForBareCountPluralAgreement() {
+        val countText = stockSectionCountText(
+            numerator = 1.0,
+            denominator = null,
+            unitRes = R.string.stock_unit_tablets,
+        )
+
+        assertEquals("1", countText.valueText)
+        assertEquals(1.0, countText.pluralCount)
     }
 
     @Test

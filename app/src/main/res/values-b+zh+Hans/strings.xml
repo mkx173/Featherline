@@ -72,9 +72,9 @@
     <string name="reminder_notification_action_log_all">全部记录</string>
     <string name="reminder_notification_action_remind_later">稍后提醒</string>
     <string name="reminder_notification_snoozed">将在 %1$d 分钟后再次提醒您</string>
-    <string name="stock_toast_out_single">%1$s 已无库存</string>
+    <string name="stock_toast_out_single">%1$s 已用尽</string>
     <plurals name="stock_toast_out_multiple">
-        <item quantity="other">%1$d 种药品已无库存</item>
+        <item quantity="other">%1$d 种药品已用尽</item>
     </plurals>
     <string name="stock_toast_imminent_single">%1$s 即将用尽</string>
     <plurals name="stock_toast_imminent_multiple">
@@ -86,6 +86,11 @@
     </plurals>
     <string name="stock_snackbar_action_view">查看</string>
     <string name="stock_snackbar_action_dismiss">关闭</string>
+    <string name="stock_nudge_message">为 %1$s 启用库存跟踪？</string>
+    <string name="stock_nudge_action_enable">启用</string>
+    <string name="stock_nudge_added_toast">已添加 %1$s 到库存</string>
+    <string name="stock_nudge_disabled_toast">已关闭库存跟踪提示，可在药物菜单中重新开启</string>
+    <string name="stock_nudge_menu_label">库存跟踪提示</string>
     <string name="fab_add_entry">添加用药记录</string>
     <string name="plan_empty_state">暂无用药分组</string>
     <string name="plan_selected_day_records_empty">这一天暂无记录</string>
@@ -302,7 +307,7 @@
     <string name="medicines_title">药物</string>
     <string name="medicines_empty_state">暂无药物</string>
     <string name="medicine_picker_add_new_medicine">添加药物</string>
-    <string name="onboarding_stock_optin_banner">轻点药品即可添加库存，您也可以随时在「计划」→「药品」中启用库存追踪</string>
+    <string name="onboarding_stock_optin_banner">轻点药品即可添加库存，您也可以随时在「计划」→「药物」中启用库存追踪</string>
     <string name="create_medicine_title">添加药物</string>
     <string name="create_medicine_action">保存</string>
     <string name="medicine_detail_title">药物详情</string>
@@ -439,6 +444,8 @@
     <string name="settings_reminders_notifications_unavailable">请在系统设置中开启应用通知</string>
     <string name="settings_appearance">外观</string>
     <string name="settings_app_language">应用语言</string>
+    <string name="settings_cjk_text_offset">调整中文文字显示</string>
+    <string name="settings_cjk_text_offset_summary">如遇到文字对齐问题可尝试调整此项</string>
     <string name="settings_first_day_of_week">每周第一天</string>
     <string name="settings_dark_mode">深色模式</string>
     <string name="settings_adaptive_color">自适应配色</string>
@@ -728,14 +735,18 @@
     <string name="stock_runway_unknown_title">无法预估</string>
     <string name="stock_runway_unknown_body">将此药品加入分组后即可预估剩余天数</string>
     <string name="stock_runway_more_than_one_year">剩余超过 1 年</string>
-    <string name="stock_runway_days_remaining">约剩余 %1$d 天</string>
+    <plurals name="stock_runway_days_remaining">
+        <item quantity="other">约剩余 %1$d 天</item>
+    </plurals>
 
     <string name="stock_subcard_chip_in_stock">库存充足</string>
     <string name="stock_subcard_chip_low">库存不足</string>
     <string name="stock_subcard_chip_almost_out">即将用尽</string>
     <string name="stock_subcard_chip_out">已用尽</string>
     <string name="stock_subcard_runway_more_than_one_year">>1 年</string>
-    <string name="stock_subcard_runway_days">~%1$d 天</string>
+    <plurals name="stock_subcard_runway_days">
+        <item quantity="other">~%1$d 天</item>
+    </plurals>
     <string name="stock_subcard_cd_stock_pool">库存池</string>
     <string name="stock_subcard_cd_open_vial">已开启药瓶</string>
     <string name="stock_subcard_cd_open_container">已开启容器</string>
@@ -754,12 +765,30 @@
     <string name="stock_rate_per_week">%1$s %2$s / 周</string>
     <string name="stock_unit_tablets">片</string>
     <string name="stock_unit_capsules">粒</string>
-    <string name="stock_unit_patches">贴</string>
+    <string name="stock_unit_patches">片</string>
     <string name="stock_unit_sachets">袋</string>
     <string name="stock_unit_vials">瓶</string>
     <string name="stock_unit_containers">容器</string>
     <string name="stock_unit_ml">mL</string>
     <string name="stock_unit_g">g</string>
+    <plurals name="stock_count_tablets">
+        <item quantity="other">片</item>
+    </plurals>
+    <plurals name="stock_count_capsules">
+        <item quantity="other">粒</item>
+    </plurals>
+    <plurals name="stock_count_patches">
+        <item quantity="other">片</item>
+    </plurals>
+    <plurals name="stock_count_sachets">
+        <item quantity="other">袋</item>
+    </plurals>
+    <plurals name="stock_count_vials">
+        <item quantity="other">瓶</item>
+    </plurals>
+    <plurals name="stock_count_containers">
+        <item quantity="other">容器</item>
+    </plurals>
 
     <string name="stock_adjust_row_label">调整库存</string>
     <string name="stock_adjust_title">调整库存</string>

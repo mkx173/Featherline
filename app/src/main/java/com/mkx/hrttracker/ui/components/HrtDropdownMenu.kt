@@ -80,11 +80,11 @@ fun HrtDropdownMenu(
                         onDismissRequest()
                         item.onClick()
                     },
-                    text = { Text(text = item.text) },
+                    text = { Text(text = item.text, modifier = Modifier.cjkTextOffset(item.text)) },
                     shape = expressiveMenuItemShape(index = index, count = items.size),
                     enabled = item.enabled,
                     supportingText = item.supportingText?.let { supportingText ->
-                        { Text(text = supportingText) }
+                        { Text(text = supportingText, modifier = Modifier.cjkTextOffset(supportingText)) }
                     },
                     trailingIcon = item.trailingIcon,
                 )

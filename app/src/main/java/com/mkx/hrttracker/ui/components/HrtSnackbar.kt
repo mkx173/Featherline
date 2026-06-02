@@ -77,12 +77,18 @@ internal fun HrtSnackbar(snackbarData: SnackbarData) {
         },
         dismissAction = if (visuals.withDismissAction) {
             {
-                IconButton(onClick = { snackbarData.dismiss() }) {
+                IconButton(
+                    onClick = {
+                        (snackbarData.visuals as? StockNudgeVisuals)?.onDismissTapped?.invoke()
+                        snackbarData.dismiss()
+                    },
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
                         contentDescription = stringResource(
                             R.string.stock_snackbar_action_dismiss,
                         ),
+                        tint = MaterialTheme.colorScheme.surface
                     )
                 }
             }
@@ -106,6 +112,7 @@ internal fun HrtSnackbar(snackbarData: SnackbarData) {
             Text(
                 text = message,
                 modifier = Modifier.cjkTextOffset(message),
+                color = MaterialTheme.colorScheme.surface
             )
         }
     }

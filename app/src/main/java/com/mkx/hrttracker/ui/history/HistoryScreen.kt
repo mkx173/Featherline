@@ -470,9 +470,6 @@ private fun HistoryScreenContent(
         selectAllEnabled.value = canSelectAllVisibleEntries
         displayedSelectedEntryCount.value = selectedEntryCount
     }
-    val groupNamesById = remember(uiState.medicationGroups) {
-        uiState.medicationGroups.associate { group -> group.uuid to group.name }
-    }
     val groupColorsById = remember(uiState.medicationGroups) {
         uiState.medicationGroups.associate { group -> group.uuid to group.colorKey }
     }
@@ -883,7 +880,6 @@ private fun HistoryScreenContent(
                                 HistoryEntryCard(
                                     entry = entry,
                                     timeFormatter = timeFormatter,
-                                    groupName = entry.sourceGroupUuid?.let(groupNamesById::get),
                                     groupColorKey = entry.sourceGroupUuid?.let(groupColorsById::get),
                                     isFromArchivedGroup = entry.sourceGroupUuid != null &&
                                             entry.sourceGroupUuid in archivedGroupUuids,
@@ -2088,7 +2084,6 @@ private fun historyIndicatorColor(
 private fun HistoryEntryCard(
     entry: MedicationLogEntry,
     timeFormatter: DateTimeFormatter,
-    groupName: String?,
     groupColorKey: MedicationGroupColorKey?,
     isFromArchivedGroup: Boolean,
     isSelected: Boolean,
@@ -2117,7 +2112,6 @@ private fun HistoryEntryCard(
         // instead of falling through to secondaryContainer.
         missingGroupColorTreatment =
             MedicationCardMissingGroupColorTreatment.NEUTRAL_GROUP_PALETTE,
-        extraSupportingText = groupName,
         onClick = onClick,
         onLongClick = onLongClick,
         index = index,

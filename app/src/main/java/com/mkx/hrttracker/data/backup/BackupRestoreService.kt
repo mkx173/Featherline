@@ -267,6 +267,7 @@ class BackupRestoreService @Inject constructor(
             darkModeOption = validatedSnapshot.settings.darkModeOption,
             adaptiveColorEnabled = validatedSnapshot.settings.adaptiveColorEnabled,
             pureBlackEnabled = validatedSnapshot.settings.pureBlackEnabled,
+            cjkTextOffsetEnabled = validatedSnapshot.settings.cjkTextOffsetEnabled,
             remindersEnabled = validatedSnapshot.settings.remindersEnabled,
             showArchivedGroupRecords = validatedSnapshot.settings.showArchivedGroupRecords,
             hideReferenceRanges = validatedSnapshot.settings.hideReferenceRanges,
@@ -284,6 +285,8 @@ class BackupRestoreService @Inject constructor(
             widgetDarkModeOption = validatedSnapshot.settings.widgetDarkModeOption,
             groupNameCounter = validatedSnapshot.settings.groupNameCounter,
             firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
+            stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,
+            stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
         )
 
         // Reminder rescheduling is a best-effort side effect — the data is
@@ -790,6 +793,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         darkModeOption = darkModeOption,
         adaptiveColorEnabled = adaptiveColorEnabled,
         pureBlackEnabled = pureBlackEnabled,
+        cjkTextOffsetEnabled = cjkTextOffsetEnabled,
         remindersEnabled = remindersEnabled,
         showArchivedGroupRecords = showArchivedGroupRecords,
         hideReferenceRanges = hideReferenceRanges,
@@ -807,6 +811,8 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         widgetDarkModeOption = widgetDarkModeOption,
         groupNameCounter = groupNameCounter,
         firstDayOfWeekOption = firstDayOfWeekOption,
+        stockNudgeEnabled = stockNudgeEnabled,
+        stockNudgeUserEnabled = stockNudgeUserEnabled,
     )
 }
 
@@ -1158,6 +1164,7 @@ internal data class ValidatedBackupSettings(
     val darkModeOption: DarkModeOption,
     val adaptiveColorEnabled: Boolean,
     val pureBlackEnabled: Boolean,
+    val cjkTextOffsetEnabled: Boolean,
     val remindersEnabled: Boolean,
     val showArchivedGroupRecords: Boolean,
     val hideReferenceRanges: Boolean,
@@ -1175,6 +1182,8 @@ internal data class ValidatedBackupSettings(
     val widgetDarkModeOption: DarkModeOption,
     val groupNameCounter: Int,
     val firstDayOfWeekOption: FirstDayOfWeekOption,
+    val stockNudgeEnabled: Boolean,
+    val stockNudgeUserEnabled: Boolean,
 )
 
 private data class ValidatedMedicationData(

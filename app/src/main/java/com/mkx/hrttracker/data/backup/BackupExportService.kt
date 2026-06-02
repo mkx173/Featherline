@@ -157,6 +157,8 @@ class BackupExportService @Inject constructor(
     ): BackupSnapshot {
         val settings = settingsRepository.getCurrentSettings()
         val onboardingCompleted = settingsRepository.onboardingCompleted.first()
+        val stockNudgeEnabled = settingsRepository.stockNudgeEnabledFlow.first()
+        val stockNudgeUserEnabled = settingsRepository.stockNudgeUserEnabledFlow.first()
         val userProfile = userProfileRepository.getCurrentProfile()
         // Pulled before groups/logs so the importer can build its valid-medicine
         // set up front and reject any item or log that references a row absent
@@ -176,6 +178,7 @@ class BackupExportService @Inject constructor(
                 darkModeOption = settings.darkModeOption.name,
                 adaptiveColorEnabled = settings.adaptiveColorEnabled,
                 pureBlackEnabled = settings.pureBlackEnabled,
+                cjkTextOffsetEnabled = settings.cjkTextOffsetEnabled,
                 remindersEnabled = settings.remindersEnabled,
                 showArchivedGroupRecords = settings.showArchivedGroupRecords,
                 hideReferenceRanges = settings.hideReferenceRanges,
@@ -197,6 +200,8 @@ class BackupExportService @Inject constructor(
                 widgetDarkModeOption = settings.widgetDarkModeOption.name,
                 groupNameCounter = settings.groupNameCounter,
                 firstDayOfWeekOption = settings.firstDayOfWeekOption.name,
+                stockNudgeEnabled = stockNudgeEnabled,
+                stockNudgeUserEnabled = stockNudgeUserEnabled,
             ),
             userProfile = BackupUserProfileSnapshot(
                 weightKg = userProfile.weightKg,

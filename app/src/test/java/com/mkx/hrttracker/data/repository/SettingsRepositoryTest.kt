@@ -121,6 +121,22 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `cjk text offset setting persists and defaults off`() = runTest(testDispatcher) {
+        assertEquals(false, settingsRepository.getCurrentSettings().cjkTextOffsetEnabled)
+
+        settingsRepository.setCjkTextOffsetEnabled(true)
+
+        assertEquals(true, settingsRepository.getCurrentSettings().cjkTextOffsetEnabled)
+    }
+
+    @Test
+    fun `restoreSettings restores cjk text offset setting`() = runTest(testDispatcher) {
+        restoreSettingsWithCjkTextOffsetEnabled(true)
+
+        assertEquals(true, settingsRepository.getCurrentSettings().cjkTextOffsetEnabled)
+    }
+
+    @Test
     fun `group name counter peek is stable and consume advances`() = runTest(testDispatcher) {
         assertEquals(1, settingsRepository.peekNextGroupNameIndex())
         assertEquals(1, settingsRepository.peekNextGroupNameIndex())
@@ -130,6 +146,103 @@ class SettingsRepositoryTest {
         assertEquals(2, settingsRepository.peekNextGroupNameIndex())
         assertEquals(2, settingsRepository.consumeNextGroupNameIndex())
         assertEquals(3, settingsRepository.peekNextGroupNameIndex())
+    }
+
+    @Test
+    fun `stockNudgeEnabledFlow defaults to true`() = runTest(testDispatcher) {
+        assertEquals(true, settingsRepository.stockNudgeEnabledFlow.first())
+    }
+
+    @Test
+    fun `setStockNudgeEnabled false then flow emits false`() = runTest(testDispatcher) {
+        settingsRepository.setStockNudgeEnabled(false)
+        assertEquals(false, settingsRepository.stockNudgeEnabledFlow.first())
+    }
+
+    @Test
+    fun `recordStockNudgeDismissal disables and reports only at the dismiss limit`() = runTest(testDispatcher) {
+        assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
+        assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
+        // The threshold dismissal disables the nudge atomically in the same edit.
+        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
+        assertEquals(false, settingsRepository.stockNudgeEnabledFlow.first())
+    }
+
+    @Test
+    fun `stockNudgeUserEnabledFlow defaults to false`() = runTest(testDispatcher) {
+        assertEquals(false, settingsRepository.stockNudgeUserEnabledFlow.first())
+    }
+
+    @Test
+    fun `setStockNudgeEnabled true marks the nudge as voluntarily enabled`() = runTest(testDispatcher) {
+        settingsRepository.setStockNudgeEnabled(true)
+        assertEquals(true, settingsRepository.stockNudgeUserEnabledFlow.first())
+    }
+
+    @Test
+    fun `voluntary enable suppresses auto-disable no matter how many dismissals`() = runTest(testDispatcher) {
+        // Once the user opts in via the menu toggle, the dismiss-threshold policy
+        // is off for good: dismissals never report a disable and the flag stays on,
+        // even past what would otherwise be the limit.
+        settingsRepository.setStockNudgeEnabled(true)
+
+        repeat(5) {
+            assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+        }
+        assertEquals(true, settingsRepository.stockNudgeEnabledFlow.first())
+    }
+
+    @Test
+    fun `setStockNudgeEnabled false leaves dismiss count alone`() = runTest(testDispatcher) {
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+        settingsRepository.setStockNudgeEnabled(false)
+        // Count preserved at 2: the next dismissal is the 3rd and hits limit 3.
+        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
+    }
+
+    @Test
+    fun `restoreSettings with stock nudge disabled persists false and clears dismiss count`() = runTest(testDispatcher) {
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+
+        restoreSettingsWithStockNudgeEnabled(false)
+
+        assertEquals(false, settingsRepository.stockNudgeEnabledFlow.first())
+        // Count cleared by restore: the first dismissal hits a limit of 1.
+        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+    }
+
+    @Test
+    fun `restoreSettings carries the voluntarily-enabled flag and suppresses auto-disable`() = runTest(testDispatcher) {
+        restoreSettingsWithStockNudgeEnabled(enabled = true, userEnabled = true)
+
+        assertEquals(true, settingsRepository.stockNudgeUserEnabledFlow.first())
+        // A restored voluntary opt-in keeps auto-disable off across devices.
+        assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+    }
+
+    @Test
+    fun `restoreSettings without the voluntarily-enabled flag leaves auto-disable armed`() = runTest(testDispatcher) {
+        // Backups predating the flag (or where the user never opted in) restore as
+        // not-voluntary, so the threshold policy still applies.
+        restoreSettingsWithStockNudgeEnabled(enabled = true, userEnabled = false)
+
+        assertEquals(false, settingsRepository.stockNudgeUserEnabledFlow.first())
+        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+    }
+
+    @Test
+    fun `restoreSettings omitting stock nudge flag defaults true and clears dismiss count`() = runTest(testDispatcher) {
+        settingsRepository.setStockNudgeEnabled(false)
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+
+        restoreSettingsOmittingStockNudgeEnabled()
+
+        assertEquals(true, settingsRepository.stockNudgeEnabledFlow.first())
+        // Count cleared by restore: the first dismissal hits a limit of 1.
+        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
     }
 
     @Test
@@ -311,5 +424,74 @@ class SettingsRepositoryTest {
         )
 
         assertEquals(emptyMap<String, MedicineStockState>(), settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first())
+    }
+
+    private suspend fun restoreSettingsWithStockNudgeEnabled(
+        enabled: Boolean,
+        userEnabled: Boolean = false,
+    ) {
+        settingsRepository.restoreSettings(
+            darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
+            adaptiveColorEnabled = true,
+            pureBlackEnabled = false,
+            remindersEnabled = true,
+            showArchivedGroupRecords = true,
+            hideReferenceRanges = false,
+            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
+            hideScreenContentEnabled = false,
+            onboardingCompleted = true,
+            appLanguageOption = AppLanguageOption.ENGLISH,
+            calibrationDefaultUnits = emptySet(),
+            homeE2DisplayUnit = AllowedAnalyteUnit.of(
+                BloodAnalyteKey.E2,
+                BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+            ),
+            homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+            stockNudgeEnabled = enabled,
+            stockNudgeUserEnabled = userEnabled,
+        )
+    }
+
+    private suspend fun restoreSettingsWithCjkTextOffsetEnabled(enabled: Boolean) {
+        settingsRepository.restoreSettings(
+            darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
+            adaptiveColorEnabled = true,
+            pureBlackEnabled = false,
+            cjkTextOffsetEnabled = enabled,
+            remindersEnabled = true,
+            showArchivedGroupRecords = true,
+            hideReferenceRanges = false,
+            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
+            hideScreenContentEnabled = false,
+            onboardingCompleted = true,
+            appLanguageOption = AppLanguageOption.ENGLISH,
+            calibrationDefaultUnits = emptySet(),
+            homeE2DisplayUnit = AllowedAnalyteUnit.of(
+                BloodAnalyteKey.E2,
+                BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+            ),
+            homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+        )
+    }
+
+    private suspend fun restoreSettingsOmittingStockNudgeEnabled() {
+        settingsRepository.restoreSettings(
+            darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
+            adaptiveColorEnabled = true,
+            pureBlackEnabled = false,
+            remindersEnabled = true,
+            showArchivedGroupRecords = true,
+            hideReferenceRanges = false,
+            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
+            hideScreenContentEnabled = false,
+            onboardingCompleted = true,
+            appLanguageOption = AppLanguageOption.ENGLISH,
+            calibrationDefaultUnits = emptySet(),
+            homeE2DisplayUnit = AllowedAnalyteUnit.of(
+                BloodAnalyteKey.E2,
+                BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+            ),
+            homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+        )
     }
 }

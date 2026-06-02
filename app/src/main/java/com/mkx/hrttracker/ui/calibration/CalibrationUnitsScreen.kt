@@ -425,7 +425,6 @@ private fun CalibrationCustomAnalyteDialog(
     var isAbbreviationErrorVisible by rememberSaveable { mutableStateOf(false) }
     var isNameErrorVisible by rememberSaveable { mutableStateOf(false) }
     var isUnitErrorVisible by rememberSaveable { mutableStateOf(false) }
-    var actionErrorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var isWorking by rememberSaveable { mutableStateOf(false) }
     var isArchiveConfirmationVisible by rememberSaveable { mutableStateOf(false) }
     var isUnitLocked by rememberSaveable { mutableStateOf(customAnalyte != null) }
@@ -447,7 +446,6 @@ private fun CalibrationCustomAnalyteDialog(
         isAbbreviationErrorVisible = isAbbreviationBlank
         isNameErrorVisible = isNameBlank
         isUnitErrorVisible = isUnitBlank
-        actionErrorMessage = null
         if (isAbbreviationBlank || isNameBlank || isUnitBlank) {
             return@submit
         }
@@ -464,11 +462,15 @@ private fun CalibrationCustomAnalyteDialog(
             if (error == null) {
                 onDismiss()
             } else {
-                actionErrorMessage = resolveCustomAnalyteSaveErrorMessage(
-                    error = error,
-                    duplicateErrorMessage = duplicateErrorMessage,
-                    genericErrorMessage = genericSaveErrorMessage,
-                )
+                Toast.makeText(
+                    context,
+                    resolveCustomAnalyteSaveErrorMessage(
+                        error = error,
+                        duplicateErrorMessage = duplicateErrorMessage,
+                        genericErrorMessage = genericSaveErrorMessage,
+                    ),
+                    Toast.LENGTH_SHORT,
+                ).show()
             }
         }
     }
@@ -517,7 +519,6 @@ private fun CalibrationCustomAnalyteDialog(
                         onValueChange = { value ->
                             nameText = value
                             isNameErrorVisible = false
-                            actionErrorMessage = null
                         },
                         label = {
                             Text(
@@ -552,7 +553,6 @@ private fun CalibrationCustomAnalyteDialog(
                         onValueChange = { value ->
                             abbreviationText = value
                             isAbbreviationErrorVisible = false
-                            actionErrorMessage = null
                         },
                         label = {
                             Text(
@@ -595,7 +595,6 @@ private fun CalibrationCustomAnalyteDialog(
                             onValueChange = { value ->
                                 unitText = value
                                 isUnitErrorVisible = false
-                                actionErrorMessage = null
                             },
                             enabled = !isUnitLocked,
                             label = {
@@ -639,13 +638,6 @@ private fun CalibrationCustomAnalyteDialog(
                                     }
                             )
                         }
-                    }
-                    actionErrorMessage?.let { errorMessage ->
-                        Text(
-                            text = errorMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
                     }
                 }
                 Row(

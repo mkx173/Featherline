@@ -131,7 +131,7 @@ class MedicationStockSubcardTest {
         assertEquals(R.string.stock_subcard_chip_in_stock, model.chipLabelRes)
         assertEquals(MedicationStockSubcardTone.HEALTHY, model.tone)
         val runwayText = requireNotNull(model.runwayText)
-        assertEquals(R.string.stock_subcard_runway_days, runwayText.resId)
+        assertEquals(R.plurals.stock_subcard_runway_days, runwayText.pluralResId)
         assertEquals(10, runwayText.intArg)
         assertEquals(1, model.rows.size)
 
@@ -142,6 +142,8 @@ class MedicationStockSubcardTest {
         assertEquals(R.string.stock_subcard_cd_stock_pool, row.contentDescriptionRes)
         assertEquals("4 / 10", row.valueText)
         assertEquals(R.string.stock_unit_tablets, row.valueUnitRes)
+        assertEquals(10.0, row.valuePluralCount)
+        assertEquals(10.0, row.previewPluralCount)
         assertEquals(0.4f, row.progress, 1e-6f)
     }
 
@@ -163,6 +165,8 @@ class MedicationStockSubcardTest {
         assertEquals("4", row.valueText)
         assertEquals("2.5 / 10", row.previewValueText)
         assertEquals(R.string.stock_unit_tablets, row.valueUnitRes)
+        assertEquals(10.0, row.valuePluralCount)
+        assertEquals(10.0, row.previewPluralCount)
         assertEquals(0.4f, row.progress, 1e-6f)
     }
 
@@ -184,6 +188,8 @@ class MedicationStockSubcardTest {
         assertEquals("10", row.valueText)
         assertEquals("10 / 10", row.previewValueText)
         assertEquals(R.string.stock_unit_tablets, row.valueUnitRes)
+        assertEquals(10.0, row.valuePluralCount)
+        assertEquals(10.0, row.previewPluralCount)
     }
 
     @Test

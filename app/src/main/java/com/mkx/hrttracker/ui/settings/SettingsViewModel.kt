@@ -165,6 +165,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setCjkTextOffsetEnabled(enabled: Boolean) {
+        launchSettingsMutation {
+            settingsRepository.setCjkTextOffsetEnabled(enabled)
+        }
+    }
+
     fun setShowArchivedGroupRecords(enabled: Boolean) {
         launchSettingsMutation {
             settingsRepository.setShowArchivedGroupRecords(enabled)
@@ -320,6 +326,12 @@ class SettingsViewModel @Inject constructor(
         pendingPrompt.value = null
         pendingScreenLockIntent = null
         securityErrorMessageRes.value = appLockSecurityManager.promptErrorMessageRes(errorCode)
+    }
+
+    // Clears the security error after it has been surfaced as a toast so it
+    // doesn't re-trigger on recomposition or configuration change.
+    fun consumeSecurityError() {
+        securityErrorMessageRes.value = null
     }
 
     private enum class ScreenLockPromptIntent { ENABLE, DISABLE }
