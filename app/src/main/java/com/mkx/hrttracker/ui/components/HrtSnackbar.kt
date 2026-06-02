@@ -43,10 +43,10 @@ internal fun HrtSnackbar(snackbarData: SnackbarData) {
     val message = visuals.message
     val actionLabel = visuals.actionLabel
 
-    val progress = remember(snackbarData) { Animatable(0f) }
+    val progress = remember(snackbarData) { Animatable(1f) }
     LaunchedEffect(snackbarData) {
         progress.animateTo(
-            targetValue = 1f,
+            targetValue = 0f,
             animationSpec = tween(
                 durationMillis = SNACKBAR_DURATION_MS,
                 easing = LinearEasing,
@@ -101,6 +101,7 @@ internal fun HrtSnackbar(snackbarData: SnackbarData) {
                 trackColor = MaterialTheme.colorScheme.secondary,
                 strokeWidth = SnackbarProgressStroke,
                 strokeCap = StrokeCap.Round,
+                gapSize = 0.dp
             )
             Text(
                 text = message,

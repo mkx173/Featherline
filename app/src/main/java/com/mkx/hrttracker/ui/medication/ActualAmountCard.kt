@@ -24,7 +24,7 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Icon
@@ -361,7 +361,7 @@ internal fun ActualAmountRulerCard(
                                             .fillMaxHeight(if (isMajor) 0.6f else 0.35f)
                                             .background(
                                                 MaterialTheme.colorScheme.outlineVariant,
-                                                RoundedCornerShape(1.dp),
+                                                CircleShape,
                                             ),
                                     )
                                 }
@@ -389,7 +389,7 @@ internal fun ActualAmountRulerCard(
                             .width(2.dp)
                             .background(
                                 MaterialTheme.colorScheme.primary,
-                                RoundedCornerShape(1.dp),
+                                CircleShape,
                             ),
                     )
                 }
