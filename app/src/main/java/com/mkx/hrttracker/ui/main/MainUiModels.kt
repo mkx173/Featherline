@@ -72,6 +72,10 @@ data class MainE2HeroUiState(
 data class MainE2ChartUiState(
     val points: List<Float> = EmptyE2ChartPoints,
     val pointXHours: List<Double> = EmptyE2ChartPointXHours,
+    val lower68Points: List<Float>? = null,
+    val upper68Points: List<Float>? = null,
+    val lower95Points: List<Float>? = null,
+    val upper95Points: List<Float>? = null,
     val sampleIntervalHours: Int = EmptyE2ChartSampleIntervalHours,
     val doseMarkers: List<MainE2DoseMarkerUiState> = emptyList(),
     val windowHours: Int = EmptyE2ChartWindowHours,
@@ -257,6 +261,10 @@ internal fun buildMainE2Chart(
         pointXHours = chartTimeH
             ?.map { timeH -> timeH.toVicoXHour() }
             ?: EmptyE2ChartPointXHours,
+        lower68Points = trendResult?.chartLower68?.map { c -> mainE2ConcentrationInDisplayUnit(c, trendResult.concentrationUnit, displayUnit).toFloat() },
+        upper68Points = trendResult?.chartUpper68?.map { c -> mainE2ConcentrationInDisplayUnit(c, trendResult.concentrationUnit, displayUnit).toFloat() },
+        lower95Points = trendResult?.chartLower95?.map { c -> mainE2ConcentrationInDisplayUnit(c, trendResult.concentrationUnit, displayUnit).toFloat() },
+        upper95Points = trendResult?.chartUpper95?.map { c -> mainE2ConcentrationInDisplayUnit(c, trendResult.concentrationUnit, displayUnit).toFloat() },
         sampleIntervalHours = if (chartConcentrations != null) {
             trendResult.chartSampleIntervalHours.coerceAtLeast(1)
         } else {
