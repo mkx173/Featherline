@@ -44,11 +44,15 @@ class HomeRepository @Inject constructor(
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     fun observeHomeInputs(now: LocalDateTime): Flow<HomeInputs> {
+        return observeHomeInputs(now, ZoneId.systemDefault())
+    }
+
+    fun observeHomeInputs(now: LocalDateTime, zoneId: ZoneId): Flow<HomeInputs> {
         return channelFlow {
             val sourceMutex = Mutex()
             var roomStarted = false
             val snapshotJob = launch {
-                observeHomeSnapshotInputs(now).take(1).collect { snapshotInputs ->
+                observeHomeSnapshotInputs(now, zoneId).take(1).collect { snapshotInputs ->
                     sourceMutex.withLock {
                         if (!roomStarted) {
                             send(snapshotInputs)
@@ -57,7 +61,7 @@ class HomeRepository @Inject constructor(
                 }
             }
 
-            observeHomeRoomInputs(now).collect { roomInputs ->
+            observeHomeRoomInputs(now, zoneId).collect { roomInputs ->
                 sourceMutex.withLock {
                     if (!roomStarted) {
                         roomStarted = true
@@ -69,8 +73,7 @@ class HomeRepository @Inject constructor(
         }
     }
 
-    fun observeHomeSnapshotInputs(now: LocalDateTime): Flow<HomeInputs> {
-        val zoneId = ZoneId.systemDefault()
+    fun observeHomeSnapshotInputs(now: LocalDateTime, zoneId: ZoneId): Flow<HomeInputs> {
         // homeE2ChartWindowOptionFlow is the raw DataStore-backed flow that
         // bypasses settingsState's eager initialValue, so the first emission
         // here carries the persisted option rather than the SEVEN_DAYS
@@ -146,8 +149,7 @@ class HomeRepository @Inject constructor(
             .flowOn(Dispatchers.IO)
     }
 
-    private fun observeHomeRoomInputs(now: LocalDateTime): Flow<HomeInputs> {
-        val zoneId = ZoneId.systemDefault()
+    private fun observeHomeRoomInputs(now: LocalDateTime, zoneId: ZoneId): Flow<HomeInputs> {
         val today = now.toLocalDate()
         val stockWindowStartIso = today.minusDays(1).atStartOfDay().toString()
         val stockWindowEndIso = today
@@ -155,7 +157,7 @@ class HomeRepository @Inject constructor(
             .atTime(23, 59, 59)
             .toString()
         val nowInstant = now.atZone(zoneId).toInstant()
-        val roomBasicsFlow = observeHomeStartupInputs(now)
+        val roomBasicsFlow = observeHomeStartupInputs(now, zoneId)
         return combine(
             roomBasicsFlow,
             homeSnapshotRepository.observeHomeSnapshot(),
@@ -244,8 +246,7 @@ class HomeRepository @Inject constructor(
             .flowOn(Dispatchers.IO)
     }
 
-    fun observeHomeStartupInputs(now: LocalDateTime): Flow<HomeStartupInputs> {
-        val zoneId = ZoneId.systemDefault()
+    fun observeHomeStartupInputs(now: LocalDateTime, zoneId: ZoneId): Flow<HomeStartupInputs> {
         val today = now.toLocalDate()
         val scheduledStartIso = today.minusDays(1).atStartOfDay().toString()
         val scheduledEndIso = today.plusDays(HOME_SCHEDULE_LOOKAHEAD_DAYS).atTime(23, 59, 59).toString()
