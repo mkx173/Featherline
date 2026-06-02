@@ -167,6 +167,29 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `restoreSettings with stock nudge disabled persists false and clears dismiss count`() = runTest(testDispatcher) {
+        settingsRepository.incrementStockNudgeDismissCount()
+        settingsRepository.incrementStockNudgeDismissCount()
+
+        restoreSettingsWithStockNudgeEnabled(false)
+
+        assertEquals(false, settingsRepository.stockNudgeEnabledFlow.first())
+        assertEquals(1, settingsRepository.incrementStockNudgeDismissCount())
+    }
+
+    @Test
+    fun `restoreSettings omitting stock nudge flag defaults true and clears dismiss count`() = runTest(testDispatcher) {
+        settingsRepository.setStockNudgeEnabled(false)
+        settingsRepository.incrementStockNudgeDismissCount()
+        settingsRepository.incrementStockNudgeDismissCount()
+
+        restoreSettingsOmittingStockNudgeEnabled()
+
+        assertEquals(true, settingsRepository.stockNudgeEnabledFlow.first())
+        assertEquals(1, settingsRepository.incrementStockNudgeDismissCount())
+    }
+
+    @Test
     fun `homeE2DisplayUnitFlow emits canonical unit after setting canonical unit`() = runTest(testDispatcher) {
         val nonCanonical = BloodTestCatalog.definitionFor(BloodAnalyteKey.E2)
             .allowedUnits
@@ -345,5 +368,48 @@ class SettingsRepositoryTest {
         )
 
         assertEquals(emptyMap<String, MedicineStockState>(), settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first())
+    }
+
+    private suspend fun restoreSettingsWithStockNudgeEnabled(enabled: Boolean) {
+        settingsRepository.restoreSettings(
+            darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
+            adaptiveColorEnabled = true,
+            pureBlackEnabled = false,
+            remindersEnabled = true,
+            showArchivedGroupRecords = true,
+            hideReferenceRanges = false,
+            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
+            hideScreenContentEnabled = false,
+            onboardingCompleted = true,
+            appLanguageOption = AppLanguageOption.ENGLISH,
+            calibrationDefaultUnits = emptySet(),
+            homeE2DisplayUnit = AllowedAnalyteUnit.of(
+                BloodAnalyteKey.E2,
+                BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+            ),
+            homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+            stockNudgeEnabled = enabled,
+        )
+    }
+
+    private suspend fun restoreSettingsOmittingStockNudgeEnabled() {
+        settingsRepository.restoreSettings(
+            darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
+            adaptiveColorEnabled = true,
+            pureBlackEnabled = false,
+            remindersEnabled = true,
+            showArchivedGroupRecords = true,
+            hideReferenceRanges = false,
+            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
+            hideScreenContentEnabled = false,
+            onboardingCompleted = true,
+            appLanguageOption = AppLanguageOption.ENGLISH,
+            calibrationDefaultUnits = emptySet(),
+            homeE2DisplayUnit = AllowedAnalyteUnit.of(
+                BloodAnalyteKey.E2,
+                BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+            ),
+            homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+        )
     }
 }

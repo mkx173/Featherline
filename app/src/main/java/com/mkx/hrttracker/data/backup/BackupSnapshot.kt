@@ -45,6 +45,7 @@ data class BackupSettingsSnapshot(
     val widgetDarkModeOption: String = "FOLLOW_SYSTEM",
     val groupNameCounter: Int = 0,
     val firstDayOfWeekOption: String = "FOLLOW_SYSTEM",
+    val stockNudgeEnabled: Boolean = true,
 )
 
 

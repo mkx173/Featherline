@@ -96,7 +96,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(),
-                any(),
+                any(), any(),
             )
         } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
@@ -291,6 +291,7 @@ class BackupRestoreServiceTest {
                 widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
+                stockNudgeEnabled = any(),
             )
         } just Runs
 
@@ -332,6 +333,7 @@ class BackupRestoreServiceTest {
                 widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
+                stockNudgeEnabled = any(),
             )
         } just Runs
 
@@ -347,6 +349,91 @@ class BackupRestoreServiceTest {
         )
 
         assertEquals(listOf(true), capturedValues)
+    }
+
+    @Test
+    fun restoreBackupBytes_withoutStockNudgeEnabledField_restoresTrue() = runTest {
+        val capturedValues = mutableListOf<Boolean>()
+        coEvery {
+            settingsRepository.restoreSettings(
+                darkModeOption = any(),
+                adaptiveColorEnabled = any(),
+                pureBlackEnabled = any(),
+                remindersEnabled = any(),
+                showArchivedGroupRecords = any(),
+                hideReferenceRanges = any(),
+                appLockGracePeriodOption = any(),
+                hideScreenContentEnabled = any(),
+                onboardingCompleted = any(),
+                appLanguageOption = any(),
+                calibrationDefaultUnits = any(),
+                homeE2DisplayUnit = any(),
+                homeE2ChartWindowOption = any(),
+                lastSeenTimeZoneId = any(),
+                hideMedicationDetails = any(),
+                widgetContentScale = any(),
+                widgetBackgroundAlpha = any(),
+                widgetDarkModeOption = any(),
+                groupNameCounter = any(),
+                firstDayOfWeekOption = any(),
+                stockNudgeEnabled = capture(capturedValues),
+            )
+        } just Runs
+        val json = BackupSnapshotJsonCodec.encode(emptySnapshot())
+            .replace(",\"stockNudgeEnabled\":true", "")
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = json,
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        assertEquals(listOf(true), capturedValues)
+    }
+
+    @Test
+    fun restoreBackupBytes_restoresStockNudgeEnabledFalse() = runTest {
+        val capturedValues = mutableListOf<Boolean>()
+        coEvery {
+            settingsRepository.restoreSettings(
+                darkModeOption = any(),
+                adaptiveColorEnabled = any(),
+                pureBlackEnabled = any(),
+                remindersEnabled = any(),
+                showArchivedGroupRecords = any(),
+                hideReferenceRanges = any(),
+                appLockGracePeriodOption = any(),
+                hideScreenContentEnabled = any(),
+                onboardingCompleted = any(),
+                appLanguageOption = any(),
+                calibrationDefaultUnits = any(),
+                homeE2DisplayUnit = any(),
+                homeE2ChartWindowOption = any(),
+                lastSeenTimeZoneId = any(),
+                hideMedicationDetails = any(),
+                widgetContentScale = any(),
+                widgetBackgroundAlpha = any(),
+                widgetDarkModeOption = any(),
+                groupNameCounter = any(),
+                firstDayOfWeekOption = any(),
+                stockNudgeEnabled = capture(capturedValues),
+            )
+        } just Runs
+
+        val snapshot = emptySnapshot().let { base ->
+            base.copy(settings = base.settings.copy(stockNudgeEnabled = false))
+        }
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        assertEquals(listOf(false), capturedValues)
     }
 
     private fun snapshotWithWidgetContentScale(scale: Float): BackupSnapshot {
@@ -366,6 +453,7 @@ class BackupRestoreServiceTest {
         val exportBloodTestRepository: BloodTestRepository = mockk()
 
         every { exportSettingsRepository.onboardingCompleted } returns flowOf(true)
+        every { exportSettingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
         coEvery { exportSettingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { exportUserProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { exportMedicineRepository.getAll() } returns medicines

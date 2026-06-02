@@ -387,6 +387,7 @@ class SettingsRepository @Inject constructor(
         widgetDarkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
         groupNameCounter: Int = 0,
         firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
+        stockNudgeEnabled: Boolean = true,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
             "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
@@ -438,6 +439,8 @@ class SettingsRepository @Inject constructor(
             } else {
                 preferences[firstDayOfWeekKey] = firstDayOfWeekOption.name
             }
+            preferences[stockNudgeEnabledKey] = stockNudgeEnabled
+            preferences.remove(stockNudgeDismissCountKey)
 
             preferences.remove(homeLowStockAcknowledgedWarningStatesKey)
         }

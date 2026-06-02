@@ -284,6 +284,7 @@ class BackupRestoreService @Inject constructor(
             widgetDarkModeOption = validatedSnapshot.settings.widgetDarkModeOption,
             groupNameCounter = validatedSnapshot.settings.groupNameCounter,
             firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
+            stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,
         )
 
         // Reminder rescheduling is a best-effort side effect — the data is
@@ -807,6 +808,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         widgetDarkModeOption = widgetDarkModeOption,
         groupNameCounter = groupNameCounter,
         firstDayOfWeekOption = firstDayOfWeekOption,
+        stockNudgeEnabled = stockNudgeEnabled,
     )
 }
 
@@ -1175,6 +1177,7 @@ internal data class ValidatedBackupSettings(
     val widgetDarkModeOption: DarkModeOption,
     val groupNameCounter: Int,
     val firstDayOfWeekOption: FirstDayOfWeekOption,
+    val stockNudgeEnabled: Boolean,
 )
 
 private data class ValidatedMedicationData(
