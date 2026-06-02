@@ -485,7 +485,7 @@ internal fun ActualAmountReadOnlyCard(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
