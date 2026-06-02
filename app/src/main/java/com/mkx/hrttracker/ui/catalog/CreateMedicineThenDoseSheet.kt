@@ -8,7 +8,9 @@ import androidx.compose.material3.SheetValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.res.dimensionResource
@@ -100,6 +102,11 @@ fun CreateMedicineThenDoseSheet(
         }
     }
 
+    // The committed delta lags the ruler while it scrolls (settle-debounced), so
+    // swallow Save taps until the ruler settles rather than persisting a stale
+    // amount. The ruler resets this to false on dispose.
+    var isActualAmountRulerScrolling by remember { mutableStateOf(false) }
+
     MedicationEditorSheetScaffold(
         modifier = modifier,
         title = stringResource(
@@ -115,7 +122,8 @@ fun CreateMedicineThenDoseSheet(
         onConfirm = {
             when (mode) {
                 CreateMedicineThenDoseSheetMode.GROUP_SLOT -> viewModel.saveGroupSlot()
-                CreateMedicineThenDoseSheetMode.MANUAL_LOG -> viewModel.saveManualLog()
+                CreateMedicineThenDoseSheetMode.MANUAL_LOG ->
+                    if (!isActualAmountRulerScrolling) viewModel.saveManualLog()
             }
         },
     ) {
@@ -201,6 +209,7 @@ fun CreateMedicineThenDoseSheet(
                     doseAmountDelta = uiState.doseAmountDelta,
                     isSaving = isSheetLocked,
                     onDoseAmountDeltaChange = { viewModel.setDoseAmountDelta(it) },
+                    onScrollingChange = { isActualAmountRulerScrolling = it },
                 )
             }
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))

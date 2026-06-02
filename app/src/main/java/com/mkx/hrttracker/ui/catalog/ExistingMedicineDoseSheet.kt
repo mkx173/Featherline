@@ -171,6 +171,10 @@ fun ExistingMedicineDoseSheet(
         selectedStockProjection = selectedStockProjection,
         frozenStockProjection = frozenStockProjection,
     )
+    // The committed delta lags the ruler while it scrolls (settle-debounced), so
+    // swallow Save taps until the ruler settles rather than persisting a stale
+    // amount. The ruler resets this to false on dispose.
+    var isActualAmountRulerScrolling by remember { mutableStateOf(false) }
 
     MedicationEditorSheetScaffold(
         modifier = modifier,
@@ -223,6 +227,7 @@ fun ExistingMedicineDoseSheet(
             when (mode) {
                 MedicineSlotDraftMode.GROUP_SLOT -> onConfirm(slotResult)
                 MedicineSlotDraftMode.MANUAL_LOG -> {
+                    if (isActualAmountRulerScrolling) return@MedicationEditorSheetScaffold
                     frozenStockProjection = displayedStockProjection
                     isStockProjectionFrozen = true
                     viewModel.saveManualLog(
@@ -317,6 +322,7 @@ fun ExistingMedicineDoseSheet(
                     doseAmountDelta = doseAmountDelta,
                     isSaving = isSaving,
                     onDoseAmountDeltaChange = { doseAmountDelta = it },
+                    onScrollingChange = { isActualAmountRulerScrolling = it },
                 )
             }
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))

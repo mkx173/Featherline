@@ -181,6 +181,10 @@ private fun MedicationLogEntryScreenBody(
     // than waiting for the debounced delta commit. Ignored unless the ruler is
     // active; the ruler re-emits on (re)composition, so it never goes stale.
     var liveActualAmount by remember { mutableStateOf<Double?>(null) }
+    // The committed delta lags the ruler while it scrolls (settle-debounced), so
+    // swallow Save taps until the ruler settles rather than persisting a stale
+    // amount. The ruler resets this to false on dispose.
+    var isActualAmountRulerScrolling by remember { mutableStateOf(false) }
     val previewDoseMagnitude = remember(
         uiState.isEditing,
         uiState.resolvedMedicine,
@@ -247,6 +251,7 @@ private fun MedicationLogEntryScreenBody(
             }
         },
         onLiveActualAmountChange = { liveActualAmount = it },
+        onScrollingChange = { isActualAmountRulerScrolling = it },
         plannedDoseAmount = uiState.scheduledNativeAmount,
         isSaving = uiState.isSaving || uiState.isDeleting || uiState.isSaved,
         destructiveButtonText = if (uiState.canDelete) {
@@ -259,7 +264,7 @@ private fun MedicationLogEntryScreenBody(
         } else {
             null
         },
-        onConfirm = onSaveClick
+        onConfirm = { if (!isActualAmountRulerScrolling) onSaveClick() }
     )
 
     if (isDeleteConfirmationVisible) {

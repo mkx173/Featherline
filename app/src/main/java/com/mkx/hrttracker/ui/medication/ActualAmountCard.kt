@@ -36,6 +36,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.derivedStateOf
@@ -93,6 +94,7 @@ internal fun ActualAmountRulerCard(
     isSaving: Boolean,
     onDoseAmountDeltaChange: (Double?) -> Unit,
     onLiveActualAmountChange: (Double) -> Unit = {},
+    onScrollingChange: (Boolean) -> Unit = {},
 ) {
     if (!allowsActualDoseDelta ||
         plannedAmount == null ||
@@ -136,6 +138,7 @@ internal fun ActualAmountRulerCard(
     val currentDoseAmountDelta by rememberUpdatedState(doseAmountDelta)
     val currentOnDoseAmountDeltaChange by rememberUpdatedState(onDoseAmountDeltaChange)
     val currentOnLiveActualAmountChange by rememberUpdatedState(onLiveActualAmountChange)
+    val currentOnScrollingChange by rememberUpdatedState(onScrollingChange)
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     var lastHapticIndex by remember { mutableStateOf(selectedIndex) }
@@ -207,6 +210,20 @@ internal fun ActualAmountRulerCard(
     // stock subcard's after-mutation amount) tracks the scrub in real time,
     // independent of the debounced commit on `onDoseAmountDeltaChange`.
     LaunchedEffect(liveActual) { currentOnLiveActualAmountChange(liveActual) }
+
+    // Surface scroll state so callers can swallow a Save tapped mid-scroll: the
+    // committed delta only lands after the row settles (see the settle-debounce
+    // above), so saving during a fling/reset would persist the pre-scroll value
+    // even though the header already shows the live one. Reset to false on
+    // dispose so a card that leaves composition mid-scroll never wedges saves.
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }
+            .distinctUntilChanged()
+            .collectLatest { currentOnScrollingChange(it) }
+    }
+    DisposableEffect(Unit) {
+        onDispose { currentOnScrollingChange(false) }
+    }
     // Track the live centered delta so the enabled state flips the instant the
     // row settles (no settle-debounce / state round-trip lag), and hold it
     // enabled while the *user* is scrolling: scrubbing across the planned point

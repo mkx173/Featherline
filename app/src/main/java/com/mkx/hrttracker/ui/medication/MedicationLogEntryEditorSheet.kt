@@ -127,6 +127,7 @@ fun MedicationLogEntryEditorSheet(
     onAppliedTimeChange: (LocalTime) -> Unit,
     onDoseAmountDeltaChange: (Double?) -> Unit = { },
     onLiveActualAmountChange: (Double) -> Unit = { },
+    onScrollingChange: (Boolean) -> Unit = { },
     isSaving: Boolean = false,
     destructiveButtonText: String? = null,
     onDestructiveAction: (() -> Unit)? = null,
@@ -207,6 +208,7 @@ fun MedicationLogEntryEditorSheet(
             isSaving = isSaving,
             onDoseAmountDeltaChange = onDoseAmountDeltaChange,
             onLiveActualAmountChange = onLiveActualAmountChange,
+            onScrollingChange = onScrollingChange,
         )
 
         ActualAmountReadOnlyCard(
