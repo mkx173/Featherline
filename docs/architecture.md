@@ -340,9 +340,10 @@ an LLM can resolve every step:
   destination.
 - `MainScreen` collects from `MainViewModel.uiState`.
 - `MainViewModel` subscribes to
-  `HomeRepository.observeHomeInputs(now, zoneId)`, keyed by local date
-  and device zone from `AppTimeSource.currentSnapshot`, which composes
-  inputs from two sources: a fast `SNAPSHOT` path
+  `HomeRepository.observeHomeInputs(now, zoneId)`, keyed by local date,
+  device zone, and explicit refresh generation from
+  `AppTimeSource.currentSnapshot`, which composes inputs from two
+  sources: a fast `SNAPSHOT` path
   reading the cached `HomeSnapshotRecord` from
   `HomeSnapshotRepository.observeHomeSnapshot()`, and a `ROOM` path
   reading live Flows from `HomeDao`, `MedicationLogDao`,

@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.pk.projectionFutureDays
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
@@ -113,6 +114,7 @@ class HomeRepository @Inject constructor(
                     activeGroups = usable.activeGroups,
                     logEntries = usable.stockFulfillmentEntries,
                     now = now.atZone(zoneId).toInstant(),
+                    zoneId = zoneId,
                 ).stockWarningsOnly()
                 HomeInputs(
                     activeGroups = usable.activeGroups,
@@ -182,6 +184,7 @@ class HomeRepository @Inject constructor(
                 activeGroups = inputs.activeGroups,
                 logEntries = stockFulfillmentEntries,
                 now = nowInstant,
+                zoneId = zoneId,
             ).stockWarningsOnly()
             HomeInputs(
                 activeGroups = inputs.activeGroups,
@@ -242,6 +245,7 @@ class HomeRepository @Inject constructor(
             .flowOn(Dispatchers.IO)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun observeHomeStartupInputs(now: LocalDateTime, zoneId: ZoneId): Flow<HomeStartupInputs> {
         val today = now.toLocalDate()
         val scheduledStartIso = today.minusDays(1).atStartOfDay().toString()

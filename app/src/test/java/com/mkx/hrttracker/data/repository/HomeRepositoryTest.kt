@@ -83,7 +83,7 @@ class HomeRepositoryTest {
             medicationLogRepository.observeScheduledEntriesInWindow(any(), any())
         } returns flowOf(emptyList())
         every {
-            medicineStockRepository.projectAll(any(), any(), any(), any())
+            medicineStockRepository.projectAll(any(), any(), any(), any(), any())
         } returns emptyList()
     }
 
@@ -410,6 +410,7 @@ class HomeRepositoryTest {
                 activeGroups = emptyList(),
                 logEntries = emptyList(),
                 now = now.atZone(providedZone).toInstant(),
+                zoneId = providedZone,
             )
         } returns emptyList()
 
@@ -451,6 +452,7 @@ class HomeRepositoryTest {
                 activeGroups = emptyList(),
                 logEntries = emptyList(),
                 now = now.atZone(providedZone).toInstant(),
+                zoneId = providedZone,
             )
         }
     }
@@ -581,6 +583,7 @@ class HomeRepositoryTest {
                 activeGroups = emptyList(),
                 logEntries = emptyList(),
                 now = now.atZone(zoneId).toInstant(),
+                zoneId = zoneId,
             )
         } returns listOf(projection)
 
@@ -646,6 +649,7 @@ class HomeRepositoryTest {
                 activeGroups = emptyList(),
                 logEntries = emptyList(),
                 now = now.atZone(zoneId).toInstant(),
+                zoneId = zoneId,
             )
         } returns listOf(projection)
 
