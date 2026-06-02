@@ -294,6 +294,7 @@ class NewMedicineSlotViewModel @Inject constructor(
                             isSaved = saveResult.isSuccess,
                             manualLogSaveResult = saveResult.saveResult,
                             postLogStockWarning = saveResult.postLogStockWarning,
+                            createdMedicineUuid = medicine.uuid.takeIf { saveResult.isSuccess },
                         )
                     }
                 }
@@ -309,6 +310,7 @@ class NewMedicineSlotViewModel @Inject constructor(
             it.copy(
                 isSaved = false,
                 postLogStockWarning = null,
+                createdMedicineUuid = null,
                 slotResult = null,
             )
         }
@@ -433,6 +435,7 @@ data class NewMedicineSlotUiState(
     val createSaveResult: CreateMedicineSaveResult? = null,
     val manualLogSaveResult: MedicineSlotDraftSaveResult? = null,
     val postLogStockWarning: PostLogStockWarning? = null,
+    val createdMedicineUuid: java.util.UUID? = null,
     val slotResult: MedicineSlotResult? = null,
 ) {
     val allowsActualDoseDelta: Boolean

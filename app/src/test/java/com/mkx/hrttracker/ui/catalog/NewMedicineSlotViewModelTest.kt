@@ -240,6 +240,7 @@ class NewMedicineSlotViewModelTest {
 
         assertTrue(viewModel.uiState.value.isSaved)
         assertNull(viewModel.uiState.value.manualLogSaveResult)
+        assertEquals(medicine.uuid, viewModel.uiState.value.createdMedicineUuid)
         coVerify(exactly = 1) {
             medicationLogRepository.saveEntry(
                 uuid = null,
@@ -254,6 +255,40 @@ class NewMedicineSlotViewModelTest {
                 appliedAtTimeZoneId = zoneId.id,
             )
         }
+    }
+
+    @Test
+    fun consumeSavedState_afterManualLogSaveClearsCreatedMedicineUuid() = runTest {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-00000000030c"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } returns medicine
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = null,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+                appliedAtTimeZoneId = "Asia/Tokyo",
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
+
+        viewModel.saveManualLog()
+        advanceUntilIdle()
+        viewModel.consumeSavedState()
+
+        assertFalse(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.createdMedicineUuid)
     }
 
     @Test
@@ -406,6 +441,7 @@ class NewMedicineSlotViewModelTest {
 
         assertFalse(viewModel.uiState.value.isSaved)
         assertEquals(MedicineSlotDraftSaveResult.FAILURE, viewModel.uiState.value.manualLogSaveResult)
+        assertNull(viewModel.uiState.value.createdMedicineUuid)
         coVerify(exactly = 1) { medicineRepository.findOrCreateForCatalog(any(), any(), any()) }
         coVerify(exactly = 1) {
             medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
