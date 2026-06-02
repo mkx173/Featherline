@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.catalog.stock
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +55,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -370,14 +372,15 @@ private fun MedicineStock.adjustPreviewStock(
 }
 
 internal data class AdjustPreviewRunwayText(
-    @param:StringRes val resId: Int,
+    @param:StringRes val resId: Int? = null,
+    @param:PluralsRes val pluralResId: Int? = null,
     val intArg: Int? = null,
 )
 
 internal fun adjustPreviewRunwayText(runway: RunwayProjection): AdjustPreviewRunwayText? {
     return when (runway) {
         is RunwayProjection.Days -> AdjustPreviewRunwayText(
-            resId = R.string.stock_runway_days_remaining,
+            pluralResId = R.plurals.stock_runway_days_remaining,
             intArg = runway.days,
         )
         RunwayProjection.BeyondHorizon -> AdjustPreviewRunwayText(
@@ -389,10 +392,11 @@ internal fun adjustPreviewRunwayText(runway: RunwayProjection): AdjustPreviewRun
 
 @Composable
 private fun AdjustPreviewRunwayText.resolve(): String {
-    return if (intArg == null) {
-        stringResource(resId)
-    } else {
-        stringResource(resId, intArg)
+    return when {
+        pluralResId != null && intArg != null ->
+            pluralStringResource(pluralResId, intArg, intArg)
+        resId != null -> stringResource(resId)
+        else -> ""
     }
 }
 

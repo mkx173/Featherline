@@ -131,7 +131,7 @@ class MedicationStockSubcardTest {
         assertEquals(R.string.stock_subcard_chip_in_stock, model.chipLabelRes)
         assertEquals(MedicationStockSubcardTone.HEALTHY, model.tone)
         val runwayText = requireNotNull(model.runwayText)
-        assertEquals(R.string.stock_subcard_runway_days, runwayText.resId)
+        assertEquals(R.plurals.stock_subcard_runway_days, runwayText.pluralResId)
         assertEquals(10, runwayText.intArg)
         assertEquals(1, model.rows.size)
 

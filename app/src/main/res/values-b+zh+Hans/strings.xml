@@ -733,14 +733,18 @@
     <string name="stock_runway_unknown_title">无法预估</string>
     <string name="stock_runway_unknown_body">将此药品加入分组后即可预估剩余天数</string>
     <string name="stock_runway_more_than_one_year">剩余超过 1 年</string>
-    <string name="stock_runway_days_remaining">约剩余 %1$d 天</string>
+    <plurals name="stock_runway_days_remaining">
+        <item quantity="other">约剩余 %1$d 天</item>
+    </plurals>
 
     <string name="stock_subcard_chip_in_stock">库存充足</string>
     <string name="stock_subcard_chip_low">库存不足</string>
     <string name="stock_subcard_chip_almost_out">即将用尽</string>
     <string name="stock_subcard_chip_out">已用尽</string>
     <string name="stock_subcard_runway_more_than_one_year">>1 年</string>
-    <string name="stock_subcard_runway_days">~%1$d 天</string>
+    <plurals name="stock_subcard_runway_days">
+        <item quantity="other">~%1$d 天</item>
+    </plurals>
     <string name="stock_subcard_cd_stock_pool">库存池</string>
     <string name="stock_subcard_cd_open_vial">已开启药瓶</string>
     <string name="stock_subcard_cd_open_container">已开启容器</string>

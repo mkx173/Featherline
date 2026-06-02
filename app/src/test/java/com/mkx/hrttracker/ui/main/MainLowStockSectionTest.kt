@@ -23,7 +23,7 @@ class MainLowStockSectionTest {
             ),
         )
 
-        assertEquals(R.string.stock_runway_days_remaining, text.resId)
+        assertEquals(R.plurals.stock_runway_days_remaining, text.pluralResId)
         assertEquals(7, text.intArg)
     }
 

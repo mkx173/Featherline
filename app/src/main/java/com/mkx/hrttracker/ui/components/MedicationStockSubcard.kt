@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.components
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -88,7 +90,8 @@ internal data class MedicationStockSubcardSealedSupplement(
 )
 
 internal data class MedicationStockSubcardText(
-    @param:StringRes val resId: Int,
+    @param:StringRes val resId: Int? = null,
+    @param:PluralsRes val pluralResId: Int? = null,
     val intArg: Int? = null,
 )
 
@@ -403,10 +406,11 @@ private fun resolvedStockValueText(
 
 @Composable
 private fun MedicationStockSubcardText.resolve(): String {
-    return if (intArg == null) {
-        stringResource(resId)
-    } else {
-        stringResource(resId, intArg)
+    return when {
+        pluralResId != null && intArg != null ->
+            pluralStringResource(pluralResId, intArg, intArg)
+        resId != null -> stringResource(resId)
+        else -> ""
     }
 }
 
@@ -612,7 +616,7 @@ private fun stockSubcardRunwayText(
 ): MedicationStockSubcardText? {
     return when (runway) {
         is RunwayProjection.Days -> MedicationStockSubcardText(
-            resId = R.string.stock_subcard_runway_days,
+            pluralResId = R.plurals.stock_subcard_runway_days,
             intArg = runway.days,
         )
         RunwayProjection.BeyondHorizon -> MedicationStockSubcardText(

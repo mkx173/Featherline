@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -479,8 +480,9 @@ private fun RunwayRowCard(
         RunwayProjection.NoSchedule -> R.drawable.ic_help
     }
     val titleText = when (runway) {
-        is RunwayProjection.Days -> stringResource(
-            R.string.stock_runway_days_remaining,
+        is RunwayProjection.Days -> pluralStringResource(
+            R.plurals.stock_runway_days_remaining,
+            runway.days,
             runway.days,
         )
         RunwayProjection.BeyondHorizon -> stringResource(R.string.stock_runway_more_than_one_year)

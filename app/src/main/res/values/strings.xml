@@ -769,7 +769,10 @@
     <string name="stock_runway_unknown_title">Runway unknown</string>
     <string name="stock_runway_unknown_body">Add this medicine to a group to forecast.</string>
     <string name="stock_runway_more_than_one_year">>1 year remaining</string>
-    <string name="stock_runway_days_remaining">~%1$d days remaining</string>
+    <plurals name="stock_runway_days_remaining">
+        <item quantity="one">~%1$d day remaining</item>
+        <item quantity="other">~%1$d days remaining</item>
+    </plurals>
 
     <!-- Compact stock subcard -->
     <string name="stock_subcard_chip_in_stock">In stock</string>
@@ -777,7 +780,10 @@
     <string name="stock_subcard_chip_almost_out">Almost out</string>
     <string name="stock_subcard_chip_out">Out</string>
     <string name="stock_subcard_runway_more_than_one_year">>1 year</string>
-    <string name="stock_subcard_runway_days">~%1$d days</string>
+    <plurals name="stock_subcard_runway_days">
+        <item quantity="one">~%1$d day</item>
+        <item quantity="other">~%1$d days</item>
+    </plurals>
     <string name="stock_subcard_cd_stock_pool">Stock pool</string>
     <string name="stock_subcard_cd_open_vial">Open vial</string>
     <string name="stock_subcard_cd_open_container">Open container</string>

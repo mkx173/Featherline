@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.main
 
+import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -246,7 +248,8 @@ private fun MainLowStockSubCard(
 }
 
 internal data class MainLowStockRunwaySupportingText(
-    @param:StringRes val resId: Int,
+    @param:StringRes val resId: Int? = null,
+    @param:PluralsRes val pluralResId: Int? = null,
     val intArg: Int? = null,
 )
 
@@ -255,7 +258,7 @@ internal fun mainLowStockRunwaySupportingText(
 ): MainLowStockRunwaySupportingText {
     return when (runway) {
         is RunwayProjection.Days -> MainLowStockRunwaySupportingText(
-            resId = R.string.stock_runway_days_remaining,
+            pluralResId = R.plurals.stock_runway_days_remaining,
             intArg = runway.days,
         )
         RunwayProjection.BeyondHorizon -> MainLowStockRunwaySupportingText(
@@ -273,11 +276,11 @@ internal fun mainLowStockExpandChevronTargetRotation(expanded: Boolean): Float {
 
 @Composable
 private fun MainLowStockRunwaySupportingText.resolve(): String {
-    val argument = intArg
-    return if (argument == null) {
-        stringResource(resId)
-    } else {
-        stringResource(resId, argument)
+    return when {
+        pluralResId != null && intArg != null ->
+            pluralStringResource(pluralResId, intArg, intArg)
+        resId != null -> stringResource(resId)
+        else -> ""
     }
 }
 
