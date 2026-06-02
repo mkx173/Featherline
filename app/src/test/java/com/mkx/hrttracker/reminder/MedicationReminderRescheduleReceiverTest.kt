@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Intent
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.AppTimeSource
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -21,9 +22,25 @@ import org.junit.Test
 class MedicationReminderRescheduleReceiverTest {
     private val reminderCapabilityReconciler: ReminderCapabilityReconciler = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
+    private val appTimeSource: AppTimeSource = mockk(relaxed = true)
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
     private val pendingResult: BroadcastReceiver.PendingResult = mockk(relaxed = true)
     private val appScope = CoroutineScope(UnconfinedTestDispatcher())
+
+    private fun handle(
+        action: String?,
+        goAsync: () -> BroadcastReceiver.PendingResult? = { pendingResult },
+    ) {
+        handleReminderRescheduleBroadcast(
+            action = action,
+            appScope = appScope,
+            reminderCapabilityReconciler = reminderCapabilityReconciler,
+            homeSnapshotRepository = homeSnapshotRepository,
+            appTimeSource = appTimeSource,
+            diagnosticsLogger = diagnosticsLogger,
+            goAsync = goAsync,
+        )
+    }
 
     @Test
     fun acceptedActions_areAllRecognized() {
@@ -55,14 +72,7 @@ class MedicationReminderRescheduleReceiverTest {
     fun bootCompleted_delegatesReconcileAndFinishesPendingResult() = runTest {
         coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
 
-        handleReminderRescheduleBroadcast(
-            action = Intent.ACTION_BOOT_COMPLETED,
-            appScope = appScope,
-            reminderCapabilityReconciler = reminderCapabilityReconciler,
-            homeSnapshotRepository = homeSnapshotRepository,
-            diagnosticsLogger = diagnosticsLogger,
-            goAsync = { pendingResult },
-        )
+        handle(action = Intent.ACTION_BOOT_COMPLETED)
 
         coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any()) }
         verify(exactly = 1) { pendingResult.finish() }
@@ -72,14 +82,7 @@ class MedicationReminderRescheduleReceiverTest {
     fun packageReplaced_delegatesReconcileAndFinishesPendingResult() = runTest {
         coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
 
-        handleReminderRescheduleBroadcast(
-            action = Intent.ACTION_MY_PACKAGE_REPLACED,
-            appScope = appScope,
-            reminderCapabilityReconciler = reminderCapabilityReconciler,
-            homeSnapshotRepository = homeSnapshotRepository,
-            diagnosticsLogger = diagnosticsLogger,
-            goAsync = { pendingResult },
-        )
+        handle(action = Intent.ACTION_MY_PACKAGE_REPLACED)
 
         coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any()) }
         verify(exactly = 1) { pendingResult.finish() }
@@ -89,14 +92,7 @@ class MedicationReminderRescheduleReceiverTest {
     fun exactAlarmPermissionStateChanged_delegatesReconcileAndFinishesPendingResult() = runTest {
         coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
 
-        handleReminderRescheduleBroadcast(
-            action = AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED,
-            appScope = appScope,
-            reminderCapabilityReconciler = reminderCapabilityReconciler,
-            homeSnapshotRepository = homeSnapshotRepository,
-            diagnosticsLogger = diagnosticsLogger,
-            goAsync = { pendingResult },
-        )
+        handle(action = AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED)
 
         coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any()) }
         verify(exactly = 1) { pendingResult.finish() }
@@ -106,14 +102,7 @@ class MedicationReminderRescheduleReceiverTest {
     fun timezoneChange_forcesHomeSnapshotRefresh() = runTest {
         coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
 
-        handleReminderRescheduleBroadcast(
-            action = Intent.ACTION_TIMEZONE_CHANGED,
-            appScope = appScope,
-            reminderCapabilityReconciler = reminderCapabilityReconciler,
-            homeSnapshotRepository = homeSnapshotRepository,
-            diagnosticsLogger = diagnosticsLogger,
-            goAsync = { pendingResult },
-        )
+        handle(action = Intent.ACTION_TIMEZONE_CHANGED)
 
         verify(exactly = 1) {
             homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
@@ -124,14 +113,7 @@ class MedicationReminderRescheduleReceiverTest {
     fun timeChange_forcesHomeSnapshotRefresh() = runTest {
         coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
 
-        handleReminderRescheduleBroadcast(
-            action = Intent.ACTION_TIME_CHANGED,
-            appScope = appScope,
-            reminderCapabilityReconciler = reminderCapabilityReconciler,
-            homeSnapshotRepository = homeSnapshotRepository,
-            diagnosticsLogger = diagnosticsLogger,
-            goAsync = { pendingResult },
-        )
+        handle(action = Intent.ACTION_TIME_CHANGED)
 
         verify(exactly = 1) {
             homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
@@ -142,18 +124,34 @@ class MedicationReminderRescheduleReceiverTest {
     fun bootCompleted_forcesHomeSnapshotRefresh() = runTest {
         coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
 
-        handleReminderRescheduleBroadcast(
-            action = Intent.ACTION_BOOT_COMPLETED,
-            appScope = appScope,
-            reminderCapabilityReconciler = reminderCapabilityReconciler,
-            homeSnapshotRepository = homeSnapshotRepository,
-            diagnosticsLogger = diagnosticsLogger,
-            goAsync = { pendingResult },
-        )
+        handle(action = Intent.ACTION_BOOT_COMPLETED)
 
         verify(exactly = 1) {
             homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
         }
+    }
+
+    @Test
+    fun timezoneChange_refreshesAppTimeSourceSynchronously() = runTest {
+        handle(action = Intent.ACTION_TIMEZONE_CHANGED)
+
+        verify(exactly = 1) { appTimeSource.refresh() }
+    }
+
+    @Test
+    fun timeChange_refreshesAppTimeSourceSynchronously() = runTest {
+        handle(action = Intent.ACTION_TIME_CHANGED)
+
+        verify(exactly = 1) { appTimeSource.refresh() }
+    }
+
+    @Test
+    fun bootPackageAndExactAlarmPermissionDoNotRefreshAppTimeSource() = runTest {
+        handle(action = Intent.ACTION_BOOT_COMPLETED)
+        handle(action = Intent.ACTION_MY_PACKAGE_REPLACED)
+        handle(action = AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED)
+
+        verify(exactly = 0) { appTimeSource.refresh() }
     }
 
     @Test
@@ -165,14 +163,7 @@ class MedicationReminderRescheduleReceiverTest {
         )
 
         accepted.forEach { action ->
-            handleReminderRescheduleBroadcast(
-                action = action,
-                appScope = appScope,
-                reminderCapabilityReconciler = reminderCapabilityReconciler,
-                homeSnapshotRepository = homeSnapshotRepository,
-                diagnosticsLogger = diagnosticsLogger,
-                goAsync = { pendingResult },
-            )
+            handle(action = action)
         }
 
         coVerify(exactly = accepted.size) { reminderCapabilityReconciler.reconcile(any()) }
@@ -183,12 +174,8 @@ class MedicationReminderRescheduleReceiverTest {
     fun unrelatedAction_doesNotCallReconciler_andDoesNotCallGoAsync() = runTest {
         var goAsyncCallCount = 0
 
-        handleReminderRescheduleBroadcast(
+        handle(
             action = "com.example.UNRELATED_ACTION",
-            appScope = appScope,
-            reminderCapabilityReconciler = reminderCapabilityReconciler,
-            homeSnapshotRepository = homeSnapshotRepository,
-            diagnosticsLogger = diagnosticsLogger,
             goAsync = {
                 goAsyncCallCount += 1
                 pendingResult
@@ -204,15 +191,15 @@ class MedicationReminderRescheduleReceiverTest {
     }
 
     @Test
+    fun unrelatedAction_doesNotRefreshAppTimeSource() = runTest {
+        handle(action = "com.example.UNRELATED_ACTION")
+
+        verify(exactly = 0) { appTimeSource.refresh() }
+    }
+
+    @Test
     fun nullAction_isIgnored() = runTest {
-        handleReminderRescheduleBroadcast(
-            action = null,
-            appScope = appScope,
-            reminderCapabilityReconciler = reminderCapabilityReconciler,
-            homeSnapshotRepository = homeSnapshotRepository,
-            diagnosticsLogger = diagnosticsLogger,
-            goAsync = { pendingResult },
-        )
+        handle(action = null)
 
         coVerify(exactly = 0) { reminderCapabilityReconciler.reconcile(any()) }
     }
@@ -222,14 +209,7 @@ class MedicationReminderRescheduleReceiverTest {
         coEvery { reminderCapabilityReconciler.reconcile(any()) } throws
             RuntimeException("simulated failure")
 
-        handleReminderRescheduleBroadcast(
-            action = Intent.ACTION_BOOT_COMPLETED,
-            appScope = appScope,
-            reminderCapabilityReconciler = reminderCapabilityReconciler,
-            homeSnapshotRepository = homeSnapshotRepository,
-            diagnosticsLogger = diagnosticsLogger,
-            goAsync = { pendingResult },
-        )
+        handle(action = Intent.ACTION_BOOT_COMPLETED)
 
         verify(exactly = 1) { pendingResult.finish() }
     }
