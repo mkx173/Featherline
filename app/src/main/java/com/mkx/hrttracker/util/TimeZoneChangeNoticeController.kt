@@ -4,9 +4,8 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.di.AppScope
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,14 +26,9 @@ data class TimeZoneChangeNotice(
 @Singleton
 class TimeZoneChangeNoticeController @Inject constructor(
     private val settingsRepository: SettingsRepository,
+    private val appTimeSource: AppTimeSource,
+    @param:AppScope private val scope: CoroutineScope,
 ) {
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-
-    // Re-emits on every ON_START so we re-read the device zone after a possible
-    // OS-level change. The underlying value source (ZoneId.systemDefault()) is
-    // not reactive, so we drive the flow manually.
-    private val deviceZoneId = MutableStateFlow(ZoneId.systemDefault().id)
-
     // Suppresses the banner for a previous zone the user has already dismissed
     // in this process. Cleared once acknowledgeTimeZone propagates to the
     // settings flow, but tracked locally so the banner disappears immediately
@@ -42,7 +36,9 @@ class TimeZoneChangeNoticeController @Inject constructor(
     private val dismissedPreviousZoneId = MutableStateFlow<String?>(null)
 
     val notice: StateFlow<TimeZoneChangeNotice?> = combine(
-        deviceZoneId,
+        appTimeSource.currentZone
+            .map { it.id }
+            .distinctUntilChanged(),
         settingsRepository.settingsState
             .map { it.lastSeenTimeZoneId }
             .distinctUntilChanged(),
@@ -54,7 +50,7 @@ class TimeZoneChangeNoticeController @Inject constructor(
             dismissed == stored -> null
             else -> TimeZoneChangeNotice(previousZoneId = stored, currentZoneId = current)
         }
-    }.stateIn(scope, SharingStarted.Eagerly, null)
+    }.stateIn(scope, SharingStarted.WhileSubscribed(TIME_ZONE_NOTICE_STOP_TIMEOUT_MILLIS), null)
 
     fun attachToProcessLifecycle() {
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
@@ -64,9 +60,8 @@ class TimeZoneChangeNoticeController @Inject constructor(
         })
     }
 
-    private fun onAppForegrounded() {
+    internal fun onAppForegrounded() {
         val current = ZoneId.systemDefault().id
-        deviceZoneId.value = current
         scope.launch {
             // settingsState is Eagerly-started with a default SettingsState whose
             // lastSeenTimeZoneId is null. On cold start ON_START can fire before
@@ -84,7 +79,7 @@ class TimeZoneChangeNoticeController @Inject constructor(
     }
 
     fun dismiss() {
-        val current = deviceZoneId.value
+        val current = appTimeSource.currentZone.value.id
         val stored = settingsRepository.settingsState.value.lastSeenTimeZoneId
         if (stored != null) {
             dismissedPreviousZoneId.value = stored
@@ -94,3 +89,5 @@ class TimeZoneChangeNoticeController @Inject constructor(
         }
     }
 }
+
+private const val TIME_ZONE_NOTICE_STOP_TIMEOUT_MILLIS = 5_000L
