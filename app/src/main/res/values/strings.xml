@@ -93,7 +93,7 @@
     <string name="stock_snackbar_action_dismiss">Dismiss</string>
     <string name="stock_nudge_message">Enable stock tracking for %1$s?</string>
     <string name="stock_nudge_action_enable">Enable</string>
-    <string name="stock_nudge_added_toast">Added %1$s %2$s to stock</string>
+    <string name="stock_nudge_added_toast">Added %1$s to stock</string>
     <string name="stock_nudge_disabled_toast">Stock-tracking suggestions turned off. Turn them back on from the medicine manager menu.</string>
     <string name="stock_nudge_menu_label">Stock-tracking suggestions</string>
     <string name="fab_add_entry">Add medication log entry</string>
@@ -806,6 +806,31 @@
     <string name="stock_unit_containers">containers</string>
     <string name="stock_unit_ml">mL</string>
     <string name="stock_unit_g">g</string>
+    <!-- Count + unit phrases (e.g. "2 tablets", "1 vial"). The count is preformatted. -->
+    <plurals name="stock_count_tablets">
+        <item quantity="one">%1$s tablet</item>
+        <item quantity="other">%1$s tablets</item>
+    </plurals>
+    <plurals name="stock_count_capsules">
+        <item quantity="one">%1$s capsule</item>
+        <item quantity="other">%1$s capsules</item>
+    </plurals>
+    <plurals name="stock_count_patches">
+        <item quantity="one">%1$s patch</item>
+        <item quantity="other">%1$s patches</item>
+    </plurals>
+    <plurals name="stock_count_sachets">
+        <item quantity="one">%1$s sachet</item>
+        <item quantity="other">%1$s sachets</item>
+    </plurals>
+    <plurals name="stock_count_vials">
+        <item quantity="one">%1$s vial</item>
+        <item quantity="other">%1$s vials</item>
+    </plurals>
+    <plurals name="stock_count_containers">
+        <item quantity="one">%1$s container</item>
+        <item quantity="other">%1$s containers</item>
+    </plurals>
 
     <!-- Adjust sheet -->
     <string name="stock_adjust_row_label">Adjust stock</string>

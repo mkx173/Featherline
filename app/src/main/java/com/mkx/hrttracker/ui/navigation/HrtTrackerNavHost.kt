@@ -80,7 +80,7 @@ import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
-import com.mkx.hrttracker.ui.components.stockInventoryUnitRes
+import com.mkx.hrttracker.ui.components.stockInventoryCountText
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.MedicationLogEntryEditSnapshot
 import com.mkx.hrttracker.ui.log.MedicationLogEntryQuickLogRequest
@@ -98,7 +98,6 @@ import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
 import com.mkx.hrttracker.util.medicineDisplayName
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDateTime
 import java.util.UUID
@@ -468,21 +467,16 @@ fun HrtTrackerNavHost(
 
     LaunchedEffect(Unit) {
         stockNudgeViewModel.optInAddedEvents.collect { confirmation ->
-            val unitRes = stockInventoryUnitRes(confirmation.preparation)
-            val message = if (unitRes == null) {
-                snackbarContext.getString(
-                    R.string.stock_nudge_added_toast,
-                    formatStockNudgeAmount(confirmation.amount),
-                    "",
-                ).trim()
-            } else {
-                snackbarContext.getString(
-                    R.string.stock_nudge_added_toast,
-                    formatStockNudgeAmount(confirmation.amount),
-                    snackbarContext.getString(unitRes),
-                )
-            }
-            Toast.makeText(snackbarContext, message, Toast.LENGTH_SHORT).show()
+            val countText = stockInventoryCountText(
+                context = snackbarContext,
+                preparation = confirmation.preparation,
+                count = confirmation.amount,
+            ) ?: return@collect
+            Toast.makeText(
+                snackbarContext,
+                snackbarContext.getString(R.string.stock_nudge_added_toast, countText),
+                Toast.LENGTH_SHORT,
+            ).show()
         }
     }
 
@@ -1113,18 +1107,6 @@ fun HrtTrackerNavHost(
                 }
             },
         )
-    }
-}
-
-// Formats a received stock amount for the opt-in confirmation toast: whole
-// numbers drop the decimal ("2"), fractional amounts keep significant digits
-// ("1.5"). Mirrors the stock sheet's count formatting; locale grouping is
-// unnecessary for the small counts entered here.
-private fun formatStockNudgeAmount(amount: Double): String {
-    return if (amount % 1.0 == 0.0) {
-        amount.toLong().toString()
-    } else {
-        BigDecimal.valueOf(amount).stripTrailingZeros().toPlainString()
     }
 }
 
