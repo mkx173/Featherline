@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.navigation
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -63,6 +65,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
 import com.mkx.hrttracker.ui.calibration.CalibrationScreen
@@ -72,8 +75,11 @@ import com.mkx.hrttracker.ui.catalog.MedicineDetailViewModel
 import com.mkx.hrttracker.ui.catalog.MedicineManagerLaunchMode
 import com.mkx.hrttracker.ui.catalog.MedicinesScreen
 import com.mkx.hrttracker.ui.catalog.medicineManagerLaunchMode
+import com.mkx.hrttracker.ui.catalog.nudge.StockTrackingNudgeViewModel
+import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
+import com.mkx.hrttracker.ui.components.StockNudgeVisuals
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.MedicationLogEntryEditSnapshot
 import com.mkx.hrttracker.ui.log.MedicationLogEntryQuickLogRequest
@@ -88,6 +94,7 @@ import com.mkx.hrttracker.ui.plan.PlanScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 import com.mkx.hrttracker.ui.postLogStockWarningDestination
 import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
+import com.mkx.hrttracker.util.medicineDisplayName
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -357,6 +364,7 @@ internal fun homeDeepLinkHighlightEffectsEnabled(
 ): Boolean =
     shellHighlightEffectsEnabled && homeDeepLinkSignal <= readyHomeDeepLinkHighlightSignal
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HrtTrackerNavHost(
     navController: NavHostController,
@@ -380,6 +388,11 @@ fun HrtTrackerNavHost(
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
     val snackbarContext = LocalContext.current
+    val stockNudgeViewModel: StockTrackingNudgeViewModel = hiltViewModel()
+    val stockNudgeEnabled by stockNudgeViewModel.enabled
+        .collectAsStateWithLifecycle(initialValue = true)
+    val pendingNudge by stockNudgeViewModel.pendingNudge.collectAsStateWithLifecycle()
+    val optInTarget by stockNudgeViewModel.optInTarget.collectAsStateWithLifecycle()
     val layoutDirection = LocalLayoutDirection.current
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
@@ -412,6 +425,32 @@ fun HrtTrackerNavHost(
                     launchSingleTop = true
                 }
             }
+        }
+    }
+
+    LaunchedEffect(pendingNudge) {
+        val medicine = pendingNudge ?: return@LaunchedEffect
+        val displayName = medicineDisplayName(medicine, snackbarContext)
+        val result = snackbarHostState.showSnackbar(
+            StockNudgeVisuals(
+                message = snackbarContext.getString(R.string.stock_nudge_message, displayName),
+                actionLabel = snackbarContext.getString(R.string.stock_nudge_action_add),
+                onDismissTapped = { stockNudgeViewModel.onNudgeDismissedViaX() },
+            ),
+        )
+        when (result) {
+            SnackbarResult.ActionPerformed -> stockNudgeViewModel.onNudgeActionTapped()
+            SnackbarResult.Dismissed -> stockNudgeViewModel.onNudgeTimedOut()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        stockNudgeViewModel.autoDisabledEvents.collect {
+            Toast.makeText(
+                snackbarContext,
+                R.string.stock_nudge_disabled_toast,
+                Toast.LENGTH_LONG,
+            ).show()
         }
     }
 
@@ -877,6 +916,9 @@ fun HrtTrackerNavHost(
                                 showPostLogStockWarning(warning)
                             }
                         },
+                        onNewMedicineCreated = stockNudgeViewModel::onNewMedicineCreated,
+                        stockNudgeEnabled = stockNudgeEnabled,
+                        onSetStockNudgeEnabled = stockNudgeViewModel::setEnabled,
                     )
                 }
                 composable(
@@ -1001,6 +1043,27 @@ fun HrtTrackerNavHost(
                         .imePadding(),
                     snackbar = { snackbarData -> HrtSnackbar(snackbarData) },
                 )
+                optInTarget?.let { projection ->
+                    AdjustStockSheet(
+                        projection = projection,
+                        initialTab = AdjustSheetTab.RECEIVED,
+                        receivedOnly = true,
+                        previewRunway = { hypothetical ->
+                            stockNudgeViewModel.previewRunway(
+                                medicineId = projection.medicine.uuid,
+                                hypotheticalStock = hypothetical,
+                            )
+                        },
+                        onRecount = { },
+                        onReceived = { received ->
+                            stockNudgeViewModel.submitOptInReceived(
+                                medicineId = projection.medicine.uuid,
+                                unitsReceived = received.unitsReceived,
+                            )
+                        },
+                        onDismissRequest = stockNudgeViewModel::dismissOptInSheet,
+                    )
+                }
             }
         }
     }
