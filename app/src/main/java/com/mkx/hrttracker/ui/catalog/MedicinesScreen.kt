@@ -20,6 +20,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -180,6 +183,9 @@ internal fun MedicinesScreen(
     launchMode: MedicineManagerLaunchMode = MedicineManagerLaunchMode.Manager,
     onSlotResolved: (MedicineSlotResult) -> Unit = { },
     onManualLogSaved: (PostLogStockWarning?) -> Unit = { },
+    onNewMedicineCreated: (UUID) -> Unit = { },
+    stockNudgeEnabled: Boolean = true,
+    onSetStockNudgeEnabled: (Boolean) -> Unit = { },
     viewModel: MedicinesViewModel = hiltViewModel(),
     createMedicineViewModel: CreateMedicineViewModel = hiltViewModel(),
     slotDraftViewModel: MedicineSlotDraftViewModel = hiltViewModel(),
@@ -290,6 +296,9 @@ internal fun MedicinesScreen(
         },
         showOnboardingBanner = launchMode == MedicineManagerLaunchMode.OnboardingStockOptIn,
         showAddNewButton = launchMode != MedicineManagerLaunchMode.OnboardingStockOptIn,
+        showStockNudgeMenu = launchMode == MedicineManagerLaunchMode.Manager,
+        stockNudgeEnabled = stockNudgeEnabled,
+        onSetStockNudgeEnabled = onSetStockNudgeEnabled,
         modifier = modifier,
     )
 
@@ -351,18 +360,20 @@ internal fun MedicinesScreen(
                     showCreateMedicineThenDoseSheet = false
                     allowManualSlotCompletionHideState.value = false
                     consumeSavedState()
+                    onNewMedicineCreated(slotResult.medicineUuid)
                     onSlotResolved(slotResult)
                 }
             },
             mode = (medicineManagerAddNewTarget(launchMode) as? MedicineManagerAddNewTarget.NewMedicineSlot)
                 ?.mode
                 ?: error("CreateMedicineThenDoseSheet is not used in manager mode."),
-            onManualLogSaved = { warning, consumeSavedState ->
+            onManualLogSaved = { warning, createdMedicineUuid, consumeSavedState ->
                 allowManualSlotCompletionHideState.value = true
                 hideBottomSheet(scope, createMedicineThenDoseSheetState) {
                     showCreateMedicineThenDoseSheet = false
                     allowManualSlotCompletionHideState.value = false
                     consumeSavedState()
+                    createdMedicineUuid?.let(onNewMedicineCreated)
                     onManualLogSaved(warning)
                 }
             },
@@ -541,9 +552,13 @@ private fun MedicinesScreenContent(
     showOnboardingBanner: Boolean,
     showAddNewButton: Boolean,
     modifier: Modifier = Modifier,
+    showStockNudgeMenu: Boolean = false,
+    stockNudgeEnabled: Boolean = true,
+    onSetStockNudgeEnabled: (Boolean) -> Unit = { },
 ) {
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
+    var showOverflowMenu by rememberSaveable { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
         lazyListState = listState,
         state = topAppBarState,
@@ -574,6 +589,38 @@ private fun MedicinesScreenContent(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),
+                actions = {
+                    if (showStockNudgeMenu) {
+                        IconButton(onClick = { showOverflowMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = stringResource(R.string.main_more_options),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showOverflowMenu,
+                            onDismissRequest = { showOverflowMenu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = stringResource(
+                                            if (stockNudgeEnabled) {
+                                                R.string.stock_nudge_menu_disable
+                                            } else {
+                                                R.string.stock_nudge_menu_enable
+                                            },
+                                        ),
+                                    )
+                                },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    onSetStockNudgeEnabled(!stockNudgeEnabled)
+                                },
+                            )
+                        }
+                    }
+                },
                 scrollBehavior = scrollBehavior,
             )
         },
