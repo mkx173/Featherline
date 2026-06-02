@@ -87,7 +87,7 @@ class AppTimeSourceTest {
     }
 
     @Test
-    fun appTimeSnapshotTicker_keepsExplicitRefreshGenerationAcrossMinuteTicks() = runTest {
+    fun appTimeSnapshotTicker_emitsMinuteSnapshotsWithoutSyntheticGeneration() = runTest {
         val originalTimeZone = TimeZone.getDefault()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         try {
@@ -100,7 +100,7 @@ class AppTimeSourceTest {
             val emissions = mutableListOf<AppTimeSnapshot>()
 
             val job = launch(UnconfinedTestDispatcher(testScheduler)) {
-                appTimeSnapshotTicker(clock, refreshGeneration = 7L)
+                appTimeSnapshotTicker(clock)
                     .take(2)
                     .toList(emissions)
             }
@@ -113,12 +113,10 @@ class AppTimeSourceTest {
                     AppTimeSnapshot(
                         minute = LocalDateTime.of(2026, 4, 25, 12, 0),
                         zone = utcZone,
-                        refreshGeneration = 7L,
                     ),
                     AppTimeSnapshot(
                         minute = LocalDateTime.of(2026, 4, 25, 12, 1),
                         zone = utcZone,
-                        refreshGeneration = 7L,
                     ),
                 ),
                 emissions,
@@ -153,11 +151,7 @@ class AppTimeSourceTest {
             source.refresh()
             runCurrent()
 
-            val expectedSnapshot = AppTimeSnapshot(
-                minute = LocalDateTime.of(2026, 4, 25, 21, 0),
-                zone = tokyoZone,
-                refreshGeneration = 1L,
-            )
+            val expectedSnapshot = AppTimeSnapshot(LocalDateTime.of(2026, 4, 25, 21, 0), tokyoZone)
             assertEquals(expectedSnapshot, source.currentSnapshot.value)
             assertEquals(expectedSnapshot.minute, source.currentMinute.value)
             assertEquals(expectedSnapshot.zone, source.currentZone.value)
@@ -169,7 +163,7 @@ class AppTimeSourceTest {
     }
 
     @Test
-    fun refresh_incrementsExplicitRefreshGeneration() = runTest {
+    fun refresh_reEmitsOnlyWhenSnapshotValueChanges() = runTest {
         val originalTimeZone = TimeZone.getDefault()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         try {
@@ -178,22 +172,37 @@ class AppTimeSourceTest {
                 zone = ZoneOffset.UTC,
             )
             val source = DefaultAppTimeSource(clock = clock, appScope = backgroundScope)
+            val emissions = mutableListOf<AppTimeSnapshot>()
 
-            val collector = launch { source.currentSnapshot.collect {} }
+            val collector = launch(UnconfinedTestDispatcher(testScheduler)) {
+                source.currentSnapshot
+                    .take(2)
+                    .toList(emissions)
+            }
             runCurrent()
-            assertEquals(0L, source.currentSnapshot.value.refreshGeneration)
+            assertEquals(
+                listOf(AppTimeSnapshot(LocalDateTime.of(2026, 4, 25, 12, 0), ZoneId.of("UTC"))),
+                emissions,
+            )
+
+            source.refresh()
+            runCurrent()
+            assertEquals(
+                listOf(AppTimeSnapshot(LocalDateTime.of(2026, 4, 25, 12, 0), ZoneId.of("UTC"))),
+                emissions,
+            )
 
             clock.instant = Instant.parse("2026-04-25T13:30:30Z")
             source.refresh()
             runCurrent()
 
-            assertEquals(1L, source.currentSnapshot.value.refreshGeneration)
-
-            advanceTimeBy(30_000)
-            clock.instant = Instant.parse("2026-04-25T13:31:00Z")
-            runCurrent()
-
-            assertEquals(1L, source.currentSnapshot.value.refreshGeneration)
+            assertEquals(
+                listOf(
+                    AppTimeSnapshot(LocalDateTime.of(2026, 4, 25, 12, 0), ZoneId.of("UTC")),
+                    AppTimeSnapshot(LocalDateTime.of(2026, 4, 25, 13, 30), ZoneId.of("UTC")),
+                ),
+                emissions,
+            )
 
             collector.cancel()
         } finally {

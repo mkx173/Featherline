@@ -22,12 +22,10 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-import java.util.concurrent.atomic.AtomicLong
 
 data class AppTimeSnapshot(
     val minute: LocalDateTime,
     val zone: ZoneId,
-    val refreshGeneration: Long = 0L,
 )
 
 interface AppTimeSource {
@@ -52,8 +50,7 @@ class DefaultAppTimeSource(
 ) : AppTimeSource {
     // Out-of-band re-read trigger (e.g. app foregrounding). extraBufferCapacity
     // lets refresh() emit without suspending even when no collector is active.
-    private val refreshGeneration = AtomicLong(0L)
-    private val refreshSignals = MutableSharedFlow<Long>(
+    private val refreshSignals = MutableSharedFlow<Unit>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
@@ -66,13 +63,13 @@ class DefaultAppTimeSource(
     // up to the original remaining sleep. onStart drives the initial run.
     @OptIn(ExperimentalCoroutinesApi::class)
     override val currentSnapshot: StateFlow<AppTimeSnapshot> = refreshSignals
-        .onStart { emit(refreshGeneration.get()) }
-        .flatMapLatest { generation -> appTimeSnapshotTicker(clock, refreshGeneration = generation) }
+        .onStart { emit(Unit) }
+        .flatMapLatest { appTimeSnapshotTicker(clock) }
         .distinctUntilChanged()
         .stateIn(
             scope = appScope,
             started = SharingStarted.WhileSubscribed(stopTimeoutMillis),
-            initialValue = currentAppTimeSnapshot(clock, refreshGeneration = refreshGeneration.get())
+            initialValue = currentAppTimeSnapshot(clock)
         )
 
     override val currentMinute: StateFlow<LocalDateTime> = currentSnapshot
@@ -84,26 +81,20 @@ class DefaultAppTimeSource(
     override fun now(): Instant = Instant.now(clock)
 
     override fun refresh() {
-        refreshSignals.tryEmit(refreshGeneration.incrementAndGet())
+        refreshSignals.tryEmit(Unit)
     }
 }
 
-internal fun appTimeSnapshotTicker(
-    clock: Clock,
-    refreshGeneration: Long = 0L,
-): Flow<AppTimeSnapshot> {
+internal fun appTimeSnapshotTicker(clock: Clock): Flow<AppTimeSnapshot> {
     return flow {
         while (true) {
-            emit(currentAppTimeSnapshot(clock, refreshGeneration = refreshGeneration))
+            emit(currentAppTimeSnapshot(clock))
             delay(millisUntilNextMinuteBoundary(clock))
         }
     }.distinctUntilChanged()
 }
 
-internal fun currentAppTimeSnapshot(
-    clock: Clock,
-    refreshGeneration: Long = 0L,
-): AppTimeSnapshot {
+internal fun currentAppTimeSnapshot(clock: Clock): AppTimeSnapshot {
     val instant = clock.instant()
     val zone = ZoneId.systemDefault()
     return AppTimeSnapshot(
@@ -111,7 +102,6 @@ internal fun currentAppTimeSnapshot(
             .ofInstant(instant, zone)
             .truncatedTo(ChronoUnit.MINUTES),
         zone = zone,
-        refreshGeneration = refreshGeneration,
     )
 }
 

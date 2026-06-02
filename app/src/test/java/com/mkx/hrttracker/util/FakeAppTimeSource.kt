@@ -22,7 +22,6 @@ class FakeAppTimeSource(
     private var currentInstant = mutableCurrentSnapshot.value.minute
         .atZone(mutableCurrentSnapshot.value.zone)
         .toInstant()
-    private var refreshGeneration = mutableCurrentSnapshot.value.refreshGeneration
 
     override val currentSnapshot: StateFlow<AppTimeSnapshot> = mutableCurrentSnapshot
     override val currentMinute: StateFlow<LocalDateTime> = mutableCurrentMinute
@@ -34,23 +33,17 @@ class FakeAppTimeSource(
         setCurrentSnapshot(
             currentMinute = mutableCurrentSnapshot.value.minute,
             zoneId = mutableCurrentSnapshot.value.zone,
-            refresh = true,
         )
     }
 
     fun setCurrentSnapshot(
         currentMinute: LocalDateTime,
         zoneId: ZoneId,
-        refresh: Boolean = false,
     ) {
         val normalizedCurrentMinute = currentMinute.truncatedTo(ChronoUnit.MINUTES)
-        if (refresh) {
-            refreshGeneration += 1L
-        }
         val snapshot = AppTimeSnapshot(
             minute = normalizedCurrentMinute,
             zone = zoneId,
-            refreshGeneration = refreshGeneration,
         )
         mutableCurrentSnapshot.value = snapshot
         mutableCurrentMinute.value = snapshot.minute
@@ -76,7 +69,6 @@ class FakeAppTimeSource(
         setCurrentSnapshot(
             currentMinute = currentMinute,
             zoneId = zoneId,
-            refresh = true,
         )
     }
 
@@ -89,7 +81,6 @@ class FakeAppTimeSource(
         mutableCurrentSnapshot.value = AppTimeSnapshot(
             minute = currentMinute,
             zone = currentZone,
-            refreshGeneration = refreshGeneration,
         )
         mutableCurrentMinute.value = currentMinute
         mutableCurrentZone.value = currentZone

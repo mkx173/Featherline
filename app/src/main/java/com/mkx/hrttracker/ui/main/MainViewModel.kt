@@ -54,15 +54,10 @@ class MainViewModel @Inject constructor(
     private val currentSnapshot = appTimeSource.currentSnapshot
     private var lastHomeSnapshotRefreshKey: HomeSnapshotRefreshKey? = null
 
-    // Re-subscribe the home inputs flow only on local date, zone, or explicit
-    // wall-clock refresh. Within a stable date+zone+refresh generation, the
-    // underlying Room flows already emit on data changes; piping per-minute
-    // ticks through `flatMapLatest` would tear down and rebuild the
-    // snapshot/Room race, every Room observer in `observeHomeStartupInputs`,
-    // and the `combine` layered on top of them. The minute tick is still
-    // observed via `combine` below so `buildHomeUiState` can recompute the PK
-    // trend, "next dose in N min", and other `now`-dependent UI per minute
-    // without re-issuing any queries.
+    // Re-subscribe the home inputs flow only on local date or zone changes.
+    // Room query windows are date+zone-derived, while per-minute and explicit
+    // wall-clock refreshes are fed to HomeRepository as a combine input so
+    // now-sensitive projections re-anchor without tearing down the Room flows.
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<MainUiState> = combine(
         currentSnapshot
@@ -71,13 +66,16 @@ class MainViewModel @Inject constructor(
                     now = snapshot.minute,
                     date = snapshot.minute.toLocalDate(),
                     zoneId = snapshot.zone,
-                    refreshGeneration = snapshot.refreshGeneration,
                 )
             }
-            .distinctUntilChangedBy { key -> Triple(key.date, key.zoneId, key.refreshGeneration) }
+            .distinctUntilChangedBy { key -> key.date to key.zoneId }
             .flatMapLatest { key ->
-                refreshHomeSnapshotForDateIfNeeded(key.now, key.zoneId, key.refreshGeneration)
-                homeRepository.observeHomeInputs(key.now, key.zoneId)
+                refreshHomeSnapshotForDateIfNeeded(key.now, key.zoneId)
+                homeRepository.observeHomeInputs(
+                    date = key.date,
+                    nowFlow = appTimeSource.currentMinute,
+                    zoneId = key.zoneId,
+                )
                     .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
             },
         currentSnapshot,
@@ -182,12 +180,10 @@ class MainViewModel @Inject constructor(
     private fun refreshHomeSnapshotForDateIfNeeded(
         now: LocalDateTime,
         zoneId: ZoneId,
-        refreshGeneration: Long,
     ) {
         val key = HomeSnapshotRefreshKey(
             date = now.toLocalDate(),
             zoneId = zoneId.id,
-            refreshGeneration = refreshGeneration,
         )
         if (lastHomeSnapshotRefreshKey == key) {
             return
@@ -360,21 +356,18 @@ class MainViewModel @Inject constructor(
         val now: LocalDateTime,
         val date: LocalDate,
         val zoneId: ZoneId,
-        val refreshGeneration: Long,
     )
 
     private data class HomeSnapshotRefreshKey(
         val date: LocalDate,
         val zoneId: String,
-        val refreshGeneration: Long,
     )
 
     private data class KeyedHomeInputs(val key: HomeTimeKey, val inputs: HomeInputs)
 
     private fun HomeTimeKey.matches(snapshot: AppTimeSnapshot): Boolean {
         return date == snapshot.minute.toLocalDate() &&
-            zoneId == snapshot.zone &&
-            refreshGeneration == snapshot.refreshGeneration
+            zoneId == snapshot.zone
     }
 
     private companion object {
