@@ -196,9 +196,10 @@ fun MedicationLogEntryEditorSheet(
             stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         ActualAmountRulerCard(
+            modifier = Modifier.padding(top = 8.dp),
             preparationType = lockedMedicine?.preparation?.type,
             allowsActualDoseDelta = allowsActualDoseDelta,
             plannedAmount = plannedDoseAmount,
@@ -209,6 +210,7 @@ fun MedicationLogEntryEditorSheet(
         )
 
         ActualAmountReadOnlyCard(
+            modifier = Modifier.padding(top = 8.dp),
             preparationType = lockedMedicine?.preparation?.type,
             showActualDoseDeltaReadOnly = showActualDoseDeltaReadOnly,
             scheduledDoseAmount = scheduledDoseAmount,

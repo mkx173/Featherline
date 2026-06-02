@@ -84,6 +84,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun ActualAmountRulerCard(
+    modifier: Modifier = Modifier,
     preparationType: MedicinePreparationType?,
     allowsActualDoseDelta: Boolean,
     plannedAmount: Double?,
@@ -218,6 +219,7 @@ internal fun ActualAmountRulerCard(
     val resetContentDescription = stringResource(R.string.medication_log_actual_amount_reset)
 
     EditorSegmentedListItem(
+        modifier = modifier,
         index = 0,
         count = 1,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -436,6 +438,7 @@ internal fun medicationLogEntrySummaryDoseAmountDelta(
 
 @Composable
 internal fun ActualAmountReadOnlyCard(
+    modifier: Modifier = Modifier,
     preparationType: MedicinePreparationType?,
     showActualDoseDeltaReadOnly: Boolean,
     scheduledDoseAmount: Double?,
@@ -455,6 +458,7 @@ internal fun ActualAmountReadOnlyCard(
     // no ruler, no reset. The left line shows the planned dose and the recorded
     // adjustment, e.g. "0.25 mL (-0.1 mL)".
     EditorSegmentedListItem(
+        modifier = modifier,
         index = 0,
         count = 1,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
