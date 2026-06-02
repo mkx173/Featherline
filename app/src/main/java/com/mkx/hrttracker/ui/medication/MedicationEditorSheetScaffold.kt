@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
@@ -106,7 +107,7 @@ internal fun MedicationEditorSheetScaffold(
                 MedicalDisclaimerText(kinds = disclaimerKinds)
             }
 
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Buttons stay visually enabled while a save is in flight; the
             // click handlers no-op so a second tap can't fire a duplicate save

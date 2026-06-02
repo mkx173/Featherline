@@ -62,6 +62,10 @@ fun MedicationGroupSlotEditorSheet(
     onIncreaseCountClick: () -> Unit,
     errorMessageRes: Int? = null,
     isSaving: Boolean = false,
+    // Set when editing an existing slot, so the sheet surfaces a "Remove from
+    // group" action. Null when adding a new slot (nothing to remove yet).
+    destructiveButtonText: String? = null,
+    onDestructiveAction: (() -> Unit)? = null,
     onConfirm: () -> Unit,
 ) {
     MedicationEditorSheetScaffold(
@@ -76,6 +80,8 @@ fun MedicationGroupSlotEditorSheet(
         // fill-max-size hole below the buttons looks broken.
         fillAvailableHeight = false,
         isSaving = isSaving,
+        destructiveButtonText = destructiveButtonText,
+        onDestructiveAction = onDestructiveAction,
         // MedicationEditorContent exposes no preset-dose chips, so the
         // medication-editor disclaimer about preset values being illustrative
         // has nothing to caveat in this sheet (cf. ExistingMedicineDoseSheet).

@@ -72,6 +72,28 @@ class BackupSnapshotJsonCodecTest {
     }
 
     @Test
+    fun roundTrip_logEntry_preservesDoseAmountDelta() {
+        val snapshot = makeSnapshotWithSingleLog()
+
+        val json = BackupSnapshotJsonCodec.encode(snapshot)
+        val decoded = BackupSnapshotJsonCodec.decode(json)
+        val log = decoded!!.medicationLogs.single()
+
+        assertEquals(0.1, log.doseAmountDelta!!, 1e-9)
+    }
+
+    @Test
+    fun decodingLogEntryWithoutDoseAmountDelta_yieldsNullDoseAmountDelta() {
+        val json = BackupSnapshotJsonCodec.encode(makeSnapshotWithSingleLog())
+            .replace(""","doseAmountDelta":0.1""", "")
+
+        val decoded = BackupSnapshotJsonCodec.decode(json)!!
+        val log = decoded.medicationLogs.single()
+
+        assertNull(log.doseAmountDelta)
+    }
+
+    @Test
     fun decodingMedicineWithoutStockBlock_yieldsNullStock() {
         val json = BackupSnapshotJsonCodec.encode(makeSnapshotWithSingleMedicine(stock = null))
             .replace(""","stock":null""", "")
@@ -131,6 +153,7 @@ class BackupSnapshotJsonCodecTest {
                     doseWeightGrams = null,
                     gelApplicationArea = "DEFAULT",
                     equivalentE2Mg = 2.0,
+                    doseAmountDelta = 0.1,
                     sourceGroupUuid = null,
                     scheduleTimeUuid = null,
                     appliedAtEpochMillis = 0L,

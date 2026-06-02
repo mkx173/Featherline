@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.catalog
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -38,17 +39,20 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
+import kotlin.math.abs
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NewMedicineSlotViewModelTest {
     private val medicineRepository: MedicineRepository = mockk()
     private val medicationLogRepository: MedicationLogRepository = mockk()
+    private val medicineStockRepository: MedicineStockRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
     }
 
     @After
@@ -253,6 +257,137 @@ class NewMedicineSlotViewModelTest {
     }
 
     @Test
+    fun saveManualLog_forAmpulePassesDeltaToLogSave() = runTest {
+        // Ampules are the only manual-log form with an actual-dose delta:
+        // there is no amount field, so the +/- mg delta records drawing
+        // slightly more or less than the nominal vial. Measured forms (mL, g)
+        // capture the dose directly and have no delta.
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-00000000030a"),
+            key = MedicationKey.ESTRADIOL_VALERATE,
+            preparation = MedicinePreparation.InjectionSingleUseVial(
+                strengthMgPerVial = 5.0,
+            ),
+        )
+        coEvery {
+            medicineRepository.findOrCreateForCatalog(
+                MedicationKey.ESTRADIOL_VALERATE,
+                MedicinePreparation.InjectionSingleUseVial(
+                    strengthMgPerVial = 5.0,
+                ),
+                any(),
+            )
+        } returns medicine
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.INJECTION,
+                doseInstruction = DoseInstruction.WholeUnit,
+                sourceGroupUuid = null,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                doseAmountDelta = match { abs(it - 0.1) < 1e-12 },
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft {
+            it.changeForm(MedicinePreparationForm.INJECTION).copy(
+                medicationKey = MedicationKey.ESTRADIOL_VALERATE,
+                preparationType = MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+                singleUseVialStrengthMg = "5",
+            )
+        }
+        viewModel.setDoseAmountDelta(0.1)
+
+        viewModel.saveManualLog()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        coVerify(exactly = 1) {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.INJECTION,
+                doseInstruction = DoseInstruction.WholeUnit,
+                sourceGroupUuid = null,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                doseAmountDelta = match { abs(it - 0.1) < 1e-12 },
+            )
+        }
+    }
+
+    @Test
+    fun saveManualLog_forMultiUseVialDoesNotPassDelta() = runTest {
+        // Measured forms ask for the dose directly, so setDoseAmountDelta is
+        // a no-op and no delta reaches the saved log.
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-00000000030b"),
+            key = MedicationKey.ESTRADIOL_VALERATE,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 20.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } returns medicine
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.INJECTION,
+                doseInstruction = DoseInstruction.VolumeMl(0.5),
+                sourceGroupUuid = null,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                doseAmountDelta = null,
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft {
+            it.changeForm(MedicinePreparationForm.INJECTION).copy(
+                medicationKey = MedicationKey.ESTRADIOL_VALERATE,
+                preparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+                concentrationMgPerMl = "20",
+                vialVolumeMl = "5",
+            )
+        }
+        viewModel.updateDoseInstructionDraft { it.copy(volumeMl = "0.5") }
+        viewModel.setDoseAmountDelta(0.1)
+
+        viewModel.saveManualLog()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        coVerify(exactly = 1) {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.INJECTION,
+                doseInstruction = DoseInstruction.VolumeMl(0.5),
+                sourceGroupUuid = null,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                doseAmountDelta = null,
+            )
+        }
+    }
+
+    @Test
     fun saveManualLog_whenLogSaveFailsKeepsMedicineCreatedAndReportsLogFailure() = runTest {
         val medicine = testMedicine(
             uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000303"),
@@ -261,7 +396,7 @@ class NewMedicineSlotViewModelTest {
         )
         coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } returns medicine
         coEvery {
-            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } throws IllegalStateException("save failed")
         val viewModel = newViewModel()
         viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
@@ -273,7 +408,7 @@ class NewMedicineSlotViewModelTest {
         assertEquals(MedicineSlotDraftSaveResult.FAILURE, viewModel.uiState.value.manualLogSaveResult)
         coVerify(exactly = 1) { medicineRepository.findOrCreateForCatalog(any(), any(), any()) }
         coVerify(exactly = 1) {
-            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         }
     }
 
@@ -340,7 +475,7 @@ class NewMedicineSlotViewModelTest {
         val neverCompletes = CompletableDeferred<Unit>()
         coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } returns medicine
         coEvery {
-            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } coAnswers {
             logSaveStarted.complete(Unit)
             neverCompletes.await()
@@ -405,7 +540,7 @@ class NewMedicineSlotViewModelTest {
         assertNull(viewModel.uiState.value.createSaveResult)
         assertNull(viewModel.uiState.value.manualLogSaveResult)
         coVerify(exactly = 0) {
-            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         }
     }
 
@@ -511,6 +646,7 @@ class NewMedicineSlotViewModelTest {
         return NewMedicineSlotViewModel(
             medicineRepository = medicineRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             initialAppliedZoneId = zoneId,
         )

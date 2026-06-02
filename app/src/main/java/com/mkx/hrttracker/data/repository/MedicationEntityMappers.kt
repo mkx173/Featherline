@@ -113,6 +113,7 @@ internal fun MedicationLogEntryEntity.toMedicationLogEntryModel(
         appliedAtTimeZoneId = appliedAtTimeZoneId,
         scheduledFor = scheduledForIso?.let(LocalDateTime::parse),
         count = count.coerceAtLeast(1),
+        doseAmountDelta = doseAmountDelta,
     )
 }
 

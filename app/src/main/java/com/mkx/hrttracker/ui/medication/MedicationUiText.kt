@@ -96,25 +96,33 @@ fun medicinePreparationSummary(medicine: Medicine): String {
 fun doseInstructionSummary(
     medicine: Medicine,
     instruction: DoseInstruction,
+    doseAmountDelta: Double? = null,
 ): String? {
     val appLocale = rememberAppLocale()
-    val portion = when (instruction) {
+    // Render the actual administered amount (scheduled + delta) for measured
+    // forms; ampules keep WholeUnit and carry the delta on the mg line below.
+    val effectiveInstruction = DoseInstructionCalculator.effectiveDoseInstructionForDisplay(
+        preparation = medicine.preparation,
+        doseInstruction = instruction,
+        doseAmountDelta = doseAmountDelta,
+    )
+    val portion = when (effectiveInstruction) {
         // A single whole tablet is implied by the active mg line; skip "1 tablet".
-        is DoseInstruction.TabletFraction -> if (instruction.numerator == 1 && instruction.denominator == 1) {
+        is DoseInstruction.TabletFraction -> if (effectiveInstruction.numerator == 1 && effectiveInstruction.denominator == 1) {
             null
         } else {
             stringResource(
                 R.string.dose_instruction_summary_tablet_fraction,
-                formatTabletFraction(instruction),
+                formatTabletFraction(effectiveInstruction),
             )
         }
         is DoseInstruction.VolumeMl -> stringResource(
             R.string.dose_instruction_summary_volume_ml,
-            instruction.valueMl.formatDose(appLocale),
+            effectiveInstruction.valueMl.formatDose(appLocale),
         )
         is DoseInstruction.WeightGrams -> stringResource(
             R.string.dose_instruction_summary_weight_grams,
-            instruction.valueGrams.formatDose(appLocale),
+            effectiveInstruction.valueGrams.formatDose(appLocale),
         )
         // Gel sachets dose one whole packet at a time but the packet's gram weight
         // is still useful context.
@@ -127,9 +135,25 @@ fun doseInstructionSummary(
         DoseInstruction.Noop -> null
     }
 
+    val activeAmount = DoseInstructionCalculator.perUnitAmountMg(medicine, instruction, doseAmountDelta)
+        ?.let { perUnitMg ->
+            val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
+                medicine.displayDoseUnit
+            } else {
+                MedicineDisplayDoseUnit.MG
+            }
+            stringResource(
+                R.string.dose_instruction_summary_active_amount,
+                displayUnit.fromMg(perUnitMg).formatDose(appLocale),
+                stringResource(displayUnit.shortLabelRes()),
+            )
+        }
+
     // Concentration-bearing preparations (multi-use vial, gel) show
     // "concentration · portion" so the row identifies which preparation
-    // a log/slot refers to when one medicine has several preparations.
+    // a log/slot refers to when one medicine has several preparations. The
+    // active mass is not surfaced for these forms; the portion already reflects
+    // the actual administered amount.
     val concentration = concentrationSummary(medicine.preparation, appLocale)
     if (concentration != null) {
         return listOfNotNull(concentration, portion).joinToString(separator = " · ")
@@ -140,18 +164,7 @@ fun doseInstructionSummary(
             R.string.dose_instruction_summary_patch_release_rate,
             rate.formatDose(appLocale),
         )
-    } ?: DoseInstructionCalculator.perUnitAmountMg(medicine, instruction)?.let { perUnitMg ->
-        val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
-            medicine.displayDoseUnit
-        } else {
-            MedicineDisplayDoseUnit.MG
-        }
-        stringResource(
-            R.string.dose_instruction_summary_active_amount,
-            displayUnit.fromMg(perUnitMg).formatDose(appLocale),
-            stringResource(displayUnit.shortLabelRes()),
-        )
-    }
+    } ?: activeAmount
 
     val parts = listOfNotNull(portion, active)
     return parts.takeIf { it.isNotEmpty() }?.joinToString(separator = " · ")
@@ -207,6 +220,7 @@ fun medicationEntrySupportingText(
     applicationType: MedicationApplicationType,
     count: Int,
     extraSupportingText: String? = null,
+    doseAmountDelta: Double? = null,
 ): String {
     val applicationTypeLabel = stringResource(applicationType.labelRes)
         .takeIf {
@@ -215,7 +229,7 @@ fun medicationEntrySupportingText(
                 applicationType = applicationType,
             )
         }
-    val doseText = medicine?.let { doseInstructionSummary(it, doseInstruction) }
+    val doseText = medicine?.let { doseInstructionSummary(it, doseInstruction, doseAmountDelta) }
     return listOfNotNull(
         applicationTypeLabel,
         medicationCountIndicatorText(count),

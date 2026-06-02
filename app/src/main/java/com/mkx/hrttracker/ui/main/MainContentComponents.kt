@@ -2685,7 +2685,9 @@ private fun MainAntiandrogenMedicationSubCard(
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = card.groupColorKey)
     val medicationName = medicationEntryTitle(displayedMedicine, displayedApplicationType)
     val routeLabel = stringResource(displayedApplicationType.labelRes)
-    val doseSummary = displayedMedicine?.let { doseInstructionSummary(it, displayedDoseInstruction) }
+    val doseSummary = displayedMedicine?.let {
+        doseInstructionSummary(it, displayedDoseInstruction, card.lastDose?.doseAmountDelta)
+    }
     val summaryText = listOfNotNull(
         medicationCountIndicatorText(card.medication.count),
         doseSummary,
@@ -3103,7 +3105,9 @@ private fun MainTodayDoseRow(
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val headline = medicationEntryTitle(medication.medicine, medication.applicationType)
     val routeLabel = stringResource(medication.applicationType.labelRes)
-    val doseText = medication.medicine?.let { doseInstructionSummary(it, medication.doseInstruction) }
+    val doseText = medication.medicine?.let {
+        doseInstructionSummary(it, medication.doseInstruction, row.doseAmountDelta)
+    }
     val supportingText = listOfNotNull(
         routeLabel,
         medicationCountIndicatorText(row.medication.count),

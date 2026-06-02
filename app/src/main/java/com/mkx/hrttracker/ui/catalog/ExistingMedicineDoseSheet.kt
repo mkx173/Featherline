@@ -19,8 +19,11 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.ui.medication.ActualAmountRulerCard
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
 import com.mkx.hrttracker.ui.medication.MedicationDoseResetPolicy
@@ -28,6 +31,7 @@ import com.mkx.hrttracker.ui.medication.MedicationEditorContent
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicationLogAppliedAtFields
 import com.mkx.hrttracker.ui.medication.applyMedicinePicker
+import com.mkx.hrttracker.ui.medication.effectiveActualDoseAmount
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
 import com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
@@ -63,7 +67,9 @@ fun ExistingMedicineDoseSheet(
     modifier: Modifier = Modifier,
     mode: MedicineSlotDraftMode = MedicineSlotDraftMode.GROUP_SLOT,
     selectedStockProjection: MedicineStockProjection? = null,
-    onManualLogSaved: (() -> Unit) -> Unit = { consumeSavedState -> consumeSavedState() },
+    onManualLogSaved: (PostLogStockWarning?, () -> Unit) -> Unit = { _, consumeSavedState ->
+        consumeSavedState()
+    },
     onManualLogSaveFailure: () -> Unit = { },
     viewModel: MedicineSlotDraftViewModel = hiltViewModel(),
 ) {
@@ -83,7 +89,7 @@ fun ExistingMedicineDoseSheet(
 
     LaunchedEffect(isManualLogMode, manualLogUiState.isSaved) {
         if (isManualLogMode && manualLogUiState.isSaved) {
-            onManualLogSaved(viewModel::consumeSavedState)
+            onManualLogSaved(manualLogUiState.postLogStockWarning, viewModel::consumeSavedState)
         }
     }
 
@@ -115,18 +121,45 @@ fun ExistingMedicineDoseSheet(
         )
     }
     var countText by remember(medicine.uuid) { mutableStateOf("1") }
+    var doseAmountDelta: Double? by remember(medicine.uuid) { mutableStateOf(null) }
     var errorMessageRes: Int? by remember(medicine.uuid) { mutableStateOf(null) }
+    val resolvedApplicationType = resolvedApplicationTypeForDose(
+        preparationType = medicine.preparation.type,
+        doseInstructionDraft = doseInstructionDraft,
+    )
+    val scheduledNativeAmount = remember(medicine, doseInstructionDraft) {
+        manualLogScheduledNativeAmount(
+            preparation = medicine.preparation,
+            doseInstruction = runCatching { doseInstructionDraft.toDoseInstruction() }.getOrNull(),
+        )
+    }
+    val allowsActualDoseDelta = isManualLogMode &&
+        manualLogAllowsActualDoseDelta(
+            preparationType = medicine.preparation.type,
+            applicationType = resolvedApplicationType,
+        ) &&
+        scheduledNativeAmount != null
+    val effectiveActualAmount = scheduledNativeAmount?.let { scheduledAmount ->
+        effectiveActualDoseAmount(
+            scheduledAmount = scheduledAmount,
+            doseAmountDelta = doseAmountDelta,
+        )
+    }
     val previewDoseMagnitude = remember(
         isManualLogMode,
         medicine,
         doseInstructionDraft,
         countText,
+        allowsActualDoseDelta,
+        effectiveActualAmount,
     ) {
         if (isManualLogMode) {
-            stockMutationPreviewDoseMagnitude(
+            manualLogPreviewDoseMagnitude(
                 medicine = medicine,
                 doseInstructionDraft = doseInstructionDraft,
                 countText = countText,
+                allowsActualDoseDelta = allowsActualDoseDelta,
+                effectiveActualAmount = effectiveActualAmount,
             )
         } else {
             null
@@ -138,6 +171,10 @@ fun ExistingMedicineDoseSheet(
         selectedStockProjection = selectedStockProjection,
         frozenStockProjection = frozenStockProjection,
     )
+    // The committed delta lags the ruler while it scrolls (settle-debounced), so
+    // swallow Save taps until the ruler settles rather than persisting a stale
+    // amount. The ruler resets this to false on dispose.
+    var isActualAmountRulerScrolling by remember { mutableStateOf(false) }
 
     MedicationEditorSheetScaffold(
         modifier = modifier,
@@ -170,10 +207,7 @@ fun ExistingMedicineDoseSheet(
                 errorMessageRes = error
                 return@MedicationEditorSheetScaffold
             }
-            val applicationType = resolvedApplicationTypeForDose(
-                preparationType = preparationType,
-                doseInstructionDraft = doseInstructionDraft,
-            )
+            val applicationType = resolvedApplicationType
             val resolvedDose = if (applicationType == MedicationApplicationType.PATCH_OFF) {
                 DoseInstruction.Noop
             } else {
@@ -193,6 +227,7 @@ fun ExistingMedicineDoseSheet(
             when (mode) {
                 MedicineSlotDraftMode.GROUP_SLOT -> onConfirm(slotResult)
                 MedicineSlotDraftMode.MANUAL_LOG -> {
+                    if (isActualAmountRulerScrolling) return@MedicationEditorSheetScaffold
                     frozenStockProjection = displayedStockProjection
                     isStockProjectionFrozen = true
                     viewModel.saveManualLog(
@@ -200,6 +235,7 @@ fun ExistingMedicineDoseSheet(
                         applicationType = applicationType,
                         doseInstruction = resolvedDose,
                         count = resolvedCount,
+                        doseAmountDelta = doseAmountDelta.takeIf { allowsActualDoseDelta },
                     )
                 }
             }
@@ -229,10 +265,12 @@ fun ExistingMedicineDoseSheet(
                 medicineDraft = reduced.medicineDraft
                 doseInstructionDraft = reduced.doseInstructionDraft
                 countText = reduced.countText
+                doseAmountDelta = null
                 errorMessageRes = reduced.errorMessageRes
             },
             onDoseInstructionDraftChange = { transform ->
                 doseInstructionDraft = transform(doseInstructionDraft)
+                doseAmountDelta = null
                 errorMessageRes = null
             },
             // Identity is locked, so re-picking from inside the sheet is a no-op.
@@ -275,6 +313,18 @@ fun ExistingMedicineDoseSheet(
         )
 
         if (isManualLogMode) {
+            if (allowsActualDoseDelta && effectiveActualAmount != null) {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                ActualAmountRulerCard(
+                    preparationType = medicine.preparation.type,
+                    allowsActualDoseDelta = allowsActualDoseDelta,
+                    plannedAmount = scheduledNativeAmount,
+                    doseAmountDelta = doseAmountDelta,
+                    isSaving = isSaving,
+                    onDoseAmountDeltaChange = { doseAmountDelta = it },
+                    onScrollingChange = { isActualAmountRulerScrolling = it },
+                )
+            }
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             MedicationLogAppliedAtFields(
                 appliedDate = manualLogUiState.appliedDate,
@@ -314,4 +364,66 @@ internal fun initialApplicationTypeForSlotDraft(
         MedicinePreparationType.PATCH_OFF -> MedicationApplicationType.PATCH_OFF
         else -> MedicationApplicationType.ORAL
     }
+}
+
+internal fun manualLogPreviewDoseMagnitude(
+    medicine: Medicine,
+    doseInstructionDraft: DoseInstructionDraftUiState,
+    countText: String,
+    allowsActualDoseDelta: Boolean,
+    effectiveActualAmount: Double?,
+): Double? {
+    if (
+        allowsActualDoseDelta &&
+        effectiveActualAmount != null &&
+        effectiveActualAmount.isFinite()
+    ) {
+        when (medicine.preparation) {
+            is MedicinePreparation.InjectionMultiUseVial,
+            is MedicinePreparation.GelContainer -> {
+                return effectiveActualAmount.takeIf { it >= 0.0 }
+            }
+
+            else -> Unit
+        }
+    }
+    return stockMutationPreviewDoseMagnitude(
+        medicine = medicine,
+        doseInstructionDraft = doseInstructionDraft,
+        countText = countText,
+    )
+}
+
+internal fun manualLogScheduledNativeAmount(
+    preparation: MedicinePreparation,
+    doseInstruction: DoseInstruction?,
+): Double? {
+    return when (preparation) {
+        is MedicinePreparation.InjectionSingleUseVial ->
+            if (doseInstruction == DoseInstruction.WholeUnit) {
+                preparation.strengthMgPerVial
+            } else {
+                null
+            }
+
+        is MedicinePreparation.InjectionMultiUseVial ->
+            (doseInstruction as? DoseInstruction.VolumeMl)?.valueMl
+
+        is MedicinePreparation.GelContainer ->
+            (doseInstruction as? DoseInstruction.WeightGrams)?.valueGrams
+
+        else -> null
+    }
+}
+
+internal fun manualLogAllowsActualDoseDelta(
+    preparationType: MedicinePreparationType,
+    applicationType: MedicationApplicationType,
+): Boolean {
+    // Manual logs ask for the dose directly, so multi-use vial (mL) and gel
+    // container (g) already capture the actual amount — no delta stepper needed.
+    // Single-use vials (ampules) have no amount field; the +/- mg delta is the
+    // only way to record drawing slightly more or less than the nominal vial.
+    return preparationType == MedicinePreparationType.INJECTION_SINGLE_USE_VIAL &&
+        applicationType == MedicationApplicationType.INJECTION
 }

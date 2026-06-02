@@ -233,30 +233,6 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun historyEntrySupportingText_renders_count_before_primary_text() {
-        assertEquals(
-            "2x \u00B7 1mg \u00B7 Nightly estradiol",
-            historyEntrySupportingText(
-                primaryText = "1mg",
-                countText = "2x",
-                groupName = "Nightly estradiol"
-            )
-        )
-    }
-
-    @Test
-    fun historyEntrySupportingText_omits_count_when_null() {
-        assertEquals(
-            "1mg \u00B7 Nightly estradiol",
-            historyEntrySupportingText(
-                primaryText = "1mg",
-                countText = null,
-                groupName = "Nightly estradiol"
-            )
-        )
-    }
-
-    @Test
     fun buildHistoryVisibleEntries_filters_to_selected_day_when_present() {
         val entries = listOf(
             entryAt(LocalDateTime.of(2026, 4, 10, 8, 0)),

@@ -412,14 +412,32 @@ class MedicationEditorModelsTest {
             defaultMedicineDraft(applicationType = MedicationApplicationType.PATCH_ON)
                 .showsMedicationCountEditor(),
         )
-        // INJECTION supports count: "N vials" or "N injections of given volume".
-        assertTrue(
+        // INJECTION drafts infer a single-use vial, where count is meaningless
+        // (you take one ampule and adjust its drawn amount instead).
+        assertFalse(
             defaultMedicineDraft(applicationType = MedicationApplicationType.INJECTION)
                 .showsMedicationCountEditor(),
         )
         assertFalse(
             defaultMedicineDraft(applicationType = MedicationApplicationType.GEL)
                 .showsMedicationCountEditor(),
+        )
+    }
+
+    @Test
+    fun medication_count_editor_is_hidden_for_both_injection_preparations() {
+        // Single-use vial (ampule): one ampule per administration; the actual
+        // drawn amount is adjusted via the dose delta, not a count.
+        assertFalse(
+            MedicationApplicationType.INJECTION.supportsMedicationCountEditor(
+                preparationType = MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+            ),
+        )
+        // Multi-use vial: dose is the drawn volume, not "N injections".
+        assertFalse(
+            MedicationApplicationType.INJECTION.supportsMedicationCountEditor(
+                preparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+            ),
         )
     }
 

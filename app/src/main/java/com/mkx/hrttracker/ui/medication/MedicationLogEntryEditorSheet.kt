@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -77,6 +78,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import kotlin.math.abs
 
 // ---------------------------------------------------------------------------
 // Log entry sheet entry point.
@@ -107,6 +109,12 @@ fun MedicationLogEntryEditorSheet(
     lockedMedicine: Medicine?,
     selectedStockProjection: MedicineStockProjection? = null,
     stockMutationPreviewDoseMagnitude: Double? = null,
+    allowsActualDoseDelta: Boolean = false,
+    showActualDoseDeltaReadOnly: Boolean = false,
+    doseAmountDelta: Double? = null,
+    scheduledDoseAmount: Double? = null,
+    plannedDoseAmount: Double? = null,
+    effectiveActualAmount: Double? = null,
     sourceGroupName: String? = null,
     sourceGroupColorKey: MedicationGroupColorKey? = null,
     sourceGroupScheduledFor: LocalDateTime? = null,
@@ -117,6 +125,9 @@ fun MedicationLogEntryEditorSheet(
     appliedZoneId: ZoneId = ZoneId.systemDefault(),
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
+    onDoseAmountDeltaChange: (Double?) -> Unit = { },
+    onLiveActualAmountChange: (Double) -> Unit = { },
+    onScrollingChange: (Boolean) -> Unit = { },
     isSaving: Boolean = false,
     destructiveButtonText: String? = null,
     onDestructiveAction: (() -> Unit)? = null,
@@ -170,6 +181,11 @@ fun MedicationLogEntryEditorSheet(
             lockedMedicine = lockedMedicine,
             applicationType = linkedApplicationType,
             doseInstruction = doseInstructionDraft?.toDoseInstructionOrNull(),
+            doseAmountDelta = medicationLogEntrySummaryDoseAmountDelta(
+                allowsActualDoseDelta = allowsActualDoseDelta,
+                showActualDoseDeltaReadOnly = showActualDoseDeltaReadOnly,
+                doseAmountDelta = doseAmountDelta,
+            ),
             countText = countText,
             sourceGroupName = sourceGroupName,
             sourceGroupColorKey = sourceGroupColorKey,
@@ -181,7 +197,34 @@ fun MedicationLogEntryEditorSheet(
             stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
         )
 
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        ActualAmountRulerCard(
+            modifier = Modifier.padding(top = 8.dp),
+            preparationType = lockedMedicine?.preparation?.type,
+            allowsActualDoseDelta = allowsActualDoseDelta,
+            plannedAmount = plannedDoseAmount,
+            doseAmountDelta = doseAmountDelta,
+            isSaving = isSaving,
+            onDoseAmountDeltaChange = onDoseAmountDeltaChange,
+            onLiveActualAmountChange = onLiveActualAmountChange,
+            onScrollingChange = onScrollingChange,
+        )
+
+        ActualAmountReadOnlyCard(
+            modifier = Modifier.padding(top = 8.dp),
+            preparationType = lockedMedicine?.preparation?.type,
+            showActualDoseDeltaReadOnly = showActualDoseDeltaReadOnly,
+            scheduledDoseAmount = scheduledDoseAmount,
+            doseAmountDelta = doseAmountDelta,
+            effectiveActualAmount = effectiveActualAmount,
+        )
+
+        val showsActualAmountSection = (allowsActualDoseDelta || showActualDoseDeltaReadOnly) &&
+            effectiveActualAmount != null
+        if (showsActualAmountSection) {
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+        }
 
         MedicationLogAppliedAtFields(
             appliedDate = appliedDate,
@@ -204,6 +247,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
     lockedMedicine: Medicine?,
     applicationType: MedicationApplicationType,
     doseInstruction: DoseInstruction?,
+    doseAmountDelta: Double? = null,
     countText: String,
     sourceGroupName: String?,
     sourceGroupColorKey: MedicationGroupColorKey?,
@@ -236,6 +280,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
         applicationType = applicationType,
         medicationCount = resolvedCount.coerceAtLeast(1),
         groupColorKey = sourceGroupColorKey,
+        doseAmountDelta = doseAmountDelta,
         stockProjection = selectedStockProjection.takeIf {
             medicationSummaryShouldShowStockSubcard(
                 hasMedicine = lockedMedicine != null,

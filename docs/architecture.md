@@ -376,7 +376,7 @@ The home screen has two cached layers, both observed by
   (`home_snapshot.pb`) so the home screen paints from cache on cold
   start before live Room observation catches up. The persisted record
   is `HomeSnapshotRecord`. The snapshot codec is at
-  `SNAPSHOT_CODEC_VERSION = 18` and the schema record at
+  `SNAPSHOT_CODEC_VERSION = 19` and the schema record at
   `HOME_SNAPSHOT_SCHEMA_VERSION = 7`; both moved through the
   medicine-identity refactor (slots and log entries now reference a
   medicine by UUID, and the PATCH_OFF singleton round-trips), and the
@@ -389,7 +389,8 @@ The home screen has two cached layers, both observed by
   referenced by index) since a daily doser repeats the same one or two
   medicines across the whole window. v18 appends an `archivedGroups`
   field so Home and the widget can mirror the Plan page's archived-group
-  doses without re-reading Room.
+  doses without re-reading Room. v19 appends `doseAmountDelta` to log
+  entries so cached stock deltas survive a cold start.
 
 The persisted snapshot also bundles a `HomePkProjectionRecord` — the
 result of the most recent

@@ -37,6 +37,7 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -1132,8 +1133,15 @@ private fun MedicationGroupEditorScreenContent(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        onRemoveMedication(removalRequest.localId)
+                        val localId = removalRequest.localId
                         pendingMedicationRemoval = null
+                        // Removal is triggered from inside the slot editor
+                        // sheet, so animate the sheet closed and dismiss the
+                        // editor alongside the actual removal.
+                        hideBottomSheet(scope, sheetState) {
+                            onRemoveMedication(localId)
+                            onDismissMedicationEditor()
+                        }
                     }
                 ) {
                     Text(text = stringResource(R.string.delete_entries_confirm))
@@ -1288,10 +1296,6 @@ private fun MedicationGroupEditorScreenContent(
                             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
                         ) {
                             uiState.medications.forEachIndexed { index, medication ->
-                                val medicationName = medicationEntryTitle(
-                                    medication.resolvedMedicine,
-                                    medication.applicationType,
-                                )
                                 val medicationEditable = !areFieldsRenderedLocked
                                 val isMedicineArchived =
                                     medication.resolvedMedicine?.isArchived == true
@@ -1310,34 +1314,40 @@ private fun MedicationGroupEditorScreenContent(
                                     } else {
                                         null
                                     },
-                                    onDeleteClick = if (medicationEditable) {
-                                        {
-                                            pendingMedicationRemoval = MedicationRemovalRequest(
-                                                localId = medication.localId,
-                                                medicationName = medicationName
-                                            )
+                                    // Editable cards open the slot editor sheet,
+                                    // where the removal action now lives — so the
+                                    // trailing affordance is a tap-to-edit
+                                    // chevron rather than a delete icon. When the
+                                    // group is archived, flag any medicine that's
+                                    // also archived instead (the duplicate flow
+                                    // skips those slots since saving them would
+                                    // silently revive the archived medicine).
+                                    trailingContent = when {
+                                        uiState.isArchived && isMedicineArchived -> {
+                                            {
+                                                Icon(
+                                                    painter = painterResource(R.drawable.ic_archive),
+                                                    contentDescription = stringResource(
+                                                        R.string.medication_archived_indicator_cd,
+                                                    ),
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(20.dp),
+                                                )
+                                            }
                                         }
-                                    } else {
-                                        null
-                                    },
-                                    // When the group itself is archived, flag
-                                    // any medicine that's also archived — the
-                                    // duplicate flow skips those slots since
-                                    // saving them would silently revive the
-                                    // archived medicine.
-                                    trailingContent = if (uiState.isArchived && isMedicineArchived) {
-                                        {
-                                            Icon(
-                                                painter = painterResource(R.drawable.ic_archive),
-                                                contentDescription = stringResource(
-                                                    R.string.medication_archived_indicator_cd,
-                                                ),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(20.dp),
-                                            )
+
+                                        medicationEditable -> {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.ChevronRight,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(24.dp),
+                                                )
+                                            }
                                         }
-                                    } else {
-                                        null
+
+                                        else -> null
                                     },
                                     enabled = true,
                                     index = index,
@@ -1637,6 +1647,14 @@ private fun MedicationGroupEditorScreenContent(
         val resolvedMedicine = checkNotNull(medication.resolvedMedicine) {
             "Medication group slot editor requires a resolved medicine."
         }
+        // Removal lives in the sheet now (the card shows a chevron, not a
+        // delete icon). Only an already-added slot can be removed, and only
+        // while the group's fields are editable.
+        val canRemoveMedication = isEditingExistingMedication && !areFieldsRenderedLocked
+        val editingMedicationName = medicationEntryTitle(
+            resolvedMedicine,
+            medication.resolvedApplicationType(),
+        )
         MedicationGroupSlotEditorSheet(
             modifier = Modifier,
             title = stringResource(
@@ -1668,6 +1686,21 @@ private fun MedicationGroupEditorScreenContent(
             onDecreaseCountClick = onDecreaseEditingMedicationCount,
             onIncreaseCountClick = onIncreaseEditingMedicationCount,
             errorMessageRes = uiState.medicationEditorErrorMessageRes,
+            destructiveButtonText = if (canRemoveMedication) {
+                stringResource(R.string.remove)
+            } else {
+                null
+            },
+            onDestructiveAction = if (canRemoveMedication) {
+                {
+                    pendingMedicationRemoval = MedicationRemovalRequest(
+                        localId = medication.localId,
+                        medicationName = editingMedicationName,
+                    )
+                }
+            } else {
+                null
+            },
             onConfirm = onSaveMedicationClick
         )
     }

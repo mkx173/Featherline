@@ -48,11 +48,11 @@ class ColorHctTest {
         assertEquals(source.onSurface, amoled.onSurface)
         assertEquals(Color.Black, amoled.surfaceDim)
         assertEquals(Color.Black, amoled.surfaceContainerLowest)
-        assertEquals(4.0, amoled.surfaceContainerLow.hctTone(), 0.5)
-        assertEquals(6.0, amoled.surfaceContainer.hctTone(), 0.5)
-        assertEquals(9.0, amoled.surfaceContainerHigh.hctTone(), 0.5)
-        assertEquals(12.0, amoled.surfaceContainerHighest.hctTone(), 0.5)
-        assertEquals(14.0, amoled.surfaceBright.hctTone(), 0.5)
+        assertEquals(3.0, amoled.surfaceContainerLow.hctTone(), 0.5)
+        assertEquals(4.5, amoled.surfaceContainer.hctTone(), 0.5)
+        assertEquals(7.0, amoled.surfaceContainerHigh.hctTone(), 0.5)
+        assertEquals(10.0, amoled.surfaceContainerHighest.hctTone(), 0.5)
+        assertEquals(12.0, amoled.surfaceBright.hctTone(), 0.5)
     }
 
     private fun Color.hctTone(): Double = Hct.fromInt(toArgb()).tone

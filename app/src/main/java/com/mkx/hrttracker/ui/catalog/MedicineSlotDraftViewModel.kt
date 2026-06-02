@@ -3,9 +3,11 @@ package com.mkx.hrttracker.ui.catalog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +24,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MedicineSlotDraftViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
+    private val medicineStockRepository: MedicineStockRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
@@ -31,9 +34,14 @@ class MedicineSlotDraftViewModel @Inject constructor(
 
     internal constructor(
         medicationLogRepository: MedicationLogRepository,
+        medicineStockRepository: MedicineStockRepository,
         medicationReminderScheduler: MedicationReminderScheduler,
         initialAppliedZoneId: ZoneId,
-    ) : this(medicationLogRepository, medicationReminderScheduler) {
+    ) : this(
+        medicationLogRepository = medicationLogRepository,
+        medicineStockRepository = medicineStockRepository,
+        medicationReminderScheduler = medicationReminderScheduler,
+    ) {
         _uiState.value = _uiState.value.copy(appliedZoneId = initialAppliedZoneId)
     }
 
@@ -50,10 +58,11 @@ class MedicineSlotDraftViewModel @Inject constructor(
             } else {
                 state.copy(
                     appliedDate = appliedDate,
-                    saveResult = null,
-                )
-            }
+                saveResult = null,
+                postLogStockWarning = null,
+            )
         }
+    }
     }
 
     fun updateAppliedTime(appliedTime: LocalTime) {
@@ -63,10 +72,11 @@ class MedicineSlotDraftViewModel @Inject constructor(
             } else {
                 state.copy(
                     appliedTime = appliedTime.withSecond(0).withNano(0),
-                    saveResult = null,
-                )
-            }
+                saveResult = null,
+                postLogStockWarning = null,
+            )
         }
+    }
     }
 
     fun saveManualLog(
@@ -74,6 +84,7 @@ class MedicineSlotDraftViewModel @Inject constructor(
         applicationType: MedicationApplicationType,
         doseInstruction: DoseInstruction,
         count: Int,
+        doseAmountDelta: Double? = null,
     ) {
         val currentState = _uiState.value
         if (currentState.isSaving || currentState.isSaved) {
@@ -90,11 +101,13 @@ class MedicineSlotDraftViewModel @Inject constructor(
             try {
                 val saveResult = saveManualMedicineLog(
                     medicationLogRepository = medicationLogRepository,
+                    medicineStockRepository = medicineStockRepository,
                     medicationReminderScheduler = medicationReminderScheduler,
                     medicineUuid = medicineUuid,
                     resolvedApplicationType = applicationType,
                     doseInstruction = doseInstruction,
                     count = count,
+                    doseAmountDelta = doseAmountDelta,
                     appliedDate = currentState.appliedDate,
                     appliedTime = currentState.appliedTime,
                     appliedZoneId = currentState.appliedZoneId,
@@ -102,8 +115,9 @@ class MedicineSlotDraftViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isSaving = false,
-                        isSaved = saveResult == null,
-                        saveResult = saveResult,
+                        isSaved = saveResult.isSuccess,
+                        saveResult = saveResult.saveResult,
+                        postLogStockWarning = saveResult.postLogStockWarning,
                     )
                 }
             } catch (exception: CancellationException) {
@@ -114,7 +128,7 @@ class MedicineSlotDraftViewModel @Inject constructor(
     }
 
     fun consumeSavedState() {
-        _uiState.update { it.copy(isSaved = false) }
+        _uiState.update { it.copy(isSaved = false, postLogStockWarning = null) }
     }
 
     fun consumeSaveResult() {
@@ -133,6 +147,7 @@ data class MedicineSlotDraftUiState(
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
     val saveResult: MedicineSlotDraftSaveResult? = null,
+    val postLogStockWarning: PostLogStockWarning? = null,
 )
 
 enum class MedicineSlotDraftSaveResult {

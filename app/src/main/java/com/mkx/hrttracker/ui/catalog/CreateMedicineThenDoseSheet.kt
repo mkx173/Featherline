@@ -8,7 +8,9 @@ import androidx.compose.material3.SheetValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.res.dimensionResource
@@ -16,6 +18,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.ui.medication.ActualAmountRulerCard
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.medication.DoseInstructionForm
 import com.mkx.hrttracker.ui.medication.MedicationCountTextField
@@ -52,7 +56,9 @@ fun CreateMedicineThenDoseSheet(
     onGroupSlotResolved: (MedicineSlotResult, () -> Unit) -> Unit,
     modifier: Modifier = Modifier,
     mode: CreateMedicineThenDoseSheetMode = CreateMedicineThenDoseSheetMode.GROUP_SLOT,
-    onManualLogSaved: (() -> Unit) -> Unit = { consumeSavedState -> consumeSavedState() },
+    onManualLogSaved: (PostLogStockWarning?, () -> Unit) -> Unit = { _, consumeSavedState ->
+        consumeSavedState()
+    },
     onManualLogSaveFailure: () -> Unit = { },
     viewModel: NewMedicineSlotViewModel = hiltViewModel(),
 ) {
@@ -82,7 +88,7 @@ fun CreateMedicineThenDoseSheet(
 
     LaunchedEffect(isManualLogMode, uiState.isSaved) {
         if (isManualLogMode && uiState.isSaved) {
-            onManualLogSaved(viewModel::consumeSavedState)
+            onManualLogSaved(uiState.postLogStockWarning, viewModel::consumeSavedState)
         }
     }
 
@@ -95,6 +101,11 @@ fun CreateMedicineThenDoseSheet(
             viewModel.consumeManualLogSaveResult()
         }
     }
+
+    // The committed delta lags the ruler while it scrolls (settle-debounced), so
+    // swallow Save taps until the ruler settles rather than persisting a stale
+    // amount. The ruler resets this to false on dispose.
+    var isActualAmountRulerScrolling by remember { mutableStateOf(false) }
 
     MedicationEditorSheetScaffold(
         modifier = modifier,
@@ -111,7 +122,8 @@ fun CreateMedicineThenDoseSheet(
         onConfirm = {
             when (mode) {
                 CreateMedicineThenDoseSheetMode.GROUP_SLOT -> viewModel.saveGroupSlot()
-                CreateMedicineThenDoseSheetMode.MANUAL_LOG -> viewModel.saveManualLog()
+                CreateMedicineThenDoseSheetMode.MANUAL_LOG ->
+                    if (!isActualAmountRulerScrolling) viewModel.saveManualLog()
             }
         },
     ) {
@@ -188,6 +200,18 @@ fun CreateMedicineThenDoseSheet(
         }
 
         if (isManualLogMode) {
+            if (uiState.allowsActualDoseDelta && uiState.effectiveActualAmount != null) {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                ActualAmountRulerCard(
+                    preparationType = activePreparationType,
+                    allowsActualDoseDelta = uiState.allowsActualDoseDelta,
+                    plannedAmount = uiState.scheduledNativeAmount,
+                    doseAmountDelta = uiState.doseAmountDelta,
+                    isSaving = isSheetLocked,
+                    onDoseAmountDeltaChange = { viewModel.setDoseAmountDelta(it) },
+                    onScrollingChange = { isActualAmountRulerScrolling = it },
+                )
+            }
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             MedicationLogAppliedAtFields(
                 appliedDate = uiState.appliedDate,

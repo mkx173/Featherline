@@ -3,10 +3,15 @@ package com.mkx.hrttracker.ui.catalog
 import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imeAnimationTarget
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -38,10 +43,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -56,6 +65,7 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -64,10 +74,15 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.ui.dismissInputAndRunWhenHidden
 import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.inputIsVisibleOrAnimating
 import com.mkx.hrttracker.ui.medication.medicinePreparationSummary
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.labelRes
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 internal const val MedicineManagerSectionHeaderTopPaddingDp = 4
@@ -152,7 +167,11 @@ internal fun medicineManagerTrailingContentKind(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(
+    ExperimentalLayoutApi::class,
+    ExperimentalMaterial3Api::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+)
 @Composable
 internal fun MedicinesScreen(
     onNavigateBack: () -> Unit,
@@ -160,7 +179,7 @@ internal fun MedicinesScreen(
     modifier: Modifier = Modifier,
     launchMode: MedicineManagerLaunchMode = MedicineManagerLaunchMode.Manager,
     onSlotResolved: (MedicineSlotResult) -> Unit = { },
-    onManualLogSaved: () -> Unit = { },
+    onManualLogSaved: (PostLogStockWarning?) -> Unit = { },
     viewModel: MedicinesViewModel = hiltViewModel(),
     createMedicineViewModel: CreateMedicineViewModel = hiltViewModel(),
     slotDraftViewModel: MedicineSlotDraftViewModel = hiltViewModel(),
@@ -170,6 +189,16 @@ internal fun MedicinesScreen(
     val stockOptInResult by viewModel.stockOptInResult.collectAsStateWithLifecycle()
     val slotDraftUiState by slotDraftViewModel.uiState.collectAsStateWithLifecycle()
     val newMedicineSlotUiState by newMedicineSlotViewModel.uiState.collectAsStateWithLifecycle()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val density = LocalDensity.current
+    val inputVisibleOrAnimatingState = rememberUpdatedState(
+        inputIsVisibleOrAnimating(
+            imeVisible = WindowInsets.isImeVisible,
+            imeBottom = WindowInsets.ime.getBottom(density),
+            imeAnimationTargetBottom = WindowInsets.imeAnimationTarget.getBottom(density),
+        )
+    )
     val isManualSlotLocked = launchMode == MedicineManagerLaunchMode.ManualLog &&
         (slotDraftUiState.isSaving || slotDraftUiState.isSaved)
     val isNewSlotLocked = newMedicineSlotUiState.isSaving || newMedicineSlotUiState.isSaved
@@ -210,6 +239,11 @@ internal fun MedicinesScreen(
     val context = LocalContext.current
     val saveEntryFailureMessage = stringResource(R.string.save_entry_failure)
     val stockOptInFailureMessage = stringResource(R.string.medicine_stock_update_failure)
+    val awaitInputHidden: suspend () -> Unit = {
+        snapshotFlow { inputVisibleOrAnimatingState.value }
+            .filter { !it }
+            .first()
+    }
 
     // Reset the shared draft when the sheet opens so a previously-dismissed
     // attempt doesn't leak into the next one.
@@ -268,10 +302,30 @@ internal fun MedicinesScreen(
                     showCreateMedicineSheet = false
                 }
             },
-            onCreated = { _ ->
-                // Manager mode stays in the medicine manager after creation; the UUID is intentionally ignored.
-                hideBottomSheet(scope, createMedicineSheetState) {
-                    showCreateMedicineSheet = false
+            onCreated = { createdUuid ->
+                // Manager mode opens the newly-created medicine's detail page so
+                // the user can immediately set stock / fine-tune it.
+                scope.launch {
+                    dismissInputAndRunWhenHidden(
+                        focusManager = focusManager,
+                        keyboardController = keyboardController,
+                        isInputVisible = { inputVisibleOrAnimatingState.value },
+                        awaitInputHidden = awaitInputHidden,
+                    ) {
+                        hideBottomSheet(scope, createMedicineSheetState) {
+                            showCreateMedicineSheet = false
+                            scope.launch {
+                                dismissInputAndRunWhenHidden(
+                                    focusManager = focusManager,
+                                    keyboardController = keyboardController,
+                                    isInputVisible = { inputVisibleOrAnimatingState.value },
+                                    awaitInputHidden = awaitInputHidden,
+                                ) {
+                                    onMedicineClick(createdUuid)
+                                }
+                            }
+                        }
+                    }
                 }
             },
             viewModel = createMedicineViewModel,
@@ -303,13 +357,13 @@ internal fun MedicinesScreen(
             mode = (medicineManagerAddNewTarget(launchMode) as? MedicineManagerAddNewTarget.NewMedicineSlot)
                 ?.mode
                 ?: error("CreateMedicineThenDoseSheet is not used in manager mode."),
-            onManualLogSaved = { consumeSavedState ->
+            onManualLogSaved = { warning, consumeSavedState ->
                 allowManualSlotCompletionHideState.value = true
                 hideBottomSheet(scope, createMedicineThenDoseSheetState) {
                     showCreateMedicineThenDoseSheet = false
                     allowManualSlotCompletionHideState.value = false
                     consumeSavedState()
-                    onManualLogSaved()
+                    onManualLogSaved(warning)
                 }
             },
             onManualLogSaveFailure = {
@@ -351,13 +405,13 @@ internal fun MedicinesScreen(
                 MedicineManagerLaunchMode.OnboardingStockOptIn,
                 is MedicineManagerLaunchMode.GroupSlot -> MedicineSlotDraftMode.GROUP_SLOT
             },
-            onManualLogSaved = { consumeSavedState ->
+            onManualLogSaved = { warning, consumeSavedState ->
                 allowManualSlotCompletionHideState.value = true
                 hideBottomSheet(scope, slotDraftSheetState) {
                     pendingSlotMedicineUuid = null
                     allowManualSlotCompletionHideState.value = false
                     consumeSavedState()
-                    onManualLogSaved()
+                    onManualLogSaved(warning)
                 }
             },
             onManualLogSaveFailure = {

@@ -25,7 +25,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationLogEntryEditorSheet
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.stockMutationPreviewDoseMagnitude
@@ -42,7 +46,7 @@ fun MedicationLogEntryScreen(
     quickLogRequest: MedicationLogEntryQuickLogRequest? = null,
     editSnapshot: MedicationLogEntryEditSnapshot? = null,
     onDismissRequest: () -> Unit,
-    onEntrySaved: () -> Unit,
+    onEntrySaved: (PostLogStockWarning?) -> Unit,
     viewModel: MedicationLogEntryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -82,9 +86,11 @@ fun MedicationLogEntryScreen(
 
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
+            val warning = uiState.postLogStockWarning
             hideBottomSheet(scope, sheetState) {
                 viewModel.consumeSavedState()
-                onEntrySaved()
+                viewModel.consumePostLogStockWarning()
+                onEntrySaved(warning)
             }
         }
     }
@@ -144,6 +150,7 @@ fun MedicationLogEntryScreen(
         },
         onAppliedDateChange = viewModel::updateAppliedDate,
         onAppliedTimeChange = viewModel::updateAppliedTime,
+        onDoseAmountDeltaChange = viewModel::setDoseAmountDelta,
         onDeleteClick = viewModel::deleteEntry,
         onSaveClick = viewModel::saveEntry,
         onSaveAfterFulfillmentWarningClick = viewModel::saveEntryAfterFulfillmentWarning,
@@ -162,27 +169,43 @@ private fun MedicationLogEntryScreenBody(
     onCloseClick: () -> Unit,
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
+    onDoseAmountDeltaChange: (Double?) -> Unit,
     onDeleteClick: () -> Unit,
     onSaveClick: () -> Unit,
     onSaveAfterFulfillmentWarningClick: () -> Unit,
     onScheduleFulfillmentWarningDismiss: () -> Unit,
 ) {
     var isDeleteConfirmationVisible by remember(uiState.canDelete) { mutableStateOf(false) }
+    // Live actual amount streamed from the ruler while the user scrubs, so the
+    // stock subcard's after-mutation amount tracks the scrub in real time rather
+    // than waiting for the debounced delta commit. Ignored unless the ruler is
+    // active; the ruler re-emits on (re)composition, so it never goes stale.
+    var liveActualAmount by remember { mutableStateOf<Double?>(null) }
+    // The committed delta lags the ruler while it scrolls (settle-debounced), so
+    // swallow Save taps until the ruler settles rather than persisting a stale
+    // amount. The ruler resets this to false on dispose.
+    var isActualAmountRulerScrolling by remember { mutableStateOf(false) }
     val previewDoseMagnitude = remember(
         uiState.isEditing,
         uiState.resolvedMedicine,
         uiState.doseInstructionDraft,
         uiState.countText,
+        uiState.allowsActualDoseDelta,
+        uiState.effectiveActualAmount,
+        liveActualAmount,
     ) {
-        if (uiState.isEditing) {
-            null
-        } else {
-            stockMutationPreviewDoseMagnitude(
-                medicine = uiState.resolvedMedicine,
-                doseInstructionDraft = uiState.doseInstructionDraft,
-                countText = uiState.countText,
-            )
-        }
+        medicationLogEntryPreviewDoseMagnitude(
+            isEditing = uiState.isEditing,
+            medicine = uiState.resolvedMedicine,
+            doseInstructionDraft = uiState.doseInstructionDraft,
+            countText = uiState.countText,
+            allowsActualDoseDelta = uiState.allowsActualDoseDelta,
+            effectiveActualAmount = if (uiState.allowsActualDoseDelta) {
+                liveActualAmount ?: uiState.effectiveActualAmount
+            } else {
+                uiState.effectiveActualAmount
+            },
+        )
     }
 
     MedicationLogEntryEditorSheet(
@@ -205,6 +228,11 @@ private fun MedicationLogEntryScreenBody(
         lockedMedicine = uiState.resolvedMedicine,
         selectedStockProjection = uiState.selectedStockProjection,
         stockMutationPreviewDoseMagnitude = previewDoseMagnitude,
+        allowsActualDoseDelta = uiState.allowsActualDoseDelta,
+        showActualDoseDeltaReadOnly = uiState.showActualDoseDeltaReadOnly,
+        doseAmountDelta = uiState.doseAmountDelta,
+        scheduledDoseAmount = uiState.scheduledNativeAmount,
+        effectiveActualAmount = uiState.effectiveActualAmount,
         sourceGroupName = uiState.sourceGroupName,
         sourceGroupColorKey = uiState.sourceGroupColorKey,
         sourceGroupScheduledFor = uiState.scheduledFor,
@@ -217,6 +245,14 @@ private fun MedicationLogEntryScreenBody(
         appliedZoneId = uiState.appliedZoneId,
         onAppliedDateChange = onAppliedDateChange,
         onAppliedTimeChange = onAppliedTimeChange,
+        onDoseAmountDeltaChange = { delta ->
+            if (!uiState.isSaving && !uiState.isDeleting && !uiState.isSaved) {
+                onDoseAmountDeltaChange(delta)
+            }
+        },
+        onLiveActualAmountChange = { liveActualAmount = it },
+        onScrollingChange = { isActualAmountRulerScrolling = it },
+        plannedDoseAmount = uiState.scheduledNativeAmount,
         isSaving = uiState.isSaving || uiState.isDeleting || uiState.isSaved,
         destructiveButtonText = if (uiState.canDelete) {
             stringResource(R.string.delete_entries_confirm)
@@ -228,7 +264,7 @@ private fun MedicationLogEntryScreenBody(
         } else {
             null
         },
-        onConfirm = onSaveClick
+        onConfirm = { if (!isActualAmountRulerScrolling) onSaveClick() }
     )
 
     if (isDeleteConfirmationVisible) {
@@ -306,6 +342,38 @@ private fun MedicationLogEntryScreenBody(
     }
 }
 
+internal fun medicationLogEntryPreviewDoseMagnitude(
+    isEditing: Boolean,
+    medicine: Medicine?,
+    doseInstructionDraft: DoseInstructionDraftUiState?,
+    countText: String,
+    allowsActualDoseDelta: Boolean,
+    effectiveActualAmount: Double?,
+): Double? {
+    if (isEditing) {
+        return null
+    }
+    if (
+        allowsActualDoseDelta &&
+        effectiveActualAmount != null &&
+        effectiveActualAmount.isFinite()
+    ) {
+        when (medicine?.preparation) {
+            is MedicinePreparation.InjectionMultiUseVial,
+            is MedicinePreparation.GelContainer -> {
+                return effectiveActualAmount.takeIf { it >= 0.0 }
+            }
+
+            else -> Unit
+        }
+    }
+    return stockMutationPreviewDoseMagnitude(
+        medicine = medicine,
+        doseInstructionDraft = doseInstructionDraft,
+        countText = countText,
+    )
+}
+
 @Preview(showBackground = true)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -324,6 +392,7 @@ private fun MedicationLogEntryScreenPreview() {
             onCloseClick = { },
             onAppliedDateChange = { },
             onAppliedTimeChange = { },
+            onDoseAmountDeltaChange = { },
             onDeleteClick = { },
             onSaveClick = { },
             onSaveAfterFulfillmentWarningClick = { },

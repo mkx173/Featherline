@@ -2111,6 +2111,7 @@ private fun HistoryEntryCard(
         applicationType = entry.applicationType,
         medicationCount = entry.count,
         groupColorKey = groupColorKey,
+        doseAmountDelta = entry.doseAmountDelta,
         // Manual entries have no source group; render the leading icon in
         // the neutral group palette to match other manual-log surfaces
         // instead of falling through to secondaryContainer.
@@ -2179,37 +2180,6 @@ private fun HistoryEmptyStateCard(
         painter = painterResource(R.drawable.ic_info),
         modifier = modifier,
     )
-}
-
-@Composable
-private fun buildHistoryEntrySupportingText(
-    entry: MedicationLogEntry,
-    count: Int,
-    groupName: String?
-): String {
-    val doseText = entry.medicine?.let { doseInstructionSummary(it, entry.doseInstruction) }
-    val countText = medicationCountIndicatorText(count)
-    val fallbackText = stringResource(entry.applicationType.labelRes)
-    return historyEntrySupportingText(
-        primaryText = doseText ?: fallbackText,
-        countText = countText,
-        groupName = groupName
-    )
-}
-
-internal fun historyEntrySupportingText(
-    primaryText: String,
-    countText: String?,
-    groupName: String?
-): String {
-    val parts = buildList {
-        countText?.let(::add)
-        add(primaryText)
-        if (!groupName.isNullOrBlank()) {
-            add(groupName)
-        }
-    }
-    return parts.joinToString(" \u00B7 ")
 }
 
 @Preview(

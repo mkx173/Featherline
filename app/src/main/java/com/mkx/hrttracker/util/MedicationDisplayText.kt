@@ -96,28 +96,36 @@ fun doseInstructionText(
     context: Context,
     medicine: Medicine?,
     doseInstruction: DoseInstruction,
+    doseAmountDelta: Double? = null,
 ): String? {
     if (medicine == null) {
         return null
     }
     val locale = Locale.getDefault()
-    val portion = when (doseInstruction) {
+    // Render the actual administered amount (scheduled + delta) for measured
+    // forms; ampules keep WholeUnit and carry the delta on the mg line below.
+    val effectiveInstruction = DoseInstructionCalculator.effectiveDoseInstructionForDisplay(
+        preparation = medicine.preparation,
+        doseInstruction = doseInstruction,
+        doseAmountDelta = doseAmountDelta,
+    )
+    val portion = when (effectiveInstruction) {
         // A single whole tablet is implied by the active mg line; skip "1 tablet".
-        is DoseInstruction.TabletFraction -> if (doseInstruction.numerator == 1 && doseInstruction.denominator == 1) {
+        is DoseInstruction.TabletFraction -> if (effectiveInstruction.numerator == 1 && effectiveInstruction.denominator == 1) {
             null
         } else {
             context.getString(
                 R.string.dose_instruction_summary_tablet_fraction,
-                formatTabletFraction(doseInstruction),
+                formatTabletFraction(effectiveInstruction),
             )
         }
         is DoseInstruction.VolumeMl -> context.getString(
             R.string.dose_instruction_summary_volume_ml,
-            doseInstruction.valueMl.formatDose(locale),
+            effectiveInstruction.valueMl.formatDose(locale),
         )
         is DoseInstruction.WeightGrams -> context.getString(
             R.string.dose_instruction_summary_weight_grams,
-            doseInstruction.valueGrams.formatDose(locale),
+            effectiveInstruction.valueGrams.formatDose(locale),
         )
         // Gel sachets dose one whole packet at a time but the packet's gram weight
         // is still useful context.
@@ -130,21 +138,8 @@ fun doseInstructionText(
         DoseInstruction.Noop -> null
     }
 
-    // Concentration-bearing preparations (multi-use vial, gel) show
-    // "concentration · portion" so the row identifies which preparation
-    // a log/slot refers to when one medicine has several preparations.
-    concentrationSummary(context, locale, medicine.preparation)?.let { concentration ->
-        return listOfNotNull(concentration, portion).joinToString(separator = " · ")
-    }
-
-    val active = DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(medicine, doseInstruction)
-        ?.let { rate ->
-            context.getString(
-                R.string.dose_instruction_summary_patch_release_rate,
-                rate.formatDose(locale),
-            )
-        }
-        ?: DoseInstructionCalculator.perUnitAmountMg(medicine, doseInstruction)?.let { perUnitMg ->
+    val activeAmount = DoseInstructionCalculator.perUnitAmountMg(medicine, doseInstruction, doseAmountDelta)
+        ?.let { perUnitMg ->
             val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
                 medicine.displayDoseUnit
             } else {
@@ -156,6 +151,24 @@ fun doseInstructionText(
                 context.getString(displayUnit.shortLabelStringRes()),
             )
         }
+
+    // Concentration-bearing preparations (multi-use vial, gel) show
+    // "concentration · portion" so the row identifies which preparation
+    // a log/slot refers to when one medicine has several preparations. The
+    // active mass is not surfaced for these forms; the portion already reflects
+    // the actual administered amount.
+    concentrationSummary(context, locale, medicine.preparation)?.let { concentration ->
+        return listOfNotNull(concentration, portion).joinToString(separator = " · ")
+    }
+
+    val active = DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(medicine, doseInstruction)
+        ?.let { rate ->
+            context.getString(
+                R.string.dose_instruction_summary_patch_release_rate,
+                rate.formatDose(locale),
+            )
+        }
+        ?: activeAmount
 
     val parts = listOfNotNull(portion, active)
     return parts.takeIf { it.isNotEmpty() }?.joinToString(separator = " · ")

@@ -193,7 +193,9 @@ flattened into the parent's JSON.
   medicines, all catalog estradiol patches, and PATCH_OFF), the
   slot-fulfillment link
   (`sourceGroupUuid` / `scheduleTimeUuid` / `scheduledForIso`),
-  applied time + zone, and `count`. The pre-refactor denormalized
+  applied time + zone, `count`, and the nullable `doseAmountDelta`
+  (the actual-vs-scheduled amount difference; null when taken as
+  planned). The pre-refactor denormalized
   identity fields (`selectionKind`, `medicationKey`,
   `customMedicationName`, `doseKind`, `doseValueMg`, `customDoseUnit`,
   `doseValuePercent`, `doseReleaseRateMcgPerDay`,
@@ -323,8 +325,10 @@ default. This is how `lastSeenTimeZoneId`, `hideReferenceRanges`,
 `includePastScheduledSlots`, `replacedByGroupUuid`,
 `recreatedFromGroupUuid`, `BackupMedicineSnapshot.displayDoseUnit`, and
 the optional `BackupMedicineSnapshot.stock` object (the entire stock
-feature) shipped without a snapshot-version bump — `CURRENT_BACKUP_SNAPSHOT_VERSION`
-stayed at `3`. Removing or renaming a field is *not* in this bucket.
+feature), and `BackupMedicationLogSnapshot.doseAmountDelta` (the
+actual-amount feature) all shipped without a snapshot-version bump —
+`CURRENT_BACKUP_SNAPSHOT_VERSION` stayed at `3`. Removing or renaming a
+field is *not* in this bucket.
 
 **Bumping the snapshot version (envelope unchanged).** Required when
 a field's *meaning* changes — a rename, removal, unit change, or a

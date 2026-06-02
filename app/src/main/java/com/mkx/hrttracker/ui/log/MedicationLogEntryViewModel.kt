@@ -12,17 +12,23 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.isCompatibleWith
 import com.mkx.hrttracker.model.medication.isWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
+import com.mkx.hrttracker.ui.medication.doseAmountDeltaForActual
 import com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction
+import com.mkx.hrttracker.ui.medication.effectiveActualDoseAmount
 import com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine
 import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import com.mkx.hrttracker.ui.medication.parseMedicationCountText
@@ -36,6 +42,7 @@ import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.zoneDisplayName
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -224,6 +231,21 @@ class MedicationLogEntryViewModel @Inject constructor(
         }
     }
 
+    fun setDoseAmountDelta(delta: Double?) {
+        _uiState.update { currentState ->
+            val scheduledAmount = currentState.scheduledNativeAmount ?: return@update currentState
+            if (!currentState.allowsActualDoseDelta) {
+                return@update currentState
+            }
+            currentState.copy(
+                doseAmountDelta = doseAmountDeltaForActual(
+                    scheduledAmount = scheduledAmount,
+                    actualAmount = scheduledAmount + (delta ?: 0.0),
+                ),
+            )
+        }
+    }
+
     private fun saveEntry(skipFulfillmentWarning: Boolean) {
         val currentState = _uiState.value
         if (currentState.isSaving || currentState.isDeleting || currentState.isSaved) {
@@ -300,6 +322,8 @@ class MedicationLogEntryViewModel @Inject constructor(
                 countText = currentState.countText,
                 preparationType = preparationType,
             ),
+            doseAmountDelta = currentState.doseAmountDelta
+                ?.takeIf { currentState.allowsActualDoseDelta },
         )
 
         _uiState.update {
@@ -307,6 +331,7 @@ class MedicationLogEntryViewModel @Inject constructor(
                 isSaving = true,
                 errorMessageRes = null,
                 saveEntryResult = null,
+                postLogStockWarning = null,
                 isScheduleFulfillmentWarningVisible = false,
             )
         }
@@ -323,14 +348,14 @@ class MedicationLogEntryViewModel @Inject constructor(
 
     private fun performSave(request: PendingSaveRequest) {
         viewModelScope.launch {
+            val medicineUuid = if (request.isEditing) {
+                request.lockedMedicineUuid
+            } else {
+                request.selectedMedicineUuid
+            }
             val saveResult = runCatching {
                 // On edit the repository ignores medicine identity (locked); on a
                 // new log the routed picker already resolved a Medicine UUID.
-                val medicineUuid = if (request.isEditing) {
-                    request.lockedMedicineUuid
-                } else {
-                    request.selectedMedicineUuid
-                }
                 if (request.editingEntryUuids.size > 1) {
                     medicationLogRepository.saveEntries(
                         uuids = request.editingEntryUuids,
@@ -356,6 +381,8 @@ class MedicationLogEntryViewModel @Inject constructor(
                         scheduledFor = request.scheduledFor,
                         count = request.count,
                         appliedAtTimeZoneId = request.appliedAtTimeZoneId,
+                        doseAmountDelta = request.doseAmountDelta
+                            ?.takeIf { !request.isEditing && request.editingEntryUuids.isEmpty() },
                     )
                 }
             }.fold(
@@ -363,6 +390,20 @@ class MedicationLogEntryViewModel @Inject constructor(
                 onFailure = { SaveEntryResult.FAILURE },
             )
             val isSaved = saveResult == null
+            val isNewInsert = request.editingEntryUuids.isEmpty()
+            val postLogStockWarning = if (isSaved && isNewInsert && medicineUuid != null) {
+                runCatching {
+                    resolvePostLogStockWarning(
+                        projections = medicineStockRepository.projectAllOnce(now = Instant.now()),
+                        affectedMedicineUuids = setOf(medicineUuid),
+                    )
+                }.getOrElse { failure ->
+                    if (failure is CancellationException) throw failure
+                    null
+                }
+            } else {
+                null
+            }
             val crossZoneText = if (isSaved) {
                 val pickerOffset = request.appliedZoneId.rules.getOffset(request.appliedAt)
                 val deviceOffset = ZoneId.systemDefault().rules.getOffset(request.appliedAt)
@@ -384,6 +425,7 @@ class MedicationLogEntryViewModel @Inject constructor(
                     saveEntryResult = saveResult,
                     isScheduleFulfillmentWarningVisible = false,
                     savedCrossZoneZoneText = crossZoneText,
+                    postLogStockWarning = postLogStockWarning,
                 )
                 if (isSaved) updated else updated.withSelectedStockProjection()
             }
@@ -466,6 +508,10 @@ class MedicationLogEntryViewModel @Inject constructor(
 
     fun consumeCrossZoneToast() {
         _uiState.update { it.copy(savedCrossZoneZoneText = null) }
+    }
+
+    fun consumePostLogStockWarning() {
+        _uiState.update { it.copy(postLogStockWarning = null) }
     }
 
     private fun resolvedApplicationType(state: MedicationLogEntryUiState): MedicationApplicationType {
@@ -565,6 +611,7 @@ data class MedicationLogEntryUiState(
         defaultMedicineDraft().toDoseInstructionDraft(),
     val resolvedMedicine: Medicine? = null,
     val selectedStockProjection: MedicineStockProjection? = null,
+    val doseAmountDelta: Double? = null,
     val sourceGroupUuid: UUID? = null,
     val scheduleTimeUuid: UUID? = null,
     val sourceGroupName: String? = null,
@@ -585,6 +632,7 @@ data class MedicationLogEntryUiState(
     val deleteEntryResult: DeleteEntryResult? = null,
     val isScheduleFulfillmentWarningVisible: Boolean = false,
     val savedCrossZoneZoneText: String? = null,
+    val postLogStockWarning: PostLogStockWarning? = null,
 ) {
     val count: Int
         get() = parseMedicationCountText(countText)
@@ -597,6 +645,60 @@ data class MedicationLogEntryUiState(
 
     val canDelete: Boolean
         get() = isEditing
+
+    private val isActualDoseDeltaCapableForm: Boolean
+        get() = isActualDoseDeltaForm(
+            preparationType = resolvedMedicine?.preparation?.type
+                ?: doseInstructionDraft.preparationType,
+            applicationType = resolvedApplicationTypeForDose(
+                preparationType = resolvedMedicine?.preparation?.type
+                    ?: doseInstructionDraft.preparationType,
+                doseInstructionDraft = doseInstructionDraft,
+            ),
+        )
+
+    // New logs of measured forms get the interactive stepper.
+    val allowsActualDoseDelta: Boolean
+        get() = !isEditing &&
+            isActualDoseDeltaCapableForm &&
+            scheduledNativeAmount != null
+
+    // Reopening a logged measured dose that was adjusted shows the planned
+    // amount and its delta read-only (the delta is frozen at log time and is
+    // not re-editable). Only single-entry edits carry a delta into state.
+    val showActualDoseDeltaReadOnly: Boolean
+        get() = isEditing &&
+            (doseAmountDelta ?: 0.0) != 0.0 &&
+            isActualDoseDeltaCapableForm &&
+            scheduledNativeAmount != null
+
+    val effectiveActualAmount: Double?
+        get() {
+            val scheduledAmount = scheduledNativeAmount ?: return null
+            return effectiveActualDoseAmount(
+                scheduledAmount = scheduledAmount,
+                doseAmountDelta = doseAmountDelta,
+            )
+        }
+
+    internal val scheduledNativeAmount: Double?
+        get() {
+            val instruction = runCatching { doseInstructionDraft.toDoseInstruction() }.getOrNull()
+                ?: return null
+            return when (val preparation = resolvedMedicine?.preparation) {
+                is MedicinePreparation.InjectionSingleUseVial ->
+                    if (instruction == DoseInstruction.WholeUnit) {
+                        preparation.strengthMgPerVial
+                    } else {
+                        null
+                    }
+                is MedicinePreparation.InjectionMultiUseVial ->
+                    (instruction as? DoseInstruction.VolumeMl)?.valueMl
+                is MedicinePreparation.GelContainer ->
+                    (instruction as? DoseInstruction.WeightGrams)?.valueGrams
+                else -> null
+            }
+        }
 
     fun shouldWarnScheduleWillNotBeFulfilled(appliedAt: LocalDateTime): Boolean {
         return shouldWarnScheduleWillNotBeFulfilled(
@@ -647,6 +749,7 @@ private data class PendingSaveRequest(
     val appliedZoneId: ZoneId,
     val scheduledFor: LocalDateTime?,
     val count: Int,
+    val doseAmountDelta: Double?,
 )
 
 private data class PendingDeleteRequest(
@@ -673,6 +776,14 @@ internal fun normalizeEditingEntryIds(entryIds: Collection<String>): List<String
         runCatching { UUID.fromString(entryId).toString() }.getOrNull()
     }.distinct()
 }
+
+internal fun isActualDoseDeltaForm(
+    preparationType: MedicinePreparationType?,
+    applicationType: MedicationApplicationType,
+): Boolean = applicationType.isCompatibleWith(preparationType) &&
+    (preparationType == MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ||
+        preparationType == MedicinePreparationType.INJECTION_MULTI_USE_VIAL ||
+        preparationType == MedicinePreparationType.GEL_CONTAINER)
 
 internal fun buildEditingUiState(
     entries: List<MedicationLogEntry>,
@@ -716,6 +827,10 @@ internal fun buildEditingUiState(
             count = representativeEntry.count,
             preparationType = representativeEntry.medicine?.preparation?.type,
         ).toString(),
+        // Carry the frozen delta only for single-entry edits; bulk edits may span
+        // entries with differing deltas, so the read-only line is suppressed.
+        doseAmountDelta = representativeEntry.doseAmountDelta
+            .takeIf { editableEntries.size == 1 },
         appliedZoneId = displayZoneOf(representativeEntry),
         appliedDate = appliedAtLocal.toLocalDate(),
         appliedTime = appliedAtLocal.toLocalTime().withSecond(0).withNano(0)

@@ -341,6 +341,7 @@ class BackupExportService @Inject constructor(
             doseWeightGrams = instructionFields.doseWeightGrams,
             gelApplicationArea = "DEFAULT",
             equivalentE2Mg = equivalentE2Mg,
+            doseAmountDelta = doseAmountDelta,
             sourceGroupUuid = sourceGroupUuid?.toString(),
             scheduleTimeUuid = scheduleTimeUuid?.toString(),
             appliedAtEpochMillis = appliedAt.toEpochMilli(),

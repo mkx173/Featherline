@@ -168,6 +168,7 @@ data class BackupMedicationLogSnapshot(
     // Snapshotted PK input — null for PATCH_OFF and for custom medicines whose
     // estradiol equivalence is unknown.
     val equivalentE2Mg: Double?,
+    val doseAmountDelta: Double? = null,
     val sourceGroupUuid: String?,
     val scheduleTimeUuid: String? = null,
     val appliedAtEpochMillis: Long,
@@ -216,8 +217,9 @@ data class BackupBloodTestResultSnapshot(
 // e.g., a new REQUIRED field, a removed field that something downstream still
 // dereferences, or a semantic change to an existing field. Nullable optional
 // fields (e.g., BackupMedicineSnapshot.displayDoseUnit, added when the custom-
-// medicine unit picker shipped) are additive and don't require a bump; missing
-// values fall through their defaults on restore.
+// medicine unit picker shipped, and BackupMedicationLogSnapshot.doseAmountDelta,
+// added for the actual-amount feature) are additive and don't require a bump;
+// missing values fall through their defaults on restore.
 //
 // The 2→3 bump added the CAPSULE preparationType enum value. Older apps
 // coerce unknown preparationType strings to PILL on restore, which would

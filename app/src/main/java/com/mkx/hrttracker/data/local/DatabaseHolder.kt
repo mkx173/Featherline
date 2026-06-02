@@ -71,7 +71,7 @@ class DatabaseHolder @Inject constructor(
             DATABASE_NAME
         )
             .openHelperFactory(openHelperFactory)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
         return builder.build()
     }
 

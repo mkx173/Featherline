@@ -178,23 +178,33 @@ class MedicationLogRepositoryStockTest {
 
     @Test
     fun saveEntries_bulkEditDoesNotDeductStock() = runTest {
-        val entryUuid = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns pillEntity()
-
-        val captured = slot<List<MedicationLogEntryEntity>>()
-        coEvery { logDao.insertEntries(capture(captured)) } returns Unit
+        val entryUuids = listOf(
+            UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+        )
+        val appliedAt = Instant.ofEpochMilli(0L)
 
         repository.saveEntries(
-            uuids = listOf(entryUuid),
+            uuids = entryUuids,
             medicineUuid = medicineUuid,
             applicationType = MedicationApplicationType.ORAL,
             doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
-            appliedAt = Instant.ofEpochMilli(0L),
+            appliedAt = appliedAt,
+            count = 2,
+            appliedAtTimeZoneId = "Asia/Tokyo",
         )
 
-        val replaced = captured.captured.single()
-        assertEquals(entryUuid.toString(), replaced.uuid)
+        coVerify(exactly = 1) {
+            logDao.updateEditableLogFieldsForUuids(
+                uuids = entryUuids.map(UUID::toString),
+                appliedAtEpochMillis = appliedAt.toEpochMilli(),
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                scheduledForIso = null,
+                count = 2,
+            )
+        }
+        coVerify(exactly = 0) { logDao.insertEntries(any()) }
         coVerify(exactly = 0) {
             stockMutator.resolveDeductionForInsert(any(), any(), any(), any())
         }

@@ -33,6 +33,7 @@ import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -637,6 +638,100 @@ class MedicationReminderActionHandlerTest {
             assertEquals("projection cancelled", exception.message)
         }
         verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+    }
+
+    @Test
+    fun resolvePostLogStockWarning_singleWorstState() {
+        val outGroup = medicationGroup(
+            uuid = UUID.fromString("ea0dd67a-e176-4fe7-9e99-876ff2b9a8b6"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val lowGroup = medicationGroup(
+            uuid = UUID.fromString("fdb218ac-0eb2-4c40-b208-e38b185c549e"),
+            name = "Spiro",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.SPIRONOLACTONE,
+            medicationCount = 1,
+        )
+        val outMedicine = outGroup.medications.single().medicine!!
+        val lowMedicine = lowGroup.medications.single().medicine!!
+
+        val warning = resolvePostLogStockWarning(
+            projections = listOf(
+                stockProjection(outMedicine, MedicineStockState.OUT),
+                stockProjection(lowMedicine, MedicineStockState.USER_LOW),
+            ),
+            affectedMedicineUuids = setOf(outMedicine.uuid),
+        )
+
+        assertEquals(
+            PostLogStockWarning.Single(outMedicine, MedicineStockState.OUT),
+            warning,
+        )
+    }
+
+    @Test
+    fun resolvePostLogStockWarning_noneWhenHealthy() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("74f9094e-7ae3-4f9f-b4ef-9e068497c6e7"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val medicine = group.medications.single().medicine!!
+
+        val warning = resolvePostLogStockWarning(
+            projections = listOf(stockProjection(medicine, MedicineStockState.HEALTHY)),
+            affectedMedicineUuids = setOf(medicine.uuid),
+        )
+
+        assertNull(warning)
+    }
+
+    @Test
+    fun resolvePostLogStockWarning_manyUsesWorstStateAndWarnedCount() {
+        val outGroup = medicationGroup(
+            uuid = UUID.fromString("8f651746-b066-4c01-96c3-6d7b05d62665"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val lowGroup = medicationGroup(
+            uuid = UUID.fromString("760993d8-3840-4c6d-ae0d-6217d632a1eb"),
+            name = "Spiro",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.SPIRONOLACTONE,
+            medicationCount = 1,
+        )
+        val healthyGroup = medicationGroup(
+            uuid = UUID.fromString("75439923-ee44-4c38-85d2-50e73317733e"),
+            name = "Progesterone",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.CYPROTERONE_ACETATE,
+            medicationCount = 1,
+        )
+        val outMedicine = outGroup.medications.single().medicine!!
+        val lowMedicine = lowGroup.medications.single().medicine!!
+        val healthyMedicine = healthyGroup.medications.single().medicine!!
+
+        val warning = resolvePostLogStockWarning(
+            projections = listOf(
+                stockProjection(outMedicine, MedicineStockState.OUT),
+                stockProjection(lowMedicine, MedicineStockState.USER_LOW),
+                stockProjection(healthyMedicine, MedicineStockState.HEALTHY),
+            ),
+            affectedMedicineUuids = setOf(outMedicine.uuid, lowMedicine.uuid, healthyMedicine.uuid),
+        )
+
+        assertEquals(
+            PostLogStockWarning.Many(count = 2, state = MedicineStockState.OUT),
+            warning,
+        )
     }
 
     @Test

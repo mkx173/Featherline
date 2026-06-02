@@ -1,12 +1,16 @@
 package com.mkx.hrttracker.ui.catalog
 
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -15,15 +19,17 @@ import java.util.UUID
 
 internal suspend fun saveManualMedicineLog(
     medicationLogRepository: MedicationLogRepository,
+    medicineStockRepository: MedicineStockRepository,
     medicationReminderScheduler: MedicationReminderScheduler,
     medicineUuid: UUID,
     resolvedApplicationType: MedicationApplicationType,
     doseInstruction: DoseInstruction,
     count: Int,
+    doseAmountDelta: Double? = null,
     appliedDate: LocalDate,
     appliedTime: LocalTime,
     appliedZoneId: ZoneId,
-): MedicineSlotDraftSaveResult? {
+): ManualMedicineLogSaveOutcome {
     val appliedAt = LocalDateTime.of(
         appliedDate,
         appliedTime.withSecond(0).withNano(0),
@@ -46,6 +52,7 @@ internal suspend fun saveManualMedicineLog(
             scheduledFor = null,
             count = count.coerceAtLeast(1),
             appliedAtTimeZoneId = appliedZoneId.id,
+            doseAmountDelta = doseAmountDelta,
         )
         null
     } catch (exception: CancellationException) {
@@ -53,10 +60,31 @@ internal suspend fun saveManualMedicineLog(
     } catch (_: Exception) {
         MedicineSlotDraftSaveResult.FAILURE
     }
-    if (saveResult == null) {
-        withContext(NonCancellable) {
-            runCatching { medicationReminderScheduler.rescheduleAll() }
-        }
+    if (saveResult != null) {
+        return ManualMedicineLogSaveOutcome(saveResult = saveResult)
     }
-    return saveResult
+    val postLogStockWarning = runCatching {
+        resolvePostLogStockWarning(
+            projections = medicineStockRepository.projectAllOnce(now = Instant.now()),
+            affectedMedicineUuids = setOf(medicineUuid),
+        )
+    }.getOrElse { failure ->
+        if (failure is CancellationException) throw failure
+        null
+    }
+    withContext(NonCancellable) {
+        runCatching { medicationReminderScheduler.rescheduleAll() }
+    }
+    return ManualMedicineLogSaveOutcome(
+        saveResult = null,
+        postLogStockWarning = postLogStockWarning,
+    )
+}
+
+internal data class ManualMedicineLogSaveOutcome(
+    val saveResult: MedicineSlotDraftSaveResult?,
+    val postLogStockWarning: PostLogStockWarning? = null,
+) {
+    val isSuccess: Boolean
+        get() = saveResult == null
 }

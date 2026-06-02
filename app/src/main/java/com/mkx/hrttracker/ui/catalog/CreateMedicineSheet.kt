@@ -123,6 +123,7 @@ private fun CreateMedicineSheetContent(
     onCreateClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isSheetLocked = uiState.isSaving || uiState.isSaved
     MedicationEditorSheetScaffold(
         modifier = modifier,
         title = stringResource(R.string.create_medicine_title),
@@ -131,7 +132,7 @@ private fun CreateMedicineSheetContent(
         onDismissRequest = onDismissRequest,
         onCloseClick = onCloseClick,
         fillAvailableHeight = true,
-        isSaving = uiState.isSaving,
+        isSaving = isSheetLocked,
         disclaimerKinds = MedicalDisclaimerSets.medicationEditor,
         onConfirm = onCreateClick,
     ) {
@@ -140,10 +141,10 @@ private fun CreateMedicineSheetContent(
             medicineDraft = uiState.draft,
             onMedicineDraftChange = onDraftChange,
             errorMessageRes = uiState.errorMessageRes,
-            // Text fields go read-only while saving; everything else stays
-            // visually enabled because the sheet dismisses on success and the
-            // ViewModel guards drop draft mutations / re-entrant creates.
-            readOnly = uiState.isSaving,
+            // Keep the focused field locked after success while the sheet
+            // closes, matching the create-then-dose flow and avoiding an IME
+            // reopen during the outgoing animation.
+            readOnly = isSheetLocked,
         )
     }
 }

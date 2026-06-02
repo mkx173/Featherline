@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.catalog
 
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
@@ -30,12 +31,14 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class MedicineSlotDraftViewModelTest {
     private val medicationLogRepository: MedicationLogRepository = mockk()
+    private val medicineStockRepository: MedicineStockRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
     }
 
     @After
@@ -70,6 +73,7 @@ class MedicineSlotDraftViewModelTest {
 
         val viewModel = MedicineSlotDraftViewModel(
             medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             initialAppliedZoneId = zoneId,
         )
@@ -105,15 +109,69 @@ class MedicineSlotDraftViewModelTest {
     }
 
     @Test
+    fun saveManualLog_passesDoseAmountDelta() = runTest {
+        val medicineUuid = UUID.fromString("7f3c6db0-6589-48fb-929d-84d7e0c3f035")
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicineUuid,
+                applicationType = MedicationApplicationType.INJECTION,
+                doseInstruction = DoseInstruction.VolumeMl(0.25),
+                sourceGroupUuid = null,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                doseAmountDelta = 0.1,
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = MedicineSlotDraftViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            initialAppliedZoneId = ZoneId.of("Asia/Tokyo"),
+        )
+
+        viewModel.saveManualLog(
+            medicineUuid = medicineUuid,
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = DoseInstruction.VolumeMl(0.25),
+            count = 1,
+            doseAmountDelta = 0.1,
+        )
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        coVerify(exactly = 1) {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = medicineUuid,
+                applicationType = MedicationApplicationType.INJECTION,
+                doseInstruction = DoseInstruction.VolumeMl(0.25),
+                sourceGroupUuid = null,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                doseAmountDelta = 0.1,
+            )
+        }
+    }
+
+    @Test
     fun updateAppliedDateTime_afterSuccessfulSaveBeforeConsumptionAreIgnored() = runTest {
         val medicineUuid = UUID.fromString("7f3c6db0-6589-48fb-929d-84d7e0c3f033")
         val appliedDate = LocalDate.of(2026, 5, 18)
         val appliedTime = LocalTime.of(22, 45)
         val zoneId = ZoneId.of("Asia/Tokyo")
-        coEvery { medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery { medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
         val viewModel = MedicineSlotDraftViewModel(
             medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             initialAppliedZoneId = zoneId,
         )
@@ -139,10 +197,11 @@ class MedicineSlotDraftViewModelTest {
     fun saveManualLog_whenCancelledClearsSavingState() = runTest {
         val medicineUuid = UUID.fromString("7f3c6db0-6589-48fb-929d-84d7e0c3f034")
         coEvery {
-            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } throws CancellationException("cancelled")
         val viewModel = MedicineSlotDraftViewModel(
             medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             initialAppliedZoneId = ZoneId.of("Asia/Tokyo"),
         )

@@ -140,6 +140,7 @@ internal fun MedicationCardWithStockSubcard(
     medicationCount: Int,
     groupColorKey: MedicationGroupColorKey?,
     stockProjection: MedicineStockProjection?,
+    doseAmountDelta: Double? = null,
     missingGroupColorTreatment: MedicationCardMissingGroupColorTreatment =
         MedicationCardMissingGroupColorTreatment.PRIMARY_CONTAINER,
     onClick: (() -> Unit)? = null,
@@ -190,6 +191,7 @@ internal fun MedicationCardWithStockSubcard(
         applicationType = applicationType,
         medicationCount = medicationCount,
         groupColorKey = groupColorKey,
+        doseAmountDelta = doseAmountDelta,
         missingGroupColorTreatment = missingGroupColorTreatment,
         onClick = onClick,
         onLongClick = onLongClick,
@@ -241,6 +243,9 @@ internal fun MedicationCard(
     groupColorKey: MedicationGroupColorKey?,
     missingGroupColorTreatment: MedicationCardMissingGroupColorTreatment =
         MedicationCardMissingGroupColorTreatment.PRIMARY_CONTAINER,
+    // Actual administered amount adjustment for measured-form logs; the dose
+    // summary renders the actual (scheduled + delta) when present.
+    doseAmountDelta: Double? = null,
     // Null onClick renders a non-clickable static card (no ripple, no
     // disabled gray-out) — used for purely informational summary cards
     // such as the locked medicine on existing log entries.
@@ -277,7 +282,8 @@ internal fun MedicationCard(
             doseInstruction = doseInstruction,
             applicationType = applicationType,
             count = medicationCount,
-            extraSupportingText = extraSupportingText
+            extraSupportingText = extraSupportingText,
+            doseAmountDelta = doseAmountDelta,
         )
     val useGroupPalette = medicationCardUsesGroupPalette(
         groupColorKey = groupColorKey,

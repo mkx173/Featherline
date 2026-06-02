@@ -3,10 +3,17 @@ package com.mkx.hrttracker.ui.navigation
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
@@ -19,11 +26,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
@@ -52,6 +62,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
 import com.mkx.hrttracker.ui.calibration.CalibrationScreen
@@ -61,6 +72,7 @@ import com.mkx.hrttracker.ui.catalog.MedicineDetailViewModel
 import com.mkx.hrttracker.ui.catalog.MedicineManagerLaunchMode
 import com.mkx.hrttracker.ui.catalog.MedicinesScreen
 import com.mkx.hrttracker.ui.catalog.medicineManagerLaunchMode
+import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.MedicationLogEntryEditSnapshot
@@ -74,7 +86,10 @@ import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanBatchAddScreen
 import com.mkx.hrttracker.ui.plan.PlanScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
+import com.mkx.hrttracker.ui.postLogStockWarningDestination
+import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
 import java.util.UUID
@@ -356,6 +371,15 @@ fun HrtTrackerNavHost(
     var planScrollToTopSignal by remember { mutableIntStateOf(0) }
     var settingsScrollToTopSignal by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
+
+    // Post-log stock snackbar. Hosted inside the navigation scaffold's content
+    // region (below) so it rides above the app's bottom navigation bar rather
+    // than overlapping it. Lives above the log sheets so it survives their
+    // teardown; the saved-warning callbacks fire it after the sheet/back-stack
+    // is cleared.
+    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
+    val snackbarContext = LocalContext.current
     val layoutDirection = LocalLayoutDirection.current
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
@@ -367,6 +391,29 @@ fun HrtTrackerNavHost(
                 currentDestination?.hierarchy?.any { it.route == navItem.screen.route } == true
             }?.screen
             ?: Screen.Main
+    val showPostLogStockWarning: (PostLogStockWarning.Single) -> Unit = { warning ->
+        val message = postLogStockWarningSnackbarMessage(warning, snackbarContext)
+        val actionLabel = snackbarContext.getString(R.string.stock_snackbar_action_view)
+        snackbarScope.launch {
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = actionLabel,
+                withDismissAction = true,
+                // HrtSnackbar owns the 5s countdown/dismissal; keep the host
+                // from auto-dismissing on its own timer.
+                duration = SnackbarDuration.Indefinite,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                // Root the destination under the tab the user is on now so the
+                // highlighted tab stays put and back returns there directly.
+                navController.navigate(
+                    postLogStockWarningDestination(warning, selectedBottomScreen.route),
+                ) {
+                    launchSingleTop = true
+                }
+            }
+        }
+    }
 
     var lastHandledHomeDeepLinkSignal by rememberSaveable { mutableIntStateOf(0) }
     var pendingHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
@@ -518,6 +565,7 @@ fun HrtTrackerNavHost(
                 }
             }
         ) {
+            Box(modifier = Modifier.fillMaxSize()) {
             NavHost(
                 navController = navController,
                 startDestination = Screen.Main.route,
@@ -539,10 +587,13 @@ fun HrtTrackerNavHost(
                             )
                         },
                         onMedicineDetailClick = { medicineId ->
+                            // Root the detail under the current tab (Home) so the
+                            // highlighted tab stays put and back returns straight
+                            // here, instead of stacking under a different tab.
                             navController.navigate(
                                 Screen.MedicineDetail.createRoute(
                                     medicineId = medicineId.toString(),
-                                    topLevelParentRoute = Screen.Main.route,
+                                    topLevelParentRoute = selectedBottomScreen.route,
                                 ),
                             )
                         },
@@ -820,8 +871,11 @@ fun HrtTrackerNavHost(
                                 ?.set(groupSlotMode.resultKey, slotResult.toBundle())
                             navController.popBackStackSafely()
                         },
-                        onManualLogSaved = {
+                        onManualLogSaved = { warning ->
                             navController.popBackStackSafely()
+                            if (warning is PostLogStockWarning.Single) {
+                                showPostLogStockWarning(warning)
+                            }
                         },
                     )
                 }
@@ -940,6 +994,14 @@ fun HrtTrackerNavHost(
                     )
                 }
             }
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .imePadding(),
+                    snackbar = { snackbarData -> HrtSnackbar(snackbarData) },
+                )
+            }
         }
     }
 
@@ -949,7 +1011,12 @@ fun HrtTrackerNavHost(
             quickLogRequest = request.quickLogRequest,
             editSnapshot = request.editSnapshot,
             onDismissRequest = { medicationLogEntrySheetRequest = null },
-            onEntrySaved = { medicationLogEntrySheetRequest = null }
+            onEntrySaved = { warning ->
+                medicationLogEntrySheetRequest = null
+                if (warning is PostLogStockWarning.Single) {
+                    showPostLogStockWarning(warning)
+                }
+            },
         )
     }
 }

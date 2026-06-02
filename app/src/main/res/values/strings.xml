@@ -89,6 +89,8 @@
         <item quantity="one">%1$d medicine low on stock</item>
         <item quantity="other">%1$d medicines low on stock</item>
     </plurals>
+    <string name="stock_snackbar_action_view">View</string>
+    <string name="stock_snackbar_action_dismiss">Dismiss</string>
     <string name="fab_add_entry">Add medication log entry</string>
     <string name="plan_empty_state">No medication groups yet.</string>
     <string name="plan_selected_day_records_empty">No records for this day.</string>
@@ -195,6 +197,10 @@
     <string name="medication_editor_schedule_offset_hours_earlier">-%1$dh</string>
     <string name="medication_editor_schedule_offset_days_later">+%1$dd</string>
     <string name="medication_editor_schedule_offset_days_earlier">-%1$dd</string>
+    <string name="medication_log_actual_amount">Actual amount</string>
+    <string name="medication_log_actual_amount_decrease">Decrease actual amount</string>
+    <string name="medication_log_actual_amount_increase">Increase actual amount</string>
+    <string name="medication_log_actual_amount_reset">Reset actual amount</string>
     <string name="field_count">Count</string>
     <string name="unit_mg">mg</string>
     <string name="unit_mg_per_ml">mg/mL</string>
@@ -294,6 +300,7 @@
     <string name="increase_medication_count">Increase medication count</string>
     <string name="decrease_medication_count">Decrease medication count</string>
     <string name="remove_medication_from_group">Remove medication</string>
+    <string name="remove">Remove</string>
     <string name="remove_time">Remove</string>
     <string name="quick_add_group_planned_slot_today">Today</string>
     <string name="cancel">Cancel</string>
@@ -766,15 +773,6 @@
     <string name="stock_subcard_chip_out">Out</string>
     <string name="stock_subcard_runway_more_than_one_year">>1 year</string>
     <string name="stock_subcard_runway_days">~%1$d days</string>
-    <plurals name="stock_subcard_unit_vials">
-        <item quantity="one">vial</item>
-        <item quantity="other">vials</item>
-    </plurals>
-    <plurals name="stock_subcard_unit_containers">
-        <item quantity="one">container</item>
-        <item quantity="other">containers</item>
-    </plurals>
-    <string name="stock_subcard_sealed_chip_content_description">Additional sealed stock: %1$s %2$s</string>
     <string name="stock_subcard_cd_stock_pool">Stock pool</string>
     <string name="stock_subcard_cd_open_vial">Open vial</string>
     <string name="stock_subcard_cd_open_container">Open container</string>

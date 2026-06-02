@@ -292,10 +292,6 @@ class MedicationStockSubcardTest {
         assertEquals(R.string.stock_unit_ml, row.valueUnitRes)
         assertEquals(0.25f, row.progress, 1e-6f)
         assertEquals("2", row.sealedSupplement?.countText)
-        assertEquals("+2", row.sealedSupplement?.chipText)
-        assertEquals(R.drawable.ic_inventory_2, row.sealedSupplement?.iconRes)
-        assertEquals(2, row.sealedSupplement?.pluralQuantity)
-        assertEquals(R.plurals.stock_subcard_unit_vials, row.sealedSupplement?.unitPluralRes)
     }
 
     @Test
@@ -372,10 +368,6 @@ class MedicationStockSubcardTest {
         requireNotNull(model)
         val row = model.rows.single()
         assertEquals("0", row.sealedSupplement?.countText)
-        assertEquals("+0", row.sealedSupplement?.chipText)
-        assertEquals(R.drawable.ic_inventory_2, row.sealedSupplement?.iconRes)
-        assertEquals(2, row.sealedSupplement?.pluralQuantity)
-        assertEquals(R.plurals.stock_subcard_unit_vials, row.sealedSupplement?.unitPluralRes)
     }
 
     @Test
@@ -409,10 +401,6 @@ class MedicationStockSubcardTest {
         assertEquals(R.string.stock_unit_g, row.valueUnitRes)
         assertEquals(0.25f, row.progress, 1e-6f)
         assertEquals("1", row.sealedSupplement?.countText)
-        assertEquals("+1", row.sealedSupplement?.chipText)
-        assertEquals(R.drawable.ic_inventory_2, row.sealedSupplement?.iconRes)
-        assertEquals(1, row.sealedSupplement?.pluralQuantity)
-        assertEquals(R.plurals.stock_subcard_unit_containers, row.sealedSupplement?.unitPluralRes)
     }
 
     @Test
@@ -498,7 +486,6 @@ class MedicationStockSubcardTest {
             assertEquals("1,25 / 5", row.valueText)
             assertEquals(R.string.stock_unit_ml, row.valueUnitRes)
             assertEquals("4", row.sealedSupplement?.countText)
-            assertEquals(2, row.sealedSupplement?.pluralQuantity)
         } finally {
             Locale.setDefault(previousLocale)
         }

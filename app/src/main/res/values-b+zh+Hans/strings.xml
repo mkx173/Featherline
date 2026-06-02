@@ -84,6 +84,8 @@
     <plurals name="stock_toast_user_low_multiple">
         <item quantity="other">%1$d 种药品库存不足</item>
     </plurals>
+    <string name="stock_snackbar_action_view">查看</string>
+    <string name="stock_snackbar_action_dismiss">关闭</string>
     <string name="fab_add_entry">添加用药记录</string>
     <string name="plan_empty_state">暂无用药分组</string>
     <string name="plan_selected_day_records_empty">这一天暂无记录</string>
@@ -186,6 +188,10 @@
     <string name="medication_editor_schedule_offset_hours_earlier">-%1$d小时</string>
     <string name="medication_editor_schedule_offset_days_later">+%1$d天</string>
     <string name="medication_editor_schedule_offset_days_earlier">-%1$d天</string>
+    <string name="medication_log_actual_amount">实际用量</string>
+    <string name="medication_log_actual_amount_decrease">减少实际用量</string>
+    <string name="medication_log_actual_amount_increase">增加实际用量</string>
+    <string name="medication_log_actual_amount_reset">重置实际用量</string>
     <string name="field_count">数量</string>
     <string name="unit_mg">mg</string>
     <string name="unit_mg_per_ml">mg/mL</string>
@@ -281,6 +287,7 @@
     <string name="increase_medication_count">增加药物数量</string>
     <string name="decrease_medication_count">减少药物数量</string>
     <string name="remove_medication_from_group">移除药物</string>
+    <string name="remove">移除</string>
     <string name="remove_time">移除</string>
     <string name="quick_add_group_planned_slot_today">今天</string>
     <string name="cancel">取消</string>
@@ -729,13 +736,6 @@
     <string name="stock_subcard_chip_out">已用尽</string>
     <string name="stock_subcard_runway_more_than_one_year">>1 年</string>
     <string name="stock_subcard_runway_days">~%1$d 天</string>
-    <plurals name="stock_subcard_unit_vials">
-        <item quantity="other">瓶</item>
-    </plurals>
-    <plurals name="stock_subcard_unit_containers">
-        <item quantity="other">容器</item>
-    </plurals>
-    <string name="stock_subcard_sealed_chip_content_description">另有未开启库存：%1$s %2$s</string>
     <string name="stock_subcard_cd_stock_pool">库存池</string>
     <string name="stock_subcard_cd_open_vial">已开启药瓶</string>
     <string name="stock_subcard_cd_open_container">已开启容器</string>
