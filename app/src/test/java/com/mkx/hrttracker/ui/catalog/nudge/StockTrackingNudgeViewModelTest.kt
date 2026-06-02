@@ -75,7 +75,7 @@ class StockTrackingNudgeViewModelTest {
         assertNull(viewModel.pendingNudge.value)
 
         projections.emit(listOf(otherProjection))
-        advanceUntilIdle()
+        runCurrent()
         assertNull(viewModel.optInTarget.value)
 
         projections.emit(listOf(otherProjection, projection))
