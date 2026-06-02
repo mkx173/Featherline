@@ -203,6 +203,11 @@ fun SettingsScreen(
             viewModel.consumeBackupRestoreEvent()
         }
     }
+    LaunchedEffect(uiState.securityErrorMessageRes) {
+        val messageRes = uiState.securityErrorMessageRes ?: return@LaunchedEffect
+        Toast.makeText(context, context.getString(messageRes), Toast.LENGTH_LONG).show()
+        viewModel.consumeSecurityError()
+    }
     LaunchedEffect(viewModel) {
         viewModel.weightMutationEvents.collect { event ->
             when (event) {
@@ -1056,14 +1061,6 @@ internal fun SettingsScreenContent(
                             onCheckedChange = onHideScreenContentEnabledChange
                         )
                     },
-                )
-            }
-
-            uiState.securityErrorMessageRes?.let { messageRes ->
-                Text(
-                    text = stringResource(messageRes),
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.padding_medium))
                 )
             }
 

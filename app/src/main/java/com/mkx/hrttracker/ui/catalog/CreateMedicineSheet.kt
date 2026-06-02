@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.catalog
 
+import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -34,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -101,6 +103,21 @@ fun CreateMedicineSheet(
     viewModel: CreateMedicineViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val alreadyExistsMessage = stringResource(R.string.medicine_already_exists)
+    val saveFailureMessage = stringResource(R.string.medicine_save_failure)
+    LaunchedEffect(uiState.saveResult) {
+        val message = when (uiState.saveResult) {
+            CreateMedicineSaveResult.FAILURE_IDENTITY_COLLISION -> alreadyExistsMessage
+            CreateMedicineSaveResult.FAILURE_OTHER -> saveFailureMessage
+            CreateMedicineSaveResult.SUCCESS,
+            null -> null
+        }
+        if (message != null) {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            viewModel.consumeSaveResult()
+        }
+    }
     CreateMedicineSheetContent(
         uiState = uiState,
         sheetState = sheetState,
@@ -136,7 +153,6 @@ private fun CreateMedicineSheetContent(
         disclaimerKinds = MedicalDisclaimerSets.medicationEditor,
         onConfirm = onCreateClick,
     ) {
-        CreateMedicineResultText(saveResult = uiState.saveResult)
         CreateMedicineForm(
             medicineDraft = uiState.draft,
             onMedicineDraftChange = onDraftChange,
@@ -147,26 +163,6 @@ private fun CreateMedicineSheetContent(
             readOnly = isSheetLocked,
         )
     }
-}
-
-@Composable
-internal fun CreateMedicineResultText(saveResult: CreateMedicineSaveResult?) {
-    val messageRes = when (saveResult) {
-        CreateMedicineSaveResult.FAILURE_IDENTITY_COLLISION ->
-            R.string.medicine_already_exists
-
-        CreateMedicineSaveResult.FAILURE_OTHER -> R.string.medicine_save_failure
-        CreateMedicineSaveResult.SUCCESS,
-        null -> null
-    } ?: return
-    Text(
-        text = stringResource(messageRes),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.error,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = dimensionResource(R.dimen.padding_small)),
-    )
 }
 
 @Composable

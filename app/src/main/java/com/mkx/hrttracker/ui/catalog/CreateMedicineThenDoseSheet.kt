@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.catalog
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -13,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -78,6 +80,22 @@ fun CreateMedicineThenDoseSheet(
         doseInstructionDraft = uiState.doseInstructionDraft,
     )
 
+    val context = LocalContext.current
+    val alreadyExistsMessage = stringResource(R.string.medicine_already_exists)
+    val createFailureMessage = stringResource(R.string.medicine_save_failure)
+    LaunchedEffect(uiState.createSaveResult) {
+        val message = when (uiState.createSaveResult) {
+            CreateMedicineSaveResult.FAILURE_IDENTITY_COLLISION -> alreadyExistsMessage
+            CreateMedicineSaveResult.FAILURE_OTHER -> createFailureMessage
+            CreateMedicineSaveResult.SUCCESS,
+            null -> null
+        }
+        if (message != null) {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            viewModel.consumeCreateSaveResult()
+        }
+    }
+
     LaunchedEffect(isManualLogMode, uiState.slotResult) {
         if (!isManualLogMode) {
             uiState.slotResult?.let { slotResult ->
@@ -135,7 +153,6 @@ fun CreateMedicineThenDoseSheet(
             }
         },
     ) {
-        CreateMedicineResultText(saveResult = uiState.createSaveResult)
         // The dose instruction form may render a text field (volumeMl /
         // weightGrams) just below the create-medicine fields. When it does,
         // share a FocusRequester so the create form's last IME Next jumps

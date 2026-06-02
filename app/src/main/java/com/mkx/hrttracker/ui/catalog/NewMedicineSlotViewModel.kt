@@ -327,6 +327,12 @@ class NewMedicineSlotViewModel @Inject constructor(
         _uiState.update { it.copy(manualLogSaveResult = null) }
     }
 
+    // Clears the create-medicine save result after a failure has been surfaced as
+    // a toast so it doesn't re-trigger on recomposition or configuration change.
+    fun consumeCreateSaveResult() {
+        _uiState.update { it.copy(createSaveResult = null) }
+    }
+
     private suspend fun saveMedicineThen(
         state: NewMedicineSlotUiState,
         operationGeneration: Int,

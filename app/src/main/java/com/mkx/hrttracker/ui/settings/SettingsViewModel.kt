@@ -328,6 +328,12 @@ class SettingsViewModel @Inject constructor(
         securityErrorMessageRes.value = appLockSecurityManager.promptErrorMessageRes(errorCode)
     }
 
+    // Clears the security error after it has been surfaced as a toast so it
+    // doesn't re-trigger on recomposition or configuration change.
+    fun consumeSecurityError() {
+        securityErrorMessageRes.value = null
+    }
+
     private enum class ScreenLockPromptIntent { ENABLE, DISABLE }
 
     suspend fun prepareBackupExport(
