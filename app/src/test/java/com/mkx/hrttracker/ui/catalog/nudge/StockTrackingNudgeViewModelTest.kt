@@ -149,6 +149,37 @@ class StockTrackingNudgeViewModelTest {
     }
 
     @Test
+    fun submitOptInReceivedSuccessClearsSheetAndEmitsAddedConfirmation() = runTest {
+        val medicineId = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000005")
+        val medicine = testMedicine(
+            uuid = medicineId,
+            stock = MedicineStock(unitsRemaining = 10.0),
+        )
+        val projection = testProjection(medicine)
+        every { medicineRepository.observeByUuid(medicineId) } returns flowOf(medicine)
+        every { stockRepository.getCachedProjection(medicineId) } returns projection
+        coEvery {
+            medicineRepository.enableTracking(any(), any(), any(), any(), any())
+        } just Runs
+
+        val viewModel = createViewModel()
+        viewModel.onNewMedicineCreated(medicineId)
+        advanceUntilIdle()
+        viewModel.onNudgeActionTapped()
+        advanceUntilIdle()
+
+        viewModel.submitOptInReceived(medicineId = medicineId, unitsReceived = 2.0)
+        advanceUntilIdle()
+
+        // The confirmation carries the received amount and preparation so the host
+        // can render "Added 2 <unit> to stock"; the sheet closes on success.
+        val confirmation = viewModel.optInAddedEvents.first()
+        assertEquals(2.0, confirmation.amount, 0.0)
+        assertEquals(medicine.preparation, confirmation.preparation)
+        assertNull(viewModel.optInTarget.value)
+    }
+
+    @Test
     fun submitOptInReceivedIgnoresDuplicateSubmitWhileMutationIsActive() = runTest {
         val medicineId = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000004")
         val medicine = testMedicine(

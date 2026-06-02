@@ -6,6 +6,7 @@ import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -47,6 +48,9 @@ class StockTrackingNudgeViewModel @Inject constructor(
 
     private val _optInFailureEvents = Channel<Unit>(Channel.BUFFERED)
     val optInFailureEvents: Flow<Unit> = _optInFailureEvents.receiveAsFlow()
+
+    private val _optInAddedEvents = Channel<StockNudgeAddedConfirmation>(Channel.BUFFERED)
+    val optInAddedEvents: Flow<StockNudgeAddedConfirmation> = _optInAddedEvents.receiveAsFlow()
 
     private var optInMutationJob: Job? = null
 
@@ -119,6 +123,12 @@ class StockTrackingNudgeViewModel @Inject constructor(
                     initialUnitsLastTotal = initialUnitsRemaining,
                 )
                 _optInTarget.value = null
+                _optInAddedEvents.send(
+                    StockNudgeAddedConfirmation(
+                        amount = unitsReceived,
+                        preparation = target.medicine.preparation,
+                    ),
+                )
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Throwable) {
@@ -133,3 +143,13 @@ class StockTrackingNudgeViewModel @Inject constructor(
         }
     }
 }
+
+/**
+ * Emitted after a successful in-place opt-in so the host can confirm how much
+ * was added (e.g. "Added 2 tablets to stock"). [preparation] lets the host
+ * resolve the unit label.
+ */
+data class StockNudgeAddedConfirmation(
+    val amount: Double,
+    val preparation: MedicinePreparation,
+)
