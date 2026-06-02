@@ -86,6 +86,11 @@
     </plurals>
     <string name="stock_snackbar_action_view">查看</string>
     <string name="stock_snackbar_action_dismiss">关闭</string>
+    <string name="stock_nudge_message">为 %1$s 记录库存？</string>
+    <string name="stock_nudge_action_add">添加库存</string>
+    <string name="stock_nudge_disabled_toast">已关闭库存提示。可在药品管理菜单中重新开启。</string>
+    <string name="stock_nudge_menu_disable">关闭库存提示</string>
+    <string name="stock_nudge_menu_enable">开启库存提示</string>
     <string name="fab_add_entry">添加用药记录</string>
     <string name="plan_empty_state">暂无用药分组</string>
     <string name="plan_selected_day_records_empty">这一天暂无记录</string>
