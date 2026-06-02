@@ -57,6 +57,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource.Companion.UserInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -295,7 +296,7 @@ internal fun ActualAmountRulerCard(
                             )
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.RestartAlt,
+                                painter = painterResource(R.drawable.ic_restart_alt),
                                 contentDescription = resetContentDescription,
                                 modifier = Modifier.size(26.dp)
                             )
