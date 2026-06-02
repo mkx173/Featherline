@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.ui.components
 
 import androidx.annotation.DrawableRes
-import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -30,19 +28,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.takeOrElse
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicationKey
@@ -92,10 +85,6 @@ internal enum class MedicationStockSubcardRowKind(
 
 internal data class MedicationStockSubcardSealedSupplement(
     val countText: String,
-    val chipText: String,
-    @param:DrawableRes val iconRes: Int,
-    val pluralQuantity: Int,
-    @param:PluralsRes val unitPluralRes: Int,
 )
 
 internal data class MedicationStockSubcardText(
@@ -281,10 +270,6 @@ private fun StockSubcardMetricCell(
     modifier: Modifier = Modifier,
 ) {
     val metricTextStyle = MaterialTheme.typography.labelMedium
-    val density = LocalDensity.current
-    val metricLineHeight = with(density) {
-        metricTextStyle.lineHeight.takeOrElse { metricTextStyle.fontSize }.toDp()
-    }
 
     Row(
         modifier = modifier.height(IntrinsicSize.Min),
@@ -325,8 +310,9 @@ private fun StockSubcardMetricCell(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val labelText = stringResource(row.labelRes)
+                val sealedSuffix = row.sealedSupplement?.let { " (+${it.countText})" }.orEmpty()
                 Text(
-                    text = labelText,
+                    text = labelText + sealedSuffix,
                     modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(labelText),
                     style = metricTextStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -334,25 +320,10 @@ private fun StockSubcardMetricCell(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(
-                        space = 6.dp,
-                        alignment = Alignment.End,
-                    ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    row.sealedSupplement?.let { supplement ->
-                        StockSubcardSealedChip(
-                            supplement = supplement,
-                            rowKind = row.kind,
-                            lineHeight = metricLineHeight,
-                        )
-                    }
-                    StockSubcardValueText(
-                        row = row,
-                        textStyle = metricTextStyle,
-                    )
-                }
+                StockSubcardValueText(
+                    row = row,
+                    textStyle = metricTextStyle,
+                )
             }
         }
     }
@@ -428,57 +399,6 @@ private fun resolvedStockValueText(
         valueText,
         stringResource(unitRes),
     )
-}
-
-@Composable
-private fun StockSubcardSealedChip(
-    supplement: MedicationStockSubcardSealedSupplement,
-    rowKind: MedicationStockSubcardRowKind,
-    lineHeight: Dp,
-) {
-    val unitText = pluralStringResource(
-        supplement.unitPluralRes,
-        supplement.pluralQuantity,
-    )
-    val contentDescription = stringResource(
-        R.string.stock_subcard_sealed_chip_content_description,
-        supplement.chipText,
-        unitText,
-    )
-    val chipHeight = lineHeight + 2.dp
-    val iconSize = chipHeight - 6.dp
-
-    Surface(
-        modifier = Modifier
-            .height(chipHeight)
-            .widthIn(max = 72.dp)
-            .clearAndSetSemantics {
-                this.contentDescription = contentDescription
-            },
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        shape = CircleShape,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painter = painterResource(supplement.iconRes),
-                contentDescription = null,
-                modifier = Modifier.size(iconSize),
-            )
-            Text(
-                text = supplement.chipText,
-                modifier = Modifier.weight(1f, fill = false),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
 }
 
 @Composable
@@ -579,7 +499,6 @@ private fun stockSubcardRows(
                     capacity = preparation.vialVolumeMl,
                     valueUnitRes = R.string.stock_unit_ml,
                     sealedCount = stock.unitsRemaining,
-                    sealedUnitPluralRes = R.plurals.stock_subcard_unit_vials,
                     mutationPreviewOpenAmount = mutationPreview?.openContainerAmountAfter,
                 )
             } ?: stockPoolSubcardRow(stock, preparation, mutationPreview),
@@ -593,7 +512,6 @@ private fun stockSubcardRows(
                     capacity = preparation.containerWeightGrams,
                     valueUnitRes = R.string.stock_unit_g,
                     sealedCount = stock.unitsRemaining,
-                    sealedUnitPluralRes = R.plurals.stock_subcard_unit_containers,
                     mutationPreviewOpenAmount = mutationPreview?.openContainerAmountAfter,
                 )
             } ?: stockPoolSubcardRow(stock, preparation, mutationPreview),
@@ -611,7 +529,6 @@ private fun openContainerStockSubcardRow(
     capacity: Double,
     @StringRes valueUnitRes: Int,
     sealedCount: Double?,
-    @PluralsRes sealedUnitPluralRes: Int,
     mutationPreviewOpenAmount: Double?,
 ): MedicationStockSubcardRowModel {
     val valueText = stockSubcardValueText(
@@ -630,7 +547,6 @@ private fun openContainerStockSubcardRow(
         ),
         sealedSupplement = stockSubcardSealedSupplement(
             sealedCount = sealedCount,
-            unitPluralRes = sealedUnitPluralRes,
         ),
     )
 }
@@ -659,21 +575,11 @@ private fun stockPoolSubcardRow(
 
 private fun stockSubcardSealedSupplement(
     sealedCount: Double?,
-    @PluralsRes unitPluralRes: Int,
 ): MedicationStockSubcardSealedSupplement? {
     val resolvedCount = sealedCount?.takeIf { it.isFinite() && it >= 0.0 } ?: return null
-    val countText = formatStockSubcardCount(resolvedCount)
     return MedicationStockSubcardSealedSupplement(
-        countText = countText,
-        chipText = "+$countText",
-        iconRes = R.drawable.ic_inventory_2,
-        pluralQuantity = stockSubcardPluralQuantity(resolvedCount),
-        unitPluralRes = unitPluralRes,
+        countText = formatStockSubcardCount(resolvedCount),
     )
-}
-
-private fun stockSubcardPluralQuantity(value: Double): Int {
-    return if (value == 1.0) 1 else 2
 }
 
 @StringRes

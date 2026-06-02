@@ -773,15 +773,6 @@
     <string name="stock_subcard_chip_out">Out</string>
     <string name="stock_subcard_runway_more_than_one_year">>1 year</string>
     <string name="stock_subcard_runway_days">~%1$d days</string>
-    <plurals name="stock_subcard_unit_vials">
-        <item quantity="one">vial</item>
-        <item quantity="other">vials</item>
-    </plurals>
-    <plurals name="stock_subcard_unit_containers">
-        <item quantity="one">container</item>
-        <item quantity="other">containers</item>
-    </plurals>
-    <string name="stock_subcard_sealed_chip_content_description">Additional sealed stock: %1$s %2$s</string>
     <string name="stock_subcard_cd_stock_pool">Stock pool</string>
     <string name="stock_subcard_cd_open_vial">Open vial</string>
     <string name="stock_subcard_cd_open_container">Open container</string>
