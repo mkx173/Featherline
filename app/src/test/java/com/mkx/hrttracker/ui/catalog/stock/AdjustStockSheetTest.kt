@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.ui.catalog.stock
 
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.RunwayProjection
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -38,5 +40,28 @@ class AdjustStockSheetTest {
     @Test
     fun adjustPreviewRunwayTextReturnsNullWhenRunwayCannotBeCalculated() {
         assertNull(adjustPreviewRunwayText(RunwayProjection.NoSchedule))
+    }
+
+    @Test
+    fun adjustStockAfterUnitUsesInventoryPluralResourceForContainerPreparations() {
+        assertEquals(
+            R.plurals.stock_count_vials,
+            adjustStockAfterUnitPluralRes(
+                MedicinePreparation.InjectionMultiUseVial(
+                    concentrationMgPerMl = 20.0,
+                    vialVolumeMl = 5.0,
+                ),
+            ),
+        )
+        assertEquals(
+            R.plurals.stock_count_containers,
+            adjustStockAfterUnitPluralRes(
+                MedicinePreparation.GelContainer(
+                    concentrationPercent = 0.06,
+                    containerWeightGrams = 80.0,
+                ),
+            ),
+        )
+        assertNull(adjustStockAfterUnitPluralRes(MedicinePreparation.PatchOff))
     }
 }

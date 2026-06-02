@@ -8,7 +8,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import java.text.NumberFormat
 
 @PluralsRes
-internal fun stockInventoryCountPluralRes(preparation: MedicinePreparation): Int? = when (preparation) {
+internal fun stockUnitNounPluralRes(preparation: MedicinePreparation): Int? = when (preparation) {
     is MedicinePreparation.Pill -> R.plurals.stock_count_tablets
     is MedicinePreparation.Capsule -> R.plurals.stock_count_capsules
     is MedicinePreparation.Patch -> R.plurals.stock_count_patches
@@ -18,6 +18,19 @@ internal fun stockInventoryCountPluralRes(preparation: MedicinePreparation): Int
     is MedicinePreparation.GelContainer -> R.plurals.stock_count_containers
     is MedicinePreparation.PatchOff -> null
 }
+
+@PluralsRes
+internal fun stockUnitNounPluralForUnitRes(@StringRes unitRes: Int): Int? = when (unitRes) {
+    R.string.stock_unit_tablets -> R.plurals.stock_count_tablets
+    R.string.stock_unit_capsules -> R.plurals.stock_count_capsules
+    R.string.stock_unit_patches -> R.plurals.stock_count_patches
+    R.string.stock_unit_sachets -> R.plurals.stock_count_sachets
+    R.string.stock_unit_vials -> R.plurals.stock_count_vials
+    R.string.stock_unit_containers -> R.plurals.stock_count_containers
+    else -> null
+}
+
+internal fun stockCountPluralQuantity(count: Double): Int = if (count == 1.0) 1 else 2
 
 /**
  * Localized "count + unit" phrase for an inventory amount (e.g. "2 tablets",
@@ -30,14 +43,15 @@ internal fun stockInventoryCountText(
     preparation: MedicinePreparation,
     count: Double,
 ): String? {
-    val pluralRes = stockInventoryCountPluralRes(preparation) ?: return null
-    // Only "one" (count == 1) vs "other" is distinguished in the supported
-    // locales (en, zh-Hans); fractional amounts select "other".
-    val quantity = if (count == 1.0) 1 else 2
+    val pluralRes = stockUnitNounPluralRes(preparation) ?: return null
+    val noun = context.resources.getQuantityString(
+        pluralRes,
+        stockCountPluralQuantity(count),
+    )
     val formattedCount = NumberFormat.getInstance().apply {
         maximumFractionDigits = 2
     }.format(count)
-    return context.resources.getQuantityString(pluralRes, quantity, formattedCount)
+    return context.getString(R.string.stock_row_count_with_unit, formattedCount, noun)
 }
 
 @StringRes

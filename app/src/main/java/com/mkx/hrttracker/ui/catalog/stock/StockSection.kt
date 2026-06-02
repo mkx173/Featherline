@@ -50,7 +50,9 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.StockStatusIndicator
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
+import com.mkx.hrttracker.ui.components.stockCountPluralQuantity
 import com.mkx.hrttracker.ui.components.stockInventoryUnitRes
+import com.mkx.hrttracker.ui.components.stockUnitNounPluralForUnitRes
 import com.mkx.hrttracker.ui.components.stockRateUnitRes
 import java.util.Locale
 
@@ -375,6 +377,7 @@ internal data class StockSectionCountText(
     val numeratorText: String,
     val denominatorText: String?,
     @param:StringRes val unitRes: Int? = null,
+    val pluralCount: Double? = null,
 ) {
     val valueText: String
         get() = if (denominatorText == null) {
@@ -392,10 +395,16 @@ private fun StockSectionCountText.resolve(): String {
         stringResource(R.string.stock_row_count_over_total, numeratorText, denominatorText)
     }
     val unitRes = unitRes ?: return countText
+    val pluralRes = stockUnitNounPluralForUnitRes(unitRes)
+    val unit = if (pluralRes != null && pluralCount != null) {
+        pluralStringResource(pluralRes, stockCountPluralQuantity(pluralCount))
+    } else {
+        stringResource(unitRes)
+    }
     return stringResource(
         R.string.stock_row_count_with_unit,
         countText,
-        stringResource(unitRes),
+        unit,
     )
 }
 
@@ -644,6 +653,7 @@ internal fun stockSectionCountText(
         numeratorText = formatCount(numerator),
         denominatorText = denominatorText,
         unitRes = unitRes,
+        pluralCount = denominator ?: numerator,
     )
 }
 

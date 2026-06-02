@@ -76,6 +76,8 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
+import com.mkx.hrttracker.ui.components.stockCountPluralQuantity
+import com.mkx.hrttracker.ui.components.stockUnitNounPluralRes
 import com.mkx.hrttracker.ui.hideBottomSheet
 import java.math.BigDecimal
 import java.util.Locale
@@ -336,10 +338,13 @@ private fun AfterPreview(
         adjustPreviewRunwayText(runwayProjection)
     }?.resolve()
     val displayCount = hypotheticalStock.unitsRemaining ?: 0.0
+    val unitLabel = adjustStockAfterUnitPluralRes(preparation)?.let { pluralRes ->
+        pluralStringResource(pluralRes, stockCountPluralQuantity(displayCount))
+    } ?: adjustStockUnitLabel(preparation)
     val title = stringResource(
         R.string.stock_adjust_after,
         formatCount(displayCount),
-        adjustStockUnitLabel(preparation),
+        unitLabel,
     )
     PreferenceSegmentedListItem(
         title = title,
@@ -554,6 +559,11 @@ private fun adjustStockUnitLabel(preparation: MedicinePreparation): String {
         else -> stockUnitRes(preparation)
     }
     return if (unitRes != null) stringResource(unitRes) else ""
+}
+
+@PluralsRes
+internal fun adjustStockAfterUnitPluralRes(preparation: MedicinePreparation): Int? {
+    return stockUnitNounPluralRes(preparation)
 }
 
 internal fun parseAdjustStockCount(

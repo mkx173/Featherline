@@ -812,30 +812,30 @@
     <string name="stock_unit_containers">containers</string>
     <string name="stock_unit_ml">mL</string>
     <string name="stock_unit_g">g</string>
-    <!-- Count + unit phrases (e.g. "2 tablets", "1 vial"). The count is preformatted. -->
+    <!-- Stock unit nouns for count + unit phrases. -->
     <plurals name="stock_count_tablets">
-        <item quantity="one">%1$s tablet</item>
-        <item quantity="other">%1$s tablets</item>
+        <item quantity="one">tablet</item>
+        <item quantity="other">tablets</item>
     </plurals>
     <plurals name="stock_count_capsules">
-        <item quantity="one">%1$s capsule</item>
-        <item quantity="other">%1$s capsules</item>
+        <item quantity="one">capsule</item>
+        <item quantity="other">capsules</item>
     </plurals>
     <plurals name="stock_count_patches">
-        <item quantity="one">%1$s patch</item>
-        <item quantity="other">%1$s patches</item>
+        <item quantity="one">patch</item>
+        <item quantity="other">patches</item>
     </plurals>
     <plurals name="stock_count_sachets">
-        <item quantity="one">%1$s sachet</item>
-        <item quantity="other">%1$s sachets</item>
+        <item quantity="one">sachet</item>
+        <item quantity="other">sachets</item>
     </plurals>
     <plurals name="stock_count_vials">
-        <item quantity="one">%1$s vial</item>
-        <item quantity="other">%1$s vials</item>
+        <item quantity="one">vial</item>
+        <item quantity="other">vials</item>
     </plurals>
     <plurals name="stock_count_containers">
-        <item quantity="one">%1$s container</item>
-        <item quantity="other">%1$s containers</item>
+        <item quantity="one">container</item>
+        <item quantity="other">containers</item>
     </plurals>
 
     <!-- Adjust sheet -->

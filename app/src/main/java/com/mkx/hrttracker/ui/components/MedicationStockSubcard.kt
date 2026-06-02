@@ -100,6 +100,8 @@ internal data class MedicationStockSubcardRowModel(
     val valueText: String,
     val previewValueText: String? = null,
     @param:StringRes val valueUnitRes: Int? = null,
+    val valuePluralCount: Double? = null,
+    val previewPluralCount: Double? = null,
     val progress: Float,
     val sealedSupplement: MedicationStockSubcardSealedSupplement? = null,
 ) {
@@ -343,6 +345,7 @@ private fun StockSubcardValueText(
             text = resolvedStockValueText(
                 valueText = row.valueText,
                 unitRes = row.valueUnitRes,
+                pluralCount = row.valuePluralCount,
             ),
             style = textStyle,
             color = MaterialTheme.colorScheme.onSurface,
@@ -379,6 +382,7 @@ private fun StockSubcardValueText(
             text = resolvedStockValueText(
                 valueText = previewValueText,
                 unitRes = row.valueUnitRes,
+                pluralCount = row.previewPluralCount,
             ),
             style = textStyle,
             color = MaterialTheme.colorScheme.onSurface,
@@ -395,12 +399,19 @@ private fun StockSubcardValueText(
 private fun resolvedStockValueText(
     valueText: String,
     @StringRes unitRes: Int?,
+    pluralCount: Double?,
 ): String {
     unitRes ?: return valueText
+    val pluralRes = stockUnitNounPluralForUnitRes(unitRes)
+    val unit = if (pluralRes != null && pluralCount != null) {
+        pluralStringResource(pluralRes, stockCountPluralQuantity(pluralCount))
+    } else {
+        stringResource(unitRes)
+    }
     return stringResource(
         R.string.stock_row_count_with_unit,
         valueText,
-        stringResource(unitRes),
+        unit,
     )
 }
 
@@ -545,6 +556,8 @@ private fun openContainerStockSubcardRow(
         valueText = valueText.currentText,
         previewValueText = valueText.previewText,
         valueUnitRes = valueUnitRes,
+        valuePluralCount = capacity,
+        previewPluralCount = capacity,
         progress = stockSubcardProgress(
             numerator = openAmount,
             denominator = capacity,
@@ -570,6 +583,8 @@ private fun stockPoolSubcardRow(
         valueText = valueText.currentText,
         previewValueText = valueText.previewText,
         valueUnitRes = stockInventoryUnitRes(preparation),
+        valuePluralCount = stock.unitsLastTotal ?: stock.unitsRemaining,
+        previewPluralCount = stock.unitsLastTotal ?: mutationPreview?.unitsRemainingAfter,
         progress = stockSubcardProgress(
             numerator = stock.unitsRemaining,
             denominator = stock.unitsLastTotal,
