@@ -34,6 +34,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -73,7 +74,7 @@ class NewMedicineSlotViewModelTest {
                 MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
                 any(),
             )
-        } returns medicine
+        } coAnswers { medicine.asNewlyCreated(invocation.args[2] as Instant) }
         val viewModel = newViewModel()
         viewModel.updateMedicineDraft {
             it.copy(
@@ -95,6 +96,26 @@ class NewMedicineSlotViewModelTest {
             ),
             viewModel.uiState.value.slotResult,
         )
+        assertEquals(medicine.uuid, viewModel.uiState.value.createdMedicineUuid)
+    }
+
+    @Test
+    fun saveGroupSlot_reusedActiveMedicineDoesNotPublishCreatedMedicineUuid() = runTest {
+        val existing = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000312"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } returns existing
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
+
+        viewModel.saveGroupSlot()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertEquals(existing.uuid, viewModel.uiState.value.slotResult?.medicineUuid)
+        assertNull(viewModel.uiState.value.createdMedicineUuid)
     }
 
     @Test
@@ -171,7 +192,9 @@ class NewMedicineSlotViewModelTest {
             key = MedicationKey.ESTRADIOL,
             preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
         )
-        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } returns medicine
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } coAnswers {
+            medicine.asNewlyCreated(invocation.args[2] as Instant)
+        }
         val viewModel = newViewModel()
         viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
 
@@ -214,7 +237,9 @@ class NewMedicineSlotViewModelTest {
         val appliedDate = LocalDate.of(2026, 5, 24)
         val appliedTime = LocalTime.of(22, 30)
         val appliedAt = LocalDateTime.of(appliedDate, appliedTime).atZone(zoneId).toInstant()
-        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } returns medicine
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } coAnswers {
+            medicine.asNewlyCreated(invocation.args[2] as Instant)
+        }
         coEvery {
             medicationLogRepository.saveEntry(
                 uuid = null,
@@ -255,6 +280,39 @@ class NewMedicineSlotViewModelTest {
                 appliedAtTimeZoneId = zoneId.id,
             )
         }
+    }
+
+    @Test
+    fun saveManualLog_reusedActiveMedicineDoesNotPublishCreatedMedicineUuid() = runTest {
+        val existing = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-00000000030d"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } returns existing
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = existing.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = null,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+                appliedAtTimeZoneId = "Asia/Tokyo",
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
+
+        viewModel.saveManualLog()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.createdMedicineUuid)
     }
 
     @Test
@@ -686,5 +744,11 @@ class NewMedicineSlotViewModelTest {
             medicationReminderScheduler = medicationReminderScheduler,
             initialAppliedZoneId = zoneId,
         )
+    }
+
+    private fun com.mkx.hrttracker.model.medication.Medicine.asNewlyCreated(
+        now: Instant,
+    ): com.mkx.hrttracker.model.medication.Medicine {
+        return copy(createdAt = now, updatedAt = now)
     }
 }

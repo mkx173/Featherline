@@ -17,8 +17,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import java.time.Instant
 import java.util.UUID
 
 class MedicineCreateActionsTest {
@@ -37,7 +39,10 @@ class MedicineCreateActionsTest {
                 MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
                 any(),
             )
-        } returns medicine
+        } coAnswers {
+            val now = invocation.args[2] as Instant
+            medicine.copy(createdAt = now, updatedAt = now)
+        }
 
         val result = createMedicineFromDraft(
             medicineRepository = medicineRepository,
@@ -48,7 +53,9 @@ class MedicineCreateActionsTest {
             ),
         )
 
-        assertEquals(MedicineCreateResult.Success(medicine), result)
+        val success = result as MedicineCreateResult.Success
+        assertEquals(medicine.uuid, success.medicine.uuid)
+        assertTrue(success.createdNew)
         coVerify(exactly = 1) {
             medicineRepository.findOrCreateForCatalog(
                 MedicationKey.ESTRADIOL,
@@ -56,6 +63,39 @@ class MedicineCreateActionsTest {
                 any(),
             )
         }
+    }
+
+    @Test
+    fun createMedicineFromDraft_activeExistingCatalogDraftReturnsNotCreated() = runTest {
+        val existing = testMedicine(
+            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000102"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        coEvery {
+            medicineRepository.findOrCreateForCatalog(
+                MedicationKey.ESTRADIOL,
+                MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                any(),
+            )
+        } returns existing
+
+        val result = createMedicineFromDraft(
+            medicineRepository = medicineRepository,
+            draft = defaultMedicineDraft().copy(
+                selectionKind = MedicationSelectionKind.CATALOG,
+                medicationKey = MedicationKey.ESTRADIOL,
+                pillStrengthMg = "2",
+            ),
+        )
+
+        assertEquals(
+            MedicineCreateResult.Success(
+                medicine = existing,
+                createdNew = false,
+            ),
+            result,
+        )
     }
 
     @Test

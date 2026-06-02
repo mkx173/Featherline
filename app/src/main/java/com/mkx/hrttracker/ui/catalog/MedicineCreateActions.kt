@@ -11,9 +11,13 @@ import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.toNewMedicineRequest
 import com.mkx.hrttracker.ui.medication.validationErrorRes
 import kotlinx.coroutines.CancellationException
+import java.time.Instant
 
 internal sealed interface MedicineCreateResult {
-    data class Success(val medicine: Medicine) : MedicineCreateResult
+    data class Success(
+        val medicine: Medicine,
+        val createdNew: Boolean = true,
+    ) : MedicineCreateResult
     data class ValidationError(@param:StringRes val messageRes: Int) : MedicineCreateResult
     data class SaveFailure(val saveResult: CreateMedicineSaveResult) : MedicineCreateResult
 }
@@ -35,10 +39,12 @@ internal suspend fun createMedicineFromDraft(
 
     return runCatching {
         val request = draft.toNewMedicineRequest()
-        when (request.selectionKind) {
+        val requestedAt = Instant.now()
+        val medicine = when (request.selectionKind) {
             MedicationSelectionKind.CATALOG -> medicineRepository.findOrCreateForCatalog(
                 medicationKey = checkNotNull(request.medicationKey),
                 preparation = request.preparation,
+                now = requestedAt,
             )
 
             MedicationSelectionKind.CUSTOM -> medicineRepository.findOrCreateForCustom(
@@ -47,10 +53,15 @@ internal suspend fun createMedicineFromDraft(
                 category = request.category,
                 preparation = request.preparation,
                 displayDoseUnit = request.displayDoseUnit,
+                now = requestedAt,
             )
         }
+        MedicineCreateResult.Success(
+            medicine = medicine,
+            createdNew = medicine.createdAt == requestedAt,
+        )
     }.fold(
-        onSuccess = { medicine -> MedicineCreateResult.Success(medicine) },
+        onSuccess = { result -> result },
         onFailure = { error ->
             if (error is CancellationException) {
                 throw error

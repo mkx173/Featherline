@@ -14,9 +14,11 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -117,6 +119,69 @@ class StockTrackingNudgeViewModelTest {
                 now = any(),
             )
         }
+    }
+
+    @Test
+    fun submitOptInReceivedFailureKeepsSheetOpenAndEmitsFailureEvent() = runTest {
+        val medicineId = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000003")
+        val medicine = testMedicine(
+            uuid = medicineId,
+            stock = MedicineStock(unitsRemaining = 10.0),
+        )
+        val projection = testProjection(medicine)
+        every { medicineRepository.observeByUuid(medicineId) } returns flowOf(medicine)
+        every { stockRepository.getCachedProjection(medicineId) } returns projection
+        coEvery {
+            medicineRepository.enableTracking(any(), any(), any(), any(), any())
+        } throws IllegalStateException("failed")
+
+        val viewModel = createViewModel()
+        viewModel.onNewMedicineCreated(medicineId)
+        advanceUntilIdle()
+        viewModel.onNudgeActionTapped()
+        advanceUntilIdle()
+
+        viewModel.submitOptInReceived(medicineId = medicineId, unitsReceived = 5.0)
+        advanceUntilIdle()
+
+        assertEquals(Unit, viewModel.optInFailureEvents.first())
+        assertEquals(projection, viewModel.optInTarget.value)
+    }
+
+    @Test
+    fun submitOptInReceivedIgnoresDuplicateSubmitWhileMutationIsActive() = runTest {
+        val medicineId = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000004")
+        val medicine = testMedicine(
+            uuid = medicineId,
+            stock = MedicineStock(unitsRemaining = 10.0),
+        )
+        val projection = testProjection(medicine)
+        val mutationCanFinish = CompletableDeferred<Unit>()
+        every { medicineRepository.observeByUuid(medicineId) } returns flowOf(medicine)
+        every { stockRepository.getCachedProjection(medicineId) } returns projection
+        coEvery {
+            medicineRepository.enableTracking(any(), any(), any(), any(), any())
+        } coAnswers {
+            mutationCanFinish.await()
+        }
+
+        val viewModel = createViewModel()
+        viewModel.onNewMedicineCreated(medicineId)
+        advanceUntilIdle()
+        viewModel.onNudgeActionTapped()
+        advanceUntilIdle()
+
+        viewModel.submitOptInReceived(medicineId = medicineId, unitsReceived = 5.0)
+        runCurrent()
+        viewModel.submitOptInReceived(medicineId = medicineId, unitsReceived = 5.0)
+        runCurrent()
+
+        coVerify(exactly = 1) {
+            medicineRepository.enableTracking(any(), any(), any(), any(), any())
+        }
+
+        mutationCanFinish.complete(Unit)
+        advanceUntilIdle()
     }
 
     private fun createViewModel(): StockTrackingNudgeViewModel {

@@ -354,13 +354,13 @@ internal fun MedicinesScreen(
                     }
                 }
             },
-            onGroupSlotResolved = { slotResult, consumeSavedState ->
+            onGroupSlotResolved = { slotResult, createdMedicineUuid, consumeSavedState ->
                 allowManualSlotCompletionHideState.value = true
                 hideBottomSheet(scope, createMedicineThenDoseSheetState) {
                     showCreateMedicineThenDoseSheet = false
                     allowManualSlotCompletionHideState.value = false
                     consumeSavedState()
-                    onNewMedicineCreated(slotResult.medicineUuid)
+                    createdMedicineUuid?.let(onNewMedicineCreated)
                     onSlotResolved(slotResult)
                 }
             },

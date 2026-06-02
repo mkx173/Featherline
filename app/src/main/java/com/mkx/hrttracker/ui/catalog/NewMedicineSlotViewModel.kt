@@ -195,6 +195,7 @@ class NewMedicineSlotViewModel @Inject constructor(
                     errorMessageRes = errorMessageRes,
                     createSaveResult = null,
                     manualLogSaveResult = null,
+                    createdMedicineUuid = null,
                     slotResult = null,
                 )
             }
@@ -208,17 +209,19 @@ class NewMedicineSlotViewModel @Inject constructor(
                 errorMessageRes = null,
                 createSaveResult = null,
                 manualLogSaveResult = null,
+                createdMedicineUuid = null,
                 slotResult = null,
             )
         }
         return viewModelScope.launch {
             try {
-                saveMedicineThen(currentState, operationGeneration) { medicine ->
+                saveMedicineThen(currentState, operationGeneration) { medicine, createdNew ->
                     val applicationType = resolvedApplicationType(currentState)
                     updateIfCurrent(operationGeneration) {
                         it.copy(
                             isSaving = false,
                             isSaved = true,
+                            createdMedicineUuid = medicine.uuid.takeIf { createdNew },
                             slotResult = MedicineSlotResult(
                                 medicineUuid = medicine.uuid,
                                 applicationType = applicationType,
@@ -250,6 +253,7 @@ class NewMedicineSlotViewModel @Inject constructor(
                     errorMessageRes = errorMessageRes,
                     createSaveResult = null,
                     manualLogSaveResult = null,
+                    createdMedicineUuid = null,
                     slotResult = null,
                 )
             }
@@ -263,12 +267,13 @@ class NewMedicineSlotViewModel @Inject constructor(
                 errorMessageRes = null,
                 createSaveResult = null,
                 manualLogSaveResult = null,
+                createdMedicineUuid = null,
                 slotResult = null,
             )
         }
         return viewModelScope.launch {
             try {
-                saveMedicineThen(currentState, operationGeneration) { medicine ->
+                saveMedicineThen(currentState, operationGeneration) { medicine, createdNew ->
                     val applicationType = resolvedApplicationType(currentState)
                     val saveResult = saveManualMedicineLog(
                         medicationLogRepository = medicationLogRepository,
@@ -294,7 +299,9 @@ class NewMedicineSlotViewModel @Inject constructor(
                             isSaved = saveResult.isSuccess,
                             manualLogSaveResult = saveResult.saveResult,
                             postLogStockWarning = saveResult.postLogStockWarning,
-                            createdMedicineUuid = medicine.uuid.takeIf { saveResult.isSuccess },
+                            createdMedicineUuid = medicine.uuid.takeIf {
+                                saveResult.isSuccess && createdNew
+                            },
                         )
                     }
                 }
@@ -323,7 +330,7 @@ class NewMedicineSlotViewModel @Inject constructor(
     private suspend fun saveMedicineThen(
         state: NewMedicineSlotUiState,
         operationGeneration: Int,
-        onCreated: suspend (Medicine) -> Unit,
+        onCreated: suspend (Medicine, Boolean) -> Unit,
     ) {
         // validateSlot already ran before this point; validate again inside the shared create helper as a defensive guard.
         when (
@@ -334,7 +341,7 @@ class NewMedicineSlotViewModel @Inject constructor(
         ) {
             is MedicineCreateResult.Success -> {
                 if (isCurrentSave(operationGeneration)) {
-                    onCreated(result.medicine)
+                    onCreated(result.medicine, result.createdNew)
                 }
             }
 
@@ -344,6 +351,7 @@ class NewMedicineSlotViewModel @Inject constructor(
                         isSaving = false,
                         errorMessageRes = result.messageRes,
                         createSaveResult = null,
+                        createdMedicineUuid = null,
                     )
                 }
             }
@@ -353,6 +361,7 @@ class NewMedicineSlotViewModel @Inject constructor(
                     it.copy(
                         isSaving = false,
                         createSaveResult = result.saveResult,
+                        createdMedicineUuid = null,
                     )
                 }
             }

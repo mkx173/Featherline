@@ -454,6 +454,16 @@ fun HrtTrackerNavHost(
         }
     }
 
+    LaunchedEffect(Unit) {
+        stockNudgeViewModel.optInFailureEvents.collect {
+            Toast.makeText(
+                snackbarContext,
+                R.string.medicine_stock_update_failure,
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
     var lastHandledHomeDeepLinkSignal by rememberSaveable { mutableIntStateOf(0) }
     var pendingHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
     var pendingHomeDeepLinkHighlightRequiresNavigation by rememberSaveable { mutableStateOf(false) }

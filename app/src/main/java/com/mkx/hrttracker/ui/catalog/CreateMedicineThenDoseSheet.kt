@@ -53,7 +53,7 @@ fun CreateMedicineThenDoseSheet(
     sheetState: SheetState,
     onDismissRequest: () -> Unit,
     onCloseClick: () -> Unit,
-    onGroupSlotResolved: (MedicineSlotResult, () -> Unit) -> Unit,
+    onGroupSlotResolved: (MedicineSlotResult, java.util.UUID?, () -> Unit) -> Unit,
     modifier: Modifier = Modifier,
     mode: CreateMedicineThenDoseSheetMode = CreateMedicineThenDoseSheetMode.GROUP_SLOT,
     onManualLogSaved: (PostLogStockWarning?, java.util.UUID?, () -> Unit) -> Unit = { _, _, consumeSavedState ->
@@ -81,7 +81,11 @@ fun CreateMedicineThenDoseSheet(
     LaunchedEffect(isManualLogMode, uiState.slotResult) {
         if (!isManualLogMode) {
             uiState.slotResult?.let { slotResult ->
-                onGroupSlotResolved(slotResult, viewModel::consumeSavedState)
+                onGroupSlotResolved(
+                    slotResult,
+                    uiState.createdMedicineUuid,
+                    viewModel::consumeSavedState,
+                )
             }
         }
     }

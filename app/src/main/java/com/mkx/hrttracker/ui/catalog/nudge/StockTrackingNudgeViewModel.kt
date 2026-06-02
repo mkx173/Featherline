@@ -9,6 +9,8 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +44,11 @@ class StockTrackingNudgeViewModel @Inject constructor(
 
     private val _autoDisabledEvents = Channel<Unit>(Channel.BUFFERED)
     val autoDisabledEvents: Flow<Unit> = _autoDisabledEvents.receiveAsFlow()
+
+    private val _optInFailureEvents = Channel<Unit>(Channel.BUFFERED)
+    val optInFailureEvents: Flow<Unit> = _optInFailureEvents.receiveAsFlow()
+
+    private var optInMutationJob: Job? = null
 
     fun onNewMedicineCreated(medicineId: UUID) {
         viewModelScope.launch {
@@ -97,19 +104,26 @@ class StockTrackingNudgeViewModel @Inject constructor(
         medicineId: UUID,
         unitsReceived: Double,
     ) {
+        if (optInMutationJob?.isActive == true) return
         val target = _optInTarget.value
             ?.takeIf { it.medicine.uuid == medicineId }
             ?: return
-        viewModelScope.launch {
-            val initialUnitsRemaining =
-                (target.medicine.stock.unitsRemaining ?: 0.0) + unitsReceived
-            medicineRepository.enableTracking(
-                uuid = medicineId,
-                initialUnitsRemaining = initialUnitsRemaining,
-                initialOpenContainerAmount = null,
-                initialUnitsLastTotal = initialUnitsRemaining,
-            )
-            _optInTarget.value = null
+        optInMutationJob = viewModelScope.launch {
+            try {
+                val initialUnitsRemaining =
+                    (target.medicine.stock.unitsRemaining ?: 0.0) + unitsReceived
+                medicineRepository.enableTracking(
+                    uuid = medicineId,
+                    initialUnitsRemaining = initialUnitsRemaining,
+                    initialOpenContainerAmount = null,
+                    initialUnitsLastTotal = initialUnitsRemaining,
+                )
+                _optInTarget.value = null
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (_: Throwable) {
+                _optInFailureEvents.send(Unit)
+            }
         }
     }
 
