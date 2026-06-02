@@ -72,9 +72,9 @@
     <string name="reminder_notification_action_log_all">全部记录</string>
     <string name="reminder_notification_action_remind_later">稍后提醒</string>
     <string name="reminder_notification_snoozed">将在 %1$d 分钟后再次提醒您</string>
-    <string name="stock_toast_out_single">%1$s 已无库存</string>
+    <string name="stock_toast_out_single">%1$s 已用尽</string>
     <plurals name="stock_toast_out_multiple">
-        <item quantity="other">%1$d 种药品已无库存</item>
+        <item quantity="other">%1$d 种药品已用尽</item>
     </plurals>
     <string name="stock_toast_imminent_single">%1$s 即将用尽</string>
     <plurals name="stock_toast_imminent_multiple">
