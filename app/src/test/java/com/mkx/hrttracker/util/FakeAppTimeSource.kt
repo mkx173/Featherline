@@ -7,29 +7,70 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
-class FakeAppTimeSource(initialMinute: LocalDateTime) : AppTimeSource {
-    private val mutableCurrentMinute = MutableStateFlow(initialMinute.withSecond(0).withNano(0))
-    private var currentInstant = mutableCurrentMinute.value.atZone(ZoneId.systemDefault()).toInstant()
+class FakeAppTimeSource(
+    initialMinute: LocalDateTime,
+    initialZone: ZoneId = ZoneId.systemDefault(),
+) : AppTimeSource {
+    private val mutableCurrentSnapshot = MutableStateFlow(
+        AppTimeSnapshot(
+            minute = initialMinute.truncatedTo(ChronoUnit.MINUTES),
+            zone = initialZone,
+        )
+    )
+    private val mutableCurrentMinute = MutableStateFlow(mutableCurrentSnapshot.value.minute)
+    private val mutableCurrentZone = MutableStateFlow(mutableCurrentSnapshot.value.zone)
+    private var currentInstant = mutableCurrentSnapshot.value.minute
+        .atZone(mutableCurrentSnapshot.value.zone)
+        .toInstant()
 
+    override val currentSnapshot: StateFlow<AppTimeSnapshot> = mutableCurrentSnapshot
     override val currentMinute: StateFlow<LocalDateTime> = mutableCurrentMinute
+    override val currentZone: StateFlow<ZoneId> = mutableCurrentZone
 
     override fun now(): Instant = currentInstant
 
     override fun refresh() {
-        // No-op: tests drive this fake's clock explicitly via setCurrentMinute /
-        // setCurrentInstant, so there is no lazily-cached value to refresh.
+        // No-op: tests drive this fake's clock explicitly via setters, so
+        // there is no lazily-cached value to refresh.
+    }
+
+    fun setCurrentSnapshot(currentMinute: LocalDateTime, zoneId: ZoneId) {
+        val normalizedCurrentMinute = currentMinute.truncatedTo(ChronoUnit.MINUTES)
+        val snapshot = AppTimeSnapshot(
+            minute = normalizedCurrentMinute,
+            zone = zoneId,
+        )
+        mutableCurrentSnapshot.value = snapshot
+        mutableCurrentMinute.value = snapshot.minute
+        mutableCurrentZone.value = snapshot.zone
+        currentInstant = snapshot.minute.atZone(snapshot.zone).toInstant()
+    }
+
+    fun setCurrentZone(zoneId: ZoneId) {
+        setCurrentSnapshot(
+            currentMinute = mutableCurrentSnapshot.value.minute,
+            zoneId = zoneId,
+        )
     }
 
     fun setCurrentMinute(currentMinute: LocalDateTime) {
-        val normalizedCurrentMinute = currentMinute.withSecond(0).withNano(0)
-        mutableCurrentMinute.value = normalizedCurrentMinute
-        currentInstant = normalizedCurrentMinute.atZone(ZoneId.systemDefault()).toInstant()
+        setCurrentSnapshot(
+            currentMinute = currentMinute,
+            zoneId = mutableCurrentSnapshot.value.zone,
+        )
     }
 
     fun setCurrentInstant(currentInstant: Instant) {
         this.currentInstant = currentInstant
-        mutableCurrentMinute.value = LocalDateTime
-            .ofInstant(currentInstant, ZoneId.systemDefault())
+        val currentZone = mutableCurrentSnapshot.value.zone
+        val currentMinute = LocalDateTime
+            .ofInstant(currentInstant, currentZone)
             .truncatedTo(ChronoUnit.MINUTES)
+        mutableCurrentSnapshot.value = AppTimeSnapshot(
+            minute = currentMinute,
+            zone = currentZone,
+        )
+        mutableCurrentMinute.value = currentMinute
+        mutableCurrentZone.value = currentZone
     }
 }

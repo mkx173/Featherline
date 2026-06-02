@@ -2,14 +2,17 @@ package com.mkx.hrttracker.util
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.ExperimentalForInheritanceCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
@@ -19,14 +22,21 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
+data class AppTimeSnapshot(
+    val minute: LocalDateTime,
+    val zone: ZoneId,
+)
+
 interface AppTimeSource {
+    val currentSnapshot: StateFlow<AppTimeSnapshot>
     val currentMinute: StateFlow<LocalDateTime>
+    val currentZone: StateFlow<ZoneId>
     fun now(): Instant
 
     /**
-     * Forces [currentMinute] to re-read the wall clock immediately for active
-     * subscribers. Called when the app returns to the foreground so the home
-     * screens reflect any date/time change that happened while backgrounded,
+     * Forces [currentSnapshot] to re-read the wall clock immediately for active
+     * subscribers. Called when the app returns to the foreground so app time
+     * reflects any date/time/zone change that happened while backgrounded,
      * instead of waiting up to a minute for the next tick.
      */
     fun refresh()
@@ -48,14 +58,21 @@ class DefaultAppTimeSource(
     // old pending delay running, so the next minute boundary could be missed by
     // up to the original remaining sleep. onStart drives the initial run.
     @OptIn(ExperimentalCoroutinesApi::class)
-    override val currentMinute: StateFlow<LocalDateTime> = refreshSignals
+    override val currentSnapshot: StateFlow<AppTimeSnapshot> = refreshSignals
         .onStart { emit(Unit) }
-        .flatMapLatest { currentMinuteTicker(clock) }
+        .flatMapLatest { appTimeSnapshotTicker(clock) }
+        .distinctUntilChanged()
         .stateIn(
             scope = appScope,
             started = SharingStarted.WhileSubscribed(stopTimeoutMillis),
-            initialValue = currentMinute(clock)
+            initialValue = currentAppTimeSnapshot(clock)
         )
+
+    override val currentMinute: StateFlow<LocalDateTime> = currentSnapshot
+        .project { it.minute }
+
+    override val currentZone: StateFlow<ZoneId> = currentSnapshot
+        .project { it.zone }
 
     override fun now(): Instant = Instant.now(clock)
 
@@ -64,19 +81,57 @@ class DefaultAppTimeSource(
     }
 }
 
-internal fun currentMinuteTicker(clock: Clock): Flow<LocalDateTime> {
+internal fun appTimeSnapshotTicker(clock: Clock): Flow<AppTimeSnapshot> {
     return flow {
         while (true) {
-            emit(currentMinute(clock))
+            emit(currentAppTimeSnapshot(clock))
             delay(millisUntilNextMinuteBoundary(clock))
         }
     }.distinctUntilChanged()
 }
 
+internal fun currentAppTimeSnapshot(clock: Clock): AppTimeSnapshot {
+    val instant = clock.instant()
+    val zone = ZoneId.systemDefault()
+    return AppTimeSnapshot(
+        minute = LocalDateTime
+            .ofInstant(instant, zone)
+            .truncatedTo(ChronoUnit.MINUTES),
+        zone = zone,
+    )
+}
+
 internal fun currentMinute(clock: Clock): LocalDateTime {
-    return LocalDateTime
-        .ofInstant(clock.instant(), ZoneId.systemDefault())
-        .truncatedTo(ChronoUnit.MINUTES)
+    return currentAppTimeSnapshot(clock).minute
+}
+
+private fun <T> StateFlow<AppTimeSnapshot>.project(
+    transform: (AppTimeSnapshot) -> T,
+): StateFlow<T> {
+    return AppTimeSnapshotProjectionStateFlow(
+        source = this,
+        transform = transform,
+    )
+}
+
+@OptIn(ExperimentalForInheritanceCoroutinesApi::class)
+private class AppTimeSnapshotProjectionStateFlow<T>(
+    private val source: StateFlow<AppTimeSnapshot>,
+    private val transform: (AppTimeSnapshot) -> T,
+) : StateFlow<T> {
+    override val value: T
+        get() = transform(source.value)
+
+    override val replayCache: List<T>
+        get() = listOf(value)
+
+    override suspend fun collect(collector: FlowCollector<T>): Nothing {
+        source
+            .map { transform(it) }
+            .distinctUntilChanged()
+            .collect(collector)
+        error("StateFlow collection completed unexpectedly")
+    }
 }
 
 internal fun millisUntilNextMinuteBoundary(clock: Clock): Long {
