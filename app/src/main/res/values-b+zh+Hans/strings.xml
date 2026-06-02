@@ -88,9 +88,9 @@
     <string name="stock_snackbar_action_dismiss">关闭</string>
     <string name="stock_nudge_message">为 %1$s 启用库存跟踪？</string>
     <string name="stock_nudge_action_enable">启用</string>
-    <string name="stock_nudge_added_toast">已向库存添加 %1$s</string>
-    <string name="stock_nudge_disabled_toast">已关闭库存跟踪建议。可在药品管理菜单中重新开启。</string>
-    <string name="stock_nudge_menu_label">库存跟踪建议</string>
+    <string name="stock_nudge_added_toast">已添加 %1$s 到库存</string>
+    <string name="stock_nudge_disabled_toast">已关闭库存跟踪提示，可随时在药物菜单中重新开启</string>
+    <string name="stock_nudge_menu_label">库存跟踪提示</string>
     <string name="fab_add_entry">添加用药记录</string>
     <string name="plan_empty_state">暂无用药分组</string>
     <string name="plan_selected_day_records_empty">这一天暂无记录</string>
@@ -307,7 +307,7 @@
     <string name="medicines_title">药物</string>
     <string name="medicines_empty_state">暂无药物</string>
     <string name="medicine_picker_add_new_medicine">添加药物</string>
-    <string name="onboarding_stock_optin_banner">轻点药品即可添加库存，您也可以随时在「计划」→「药品」中启用库存追踪</string>
+    <string name="onboarding_stock_optin_banner">轻点药品即可添加库存，您也可以随时在「计划」→「药物」中启用库存追踪</string>
     <string name="create_medicine_title">添加药物</string>
     <string name="create_medicine_action">保存</string>
     <string name="medicine_detail_title">药物详情</string>
