@@ -94,7 +94,7 @@
     <string name="stock_nudge_message">Enable stock tracking for %1$s?</string>
     <string name="stock_nudge_action_enable">Enable</string>
     <string name="stock_nudge_added_toast">Added %1$s to stock</string>
-    <string name="stock_nudge_disabled_toast">Stock tracking tips turned off. You can turn them back on from the medicine menu.</string>
+    <string name="stock_nudge_disabled_toast">Tips disabled. Turn them back on from the medicine menu.</string>
     <string name="stock_nudge_menu_label">Stock tracking tips</string>
     <string name="fab_add_entry">Add medication log entry</string>
     <string name="plan_empty_state">No medication groups yet.</string>

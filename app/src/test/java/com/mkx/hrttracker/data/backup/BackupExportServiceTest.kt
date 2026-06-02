@@ -74,6 +74,7 @@ class BackupExportServiceTest {
         cacheDir = Files.createTempDirectory("backup-export-service-test-").toFile()
         every { context.cacheDir } returns cacheDir
         every { settingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
+        every { settingsRepository.stockNudgeUserEnabledFlow } returns flowOf(false)
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
         service = BackupExportService(
             context = context,

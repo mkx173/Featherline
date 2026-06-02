@@ -89,7 +89,7 @@
     <string name="stock_nudge_message">为 %1$s 启用库存跟踪？</string>
     <string name="stock_nudge_action_enable">启用</string>
     <string name="stock_nudge_added_toast">已添加 %1$s 到库存</string>
-    <string name="stock_nudge_disabled_toast">已关闭库存跟踪提示，可随时在药物菜单中重新开启</string>
+    <string name="stock_nudge_disabled_toast">已关闭库存跟踪提示，可在药物菜单中重新开启</string>
     <string name="stock_nudge_menu_label">库存跟踪提示</string>
     <string name="fab_add_entry">添加用药记录</string>
     <string name="plan_empty_state">暂无用药分组</string>

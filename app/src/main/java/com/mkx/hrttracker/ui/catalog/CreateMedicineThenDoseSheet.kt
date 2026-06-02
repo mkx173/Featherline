@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.catalog
 import android.widget.Toast
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.SheetValue
@@ -17,6 +18,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
@@ -228,6 +230,7 @@ fun CreateMedicineThenDoseSheet(
             if (uiState.allowsActualDoseDelta && uiState.effectiveActualAmount != null) {
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
                 ActualAmountRulerCard(
+                    modifier = Modifier.padding(top = 4.dp),
                     preparationType = activePreparationType,
                     allowsActualDoseDelta = uiState.allowsActualDoseDelta,
                     plannedAmount = uiState.scheduledNativeAmount,

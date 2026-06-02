@@ -47,6 +47,7 @@ data class BackupSettingsSnapshot(
     val groupNameCounter: Int = 0,
     val firstDayOfWeekOption: String = "FOLLOW_SYSTEM",
     val stockNudgeEnabled: Boolean = true,
+    val stockNudgeUserEnabled: Boolean = false,
 )
 
 

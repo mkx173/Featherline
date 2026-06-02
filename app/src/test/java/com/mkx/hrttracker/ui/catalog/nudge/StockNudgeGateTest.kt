@@ -77,15 +77,16 @@ class StockNudgeGateTest {
     }
 
     @Test
-    fun `re-enabling resets the cycle`() = runTest(testDispatcher) {
+    fun `voluntarily re-enabling keeps the nudge on for good`() = runTest(testDispatcher) {
+        // The user let it auto-disable, then deliberately turned it back on.
+        // That voluntary opt-in outranks the dismiss-threshold policy: further
+        // X-dismissals hide the current nudge but never auto-disable again.
         repeat(3) { gate.onDismissedViaX() }
 
         gate.setEnabled(true)
 
         assertEquals(true, settings.stockNudgeEnabledFlow.first())
-        assertEquals(false, gate.onDismissedViaX())
-        assertEquals(false, gate.onDismissedViaX())
-        assertEquals(true, gate.onDismissedViaX())
-        assertEquals(false, settings.stockNudgeEnabledFlow.first())
+        repeat(5) { assertEquals(false, gate.onDismissedViaX()) }
+        assertEquals(true, settings.stockNudgeEnabledFlow.first())
     }
 }

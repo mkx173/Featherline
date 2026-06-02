@@ -293,6 +293,7 @@ class BackupRestoreServiceTest {
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = any(),
+                stockNudgeUserEnabled = any(),
             )
         } just Runs
 
@@ -336,6 +337,7 @@ class BackupRestoreServiceTest {
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = any(),
+                stockNudgeUserEnabled = any(),
             )
         } just Runs
 
@@ -380,6 +382,7 @@ class BackupRestoreServiceTest {
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = any(),
+                stockNudgeUserEnabled = any(),
             )
         } just Runs
 
@@ -424,6 +427,7 @@ class BackupRestoreServiceTest {
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = capture(capturedValues),
+                stockNudgeUserEnabled = any(),
             )
         } just Runs
         val json = BackupSnapshotJsonCodec.encode(emptySnapshot())
@@ -467,6 +471,7 @@ class BackupRestoreServiceTest {
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = capture(capturedValues),
+                stockNudgeUserEnabled = any(),
             )
         } just Runs
 
@@ -502,6 +507,7 @@ class BackupRestoreServiceTest {
 
         every { exportSettingsRepository.onboardingCompleted } returns flowOf(true)
         every { exportSettingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
+        every { exportSettingsRepository.stockNudgeUserEnabledFlow } returns flowOf(false)
         coEvery { exportSettingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { exportUserProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { exportMedicineRepository.getAll() } returns medicines

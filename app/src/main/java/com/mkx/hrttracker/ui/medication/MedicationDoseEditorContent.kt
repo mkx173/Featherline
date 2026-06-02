@@ -211,7 +211,6 @@ private fun MedicationSummaryHeader(
         supportingTextOverride = medicinePreparationSummary(medicine),
         leadingIconAsForm = true,
     )
-    Spacer(modifier = Modifier.height(2.dp))
 }
 
 internal fun medicationSummaryShouldShowStockSubcard(

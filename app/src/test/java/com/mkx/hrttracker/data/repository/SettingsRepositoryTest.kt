@@ -169,12 +169,27 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `setStockNudgeEnabled true resets dismiss count to zero`() = runTest(testDispatcher) {
-        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
-        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+    fun `stockNudgeUserEnabledFlow defaults to false`() = runTest(testDispatcher) {
+        assertEquals(false, settingsRepository.stockNudgeUserEnabledFlow.first())
+    }
+
+    @Test
+    fun `setStockNudgeEnabled true marks the nudge as voluntarily enabled`() = runTest(testDispatcher) {
         settingsRepository.setStockNudgeEnabled(true)
-        // Count restarted at zero: the first dismissal now hits a limit of 1.
-        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+        assertEquals(true, settingsRepository.stockNudgeUserEnabledFlow.first())
+    }
+
+    @Test
+    fun `voluntary enable suppresses auto-disable no matter how many dismissals`() = runTest(testDispatcher) {
+        // Once the user opts in via the menu toggle, the dismiss-threshold policy
+        // is off for good: dismissals never report a disable and the flag stays on,
+        // even past what would otherwise be the limit.
+        settingsRepository.setStockNudgeEnabled(true)
+
+        repeat(5) {
+            assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+        }
+        assertEquals(true, settingsRepository.stockNudgeEnabledFlow.first())
     }
 
     @Test
@@ -195,6 +210,25 @@ class SettingsRepositoryTest {
 
         assertEquals(false, settingsRepository.stockNudgeEnabledFlow.first())
         // Count cleared by restore: the first dismissal hits a limit of 1.
+        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+    }
+
+    @Test
+    fun `restoreSettings carries the voluntarily-enabled flag and suppresses auto-disable`() = runTest(testDispatcher) {
+        restoreSettingsWithStockNudgeEnabled(enabled = true, userEnabled = true)
+
+        assertEquals(true, settingsRepository.stockNudgeUserEnabledFlow.first())
+        // A restored voluntary opt-in keeps auto-disable off across devices.
+        assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+    }
+
+    @Test
+    fun `restoreSettings without the voluntarily-enabled flag leaves auto-disable armed`() = runTest(testDispatcher) {
+        // Backups predating the flag (or where the user never opted in) restore as
+        // not-voluntary, so the threshold policy still applies.
+        restoreSettingsWithStockNudgeEnabled(enabled = true, userEnabled = false)
+
+        assertEquals(false, settingsRepository.stockNudgeUserEnabledFlow.first())
         assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
     }
 
@@ -392,7 +426,10 @@ class SettingsRepositoryTest {
         assertEquals(emptyMap<String, MedicineStockState>(), settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first())
     }
 
-    private suspend fun restoreSettingsWithStockNudgeEnabled(enabled: Boolean) {
+    private suspend fun restoreSettingsWithStockNudgeEnabled(
+        enabled: Boolean,
+        userEnabled: Boolean = false,
+    ) {
         settingsRepository.restoreSettings(
             darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
             adaptiveColorEnabled = true,
@@ -411,6 +448,7 @@ class SettingsRepositoryTest {
             ),
             homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
             stockNudgeEnabled = enabled,
+            stockNudgeUserEnabled = userEnabled,
         )
     }
 

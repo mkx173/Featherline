@@ -286,6 +286,7 @@ class BackupRestoreService @Inject constructor(
             groupNameCounter = validatedSnapshot.settings.groupNameCounter,
             firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
             stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,
+            stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
         )
 
         // Reminder rescheduling is a best-effort side effect — the data is
@@ -811,6 +812,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         groupNameCounter = groupNameCounter,
         firstDayOfWeekOption = firstDayOfWeekOption,
         stockNudgeEnabled = stockNudgeEnabled,
+        stockNudgeUserEnabled = stockNudgeUserEnabled,
     )
 }
 
@@ -1181,6 +1183,7 @@ internal data class ValidatedBackupSettings(
     val groupNameCounter: Int,
     val firstDayOfWeekOption: FirstDayOfWeekOption,
     val stockNudgeEnabled: Boolean,
+    val stockNudgeUserEnabled: Boolean,
 )
 
 private data class ValidatedMedicationData(

@@ -92,6 +92,7 @@ class SettingsRepository @Inject constructor(
         stringSetPreferencesKey("home_low_stock_acknowledged_warning_states")
     private val stockNudgeEnabledKey = booleanPreferencesKey("stock_nudge_enabled")
     private val stockNudgeDismissCountKey = intPreferencesKey("stock_nudge_dismiss_count")
+    private val stockNudgeUserEnabledKey = booleanPreferencesKey("stock_nudge_user_enabled")
     private val lastSeenTimeZoneIdKey = stringPreferencesKey("last_seen_time_zone_id")
     private val hideMedicationDetailsKey = booleanPreferencesKey("hide_medication_details")
     private val widgetContentScaleKey = floatPreferencesKey("widget_content_scale")
@@ -136,6 +137,14 @@ class SettingsRepository @Inject constructor(
 
     val stockNudgeEnabledFlow: Flow<Boolean> = storedPreferences
         .map { it[stockNudgeEnabledKey] ?: true }
+        .distinctUntilChanged()
+
+    // True once the user has explicitly switched the nudge on via the menu
+    // toggle. While set, [recordStockNudgeDismissal] never auto-disables: a
+    // voluntary opt-in outranks the dismiss-threshold policy. Persisted and
+    // carried through backup/restore so the choice survives across devices.
+    val stockNudgeUserEnabledFlow: Flow<Boolean> = storedPreferences
+        .map { it[stockNudgeUserEnabledKey] ?: false }
         .distinctUntilChanged()
 
     // Raw DataStore-backed flow that intentionally bypasses [settingsState]'s
@@ -257,6 +266,11 @@ class SettingsRepository @Inject constructor(
             preferences[stockNudgeEnabledKey] = enabled
             if (enabled) {
                 preferences.remove(stockNudgeDismissCountKey)
+                // Switching the nudge on via the menu is a voluntary opt-in;
+                // record it so the dismiss-threshold policy stops auto-disabling
+                // it. Sticky once set — re-asserted on every enable, untouched on
+                // disable (it's moot while the nudge is off).
+                preferences[stockNudgeUserEnabledKey] = true
             }
         }
     }
@@ -268,10 +282,15 @@ class SettingsRepository @Inject constructor(
      * can fire a one-shot notice. Combining both writes in a single edit avoids a
      * torn state — count persisted but the disable lost to process death — which
      * would otherwise leave the nudge unable to ever auto-disable.
+     *
+     * Once the user has voluntarily enabled the nudge ([stockNudgeUserEnabledKey]),
+     * the threshold policy is suppressed entirely: the dismissal is a no-op here
+     * (the caller still hides the current nudge), and it can never auto-disable.
      */
     suspend fun recordStockNudgeDismissal(dismissLimit: Int): Boolean {
         var justDisabled = false
         activeDataStore().edit { preferences ->
+            if (preferences[stockNudgeUserEnabledKey] == true) return@edit
             val next = (preferences[stockNudgeDismissCountKey] ?: 0) + 1
             preferences[stockNudgeDismissCountKey] = next
             if (next == dismissLimit) {
@@ -407,6 +426,7 @@ class SettingsRepository @Inject constructor(
         groupNameCounter: Int = 0,
         firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
         stockNudgeEnabled: Boolean = true,
+        stockNudgeUserEnabled: Boolean = false,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
             "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
@@ -460,6 +480,7 @@ class SettingsRepository @Inject constructor(
                 preferences[firstDayOfWeekKey] = firstDayOfWeekOption.name
             }
             preferences[stockNudgeEnabledKey] = stockNudgeEnabled
+            preferences[stockNudgeUserEnabledKey] = stockNudgeUserEnabled
             preferences.remove(stockNudgeDismissCountKey)
 
             preferences.remove(homeLowStockAcknowledgedWarningStatesKey)
