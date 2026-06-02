@@ -765,7 +765,7 @@
     <string name="stock_rate_per_week">%1$s %2$s / 周</string>
     <string name="stock_unit_tablets">片</string>
     <string name="stock_unit_capsules">粒</string>
-    <string name="stock_unit_patches">贴</string>
+    <string name="stock_unit_patches">片</string>
     <string name="stock_unit_sachets">袋</string>
     <string name="stock_unit_vials">瓶</string>
     <string name="stock_unit_containers">容器</string>
@@ -778,7 +778,7 @@
         <item quantity="other">粒</item>
     </plurals>
     <plurals name="stock_count_patches">
-        <item quantity="other">贴</item>
+        <item quantity="other">片</item>
     </plurals>
     <plurals name="stock_count_sachets">
         <item quantity="other">袋</item>
