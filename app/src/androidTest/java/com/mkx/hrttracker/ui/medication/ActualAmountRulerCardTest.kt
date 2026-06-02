@@ -141,4 +141,55 @@ class ActualAmountRulerCardTest {
             .onNodeWithContentDescription(resetDescription)
             .assertIsNotEnabled()
     }
+
+    @Test
+    fun scrollBlockedSignalClearsOnlyAfterDeltaCommits() {
+        // The scroll-blocked signal exists so callers can swallow a Save tapped
+        // mid-scroll. The delta commits one settle-debounce after scrolling
+        // visually stops, so the signal must stay blocked across that window:
+        // clearing it the instant scrolling stops would re-enable Save before
+        // the committed delta lands, persisting the pre-settle value. Record
+        // both callbacks into one ordered log and assert the commit precedes the
+        // unblock.
+        var doseAmountDelta by mutableStateOf<Double?>(null)
+        val events = mutableListOf<String>()
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                ActualAmountRulerCard(
+                    preparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+                    allowsActualDoseDelta = true,
+                    plannedAmount = 0.25,
+                    doseAmountDelta = doseAmountDelta,
+                    isSaving = false,
+                    onDoseAmountDeltaChange = { delta ->
+                        events += "commit"
+                        doseAmountDelta = delta
+                    },
+                    onScrollingChange = { scrolling ->
+                        events += if (scrolling) "block" else "unblock"
+                    },
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        // Drop the initial settle (no-op commit skipped, trailing unblock) so the
+        // assertions only inspect the scroll under test.
+        events.clear()
+
+        composeRule
+            .onNode(hasScrollToIndexAction())
+            .performScrollToIndex(10)
+        composeRule.mainClock.advanceTimeBy(100)
+        composeRule.waitForIdle()
+
+        val commitIndex = events.indexOf("commit")
+        val lastUnblockIndex = events.lastIndexOf("unblock")
+        assertTrue("Expected a delta commit during the settle: $events", commitIndex >= 0)
+        assertTrue("Expected an unblock after settling: $events", lastUnblockIndex >= 0)
+        assertTrue(
+            "Scroll-blocked signal cleared before the delta committed: $events",
+            commitIndex < lastUnblockIndex,
+        )
+    }
 }

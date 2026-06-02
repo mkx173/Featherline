@@ -187,11 +187,21 @@ internal fun ActualAmountRulerCard(
 
     // Emit only after the row stays idle; drag/fling/snap can briefly report
     // false between phases, and reacting to that gap causes duplicate snaps.
+    //
+    // This same flow drives the scroll-blocked signal callers use to swallow a
+    // Save tapped mid-scroll. It must stay true from scroll-start through the
+    // settle debounce and flip false only once the delta has committed (or was
+    // skipped as a no-op): emitting false the instant scrolling stops would
+    // re-enable Save during the debounce window, letting a tap persist the
+    // pre-settle delta even though the header already shows the settled one.
     LaunchedEffect(listState, deltas, plannedAmount) {
         snapshotFlow { listState.isScrollInProgress to centeredIndex }
             .distinctUntilChanged()
             .collectLatest { (isScrollInProgress, settledIndex) ->
-                if (isScrollInProgress) return@collectLatest
+                if (isScrollInProgress) {
+                    currentOnScrollingChange(true)
+                    return@collectLatest
+                }
                 delay(ACTUAL_AMOUNT_RULER_SETTLE_DEBOUNCE_MILLIS)
                 if (listState.isScrollInProgress) return@collectLatest
 
@@ -200,6 +210,7 @@ internal fun ActualAmountRulerCard(
                 if (!actualAmountDeltasEquivalent(nextDelta, currentDoseAmountDelta)) {
                     currentOnDoseAmountDeltaChange(nextDelta)
                 }
+                currentOnScrollingChange(false)
             }
     }
 
@@ -211,16 +222,9 @@ internal fun ActualAmountRulerCard(
     // independent of the debounced commit on `onDoseAmountDeltaChange`.
     LaunchedEffect(liveActual) { currentOnLiveActualAmountChange(liveActual) }
 
-    // Surface scroll state so callers can swallow a Save tapped mid-scroll: the
-    // committed delta only lands after the row settles (see the settle-debounce
-    // above), so saving during a fling/reset would persist the pre-scroll value
-    // even though the header already shows the live one. Reset to false on
-    // dispose so a card that leaves composition mid-scroll never wedges saves.
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.isScrollInProgress }
-            .distinctUntilChanged()
-            .collectLatest { currentOnScrollingChange(it) }
-    }
+    // Reset the scroll-blocked signal on dispose so a card that leaves
+    // composition mid-scroll (e.g. the preparation switches to a non-delta
+    // form) never wedges callers' Save action in the blocked state.
     DisposableEffect(Unit) {
         onDispose { currentOnScrollingChange(false) }
     }
