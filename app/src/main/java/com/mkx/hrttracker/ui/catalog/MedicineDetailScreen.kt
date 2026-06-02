@@ -202,6 +202,16 @@ fun MedicineDetailScreen(
     )
 }
 
+// Whether the medicine exposes an editable user-facing name in the detail
+// editor. Catalog and custom medicines both edit a display-name override — a
+// pure presentation field that resolves ahead of the catalog/identity name —
+// so renaming is never blocked by logs. The PATCH_OFF singleton is immutable.
+internal fun medicineDetailExposesEditableName(
+    selection: MedicineSelection,
+): Boolean {
+    return selection !is MedicineSelection.PatchOff
+}
+
 internal fun adjustSheetStockProjectionForDisplay(
     isStockProjectionFrozen: Boolean,
     stockProjection: MedicineStockProjection?,
@@ -356,11 +366,7 @@ private fun MedicineDetailScreenContent(
             // preparation editor, no archive (the PK simulator and the slot
             // picker both depend on a single, always-present row).
             val isPatchOff = medicine.selection is MedicineSelection.PatchOff
-            // Custom medicines have nothing left to edit once logs lock the
-            // preparation; only catalog medicines retain an editable surface
-            // (the display-name override) in that state.
-            val canEditMedicine = !isPatchOff &&
-                (medicine.selection is MedicineSelection.Catalog || !uiState.isLocked)
+            val canEditMedicine = medicineDetailExposesEditableName(medicine.selection)
 
             LazyColumn(
                 state = listState,
@@ -845,7 +851,10 @@ private fun MedicineEditSheet(
     onSave: (MedicinePreparation?, MedicineDisplayDoseUnit?) -> Unit,
 ) {
     val isCustom = medicine.selection is MedicineSelection.Custom
-    val showsDisplayName = medicine.selection is MedicineSelection.Catalog
+    // Catalog medicines override their fixed catalog name; custom medicines
+    // override their identity name. Either way the user-facing name is the
+    // editable display-name field.
+    val showsDisplayName = medicineDetailExposesEditableName(medicine.selection)
     val initialDraft = remember(medicine.uuid, medicine.preparation, medicine.displayDoseUnit) {
         medicine.preparation.toPreparationDraft(
             displayDoseUnit = if (isCustom) medicine.displayDoseUnit
@@ -883,9 +892,19 @@ private fun MedicineEditSheet(
             )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         }
-        if (medicine.selection is MedicineSelection.Catalog) {
+        if (showsDisplayName) {
+            // Placeholder is the name an empty override falls back to: the
+            // catalog default for catalog medicines, the typed identity name
+            // for custom ones.
+            val defaultName = when (val selection = medicine.selection) {
+                is MedicineSelection.Catalog -> stringResource(selection.medicationKey.labelRes)
+                is MedicineSelection.Custom -> selection.medicationName
+                // The detail screen hides the edit action for the singleton, so
+                // this branch only exists for when-exhaustiveness.
+                is MedicineSelection.PatchOff -> ""
+            }
             EditDisplayNameField(
-                catalogSelection = medicine.selection,
+                defaultName = defaultName,
                 displayName = displayName,
                 onDisplayNameChange = onDisplayNameChange,
             )
@@ -901,14 +920,14 @@ private fun MedicineEditSheet(
     }
 }
 
-// Mirrors CreateMedicineSheet.DisplayNameField: catalog key as the placeholder
-// (so an empty input keeps the medicine using the catalog default name) and
-// label/leading-icon affordances that read as one row. No supporting hint —
+// Mirrors CreateMedicineSheet.DisplayNameField: the medicine's fallback name as
+// the placeholder (so an empty input keeps the medicine using its default name)
+// and label/leading-icon affordances that read as one row. No supporting hint —
 // the placeholder already communicates the fallback name.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditDisplayNameField(
-    catalogSelection: MedicineSelection.Catalog,
+    defaultName: String,
     displayName: String,
     onDisplayNameChange: (String) -> Unit,
 ) {
@@ -931,7 +950,6 @@ private fun EditDisplayNameField(
         }
     }
 
-    val defaultName = stringResource(catalogSelection.medicationKey.labelRes)
     OutlinedTextField(
         state = displayNameState,
         labelPosition = displayNameFieldLabelPosition(),
