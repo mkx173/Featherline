@@ -213,7 +213,10 @@ internal fun ActualAmountRulerCard(
     // button off for a tick. A programmatic scroll (the reset animation itself)
     // force-disables instead, so the button greys out the instant reset is
     // tapped rather than at the end of its animation.
-    val resetEnabled = !isSaving && !programmaticScrollInProgress &&
+    // isSaving is intentionally excluded: like the sheet's other controls the
+    // button stays visually enabled during an in-flight save (the onClick is
+    // guarded instead), so it doesn't grey-flicker while saving.
+    val resetEnabled = !programmaticScrollInProgress &&
         (listState.isScrollInProgress ||
             abs(liveDelta) >= DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON)
     val resetContentDescription = stringResource(R.string.medication_log_actual_amount_reset)
@@ -274,9 +277,9 @@ internal fun ActualAmountRulerCard(
                         IconButton(
                             enabled = resetEnabled,
                             onClick = {
-                                // Re-entrancy guard only; `enabled` already gates
-                                // saving and the at-rest zero state.
-                                if (programmaticScrollInProgress) return@IconButton
+                                // `enabled` gates only the at-rest zero state, so
+                                // guard the in-flight save and re-entrant taps here.
+                                if (isSaving || programmaticScrollInProgress) return@IconButton
                                 programmaticScrollInProgress = true
                                 coroutineScope.launch {
                                     try {
