@@ -606,14 +606,23 @@ private fun rateLabel(projection: MedicineStockProjection): String? {
     val dosesPerDay = projection.dosesPerDayMagnitude
     if (dosesPerDay <= 0.0) return null
     val unitRes = stockRateUnitRes(projection.medicine.preparation) ?: return null
-    val unit = stringResource(unitRes)
     // Sub-once-a-day cadence reads better as a weekly rate: a multi-use vial
     // at 0.4 mL/wk is more legible than 0.06 mL/day.
-    return if (dosesPerDay >= 0.5) {
-        stringResource(R.string.stock_rate_per_day, formatRate(dosesPerDay), unit)
+    val perDay = dosesPerDay >= 0.5
+    val rateValue = if (perDay) dosesPerDay else dosesPerDay * 7
+    // Agree the unit noun with the displayed rate (e.g. "1 tablet / day", not
+    // "1 tablets / day"). mL/g have no plural form and fall back to the label.
+    val pluralRes = stockUnitNounPluralForUnitRes(unitRes)
+    val unit = if (pluralRes != null) {
+        pluralStringResource(pluralRes, stockCountPluralQuantity(rateValue))
     } else {
-        stringResource(R.string.stock_rate_per_week, formatRate(dosesPerDay * 7), unit)
+        stringResource(unitRes)
     }
+    return stringResource(
+        if (perDay) R.string.stock_rate_per_day else R.string.stock_rate_per_week,
+        formatRate(rateValue),
+        unit,
+    )
 }
 
 internal fun stockUnitRes(preparation: MedicinePreparation): Int? = stockRateUnitRes(preparation)
