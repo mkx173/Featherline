@@ -43,10 +43,6 @@ class HomeRepository @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
-    fun observeHomeInputs(now: LocalDateTime): Flow<HomeInputs> {
-        return observeHomeInputs(now, ZoneId.systemDefault())
-    }
-
     fun observeHomeInputs(now: LocalDateTime, zoneId: ZoneId): Flow<HomeInputs> {
         return channelFlow {
             val sourceMutex = Mutex()

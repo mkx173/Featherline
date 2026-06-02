@@ -19,6 +19,7 @@ import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
@@ -85,7 +86,7 @@ class MainViewModelTest {
     fun clockTickWithinSameDay_doesNotResubscribeOrRefreshSnapshot() = runTest {
         val firstMinute = LocalDateTime.of(2026, 4, 30, 9, 0)
         val appTimeSource = FakeAppTimeSource(firstMinute)
-        every { homeRepository.observeHomeInputs(any()) } answers {
+        every { homeRepository.observeHomeInputs(any(), any()) } answers {
             flowOf(homeInputs(now = firstArg()))
         }
 
@@ -99,7 +100,7 @@ class MainViewModelTest {
         startUiStateCollection(viewModel)
         advanceUntilIdle()
 
-        verify(exactly = 1) { homeRepository.observeHomeInputs(firstMinute) }
+        verify(exactly = 1) { homeRepository.observeHomeInputs(firstMinute, ZoneId.systemDefault()) }
         verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(firstMinute, force = false) }
 
         appTimeSource.setCurrentMinute(firstMinute.plusMinutes(1))
@@ -107,7 +108,7 @@ class MainViewModelTest {
         appTimeSource.setCurrentMinute(firstMinute.plusMinutes(2))
         advanceUntilIdle()
 
-        verify(exactly = 1) { homeRepository.observeHomeInputs(any()) }
+        verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any()) }
         verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(any(), any()) }
         assertEquals(firstMinute.plusMinutes(2), viewModel.uiState.value.now)
     }
@@ -118,7 +119,7 @@ class MainViewModelTest {
         val nextMinute = firstMinute.plusMinutes(1)
         val zoneId = ZoneId.systemDefault()
         val appTimeSource = FakeAppTimeSource(firstMinute)
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(
                 now = firstMinute,
                 pkProjection = linearProjectionFor(firstMinute.toLocalDate(), zoneId),
@@ -141,7 +142,7 @@ class MainViewModelTest {
         appTimeSource.setCurrentMinute(nextMinute)
         advanceUntilIdle()
 
-        verify(exactly = 1) { homeRepository.observeHomeInputs(any()) }
+        verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any()) }
         assertEquals(
             firstPredictionStart + (1.0 / 60.0),
             viewModel.uiState.value.e2Chart.predictionStartXHours,
@@ -154,7 +155,7 @@ class MainViewModelTest {
     fun clockTickAcrossMidnight_updatesTodaySectionDateAndRefreshesSnapshot() = runTest {
         val firstMinute = LocalDateTime.of(2026, 4, 30, 23, 59)
         val appTimeSource = FakeAppTimeSource(firstMinute)
-        every { homeRepository.observeHomeInputs(any()) } answers {
+        every { homeRepository.observeHomeInputs(any(), any()) } answers {
             flowOf(homeInputs(now = firstArg()))
         }
 
@@ -183,7 +184,7 @@ class MainViewModelTest {
     fun homeSnapshotInputRendersCompleteHomeStateWithoutSkeletonGate() = runTest {
         val now = LocalDateTime.of(2026, 4, 30, 12, 0)
         val appTimeSource = FakeAppTimeSource(now)
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(
                 now = now,
                 activeGroups = listOf(medicationGroup()),
@@ -219,7 +220,7 @@ class MainViewModelTest {
         val now = LocalDateTime.of(2026, 4, 30, 12, 0)
         val appTimeSource = FakeAppTimeSource(now)
         val homeInputFlow = MutableSharedFlow<HomeInputs>()
-        every { homeRepository.observeHomeInputs(any()) } returns homeInputFlow
+        every { homeRepository.observeHomeInputs(any(), any()) } returns homeInputFlow
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
@@ -245,7 +246,7 @@ class MainViewModelTest {
     @Test
     fun homeE2DisplayUnit_usesHomePreferenceFromInputs() = runTest {
         val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 30, 12, 0))
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(
                 settings = SettingsState(
                     calibrationDefaultUnits = mapOf(BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L),
@@ -275,7 +276,7 @@ class MainViewModelTest {
         val now = LocalDateTime.of(2026, 4, 30, 12, 0)
         val appTimeSource = FakeAppTimeSource(now)
         val inputs = MutableSharedFlow<HomeInputs>()
-        every { homeRepository.observeHomeInputs(any()) } returns inputs
+        every { homeRepository.observeHomeInputs(any(), any()) } returns inputs
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
@@ -311,7 +312,7 @@ class MainViewModelTest {
             appliedAtTimeZoneId = "UTC",
         )
         val appTimeSource = FakeAppTimeSource(now)
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(
                 now = now,
                 source = HomeInputSource.ROOM,
@@ -350,7 +351,7 @@ class MainViewModelTest {
         val zoneId = ZoneId.systemDefault()
         val expiredAt = now.minusHours(1).atZone(zoneId).toInstant()
         val appTimeSource = FakeAppTimeSource(now)
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(
                 now = now,
                 trendResult = PkTrendResult(
@@ -396,7 +397,7 @@ class MainViewModelTest {
             scheduleTimeUuid = UUID.fromString("cccccccc-1111-2222-3333-444444444444"),
         )
         val appTimeSource = FakeAppTimeSource(now)
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(
                 now = now,
                 source = HomeInputSource.ROOM,
@@ -434,7 +435,7 @@ class MainViewModelTest {
         val appTimeSource = FakeAppTimeSource(now)
         every { settingsRepository.homeLowStockSectionExpandedFlow } returns expandedFlow
         every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns acknowledgedWarningStatesFlow
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(
                 now = now,
                 stockWarnings = listOf(projection),
@@ -469,7 +470,7 @@ class MainViewModelTest {
         )
         every { settingsRepository.homeLowStockSectionExpandedFlow } returns MutableStateFlow(false)
         every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(emptyMap())
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(now = now, stockWarnings = listOf(projection))
         )
 
@@ -497,7 +498,7 @@ class MainViewModelTest {
         every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
             mapOf(projection.medicine.uuid.toString() to MedicineStockState.IMMINENT)
         )
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(now = now, stockWarnings = listOf(projection))
         )
 
@@ -525,7 +526,7 @@ class MainViewModelTest {
         every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
             mapOf(projection.medicine.uuid.toString() to MedicineStockState.OUT)
         )
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(now = now, stockWarnings = listOf(projection))
         )
 
@@ -557,7 +558,7 @@ class MainViewModelTest {
         every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
             mapOf(acknowledgedProjection.medicine.uuid.toString() to MedicineStockState.USER_LOW)
         )
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(
                 now = now,
                 stockWarnings = listOf(acknowledgedProjection, newProjection),
@@ -595,7 +596,7 @@ class MainViewModelTest {
                 increasedProjection.medicine.uuid.toString() to MedicineStockState.IMMINENT,
             )
         )
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(
                 now = now,
                 stockWarnings = listOf(decreasedProjection, increasedProjection),
@@ -626,7 +627,7 @@ class MainViewModelTest {
             uuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
             state = MedicineStockState.OUT,
         )
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(now = now, stockWarnings = listOf(firstProjection, secondProjection))
         )
 
@@ -657,7 +658,7 @@ class MainViewModelTest {
     @Test
     fun setLowStockSectionExpandedTrueClearsAcknowledgedWarningStates() = runTest {
         val now = LocalDateTime.of(2026, 4, 30, 12, 0)
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(homeInputs(now = now))
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(homeInputs(now = now))
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
@@ -684,7 +685,7 @@ class MainViewModelTest {
         every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
             mapOf("11111111-1111-1111-1111-111111111111" to MedicineStockState.OUT)
         )
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(
                 now = now,
                 stockWarnings = emptyList(),
@@ -715,7 +716,7 @@ class MainViewModelTest {
         )
         coEvery { settingsRepository.clearHomeLowStockAcknowledgedWarningStates() } throws
             IllegalStateException("datastore write failed")
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(
                 now = now,
                 stockWarnings = emptyList(),
@@ -748,7 +749,7 @@ class MainViewModelTest {
         every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
             mapOf(projection.medicine.uuid.toString() to MedicineStockState.OUT)
         )
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(
                 now = now,
                 stockWarnings = listOf(projection),
@@ -790,7 +791,7 @@ class MainViewModelTest {
                 secondProjection.medicine.uuid.toString() to MedicineStockState.USER_LOW,
             )
         )
-        every { homeRepository.observeHomeInputs(any()) } returns inputs
+        every { homeRepository.observeHomeInputs(any(), any()) } returns inputs
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
@@ -851,7 +852,7 @@ class MainViewModelTest {
         every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
             mapOf(projection.medicine.uuid.toString() to MedicineStockState.OUT)
         )
-        every { homeRepository.observeHomeInputs(any()) } returns inputs
+        every { homeRepository.observeHomeInputs(any(), any()) } returns inputs
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
@@ -896,7 +897,7 @@ class MainViewModelTest {
         every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
             mapOf("11111111-1111-1111-1111-111111111111" to MedicineStockState.OUT)
         )
-        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+        every { homeRepository.observeHomeInputs(any(), any()) } returns flowOf(
             homeInputs(
                 now = now,
                 stockWarnings = emptyList(),
@@ -917,6 +918,91 @@ class MainViewModelTest {
         coVerify(exactly = 0) {
             settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
         }
+    }
+
+    @Test
+    fun sameDateZoneChangeResubscribesHomeInputsAndRefreshesSnapshotForNewZone() = runTest {
+        val localMinute = LocalDateTime.of(2026, 6, 3, 12, 0)
+        val utc = ZoneId.of("UTC")
+        val tokyo = ZoneId.of("Asia/Tokyo")
+        val appTimeSource = FakeAppTimeSource(localMinute, initialZone = utc)
+        every { homeRepository.observeHomeInputs(any(), any()) } answers {
+            flowOf(homeInputs(now = firstArg<LocalDateTime>(), source = HomeInputSource.ROOM))
+        }
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        verify(exactly = 1) { homeRepository.observeHomeInputs(localMinute, utc) }
+        verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(localMinute, force = false) }
+
+        appTimeSource.setCurrentSnapshot(localMinute, tokyo)
+        advanceUntilIdle()
+
+        verify(exactly = 1) { homeRepository.observeHomeInputs(localMinute, tokyo) }
+        verify(exactly = 2) { homeRepository.refreshHomeSnapshotAsync(localMinute, force = false) }
+        assertEquals(localMinute, viewModel.uiState.value.now)
+    }
+
+    @Test
+    fun sameDateZoneChangeDisplaysRowsLoadedByNewZoneQuery() = runTest {
+        val localMinute = LocalDateTime.of(2026, 6, 3, 12, 0)
+        val utc = ZoneId.of("UTC")
+        val tokyo = ZoneId.of("Asia/Tokyo")
+        val boundaryEntry = testMedicationLogEntry(
+            uuid = UUID.fromString("4a480c08-449a-422d-a53f-f5eb764fe32c"),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            equivalentE2Mg = 2.0,
+            sourceGroupUuid = null,
+            appliedAt = localMinute
+                .toLocalDate()
+                .atStartOfDay()
+                .plusMinutes(30)
+                .atZone(tokyo)
+                .toInstant(),
+            appliedAtTimeZoneId = tokyo.id,
+        )
+        val appTimeSource = FakeAppTimeSource(localMinute, initialZone = utc)
+        every { homeRepository.observeHomeInputs(any(), any()) } answers {
+            val queryZone = secondArg<ZoneId>()
+            flowOf(
+                homeInputs(
+                    now = firstArg<LocalDateTime>(),
+                    source = HomeInputSource.ROOM,
+                    scheduleEntries = if (queryZone == tokyo) listOf(boundaryEntry) else emptyList(),
+                )
+            )
+        }
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(0, viewModel.uiState.value.todaySection.manualCount)
+
+        appTimeSource.setCurrentSnapshot(localMinute, tokyo)
+        advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.todaySection.manualCount)
+        assertEquals(
+            listOf(boundaryEntry.uuid),
+            viewModel.uiState.value.todaySection.rows.single().fulfillingEntryUuids,
+        )
     }
 
     private fun TestScope.startUiStateCollection(viewModel: MainViewModel) {
@@ -940,12 +1026,13 @@ class MainViewModelTest {
         latestEstradiolEntry: MedicationLogEntry? = null,
         estradiolPkEntries: List<MedicationLogEntry> = emptyList(),
         estradiolPkPlannedEntries: List<MedicationLogEntry> = emptyList(),
+        scheduleEntries: List<MedicationLogEntry> = emptyList(),
         stockWarnings: List<MedicineStockProjection> = emptyList(),
         source: HomeInputSource = HomeInputSource.SNAPSHOT,
     ): HomeInputs {
         return HomeInputs(
             activeGroups = activeGroups,
-            scheduleEntries = emptyList(),
+            scheduleEntries = scheduleEntries,
             antiandrogenHistoryEntries = emptyList(),
             profile = UserProfile(weightKg = 60.0),
             settings = settings,
