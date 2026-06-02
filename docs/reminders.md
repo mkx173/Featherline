@@ -374,9 +374,11 @@ fold every "the world changed" event into a single re-derivation:
   the wall-clock changed but the schedule's local-time-of-day did not.
   Cancelling and re-arming every alarm at its newly-mapped `RTC`
   timestamp is simpler than tracking which alarms moved. The receiver
-  additionally forces a `HomeSnapshotRepository.refreshHomeSnapshotAsync`
-  on time/timezone changes because the snapshot caches a `zoneId` at
-  write time and would otherwise stay stale on disk.
+  also refreshes `AppTimeSource` synchronously so foreground Home UI and
+  timezone notices observe the new `(minute, zone)` without a lifecycle
+  round trip, and forces a
+  `HomeSnapshotRepository.refreshHomeSnapshotAsync` because the snapshot
+  caches a `zoneId` at write time and would otherwise stay stale on disk.
 - `SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED` — the user just
   granted or revoked `SCHEDULE_EXACT_ALARM` in system settings. The
   reconciler re-reads `canScheduleExactAlarms()` into the state flow

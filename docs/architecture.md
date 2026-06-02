@@ -273,11 +273,13 @@ both installed in `SingletonComponent`:
   (`@DefaultDispatcher`, `@AppScope`) are declared in the same file.
 - [`AppTimeModule`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/di/AppTimeModule.kt)
   — provides a `java.time.Clock` (system UTC) and an `AppTimeSource`
-  that wraps the clock to support tickable test seams and per-minute
-  observation. It also exposes `refresh()`, which `HrtTrackerApplication`
-  wires to `ProcessLifecycleOwner.onStart()` so the home screen reflects
-  clock/time-zone changes made while backgrounded (the per-minute ticker
-  is paused while no UI is subscribed).
+  that wraps the clock to support tickable test seams and atomic
+  `(minute, zone)` observation. `HrtTrackerApplication` refreshes it on
+  process `onStart`, and `MedicationReminderRescheduleReceiver`
+  refreshes it synchronously for `TIME_SET` / `TIMEZONE_CHANGED`
+  broadcasts so foreground Home UI and timezone notices update without a
+  lifecycle round trip (the per-minute ticker is paused while no UI is
+  subscribed).
 
 Consumer pattern: `@AndroidEntryPoint` on `MainActivity` and the
 reminder broadcast receivers; `@HiltViewModel` on ViewModels. The
@@ -337,8 +339,10 @@ an LLM can resolve every step:
 - `HrtTrackerNavHost` routes to `MainScreen` on the `Screen.Main`
   destination.
 - `MainScreen` collects from `MainViewModel.uiState`.
-- `MainViewModel` subscribes to `HomeRepository.observeHomeInputs(now)`,
-  which composes inputs from two sources: a fast `SNAPSHOT` path
+- `MainViewModel` subscribes to
+  `HomeRepository.observeHomeInputs(now, zoneId)`, keyed by local date
+  and device zone from `AppTimeSource.currentSnapshot`, which composes
+  inputs from two sources: a fast `SNAPSHOT` path
   reading the cached `HomeSnapshotRecord` from
   `HomeSnapshotRepository.observeHomeSnapshot()`, and a `ROOM` path
   reading live Flows from `HomeDao`, `MedicationLogDao`,
