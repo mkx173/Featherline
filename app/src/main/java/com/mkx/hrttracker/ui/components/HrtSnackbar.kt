@@ -77,7 +77,12 @@ internal fun HrtSnackbar(snackbarData: SnackbarData) {
         },
         dismissAction = if (visuals.withDismissAction) {
             {
-                IconButton(onClick = { snackbarData.dismiss() }) {
+                IconButton(
+                    onClick = {
+                        (snackbarData.visuals as? StockNudgeVisuals)?.onDismissTapped?.invoke()
+                        snackbarData.dismiss()
+                    },
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
                         contentDescription = stringResource(
