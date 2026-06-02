@@ -21,12 +21,7 @@ class StockNudgeGate @Inject constructor(
 
     /** Records an X-dismissal. Returns true iff this dismissal just disabled the nudge. */
     suspend fun onDismissedViaX(): Boolean {
-        val count = settingsRepository.incrementStockNudgeDismissCount()
-        if (count == STOCK_NUDGE_DISMISS_LIMIT) {
-            settingsRepository.setStockNudgeEnabled(false)
-            return true
-        }
-        return false
+        return settingsRepository.recordStockNudgeDismissal(STOCK_NUDGE_DISMISS_LIMIT)
     }
 
     suspend fun setEnabled(enabled: Boolean) {

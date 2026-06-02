@@ -254,14 +254,25 @@ class SettingsRepository @Inject constructor(
         }
     }
 
-    suspend fun incrementStockNudgeDismissCount(): Int {
-        var result = 0
+    /**
+     * Atomically records an explicit nudge dismissal and, when the running count
+     * reaches [dismissLimit], disables the nudge in the same edit. Returns true iff
+     * this dismissal crossed the threshold (just disabled the nudge), so the caller
+     * can fire a one-shot notice. Combining both writes in a single edit avoids a
+     * torn state — count persisted but the disable lost to process death — which
+     * would otherwise leave the nudge unable to ever auto-disable.
+     */
+    suspend fun recordStockNudgeDismissal(dismissLimit: Int): Boolean {
+        var justDisabled = false
         activeDataStore().edit { preferences ->
             val next = (preferences[stockNudgeDismissCountKey] ?: 0) + 1
             preferences[stockNudgeDismissCountKey] = next
-            result = next
+            if (next == dismissLimit) {
+                preferences[stockNudgeEnabledKey] = false
+                justDisabled = true
+            }
         }
-        return result
+        return justDisabled
     }
 
     suspend fun setRemindersEnabled(enabled: Boolean) {

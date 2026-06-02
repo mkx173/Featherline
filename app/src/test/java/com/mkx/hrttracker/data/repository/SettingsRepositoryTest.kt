@@ -144,49 +144,55 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `incrementStockNudgeDismissCount returns increasing values`() = runTest(testDispatcher) {
-        assertEquals(1, settingsRepository.incrementStockNudgeDismissCount())
-        assertEquals(2, settingsRepository.incrementStockNudgeDismissCount())
-        assertEquals(3, settingsRepository.incrementStockNudgeDismissCount())
+    fun `recordStockNudgeDismissal disables and reports only at the dismiss limit`() = runTest(testDispatcher) {
+        assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
+        assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
+        // The threshold dismissal disables the nudge atomically in the same edit.
+        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
+        assertEquals(false, settingsRepository.stockNudgeEnabledFlow.first())
     }
 
     @Test
     fun `setStockNudgeEnabled true resets dismiss count to zero`() = runTest(testDispatcher) {
-        settingsRepository.incrementStockNudgeDismissCount()
-        settingsRepository.incrementStockNudgeDismissCount()
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
         settingsRepository.setStockNudgeEnabled(true)
-        assertEquals(1, settingsRepository.incrementStockNudgeDismissCount())
+        // Count restarted at zero: the first dismissal now hits a limit of 1.
+        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
     }
 
     @Test
     fun `setStockNudgeEnabled false leaves dismiss count alone`() = runTest(testDispatcher) {
-        settingsRepository.incrementStockNudgeDismissCount()
-        settingsRepository.incrementStockNudgeDismissCount()
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
         settingsRepository.setStockNudgeEnabled(false)
-        assertEquals(3, settingsRepository.incrementStockNudgeDismissCount())
+        // Count preserved at 2: the next dismissal is the 3rd and hits limit 3.
+        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
     }
 
     @Test
     fun `restoreSettings with stock nudge disabled persists false and clears dismiss count`() = runTest(testDispatcher) {
-        settingsRepository.incrementStockNudgeDismissCount()
-        settingsRepository.incrementStockNudgeDismissCount()
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
 
         restoreSettingsWithStockNudgeEnabled(false)
 
         assertEquals(false, settingsRepository.stockNudgeEnabledFlow.first())
-        assertEquals(1, settingsRepository.incrementStockNudgeDismissCount())
+        // Count cleared by restore: the first dismissal hits a limit of 1.
+        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
     }
 
     @Test
     fun `restoreSettings omitting stock nudge flag defaults true and clears dismiss count`() = runTest(testDispatcher) {
         settingsRepository.setStockNudgeEnabled(false)
-        settingsRepository.incrementStockNudgeDismissCount()
-        settingsRepository.incrementStockNudgeDismissCount()
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
 
         restoreSettingsOmittingStockNudgeEnabled()
 
         assertEquals(true, settingsRepository.stockNudgeEnabledFlow.first())
-        assertEquals(1, settingsRepository.incrementStockNudgeDismissCount())
+        // Count cleared by restore: the first dismissal hits a limit of 1.
+        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
     }
 
     @Test
