@@ -217,12 +217,11 @@ data class BackupBloodTestResultSnapshot(
 // e.g., a new REQUIRED field, a removed field that something downstream still
 // dereferences, or a semantic change to an existing field. Nullable optional
 // fields (e.g., BackupMedicineSnapshot.displayDoseUnit, added when the custom-
-// medicine unit picker shipped) are additive and don't require a bump; missing
-// values fall through their defaults on restore.
+// medicine unit picker shipped, and BackupMedicationLogSnapshot.doseAmountDelta,
+// added for the actual-amount feature) are additive and don't require a bump;
+// missing values fall through their defaults on restore.
 //
 // The 2→3 bump added the CAPSULE preparationType enum value. Older apps
 // coerce unknown preparationType strings to PILL on restore, which would
 // silently misclassify capsules — non-additive, hence the bump.
-//
-// The 3→4 bump added MedicationLogEntry.doseAmountDelta to archive logs.
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 4
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 3

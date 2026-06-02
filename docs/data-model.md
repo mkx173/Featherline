@@ -10,13 +10,14 @@ format used for manual backups, see [backup-format.md](backup-format.md).
 ## Database setup
 
 - [`HrtTrackerDatabase`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt)
-  is the Room database at schema version 4. It declares 10 entities
+  is the Room database at schema version 5. It declares 10 entities
   and exposes 6 DAOs. `exportSchema` is off — schemas are tracked via
   migration objects in source rather than committed schema JSON.
 - [`DatabaseHolder`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/DatabaseHolder.kt)
   builds the database via `Room.databaseBuilder`, installs a
   `SupportOpenHelperFactory` from SQLCipher's `net.zetetic` artifact,
-  and registers `MIGRATION_1_2`, `MIGRATION_2_3`, and `MIGRATION_3_4`.
+  and registers `MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4`, and
+  `MIGRATION_4_5`.
   No `fallbackToDestructiveMigration`
   is wired — a missing migration crashes loudly in every build, debug
   and release, so silent data loss can't slip through.
@@ -181,7 +182,11 @@ and `equivalentE2Mg` — the estradiol-equivalent mass precomputed by
 recompute it. Nullable whenever the calculator cannot derive a
 catalog estradiol equivalent: non-estradiol categories, custom
 medicines, all catalog estradiol patches (the simulator reads the
-patch preparation directly), and PATCH_OFF. Wall-clock timing is
+patch preparation directly), and PATCH_OFF. The nullable
+`doseAmountDelta` records the signed difference between the actually
+administered amount and the scheduled amount (set by the actual-amount
+ruler at log time); it is folded into stock deduction and `equivalentE2Mg`
+at insert, and null means the dose was taken as planned. Wall-clock timing is
 `appliedAtEpochMillis` plus `appliedAtTimeZoneId` so backups
 round-trip the originating zone.
 The slot-fulfillment link is `sourceGroupUuid` / `scheduleTimeUuid` /
@@ -393,7 +398,8 @@ abandoned mid-flight and the database was collapsed to v1, with
 `DatabaseMigrations.kt` deleted entirely. The current chain starts
 fresh at v1 and bumps via `Migration` objects declared inline in
 [`HrtTrackerDatabase.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt).
-The chain today is `MIGRATION_1_2` → `MIGRATION_2_3` → `MIGRATION_3_4`.
+The chain today is `MIGRATION_1_2` → `MIGRATION_2_3` → `MIGRATION_3_4`
+→ `MIGRATION_4_5`.
 `MIGRATION_1_2` adds the `displayDoseUnit` column to `medicines` with a
 `MG` default. `MIGRATION_2_3` adds the stock feature: the six stock
 columns on `medicines` (see [`MedicineEntity`](#medicineentity) above),
@@ -405,7 +411,8 @@ moved away from per-entry deduction records and delete-time refunds, so
 deduction is applied directly to the medicine row and the log table
 carries no stock state. (This is why a logged dose is not refunded when
 its entry is later edited or deleted — the user re-syncs via Adjust
-Stock instead.) The
+Stock instead.) `MIGRATION_4_5` adds the nullable `doseAmountDelta`
+column to `medication_log_entries` for the actual-amount feature. The
 reset deliberately did not register a `MIGRATION_29_*` shim, and no
 `fallbackToDestructiveMigration` is wired in any build flavor: a
 pre-refactor database does not migrate, it fails to open at startup
