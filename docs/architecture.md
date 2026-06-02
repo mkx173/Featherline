@@ -227,7 +227,11 @@ Feature sub-packages, one screen tree each:
   `Medicine` identity; `ui/medication` (below) and `ui/log` consume it. The nested
   `ui/catalog/stock` package holds the per-medicine stock controls — the
   `StockSection` block on the detail screen, the `AdjustStockSheet`
-  (recount / received forms), and the `OpenContainerEditDialog`.
+  (recount / received forms), and the `OpenContainerEditDialog`. The
+  `ui/catalog/nudge` package owns the stock-tracking nudge that offers to
+  enable tracking on untracked medicines; `StockNudgeGate` holds the
+  enable flag and the dismiss-threshold policy (three explicit
+  X-dismissals auto-disable it, unless the user has voluntarily opted in).
 - [`ui/medication`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/medication) — the medication-editor
   building blocks shared across the plan and log surfaces: shared field
   primitives (`MedicationEditorFields`), a pure dose-draft reducer
