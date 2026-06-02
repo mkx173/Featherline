@@ -91,11 +91,11 @@
     </plurals>
     <string name="stock_snackbar_action_view">View</string>
     <string name="stock_snackbar_action_dismiss">Dismiss</string>
-    <string name="stock_nudge_message">Track stock for %1$s?</string>
-    <string name="stock_nudge_action_add">Add stock</string>
-    <string name="stock_nudge_disabled_toast">Stock suggestions turned off. Turn them back on from the medicine manager menu.</string>
-    <string name="stock_nudge_menu_disable">Turn off stock suggestions</string>
-    <string name="stock_nudge_menu_enable">Turn on stock suggestions</string>
+    <string name="stock_nudge_message">Enable stock tracking for %1$s?</string>
+    <string name="stock_nudge_action_enable">Enable</string>
+    <string name="stock_nudge_added_toast">Added %1$s %2$s to stock</string>
+    <string name="stock_nudge_disabled_toast">Stock-tracking suggestions turned off. Turn them back on from the medicine manager menu.</string>
+    <string name="stock_nudge_menu_label">Stock-tracking suggestions</string>
     <string name="fab_add_entry">Add medication log entry</string>
     <string name="plan_empty_state">No medication groups yet.</string>
     <string name="plan_selected_day_records_empty">No records for this day.</string>

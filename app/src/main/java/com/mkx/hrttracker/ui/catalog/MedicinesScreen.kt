@@ -21,8 +21,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -72,6 +71,8 @@ import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.HrtDropdownMenu
+import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
@@ -591,32 +592,28 @@ private fun MedicinesScreenContent(
                 ),
                 actions = {
                     if (showStockNudgeMenu) {
-                        IconButton(onClick = { showOverflowMenu = true }) {
-                            Icon(
-                                imageVector = Icons.Rounded.MoreVert,
-                                contentDescription = stringResource(R.string.main_more_options),
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = showOverflowMenu,
-                            onDismissRequest = { showOverflowMenu = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = stringResource(
-                                            if (stockNudgeEnabled) {
-                                                R.string.stock_nudge_menu_disable
-                                            } else {
-                                                R.string.stock_nudge_menu_enable
-                                            },
-                                        ),
-                                    )
-                                },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    onSetStockNudgeEnabled(!stockNudgeEnabled)
-                                },
+                        Box {
+                            IconButton(onClick = { showOverflowMenu = true }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.MoreVert,
+                                    contentDescription = stringResource(R.string.main_more_options),
+                                )
+                            }
+                            HrtDropdownMenu(
+                                expanded = showOverflowMenu,
+                                onDismissRequest = { showOverflowMenu = false },
+                                items = listOf(
+                                    HrtDropdownMenuItem(
+                                        text = stringResource(R.string.stock_nudge_menu_label),
+                                        onClick = { onSetStockNudgeEnabled(!stockNudgeEnabled) },
+                                        trailingIcon = {
+                                            Checkbox(
+                                                checked = stockNudgeEnabled,
+                                                onCheckedChange = null,
+                                            )
+                                        },
+                                    ),
+                                ),
                             )
                         }
                     }

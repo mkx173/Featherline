@@ -434,7 +434,7 @@ fun HrtTrackerNavHost(
         val result = snackbarHostState.showSnackbar(
             StockNudgeVisuals(
                 message = snackbarContext.getString(R.string.stock_nudge_message, displayName),
-                actionLabel = snackbarContext.getString(R.string.stock_nudge_action_add),
+                actionLabel = snackbarContext.getString(R.string.stock_nudge_action_enable),
                 onDismissTapped = { stockNudgeViewModel.onNudgeDismissedViaX() },
             ),
         )
