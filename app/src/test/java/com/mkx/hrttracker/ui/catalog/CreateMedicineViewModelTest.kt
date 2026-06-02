@@ -290,6 +290,42 @@ class CreateMedicineViewModelTest {
     }
 
     @Test
+    fun create_successKeepsSheetLockedUntilReset() = runTest {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000006"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        coEvery {
+            medicineRepository.findOrCreateForCatalog(
+                MedicationKey.ESTRADIOL,
+                MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                any(),
+            )
+        } returns medicine
+        val viewModel = CreateMedicineViewModel(medicineRepository)
+        viewModel.updateDraft {
+            it.copy(
+                medicationKey = MedicationKey.ESTRADIOL,
+                pillStrengthMg = "2",
+            )
+        }
+
+        viewModel.create { }
+        advanceUntilIdle()
+        viewModel.updateDraft { it.copy(pillStrengthMg = "5") }
+
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertEquals("2", viewModel.uiState.value.draft.pillStrengthMg)
+
+        viewModel.reset()
+
+        assertFalse(viewModel.uiState.value.isSaved)
+        assertEquals("", viewModel.uiState.value.draft.pillStrengthMg)
+    }
+
+    @Test
     fun identityCollisionDoesNotReturnUuidAndSurfacesCollisionResult() = runTest {
         coEvery {
             medicineRepository.findOrCreateForCatalog(any(), any(), any())

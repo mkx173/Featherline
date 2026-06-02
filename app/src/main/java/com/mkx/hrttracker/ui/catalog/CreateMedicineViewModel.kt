@@ -36,7 +36,7 @@ class CreateMedicineViewModel @Inject constructor(
 
     fun updateDraft(transform: (MedicinePickerUiState) -> MedicinePickerUiState) {
         _uiState.update { state ->
-            if (state.isSaving) {
+            if (state.isLockedForUpdates()) {
                 state
             } else {
                 state.copy(
@@ -49,7 +49,7 @@ class CreateMedicineViewModel @Inject constructor(
     }
 
     fun create(onCreated: (UUID) -> Unit): Job? {
-        if (_uiState.value.isSaving) {
+        if (_uiState.value.isLockedForUpdates()) {
             return null
         }
         val draft = _uiState.value.draft
@@ -65,7 +65,7 @@ class CreateMedicineViewModel @Inject constructor(
         val operationGeneration = nextCreateGeneration()
 
         _uiState.update {
-            it.copy(isSaving = true, errorMessageRes = null, saveResult = null)
+            it.copy(isSaving = true, isSaved = false, errorMessageRes = null, saveResult = null)
         }
         return viewModelScope.launch {
             try {
@@ -80,6 +80,7 @@ class CreateMedicineViewModel @Inject constructor(
                             _uiState.update {
                                 it.copy(
                                     isSaving = false,
+                                    isSaved = true,
                                     errorMessageRes = null,
                                     saveResult = CreateMedicineSaveResult.SUCCESS,
                                 )
@@ -142,9 +143,12 @@ class CreateMedicineViewModel @Inject constructor(
 data class CreateMedicineUiState(
     val draft: MedicinePickerUiState = defaultMedicineDraft(),
     val isSaving: Boolean = false,
+    val isSaved: Boolean = false,
     @param:StringRes val errorMessageRes: Int? = null,
     val saveResult: CreateMedicineSaveResult? = null,
-)
+) {
+    fun isLockedForUpdates(): Boolean = isSaving || isSaved
+}
 
 enum class CreateMedicineSaveResult {
     SUCCESS,

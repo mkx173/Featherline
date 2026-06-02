@@ -22,3 +22,28 @@ internal fun dismissInputAndRun(
     )
     action()
 }
+
+internal suspend fun dismissInputAndRunWhenHidden(
+    focusManager: FocusManager,
+    keyboardController: SoftwareKeyboardController?,
+    isInputVisible: () -> Boolean,
+    awaitInputHidden: suspend () -> Unit,
+    action: () -> Unit,
+) {
+    dismissInput(
+        focusManager = focusManager,
+        keyboardController = keyboardController,
+    )
+    while (isInputVisible()) {
+        awaitInputHidden()
+    }
+    action()
+}
+
+internal fun inputIsVisibleOrAnimating(
+    imeVisible: Boolean,
+    imeBottom: Int,
+    imeAnimationTargetBottom: Int,
+): Boolean {
+    return imeVisible || imeBottom > 0 || imeAnimationTargetBottom > 0
+}
