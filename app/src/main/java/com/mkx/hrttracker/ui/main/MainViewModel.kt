@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.AppTimeSnapshot
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -74,12 +76,17 @@ class MainViewModel @Inject constructor(
             .flatMapLatest { key ->
                 refreshHomeSnapshotForDateIfNeeded(key.now, key.zoneId)
                 homeRepository.observeHomeInputs(key.now, key.zoneId)
+                    .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
             },
         currentSnapshot,
         timeZoneChangeNoticeController.notice,
         settingsRepository.homeLowStockSectionExpandedFlow,
         settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
-    ) { inputs, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
+    ) { keyedInputs, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
+        if (!keyedInputs.key.matches(timeSnapshot)) {
+            return@combine null
+        }
+        val inputs = keyedInputs.inputs
         if (
             inputs.source == HomeInputSource.ROOM &&
             inputs.stockWarnings.isEmpty() &&
@@ -110,6 +117,7 @@ class MainViewModel @Inject constructor(
             )
         }
     }
+        .filterNotNull()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
@@ -344,6 +352,12 @@ class MainViewModel @Inject constructor(
     private data class HomeTimeKey(val now: LocalDateTime, val date: LocalDate, val zoneId: ZoneId)
 
     private data class HomeSnapshotRefreshKey(val date: LocalDate, val zoneId: String)
+
+    private data class KeyedHomeInputs(val key: HomeTimeKey, val inputs: HomeInputs)
+
+    private fun HomeTimeKey.matches(snapshot: AppTimeSnapshot): Boolean {
+        return date == snapshot.minute.toLocalDate() && zoneId == snapshot.zone
+    }
 
     private companion object {
         const val TAG = "MainViewModel"

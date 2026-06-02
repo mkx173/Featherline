@@ -1005,6 +1005,93 @@ class MainViewModelTest {
         )
     }
 
+    @Test
+    fun sameDateZoneChangeSuppressesStaleInputsUntilNewZoneInputsEmit() = runTest {
+        val localMinute = LocalDateTime.of(2026, 6, 3, 12, 0)
+        val utc = ZoneId.of("UTC")
+        val tokyo = ZoneId.of("Asia/Tokyo")
+        val oldZoneOnlyEntry = testMedicationLogEntry(
+            uuid = UUID.fromString("9cd4bd87-a005-4eb4-b878-ea943eb7d468"),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            equivalentE2Mg = 2.0,
+            sourceGroupUuid = null,
+            appliedAt = localMinute
+                .toLocalDate()
+                .atStartOfDay()
+                .plusMinutes(30)
+                .atZone(tokyo)
+                .toInstant(),
+            appliedAtTimeZoneId = "Unknown/Zone",
+        )
+        val newZoneEntry = oldZoneOnlyEntry.copy(
+            uuid = UUID.fromString("98db030f-09b5-424f-939f-52b761612bb8")
+        )
+        val oldZoneInputs = MutableSharedFlow<HomeInputs>(replay = 1)
+        val newZoneInputs = MutableSharedFlow<HomeInputs>()
+        val acknowledgedWarningStatesFlow = MutableStateFlow(emptyMap<String, MedicineStockState>())
+        val appTimeSource = FakeAppTimeSource(localMinute, initialZone = utc)
+        every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns acknowledgedWarningStatesFlow
+        every { homeRepository.observeHomeInputs(any(), any()) } answers {
+            when (secondArg<ZoneId>()) {
+                utc -> oldZoneInputs
+                tokyo -> newZoneInputs
+                else -> error("Unexpected zone ${secondArg<ZoneId>()}")
+            }
+        }
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        oldZoneInputs.emit(
+            homeInputs(
+                now = localMinute,
+                source = HomeInputSource.ROOM,
+                scheduleEntries = listOf(oldZoneOnlyEntry),
+            )
+        )
+        advanceUntilIdle()
+        assertEquals(0, viewModel.uiState.value.todaySection.manualCount)
+
+        appTimeSource.setCurrentSnapshot(localMinute, tokyo)
+        advanceUntilIdle()
+
+        assertEquals(0, viewModel.uiState.value.todaySection.manualCount)
+        assertEquals(emptyList<MainTodayDoseRowUiState>(), viewModel.uiState.value.todaySection.rows)
+
+        acknowledgedWarningStatesFlow.value = mapOf("stale-warning" to MedicineStockState.OUT)
+        advanceUntilIdle()
+        coVerify(exactly = 0) {
+            settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+        }
+
+        newZoneInputs.emit(
+            homeInputs(
+                now = localMinute,
+                source = HomeInputSource.ROOM,
+                scheduleEntries = listOf(newZoneEntry),
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.todaySection.manualCount)
+        assertEquals(
+            listOf(newZoneEntry.uuid),
+            viewModel.uiState.value.todaySection.rows.single().fulfillingEntryUuids,
+        )
+        coVerify(exactly = 1) {
+            settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+        }
+    }
+
     private fun TestScope.startUiStateCollection(viewModel: MainViewModel) {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect { }
