@@ -115,7 +115,10 @@ a reminder schedule. Stores `name`,
 `colorKey`, `notificationsEnabled`, schedule type / interval / weekly
 anchor, and `includePastScheduledSlots`. Soft-deleted via
 `archivedAtEpochMillis` and `archivedAtLocalIso` (both null while
-active); replacement chains are tracked via `replacedByGroupUuid` and
+active); the archived-at timestamp also acts as the plan's
+slot-generation end cutoff, and is user-selectable — it may be
+backdated to an earlier day's end of day instead of the archive
+moment. Replacement chains are tracked via `replacedByGroupUuid` and
 `recreatedFromGroupUuid` so an edited group can preserve historical
 fulfillment links.
 
