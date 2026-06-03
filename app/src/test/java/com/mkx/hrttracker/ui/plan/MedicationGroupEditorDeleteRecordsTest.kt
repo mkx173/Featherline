@@ -507,7 +507,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         viewModel.archiveGroup()
 
         assertFalse(viewModel.uiState.value.isArchiveConfirmationVisible)
-        coVerify(exactly = 0) { medicationGroupRepository.archiveGroup(any(), any()) }
+        coVerify(exactly = 0) { medicationGroupRepository.archiveGroup(any(), now = any()) }
 
         advanceUntilIdle()
     }
@@ -529,7 +529,7 @@ class MedicationGroupEditorDeleteRecordsTest {
                 )
             )
         )
-        coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
+        coEvery { medicationGroupRepository.archiveGroup(groupUuid, now = any()) } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
 
         val viewModel = MedicationGroupEditorViewModel(
@@ -553,7 +553,7 @@ class MedicationGroupEditorDeleteRecordsTest {
 
         assertTrue(viewModel.uiState.value.isArchiveConfirmationVisible)
         assertEquals(1, viewModel.uiState.value.currentOrFuturePlannedSlotCount)
-        coVerify(exactly = 0) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
+        coVerify(exactly = 0) { medicationGroupRepository.archiveGroup(groupUuid, now = any()) }
         coVerify(exactly = 0) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
 
@@ -574,7 +574,7 @@ class MedicationGroupEditorDeleteRecordsTest {
                 )
             )
         )
-        coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
+        coEvery { medicationGroupRepository.archiveGroup(groupUuid, now = any()) } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
 
         val viewModel = MedicationGroupEditorViewModel(
@@ -598,7 +598,7 @@ class MedicationGroupEditorDeleteRecordsTest {
 
         assertTrue(viewModel.uiState.value.isArchiveConfirmationVisible)
         assertEquals(1, viewModel.uiState.value.currentOrFuturePlannedSlotCount)
-        coVerify(exactly = 0) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
+        coVerify(exactly = 0) { medicationGroupRepository.archiveGroup(groupUuid, now = any()) }
         coVerify(exactly = 0) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
 
@@ -619,7 +619,7 @@ class MedicationGroupEditorDeleteRecordsTest {
                 )
             )
         )
-        coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
+        coEvery { medicationGroupRepository.archiveGroup(groupUuid, now = any()) } returns Unit
         coEvery {
             medicationGroupRepository.saveGroup(
                 uuid = null,
@@ -655,7 +655,7 @@ class MedicationGroupEditorDeleteRecordsTest {
 
         assertTrue(viewModel.uiState.value.isArchiveConfirmationVisible)
         assertNull(viewModel.uiState.value.archiveAndRecreateMedicationGroupResult)
-        coVerify(exactly = 0) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
+        coVerify(exactly = 0) { medicationGroupRepository.archiveGroup(groupUuid, now = any()) }
         coVerify(exactly = 0) {
             medicationGroupRepository.saveGroup(
                 uuid = null,
@@ -688,7 +688,7 @@ class MedicationGroupEditorDeleteRecordsTest {
                 ),
             )
         )
-        coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
+        coEvery { medicationGroupRepository.archiveGroup(groupUuid, now = any()) } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
 
         val viewModel = MedicationGroupEditorViewModel(
@@ -712,7 +712,7 @@ class MedicationGroupEditorDeleteRecordsTest {
 
         assertFalse(viewModel.uiState.value.isArchiveConfirmationVisible)
         assertEquals(0, viewModel.uiState.value.currentOrFuturePlannedSlotCount)
-        coVerify(exactly = 1) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
+        coVerify(exactly = 1) { medicationGroupRepository.archiveGroup(groupUuid, now = any()) }
         coVerify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
 
@@ -736,7 +736,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         coEvery { medicationGroupRepository.getGroup(groupUuid) } returns originalGroup
         coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns savedGroup
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
-        coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
+        coEvery { medicationGroupRepository.archiveGroup(groupUuid, now = any()) } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
         coEvery {
@@ -791,7 +791,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             initialScrollToTopVersion + 1,
             viewModel.uiState.value.scrollToTopRequestVersion,
         )
-        coVerify(exactly = 1) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
+        coVerify(exactly = 1) { medicationGroupRepository.archiveGroup(groupUuid, now = any()) }
         coVerify(exactly = 1) {
             medicationGroupRepository.saveGroup(
                 uuid = null,
@@ -832,7 +832,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         coEvery { medicationGroupRepository.getGroup(groupUuid) } returns originalGroup
         coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns savedGroup
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
-        coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
+        coEvery { medicationGroupRepository.archiveGroup(groupUuid, now = any()) } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
         coEvery {
@@ -884,7 +884,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
         coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
-        coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
+        coEvery { medicationGroupRepository.archiveGroup(groupUuid, now = any()) } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
         coEvery {
@@ -924,7 +924,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             ArchiveAndRecreateMedicationGroupResult.FAILURE,
             viewModel.uiState.value.archiveAndRecreateMedicationGroupResult,
         )
-        coVerify(exactly = 1) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
+        coVerify(exactly = 1) { medicationGroupRepository.archiveGroup(groupUuid, now = any()) }
     }
 
     @Test

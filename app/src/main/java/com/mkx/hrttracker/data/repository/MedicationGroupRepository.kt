@@ -15,6 +15,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.planCalendarDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -105,12 +106,18 @@ class MedicationGroupRepository @Inject constructor(
 
     suspend fun archiveGroup(
         uuid: UUID,
+        archivedThroughDate: LocalDate,
         now: Instant = Instant.now(),
     ) {
         val nowEpochMillis = now.toEpochMilli()
-        val nowLocal = now.toLocalDateTime()
+        val systemZone = ZoneId.systemDefault()
+        val nowLocal = now.toLocalDateTime(systemZone)
+        val archiveCutoffLocal = archivedThroughDate.atTime(LocalTime.MAX)
+        val archiveCutoffInstant = archiveCutoffLocal.atZone(systemZone).toInstant()
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
+                val groupRow = database.medicationGroupDao().getGroup(uuid.toString())
+                    ?: throw MedicationGroupNotFoundException(uuid)
                 val currentOrFuturePlannedSlotCount = database.medicationLogDao()
                     .getCurrentOrFuturePlannedSlotCountForGroup(
                         groupUuid = uuid.toString(),
@@ -119,14 +126,47 @@ class MedicationGroupRepository @Inject constructor(
                 if (currentOrFuturePlannedSlotCount > 0) {
                     throw CurrentOrFuturePlannedSlotsBlockArchiveException(uuid)
                 }
+                val createdDate = Instant
+                    .ofEpochMilli(groupRow.group.createdAtEpochMillis)
+                    .atZone(systemZone)
+                    .toLocalDate()
+                val latestRecordedDoseDate = database.medicationLogDao()
+                    .getEntriesForGroup(uuid.toString())
+                    .maxOfOrNull { entry ->
+                        planCalendarDate(
+                            scheduledForIso = entry.scheduledForIso,
+                            appliedAtEpochMillis = entry.appliedAtEpochMillis,
+                            appliedAtTimeZoneId = entry.appliedAtTimeZoneId,
+                            zoneId = systemZone,
+                        )
+                    }
+                val minArchiveDate = maxOf(createdDate, latestRecordedDoseDate ?: createdDate)
+                if (archivedThroughDate.isBefore(minArchiveDate)) {
+                    throw ArchiveDateBeforeRecordedDoseException(
+                        uuid = uuid,
+                        archivedThroughDate = archivedThroughDate,
+                        minArchiveDate = minArchiveDate,
+                    )
+                }
                 database.medicationGroupDao().updateGroupArchiveState(
                     uuid = uuid.toString(),
-                    archivedAtEpochMillis = nowEpochMillis,
-                    archivedAtLocalIso = nowLocal.toString(),
+                    archivedAtEpochMillis = archiveCutoffInstant.toEpochMilli(),
+                    archivedAtLocalIso = archiveCutoffLocal.toString(),
                     updatedAtEpochMillis = nowEpochMillis,
                 )
             }
         }
+    }
+
+    suspend fun archiveGroup(
+        uuid: UUID,
+        now: Instant = Instant.now(),
+    ) {
+        archiveGroup(
+            uuid = uuid,
+            archivedThroughDate = now.atZone(ZoneId.systemDefault()).toLocalDate(),
+            now = now,
+        )
     }
 
     suspend fun updateScheduleTimes(
@@ -428,6 +468,14 @@ class CurrentOrFuturePlannedSlotsBlockArchiveException(
     uuid: UUID,
 ) : IllegalStateException(
     "Medication group $uuid has current or future planned records and cannot be archived."
+)
+
+class ArchiveDateBeforeRecordedDoseException(
+    uuid: UUID,
+    archivedThroughDate: LocalDate,
+    minArchiveDate: LocalDate,
+) : IllegalArgumentException(
+    "Medication group $uuid archive date $archivedThroughDate is before minimum archive date $minArchiveDate."
 )
 
 class ScheduleTimeCountMismatchException : IllegalArgumentException(
