@@ -10,6 +10,23 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
 
+private const val FLOAT_EPSILON = 1e-9
+
+private fun Double.zeroIfTiny(): Double {
+    return if (abs(this) <= FLOAT_EPSILON) 0.0 else this
+}
+
+internal fun normalizeOpenContainer(
+    open: Double?,
+    sealed: Double,
+    capacity: Double,
+): Pair<Double?, Double> {
+    val usableOpen = open?.takeIf { it.isFinite() } ?: 0.0
+    if (usableOpen > FLOAT_EPSILON) return open to sealed
+    if (sealed < 1.0 || !capacity.isFinite() || capacity <= 0.0) return open to sealed
+    return capacity to (sealed - 1.0).coerceAtLeast(0.0).zeroIfTiny()
+}
+
 /**
  * Transaction-scoped helper for every stock-column write. Callers must wrap
  * invocations in their own `databaseHolder.withTransaction { database -> ... }`
@@ -146,26 +163,28 @@ internal class MedicineStockMutator @Inject constructor() {
         val dao = database.medicineDao()
         val entity = dao.getByUuid(medicineUuid.toString()) ?: return
         val prepType = MedicinePreparationType.fromStorageValue(entity.preparationType)
-
-        val newOpen: Double?
-        if (prepType.isContainerTopology()) {
-            // Recount touches sealed count only; existing open vial is preserved.
-            // Use the dedicated applySetOpenContainerAmount op to edit open volume.
-            newOpen = entity.openContainerAmount
+        val stockFields = if (prepType.isContainerTopology()) {
+            val recountedSealed = maxOf(0.0, recount.unitsRemaining)
+            entity.promoteFirstContainerIfNeeded(
+                sealedCount = recountedSealed,
+                lastTotal = recountedSealed,
+                openAmount = entity.openContainerAmount,
+            )
         } else {
-            newOpen = null
+            val recountedRemaining = maxOf(0.0, recount.unitsRemaining)
+            StockFields(
+                unitsRemaining = recountedRemaining,
+                unitsLastTotal = recountedRemaining,
+                openContainerAmount = null,
+            )
         }
-        // Snap the gauge denominator to the just-counted sealed/pool value so
-        // the sealed-row (container) or now-have-row (pool) gauge resets to
-        // full after a recount and depletes again as doses log.
-        val newLastTotal = maxOf(0.0, recount.unitsRemaining)
 
         dao.updateStockFields(
             uuid = entity.uuid,
             trackingEnabled = true,
-            stockUnitsRemaining = maxOf(0.0, recount.unitsRemaining),
-            stockUnitsLastTotal = newLastTotal,
-            openContainerAmount = newOpen,
+            stockUnitsRemaining = stockFields.unitsRemaining,
+            stockUnitsLastTotal = stockFields.unitsLastTotal,
+            openContainerAmount = stockFields.openContainerAmount,
             warnAtDaysRemaining = entity.warnAtDaysRemaining,
             stockGeneration = entity.stockGeneration + 1L,
             updatedAtEpochMillis = now.toEpochMilli(),
@@ -227,30 +246,29 @@ internal class MedicineStockMutator @Inject constructor() {
         lastTotal: Double?,
         openAmount: Double?,
     ): StockFields {
-        if (openAmount != null) {
+        val containerSize = containerSizeOrNull()
+            ?.takeIf { it.isFinite() && it > 0.0 }
+            ?: return StockFields(
+                unitsRemaining = sealedCount,
+                unitsLastTotal = lastTotal,
+                openContainerAmount = openAmount,
+            )
+        val sealed = sealedCount?.takeIf { it.isFinite() } ?: 0.0
+        val (normalizedOpen, normalizedSealed) = normalizeOpenContainer(
+            open = openAmount,
+            sealed = sealed,
+            capacity = containerSize,
+        )
+        val cracked = normalizedSealed != sealed
+        if (!cracked) {
             return StockFields(
                 unitsRemaining = sealedCount,
                 unitsLastTotal = lastTotal,
                 openContainerAmount = openAmount,
             )
         }
-        val containerSize = containerSizeOrNull()
-            ?.takeIf { it.isFinite() && it > 0.0 }
-            ?: return StockFields(
-                unitsRemaining = sealedCount,
-                unitsLastTotal = lastTotal,
-                openContainerAmount = null,
-            )
-        val sealed = sealedCount?.takeIf { it.isFinite() } ?: 0.0
-        if (sealed < 1.0) {
-            return StockFields(
-                unitsRemaining = sealedCount,
-                unitsLastTotal = lastTotal,
-                openContainerAmount = null,
-            )
-        }
         return StockFields(
-            unitsRemaining = (sealed - 1.0).coerceAtLeast(0.0).zeroIfTiny(),
+            unitsRemaining = normalizedSealed.zeroIfTiny(),
             unitsLastTotal = lastTotal?.let { total ->
                 if (total.isFinite()) {
                     (total - 1.0).coerceAtLeast(0.0).zeroIfTiny()
@@ -258,7 +276,7 @@ internal class MedicineStockMutator @Inject constructor() {
                     total
                 }
             },
-            openContainerAmount = containerSize,
+            openContainerAmount = normalizedOpen,
         )
     }
 
@@ -276,13 +294,19 @@ internal class MedicineStockMutator @Inject constructor() {
         val dao = database.medicineDao()
         val entity = dao.getByUuid(medicineUuid.toString()) ?: return
         val containerSize = entity.containerSizeOrNull() ?: return
-        val clamped = amount.coerceIn(0.0, containerSize)
+        val clamped = amount.coerceIn(0.0, containerSize).zeroIfTiny()
+        val sealed = entity.stockUnitsRemaining?.takeIf { it.isFinite() } ?: 0.0
+        val (normalizedOpen, normalizedSealed) = normalizeOpenContainer(
+            open = clamped,
+            sealed = sealed,
+            capacity = containerSize,
+        )
         dao.updateStockFields(
             uuid = entity.uuid,
             trackingEnabled = true,
-            stockUnitsRemaining = entity.stockUnitsRemaining,
+            stockUnitsRemaining = normalizedSealed.zeroIfTiny(),
             stockUnitsLastTotal = entity.stockUnitsLastTotal,
-            openContainerAmount = clamped,
+            openContainerAmount = normalizedOpen,
             warnAtDaysRemaining = entity.warnAtDaysRemaining,
             stockGeneration = entity.stockGeneration,
             updatedAtEpochMillis = now.toEpochMilli(),
@@ -320,12 +344,18 @@ internal class MedicineStockMutator @Inject constructor() {
             }
         }
 
+        val (normalizedOpen, normalizedSealed) = normalizeOpenContainer(
+            open = newOpen.zeroIfTiny(),
+            sealed = newSealed,
+            capacity = containerSize,
+        )
+
         dao.updateStockFields(
             uuid = entity.uuid,
             trackingEnabled = true,
-            stockUnitsRemaining = newSealed,
+            stockUnitsRemaining = normalizedSealed.zeroIfTiny(),
             stockUnitsLastTotal = entity.stockUnitsLastTotal,
-            openContainerAmount = newOpen,
+            openContainerAmount = normalizedOpen,
             warnAtDaysRemaining = entity.warnAtDaysRemaining,
             stockGeneration = entity.stockGeneration,
             updatedAtEpochMillis = nowMs,
@@ -361,14 +391,8 @@ internal class MedicineStockMutator @Inject constructor() {
         )
     }
 
-    private fun Double.zeroIfTiny(): Double {
-        return if (abs(this) <= FLOAT_EPSILON) 0.0 else this
-    }
-
     internal companion object {
         const val DEFAULT_WARN_AT_DAYS: Int = 14
-
-        private const val FLOAT_EPSILON = 1e-9
     }
 }
 
