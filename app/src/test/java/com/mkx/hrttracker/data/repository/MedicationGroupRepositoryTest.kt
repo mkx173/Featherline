@@ -765,15 +765,18 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun saveGroup_newNoBackfillGroupWithFutureSinceIsEffectiveFromStartOfThatDay() = runTest {
-        // Defense in depth: a no-backfill plan whose start is in the future (e.g.
-        // a recreate beginning the day after an end-of-day archive) pins each
-        // slot's effectiveFrom to that start day, never `now`, so it can never
-        // own a day the archived plan still owns. (`since` already gates
-        // generation, so today-start groups keep effectiveFrom = now.)
+    fun saveGroup_newNoBackfillGroupWithFutureSinceIsEffectiveFromNow() = runTest {
+        // effectiveFrom marks when the schedule-time row was added (now), NOT the
+        // start date. Pinning it to a future `since` would orphan slots if the
+        // start is later edited earlier: the preserve-on-edit rule would keep the
+        // future effectiveFrom, so isScheduledOn(newStart) is true but
+        // ownsUnloggedOccurrence filters the slot. `since` alone gates generation.
         val savedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
         val now = Instant.parse("2026-04-25T10:00:00Z")
-        val futureSince = LocalDate.of(2026, 5, 1)
+        val expectedEffectiveFrom = now.atZone(ZoneId.systemDefault())
+            .toLocalDateTime()
+            .truncatedTo(ChronoUnit.MINUTES)
+            .toString()
         coEvery {
             databaseHolder.withTransaction<Unit>(any())
         } coAnswers {
@@ -787,7 +790,7 @@ class MedicationGroupRepositoryTest {
             schedule = MedicationGroupScheduleInput(
                 type = MedicationGroupScheduleType.DAILY,
                 interval = 1,
-                since = futureSince,
+                since = LocalDate.of(2026, 5, 1),
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(8, 0)),
             ),
@@ -804,10 +807,7 @@ class MedicationGroupRepositoryTest {
                 weeklyDays = any(),
             )
         }
-        assertEquals(
-            futureSince.atStartOfDay().toString(),
-            savedTimes.captured.single().effectiveFromLocalIso,
-        )
+        assertEquals(expectedEffectiveFrom, savedTimes.captured.single().effectiveFromLocalIso)
     }
 
     @Test
