@@ -14,9 +14,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -83,9 +80,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -95,10 +90,6 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.onClick as semanticsOnClick
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -142,6 +133,7 @@ import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
@@ -538,6 +530,12 @@ private fun MedicationGroupEditorScreenContent(
     val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
     val dateFormatter = remember(appLocale, currentDate) {
         medicationGroupScheduleDateFormatter(appLocale, currentDate)
+    }
+    // Archive end-date follows the plain date convention (year only when it
+    // differs from this year, no weekday), unlike schedule rows which append
+    // the weekday via medicationGroupScheduleDateFormatter.
+    val archiveDateFormatter = remember(appLocale, currentDate) {
+        dateLabelFormatter(appLocale, currentDate)
     }
     val notificationSupportState = resolveNotificationSupportState(
         hasNotificationAccess = hasNotificationAccess,
@@ -1001,50 +999,47 @@ private fun MedicationGroupEditorScreenContent(
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
-                    ArchiveThroughDateField(
-                        value = if (uiState.archiveDateWindow.isLoaded) {
-                            dateFormatter(selectedArchiveDate)
-                        } else {
-                            ""
-                        },
-                        enabled = !isArchiveActionInProgress &&
-                            uiState.archiveDateWindow.isSelectable,
-                        isBlocked = uiState.archiveDateWindow.isLoaded &&
-                            !uiState.archiveDateWindow.isSelectable,
-                        onClick = {
-                            if (
-                                !isArchiveActionInProgress &&
-                                uiState.archiveDateWindow.isSelectable
-                            ) {
-                                isArchiveDatePickerVisible = true
-                            }
-                        },
-                    )
-                    Text(
-                        text = if (
-                            uiState.archiveDateWindow.isLoaded &&
-                            !uiState.archiveDateWindow.isSelectable
-                        ) {
-                            stringResource(R.string.archive_medication_group_date_unavailable)
-                        } else {
-                            stringResource(R.string.archive_medication_group_end_date_hint)
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (
-                            uiState.archiveDateWindow.isLoaded &&
-                            !uiState.archiveDateWindow.isSelectable
-                        ) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
+                    val isArchiveDateUnavailable = uiState.archiveDateWindow.isLoaded &&
+                        !uiState.archiveDateWindow.isSelectable
                     Spacer(modifier = Modifier.height(12.dp))
+                    PreferenceSegmentedListItem(
+                        title = stringResource(R.string.archive_medication_group_end_date),
+                        titleTextStyle = MaterialTheme.typography.labelLarge,
+                        index = 0,
+                        count = 3,
+                        supportingText = when {
+                            !uiState.archiveDateWindow.isLoaded -> null
+                            isArchiveDateUnavailable ->
+                                stringResource(R.string.archive_medication_group_date_unavailable)
+                            else -> archiveDateFormatter(selectedArchiveDate)
+                        },
+                        onClick = if (uiState.archiveDateWindow.isSelectable) {
+                            {
+                                if (!isArchiveActionInProgress) {
+                                    isArchiveDatePickerVisible = true
+                                }
+                            }
+                        } else {
+                            null
+                        },
+                        trailingContent = if (uiState.archiveDateWindow.isSelectable) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        } else {
+                            null
+                        },
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    )
                     PreferenceSegmentedListItem(
                         title = stringResource(R.string.archive_create_active_copy),
                         titleTextStyle = MaterialTheme.typography.labelLarge,
-                        index = 0,
-                        count = 2,
+                        index = 1,
+                        count = 3,
                         onClick = {
                             if (isArchiveActionInProgress) return@PreferenceSegmentedListItem
                             shouldCreateActiveCopyAfterArchive =
@@ -1066,8 +1061,8 @@ private fun MedicationGroupEditorScreenContent(
                             R.string.archive_medication_group_irreversible_acknowledgement
                         ),
                         titleTextStyle = MaterialTheme.typography.labelLarge,
-                        index = 1,
-                        count = 2,
+                        index = 2,
+                        count = 3,
                         onClick = {
                             if (isArchiveActionInProgress) return@PreferenceSegmentedListItem
                             hasAcknowledgedArchiveIsPermanent =
@@ -1922,50 +1917,6 @@ internal fun runArchiveConfirmationAction(
             onArchiveConfirm(archivedThroughDate)
         }
     }
-}
-
-@Composable
-private fun ArchiveThroughDateField(
-    value: String,
-    enabled: Boolean,
-    isBlocked: Boolean,
-    onClick: () -> Unit,
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = {},
-        readOnly = true,
-        enabled = enabled,
-        label = { Text(stringResource(R.string.archive_medication_group_end_date)) },
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics {
-                role = Role.Button
-                if (enabled) {
-                    semanticsOnClick {
-                        onClick()
-                        true
-                    }
-                }
-            }
-            .pointerInput(enabled) {
-                awaitEachGesture {
-                    awaitFirstDown(pass = PointerEventPass.Initial)
-                    val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
-                    if (upEvent != null && enabled) {
-                        onClick()
-                    }
-                }
-            },
-        leadingIcon = {
-            Icon(
-                painter = painterResource(R.drawable.ic_calendar_month),
-                contentDescription = stringResource(R.string.select_date),
-            )
-        },
-        isError = isBlocked,
-        singleLine = true,
-    )
 }
 
 internal fun isMedicationGroupEditorBusy(
