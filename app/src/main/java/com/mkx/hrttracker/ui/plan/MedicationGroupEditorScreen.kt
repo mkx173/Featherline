@@ -969,11 +969,6 @@ private fun MedicationGroupEditorScreenContent(
                 else -> current
             }
         }
-        val selectedArchiveDateInRange = selectedArchiveDate?.let { selected ->
-            uiState.archiveDateWindow.minDate?.let { minDate ->
-                !selected.isBefore(minDate)
-            } == true && !selected.isAfter(uiState.archiveDateWindow.maxDate)
-        } ?: true
         if (isArchiveDatePickerVisible && uiState.archiveDateWindow.isSelectable) {
             DatePickerModal(
                 onDateSelected = { selectedArchiveDate = it },
@@ -1010,8 +1005,6 @@ private fun MedicationGroupEditorScreenContent(
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
-                    val isArchiveDateUnavailable = uiState.archiveDateWindow.isLoaded &&
-                        !uiState.archiveDateWindow.isSelectable
                     val selectedArchiveDateValue = selectedArchiveDate
                     Spacer(modifier = Modifier.height(12.dp))
                     PreferenceSegmentedListItem(
@@ -1021,10 +1014,10 @@ private fun MedicationGroupEditorScreenContent(
                         count = 3,
                         supportingText = when {
                             !uiState.archiveDateWindow.isLoaded -> null
-                            isArchiveDateUnavailable ->
-                                stringResource(R.string.archive_medication_group_date_unavailable)
                             // No explicit pick archives as of now; an explicit date
-                            // (incl. today) archives through the end of that day.
+                            // (incl. today) archives through the end of that day. A
+                            // not-yet-started plan has no selectable backdate and
+                            // stays on "Now".
                             selectedArchiveDateValue == null ->
                                 stringResource(R.string.archive_medication_group_end_date_now)
                             else -> archiveDateFormatter(selectedArchiveDateValue)
@@ -1105,9 +1098,10 @@ private fun MedicationGroupEditorScreenContent(
                 TextButton(
                     enabled = hasAcknowledgedArchiveIsPermanent &&
                         !isArchiveBlockedByCurrentOrFuturePlannedSlots &&
-                        uiState.archiveDateWindow.isLoaded &&
-                        uiState.archiveDateWindow.isSelectable &&
-                        selectedArchiveDateInRange,
+                        !isArchiveDateSelectionInvalid(
+                            selectedArchiveDate,
+                            uiState.archiveDateWindow,
+                        ),
                     onClick = {
                         if (isArchiveActionInProgress) return@TextButton
                         runArchiveConfirmationAction(

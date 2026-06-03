@@ -1126,16 +1126,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
     // through the end of that selected day.
     fun archiveGroup(archivedThroughDate: LocalDate? = null) {
         val currentState = _uiState.value
-        val minArchiveDate = currentState.archiveDateWindow.minDate
         if (
             currentState.isArchived ||
             currentState.currentOrFuturePlannedSlotCount > 0 ||
-            !currentState.archiveDateWindow.isSelectable ||
-            minArchiveDate == null ||
-            archivedThroughDate.isOutsideArchiveWindow(
-                minArchiveDate,
-                currentState.archiveDateWindow.maxDate,
-            ) ||
+            isArchiveDateSelectionInvalid(archivedThroughDate, currentState.archiveDateWindow) ||
             isMedicationGroupEditorBusy(currentState)
         ) {
             return
@@ -1202,16 +1196,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
     ) {
         val currentState = _uiState.value
         val groupId = currentState.editingGroupId ?: return
-        val minArchiveDate = currentState.archiveDateWindow.minDate
         if (
             currentState.isArchived ||
             currentState.currentOrFuturePlannedSlotCount > 0 ||
-            !currentState.archiveDateWindow.isSelectable ||
-            minArchiveDate == null ||
-            archivedThroughDate.isOutsideArchiveWindow(
-                minArchiveDate,
-                currentState.archiveDateWindow.maxDate,
-            ) ||
+            isArchiveDateSelectionInvalid(archivedThroughDate, currentState.archiveDateWindow) ||
             isMedicationGroupEditorBusy(currentState)
         ) {
             return
@@ -2365,6 +2353,24 @@ private fun LocalDate?.isOutsideArchiveWindow(
 ): Boolean {
     if (this == null) return false
     return isBefore(minArchiveDate) || isAfter(maxArchiveDate)
+}
+
+// Shared by the ViewModel archive guards and the dialog confirm button so both
+// agree on what counts as a valid archive-date selection. The "Now" default
+// (null) only needs the window loaded — a not-yet-started plan whose window is
+// loaded but has no selectable backdate (min > today) can still be archived as
+// of now. An explicitly picked date additionally needs a selectable window and
+// must fall inside [min, max].
+internal fun isArchiveDateSelectionInvalid(
+    archivedThroughDate: LocalDate?,
+    window: ArchiveDateWindowUiState,
+): Boolean {
+    if (!window.isLoaded) return true
+    if (archivedThroughDate == null) return false
+    val minDate = window.minDate
+    return !window.isSelectable ||
+        minDate == null ||
+        archivedThroughDate.isOutsideArchiveWindow(minDate, window.maxDate)
 }
 
 internal fun resolveArchiveDateWindow(

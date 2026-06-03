@@ -133,32 +133,39 @@ class MedicationGroupRepository @Inject constructor(
                 if (currentOrFuturePlannedSlotCount > 0) {
                     throw CurrentOrFuturePlannedSlotsBlockArchiveException(uuid)
                 }
-                // Floor on the schedule start (plan's first owned day), not the
-                // wall-clock creation time: a backdated/backfilled plan can start
-                // before the group row was created, and archiving through any day
-                // from the start onward yields a valid (non-empty) plan window.
-                val scheduleSinceDate = LocalDate.ofEpochDay(groupRow.group.scheduleSinceEpochDay)
-                val latestRecordedDoseDate = database.medicationLogDao()
-                    .getEntriesForGroup(uuid.toString())
-                    .maxOfOrNull { entry ->
-                        planCalendarDate(
-                            scheduledForIso = entry.scheduledForIso,
-                            appliedAtEpochMillis = entry.appliedAtEpochMillis,
-                            appliedAtTimeZoneId = entry.appliedAtTimeZoneId,
-                            zoneId = systemZone,
+                // The min-date floor only constrains an explicitly picked
+                // backdate. The "Now" default (null) archives at the confirm
+                // instant — the original pre-backdating behavior — and is never
+                // floored: a not-yet-started or future-dated plan stays cancelable
+                // as of now, and logged history can't be truncated this way because
+                // doses scheduled at/after now are already rejected by the
+                // current/future planned-slot guard above.
+                if (archivedThroughDate != null) {
+                    // Floor on the schedule start (plan's first owned day), not the
+                    // wall-clock creation time: a backdated/backfilled plan can start
+                    // before the group row was created, and archiving through any day
+                    // from the start onward yields a valid (non-empty) plan window.
+                    val scheduleSinceDate =
+                        LocalDate.ofEpochDay(groupRow.group.scheduleSinceEpochDay)
+                    val latestRecordedDoseDate = database.medicationLogDao()
+                        .getEntriesForGroup(uuid.toString())
+                        .maxOfOrNull { entry ->
+                            planCalendarDate(
+                                scheduledForIso = entry.scheduledForIso,
+                                appliedAtEpochMillis = entry.appliedAtEpochMillis,
+                                appliedAtTimeZoneId = entry.appliedAtTimeZoneId,
+                                zoneId = systemZone,
+                            )
+                        }
+                    val minArchiveDate =
+                        maxOf(scheduleSinceDate, latestRecordedDoseDate ?: scheduleSinceDate)
+                    if (archivedThroughDate.isBefore(minArchiveDate)) {
+                        throw ArchiveDateBeforeRecordedDoseException(
+                            uuid = uuid,
+                            archivedThroughDate = archivedThroughDate,
+                            minArchiveDate = minArchiveDate,
                         )
                     }
-                val minArchiveDate =
-                    maxOf(scheduleSinceDate, latestRecordedDoseDate ?: scheduleSinceDate)
-                // For the "now" default the effective archived-through day is the
-                // mutation-zone date of `now`.
-                val effectiveArchiveDate = archivedThroughDate ?: nowLocal.toLocalDate()
-                if (effectiveArchiveDate.isBefore(minArchiveDate)) {
-                    throw ArchiveDateBeforeRecordedDoseException(
-                        uuid = uuid,
-                        archivedThroughDate = effectiveArchiveDate,
-                        minArchiveDate = minArchiveDate,
-                    )
                 }
                 database.medicationGroupDao().updateGroupArchiveState(
                     uuid = uuid.toString(),

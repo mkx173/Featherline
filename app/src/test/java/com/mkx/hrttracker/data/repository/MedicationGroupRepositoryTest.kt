@@ -35,7 +35,6 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -320,6 +319,44 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
+    fun archiveGroup_withNullDateArchivesNotYetStartedPlanAsOfNow() = runTest {
+        // A plan whose schedule starts in the future (and has no logged doses)
+        // was freely cancelable before backdating shipped. The "Now" default
+        // (null) must still archive it as of the confirm instant — the min-date
+        // floor only constrains an explicitly picked backdate, never the "Now"
+        // path. Regression: the floor wrongly rejected the future-start group's
+        // "Now" archive because today < schedule start.
+        val groupUuid = UUID.fromString("f0000000-0000-4000-8000-00000000f00d")
+        val now = Instant.parse("2026-06-03T08:00:45Z")
+        val expectedNowLocalIso = now.atZone(ZoneId.systemDefault())
+            .toLocalDateTime()
+            .truncatedTo(ChronoUnit.MINUTES)
+            .toString()
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(9, 0)),
+            scheduleSinceEpochDay = LocalDate.of(2026, 6, 10).toEpochDay(),
+        )
+        coEvery { medicationLogDao.getEntriesForGroup(groupUuid.toString()) } returns emptyList()
+
+        repository.archiveGroup(uuid = groupUuid, archivedThroughDate = null, now = now)
+
+        coVerify(exactly = 1) {
+            medicationGroupDao.updateGroupArchiveState(
+                uuid = groupUuid.toString(),
+                archivedAtEpochMillis = now.toEpochMilli(),
+                archivedAtLocalIso = expectedNowLocalIso,
+                updatedAtEpochMillis = now.toEpochMilli(),
+            )
+        }
+    }
+
+    @Test
     fun archiveGroup_rejectsDateBeforeScheduleStartWhenNoEntriesExist() = runTest {
         val groupUuid = UUID.fromString("8ec6339d-3b83-464c-ac61-e36f7dc9ee3f")
         val now = Instant.parse("2026-04-30T08:00:45Z")
@@ -499,21 +536,33 @@ class MedicationGroupRepositoryTest {
             )
         )
 
+        val cutoffSlot = slot<String>()
+
         repository.archiveGroup(
             uuid = groupUuid,
             archivedThroughDate = selectedDate,
             now = now,
         )
 
-        assertFalse(LocalDateTime.parse("2026-05-08T23:59").isAfter(LocalDateTime.parse(persistedCutoff)))
         coVerify(exactly = 1) {
             medicationGroupDao.updateGroupArchiveState(
                 uuid = groupUuid.toString(),
                 archivedAtEpochMillis = any(),
-                archivedAtLocalIso = persistedCutoff,
+                archivedAtLocalIso = capture(cutoffSlot),
                 updatedAtEpochMillis = now.toEpochMilli(),
             )
         }
+        // The repository must persist an exact end-of-day cutoff so the 23:59
+        // slot on the selected day stays owned — generation keeps occurrences
+        // strictly before the cutoff. Assert against the value the repository
+        // actually wrote (not a test-local constant): a regression to a
+        // minute-truncated cutoff (23:59:00) would both break this equality and
+        // push the 23:59 slot to/after the cutoff, dropping it.
+        assertEquals(persistedCutoff, cutoffSlot.captured)
+        assertTrue(
+            LocalDateTime.parse("2026-05-08T23:59")
+                .isBefore(LocalDateTime.parse(cutoffSlot.captured))
+        )
     }
 
     @Test

@@ -168,4 +168,90 @@ class MedicationGroupEditorArchiveActionTest {
         assertEquals(LocalDate.of(2026, 4, 5), window.maxDate)
         assertFalse(window.isSelectable)
     }
+
+    @Test
+    fun isArchiveDateSelectionInvalid_allowsNullNowDateForNotYetStartedPlan() {
+        // A plan that starts in the future has no selectable backdate (its window
+        // is loaded but not selectable, min > today). The "Now" default (null)
+        // must still be accepted so the not-yet-started plan stays cancelable —
+        // the picker window only constrains an explicitly picked date. Regression
+        // for archive being silently blocked for future-start groups.
+        val window = resolveArchiveDateWindow(
+            scheduleSince = LocalDate.of(2026, 6, 10),
+            latestRecordedDoseDate = null,
+            areEntriesLoaded = true,
+            today = LocalDate.of(2026, 6, 3),
+        )
+        assertTrue(window.isLoaded)
+        assertFalse(window.isSelectable)
+
+        assertFalse(isArchiveDateSelectionInvalid(archivedThroughDate = null, window = window))
+    }
+
+    @Test
+    fun isArchiveDateSelectionInvalid_rejectsNullNowDateBeforeWindowLoaded() {
+        // Until entries load we don't know the current/future-slot picture, so
+        // even the "Now" path stays gated.
+        val window = resolveArchiveDateWindow(
+            scheduleSince = LocalDate.of(2026, 4, 1),
+            latestRecordedDoseDate = null,
+            areEntriesLoaded = false,
+            today = LocalDate.of(2026, 4, 5),
+        )
+
+        assertTrue(isArchiveDateSelectionInvalid(archivedThroughDate = null, window = window))
+    }
+
+    @Test
+    fun isArchiveDateSelectionInvalid_acceptsPickedDateInsideWindow() {
+        val window = resolveArchiveDateWindow(
+            scheduleSince = LocalDate.of(2026, 4, 1),
+            latestRecordedDoseDate = LocalDate.of(2026, 4, 3),
+            areEntriesLoaded = true,
+            today = LocalDate.of(2026, 4, 5),
+        )
+
+        assertFalse(
+            isArchiveDateSelectionInvalid(
+                archivedThroughDate = LocalDate.of(2026, 4, 4),
+                window = window,
+            )
+        )
+    }
+
+    @Test
+    fun isArchiveDateSelectionInvalid_rejectsPickedDateWhenNoBackdateSelectable() {
+        // A future-start plan accepts "Now" but cannot accept an explicit picked
+        // date, since there is no valid day in [min, max].
+        val window = resolveArchiveDateWindow(
+            scheduleSince = LocalDate.of(2026, 6, 10),
+            latestRecordedDoseDate = null,
+            areEntriesLoaded = true,
+            today = LocalDate.of(2026, 6, 3),
+        )
+
+        assertTrue(
+            isArchiveDateSelectionInvalid(
+                archivedThroughDate = LocalDate.of(2026, 6, 3),
+                window = window,
+            )
+        )
+    }
+
+    @Test
+    fun isArchiveDateSelectionInvalid_rejectsPickedDateOutsideWindow() {
+        val window = resolveArchiveDateWindow(
+            scheduleSince = LocalDate.of(2026, 4, 1),
+            latestRecordedDoseDate = LocalDate.of(2026, 4, 3),
+            areEntriesLoaded = true,
+            today = LocalDate.of(2026, 4, 5),
+        )
+
+        assertTrue(
+            isArchiveDateSelectionInvalid(
+                archivedThroughDate = LocalDate.of(2026, 4, 6),
+                window = window,
+            )
+        )
+    }
 }
