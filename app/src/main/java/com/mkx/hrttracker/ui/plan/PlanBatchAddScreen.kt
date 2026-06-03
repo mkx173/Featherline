@@ -58,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
@@ -230,30 +231,25 @@ private fun PlanBatchAddScreenContent(
                     )
                 },
                 navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            if (shouldDeselectOnBack) {
-                                clearSelectionAndDismissDialogs()
-                            } else {
-                                onNavigateBack()
+                    FlipSlot(
+                        flipped = shouldDeselectOnBack,
+                        front = {
+                            IconButton(onClick = onNavigateBack) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = stringResource(R.string.navigate_back),
+                                )
                             }
-                        }
-                    ) {
-                        Icon(
-                            imageVector = if (shouldDeselectOnBack) {
-                                Icons.Rounded.Close
-                            } else {
-                                Icons.AutoMirrored.Rounded.ArrowBack
-                            },
-                            contentDescription = stringResource(
-                                if (shouldDeselectOnBack) {
-                                    R.string.history_cancel_selection
-                                } else {
-                                    R.string.navigate_back
-                                }
-                            )
-                        )
-                    }
+                        },
+                        back = {
+                            IconButton(onClick = { clearSelectionAndDismissDialogs() }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = stringResource(R.string.history_cancel_selection),
+                                )
+                            }
+                        },
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
