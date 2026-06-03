@@ -420,16 +420,9 @@ class HomeRepository @Inject constructor(
                                 entry?.toMedicationLogEntryModel(medicinesByUuid)
                             },
                         ) { basics, realPkEntries, latestEstradiolEntry ->
-                            val simulationEntries = buildEstradiolPkSimulationEntries(
-                                realEntries = realPkEntries,
-                                activeGroups = basics.activeGroups,
-                                now = now,
-                                horizon = pkHorizon,
-                                zoneId = zoneId,
-                            )
                             basics.copy(
-                                estradiolPkEntries = simulationEntries.real,
-                                estradiolPkPlannedEntries = simulationEntries.planned,
+                                estradiolPkEntries = realPkEntries,
+                                estradiolPkPlannedEntries = emptyList(),
                                 latestEstradiolEntry = latestEstradiolEntry,
                             )
                         }

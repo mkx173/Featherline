@@ -249,6 +249,39 @@ class HomeRepositoryTest {
     }
 
     @Test
+    fun observeHomeStartupInputs_doesNotSynthesizePlannedPkEntries() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 7, 55)
+        val zoneId = ZoneId.systemDefault()
+        val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.PG_ML)
+
+        every { databaseHolder.get() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        coEvery { medicineDao.getByUuids(any()) } returns medicineEntities()
+        every { homeDao.observeActiveGroups() } returns flowOf(listOf(groupWithItems()))
+        every { homeDao.observeScheduleEntries(any(), any(), any(), any()) } returns flowOf(emptyList())
+        every { homeDao.observeLatestAntiandrogenEntriesOnOrBefore(any()) } returns flowOf(emptyList())
+        every { homeDao.observeEstradiolPkEntries(any(), any()) } returns flowOf(emptyList())
+        every { homeDao.observeLatestEstradiolEntryOnOrBefore(any()) } returns flowOf(null)
+        every { homeDao.observeProfile() } returns flowOf(null)
+        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every {
+            settingsRepository.homeE2ChartWindowOptionFlow
+        } returns MutableStateFlow(settings.homeE2ChartWindowOption)
+
+        val inputs = HomeRepository(
+            databaseHolder = databaseHolder,
+            settingsRepository = settingsRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
+        ).observeHomeStartupInputs(now, zoneId).first()
+
+        assertTrue(inputs.estradiolPkPlannedEntries.isEmpty())
+    }
+
+    @Test
     fun observeHomeSnapshotInputs_readsFullSnapshotWithoutOpeningDatabase() = runTest {
         val now = LocalDateTime.of(2026, 5, 6, 10, 15)
         val zoneId = ZoneId.systemDefault()
