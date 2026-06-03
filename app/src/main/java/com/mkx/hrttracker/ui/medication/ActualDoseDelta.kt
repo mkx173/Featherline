@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.medication
 import com.mkx.hrttracker.model.medication.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.roundToLong
 
 internal const val ACTUAL_DOSE_DELTA_STEP = 0.1
@@ -36,17 +37,26 @@ internal fun actualDoseDeltaFormParams(
     else -> null
 }
 
-// Band proportional to the planned amount, snapped (half-up) to the step so
-// endpoints are clean, floored at one step. Ampules are under-draw only.
+// Band proportional to the planned amount, rounded UP to a whole number of
+// major-tick intervals so its endpoints always land on a labeled major tick.
+// Adjacent majors then always enclose exactly ACTUAL_DOSE_DELTA_MAJOR_TICK_EVERY
+// - 1 minor ticks, never a short final segment (e.g. a 0.2 mL plan's 20% band
+// of 4 steps rounds up to 5 -> ±0.05 instead of ending mid-segment at ±0.04).
+// Floored at one full interval. Ampules are under-draw only.
 internal fun actualDoseDeltaRange(
     plannedAmount: Double,
     fraction: Double,
     step: Double,
     underDrawOnly: Boolean,
 ): ActualDoseDeltaRange {
-    val rawBand = abs(plannedAmount) * fraction
-    val snappedSteps = (rawBand / step).roundToLong().coerceAtLeast(1L)
-    val band = snappedSteps * step
+    val rawSteps = abs(plannedAmount) * fraction / step
+    // The epsilon absorbs binary-float noise (e.g. 0.05 / 0.01 landing at
+    // 5.0000000001) so a band already spanning a whole number of intervals is
+    // not nudged up to the next one.
+    val majorIntervals = ceil(rawSteps / ACTUAL_DOSE_DELTA_MAJOR_TICK_EVERY - 1e-9)
+        .toLong()
+        .coerceAtLeast(1L)
+    val band = majorIntervals * ACTUAL_DOSE_DELTA_MAJOR_TICK_EVERY * step
     return ActualDoseDeltaRange(
         min = -band,
         max = if (underDrawOnly) 0.0 else band,
