@@ -981,6 +981,13 @@ private fun MedicationGroupEditorScreenContent(
                 initialSelectedDate = selectedArchiveDate ?: uiState.archiveDateWindow.maxDate,
                 minimumDate = uiState.archiveDateWindow.minDate,
                 maximumDate = uiState.archiveDateWindow.maxDate,
+                // Only offer a reset once a date is chosen; null already means "now".
+                onReset = if (selectedArchiveDate != null) {
+                    { selectedArchiveDate = null }
+                } else {
+                    null
+                },
+                resetButtonText = stringResource(R.string.archive_medication_group_reset_to_now),
             )
         }
         AlertDialog(
