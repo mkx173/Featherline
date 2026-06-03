@@ -158,17 +158,6 @@ class MedicationGroupRepository @Inject constructor(
         }
     }
 
-    suspend fun archiveGroup(
-        uuid: UUID,
-        now: Instant = Instant.now(),
-    ) {
-        archiveGroup(
-            uuid = uuid,
-            archivedThroughDate = now.atZone(ZoneId.systemDefault()).toLocalDate(),
-            now = now,
-        )
-    }
-
     suspend fun updateScheduleTimes(
         groupUuid: UUID,
         newTimes: List<LocalTime>,
