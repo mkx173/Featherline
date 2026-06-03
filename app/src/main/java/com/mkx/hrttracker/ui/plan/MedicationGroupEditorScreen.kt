@@ -14,6 +14,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,7 +83,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -90,6 +95,10 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick as semanticsOnClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -495,11 +504,11 @@ private fun MedicationGroupEditorScreenContent(
     onDeleteMedicationGroupResultConsumed: () -> Unit,
     onArchiveClick: () -> Unit,
     onArchiveDismiss: () -> Unit,
-    onArchiveConfirm: () -> Unit,
+    onArchiveConfirm: (LocalDate) -> Unit,
     onArchiveMedicationGroupResultConsumed: () -> Unit,
     onDuplicateArchivedGroupClick: () -> Unit,
     onDuplicateArchivedGroupResultConsumed: () -> Unit,
-    onArchiveAndRecreateConfirm: () -> Unit,
+    onArchiveAndRecreateConfirm: (LocalDate) -> Unit,
     onArchiveAndRecreateMedicationGroupResultConsumed: () -> Unit,
     onDeleteClick: () -> Unit,
     onDeleteDismiss: () -> Unit,
@@ -939,6 +948,39 @@ private fun MedicationGroupEditorScreenContent(
             uiState.isRecreatingAfterArchive
         val isArchiveBlockedByCurrentOrFuturePlannedSlots =
             uiState.currentOrFuturePlannedSlotCount > 0
+        var selectedArchiveDate by rememberSaveable {
+            mutableStateOf(uiState.archiveDateWindow.maxDate)
+        }
+        var isArchiveDatePickerVisible by rememberSaveable { mutableStateOf(false) }
+        LaunchedEffect(
+            uiState.archiveDateWindow.minDate,
+            uiState.archiveDateWindow.maxDate,
+            uiState.archiveDateWindow.isSelectable,
+        ) {
+            val minDate = uiState.archiveDateWindow.minDate
+            selectedArchiveDate = when {
+                !uiState.archiveDateWindow.isSelectable -> uiState.archiveDateWindow.maxDate
+                minDate != null && selectedArchiveDate.isBefore(minDate) -> minDate
+                selectedArchiveDate.isAfter(uiState.archiveDateWindow.maxDate) ->
+                    uiState.archiveDateWindow.maxDate
+
+                else -> selectedArchiveDate
+            }
+        }
+        val selectedArchiveDateInRange =
+            uiState.archiveDateWindow.minDate?.let { minDate ->
+                !selectedArchiveDate.isBefore(minDate)
+            } == true &&
+                !selectedArchiveDate.isAfter(uiState.archiveDateWindow.maxDate)
+        if (isArchiveDatePickerVisible && uiState.archiveDateWindow.isSelectable) {
+            DatePickerModal(
+                onDateSelected = { selectedArchiveDate = it },
+                onDismiss = { isArchiveDatePickerVisible = false },
+                initialSelectedDate = selectedArchiveDate,
+                minimumDate = uiState.archiveDateWindow.minDate,
+                maximumDate = uiState.archiveDateWindow.maxDate,
+            )
+        }
         AlertDialog(
             onDismissRequest = {
                 if (!isArchiveActionInProgress) {
@@ -959,6 +1001,44 @@ private fun MedicationGroupEditorScreenContent(
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
+                    ArchiveThroughDateField(
+                        value = if (uiState.archiveDateWindow.isLoaded) {
+                            dateFormatter(selectedArchiveDate)
+                        } else {
+                            ""
+                        },
+                        enabled = !isArchiveActionInProgress &&
+                            uiState.archiveDateWindow.isSelectable,
+                        isBlocked = uiState.archiveDateWindow.isLoaded &&
+                            !uiState.archiveDateWindow.isSelectable,
+                        onClick = {
+                            if (
+                                !isArchiveActionInProgress &&
+                                uiState.archiveDateWindow.isSelectable
+                            ) {
+                                isArchiveDatePickerVisible = true
+                            }
+                        },
+                    )
+                    Text(
+                        text = if (
+                            uiState.archiveDateWindow.isLoaded &&
+                            !uiState.archiveDateWindow.isSelectable
+                        ) {
+                            stringResource(R.string.archive_medication_group_date_unavailable)
+                        } else {
+                            stringResource(R.string.archive_medication_group_end_date_hint)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (
+                            uiState.archiveDateWindow.isLoaded &&
+                            !uiState.archiveDateWindow.isSelectable
+                        ) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                     PreferenceSegmentedListItem(
                         title = stringResource(R.string.archive_create_active_copy),
@@ -1013,12 +1093,16 @@ private fun MedicationGroupEditorScreenContent(
                 // stays visually normal while ROOM is writing.
                 TextButton(
                     enabled = hasAcknowledgedArchiveIsPermanent &&
-                        !isArchiveBlockedByCurrentOrFuturePlannedSlots,
+                        !isArchiveBlockedByCurrentOrFuturePlannedSlots &&
+                        uiState.archiveDateWindow.isLoaded &&
+                        uiState.archiveDateWindow.isSelectable &&
+                        selectedArchiveDateInRange,
                     onClick = {
                         if (isArchiveActionInProgress) return@TextButton
                         runArchiveConfirmationAction(
                             shouldCreateActiveCopyAfterArchive =
                                 shouldCreateActiveCopyAfterArchive,
+                            archivedThroughDate = selectedArchiveDate,
                             focusManager = focusManager,
                             keyboardController = keyboardController,
                             onArchiveConfirm = onArchiveConfirm,
@@ -1822,21 +1906,66 @@ internal fun shouldDisableMedicationGroupEditorSaveAction(
 
 internal fun runArchiveConfirmationAction(
     shouldCreateActiveCopyAfterArchive: Boolean,
+    archivedThroughDate: LocalDate,
     focusManager: FocusManager,
     keyboardController: SoftwareKeyboardController?,
-    onArchiveConfirm: () -> Unit,
-    onArchiveAndRecreateConfirm: () -> Unit,
+    onArchiveConfirm: (LocalDate) -> Unit,
+    onArchiveAndRecreateConfirm: (LocalDate) -> Unit,
 ) {
     dismissInputAndRun(
         focusManager = focusManager,
         keyboardController = keyboardController,
     ) {
         if (shouldCreateActiveCopyAfterArchive) {
-            onArchiveAndRecreateConfirm()
+            onArchiveAndRecreateConfirm(archivedThroughDate)
         } else {
-            onArchiveConfirm()
+            onArchiveConfirm(archivedThroughDate)
         }
     }
+}
+
+@Composable
+private fun ArchiveThroughDateField(
+    value: String,
+    enabled: Boolean,
+    isBlocked: Boolean,
+    onClick: () -> Unit,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = {},
+        readOnly = true,
+        enabled = enabled,
+        label = { Text(stringResource(R.string.archive_medication_group_end_date)) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                role = Role.Button
+                if (enabled) {
+                    semanticsOnClick {
+                        onClick()
+                        true
+                    }
+                }
+            }
+            .pointerInput(enabled) {
+                awaitEachGesture {
+                    awaitFirstDown(pass = PointerEventPass.Initial)
+                    val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
+                    if (upEvent != null && enabled) {
+                        onClick()
+                    }
+                }
+            },
+        leadingIcon = {
+            Icon(
+                painter = painterResource(R.drawable.ic_calendar_month),
+                contentDescription = stringResource(R.string.select_date),
+            )
+        },
+        isError = isBlocked,
+        singleLine = true,
+    )
 }
 
 internal fun isMedicationGroupEditorBusy(
@@ -2374,11 +2503,11 @@ private fun MedicationGroupEditorDailyPreview() {
             onDeleteMedicationGroupResultConsumed = { },
             onArchiveClick = { },
             onArchiveDismiss = { },
-            onArchiveConfirm = { },
+            onArchiveConfirm = { _ -> },
             onArchiveMedicationGroupResultConsumed = { },
             onDuplicateArchivedGroupClick = { },
             onDuplicateArchivedGroupResultConsumed = { },
-            onArchiveAndRecreateConfirm = { },
+            onArchiveAndRecreateConfirm = { _ -> },
             onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
             onDeleteDismiss = { },
@@ -2450,11 +2579,11 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onDeleteMedicationGroupResultConsumed = { },
             onArchiveClick = { },
             onArchiveDismiss = { },
-            onArchiveConfirm = { },
+            onArchiveConfirm = { _ -> },
             onArchiveMedicationGroupResultConsumed = { },
             onDuplicateArchivedGroupClick = { },
             onDuplicateArchivedGroupResultConsumed = { },
-            onArchiveAndRecreateConfirm = { },
+            onArchiveAndRecreateConfirm = { _ -> },
             onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
             onDeleteDismiss = { },
@@ -2567,11 +2696,11 @@ private fun MedicationGroupEditorPreviewContent(
         onDeleteMedicationGroupResultConsumed = { },
         onArchiveClick = { },
         onArchiveDismiss = { },
-        onArchiveConfirm = { },
+        onArchiveConfirm = { _ -> },
         onArchiveMedicationGroupResultConsumed = { },
         onDuplicateArchivedGroupClick = { },
         onDuplicateArchivedGroupResultConsumed = { },
-        onArchiveAndRecreateConfirm = { },
+        onArchiveAndRecreateConfirm = { _ -> },
         onArchiveAndRecreateMedicationGroupResultConsumed = { },
         onDeleteClick = { },
         onDeleteDismiss = { },

@@ -36,19 +36,13 @@ fun DatePickerModal(
     onDismiss: () -> Unit,
     initialSelectedDate: LocalDate,
     minimumDate: LocalDate? = null,
+    maximumDate: LocalDate? = null,
 ) {
-    val selectableDates = remember(minimumDate) {
-        object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                return minimumDate == null ||
-                    !materialPickerDateMillisToLocalDate(utcTimeMillis, ZoneOffset.UTC)
-                        .isBefore(minimumDate)
-            }
-
-            override fun isSelectableYear(year: Int): Boolean {
-                return minimumDate == null || year >= minimumDate.year
-            }
-        }
+    val selectableDates = remember(minimumDate, maximumDate) {
+        datePickerSelectableDates(
+            minimumDate = minimumDate,
+            maximumDate = maximumDate,
+        )
     }
     val datePickerState = rememberDatePickerState(
         initialSelectedDate = initialSelectedDate,
@@ -81,6 +75,25 @@ fun DatePickerModal(
         }
     ) {
         DatePicker(state = datePickerState)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+internal fun datePickerSelectableDates(
+    minimumDate: LocalDate? = null,
+    maximumDate: LocalDate? = null,
+): SelectableDates {
+    return object : SelectableDates {
+        override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+            val date = materialPickerDateMillisToLocalDate(utcTimeMillis, ZoneOffset.UTC)
+            return (minimumDate == null || !date.isBefore(minimumDate)) &&
+                (maximumDate == null || !date.isAfter(maximumDate))
+        }
+
+        override fun isSelectableYear(year: Int): Boolean {
+            return (minimumDate == null || year >= minimumDate.year) &&
+                (maximumDate == null || year <= maximumDate.year)
+        }
     }
 }
 

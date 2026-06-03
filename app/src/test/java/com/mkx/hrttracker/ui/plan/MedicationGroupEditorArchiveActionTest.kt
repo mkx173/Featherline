@@ -22,6 +22,7 @@ class MedicationGroupEditorArchiveActionTest {
         val calls = mutableListOf<String>()
         val focusManager = mockk<FocusManager>(relaxed = true)
         val keyboardController = mockk<SoftwareKeyboardController>(relaxed = true)
+        val archivedThroughDate = LocalDate.of(2026, 4, 25)
 
         every { focusManager.clearFocus(force = true) } answers {
             calls += "focus"
@@ -32,17 +33,18 @@ class MedicationGroupEditorArchiveActionTest {
 
         runArchiveConfirmationAction(
             shouldCreateActiveCopyAfterArchive = true,
+            archivedThroughDate = archivedThroughDate,
             focusManager = focusManager,
             keyboardController = keyboardController,
             onArchiveConfirm = {
-                calls += "archive"
+                calls += "archive:$it"
             },
             onArchiveAndRecreateConfirm = {
-                calls += "recreate"
+                calls += "recreate:$it"
             },
         )
 
-        assertEquals(listOf("focus", "hide", "recreate"), calls)
+        assertEquals(listOf("focus", "hide", "recreate:2026-04-25"), calls)
     }
 
     @Test

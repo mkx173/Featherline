@@ -270,6 +270,9 @@
     <string name="archive_medication_group_title">归档分组</string>
     <string name="archive_medication_group_confirmation">要归档这个用药分组吗？它将从当前计划中移除并停止发送提醒，现有记录不会被删除</string>
     <string name="archive_medication_group_irreversible_acknowledgement">我理解归档后无法恢复</string>
+    <string name="archive_medication_group_end_date">计划结束于</string>
+    <string name="archive_medication_group_end_date_hint">计划在这一天结束，之后的日期将被移除。</string>
+    <string name="archive_medication_group_date_unavailable">没有可用的归档日期</string>
     <string name="archive_medication_group_failure">无法归档分组</string>
     <string name="archive_medication_group_blocked_by_planned_slots">归档前请先处理已有记录的当前或未来计划时段</string>
     <plurals name="archive_medication_group_current_or_future_planned_slots_block">
