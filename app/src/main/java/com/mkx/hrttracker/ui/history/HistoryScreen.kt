@@ -5,11 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -79,12 +76,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -117,6 +112,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
@@ -162,8 +158,6 @@ import java.util.Locale
 import java.util.UUID
 
 private const val HistoryCalendarNavigationSettleTimeoutMillis = 500L
-private const val HistoryTopAppBarFlipDurationMillis = 220
-private const val HistoryTopAppBarFlipCameraDistance = 12f
 
 @Composable
 fun HistoryScreen(
@@ -669,106 +663,103 @@ private fun HistoryScreenContent(
                     listState.animateScrollToItem(0)
                 },
                 title = {
-                    HistoryTopAppBarFlipSlot(
-                        isSelectionMode = uiState.isSelectionMode,
+                    FlipSlot(
+                        flipped = uiState.isSelectionMode,
                         contentAlignment = Alignment.CenterStart,
-                    ) { face ->
-                        val title = when (face) {
-                            HistoryTopAppBarFlipFace.NORMAL -> stringResource(R.string.tab_history)
-                            HistoryTopAppBarFlipFace.SELECTION -> pluralStringResource(
+                        front = {
+                            val title = stringResource(R.string.tab_history)
+                            Text(
+                                text = title,
+                                modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
+                            )
+                        },
+                        back = {
+                            val title = pluralStringResource(
                                 R.plurals.history_selected_entries_title,
                                 displayedSelectedEntryCount.value,
                                 displayedSelectedEntryCount.value,
                             )
-                        }
-                        Text(
-                            text = title,
-                            modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
-                        )
-                    }
+                            Text(
+                                text = title,
+                                modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
+                            )
+                        },
+                    )
                 },
                 navigationIcon = {
-                    HistoryTopAppBarFlipSlot(
-                        isSelectionMode = uiState.isSelectionMode,
-                    ) { face ->
-                        when (face) {
-                            HistoryTopAppBarFlipFace.NORMAL -> {
-                                if (onNavigateBack != null) {
-                                    IconButton(onClick = onNavigateBack) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                            contentDescription = stringResource(R.string.navigate_back),
-                                        )
-                                    }
-                                }
-                            }
-
-                            HistoryTopAppBarFlipFace.SELECTION -> {
-                                IconButton(onClick = onCancelEntrySelectionClick) {
+                    FlipSlot(
+                        flipped = uiState.isSelectionMode,
+                        front = {
+                            if (onNavigateBack != null) {
+                                IconButton(onClick = onNavigateBack) {
                                     Icon(
-                                        imageVector = Icons.Rounded.Close,
-                                        contentDescription = stringResource(R.string.history_cancel_selection),
+                                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                        contentDescription = stringResource(R.string.navigate_back),
                                     )
                                 }
                             }
-                        }
-                    }
+                        },
+                        back = {
+                            IconButton(onClick = onCancelEntrySelectionClick) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = stringResource(R.string.history_cancel_selection),
+                                )
+                            }
+                        },
+                    )
                 },
                 actions = {
-                    HistoryTopAppBarFlipSlot(
-                        isSelectionMode = uiState.isSelectionMode,
+                    FlipSlot(
+                        flipped = uiState.isSelectionMode,
                         contentAlignment = Alignment.CenterEnd,
-                    ) { face ->
-                        when (face) {
-                            HistoryTopAppBarFlipFace.NORMAL -> {
-                                Box {
-                                    IconButton(onClick = { isActionMenuExpanded = true }) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.MoreVert,
-                                            contentDescription = stringResource(R.string.plan_more_options),
+                        front = {
+                            Box {
+                                IconButton(onClick = { isActionMenuExpanded = true }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.MoreVert,
+                                        contentDescription = stringResource(R.string.plan_more_options),
+                                    )
+                                }
+                                HrtDropdownMenu(
+                                    expanded = isActionMenuExpanded,
+                                    onDismissRequest = { isActionMenuExpanded = false },
+                                    items = listOf(
+                                        HrtDropdownMenuItem(
+                                            text = stringResource(R.string.history_delete_all_entries),
+                                            enabled = uiState.allEntryCount > 0 &&
+                                                !uiState.isDeletingAllEntries,
+                                            onClick = {
+                                                isDeleteAllConfirmationVisible = true
+                                            },
                                         )
-                                    }
-                                    HrtDropdownMenu(
-                                        expanded = isActionMenuExpanded,
-                                        onDismissRequest = { isActionMenuExpanded = false },
-                                        items = listOf(
-                                            HrtDropdownMenuItem(
-                                                text = stringResource(R.string.history_delete_all_entries),
-                                                enabled = uiState.allEntryCount > 0 &&
-                                                    !uiState.isDeletingAllEntries,
-                                                onClick = {
-                                                    isDeleteAllConfirmationVisible = true
-                                                },
-                                            )
-                                        ),
+                                    ),
+                                )
+                            }
+                        },
+                        back = {
+                            Row {
+                                IconButton(
+                                    enabled = selectAllEnabled.value,
+                                    onClick = { onSelectAllEntriesClick(visibleEntryIds) }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.SelectAll,
+                                        contentDescription = stringResource(R.string.history_select_all),
+                                    )
+                                }
+                                IconButton(
+                                    enabled = visibleEntryIds.isNotEmpty(),
+                                    onClick = { onReverseEntrySelectionClick(visibleEntryIds) }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.FlipToBack,
+                                        contentDescription = stringResource(R.string.history_reverse_selection),
                                     )
                                 }
                             }
-
-                            HistoryTopAppBarFlipFace.SELECTION -> {
-                                Row {
-                                    IconButton(
-                                        enabled = selectAllEnabled.value,
-                                        onClick = { onSelectAllEntriesClick(visibleEntryIds) }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.SelectAll,
-                                            contentDescription = stringResource(R.string.history_select_all),
-                                        )
-                                    }
-                                    IconButton(
-                                        enabled = visibleEntryIds.isNotEmpty(),
-                                        onClick = { onReverseEntrySelectionClick(visibleEntryIds) }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.FlipToBack,
-                                            contentDescription = stringResource(R.string.history_reverse_selection),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                        },
+                    )
                 },
                 scrollBehavior = scrollBehavior
             )
@@ -934,39 +925,6 @@ private fun HistoryScreenContent(
             }
         }
         }
-    }
-}
-
-@Composable
-private fun HistoryTopAppBarFlipSlot(
-    isSelectionMode: Boolean,
-    modifier: Modifier = Modifier,
-    contentAlignment: Alignment = Alignment.Center,
-    content: @Composable (HistoryTopAppBarFlipFace) -> Unit,
-) {
-    val progress by animateFloatAsState(
-        targetValue = if (isSelectionMode) 1f else 0f,
-        animationSpec = tween(
-            durationMillis = HistoryTopAppBarFlipDurationMillis,
-            easing = FastOutSlowInEasing,
-        ),
-        label = "history-top-app-bar-flip",
-    )
-    val face = historyTopAppBarFlipFace(progress)
-    val rotationX = historyTopAppBarFlipRotationX(
-        progress = progress,
-        face = face,
-    )
-    val density = LocalDensity.current.density
-
-    Box(
-        modifier = modifier.graphicsLayer {
-            this.rotationX = rotationX
-            cameraDistance = HistoryTopAppBarFlipCameraDistance * density
-        },
-        contentAlignment = contentAlignment,
-    ) {
-        content(face)
     }
 }
 

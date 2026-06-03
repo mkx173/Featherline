@@ -37,62 +37,6 @@ class HistoryUiModelsTest {
     private val estradiolMedicineUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
 
     @Test
-    fun historyTopAppBarFlipFace_switches_faces_at_halfway() {
-        assertEquals(
-            HistoryTopAppBarFlipFace.NORMAL,
-            historyTopAppBarFlipFace(progress = 0f)
-        )
-        assertEquals(
-            HistoryTopAppBarFlipFace.NORMAL,
-            historyTopAppBarFlipFace(progress = 0.49f)
-        )
-        assertEquals(
-            HistoryTopAppBarFlipFace.SELECTION,
-            historyTopAppBarFlipFace(progress = 0.5f)
-        )
-        assertEquals(
-            HistoryTopAppBarFlipFace.SELECTION,
-            historyTopAppBarFlipFace(progress = 1f)
-        )
-    }
-
-    @Test
-    fun historyTopAppBarFlipRotationX_rotates_normal_out_and_selection_in() {
-        assertEquals(
-            0f,
-            historyTopAppBarFlipRotationX(
-                progress = 0f,
-                face = HistoryTopAppBarFlipFace.NORMAL
-            ),
-            0.001f
-        )
-        assertEquals(
-            45f,
-            historyTopAppBarFlipRotationX(
-                progress = 0.25f,
-                face = HistoryTopAppBarFlipFace.NORMAL
-            ),
-            0.001f
-        )
-        assertEquals(
-            -45f,
-            historyTopAppBarFlipRotationX(
-                progress = 0.75f,
-                face = HistoryTopAppBarFlipFace.SELECTION
-            ),
-            0.001f
-        )
-        assertEquals(
-            0f,
-            historyTopAppBarFlipRotationX(
-                progress = 1f,
-                face = HistoryTopAppBarFlipFace.SELECTION
-            ),
-            0.001f
-        )
-    }
-
-    @Test
     fun historyEntryGroupDayFormatter_uses_compact_chinese_month_day_format() {
         assertEquals(
             "4月23日",
