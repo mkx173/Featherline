@@ -33,7 +33,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PlanBatchAddViewModel @Inject constructor(
-    medicationGroupRepository: MedicationGroupRepository,
+    private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     settingsRepository: SettingsRepository,
@@ -109,6 +109,42 @@ class PlanBatchAddViewModel @Inject constructor(
         initialValue = PlanBatchAddUiState(today = currentDateTime.value.toLocalDate()),
     )
 
+    init {
+        freezeDefaultRangeWhenSelectable()
+    }
+
+    // selectGroup() leaves the range unset (null) so the combine above derives a
+    // live default. Once the selected group is actually selectable — immediately
+    // for an already-started plan, or when the clock reaches a future plan's
+    // `since` — capture since..today into selectionState so the range stops
+    // tracking the clock and a later rollover can't make it stale or inverted.
+    private fun freezeDefaultRangeWhenSelectable() {
+        viewModelScope.launch {
+            combine(
+                medicationGroupRepository.observeGroups(),
+                selectionState,
+                currentDateTime,
+            ) { groupsOrNull, selection, now ->
+                Triple(groupsOrNull, selection, now.toLocalDate())
+            }.collect { (groupsOrNull, selection, today) ->
+                if (selection.startDate != null || selection.endDate != null) {
+                    return@collect
+                }
+                val selectedGroup = selection.selectedGroupUuid?.let { groupUuid ->
+                    groupsOrNull?.firstOrNull { group -> group.uuid == groupUuid }
+                } ?: return@collect
+                if (!selectedGroup.schedule.since.isAfter(today)) {
+                    selectionState.update { state ->
+                        state.copy(
+                            startDate = selectedGroup.schedule.since,
+                            endDate = today,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     fun selectGroup(groupUuid: UUID) {
         if (selectionState.value.isSaving) {
             return
@@ -119,13 +155,19 @@ class PlanBatchAddViewModel @Inject constructor(
             return
         }
 
-        val group = uiState.value.groups.firstOrNull { group -> group.uuid == groupUuid } ?: return
-        val today = uiState.value.today
+        if (uiState.value.groups.none { group -> group.uuid == groupUuid }) {
+            return
+        }
+        // Leave the range unset; freezeDefaultRangeWhenSelectable() captures
+        // since..today once the group is actually selectable. A future-start
+        // group is not yet selectable, so its range stays unset (the UI shows
+        // the prompt) — this avoids freezing a stale `today` that a later
+        // rollover would turn into an inverted range.
         selectionState.update { state ->
             state.copy(
                 selectedGroupUuid = groupUuid,
-                startDate = group.schedule.since,
-                endDate = today,
+                startDate = null,
+                endDate = null,
                 isSaved = false,
                 savedEntryCount = null,
                 saveResult = null,
@@ -137,6 +179,8 @@ class PlanBatchAddViewModel @Inject constructor(
         selectionState.update { state ->
             state.copy(
                 selectedGroupUuid = null,
+                startDate = null,
+                endDate = null,
                 isSaved = false,
                 savedEntryCount = null,
                 saveResult = null,
