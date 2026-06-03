@@ -90,6 +90,7 @@ class MedicineStockMutatorTest {
         vialVolume: Double = 1.0,
         warnAtDaysRemaining: Int = 14,
         stockGeneration: Long = 1L,
+        lastTotal: Double? = null,
     ): MedicineEntity {
         val key = MedicationKey.ESTRADIOL_VALERATE
         val preparation = MedicinePreparation.InjectionMultiUseVial(
@@ -121,7 +122,7 @@ class MedicineStockMutatorTest {
             displayDoseUnit = MedicineDisplayDoseUnit.MG.name,
             trackingEnabled = trackingEnabled,
             stockUnitsRemaining = sealed,
-            stockUnitsLastTotal = null,
+            stockUnitsLastTotal = lastTotal,
             openContainerAmount = open,
             warnAtDaysRemaining = warnAtDaysRemaining,
             stockGeneration = stockGeneration,
@@ -1186,6 +1187,39 @@ class MedicineStockMutatorTest {
                 stockUnitsRemaining = 1.0,
                 stockUnitsLastTotal = null,
                 openContainerAmount = 1.0,
+                warnAtDaysRemaining = 14,
+                stockGeneration = 1L,
+                updatedAtEpochMillis = fixedNow.toEpochMilli(),
+            )
+        }
+    }
+
+    @Test
+    fun setOpenContainerAmount_positiveAmountOnLegacyEmptyOpenCracksSealedWithoutInflatingTotal() = runTest {
+        // Legacy/imported row: empty open with sealed stock. The read layer shows
+        // it already cracked (2 sealed + a full open), so the edit dialog hands us
+        // an absolute open amount relative to that healed view. The setter must
+        // canonicalize the raw row first; otherwise the still-raw sealed count (3)
+        // is left untouched and double-counts a container, inflating total stock.
+        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
+            vialRow(sealed = 3.0, open = null, vialVolume = 10.0, lastTotal = 3.0)
+
+        mutator.applySetOpenContainerAmount(
+            database = database,
+            medicineUuid = medicineUuid,
+            amount = 5.0,
+            now = fixedNow,
+        )
+
+        // Cracked: 3 sealed -> 2 sealed + the edited 5 mL open (total 25, not 35),
+        // and the gauge denominator drops with it to stay consistent with reads.
+        coVerify {
+            medicineDao.updateStockFields(
+                uuid = medicineUuid.toString(),
+                trackingEnabled = true,
+                stockUnitsRemaining = 2.0,
+                stockUnitsLastTotal = 2.0,
+                openContainerAmount = 5.0,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 1L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),

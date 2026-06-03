@@ -556,6 +556,7 @@ class HomeSnapshotCodecTest {
             stock = MedicineStock(
                 trackingEnabled = true,
                 unitsRemaining = 2.0,
+                unitsLastTotal = 3.0,
                 openContainerAmount = 0.0,
             ),
         )
@@ -577,6 +578,8 @@ class HomeSnapshotCodecTest {
         val stock = decoded.stockMedicines.single().stock
         assertEquals(1.0, stock.unitsRemaining!!, 1e-9)
         assertEquals(1.0, stock.openContainerAmount!!, 1e-9)
+        // Decode cracks the legacy container, lowering the gauge denominator (3 -> 2).
+        assertEquals(2.0, stock.unitsLastTotal!!, 1e-9)
     }
 
     private fun legacyVersionFourBytes(): ByteArray {

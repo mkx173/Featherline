@@ -71,6 +71,10 @@ internal fun MedicineStock.normalizedFor(preparation: MedicinePreparation): Medi
     return copy(
         unitsRemaining = normalizedSealed,
         openContainerAmount = normalizedOpen,
+        unitsLastTotal = decrementDenominatorOnCrack(
+            lastTotal = unitsLastTotal,
+            cracked = normalizedSealed != sealed,
+        ),
     )
 }
 

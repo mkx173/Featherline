@@ -15,6 +15,7 @@ import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.data.local.UserProfileEntity
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.data.repository.decrementDenominatorOnCrack
 import com.mkx.hrttracker.data.repository.normalizeOpenContainer
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -989,6 +990,10 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
             rawStock.copy(
                 unitsRemaining = normalizedSealed,
                 openContainerAmount = normalizedOpen,
+                unitsLastTotal = decrementDenominatorOnCrack(
+                    lastTotal = rawStock.unitsLastTotal,
+                    cracked = normalizedSealed != sealed,
+                ),
             )
         } else {
             rawStock

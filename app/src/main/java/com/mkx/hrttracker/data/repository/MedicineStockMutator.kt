@@ -28,6 +28,21 @@ internal fun normalizeOpenContainer(
 }
 
 /**
+ * Drops the sealed-stock gauge denominator (unitsLastTotal) by one when a
+ * container has just been cracked open, so the baseline tracks the new sealed
+ * count. No-op when nothing cracked or the denominator is absent/non-finite.
+ * Every eager-unseal site (write promote, set-open, and the read-boundary
+ * normalizers) shares this so a healed row renders the same gauge as a
+ * written one.
+ */
+internal fun decrementDenominatorOnCrack(lastTotal: Double?, cracked: Boolean): Double? {
+    if (!cracked) return lastTotal
+    return lastTotal?.takeIf { it.isFinite() }
+        ?.let { (it - 1.0).coerceAtLeast(0.0).zeroIfTiny() }
+        ?: lastTotal
+}
+
+/**
  * Transaction-scoped helper for every stock-column write. Callers must wrap
  * invocations in their own `databaseHolder.withTransaction { database -> ... }`
  * block so the stock mutation commits atomically with the caller's other
@@ -269,13 +284,7 @@ internal class MedicineStockMutator @Inject constructor() {
         }
         return StockFields(
             unitsRemaining = normalizedSealed.zeroIfTiny(),
-            unitsLastTotal = lastTotal?.let { total ->
-                if (total.isFinite()) {
-                    (total - 1.0).coerceAtLeast(0.0).zeroIfTiny()
-                } else {
-                    total
-                }
-            },
+            unitsLastTotal = decrementDenominatorOnCrack(lastTotal, cracked = true),
             openContainerAmount = normalizedOpen,
         )
     }
@@ -297,18 +306,31 @@ internal class MedicineStockMutator @Inject constructor() {
         val dao = database.medicineDao()
         val entity = dao.getByUuid(medicineUuid.toString()) ?: return
         val containerSize = entity.containerSizeOrNull() ?: return
+        // Canonicalize a possibly-legacy row (empty open with sealed stock left)
+        // before applying the edit, so the sealed count matches the eager-unseal
+        // view the user is editing against. Without this, the raw sealed count is
+        // left intact and a positive open amount double-counts a container.
+        val rawSealed = entity.stockUnitsRemaining?.takeIf { it.isFinite() } ?: 0.0
+        val (_, canonicalSealed) = normalizeOpenContainer(
+            open = entity.openContainerAmount,
+            sealed = rawSealed,
+            capacity = containerSize,
+        )
+        val canonicalLastTotal = decrementDenominatorOnCrack(
+            lastTotal = entity.stockUnitsLastTotal,
+            cracked = canonicalSealed != rawSealed,
+        )
         val clamped = amount.coerceIn(0.0, containerSize).zeroIfTiny()
-        val sealed = entity.stockUnitsRemaining?.takeIf { it.isFinite() } ?: 0.0
         val (normalizedOpen, normalizedSealed) = normalizeOpenContainer(
             open = clamped,
-            sealed = sealed,
+            sealed = canonicalSealed,
             capacity = containerSize,
         )
         dao.updateStockFields(
             uuid = entity.uuid,
             trackingEnabled = true,
             stockUnitsRemaining = normalizedSealed.zeroIfTiny(),
-            stockUnitsLastTotal = entity.stockUnitsLastTotal,
+            stockUnitsLastTotal = canonicalLastTotal,
             openContainerAmount = normalizedOpen,
             warnAtDaysRemaining = entity.warnAtDaysRemaining,
             stockGeneration = entity.stockGeneration,

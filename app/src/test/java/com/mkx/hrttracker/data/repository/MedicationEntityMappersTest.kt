@@ -82,6 +82,35 @@ class MedicationEntityMappersTest {
     }
 
     @Test
+    fun medicineStock_healLegacyEmptyOpenContainerDecrementsGaugeDenominator() {
+        // Cracking one sealed container for display must also drop unitsLastTotal
+        // (the gauge denominator), matching the write-side promote path; otherwise
+        // a legacy 30-vial row renders 29/30 instead of 29/29.
+        val stock = MedicineStock(
+            trackingEnabled = true,
+            unitsRemaining = 30.0,
+            unitsLastTotal = 30.0,
+            openContainerAmount = 0.0,
+        )
+        val preparation = MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = 20.0,
+            vialVolumeMl = 1.0,
+        )
+        val medicine = testCustomMedicine(
+            medicationName = "Legacy vial denominator",
+            category = MedicationCategory.CUSTOM,
+            preparation = preparation,
+            stock = stock,
+        )
+
+        val restored = medicine.toEntity().toMedicineModel()
+
+        assertEquals(29.0, restored.stock.unitsRemaining!!, 1e-9)
+        assertEquals(1.0, restored.stock.openContainerAmount!!, 1e-9)
+        assertEquals(29.0, restored.stock.unitsLastTotal!!, 1e-9)
+    }
+
+    @Test
     fun medicineStock_preservesOutNullOpenRepresentationWhenNoSealedStockRemains() {
         val stock = MedicineStock(
             trackingEnabled = true,
