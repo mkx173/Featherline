@@ -376,6 +376,9 @@ class MedicationStockSubcardTest {
         val row = model.rows.single()
         assertEquals("1.25", row.valueText)
         assertEquals("0 / 5", row.previewValueText)
+        // The preview depletes the open container toward empty only; the eager
+        // crack of a sealed container surfaces on the post-save re-render, never
+        // mid-preview, so the sealed supplement count stays frozen at 2 here.
         assertEquals("2", row.sealedSupplement?.countText)
     }
 
@@ -401,6 +404,9 @@ class MedicationStockSubcardTest {
         val row = model.rows.single()
         assertEquals("0.1", row.valueText)
         assertEquals("0 / 10", row.previewValueText)
+        // A dose larger than the open dreg still previews the open container at
+        // empty without splitting the dose or pre-showing the crack, so the
+        // sealed supplement count is unchanged until the write actually lands.
         assertEquals("1", row.sealedSupplement?.countText)
     }
 

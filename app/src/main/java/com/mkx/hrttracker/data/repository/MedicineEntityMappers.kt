@@ -49,7 +49,13 @@ internal fun MedicineEntity.toMedicineModel(): Medicine {
     )
 }
 
-private fun MedicineStock.normalizedFor(preparation: MedicinePreparation): MedicineStock {
+/**
+ * Restores the eager-unseal invariant at a model-read boundary: a tracking
+ * container preparation never keeps an empty open amount while sealed stock
+ * remains. Shared by every decode/restore site (Room mapper, home-snapshot
+ * decode, backup restore) so legacy/imported degenerate rows land canonical.
+ */
+internal fun MedicineStock.normalizedFor(preparation: MedicinePreparation): MedicineStock {
     if (!trackingEnabled) return this
     val capacity = when (preparation) {
         is MedicinePreparation.InjectionMultiUseVial -> preparation.vialVolumeMl

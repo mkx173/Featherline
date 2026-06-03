@@ -282,8 +282,11 @@ internal class MedicineStockMutator @Inject constructor() {
 
     /**
      * Sets the open container amount directly. Container topology only — pool
-     * preparations have no open container. Clamps to [0, containerSize]. No
-     * generation bump: this edits the current vial, not the inventory snapshot.
+     * preparations have no open container. Clamps to [0, containerSize]. When
+     * the result lands empty and sealed stock remains, eagerly cracks one
+     * sealed container so an empty open gauge never persists, decrementing the
+     * sealed count to match. No generation bump: this is an incremental stock
+     * edit, not a new counted session.
      */
     suspend fun applySetOpenContainerAmount(
         database: HrtTrackerDatabase,

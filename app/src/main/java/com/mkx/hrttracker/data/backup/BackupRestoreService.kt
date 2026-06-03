@@ -968,6 +968,10 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
         }
     }
 
+    // Heal legacy/degenerate stock rows on restore so imported containers land
+    // canonical (no empty open with sealed stock remaining). Operates on the
+    // backup DTO via the shared normalizeOpenContainer primitive, since the
+    // model-typed MedicineStock.normalizedFor helper does not fit this type.
     val rawStock = stock
     val normalizedStock = if (rawStock?.trackingEnabled == true) {
         val capacity = when (preparationType) {
