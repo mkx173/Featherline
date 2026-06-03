@@ -150,10 +150,12 @@ entities stay inside `data/`.
 [`data/local`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local)
 holds the Room database, the 10 `@Entity` data classes, the 6 DAOs,
 the migration objects, and the SQLCipher passphrase provider. The
-current schema is version 5 (the medicine-identity refactor reset the
+current schema is version 6 (the medicine-identity refactor reset the
 schema and dropped the legacy v1–v29 migration chain; `MIGRATION_2_3`
 and `MIGRATION_3_4` then added the stock columns on `medicines`, and
-`MIGRATION_4_5` added the `doseAmountDelta` column). See
+`MIGRATION_4_5` added the `doseAmountDelta` column, and
+`MIGRATION_5_6` added the medication-log `(category, appliedAtEpochMillis)`
+index). See
 [data-model.md](data-model.md) for the per-entity breakdown.
 
 [`data/backup`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup)

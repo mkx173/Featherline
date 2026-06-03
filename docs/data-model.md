@@ -10,14 +10,14 @@ format used for manual backups, see [backup-format.md](backup-format.md).
 ## Database setup
 
 - [`HrtTrackerDatabase`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt)
-  is the Room database at schema version 5. It declares 10 entities
+  is the Room database at schema version 6. It declares 10 entities
   and exposes 6 DAOs. `exportSchema` is off — schemas are tracked via
   migration objects in source rather than committed schema JSON.
 - [`DatabaseHolder`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/DatabaseHolder.kt)
   builds the database via `Room.databaseBuilder`, installs a
   `SupportOpenHelperFactory` from SQLCipher's `net.zetetic` artifact,
-  and registers `MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4`, and
-  `MIGRATION_4_5`.
+  and registers `MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4`,
+  `MIGRATION_4_5`, and `MIGRATION_5_6`.
   No `fallbackToDestructiveMigration`
   is wired — a missing migration crashes loudly in every build, debug
   and release, so silent data loss can't slip through.
@@ -197,14 +197,12 @@ The slot-fulfillment link is `sourceGroupUuid` / `scheduleTimeUuid` /
 `scheduledForIso`, all nullable — a manual dose has no source group.
 No FK to `medication_groups` either, so deleting a group does not
 cascade into the log; the repository nulls these columns out via
-`reclassifyEntriesForDeletedGroup`. The entity declares no secondary
-indices — only the `@PrimaryKey` on `uuid` — so the home-screen fast
-path `HomeDao.getLatestEstradiolEntryOnOrBefore` and the more general
-`MedicationLogDao.getLatestEntryByCategoryOnOrBefore` both filter by
-`category` and order by `appliedAtEpochMillis DESC LIMIT 1` against an
-unindexed scan. The log table stays small enough that this is
-acceptable; revisit if a future feature retains the full history at
-scale.
+`reclassifyEntriesForDeletedGroup`. The entity declares one secondary
+index, `(category, appliedAtEpochMillis)`, which serves the
+latest/category-bounded log reads and the home snapshot's
+latest-antiandrogen lookup (a single-pass `ROW_NUMBER()` window query
+that picks the latest entry per `(applicationType, medicineUuid,
+sourceGroupUuid)` identity). The primary key remains `uuid`.
 
 ### `BloodTestPanelEntity`
 
@@ -403,7 +401,7 @@ abandoned mid-flight and the database was collapsed to v1, with
 fresh at v1 and bumps via `Migration` objects declared inline in
 [`HrtTrackerDatabase.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt).
 The chain today is `MIGRATION_1_2` → `MIGRATION_2_3` → `MIGRATION_3_4`
-→ `MIGRATION_4_5`.
+→ `MIGRATION_4_5` → `MIGRATION_5_6`.
 `MIGRATION_1_2` adds the `displayDoseUnit` column to `medicines` with a
 `MG` default. `MIGRATION_2_3` adds the stock feature: the six stock
 columns on `medicines` (see [`MedicineEntity`](#medicineentity) above),
@@ -416,7 +414,10 @@ deduction is applied directly to the medicine row and the log table
 carries no stock state. (This is why a logged dose is not refunded when
 its entry is later edited or deleted — the user re-syncs via Adjust
 Stock instead.) `MIGRATION_4_5` adds the nullable `doseAmountDelta`
-column to `medication_log_entries` for the actual-amount feature. The
+column to `medication_log_entries` for the actual-amount feature.
+`MIGRATION_5_6` adds the `(category, appliedAtEpochMillis)` index that
+serves category/latest reads and the latest-antiandrogen home snapshot
+query. The
 reset deliberately did not register a `MIGRATION_29_*` shim, and no
 `fallbackToDestructiveMigration` is wired in any build flavor: a
 pre-refactor database does not migrate, it fails to open at startup

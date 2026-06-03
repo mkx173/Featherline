@@ -1,10 +1,19 @@
 package com.mkx.hrttracker.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.time.ZoneId
 
-@Entity(tableName = "medication_log_entries")
+@Entity(
+    tableName = "medication_log_entries",
+    indices = [
+        Index(
+            name = "index_medication_log_entries_category_appliedAtEpochMillis",
+            value = ["category", "appliedAtEpochMillis"],
+        ),
+    ],
+)
 data class MedicationLogEntryEntity(
     @PrimaryKey val uuid: String,
     val category: String,
