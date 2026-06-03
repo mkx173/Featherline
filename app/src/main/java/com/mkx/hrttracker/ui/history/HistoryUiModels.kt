@@ -41,44 +41,6 @@ internal enum class HistoryEntryTapAction {
     TOGGLE_SELECTION,
 }
 
-internal enum class HistoryTopAppBarFlipFace {
-    NORMAL,
-    SELECTION,
-}
-
-private const val historyTopAppBarFlipHalfwayProgress = 0.5f
-private const val historyTopAppBarFlipQuarterTurnDegrees = 90f
-
-internal fun historyTopAppBarFlipFace(progress: Float): HistoryTopAppBarFlipFace {
-    return if (progress.coerceIn(0f, 1f) < historyTopAppBarFlipHalfwayProgress) {
-        HistoryTopAppBarFlipFace.NORMAL
-    } else {
-        HistoryTopAppBarFlipFace.SELECTION
-    }
-}
-
-internal fun historyTopAppBarFlipRotationX(
-    progress: Float,
-    face: HistoryTopAppBarFlipFace,
-): Float {
-    val coercedProgress = progress.coerceIn(0f, 1f)
-    return when (face) {
-        HistoryTopAppBarFlipFace.NORMAL -> {
-            val faceProgress = (coercedProgress / historyTopAppBarFlipHalfwayProgress)
-                .coerceIn(0f, 1f)
-            historyTopAppBarFlipQuarterTurnDegrees * faceProgress
-        }
-        HistoryTopAppBarFlipFace.SELECTION -> {
-            val faceProgress =
-                ((coercedProgress - historyTopAppBarFlipHalfwayProgress) /
-                    historyTopAppBarFlipHalfwayProgress)
-                    .coerceIn(0f, 1f)
-            -historyTopAppBarFlipQuarterTurnDegrees +
-                historyTopAppBarFlipQuarterTurnDegrees * faceProgress
-        }
-    }
-}
-
 internal fun buildHistoryVisibleEntries(
     entries: List<MedicationLogEntry>,
     displayedMonth: YearMonth,

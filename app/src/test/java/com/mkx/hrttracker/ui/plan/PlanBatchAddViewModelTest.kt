@@ -17,6 +17,7 @@ import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -94,6 +95,128 @@ class PlanBatchAddViewModelTest {
         assertEquals(secondGroup.uuid, viewModel.uiState.value.selectedGroupUuid)
         assertEquals(secondGroup.schedule.since, viewModel.uiState.value.startDate)
         assertEquals(viewModel.uiState.value.today, viewModel.uiState.value.endDate)
+        assertEquals(false, viewModel.uiState.value.selectedGroupStartsInFuture)
+    }
+
+    @Test
+    fun selectGroup_flagsGroupThatStartsInFuture() = runTest {
+        val futureGroup = medicationGroup(
+            uuid = UUID.fromString("a1b2c3d4-0000-4000-8000-000000000099"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 5, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
+        )
+        val viewModel = planBatchAddViewModel(
+            groups = listOf(futureGroup),
+            now = LocalDateTime.of(2026, 4, 25, 12, 0),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectGroup(futureGroup.uuid)
+        advanceUntilIdle()
+
+        // A not-yet-started plan is flagged so the UI shows the prompt instead of
+        // an inverted range, and nothing can be confirmed for it.
+        assertEquals(true, viewModel.uiState.value.selectedGroupStartsInFuture)
+        assertEquals(0, viewModel.uiState.value.entryCount)
+        assertEquals(false, viewModel.uiState.value.canConfirm)
+    }
+
+    @Test
+    fun futureGroup_resolvesToTodayRangeOnceStartDateArrives() = runTest {
+        val futureGroup = medicationGroup(
+            uuid = UUID.fromString("a1b2c3d4-0000-4000-8000-000000000099"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 5, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
+        )
+        val timeSource = FakeAppTimeSource(initialMinute = LocalDateTime.of(2026, 4, 25, 12, 0))
+        val viewModel = planBatchAddViewModel(groups = listOf(futureGroup), appTimeSource = timeSource)
+        advanceUntilIdle()
+
+        viewModel.selectGroup(futureGroup.uuid)
+        advanceUntilIdle()
+
+        // The clock rolls forward to the plan's start date while the screen stays open.
+        timeSource.setCurrentMinute(LocalDateTime.of(2026, 5, 1, 12, 0))
+        advanceUntilIdle()
+
+        // Once the start date arrives the guard clears and the default range
+        // resolves to today..today, not the stale `since..(old today)` inverted
+        // range frozen when the future group was first selected.
+        assertEquals(false, viewModel.uiState.value.selectedGroupStartsInFuture)
+        assertEquals(LocalDate.of(2026, 5, 1), viewModel.uiState.value.startDate)
+        assertEquals(LocalDate.of(2026, 5, 1), viewModel.uiState.value.endDate)
+    }
+
+    @Test
+    fun selectedGroup_freezesDefaultEndDateAcrossRollover() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("09b7f93e-0196-47f5-bb55-3581ee5d0ee7"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
+        )
+        val timeSource = FakeAppTimeSource(initialMinute = LocalDateTime.of(2026, 4, 25, 12, 0))
+        val viewModel = planBatchAddViewModel(groups = listOf(group), appTimeSource = timeSource)
+        advanceUntilIdle()
+
+        viewModel.selectGroup(group.uuid)
+        advanceUntilIdle()
+
+        timeSource.setCurrentMinute(LocalDateTime.of(2026, 4, 26, 12, 0))
+        advanceUntilIdle()
+
+        // A selected group's default range is frozen at selection time, so a
+        // date rollover advances `today` but must not drag the end date with it.
+        assertEquals(LocalDate.of(2026, 4, 26), viewModel.uiState.value.today)
+        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.endDate)
+    }
+
+    @Test
+    fun noGroupSelected_tracksLiveDateAcrossRollover() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("09b7f93e-0196-47f5-bb55-3581ee5d0ee7"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
+        )
+        val timeSource = FakeAppTimeSource(initialMinute = LocalDateTime.of(2026, 4, 25, 12, 0))
+        val viewModel = planBatchAddViewModel(groups = listOf(group), appTimeSource = timeSource)
+        advanceUntilIdle()
+
+        // Select then deselect so any frozen range is cleared back to "no group".
+        viewModel.selectGroup(group.uuid)
+        advanceUntilIdle()
+        viewModel.selectGroup(group.uuid)
+        advanceUntilIdle()
+
+        timeSource.setCurrentMinute(LocalDateTime.of(2026, 4, 26, 12, 0))
+        advanceUntilIdle()
+
+        // With no group selected the default range tracks the live date.
+        assertNull(viewModel.uiState.value.selectedGroupUuid)
+        assertEquals(LocalDate.of(2026, 4, 26), viewModel.uiState.value.endDate)
     }
 
     @Test
@@ -420,7 +543,11 @@ class PlanBatchAddViewModelTest {
         preparation = MedicinePreparation.Pill(strengthMgPerTablet = 100.0),
     )
 
-    private fun planBatchAddViewModel(groups: List<MedicationGroup>): PlanBatchAddViewModel {
+    private fun planBatchAddViewModel(
+        groups: List<MedicationGroup>,
+        now: LocalDateTime = LocalDateTime.of(2026, 4, 25, 12, 0),
+        appTimeSource: FakeAppTimeSource = FakeAppTimeSource(initialMinute = now),
+    ): PlanBatchAddViewModel {
         val medicationGroupRepository = mockk<MedicationGroupRepository>()
         val medicationLogRepository = mockk<MedicationLogRepository>()
         val settingsRepository = mockk<SettingsRepository>()
@@ -436,6 +563,7 @@ class PlanBatchAddViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationReminderScheduler = mockk<MedicationReminderScheduler>(relaxed = true),
             settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
         )
     }
 }

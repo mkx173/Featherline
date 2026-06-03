@@ -54,6 +54,7 @@ import com.mkx.hrttracker.model.medication.PlanDaySchedule
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
@@ -600,21 +601,29 @@ internal fun RegimenGroupCard(
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                    if (selected || showChevron) {
-                        Icon(
-                            imageVector = if (selected) Icons.Rounded.Check else Icons.Rounded.ChevronRight,
-                            contentDescription = if (selected) {
-                                stringResource(R.string.plan_batch_add_group_selected)
-                            } else {
-                                null
-                            },
-                            tint = if (selected) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                    // Rendered unconditionally (not gated on selected/showChevron)
+                    // so the check can flip in/out as `selected` toggles instead of
+                    // popping. When showChevron is false the front face is empty, so
+                    // it flips between blank and the check.
+                    FlipSlot(
+                        flipped = selected,
+                        front = {
+                            if (showChevron) {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
-                        )
-                    }
+                        },
+                        back = {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = stringResource(R.string.plan_batch_add_group_selected),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        },
+                    )
                 }
             }
 

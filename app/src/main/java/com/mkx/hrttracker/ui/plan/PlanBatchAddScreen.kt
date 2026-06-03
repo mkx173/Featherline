@@ -58,10 +58,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.datePickerSelectableDates
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
@@ -191,6 +193,7 @@ private fun PlanBatchAddScreenContent(
         PlanBatchDateRangePickerDialog(
             startDate = uiState.startDate,
             endDate = uiState.endDate,
+            today = uiState.today,
             onDateRangeSelected = { startDate, endDate ->
                 onStartDateSelected(startDate)
                 onEndDateSelected(endDate)
@@ -230,30 +233,25 @@ private fun PlanBatchAddScreenContent(
                     )
                 },
                 navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            if (shouldDeselectOnBack) {
-                                clearSelectionAndDismissDialogs()
-                            } else {
-                                onNavigateBack()
+                    FlipSlot(
+                        flipped = shouldDeselectOnBack,
+                        front = {
+                            IconButton(onClick = onNavigateBack) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = stringResource(R.string.navigate_back),
+                                )
                             }
-                        }
-                    ) {
-                        Icon(
-                            imageVector = if (shouldDeselectOnBack) {
-                                Icons.Rounded.Close
-                            } else {
-                                Icons.AutoMirrored.Rounded.ArrowBack
-                            },
-                            contentDescription = stringResource(
-                                if (shouldDeselectOnBack) {
-                                    R.string.history_cancel_selection
-                                } else {
-                                    R.string.navigate_back
-                                }
-                            )
-                        )
-                    }
+                        },
+                        back = {
+                            IconButton(onClick = { clearSelectionAndDismissDialogs() }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = stringResource(R.string.history_cancel_selection),
+                                )
+                            }
+                        },
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
@@ -329,6 +327,7 @@ private fun PlanBatchAddScreenContent(
                     skippedEntryCount = uiState.skippedEntryCount,
                     canConfirm = uiState.canConfirm,
                     hasSelectedGroup = uiState.selectedGroupUuid != null,
+                    selectedGroupStartsInFuture = uiState.selectedGroupStartsInFuture,
                     dateFormatter = rangeDateFormatter,
                     onDateRangeClick = { isRangePickerVisible = true },
                     onConfirmClick = { isConfirmationVisible = true },
@@ -348,6 +347,7 @@ private fun PlanBatchAddRangeSelector(
     skippedEntryCount: Int,
     canConfirm: Boolean,
     hasSelectedGroup: Boolean,
+    selectedGroupStartsInFuture: Boolean,
     dateFormatter: LocalDateFormatter,
     onDateRangeClick: () -> Unit,
     onConfirmClick: () -> Unit,
@@ -366,9 +366,17 @@ private fun PlanBatchAddRangeSelector(
 
 
 
-        if (!hasSelectedGroup) {
+        if (!hasSelectedGroup || selectedGroupStartsInFuture) {
+            // A not-yet-started plan reuses the "no group selected" prompt path,
+            // since there's no valid past range to pick for it.
             SupportMessageListItem(
-                text = stringResource(R.string.plan_batch_add_select_group_prompt),
+                text = stringResource(
+                    if (selectedGroupStartsInFuture) {
+                        R.string.plan_batch_add_group_not_started
+                    } else {
+                        R.string.plan_batch_add_select_group_prompt
+                    }
+                ),
                 painter = painterResource(R.drawable.ic_info),
                 leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                 index = 0,
@@ -458,12 +466,20 @@ private fun PlanBatchAddRangeSelector(
 private fun PlanBatchDateRangePickerDialog(
     startDate: LocalDate,
     endDate: LocalDate,
+    today: LocalDate,
     onDateRangeSelected: (LocalDate, LocalDate) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // Block future dates: batch-add only backfills occurrences up to now, so a
+    // future end has nothing to add. Keyed on today so it stays correct if the
+    // date rolls over while the screen is open.
+    val selectableDates = remember(today) {
+        datePickerSelectableDates(maximumDate = today)
+    }
     val state = rememberDateRangePickerState(
         initialSelectedStartDate = startDate,
         initialSelectedEndDate = endDate,
+        selectableDates = selectableDates,
     )
 
     DatePickerDialog(
@@ -615,6 +631,7 @@ private fun PlanBatchDateRangePickerDialogPreview() {
         PlanBatchDateRangePickerDialog(
             startDate = LocalDate.of(2026, 4, 20),
             endDate = LocalDate.of(2026, 4, 26),
+            today = LocalDate.of(2026, 4, 26),
             onDateRangeSelected = { _, _ -> },
             onDismiss = { },
         )
