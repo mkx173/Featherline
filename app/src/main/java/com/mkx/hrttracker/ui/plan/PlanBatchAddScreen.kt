@@ -327,6 +327,7 @@ private fun PlanBatchAddScreenContent(
                     skippedEntryCount = uiState.skippedEntryCount,
                     canConfirm = uiState.canConfirm,
                     hasSelectedGroup = uiState.selectedGroupUuid != null,
+                    selectedGroupStartsInFuture = uiState.selectedGroupStartsInFuture,
                     dateFormatter = rangeDateFormatter,
                     onDateRangeClick = { isRangePickerVisible = true },
                     onConfirmClick = { isConfirmationVisible = true },
@@ -346,6 +347,7 @@ private fun PlanBatchAddRangeSelector(
     skippedEntryCount: Int,
     canConfirm: Boolean,
     hasSelectedGroup: Boolean,
+    selectedGroupStartsInFuture: Boolean,
     dateFormatter: LocalDateFormatter,
     onDateRangeClick: () -> Unit,
     onConfirmClick: () -> Unit,
@@ -364,9 +366,17 @@ private fun PlanBatchAddRangeSelector(
 
 
 
-        if (!hasSelectedGroup) {
+        if (!hasSelectedGroup || selectedGroupStartsInFuture) {
+            // A not-yet-started plan reuses the "no group selected" prompt path,
+            // since there's no valid past range to pick for it.
             SupportMessageListItem(
-                text = stringResource(R.string.plan_batch_add_select_group_prompt),
+                text = stringResource(
+                    if (selectedGroupStartsInFuture) {
+                        R.string.plan_batch_add_group_not_started
+                    } else {
+                        R.string.plan_batch_add_select_group_prompt
+                    }
+                ),
                 painter = painterResource(R.drawable.ic_info),
                 leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                 index = 0,

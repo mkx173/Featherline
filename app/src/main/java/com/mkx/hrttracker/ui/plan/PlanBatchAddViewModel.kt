@@ -59,6 +59,11 @@ class PlanBatchAddViewModel @Inject constructor(
             groups.firstOrNull { group -> group.uuid == groupUuid }
         }
         val today = now.toLocalDate()
+        // A not-yet-started plan (future `since`) has no past occurrences to
+        // backfill, and defaulting startDate to `since` would invert the range
+        // (start after end). Flag it so the UI shows a prompt instead.
+        val selectedGroupStartsInFuture = selectedGroup != null &&
+            selectedGroup.schedule.since.isAfter(today)
         val startDate = selection.startDate ?: selectedGroup?.schedule?.since ?: today
         val endDate = selection.endDate ?: today
         val entryPlan = if (selectedGroup != null) {
@@ -78,6 +83,7 @@ class PlanBatchAddViewModel @Inject constructor(
             groups = groups,
             selectedGroupUuid = selectedGroup?.uuid,
             selectedGroupName = selectedGroup?.name.orEmpty(),
+            selectedGroupStartsInFuture = selectedGroupStartsInFuture,
             startDate = startDate,
             endDate = endDate,
             today = today,
@@ -233,6 +239,7 @@ data class PlanBatchAddUiState(
     val groups: List<MedicationGroup> = emptyList(),
     val selectedGroupUuid: UUID? = null,
     val selectedGroupName: String = "",
+    val selectedGroupStartsInFuture: Boolean = false,
     val startDate: LocalDate = LocalDate.now(),
     val endDate: LocalDate = LocalDate.now(),
     val today: LocalDate = LocalDate.now(),

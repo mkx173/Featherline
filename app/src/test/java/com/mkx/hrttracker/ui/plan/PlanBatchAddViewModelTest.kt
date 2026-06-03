@@ -95,6 +95,36 @@ class PlanBatchAddViewModelTest {
         assertEquals(secondGroup.uuid, viewModel.uiState.value.selectedGroupUuid)
         assertEquals(secondGroup.schedule.since, viewModel.uiState.value.startDate)
         assertEquals(viewModel.uiState.value.today, viewModel.uiState.value.endDate)
+        assertEquals(false, viewModel.uiState.value.selectedGroupStartsInFuture)
+    }
+
+    @Test
+    fun selectGroup_flagsGroupThatStartsInFuture() = runTest {
+        val futureGroup = medicationGroup(
+            uuid = UUID.fromString("a1b2c3d4-0000-4000-8000-000000000099"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 5, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
+        )
+        val viewModel = planBatchAddViewModel(
+            groups = listOf(futureGroup),
+            now = LocalDateTime.of(2026, 4, 25, 12, 0),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectGroup(futureGroup.uuid)
+        advanceUntilIdle()
+
+        // A not-yet-started plan is flagged so the UI shows the prompt instead of
+        // an inverted range, and nothing can be confirmed for it.
+        assertEquals(true, viewModel.uiState.value.selectedGroupStartsInFuture)
+        assertEquals(0, viewModel.uiState.value.entryCount)
+        assertEquals(false, viewModel.uiState.value.canConfirm)
     }
 
     @Test
