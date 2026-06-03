@@ -141,6 +141,19 @@ class MedicationGroupRepository @Inject constructor(
                 // doses scheduled at/after now are already rejected by the
                 // current/future planned-slot guard above.
                 if (archivedThroughDate != null) {
+                    // Ceiling: never store a future cutoff. archivedAt is set at the
+                    // mutation instant, so a future cutoff would hide the group from
+                    // active lists/reminders now while its plan still owns days up to
+                    // that future day. The UI clamps to today, but the repository is
+                    // the authoritative invariant enforcer for non-UI callers.
+                    val maxArchiveDate = nowLocal.toLocalDate()
+                    if (archivedThroughDate.isAfter(maxArchiveDate)) {
+                        throw ArchiveDateAfterTodayException(
+                            uuid = uuid,
+                            archivedThroughDate = archivedThroughDate,
+                            maxArchiveDate = maxArchiveDate,
+                        )
+                    }
                     // Floor on the schedule start (plan's first owned day), not the
                     // wall-clock creation time: a backdated/backfilled plan can start
                     // before the group row was created, and archiving through any day
@@ -491,6 +504,14 @@ class ArchiveDateBeforeRecordedDoseException(
     minArchiveDate: LocalDate,
 ) : IllegalArgumentException(
     "Medication group $uuid archive date $archivedThroughDate is before minimum archive date $minArchiveDate."
+)
+
+class ArchiveDateAfterTodayException(
+    uuid: UUID,
+    archivedThroughDate: LocalDate,
+    maxArchiveDate: LocalDate,
+) : IllegalArgumentException(
+    "Medication group $uuid archive date $archivedThroughDate is after maximum archive date $maxArchiveDate."
 )
 
 class ScheduleTimeCountMismatchException : IllegalArgumentException(

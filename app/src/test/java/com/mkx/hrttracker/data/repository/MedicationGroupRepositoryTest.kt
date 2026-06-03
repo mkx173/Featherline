@@ -389,6 +389,44 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
+    fun archiveGroup_rejectsExplicitDateAfterToday() = runTest {
+        // The repository is the authoritative invariant enforcer (the UI clamp is
+        // not trusted): an explicitly picked date later than today must be
+        // rejected. Persisting a future end-of-day cutoff while marking
+        // archivedAt now would hide the group from active lists/reminders
+        // immediately even though its plan still owns days up to the future
+        // cutoff. The "Now" default (null) is exempt — it is never future.
+        val groupUuid = UUID.fromString("a17e0000-0000-4000-8000-00000000fade")
+        val now = Instant.parse("2026-06-03T08:00:45Z")
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(9, 0)),
+            scheduleSinceEpochDay = LocalDate.of(2026, 4, 1).toEpochDay(),
+        )
+        coEvery { medicationLogDao.getEntriesForGroup(groupUuid.toString()) } returns emptyList()
+
+        try {
+            repository.archiveGroup(
+                uuid = groupUuid,
+                archivedThroughDate = LocalDate.of(2026, 6, 10),
+                now = now,
+            )
+            fail("Expected archive date after today to be rejected")
+        } catch (expected: ArchiveDateAfterTodayException) {
+            assertTrue(expected.message.orEmpty().contains("after maximum archive date"))
+        }
+
+        coVerify(exactly = 0) {
+            medicationGroupDao.updateGroupArchiveState(any(), any(), any(), any())
+        }
+    }
+
+    @Test
     fun archiveGroup_allowsBackdateToScheduleStartWhenGroupCreatedAfterStart() = runTest {
         // Backfilled plan: the schedule starts Jun 1 but the group row was
         // created today (Jun 3, e.g. backdated start at creation). Archiving
