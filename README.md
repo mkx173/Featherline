@@ -11,7 +11,7 @@ HRT medication tracker for Android with PK projections and lab tracking. On-devi
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Play Store](https://img.shields.io/badge/Play_Store-available-success)](https://play.google.com/store/apps/details?id=com.mkx.hrttracker)
 [![Build](https://github.com/mkx173/Featherline/actions/workflows/android-release.yml/badge.svg)](https://github.com/mkx173/Featherline/actions/workflows/android-release.yml)
-![minSdk](https://img.shields.io/badge/minSdk-31-blue.svg)
+![minSdk](https://img.shields.io/badge/minSdk-26-blue.svg)
 ![targetSdk](https://img.shields.io/badge/targetSdk-37-blue.svg)
 
 Featherline logs doses across injection, patch, gel, oral, and sublingual routes; projects estradiol levels from your dose history using a three-compartment pharmacokinetic model; and tracks blood test results with automatic unit conversion across canonical and clinical units. Everything stays in an encrypted local database — no accounts, no telemetry, no network calls. Backups are encrypted and compressed. Available in English and Simplified Chinese.
