@@ -12,7 +12,9 @@ import com.mkx.hrttracker.model.pk.projectionFutureDays
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
@@ -28,6 +30,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import javax.inject.Inject
@@ -43,12 +46,16 @@ class HomeRepository @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
-    fun observeHomeInputs(now: LocalDateTime): Flow<HomeInputs> {
+    fun observeHomeInputs(
+        date: LocalDate,
+        nowFlow: StateFlow<LocalDateTime>,
+        zoneId: ZoneId,
+    ): Flow<HomeInputs> {
         return channelFlow {
             val sourceMutex = Mutex()
             var roomStarted = false
             val snapshotJob = launch {
-                observeHomeSnapshotInputs(now).take(1).collect { snapshotInputs ->
+                observeHomeSnapshotInputs(nowFlow.value, zoneId).take(1).collect { snapshotInputs ->
                     sourceMutex.withLock {
                         if (!roomStarted) {
                             send(snapshotInputs)
@@ -57,7 +64,7 @@ class HomeRepository @Inject constructor(
                 }
             }
 
-            observeHomeRoomInputs(now).collect { roomInputs ->
+            observeHomeRoomInputs(date, nowFlow, zoneId).collect { roomInputs ->
                 sourceMutex.withLock {
                     if (!roomStarted) {
                         roomStarted = true
@@ -69,8 +76,7 @@ class HomeRepository @Inject constructor(
         }
     }
 
-    fun observeHomeSnapshotInputs(now: LocalDateTime): Flow<HomeInputs> {
-        val zoneId = ZoneId.systemDefault()
+    fun observeHomeSnapshotInputs(now: LocalDateTime, zoneId: ZoneId): Flow<HomeInputs> {
         // homeE2ChartWindowOptionFlow is the raw DataStore-backed flow that
         // bypasses settingsState's eager initialValue, so the first emission
         // here carries the persisted option rather than the SEVEN_DAYS
@@ -114,6 +120,7 @@ class HomeRepository @Inject constructor(
                     activeGroups = usable.activeGroups,
                     logEntries = usable.stockFulfillmentEntries,
                     now = now.atZone(zoneId).toInstant(),
+                    zoneId = zoneId,
                 ).stockWarningsOnly()
                 HomeInputs(
                     activeGroups = usable.activeGroups,
@@ -146,29 +153,49 @@ class HomeRepository @Inject constructor(
             .flowOn(Dispatchers.IO)
     }
 
-    private fun observeHomeRoomInputs(now: LocalDateTime): Flow<HomeInputs> {
-        val zoneId = ZoneId.systemDefault()
-        val today = now.toLocalDate()
+    private fun observeHomeRoomInputs(
+        date: LocalDate,
+        nowFlow: StateFlow<LocalDateTime>,
+        zoneId: ZoneId,
+    ): Flow<HomeInputs> {
+        val today = date
         val stockWindowStartIso = today.minusDays(1).atStartOfDay().toString()
         val stockWindowEndIso = today
             .plusDays(ScheduledRunwayCalculator.HORIZON_DAYS)
             .atTime(23, 59, 59)
             .toString()
-        val nowInstant = now.atZone(zoneId).toInstant()
-        val roomBasicsFlow = observeHomeStartupInputs(now)
-        return combine(
-            roomBasicsFlow,
-            homeSnapshotRepository.observeHomeSnapshot(),
-            settingsRepository.homeE2ChartWindowOptionFlow,
+        val roomBasicsFlow = observeHomeStartupInputs(nowFlow.value, zoneId)
+        val stockInputsFlow = combine(
             medicineRepository.observeAllActiveTracked(),
             medicationLogRepository.observeScheduledEntriesInWindow(
                 scheduledStartIso = stockWindowStartIso,
                 scheduledEndIso = stockWindowEndIso,
             ),
-        ) { inputs, snapshot, option, trackedMedicines, stockFulfillmentEntries ->
+        ) { trackedMedicines, stockFulfillmentEntries ->
+            trackedMedicines to stockFulfillmentEntries
+        }
+        return combine(
+            roomBasicsFlow,
+            homeSnapshotRepository.observeHomeSnapshot(),
+            settingsRepository.homeE2ChartWindowOptionFlow,
+            stockInputsFlow,
+            nowFlow,
+        ) { inputs, snapshot, option, stockInputs, now ->
             if (inputs.settings.homeE2ChartWindowOption != option) {
                 return@combine null
             }
+            val (trackedMedicines, stockFulfillmentEntries) = stockInputs
+            val nowInstant = now.atZone(zoneId).toInstant()
+            val pkHorizon = date
+                .plusDays(option.projectionFutureDays())
+                .atStartOfDay()
+            val simulationEntries = buildEstradiolPkSimulationEntries(
+                realEntries = inputs.estradiolPkEntries,
+                activeGroups = inputs.activeGroups,
+                now = now,
+                horizon = pkHorizon,
+                zoneId = zoneId,
+            )
             val pkProjectionRecord = snapshot
                 ?.takeIf {
                     homeSnapshotRepository.isSnapshotUsable(
@@ -184,6 +211,7 @@ class HomeRepository @Inject constructor(
                 activeGroups = inputs.activeGroups,
                 logEntries = stockFulfillmentEntries,
                 now = nowInstant,
+                zoneId = zoneId,
             ).stockWarningsOnly()
             HomeInputs(
                 activeGroups = inputs.activeGroups,
@@ -202,8 +230,8 @@ class HomeRepository @Inject constructor(
                 pkProjectionExpiresAt = pkProjectionRecord
                     ?.let { Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis) },
                 latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry ?: inputs.latestEstradiolEntry,
-                estradiolPkEntries = inputs.estradiolPkEntries,
-                estradiolPkPlannedEntries = inputs.estradiolPkPlannedEntries,
+                estradiolPkEntries = simulationEntries.real,
+                estradiolPkPlannedEntries = simulationEntries.planned,
                 stockWarnings = stockWarnings,
                 source = HomeInputSource.ROOM,
                 now = now,
@@ -237,15 +265,15 @@ class HomeRepository @Inject constructor(
                         latestEstradiolEntry = null,
                         estradiolPkEntries = emptyList(),
                         source = HomeInputSource.ROOM,
-                        now = now,
+                        now = nowFlow.value,
                     )
                 )
             }
             .flowOn(Dispatchers.IO)
     }
 
-    fun observeHomeStartupInputs(now: LocalDateTime): Flow<HomeStartupInputs> {
-        val zoneId = ZoneId.systemDefault()
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun observeHomeStartupInputs(now: LocalDateTime, zoneId: ZoneId): Flow<HomeStartupInputs> {
         val today = now.toLocalDate()
         val scheduledStartIso = today.minusDays(1).atStartOfDay().toString()
         val scheduledEndIso = today.plusDays(HOME_SCHEDULE_LOOKAHEAD_DAYS).atTime(23, 59, 59).toString()
@@ -392,16 +420,9 @@ class HomeRepository @Inject constructor(
                                 entry?.toMedicationLogEntryModel(medicinesByUuid)
                             },
                         ) { basics, realPkEntries, latestEstradiolEntry ->
-                            val simulationEntries = buildEstradiolPkSimulationEntries(
-                                realEntries = realPkEntries,
-                                activeGroups = basics.activeGroups,
-                                now = now,
-                                horizon = pkHorizon,
-                                zoneId = zoneId,
-                            )
                             basics.copy(
-                                estradiolPkEntries = simulationEntries.real,
-                                estradiolPkPlannedEntries = simulationEntries.planned,
+                                estradiolPkEntries = realPkEntries,
+                                estradiolPkPlannedEntries = emptyList(),
                                 latestEstradiolEntry = latestEstradiolEntry,
                             )
                         }
@@ -428,8 +449,9 @@ class HomeRepository @Inject constructor(
     fun refreshHomeSnapshotAsync(
         now: LocalDateTime,
         force: Boolean = false,
+        zoneId: ZoneId = ZoneId.systemDefault(),
     ) {
-        homeSnapshotRepository.refreshHomeSnapshotAsync(now = now, force = force)
+        homeSnapshotRepository.refreshHomeSnapshotAsync(now = now, force = force, zoneId = zoneId)
     }
 
     private companion object {

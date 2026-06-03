@@ -158,20 +158,24 @@ class MedicineStockRepository @Inject constructor(
         activeGroups: List<MedicationGroup>,
         logEntries: List<MedicationLogEntry> = emptyList(),
         now: Instant = clock.instant(),
+        zoneId: ZoneId = scheduleZoneId(),
     ): List<MedicineStockProjection> {
-        val zoneId = scheduleZoneId()
         val stockWindowLogEntries = stockWindowLogEntries(logEntries, now, zoneId)
         return medicines.map { medicine ->
             project(medicine, activeGroups, stockWindowLogEntries, now, zoneId)
         }
     }
 
-    suspend fun projectAllOnce(now: Instant = clock.instant()): List<MedicineStockProjection> {
+    suspend fun projectAllOnce(
+        now: Instant = clock.instant(),
+        zoneId: ZoneId = scheduleZoneId(),
+    ): List<MedicineStockProjection> {
         return projectAll(
             medicines = medicineRepository.getAllActive(),
             activeGroups = medicationGroupRepository.getActiveGroups(),
             logEntries = medicationLogRepository.getEntries(),
             now = now,
+            zoneId = zoneId,
         )
     }
 

@@ -7,6 +7,7 @@ import android.content.Intent
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -25,6 +26,9 @@ class MedicationReminderRescheduleReceiver : BroadcastReceiver() {
     lateinit var homeSnapshotRepository: HomeSnapshotRepository
 
     @Inject
+    lateinit var appTimeSource: AppTimeSource
+
+    @Inject
     lateinit var diagnosticsLogger: AppDiagnosticsLogger
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -33,6 +37,7 @@ class MedicationReminderRescheduleReceiver : BroadcastReceiver() {
             appScope = appScope,
             reminderCapabilityReconciler = reminderCapabilityReconciler,
             homeSnapshotRepository = homeSnapshotRepository,
+            appTimeSource = appTimeSource,
             diagnosticsLogger = diagnosticsLogger,
             goAsync = ::goAsync,
         )
@@ -52,6 +57,7 @@ internal fun handleReminderRescheduleBroadcast(
     appScope: CoroutineScope,
     reminderCapabilityReconciler: ReminderCapabilityReconciler,
     homeSnapshotRepository: HomeSnapshotRepository,
+    appTimeSource: AppTimeSource,
     diagnosticsLogger: AppDiagnosticsLogger,
     goAsync: () -> BroadcastReceiver.PendingResult?,
 ) {
@@ -61,6 +67,10 @@ internal fun handleReminderRescheduleBroadcast(
             "reminder_reschedule_receiver_ignored action=$action",
         )
         return
+    }
+
+    if (action == Intent.ACTION_TIMEZONE_CHANGED || action == Intent.ACTION_TIME_CHANGED) {
+        appTimeSource.refresh()
     }
 
     val pendingResult = goAsync()

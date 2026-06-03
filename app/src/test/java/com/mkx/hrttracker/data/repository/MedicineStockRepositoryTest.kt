@@ -44,6 +44,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.TimeZone
 import java.util.UUID
@@ -308,8 +309,8 @@ class MedicineStockRepositoryTest {
     }
 
     @Test
-    fun projectAllUsesSystemDefaultZoneForScheduledOccurrences() {
-        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Tokyo"))
+    fun projectAllUsesProvidedZoneForScheduledOccurrences() {
+        val providedZone = ZoneId.of("Asia/Tokyo")
         val medicine = pill(
             MedicineStock(
                 trackingEnabled = true,
@@ -325,6 +326,7 @@ class MedicineStockRepositoryTest {
             medicines = listOf(medicine),
             activeGroups = listOf(dailyGroup(medicine)),
             now = Instant.parse("2025-12-31T23:30:00Z"),
+            zoneId = providedZone,
         ).single()
 
         assertEquals(RunwayProjection.Days(1, LocalDate.of(2026, 1, 2)), projection.runway)

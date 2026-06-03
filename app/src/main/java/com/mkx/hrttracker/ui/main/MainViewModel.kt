@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.AppTimeSnapshot
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
@@ -28,7 +29,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -49,33 +51,42 @@ class MainViewModel @Inject constructor(
     appTimeSource: AppTimeSource,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
-    private val currentDateTime = appTimeSource.currentMinute
-    private val zoneId = ZoneId.systemDefault()
-    private var lastHomeSnapshotRefreshDate: LocalDate? = null
+    private val currentSnapshot = appTimeSource.currentSnapshot
+    private var lastHomeSnapshotRefreshKey: HomeSnapshotRefreshKey? = null
 
-    // Re-subscribe the home inputs flow only on date change. Within a single day
-    // the underlying Room flows already emit on data changes; piping per-minute
-    // ticks through `flatMapLatest` would tear down and rebuild the snapshot/Room
-    // race, every Room observer in `observeHomeStartupInputs`, and the `combine`
-    // layered on top of them — pure waste. The minute tick is still observed via
-    // `combine` below so `buildHomeUiState` can recompute the PK trend, "next dose
-    // in N min", and other `now`-dependent UI per minute without re-issuing any
-    // queries.
+    // Re-subscribe the home inputs flow only on local date or zone changes.
+    // Room query windows are date+zone-derived, while per-minute and explicit
+    // wall-clock refreshes are fed to HomeRepository as a combine input so
+    // now-sensitive projections re-anchor without tearing down the Room flows.
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<MainUiState> = combine(
-        currentDateTime
-            .map { it.toLocalDate() }
-            .distinctUntilChanged()
-            .flatMapLatest {
-                val anchorNow = currentDateTime.value
-                refreshHomeSnapshotForDateIfNeeded(anchorNow)
-                homeRepository.observeHomeInputs(anchorNow)
-        },
-        currentDateTime,
+        currentSnapshot
+            .map { snapshot ->
+                HomeTimeKey(
+                    now = snapshot.minute,
+                    date = snapshot.minute.toLocalDate(),
+                    zoneId = snapshot.zone,
+                )
+            }
+            .distinctUntilChangedBy { key -> key.date to key.zoneId }
+            .flatMapLatest { key ->
+                refreshHomeSnapshotForDateIfNeeded(key.now, key.zoneId)
+                homeRepository.observeHomeInputs(
+                    date = key.date,
+                    nowFlow = appTimeSource.currentMinute,
+                    zoneId = key.zoneId,
+                )
+                    .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
+            },
+        currentSnapshot,
         timeZoneChangeNoticeController.notice,
         settingsRepository.homeLowStockSectionExpandedFlow,
         settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
-    ) { inputs, now, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
+    ) { keyedInputs, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
+        if (!keyedInputs.key.matches(timeSnapshot)) {
+            return@combine null
+        }
+        val inputs = keyedInputs.inputs
         if (
             inputs.source == HomeInputSource.ROOM &&
             inputs.stockWarnings.isEmpty() &&
@@ -95,7 +106,8 @@ class MainViewModel @Inject constructor(
         withContext(defaultDispatcher) {
             buildHomeUiState(
                 inputs = inputs,
-                now = now,
+                now = timeSnapshot.minute,
+                zoneId = timeSnapshot.zone,
                 timeZoneNotice = timeZoneNotice,
                 lowStockSectionExpanded = shouldExpandLowStockSection(
                     storedExpanded = storedLowStockSectionExpanded,
@@ -105,12 +117,13 @@ class MainViewModel @Inject constructor(
             )
         }
     }
+        .filterNotNull()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
             initialValue = MainUiState(
                 homeDataReady = false,
-                now = currentDateTime.value,
+                now = currentSnapshot.value.minute,
             )
         )
 
@@ -164,18 +177,25 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private fun refreshHomeSnapshotForDateIfNeeded(now: LocalDateTime) {
-        val date = now.toLocalDate()
-        if (lastHomeSnapshotRefreshDate == date) {
+    private fun refreshHomeSnapshotForDateIfNeeded(
+        now: LocalDateTime,
+        zoneId: ZoneId,
+    ) {
+        val key = HomeSnapshotRefreshKey(
+            date = now.toLocalDate(),
+            zoneId = zoneId.id,
+        )
+        if (lastHomeSnapshotRefreshKey == key) {
             return
         }
-        lastHomeSnapshotRefreshDate = date
-        homeRepository.refreshHomeSnapshotAsync(now = now, force = false)
+        lastHomeSnapshotRefreshKey = key
+        homeRepository.refreshHomeSnapshotAsync(now = now, force = false, zoneId = zoneId)
     }
 
     private fun buildHomeUiState(
         inputs: HomeInputs,
         now: LocalDateTime,
+        zoneId: ZoneId,
         timeZoneNotice: TimeZoneChangeNotice?,
         lowStockSectionExpanded: Boolean,
     ): MainUiState {
@@ -330,6 +350,24 @@ class MainViewModel @Inject constructor(
             MedicineStockState.UNTRACKED,
             MedicineStockState.NO_RUNWAY -> 0
         }
+    }
+
+    private data class HomeTimeKey(
+        val now: LocalDateTime,
+        val date: LocalDate,
+        val zoneId: ZoneId,
+    )
+
+    private data class HomeSnapshotRefreshKey(
+        val date: LocalDate,
+        val zoneId: String,
+    )
+
+    private data class KeyedHomeInputs(val key: HomeTimeKey, val inputs: HomeInputs)
+
+    private fun HomeTimeKey.matches(snapshot: AppTimeSnapshot): Boolean {
+        return date == snapshot.minute.toLocalDate() &&
+            zoneId == snapshot.zone
     }
 
     private companion object {
