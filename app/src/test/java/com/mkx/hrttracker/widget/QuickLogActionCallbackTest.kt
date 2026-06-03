@@ -8,7 +8,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
-import com.mkx.hrttracker.data.repository.RunwayProjection
+import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType

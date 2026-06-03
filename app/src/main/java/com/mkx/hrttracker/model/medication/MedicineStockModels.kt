@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.model.medication
 
-import com.mkx.hrttracker.data.repository.RunwayProjection
 
 /**
  * Stock state attached to a medicine when tracking is enabled.

@@ -1,6 +1,6 @@
 package com.mkx.hrttracker.ui.catalog.stock
 
-import com.mkx.hrttracker.data.repository.RunwayProjection
+import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine

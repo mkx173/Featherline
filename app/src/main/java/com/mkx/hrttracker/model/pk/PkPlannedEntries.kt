@@ -1,6 +1,6 @@
 package com.mkx.hrttracker.model.pk
 
-import com.mkx.hrttracker.data.repository.DoseInstructionCalculator
+import com.mkx.hrttracker.model.medication.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication

@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
-import com.mkx.hrttracker.data.repository.RunwayProjection
+import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup

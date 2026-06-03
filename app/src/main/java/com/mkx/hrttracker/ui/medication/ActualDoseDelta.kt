@@ -1,6 +1,6 @@
 package com.mkx.hrttracker.ui.medication
 
-import com.mkx.hrttracker.data.repository.DoseInstructionCalculator
+import com.mkx.hrttracker.model.medication.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import kotlin.math.abs
 import kotlin.math.roundToLong

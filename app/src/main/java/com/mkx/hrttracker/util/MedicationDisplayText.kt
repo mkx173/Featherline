@@ -2,7 +2,7 @@ package com.mkx.hrttracker.util
 
 import android.content.Context
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.data.repository.DoseInstructionCalculator
+import com.mkx.hrttracker.model.medication.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine

@@ -3,7 +3,7 @@ package com.mkx.hrttracker.ui.catalog
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
-import com.mkx.hrttracker.data.repository.RunwayProjection
+import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.model.medication.MedicineStock
 import io.mockk.coEvery

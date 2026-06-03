@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.data.repository
+package com.mkx.hrttracker.model.medication
 
 import java.time.LocalDate
 

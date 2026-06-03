@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.data.repository
+package com.mkx.hrttracker.model.medication
 
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationCategory
