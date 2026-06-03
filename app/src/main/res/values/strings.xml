@@ -282,6 +282,7 @@
     <string name="archive_medication_group_confirmation">Archive this medication group? It will be removed from your current plan and reminders will stop. Existing records won’t be deleted.</string>
     <string name="archive_medication_group_irreversible_acknowledgement">I understand that archived groups can’t be restored.</string>
     <string name="archive_medication_group_end_date">Plan ended on</string>
+    <string name="archive_medication_group_end_date_now">Now</string>
     <string name="archive_medication_group_date_unavailable">No valid archive date is available.</string>
     <string name="archive_medication_group_failure">Unable to archive group.</string>
     <string name="archive_medication_group_blocked_by_planned_slots">Resolve current or upcoming planned slots that already have records before archiving.</string>

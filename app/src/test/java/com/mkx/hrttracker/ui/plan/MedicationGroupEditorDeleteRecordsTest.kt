@@ -763,6 +763,52 @@ class MedicationGroupEditorDeleteRecordsTest {
     }
 
     @Test
+    fun archiveGroup_withoutSelectionPassesNullDateToRepository() = runTest {
+        // The default "Now" path: no date is selected, so the ViewModel passes
+        // null and the repository archives as of the confirm-time now.
+        val groupUuid = UUID.fromString("3a91c0de-0000-4000-8000-000000000003")
+        val group = testMedicationGroup(groupUuid)
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery {
+            medicationGroupRepository.archiveGroup(
+                uuid = groupUuid,
+                archivedThroughDate = any(),
+                now = any(),
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.archiveGroup()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            medicationGroupRepository.archiveGroup(
+                uuid = groupUuid,
+                archivedThroughDate = null,
+                now = appTimeSource.now(),
+            )
+        }
+    }
+
+    @Test
     fun archiveAndRecreateGroup_archivesOriginalAndImmediatelySavesReplacement() = runTest {
         val groupUuid = UUID.fromString("015d4963-1e43-4d6f-9e58-d390fb182a7c")
         val savedGroupUuid = UUID.fromString("cb37018a-4569-4ee8-8e1d-ecdbd9b47e1b")

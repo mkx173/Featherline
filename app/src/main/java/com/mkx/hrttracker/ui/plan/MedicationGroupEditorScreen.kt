@@ -496,11 +496,11 @@ private fun MedicationGroupEditorScreenContent(
     onDeleteMedicationGroupResultConsumed: () -> Unit,
     onArchiveClick: () -> Unit,
     onArchiveDismiss: () -> Unit,
-    onArchiveConfirm: (LocalDate) -> Unit,
+    onArchiveConfirm: (LocalDate?) -> Unit,
     onArchiveMedicationGroupResultConsumed: () -> Unit,
     onDuplicateArchivedGroupClick: () -> Unit,
     onDuplicateArchivedGroupResultConsumed: () -> Unit,
-    onArchiveAndRecreateConfirm: (LocalDate) -> Unit,
+    onArchiveAndRecreateConfirm: (LocalDate?) -> Unit,
     onArchiveAndRecreateMedicationGroupResultConsumed: () -> Unit,
     onDeleteClick: () -> Unit,
     onDeleteDismiss: () -> Unit,
@@ -946,8 +946,10 @@ private fun MedicationGroupEditorScreenContent(
             uiState.isRecreatingAfterArchive
         val isArchiveBlockedByCurrentOrFuturePlannedSlots =
             uiState.currentOrFuturePlannedSlotCount > 0
+        // null = the default "now" cutoff (bound at confirm time); a non-null
+        // value is an explicitly picked day, archived through its end of day.
         var selectedArchiveDate by rememberSaveable {
-            mutableStateOf(uiState.archiveDateWindow.maxDate)
+            mutableStateOf<LocalDate?>(null)
         }
         var isArchiveDatePickerVisible by rememberSaveable { mutableStateOf(false) }
         LaunchedEffect(
@@ -956,25 +958,27 @@ private fun MedicationGroupEditorScreenContent(
             uiState.archiveDateWindow.isSelectable,
         ) {
             val minDate = uiState.archiveDateWindow.minDate
+            val current = selectedArchiveDate
             selectedArchiveDate = when {
-                !uiState.archiveDateWindow.isSelectable -> uiState.archiveDateWindow.maxDate
-                minDate != null && selectedArchiveDate.isBefore(minDate) -> minDate
-                selectedArchiveDate.isAfter(uiState.archiveDateWindow.maxDate) ->
+                current == null -> null
+                !uiState.archiveDateWindow.isSelectable -> null
+                minDate != null && current.isBefore(minDate) -> minDate
+                current.isAfter(uiState.archiveDateWindow.maxDate) ->
                     uiState.archiveDateWindow.maxDate
 
-                else -> selectedArchiveDate
+                else -> current
             }
         }
-        val selectedArchiveDateInRange =
+        val selectedArchiveDateInRange = selectedArchiveDate?.let { selected ->
             uiState.archiveDateWindow.minDate?.let { minDate ->
-                !selectedArchiveDate.isBefore(minDate)
-            } == true &&
-                !selectedArchiveDate.isAfter(uiState.archiveDateWindow.maxDate)
+                !selected.isBefore(minDate)
+            } == true && !selected.isAfter(uiState.archiveDateWindow.maxDate)
+        } ?: true
         if (isArchiveDatePickerVisible && uiState.archiveDateWindow.isSelectable) {
             DatePickerModal(
                 onDateSelected = { selectedArchiveDate = it },
                 onDismiss = { isArchiveDatePickerVisible = false },
-                initialSelectedDate = selectedArchiveDate,
+                initialSelectedDate = selectedArchiveDate ?: uiState.archiveDateWindow.maxDate,
                 minimumDate = uiState.archiveDateWindow.minDate,
                 maximumDate = uiState.archiveDateWindow.maxDate,
             )
@@ -1001,6 +1005,7 @@ private fun MedicationGroupEditorScreenContent(
                     }
                     val isArchiveDateUnavailable = uiState.archiveDateWindow.isLoaded &&
                         !uiState.archiveDateWindow.isSelectable
+                    val selectedArchiveDateValue = selectedArchiveDate
                     Spacer(modifier = Modifier.height(12.dp))
                     PreferenceSegmentedListItem(
                         title = stringResource(R.string.archive_medication_group_end_date),
@@ -1011,7 +1016,11 @@ private fun MedicationGroupEditorScreenContent(
                             !uiState.archiveDateWindow.isLoaded -> null
                             isArchiveDateUnavailable ->
                                 stringResource(R.string.archive_medication_group_date_unavailable)
-                            else -> archiveDateFormatter(selectedArchiveDate)
+                            // No explicit pick archives as of now; an explicit date
+                            // (incl. today) archives through the end of that day.
+                            selectedArchiveDateValue == null ->
+                                stringResource(R.string.archive_medication_group_end_date_now)
+                            else -> archiveDateFormatter(selectedArchiveDateValue)
                         },
                         onClick = if (uiState.archiveDateWindow.isSelectable) {
                             {
@@ -1901,11 +1910,11 @@ internal fun shouldDisableMedicationGroupEditorSaveAction(
 
 internal fun runArchiveConfirmationAction(
     shouldCreateActiveCopyAfterArchive: Boolean,
-    archivedThroughDate: LocalDate,
+    archivedThroughDate: LocalDate?,
     focusManager: FocusManager,
     keyboardController: SoftwareKeyboardController?,
-    onArchiveConfirm: (LocalDate) -> Unit,
-    onArchiveAndRecreateConfirm: (LocalDate) -> Unit,
+    onArchiveConfirm: (LocalDate?) -> Unit,
+    onArchiveAndRecreateConfirm: (LocalDate?) -> Unit,
 ) {
     dismissInputAndRun(
         focusManager = focusManager,

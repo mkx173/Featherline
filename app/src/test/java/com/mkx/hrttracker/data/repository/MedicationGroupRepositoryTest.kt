@@ -285,6 +285,41 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
+    fun archiveGroup_withNullDateArchivesAsOfNowMinute() = runTest {
+        // The default (no explicit date) archives as of `now` at minute
+        // granularity — the original archive behavior — not end of day. This
+        // is the "Now" option in the dialog; the cutoff is bound to the
+        // confirm-time instant, independent of any calendar day.
+        val groupUuid = UUID.fromString("d1ffabcd-0000-4000-8000-000000000002")
+        val now = Instant.parse("2026-06-03T08:00:45Z")
+        val expectedNowLocalIso = now.atZone(ZoneId.systemDefault())
+            .toLocalDateTime()
+            .truncatedTo(ChronoUnit.MINUTES)
+            .toString()
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(9, 0)),
+        )
+        coEvery { medicationLogDao.getEntriesForGroup(groupUuid.toString()) } returns emptyList()
+
+        repository.archiveGroup(uuid = groupUuid, archivedThroughDate = null, now = now)
+
+        coVerify(exactly = 1) {
+            medicationGroupDao.updateGroupArchiveState(
+                uuid = groupUuid.toString(),
+                archivedAtEpochMillis = now.toEpochMilli(),
+                archivedAtLocalIso = expectedNowLocalIso,
+                updatedAtEpochMillis = now.toEpochMilli(),
+            )
+        }
+    }
+
+    @Test
     fun archiveGroup_rejectsDateBeforeScheduleStartWhenNoEntriesExist() = runTest {
         val groupUuid = UUID.fromString("8ec6339d-3b83-464c-ac61-e36f7dc9ee3f")
         val now = Instant.parse("2026-04-30T08:00:45Z")

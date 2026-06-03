@@ -1118,7 +1118,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
         _uiState.update { it.copy(duplicateArchivedGroupSkippedCount = null) }
     }
 
-    fun archiveGroup(archivedThroughDate: LocalDate = _uiState.value.archiveDateWindow.maxDate) {
+    // null archivedThroughDate archives as of now; a non-null date archives
+    // through the end of that selected day.
+    fun archiveGroup(archivedThroughDate: LocalDate? = null) {
         val currentState = _uiState.value
         val minArchiveDate = currentState.archiveDateWindow.minDate
         if (
@@ -1126,8 +1128,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
             currentState.currentOrFuturePlannedSlotCount > 0 ||
             !currentState.archiveDateWindow.isSelectable ||
             minArchiveDate == null ||
-            archivedThroughDate.isBefore(minArchiveDate) ||
-            archivedThroughDate.isAfter(currentState.archiveDateWindow.maxDate) ||
+            archivedThroughDate.isOutsideArchiveWindow(
+                minArchiveDate,
+                currentState.archiveDateWindow.maxDate,
+            ) ||
             isMedicationGroupEditorBusy(currentState)
         ) {
             return
@@ -1190,7 +1194,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 
     fun archiveAndRecreateGroup(
-        archivedThroughDate: LocalDate = _uiState.value.archiveDateWindow.maxDate,
+        archivedThroughDate: LocalDate? = null,
     ) {
         val currentState = _uiState.value
         val groupId = currentState.editingGroupId ?: return
@@ -1200,8 +1204,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
             currentState.currentOrFuturePlannedSlotCount > 0 ||
             !currentState.archiveDateWindow.isSelectable ||
             minArchiveDate == null ||
-            archivedThroughDate.isBefore(minArchiveDate) ||
-            archivedThroughDate.isAfter(currentState.archiveDateWindow.maxDate) ||
+            archivedThroughDate.isOutsideArchiveWindow(
+                minArchiveDate,
+                currentState.archiveDateWindow.maxDate,
+            ) ||
             isMedicationGroupEditorBusy(currentState)
         ) {
             return
@@ -2338,6 +2344,17 @@ internal fun entryCountsForGroup(
         },
         areEntriesLoaded = areEntriesLoaded,
     )
+}
+
+// A null selection means "archive as of now" and is always inside the window
+// when archiving is otherwise allowed; a non-null date must fall within
+// [min, max].
+private fun LocalDate?.isOutsideArchiveWindow(
+    minArchiveDate: LocalDate,
+    maxArchiveDate: LocalDate,
+): Boolean {
+    if (this == null) return false
+    return isBefore(minArchiveDate) || isAfter(maxArchiveDate)
 }
 
 internal fun resolveArchiveDateWindow(

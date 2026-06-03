@@ -106,14 +106,21 @@ class MedicationGroupRepository @Inject constructor(
 
     suspend fun archiveGroup(
         uuid: UUID,
-        archivedThroughDate: LocalDate,
+        // null archives as of `now` (the confirm-time instant, minute-granular),
+        // matching the original archive behavior; a non-null date archives
+        // through the end of that calendar day (the plan owns the whole day).
+        archivedThroughDate: LocalDate? = null,
         now: Instant = Instant.now(),
     ) {
         val nowEpochMillis = now.toEpochMilli()
         val systemZone = ZoneId.systemDefault()
         val nowLocal = now.toLocalDateTime(systemZone)
-        val archiveCutoffLocal = archivedThroughDate.atTime(LocalTime.MAX)
-        val archiveCutoffInstant = archiveCutoffLocal.atZone(systemZone).toInstant()
+        val archiveCutoffLocal = archivedThroughDate?.atTime(LocalTime.MAX) ?: nowLocal
+        val archiveCutoffEpochMillis = if (archivedThroughDate != null) {
+            archiveCutoffLocal.atZone(systemZone).toInstant().toEpochMilli()
+        } else {
+            nowEpochMillis
+        }
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
                 val groupRow = database.medicationGroupDao().getGroup(uuid.toString())
@@ -143,16 +150,19 @@ class MedicationGroupRepository @Inject constructor(
                     }
                 val minArchiveDate =
                     maxOf(scheduleSinceDate, latestRecordedDoseDate ?: scheduleSinceDate)
-                if (archivedThroughDate.isBefore(minArchiveDate)) {
+                // For the "now" default the effective archived-through day is the
+                // mutation-zone date of `now`.
+                val effectiveArchiveDate = archivedThroughDate ?: nowLocal.toLocalDate()
+                if (effectiveArchiveDate.isBefore(minArchiveDate)) {
                     throw ArchiveDateBeforeRecordedDoseException(
                         uuid = uuid,
-                        archivedThroughDate = archivedThroughDate,
+                        archivedThroughDate = effectiveArchiveDate,
                         minArchiveDate = minArchiveDate,
                     )
                 }
                 database.medicationGroupDao().updateGroupArchiveState(
                     uuid = uuid.toString(),
-                    archivedAtEpochMillis = archiveCutoffInstant.toEpochMilli(),
+                    archivedAtEpochMillis = archiveCutoffEpochMillis,
                     archivedAtLocalIso = archiveCutoffLocal.toString(),
                     updatedAtEpochMillis = nowEpochMillis,
                 )
