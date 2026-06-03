@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -21,7 +22,9 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import java.time.Instant
 import java.time.LocalDate
@@ -36,19 +39,17 @@ fun DatePickerModal(
     onDismiss: () -> Unit,
     initialSelectedDate: LocalDate,
     minimumDate: LocalDate? = null,
+    maximumDate: LocalDate? = null,
+    // When provided, a left-aligned reset button (e.g. "Reset to now") clears the
+    // caller's selection and dismisses, matching the WeightDialog clear pattern.
+    onReset: (() -> Unit)? = null,
+    resetButtonText: String? = null,
 ) {
-    val selectableDates = remember(minimumDate) {
-        object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                return minimumDate == null ||
-                    !materialPickerDateMillisToLocalDate(utcTimeMillis, ZoneOffset.UTC)
-                        .isBefore(minimumDate)
-            }
-
-            override fun isSelectableYear(year: Int): Boolean {
-                return minimumDate == null || year >= minimumDate.year
-            }
-        }
+    val selectableDates = remember(minimumDate, maximumDate) {
+        datePickerSelectableDates(
+            minimumDate = minimumDate,
+            maximumDate = maximumDate,
+        )
     }
     val datePickerState = rememberDatePickerState(
         initialSelectedDate = initialSelectedDate,
@@ -58,29 +59,63 @@ fun DatePickerModal(
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(
-                onClick = {
-                    datePickerState.selectedDateMillis?.let { selectedDateMillis ->
-                        // Material 3 returns selectedDateMillis as UTC-midnight. Decoding it
-                        // with the system zone in non-UTC offsets would shift to the previous
-                        // (or next) calendar day on confirm.
-                        onDateSelected(
-                            materialPickerDateMillisToLocalDate(selectedDateMillis, ZoneOffset.UTC)
-                        )
-                    }
-                    onDismiss()
-                }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(stringResource(R.string.confirm))
+                if (onReset != null && resetButtonText != null) {
+                    TextButton(
+                        onClick = {
+                            onReset()
+                            onDismiss()
+                        },
+                        modifier = Modifier.padding(start = 6.dp)
+                    ) {
+                        Text(resetButtonText)
+                    }
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.cancel))
+                }
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { selectedDateMillis ->
+                            // Material 3 returns selectedDateMillis as UTC-midnight. Decoding it
+                            // with the system zone in non-UTC offsets would shift to the previous
+                            // (or next) calendar day on confirm.
+                            onDateSelected(
+                                materialPickerDateMillisToLocalDate(selectedDateMillis, ZoneOffset.UTC)
+                            )
+                        }
+                        onDismiss()
+                    }
+                ) {
+                    Text(stringResource(R.string.confirm))
+                }
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
     ) {
         DatePicker(state = datePickerState)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+internal fun datePickerSelectableDates(
+    minimumDate: LocalDate? = null,
+    maximumDate: LocalDate? = null,
+): SelectableDates {
+    return object : SelectableDates {
+        override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+            val date = materialPickerDateMillisToLocalDate(utcTimeMillis, ZoneOffset.UTC)
+            return (minimumDate == null || !date.isBefore(minimumDate)) &&
+                (maximumDate == null || !date.isAfter(maximumDate))
+        }
+
+        override fun isSelectableYear(year: Int): Boolean {
+            return (minimumDate == null || year >= minimumDate.year) &&
+                (maximumDate == null || year <= maximumDate.year)
+        }
     }
 }
 

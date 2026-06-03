@@ -25,6 +25,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
+import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
@@ -216,24 +217,35 @@ class MedicationGroupEditorViewModel @Inject constructor(
             combine(
                 medicationLogRepository.observeEntries(),
                 _uiState.map { it.editingGroupId }.distinctUntilChanged(),
-                currentMinute,
-            ) { entriesOrNull, currentEditingGroupId, referenceMinute ->
+                appTimeSource.currentSnapshot,
+            ) { entriesOrNull, currentEditingGroupId, timeSnapshot ->
                 entryCountsForGroup(
                     entries = entriesOrNull.orEmpty(),
                     groupId = currentEditingGroupId,
-                    currentMinute = referenceMinute,
-                )
+                    currentMinute = timeSnapshot.minute,
+                    zoneId = timeSnapshot.zone,
+                    areEntriesLoaded = entriesOrNull != null,
+                ) to timeSnapshot
             }
-                .collect { counts ->
+                .collect { (counts, timeSnapshot) ->
                     _uiState.update {
                         val shouldLockRecreatedStartDate =
                             it.recreatedFromGroupId != null &&
                                 (it.isArchived || counts.relatedEntryCount > 0)
+                        val archiveDateWindow = resolveArchiveDateWindow(
+                            scheduleSince = it.originalSinceDate,
+                            latestRecordedDoseDate = counts.latestRecordedDoseDate,
+                            areEntriesLoaded = counts.areEntriesLoaded,
+                            today = timeSnapshot.minute.toLocalDate(),
+                        )
                         val nextState = it.copy(
                             relatedEntryCount = counts.relatedEntryCount,
                             plannedEntryCount = counts.plannedEntryCount,
                             currentOrFuturePlannedSlotCount =
                                 counts.currentOrFuturePlannedSlotCount,
+                            latestRecordedDoseDate = counts.latestRecordedDoseDate,
+                            areEntriesLoaded = counts.areEntriesLoaded,
+                            archiveDateWindow = archiveDateWindow,
                             isScheduleStartDateLocked = if (it.recreatedFromGroupId != null) {
                                 shouldLockRecreatedStartDate
                             } else {
@@ -338,10 +350,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateSinceDate(date: LocalDate) {
         _uiState.update {
+            val today = currentMinute.value.toLocalDate()
             editorStateWithUpdatedSinceDate(
                 uiState = it,
                 date = date,
-                minimumRecreatedStartDate = currentMinute.value.toLocalDate(),
+                // A recreated plan can only move its start to its own start date
+                // and later, never earlier — earlier would re-overlap the
+                // archived plan it was split from.
+                minimumRecreatedStartDate = maxOf(today, it.originalSinceDate ?: today),
             )
         }
     }
@@ -1106,11 +1122,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
         _uiState.update { it.copy(duplicateArchivedGroupSkippedCount = null) }
     }
 
-    fun archiveGroup() {
+    // null archivedThroughDate archives as of now; a non-null date archives
+    // through the end of that selected day.
+    fun archiveGroup(archivedThroughDate: LocalDate? = null) {
         val currentState = _uiState.value
         if (
             currentState.isArchived ||
             currentState.currentOrFuturePlannedSlotCount > 0 ||
+            isArchiveDateSelectionInvalid(archivedThroughDate, currentState.archiveDateWindow) ||
             isMedicationGroupEditorBusy(currentState)
         ) {
             return
@@ -1129,7 +1148,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
 
             val archiveResult = runCatching {
-                medicationGroupRepository.archiveGroup(uuid, now = archiveNow)
+                medicationGroupRepository.archiveGroup(
+                    uuid = uuid,
+                    archivedThroughDate = archivedThroughDate,
+                    now = archiveNow,
+                )
             }.fold(
                 onSuccess = { null },
                 onFailure = { cause ->
@@ -1168,12 +1191,15 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
-    fun archiveAndRecreateGroup() {
+    fun archiveAndRecreateGroup(
+        archivedThroughDate: LocalDate? = null,
+    ) {
         val currentState = _uiState.value
         val groupId = currentState.editingGroupId ?: return
         if (
             currentState.isArchived ||
             currentState.currentOrFuturePlannedSlotCount > 0 ||
+            isArchiveDateSelectionInvalid(archivedThroughDate, currentState.archiveDateWindow) ||
             isMedicationGroupEditorBusy(currentState)
         ) {
             return
@@ -1181,7 +1207,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
         val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
         val recreateNow = currentMinute.value
         val recreateNowInstant = appTimeSource.now()
-        val recreateScheduleStartDate = recreateNow.toLocalDate()
+        // Start the recreated plan after the archived plan's cutoff so the two
+        // never own the same day. An end-of-day archive of today pushes the new
+        // start to tomorrow; "now" (null) or an earlier-date archive keeps it at
+        // today.
+        val recreateToday = recreateNow.toLocalDate()
+        val recreateScheduleStartDate =
+            maxOf(recreateToday, archivedThroughDate?.plusDays(1) ?: recreateToday)
 
         viewModelScope.launch {
             _uiState.update {
@@ -1220,7 +1252,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
             )
 
             val archiveOutcome = runCatching {
-                medicationGroupRepository.archiveGroup(uuid, now = recreateNowInstant)
+                medicationGroupRepository.archiveGroup(
+                    uuid = uuid,
+                    archivedThroughDate = archivedThroughDate,
+                    now = recreateNowInstant,
+                )
             }.fold(
                 onSuccess = { null },
                 onFailure = { cause ->
@@ -1453,12 +1489,22 @@ class MedicationGroupEditorViewModel @Inject constructor(
             val remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
 
             _uiState.update { currentState ->
+                val snapshot = appTimeSource.currentSnapshot.value
                 group.toEditorState(
                     remindersEnabled = remindersEnabled,
                     relatedEntryCount = currentState.relatedEntryCount,
                     plannedEntryCount = currentState.plannedEntryCount,
                     currentOrFuturePlannedSlotCount =
                         currentState.currentOrFuturePlannedSlotCount,
+                ).copy(
+                    areEntriesLoaded = currentState.areEntriesLoaded,
+                    latestRecordedDoseDate = currentState.latestRecordedDoseDate,
+                    archiveDateWindow = resolveArchiveDateWindow(
+                        scheduleSince = group.schedule.since,
+                        latestRecordedDoseDate = currentState.latestRecordedDoseDate,
+                        areEntriesLoaded = currentState.areEntriesLoaded,
+                        today = snapshot.minute.toLocalDate(),
+                    ),
                 )
             }
         }
@@ -2053,6 +2099,9 @@ data class MedicationGroupEditorUiState(
     val relatedEntryCount: Int = 0,
     val plannedEntryCount: Int = 0,
     val currentOrFuturePlannedSlotCount: Int = 0,
+    val latestRecordedDoseDate: LocalDate? = null,
+    val areEntriesLoaded: Boolean = false,
+    val archiveDateWindow: ArchiveDateWindowUiState = ArchiveDateWindowUiState(),
     val scheduleTimeOrderError: Boolean = false,
     val originalScheduleType: MedicationGroupScheduleType? = null,
     val originalSinceDate: LocalDate? = null,
@@ -2107,6 +2156,13 @@ data class MedicationGroupEditorUiState(
         get() = includePastScheduledSlots &&
             canEditBackfillOption
 }
+
+data class ArchiveDateWindowUiState(
+    val minDate: LocalDate? = null,
+    val maxDate: LocalDate = LocalDate.EPOCH,
+    val isLoaded: Boolean = false,
+    val isSelectable: Boolean = false,
+)
 
 internal fun resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
     previousState: MedicationGroupEditorUiState,
@@ -2249,27 +2305,28 @@ internal data class MedicationGroupEntryCounts(
     val relatedEntryCount: Int,
     val plannedEntryCount: Int,
     val currentOrFuturePlannedSlotCount: Int,
+    val latestRecordedDoseDate: LocalDate?,
+    val areEntriesLoaded: Boolean,
 )
 
 internal fun entryCountsForGroup(
     entries: List<MedicationLogEntry>,
     groupId: String?,
     currentMinute: LocalDateTime = LocalDateTime.now().withSecond(0).withNano(0),
+    zoneId: ZoneId = ZoneId.systemDefault(),
+    areEntriesLoaded: Boolean = true,
 ): MedicationGroupEntryCounts {
-    if (groupId == null) {
-        return MedicationGroupEntryCounts(
-            relatedEntryCount = 0,
-            plannedEntryCount = 0,
-            currentOrFuturePlannedSlotCount = 0,
-        )
-    }
+    fun emptyCounts() = MedicationGroupEntryCounts(
+        relatedEntryCount = 0,
+        plannedEntryCount = 0,
+        currentOrFuturePlannedSlotCount = 0,
+        latestRecordedDoseDate = null,
+        areEntriesLoaded = areEntriesLoaded,
+    )
+    if (groupId == null) return emptyCounts()
 
     val groupUuid = runCatching { UUID.fromString(groupId) }.getOrNull()
-        ?: return MedicationGroupEntryCounts(
-            relatedEntryCount = 0,
-            plannedEntryCount = 0,
-            currentOrFuturePlannedSlotCount = 0,
-        )
+        ?: return emptyCounts()
     val relatedEntries = entries.filter { entry -> entry.sourceGroupUuid == groupUuid }
     val referenceMinute = currentMinute.withSecond(0).withNano(0)
     return MedicationGroupEntryCounts(
@@ -2280,6 +2337,61 @@ internal fun entryCountsForGroup(
             .filter { scheduledFor -> !scheduledFor.isBefore(referenceMinute) }
             .toSet()
             .size,
+        latestRecordedDoseDate = relatedEntries.maxOfOrNull { entry ->
+            entry.planCalendarDate(zoneId)
+        },
+        areEntriesLoaded = areEntriesLoaded,
+    )
+}
+
+// A null selection means "archive as of now" and is always inside the window
+// when archiving is otherwise allowed; a non-null date must fall within
+// [min, max].
+private fun LocalDate?.isOutsideArchiveWindow(
+    minArchiveDate: LocalDate,
+    maxArchiveDate: LocalDate,
+): Boolean {
+    if (this == null) return false
+    return isBefore(minArchiveDate) || isAfter(maxArchiveDate)
+}
+
+// Shared by the ViewModel archive guards and the dialog confirm button so both
+// agree on what counts as a valid archive-date selection. The "Now" default
+// (null) only needs the window loaded — a not-yet-started plan whose window is
+// loaded but has no selectable backdate (min > today) can still be archived as
+// of now. An explicitly picked date additionally needs a selectable window and
+// must fall inside [min, max].
+internal fun isArchiveDateSelectionInvalid(
+    archivedThroughDate: LocalDate?,
+    window: ArchiveDateWindowUiState,
+): Boolean {
+    if (!window.isLoaded) return true
+    if (archivedThroughDate == null) return false
+    val minDate = window.minDate
+    return !window.isSelectable ||
+        minDate == null ||
+        archivedThroughDate.isOutsideArchiveWindow(minDate, window.maxDate)
+}
+
+internal fun resolveArchiveDateWindow(
+    scheduleSince: LocalDate?,
+    latestRecordedDoseDate: LocalDate?,
+    areEntriesLoaded: Boolean,
+    today: LocalDate,
+): ArchiveDateWindowUiState {
+    if (!areEntriesLoaded || scheduleSince == null) {
+        return ArchiveDateWindowUiState(
+            maxDate = today,
+            isLoaded = false,
+            isSelectable = false,
+        )
+    }
+    val minDate = maxOf(scheduleSince, latestRecordedDoseDate ?: scheduleSince)
+    return ArchiveDateWindowUiState(
+        minDate = minDate,
+        maxDate = today,
+        isLoaded = true,
+        isSelectable = !minDate.isAfter(today),
     )
 }
 

@@ -102,6 +102,14 @@ interface MedicationLogDao {
 
     @Query(
         """
+        SELECT * FROM medication_log_entries
+        WHERE sourceGroupUuid = :groupUuid
+        """
+    )
+    suspend fun getEntriesForGroup(groupUuid: String): List<MedicationLogEntryEntity>
+
+    @Query(
+        """
         SELECT COUNT(DISTINCT scheduledForIso) FROM medication_log_entries
         WHERE sourceGroupUuid = :groupUuid
           AND scheduledForIso IS NOT NULL

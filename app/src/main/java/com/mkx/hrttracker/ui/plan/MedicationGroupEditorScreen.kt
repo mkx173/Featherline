@@ -133,6 +133,7 @@ import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
@@ -495,11 +496,11 @@ private fun MedicationGroupEditorScreenContent(
     onDeleteMedicationGroupResultConsumed: () -> Unit,
     onArchiveClick: () -> Unit,
     onArchiveDismiss: () -> Unit,
-    onArchiveConfirm: () -> Unit,
+    onArchiveConfirm: (LocalDate?) -> Unit,
     onArchiveMedicationGroupResultConsumed: () -> Unit,
     onDuplicateArchivedGroupClick: () -> Unit,
     onDuplicateArchivedGroupResultConsumed: () -> Unit,
-    onArchiveAndRecreateConfirm: () -> Unit,
+    onArchiveAndRecreateConfirm: (LocalDate?) -> Unit,
     onArchiveAndRecreateMedicationGroupResultConsumed: () -> Unit,
     onDeleteClick: () -> Unit,
     onDeleteDismiss: () -> Unit,
@@ -529,6 +530,12 @@ private fun MedicationGroupEditorScreenContent(
     val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
     val dateFormatter = remember(appLocale, currentDate) {
         medicationGroupScheduleDateFormatter(appLocale, currentDate)
+    }
+    // Archive end-date follows the plain date convention (year only when it
+    // differs from this year, no weekday), unlike schedule rows which append
+    // the weekday via medicationGroupScheduleDateFormatter.
+    val archiveDateFormatter = remember(appLocale, currentDate) {
+        dateLabelFormatter(appLocale, currentDate)
     }
     val notificationSupportState = resolveNotificationSupportState(
         hasNotificationAccess = hasNotificationAccess,
@@ -788,7 +795,7 @@ private fun MedicationGroupEditorScreenContent(
             onDismiss = { pendingSinceDate = null },
             initialSelectedDate = initialSinceDate,
             minimumDate = if (uiState.recreatedFromGroupId != null) {
-                currentDate
+                maxOf(currentDate, uiState.originalSinceDate ?: currentDate)
             } else {
                 null
             },
@@ -939,6 +946,45 @@ private fun MedicationGroupEditorScreenContent(
             uiState.isRecreatingAfterArchive
         val isArchiveBlockedByCurrentOrFuturePlannedSlots =
             uiState.currentOrFuturePlannedSlotCount > 0
+        // null = the default "now" cutoff (bound at confirm time); a non-null
+        // value is an explicitly picked day, archived through its end of day.
+        var selectedArchiveDate by rememberSaveable {
+            mutableStateOf<LocalDate?>(null)
+        }
+        var isArchiveDatePickerVisible by rememberSaveable { mutableStateOf(false) }
+        LaunchedEffect(
+            uiState.archiveDateWindow.minDate,
+            uiState.archiveDateWindow.maxDate,
+            uiState.archiveDateWindow.isSelectable,
+        ) {
+            val minDate = uiState.archiveDateWindow.minDate
+            val current = selectedArchiveDate
+            selectedArchiveDate = when {
+                current == null -> null
+                !uiState.archiveDateWindow.isSelectable -> null
+                minDate != null && current.isBefore(minDate) -> minDate
+                current.isAfter(uiState.archiveDateWindow.maxDate) ->
+                    uiState.archiveDateWindow.maxDate
+
+                else -> current
+            }
+        }
+        if (isArchiveDatePickerVisible && uiState.archiveDateWindow.isSelectable) {
+            DatePickerModal(
+                onDateSelected = { selectedArchiveDate = it },
+                onDismiss = { isArchiveDatePickerVisible = false },
+                initialSelectedDate = selectedArchiveDate ?: uiState.archiveDateWindow.maxDate,
+                minimumDate = uiState.archiveDateWindow.minDate,
+                maximumDate = uiState.archiveDateWindow.maxDate,
+                // Only offer a reset once a date is chosen; null already means "now".
+                onReset = if (selectedArchiveDate != null) {
+                    { selectedArchiveDate = null }
+                } else {
+                    null
+                },
+                resetButtonText = stringResource(R.string.archive_medication_group_reset_to_now),
+            )
+        }
         AlertDialog(
             onDismissRequest = {
                 if (!isArchiveActionInProgress) {
@@ -959,12 +1005,50 @@ private fun MedicationGroupEditorScreenContent(
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
+                    val selectedArchiveDateValue = selectedArchiveDate
                     Spacer(modifier = Modifier.height(12.dp))
+                    PreferenceSegmentedListItem(
+                        title = stringResource(R.string.archive_medication_group_end_date),
+                        titleTextStyle = MaterialTheme.typography.labelLarge,
+                        index = 0,
+                        count = 3,
+                        supportingText = when {
+                            !uiState.archiveDateWindow.isLoaded -> null
+                            // No explicit pick archives as of now; an explicit date
+                            // (incl. today) archives through the end of that day. A
+                            // not-yet-started plan has no selectable backdate and
+                            // stays on "Now".
+                            selectedArchiveDateValue == null ->
+                                stringResource(R.string.archive_medication_group_end_date_now)
+                            else -> archiveDateFormatter(selectedArchiveDateValue)
+                        },
+                        onClick = if (uiState.archiveDateWindow.isSelectable) {
+                            {
+                                if (!isArchiveActionInProgress) {
+                                    isArchiveDatePickerVisible = true
+                                }
+                            }
+                        } else {
+                            null
+                        },
+                        trailingContent = if (uiState.archiveDateWindow.isSelectable) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        } else {
+                            null
+                        },
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    )
                     PreferenceSegmentedListItem(
                         title = stringResource(R.string.archive_create_active_copy),
                         titleTextStyle = MaterialTheme.typography.labelLarge,
-                        index = 0,
-                        count = 2,
+                        index = 1,
+                        count = 3,
                         onClick = {
                             if (isArchiveActionInProgress) return@PreferenceSegmentedListItem
                             shouldCreateActiveCopyAfterArchive =
@@ -986,8 +1070,8 @@ private fun MedicationGroupEditorScreenContent(
                             R.string.archive_medication_group_irreversible_acknowledgement
                         ),
                         titleTextStyle = MaterialTheme.typography.labelLarge,
-                        index = 1,
-                        count = 2,
+                        index = 2,
+                        count = 3,
                         onClick = {
                             if (isArchiveActionInProgress) return@PreferenceSegmentedListItem
                             hasAcknowledgedArchiveIsPermanent =
@@ -1013,12 +1097,17 @@ private fun MedicationGroupEditorScreenContent(
                 // stays visually normal while ROOM is writing.
                 TextButton(
                     enabled = hasAcknowledgedArchiveIsPermanent &&
-                        !isArchiveBlockedByCurrentOrFuturePlannedSlots,
+                        !isArchiveBlockedByCurrentOrFuturePlannedSlots &&
+                        !isArchiveDateSelectionInvalid(
+                            selectedArchiveDate,
+                            uiState.archiveDateWindow,
+                        ),
                     onClick = {
                         if (isArchiveActionInProgress) return@TextButton
                         runArchiveConfirmationAction(
                             shouldCreateActiveCopyAfterArchive =
                                 shouldCreateActiveCopyAfterArchive,
+                            archivedThroughDate = selectedArchiveDate,
                             focusManager = focusManager,
                             keyboardController = keyboardController,
                             onArchiveConfirm = onArchiveConfirm,
@@ -1822,19 +1911,20 @@ internal fun shouldDisableMedicationGroupEditorSaveAction(
 
 internal fun runArchiveConfirmationAction(
     shouldCreateActiveCopyAfterArchive: Boolean,
+    archivedThroughDate: LocalDate?,
     focusManager: FocusManager,
     keyboardController: SoftwareKeyboardController?,
-    onArchiveConfirm: () -> Unit,
-    onArchiveAndRecreateConfirm: () -> Unit,
+    onArchiveConfirm: (LocalDate?) -> Unit,
+    onArchiveAndRecreateConfirm: (LocalDate?) -> Unit,
 ) {
     dismissInputAndRun(
         focusManager = focusManager,
         keyboardController = keyboardController,
     ) {
         if (shouldCreateActiveCopyAfterArchive) {
-            onArchiveAndRecreateConfirm()
+            onArchiveAndRecreateConfirm(archivedThroughDate)
         } else {
-            onArchiveConfirm()
+            onArchiveConfirm(archivedThroughDate)
         }
     }
 }
@@ -2374,11 +2464,11 @@ private fun MedicationGroupEditorDailyPreview() {
             onDeleteMedicationGroupResultConsumed = { },
             onArchiveClick = { },
             onArchiveDismiss = { },
-            onArchiveConfirm = { },
+            onArchiveConfirm = { _ -> },
             onArchiveMedicationGroupResultConsumed = { },
             onDuplicateArchivedGroupClick = { },
             onDuplicateArchivedGroupResultConsumed = { },
-            onArchiveAndRecreateConfirm = { },
+            onArchiveAndRecreateConfirm = { _ -> },
             onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
             onDeleteDismiss = { },
@@ -2450,11 +2540,11 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onDeleteMedicationGroupResultConsumed = { },
             onArchiveClick = { },
             onArchiveDismiss = { },
-            onArchiveConfirm = { },
+            onArchiveConfirm = { _ -> },
             onArchiveMedicationGroupResultConsumed = { },
             onDuplicateArchivedGroupClick = { },
             onDuplicateArchivedGroupResultConsumed = { },
-            onArchiveAndRecreateConfirm = { },
+            onArchiveAndRecreateConfirm = { _ -> },
             onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
             onDeleteDismiss = { },
@@ -2567,11 +2657,11 @@ private fun MedicationGroupEditorPreviewContent(
         onDeleteMedicationGroupResultConsumed = { },
         onArchiveClick = { },
         onArchiveDismiss = { },
-        onArchiveConfirm = { },
+        onArchiveConfirm = { _ -> },
         onArchiveMedicationGroupResultConsumed = { },
         onDuplicateArchivedGroupClick = { },
         onDuplicateArchivedGroupResultConsumed = { },
-        onArchiveAndRecreateConfirm = { },
+        onArchiveAndRecreateConfirm = { _ -> },
         onArchiveAndRecreateMedicationGroupResultConsumed = { },
         onDeleteClick = { },
         onDeleteDismiss = { },

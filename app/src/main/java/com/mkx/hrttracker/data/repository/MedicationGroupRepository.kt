@@ -15,6 +15,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.planCalendarDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -105,12 +106,25 @@ class MedicationGroupRepository @Inject constructor(
 
     suspend fun archiveGroup(
         uuid: UUID,
+        // null archives as of `now` (the confirm-time instant, minute-granular),
+        // matching the original archive behavior; a non-null date archives
+        // through the end of that calendar day (the plan owns the whole day).
+        archivedThroughDate: LocalDate? = null,
         now: Instant = Instant.now(),
     ) {
         val nowEpochMillis = now.toEpochMilli()
-        val nowLocal = now.toLocalDateTime()
+        val systemZone = ZoneId.systemDefault()
+        val nowLocal = now.toLocalDateTime(systemZone)
+        val archiveCutoffLocal = archivedThroughDate?.atTime(LocalTime.MAX) ?: nowLocal
+        val archiveCutoffEpochMillis = if (archivedThroughDate != null) {
+            archiveCutoffLocal.atZone(systemZone).toInstant().toEpochMilli()
+        } else {
+            nowEpochMillis
+        }
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
+                val groupRow = database.medicationGroupDao().getGroup(uuid.toString())
+                    ?: throw MedicationGroupNotFoundException(uuid)
                 val currentOrFuturePlannedSlotCount = database.medicationLogDao()
                     .getCurrentOrFuturePlannedSlotCountForGroup(
                         groupUuid = uuid.toString(),
@@ -119,10 +133,57 @@ class MedicationGroupRepository @Inject constructor(
                 if (currentOrFuturePlannedSlotCount > 0) {
                     throw CurrentOrFuturePlannedSlotsBlockArchiveException(uuid)
                 }
+                // The min-date floor only constrains an explicitly picked
+                // backdate. The "Now" default (null) archives at the confirm
+                // instant — the original pre-backdating behavior — and is never
+                // floored: a not-yet-started or future-dated plan stays cancelable
+                // as of now, and logged history can't be truncated this way because
+                // doses scheduled at/after now are already rejected by the
+                // current/future planned-slot guard above.
+                if (archivedThroughDate != null) {
+                    // Ceiling: never store a future cutoff. archivedAt is set at the
+                    // mutation instant, so a future cutoff would hide the group from
+                    // active lists/reminders now while its plan still owns days up to
+                    // that future day. The UI clamps to today, but the repository is
+                    // the authoritative invariant enforcer for non-UI callers.
+                    val maxArchiveDate = nowLocal.toLocalDate()
+                    if (archivedThroughDate.isAfter(maxArchiveDate)) {
+                        throw ArchiveDateAfterTodayException(
+                            uuid = uuid,
+                            archivedThroughDate = archivedThroughDate,
+                            maxArchiveDate = maxArchiveDate,
+                        )
+                    }
+                    // Floor on the schedule start (plan's first owned day), not the
+                    // wall-clock creation time: a backdated/backfilled plan can start
+                    // before the group row was created, and archiving through any day
+                    // from the start onward yields a valid (non-empty) plan window.
+                    val scheduleSinceDate =
+                        LocalDate.ofEpochDay(groupRow.group.scheduleSinceEpochDay)
+                    val latestRecordedDoseDate = database.medicationLogDao()
+                        .getEntriesForGroup(uuid.toString())
+                        .maxOfOrNull { entry ->
+                            planCalendarDate(
+                                scheduledForIso = entry.scheduledForIso,
+                                appliedAtEpochMillis = entry.appliedAtEpochMillis,
+                                appliedAtTimeZoneId = entry.appliedAtTimeZoneId,
+                                zoneId = systemZone,
+                            )
+                        }
+                    val minArchiveDate =
+                        maxOf(scheduleSinceDate, latestRecordedDoseDate ?: scheduleSinceDate)
+                    if (archivedThroughDate.isBefore(minArchiveDate)) {
+                        throw ArchiveDateBeforeRecordedDoseException(
+                            uuid = uuid,
+                            archivedThroughDate = archivedThroughDate,
+                            minArchiveDate = minArchiveDate,
+                        )
+                    }
+                }
                 database.medicationGroupDao().updateGroupArchiveState(
                     uuid = uuid.toString(),
-                    archivedAtEpochMillis = nowEpochMillis,
-                    archivedAtLocalIso = nowLocal.toString(),
+                    archivedAtEpochMillis = archiveCutoffEpochMillis,
+                    archivedAtLocalIso = archiveCutoffLocal.toString(),
                     updatedAtEpochMillis = nowEpochMillis,
                 )
             }
@@ -348,6 +409,13 @@ class MedicationGroupRepository @Inject constructor(
                             existingScheduleTime != null && existingTime == time ->
                                 existingScheduleTime.effectiveFromLocalIso
 
+                            // effectiveFrom marks when this time was added (now),
+                            // not the start date. `since` already gates generation
+                            // via isScheduledOn, so a future start needs nothing
+                            // more here — and pinning effectiveFrom to `since`
+                            // would orphan slots if the start is later edited
+                            // earlier (the preserved future effectiveFrom would
+                            // filter the now-valid slots).
                             else -> nowLocal.toString()
                         }
                         MedicationGroupScheduleTimeEntity(
@@ -428,6 +496,22 @@ class CurrentOrFuturePlannedSlotsBlockArchiveException(
     uuid: UUID,
 ) : IllegalStateException(
     "Medication group $uuid has current or future planned records and cannot be archived."
+)
+
+class ArchiveDateBeforeRecordedDoseException(
+    uuid: UUID,
+    archivedThroughDate: LocalDate,
+    minArchiveDate: LocalDate,
+) : IllegalArgumentException(
+    "Medication group $uuid archive date $archivedThroughDate is before minimum archive date $minArchiveDate."
+)
+
+class ArchiveDateAfterTodayException(
+    uuid: UUID,
+    archivedThroughDate: LocalDate,
+    maxArchiveDate: LocalDate,
+) : IllegalArgumentException(
+    "Medication group $uuid archive date $archivedThroughDate is after maximum archive date $maxArchiveDate."
 )
 
 class ScheduleTimeCountMismatchException : IllegalArgumentException(

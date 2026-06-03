@@ -1,13 +1,35 @@
 package com.mkx.hrttracker.model.medication
 
-import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
+import com.mkx.hrttracker.util.atStoredZone
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 
+internal fun planCalendarDate(
+    scheduledForIso: String?,
+    appliedAtEpochMillis: Long,
+    appliedAtTimeZoneId: String,
+    zoneId: ZoneId,
+): LocalDate {
+    return scheduledForIso
+        ?.let(LocalDateTime::parse)
+        ?.toLocalDate()
+        ?: atStoredZone(
+            instant = Instant.ofEpochMilli(appliedAtEpochMillis),
+            storedTimeZoneId = appliedAtTimeZoneId,
+            deviceZone = zoneId,
+        ).toLocalDate()
+}
+
 internal fun MedicationLogEntry.planCalendarDate(zoneId: ZoneId): LocalDate {
-    return scheduledFor?.toLocalDate() ?: appliedAtAsLocalDateTime(this, zoneId).toLocalDate()
+    return planCalendarDate(
+        scheduledForIso = scheduledFor?.toString(),
+        appliedAtEpochMillis = appliedAt.toEpochMilli(),
+        appliedAtTimeZoneId = appliedAtTimeZoneId,
+        zoneId = zoneId,
+    )
 }
 
 internal fun List<MedicationGroup>.scheduledGroupsForPlanDay(
@@ -140,4 +162,3 @@ private fun MedicationGroupSlotOccurrence.toMedicationGroupSlotKey(): Medication
         scheduledFor = scheduledFor,
     )
 }
-
