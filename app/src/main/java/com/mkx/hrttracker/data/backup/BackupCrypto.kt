@@ -294,17 +294,23 @@ class BackupCrypto internal constructor(
             parallelism = buffer.int,
             hashLengthBytes = buffer.int,
         )
-        require(argon2Parameters.timeCostInIterations > 0) {
-            "Backup file declares an invalid Argon2 time cost."
+        // Reject hostile or corrupt KDF profiles before deriving a key. Argon2
+        // runs before AES-GCM authentication, so an unbounded memory/time cost
+        // in a malicious or damaged header would otherwise hang or OOM an
+        // otherwise-legitimate restore attempt. The bounds sit well above the
+        // export defaults (time 3, memory 64 MiB, parallelism 1) so real
+        // backups — and headroom for future hardening — stay valid.
+        require(argon2Parameters.timeCostInIterations in 1..MAX_ARGON2_TIME_COST) {
+            "Backup file declares an unsupported Argon2 time cost."
         }
-        require(argon2Parameters.memoryCostInKibibyte > 0) {
-            "Backup file declares an invalid Argon2 memory cost."
+        require(argon2Parameters.memoryCostInKibibyte in 1..MAX_ARGON2_MEMORY_KIB) {
+            "Backup file declares an unsupported Argon2 memory cost."
         }
-        require(argon2Parameters.parallelism > 0) {
-            "Backup file declares an invalid Argon2 parallelism."
+        require(argon2Parameters.parallelism in 1..MAX_ARGON2_PARALLELISM) {
+            "Backup file declares an unsupported Argon2 parallelism."
         }
-        require(argon2Parameters.hashLengthBytes > 0) {
-            "Backup file declares an invalid Argon2 hash length."
+        require(argon2Parameters.hashLengthBytes == AES_KEY_LENGTH_BYTES) {
+            "Backup file declares an unsupported Argon2 hash length."
         }
 
         return finishParsingContainer(
@@ -414,6 +420,9 @@ class BackupCrypto internal constructor(
         private const val FIXED_HEADER_LENGTH_V2 = 28
         private const val FIXED_HEADER_LENGTH_V3 = 37
         private const val MAX_BACKUP_JSON_BYTES = 128L * 1024L * 1024L
+        private const val MAX_ARGON2_TIME_COST = 10
+        private const val MAX_ARGON2_MEMORY_KIB = 256 * 1024
+        private const val MAX_ARGON2_PARALLELISM = 4
         private const val SALT_LENGTH_BYTES = 16
         private const val NONCE_LENGTH_BYTES = 12
         private const val GCM_TAG_LENGTH_BITS = 128

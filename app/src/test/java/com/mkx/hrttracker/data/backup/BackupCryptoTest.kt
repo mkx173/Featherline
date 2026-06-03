@@ -215,6 +215,64 @@ class BackupCryptoTest {
         }
     }
 
+    @Test
+    fun decrypt_rejects_argon2_time_cost_above_cap() {
+        assertRejectsArgon2Params(v3ContainerWithArgon2Params(timeCost = 11))
+    }
+
+    @Test
+    fun decrypt_rejects_argon2_memory_cost_above_cap() {
+        assertRejectsArgon2Params(v3ContainerWithArgon2Params(memoryKib = 256 * 1024 + 1))
+    }
+
+    @Test
+    fun decrypt_rejects_argon2_parallelism_above_cap() {
+        assertRejectsArgon2Params(v3ContainerWithArgon2Params(parallelism = 5))
+    }
+
+    @Test
+    fun decrypt_rejects_argon2_hash_length_other_than_aes256() {
+        assertRejectsArgon2Params(v3ContainerWithArgon2Params(hashLength = 16))
+    }
+
+    private fun assertRejectsArgon2Params(encryptedBytes: ByteArray) {
+        try {
+            backupCrypto.decrypt(encryptedBytes = encryptedBytes, password = charArrayOf())
+            fail("Expected unsupported Argon2 parameters to be rejected before key derivation.")
+        } catch (_: IllegalArgumentException) {
+            // Expected — rejected during header parse, before the KDF runs.
+        }
+    }
+
+    private fun v3ContainerWithArgon2Params(
+        timeCost: Int = 3,
+        memoryKib: Int = 65_536,
+        parallelism: Int = 1,
+        hashLength: Int = 32,
+    ): ByteArray {
+        val salt = ByteArray(V2_SALT_LENGTH_BYTES) { index -> (index + 1).toByte() }
+        val nonce = ByteArray(V2_NONCE_LENGTH_BYTES) { index -> (index + 17).toByte() }
+        val header = ByteBuffer.allocate(V3_FIXED_HEADER_LENGTH + salt.size + nonce.size)
+            .put(BackupCrypto.MAGIC_BYTES)
+            .put(BackupCrypto.CURRENT_BACKUP_CONTAINER_VERSION.toByte())
+            .put(2.toByte())
+            .put(1.toByte())
+            .put(1.toByte())
+            .putLong(64L)
+            .putInt(timeCost)
+            .putInt(memoryKib)
+            .putInt(parallelism)
+            .putInt(hashLength)
+            .put(salt.size.toByte())
+            .put(nonce.size.toByte())
+            .put(salt)
+            .put(nonce)
+            .array()
+        // One trailing ciphertext byte keeps the container structurally complete
+        // for the parse steps that run after the Argon2 parameter checks.
+        return header + byteArrayOf(0)
+    }
+
     private fun encryptV3GzipWithDeclaredLength(
         compressedPayload: ByteArray,
         password: CharArray,

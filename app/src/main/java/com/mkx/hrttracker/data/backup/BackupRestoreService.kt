@@ -51,7 +51,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -322,6 +324,12 @@ class BackupRestoreService @Inject constructor(
 
     private companion object {
         private const val TAG = "BackupRestoreService"
+
+        // The encrypted container is a gzip-compressed JSON snapshot whose
+        // uncompressed size BackupCrypto already caps at 128 MiB. This upper
+        // bound on the on-disk container leaves headroom while still rejecting
+        // an absurd selection before it is pulled into memory.
+        private const val MAX_ENCRYPTED_BACKUP_BYTES = 192L * 1024L * 1024L
     }
 
     private fun readEncryptedBackupBytes(
@@ -331,10 +339,46 @@ class BackupRestoreService @Inject constructor(
         // persistable permission needed. (Persisting here without ever
         // releasing would leak document grants on every restore attempt
         // and could eventually hit the system's per-app grant cap.)
+        //
+        // Bound the read: a mis-selected or hostile file (e.g. a multi-gigabyte
+        // video) would otherwise be pulled fully into memory by readBytes()
+        // before any structural size limit applies, OOMing the restore.
         return context.contentResolver.openInputStream(fileUri)
-            ?.use { inputStream -> inputStream.readBytes() }
+            ?.use { inputStream -> readBoundedBytes(inputStream, MAX_ENCRYPTED_BACKUP_BYTES) }
             ?: throw IOException("Unable to open the selected backup file.")
     }
+}
+
+/**
+ * Reads [inputStream] fully but rejects input larger than [maxBytes] without
+ * first buffering the whole stream, so an oversized selection cannot exhaust
+ * memory before the size limit applies.
+ *
+ * Throws [IncompatibleBackupFileException] (not a plain [IOException]) on
+ * over-cap input so the picker — which runs this before the password prompt —
+ * surfaces the accurate "not a compatible backup" message rather than the
+ * generic "wrong password or corrupted" toast for a file no password was ever
+ * entered against.
+ */
+internal fun readBoundedBytes(
+    inputStream: InputStream,
+    maxBytes: Long,
+): ByteArray {
+    val buffer = ByteArrayOutputStream()
+    val chunk = ByteArray(DEFAULT_BUFFER_SIZE)
+    var total = 0L
+    while (true) {
+        val bytesRead = inputStream.read(chunk)
+        if (bytesRead == -1) break
+        total += bytesRead
+        if (total > maxBytes) {
+            throw IncompatibleBackupFileException(
+                "Selected backup file exceeds the maximum supported size."
+            )
+        }
+        buffer.write(chunk, 0, bytesRead)
+    }
+    return buffer.toByteArray()
 }
 
 internal fun BackupSnapshot.toValidatedSnapshot(
