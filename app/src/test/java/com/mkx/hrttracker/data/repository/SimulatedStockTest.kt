@@ -65,4 +65,14 @@ class SimulatedStockTest {
 
         assertNull(state.applyDose(perDose = 0.7))
     }
+
+    @Test
+    fun containerDoseThatExceedsOpenDiscardsDregAndDrawsFullDoseFromFreshContainer() {
+        val state = SimulatedStock(open = 0.1, sealed = 1.0, containerCapacity = 10.0, isContainer = true)
+
+        val next = requireNotNull(state.applyDose(perDose = 0.25))
+
+        assertEquals(9.75, next.open, 1e-9)
+        assertEquals(0.0, next.sealed, 1e-9)
+    }
 }
