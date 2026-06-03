@@ -233,11 +233,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
                             it.recreatedFromGroupId != null &&
                                 (it.isArchived || counts.relatedEntryCount > 0)
                         val archiveDateWindow = resolveArchiveDateWindow(
-                            groupCreatedAt = it.groupCreatedAt,
+                            scheduleSince = it.originalSinceDate,
                             latestRecordedDoseDate = counts.latestRecordedDoseDate,
                             areEntriesLoaded = counts.areEntriesLoaded,
                             today = timeSnapshot.minute.toLocalDate(),
-                            zoneId = timeSnapshot.zone,
                         )
                         val nextState = it.copy(
                             relatedEntryCount = counts.relatedEntryCount,
@@ -1497,11 +1496,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     areEntriesLoaded = currentState.areEntriesLoaded,
                     latestRecordedDoseDate = currentState.latestRecordedDoseDate,
                     archiveDateWindow = resolveArchiveDateWindow(
-                        groupCreatedAt = group.createdAt,
+                        scheduleSince = group.schedule.since,
                         latestRecordedDoseDate = currentState.latestRecordedDoseDate,
                         areEntriesLoaded = currentState.areEntriesLoaded,
                         today = snapshot.minute.toLocalDate(),
-                        zoneId = snapshot.zone,
                     ),
                 )
             }
@@ -1631,7 +1629,6 @@ private fun MedicationGroup.toEditorState(
     }
     return MedicationGroupEditorUiState(
         editingGroupId = uuid.toString(),
-        groupCreatedAt = createdAt,
         groupName = name,
         defaultGroupName = name,
         hasResolvedInitialGroupName = true,
@@ -2052,7 +2049,6 @@ sealed interface MedicationGroupEditorEvent {
 
 data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
-    val groupCreatedAt: Instant? = null,
     val groupName: String = "",
     val defaultGroupName: String = "",
     val hasResolvedInitialGroupName: Boolean = false,
@@ -2345,21 +2341,19 @@ internal fun entryCountsForGroup(
 }
 
 internal fun resolveArchiveDateWindow(
-    groupCreatedAt: Instant?,
+    scheduleSince: LocalDate?,
     latestRecordedDoseDate: LocalDate?,
     areEntriesLoaded: Boolean,
     today: LocalDate,
-    zoneId: ZoneId,
 ): ArchiveDateWindowUiState {
-    if (!areEntriesLoaded || groupCreatedAt == null) {
+    if (!areEntriesLoaded || scheduleSince == null) {
         return ArchiveDateWindowUiState(
             maxDate = today,
             isLoaded = false,
             isSelectable = false,
         )
     }
-    val createdDate = groupCreatedAt.atZone(zoneId).toLocalDate()
-    val minDate = maxOf(createdDate, latestRecordedDoseDate ?: createdDate)
+    val minDate = maxOf(scheduleSince, latestRecordedDoseDate ?: scheduleSince)
     return ArchiveDateWindowUiState(
         minDate = minDate,
         maxDate = today,

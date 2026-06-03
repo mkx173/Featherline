@@ -90,17 +90,35 @@ class MedicationGroupEditorArchiveActionTest {
     }
 
     @Test
-    fun resolveArchiveDateWindow_usesAppTimeZoneAndLoadedFlag() {
+    fun resolveArchiveDateWindow_floorsMinOnScheduleStartNotToday() {
+        // Backdated/backfilled plan: schedule started Jun 1, today is Jun 3, and
+        // the only dose is on the start day. Earlier days must stay selectable —
+        // the floor is the plan's start, not the wall-clock creation date. This
+        // is the "cannot select days other than today" regression.
         val window = resolveArchiveDateWindow(
-            groupCreatedAt = Instant.parse("2026-04-01T16:00:00Z"),
-            latestRecordedDoseDate = null,
+            scheduleSince = LocalDate.of(2026, 6, 1),
+            latestRecordedDoseDate = LocalDate.of(2026, 6, 1),
             areEntriesLoaded = true,
-            today = LocalDate.of(2026, 4, 5),
-            zoneId = ZoneId.of("Asia/Tokyo"),
+            today = LocalDate.of(2026, 6, 3),
         )
 
         assertTrue(window.isLoaded)
-        assertEquals(LocalDate.of(2026, 4, 2), window.minDate)
+        assertEquals(LocalDate.of(2026, 6, 1), window.minDate)
+        assertEquals(LocalDate.of(2026, 6, 3), window.maxDate)
+        assertTrue(window.isSelectable)
+    }
+
+    @Test
+    fun resolveArchiveDateWindow_usesLatestDoseWhenAfterScheduleStart() {
+        val window = resolveArchiveDateWindow(
+            scheduleSince = LocalDate.of(2026, 4, 1),
+            latestRecordedDoseDate = LocalDate.of(2026, 4, 3),
+            areEntriesLoaded = true,
+            today = LocalDate.of(2026, 4, 5),
+        )
+
+        assertTrue(window.isLoaded)
+        assertEquals(LocalDate.of(2026, 4, 3), window.minDate)
         assertEquals(LocalDate.of(2026, 4, 5), window.maxDate)
         assertTrue(window.isSelectable)
     }
@@ -108,11 +126,10 @@ class MedicationGroupEditorArchiveActionTest {
     @Test
     fun resolveArchiveDateWindow_blocksWhenEntriesAreNotLoaded() {
         val window = resolveArchiveDateWindow(
-            groupCreatedAt = Instant.parse("2026-04-01T16:00:00Z"),
+            scheduleSince = LocalDate.of(2026, 4, 1),
             latestRecordedDoseDate = null,
             areEntriesLoaded = false,
             today = LocalDate.of(2026, 4, 5),
-            zoneId = ZoneId.of("Asia/Tokyo"),
         )
 
         assertFalse(window.isLoaded)
@@ -122,13 +139,28 @@ class MedicationGroupEditorArchiveActionTest {
     }
 
     @Test
+    fun resolveArchiveDateWindow_blocksWhenScheduleStartMissing() {
+        // A not-yet-persisted group has no schedule start, so archiving stays
+        // unavailable until the group is loaded.
+        val window = resolveArchiveDateWindow(
+            scheduleSince = null,
+            latestRecordedDoseDate = null,
+            areEntriesLoaded = true,
+            today = LocalDate.of(2026, 4, 5),
+        )
+
+        assertFalse(window.isLoaded)
+        assertNull(window.minDate)
+        assertFalse(window.isSelectable)
+    }
+
+    @Test
     fun resolveArchiveDateWindow_blocksWhenLatestRecordedDoseIsAfterToday() {
         val window = resolveArchiveDateWindow(
-            groupCreatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+            scheduleSince = LocalDate.of(2026, 4, 1),
             latestRecordedDoseDate = LocalDate.of(2026, 4, 8),
             areEntriesLoaded = true,
             today = LocalDate.of(2026, 4, 5),
-            zoneId = ZoneId.of("UTC"),
         )
 
         assertTrue(window.isLoaded)

@@ -285,7 +285,7 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun archiveGroup_rejectsDateBeforeCreatedDateWhenNoEntriesExist() = runTest {
+    fun archiveGroup_rejectsDateBeforeScheduleStartWhenNoEntriesExist() = runTest {
         val groupUuid = UUID.fromString("8ec6339d-3b83-464c-ac61-e36f7dc9ee3f")
         val now = Instant.parse("2026-04-30T08:00:45Z")
         coEvery {
@@ -296,7 +296,7 @@ class MedicationGroupRepositoryTest {
         coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
             groupUuid = groupUuid,
             times = listOf(LocalTime.of(9, 0)),
-            createdAtEpochMillis = LocalDate.of(2026, 4, 20).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            scheduleSinceEpochDay = LocalDate.of(2026, 4, 20).toEpochDay(),
         )
         coEvery { medicationLogDao.getEntriesForGroup(groupUuid.toString()) } returns emptyList()
 
@@ -306,13 +306,63 @@ class MedicationGroupRepositoryTest {
                 archivedThroughDate = LocalDate.of(2026, 4, 19),
                 now = now,
             )
-            fail("Expected archive date before created date to be rejected")
+            fail("Expected archive date before schedule start to be rejected")
         } catch (expected: ArchiveDateBeforeRecordedDoseException) {
             assertTrue(expected.message.orEmpty().contains("before minimum archive date"))
         }
 
         coVerify(exactly = 0) {
             medicationGroupDao.updateGroupArchiveState(any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun archiveGroup_allowsBackdateToScheduleStartWhenGroupCreatedAfterStart() = runTest {
+        // Backfilled plan: the schedule starts Jun 1 but the group row was
+        // created today (Jun 3, e.g. backdated start at creation). Archiving
+        // through the plan's start day must be allowed — the floor is the
+        // schedule start, not the wall-clock creation timestamp. Regression for
+        // "cannot select days other than today" on a backdated-start group.
+        val groupUuid = UUID.fromString("c0ffee00-0000-4000-8000-000000000001")
+        val now = Instant.parse("2026-06-03T08:00:45Z")
+        val scheduleSince = LocalDate.of(2026, 6, 1)
+        val createdToday = LocalDate.of(2026, 6, 3)
+        val selectedDate = LocalDate.of(2026, 6, 1)
+        val expectedCutoffLocalIso = selectedDate.atTime(LocalTime.MAX).toString()
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(9, 0)),
+            scheduleSinceEpochDay = scheduleSince.toEpochDay(),
+            createdAtEpochMillis = createdToday.atStartOfDay(ZoneId.systemDefault())
+                .toInstant().toEpochMilli(),
+        )
+        coEvery { medicationLogDao.getEntriesForGroup(groupUuid.toString()) } returns listOf(
+            testMedicationLogEntryEntity(
+                groupUuid = groupUuid,
+                appliedAt = Instant.parse("2026-06-01T00:30:00Z"),
+                appliedAtTimeZoneId = ZoneId.systemDefault().id,
+                scheduledForIso = "2026-06-01T09:00",
+            )
+        )
+
+        repository.archiveGroup(
+            uuid = groupUuid,
+            archivedThroughDate = selectedDate,
+            now = now,
+        )
+
+        coVerify(exactly = 1) {
+            medicationGroupDao.updateGroupArchiveState(
+                uuid = groupUuid.toString(),
+                archivedAtEpochMillis = any(),
+                archivedAtLocalIso = expectedCutoffLocalIso,
+                updatedAtEpochMillis = now.toEpochMilli(),
+            )
         }
     }
 

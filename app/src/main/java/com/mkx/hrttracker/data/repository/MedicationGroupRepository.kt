@@ -126,10 +126,11 @@ class MedicationGroupRepository @Inject constructor(
                 if (currentOrFuturePlannedSlotCount > 0) {
                     throw CurrentOrFuturePlannedSlotsBlockArchiveException(uuid)
                 }
-                val createdDate = Instant
-                    .ofEpochMilli(groupRow.group.createdAtEpochMillis)
-                    .atZone(systemZone)
-                    .toLocalDate()
+                // Floor on the schedule start (plan's first owned day), not the
+                // wall-clock creation time: a backdated/backfilled plan can start
+                // before the group row was created, and archiving through any day
+                // from the start onward yields a valid (non-empty) plan window.
+                val scheduleSinceDate = LocalDate.ofEpochDay(groupRow.group.scheduleSinceEpochDay)
                 val latestRecordedDoseDate = database.medicationLogDao()
                     .getEntriesForGroup(uuid.toString())
                     .maxOfOrNull { entry ->
@@ -140,7 +141,8 @@ class MedicationGroupRepository @Inject constructor(
                             zoneId = systemZone,
                         )
                     }
-                val minArchiveDate = maxOf(createdDate, latestRecordedDoseDate ?: createdDate)
+                val minArchiveDate =
+                    maxOf(scheduleSinceDate, latestRecordedDoseDate ?: scheduleSinceDate)
                 if (archivedThroughDate.isBefore(minArchiveDate)) {
                     throw ArchiveDateBeforeRecordedDoseException(
                         uuid = uuid,
