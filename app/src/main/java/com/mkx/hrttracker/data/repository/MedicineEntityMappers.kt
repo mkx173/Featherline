@@ -45,7 +45,26 @@ internal fun MedicineEntity.toMedicineModel(): Medicine {
             openContainerAmount = openContainerAmount,
             warnAtDaysRemaining = warnAtDaysRemaining,
             generation = stockGeneration,
-        ),
+        ).normalizedFor(preparation),
+    )
+}
+
+private fun MedicineStock.normalizedFor(preparation: MedicinePreparation): MedicineStock {
+    if (!trackingEnabled) return this
+    val capacity = when (preparation) {
+        is MedicinePreparation.InjectionMultiUseVial -> preparation.vialVolumeMl
+        is MedicinePreparation.GelContainer -> preparation.containerWeightGrams
+        else -> return this
+    }
+    val sealed = unitsRemaining?.takeIf { it.isFinite() } ?: 0.0
+    val (normalizedOpen, normalizedSealed) = normalizeOpenContainer(
+        open = openContainerAmount,
+        sealed = sealed,
+        capacity = capacity,
+    )
+    return copy(
+        unitsRemaining = normalizedSealed,
+        openContainerAmount = normalizedOpen,
     )
 }
 
