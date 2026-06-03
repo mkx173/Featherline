@@ -354,6 +354,57 @@ class MedicationStockSubcardTest {
     }
 
     @Test
+    fun openContainerPreviewExactDrainShowsZeroWithoutPreShowingCrack() {
+        val preparation = MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = 20.0,
+            vialVolumeMl = 5.0,
+        )
+        val model = medicationStockSubcardModel(
+            projection = projection(
+                preparation = preparation,
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 2.0,
+                    unitsLastTotal = 4.0,
+                    openContainerAmount = 1.25,
+                ),
+            ),
+            mutationPreviewDoseMagnitude = 1.25,
+        )
+
+        requireNotNull(model)
+        val row = model.rows.single()
+        assertEquals("1.25", row.valueText)
+        assertEquals("0 / 5", row.previewValueText)
+        assertEquals("2", row.sealedSupplement?.countText)
+    }
+
+    @Test
+    fun openContainerPreviewOpenLessThanDoseShowsZeroWithoutDregSplit() {
+        val preparation = MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = 20.0,
+            vialVolumeMl = 10.0,
+        )
+        val model = medicationStockSubcardModel(
+            projection = projection(
+                preparation = preparation,
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 1.0,
+                    openContainerAmount = 0.1,
+                ),
+            ),
+            mutationPreviewDoseMagnitude = 0.25,
+        )
+
+        requireNotNull(model)
+        val row = model.rows.single()
+        assertEquals("0.1", row.valueText)
+        assertEquals("0 / 10", row.previewValueText)
+        assertEquals("1", row.sealedSupplement?.countText)
+    }
+
+    @Test
     fun multiUseVialShowsZeroSealedSupplement() {
         val preparation = MedicinePreparation.InjectionMultiUseVial(
             concentrationMgPerMl = 20.0,
