@@ -130,10 +130,10 @@ class AdjustStockSheetTest {
             .performTextInput("4")
 
         composeRule
-            .onNodeWithText(context.getString(R.string.stock_runway_days_remaining, 21))
+            .onNodeWithText(context.resources.getQuantityString(R.plurals.stock_runway_days_remaining, 21, 21))
             .assertIsDisplayed()
         composeRule
-            .onNodeWithText(context.getString(R.string.stock_runway_days_remaining, 28))
+            .onNodeWithText(context.resources.getQuantityString(R.plurals.stock_runway_days_remaining, 28, 28))
             .assertDoesNotExist()
     }
 
@@ -174,6 +174,7 @@ class AdjustStockSheetTest {
         composeRule
             .onNode(hasSetTextAction())
             .performTextInput("4")
+        composeRule.waitForIdle()
         composeRule
             .onNodeWithText(context.getString(R.string.stock_adjust_add))
             .performClick()
@@ -221,6 +222,7 @@ class AdjustStockSheetTest {
         composeRule
             .onNode(hasSetTextAction())
             .performTextInput("4")
+        composeRule.waitForIdle()
         composeRule
             .onNodeWithText(context.getString(R.string.stock_adjust_save))
             .performClick()

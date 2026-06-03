@@ -44,8 +44,11 @@ class MedicineDetailScreenPatchOffTest {
         val medicationGroupRepository: MedicationGroupRepository = mockk()
         val stockRepository: MedicineStockRepository = mockk()
         val settingsRepository: SettingsRepository = mockk()
+        every { medicineRepository.getCachedActiveMedicine(patchOff.uuid) } returns patchOff
         every { medicineRepository.observeByUuid(patchOff.uuid) } returns flowOf(patchOff)
+        every { medicationGroupRepository.getCachedGroups() } returns emptyList()
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { stockRepository.getCachedProjection(patchOff.uuid) } returns null
         every { stockRepository.observeProjections() } returns flowOf(emptyList())
         every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
         coEvery { medicineRepository.isLocked(patchOff.uuid) } returns false
