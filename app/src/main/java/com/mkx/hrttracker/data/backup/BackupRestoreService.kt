@@ -15,6 +15,8 @@ import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.data.local.UserProfileEntity
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.data.repository.decrementDenominatorOnCrack
+import com.mkx.hrttracker.data.repository.normalizeOpenContainer
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
@@ -967,6 +969,39 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
         }
     }
 
+    // Heal legacy/degenerate stock rows on restore so imported containers land
+    // canonical (no empty open with sealed stock remaining). Operates on the
+    // backup DTO via the shared normalizeOpenContainer primitive, since the
+    // model-typed MedicineStock.normalizedFor helper does not fit this type.
+    val rawStock = stock
+    val normalizedStock = if (rawStock?.trackingEnabled == true) {
+        val capacity = when (preparationType) {
+            MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> vialVolumeMl
+            MedicinePreparationType.GEL_CONTAINER -> containerWeightGrams
+            else -> null
+        }
+        if (capacity != null) {
+            val sealed = rawStock.unitsRemaining?.takeIf { it.isFinite() } ?: 0.0
+            val (normalizedOpen, normalizedSealed) = normalizeOpenContainer(
+                open = rawStock.openContainerAmount,
+                sealed = sealed,
+                capacity = capacity,
+            )
+            rawStock.copy(
+                unitsRemaining = normalizedSealed,
+                openContainerAmount = normalizedOpen,
+                unitsLastTotal = decrementDenominatorOnCrack(
+                    lastTotal = rawStock.unitsLastTotal,
+                    cracked = normalizedSealed != sealed,
+                ),
+            )
+        } else {
+            rawStock
+        }
+    } else {
+        rawStock
+    }
+
     return MedicineEntity(
         uuid = medicineUuid,
         selectionKind = selectionKind.name,
@@ -993,12 +1028,12 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
         // Backups exported before this column existed simply omit it; default
         // to MG (matches both pre-picker behavior and the model default).
         displayDoseUnit = MedicineDisplayDoseUnit.fromStorageValue(displayDoseUnit).name,
-        trackingEnabled = stock?.trackingEnabled ?: false,
-        stockUnitsRemaining = stock?.unitsRemaining,
-        stockUnitsLastTotal = stock?.unitsLastTotal,
-        openContainerAmount = stock?.openContainerAmount,
-        warnAtDaysRemaining = stock?.warnAtDaysRemaining ?: 14,
-        stockGeneration = stock?.stockGeneration ?: 0L,
+        trackingEnabled = normalizedStock?.trackingEnabled ?: false,
+        stockUnitsRemaining = normalizedStock?.unitsRemaining,
+        stockUnitsLastTotal = normalizedStock?.unitsLastTotal,
+        openContainerAmount = normalizedStock?.openContainerAmount,
+        warnAtDaysRemaining = normalizedStock?.warnAtDaysRemaining ?: 14,
+        stockGeneration = normalizedStock?.stockGeneration ?: 0L,
     )
 }
 

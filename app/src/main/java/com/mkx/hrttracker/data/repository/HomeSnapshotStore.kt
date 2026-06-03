@@ -598,7 +598,7 @@ internal object HomeSnapshotCodec {
             updatedAt = updatedAt,
             archivedAt = archivedAt,
             displayDoseUnit = displayDoseUnit,
-            stock = stock,
+            stock = stock.normalizedFor(preparation),
         )
     }
 

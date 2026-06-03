@@ -23,6 +23,12 @@ class AdjustStockSheetTest {
     }
 
     @Test
+    fun parseAdjustStockCount_acceptsZero() {
+        assertEquals(0.0, requireNotNull(parseAdjustStockCount("0", allowDecimal = true)), 0.0)
+        assertEquals(0.0, requireNotNull(parseAdjustStockCount("0", allowDecimal = false)), 0.0)
+    }
+
+    @Test
     fun sanitizeAdjustStockCountTextAllowsOneDecimalSeparatorForTablets() {
         assertEquals("12.5", sanitizeAdjustStockCountText("12.5", allowDecimal = true))
         assertEquals("12,5", sanitizeAdjustStockCountText("12,5", allowDecimal = true))

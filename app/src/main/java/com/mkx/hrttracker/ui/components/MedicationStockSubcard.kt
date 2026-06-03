@@ -743,39 +743,16 @@ private fun containerStockMutationPreview(
     containerCapacity: Double,
     requestedDose: Double,
 ): StockSubcardMutationPreview? {
-    val capacity = containerCapacity.takeIf { it.isFinite() && it > 0.0 } ?: return null
+    containerCapacity.takeIf { it.isFinite() && it > 0.0 } ?: return null
     val open = stock.openContainerAmount?.takeIf { it.isFinite() } ?: 0.0
     val sealed = stock.unitsRemaining?.takeIf { it.isFinite() } ?: 0.0
     val dose = requestedDose.coerceAtLeast(0.0)
-
-    val openAfter: Double
-    val sealedAfter: Double
-    when {
-        hasSufficientOpenAmount(open = open, dose = dose) -> {
-            openAfter = open - dose
-            sealedAfter = sealed
-        }
-
-        sealed >= 1.0 -> {
-            openAfter = maxOf(0.0, capacity - dose)
-            sealedAfter = sealed - 1.0
-        }
-
-        else -> {
-            openAfter = 0.0
-            sealedAfter = sealed
-        }
-    }
+    val openAfter = (open - dose).coerceAtLeast(0.0).zeroIfTiny()
 
     return StockSubcardMutationPreview(
-        unitsRemainingAfter = sealedAfter.coerceAtLeast(0.0).zeroIfTiny(),
-        openContainerAmountAfter = openAfter.coerceAtLeast(0.0).zeroIfTiny(),
+        unitsRemainingAfter = sealed.coerceAtLeast(0.0).zeroIfTiny(),
+        openContainerAmountAfter = openAfter,
     )
-}
-
-private fun hasSufficientOpenAmount(open: Double, dose: Double): Boolean {
-    if (dose <= 0.0 || open >= dose) return true
-    return open > STOCK_SUBCARD_FLOAT_EPSILON && dose - open <= STOCK_SUBCARD_FLOAT_EPSILON
 }
 
 private const val STOCK_SUBCARD_FLOAT_EPSILON = 1e-9

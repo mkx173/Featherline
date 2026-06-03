@@ -543,6 +543,45 @@ class HomeSnapshotCodecTest {
         assertEquals(record, decoded)
     }
 
+    @Test
+    fun decode_normalizesLegacyEmptyOpenContainerStock() {
+        val legacyMedicine = testCustomMedicine(
+            uuid = UUID.fromString("33333333-3333-3333-3333-333333333333"),
+            medicationName = "Legacy snapshot vial",
+            category = MedicationCategory.ESTRADIOL,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 20.0,
+                vialVolumeMl = 1.0,
+            ),
+            stock = MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 2.0,
+                unitsLastTotal = 3.0,
+                openContainerAmount = 0.0,
+            ),
+        )
+        val record = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 7L,
+            generatedAtEpochMillis = 100L,
+            anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
+            zoneId = "Asia/Tokyo",
+            pkProjection = null,
+            activeGroups = emptyList(),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+            stockMedicines = listOf(legacyMedicine),
+        )
+
+        val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+
+        val stock = decoded.stockMedicines.single().stock
+        assertEquals(1.0, stock.unitsRemaining!!, 1e-9)
+        assertEquals(1.0, stock.openContainerAmount!!, 1e-9)
+        // Decode cracks the legacy container, lowering the gauge denominator (3 -> 2).
+        assertEquals(2.0, stock.unitsLastTotal!!, 1e-9)
+    }
+
     private fun legacyVersionFourBytes(): ByteArray {
         val output = ByteArrayOutputStream()
         DataOutputStream(output).use { stream ->

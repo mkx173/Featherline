@@ -75,7 +75,11 @@ last recount), `openContainerAmount` (current mL/g in the open container,
 null for pool preparations), `warnAtDaysRemaining` (the per-medicine
 low-stock threshold in days, default `14` — this is not a global
 setting), and `stockGeneration` (a session token bumped on
-enable/disable/recount/clear, but not on plain logging or top-ups). All
+enable/disable/recount/clear, but not on plain logging or top-ups). For
+container preparations exactly one container stays open while sealed
+stock remains — `openContainerAmount ≤ 0` with `stockUnitsRemaining ≥ 1`
+is never persisted; `normalizeOpenContainer` heals it on every stock
+write and model-read boundary by cracking one sealed container. All
 are nullable or carry column defaults so pre-feature rows migrate
 cleanly. The domain projection of these fields is `MedicineStock` in
 `model/medication/MedicineStockModels.kt`; the runway/state math derived

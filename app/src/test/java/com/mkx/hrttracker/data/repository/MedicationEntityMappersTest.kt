@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.util.UUID
 
@@ -54,6 +55,83 @@ class MedicationEntityMappersTest {
         assertEquals(10, entity.warnAtDaysRemaining)
         assertEquals(4L, entity.stockGeneration)
         assertEquals(stock, restored.stock)
+    }
+
+    @Test
+    fun medicineStock_healsLegacyEmptyOpenContainerWhenSealedStockRemains() {
+        val stock = MedicineStock(
+            trackingEnabled = true,
+            unitsRemaining = 2.0,
+            openContainerAmount = 0.0,
+        )
+        val preparation = MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = 20.0,
+            vialVolumeMl = 1.0,
+        )
+        val medicine = testCustomMedicine(
+            medicationName = "Legacy vial",
+            category = MedicationCategory.CUSTOM,
+            preparation = preparation,
+            stock = stock,
+        )
+
+        val restored = medicine.toEntity().toMedicineModel()
+
+        assertEquals(1.0, restored.stock.unitsRemaining!!, 1e-9)
+        assertEquals(1.0, restored.stock.openContainerAmount!!, 1e-9)
+    }
+
+    @Test
+    fun medicineStock_healLegacyEmptyOpenContainerDecrementsGaugeDenominator() {
+        // Cracking one sealed container for display must also drop unitsLastTotal
+        // (the gauge denominator), matching the write-side promote path; otherwise
+        // a legacy 30-vial row renders 29/30 instead of 29/29.
+        val stock = MedicineStock(
+            trackingEnabled = true,
+            unitsRemaining = 30.0,
+            unitsLastTotal = 30.0,
+            openContainerAmount = 0.0,
+        )
+        val preparation = MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = 20.0,
+            vialVolumeMl = 1.0,
+        )
+        val medicine = testCustomMedicine(
+            medicationName = "Legacy vial denominator",
+            category = MedicationCategory.CUSTOM,
+            preparation = preparation,
+            stock = stock,
+        )
+
+        val restored = medicine.toEntity().toMedicineModel()
+
+        assertEquals(29.0, restored.stock.unitsRemaining!!, 1e-9)
+        assertEquals(1.0, restored.stock.openContainerAmount!!, 1e-9)
+        assertEquals(29.0, restored.stock.unitsLastTotal!!, 1e-9)
+    }
+
+    @Test
+    fun medicineStock_preservesOutNullOpenRepresentationWhenNoSealedStockRemains() {
+        val stock = MedicineStock(
+            trackingEnabled = true,
+            unitsRemaining = 0.0,
+            openContainerAmount = null,
+        )
+        val preparation = MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = 20.0,
+            vialVolumeMl = 1.0,
+        )
+        val medicine = testCustomMedicine(
+            medicationName = "Out vial",
+            category = MedicationCategory.CUSTOM,
+            preparation = preparation,
+            stock = stock,
+        )
+
+        val restored = medicine.toEntity().toMedicineModel()
+
+        assertEquals(0.0, restored.stock.unitsRemaining!!, 1e-9)
+        assertNull(restored.stock.openContainerAmount)
     }
 
     @Test

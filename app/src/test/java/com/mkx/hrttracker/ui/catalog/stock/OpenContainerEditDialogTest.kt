@@ -17,4 +17,10 @@ class OpenContainerEditDialogTest {
         assertNull(parseOpenContainerAmount(""))
         assertNull(parseOpenContainerAmount("abc"))
     }
+
+    @Test
+    fun parseOpenContainerAmount_acceptsZero() {
+        assertEquals(0.0, requireNotNull(parseOpenContainerAmount("0")), 0.0)
+        assertEquals(0.0, requireNotNull(parseOpenContainerAmount("0.0")), 0.0)
+    }
 }
