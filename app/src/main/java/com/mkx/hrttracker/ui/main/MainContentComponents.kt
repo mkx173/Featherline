@@ -88,6 +88,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.withSave
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
@@ -143,6 +144,7 @@ import com.patrykandpatrick.vico.compose.cartesian.Scroll
 import com.patrykandpatrick.vico.compose.cartesian.VicoScrollState
 import com.patrykandpatrick.vico.compose.cartesian.VicoZoomState
 import com.patrykandpatrick.vico.compose.cartesian.Zoom
+import com.patrykandpatrick.vico.compose.cartesian.axis.Axis
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
@@ -1153,6 +1155,18 @@ internal fun MainE2ChartCard(
                 val chartCoordinateMapper = remember(chartViewportResetVersion.intValue) {
                     MainE2ChartCoordinateMapper()
                 }
+                val observedAreaFill = remember(lineColor) {
+                    MainE2ChartBaselineAreaFill(
+                        Fill(
+                            Brush.verticalGradient(
+                                listOf(
+                                    lineColor.copy(alpha = 0.4f),
+                                    Color.Transparent,
+                                )
+                            )
+                        )
+                    )
+                }
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
                 val currentTimeDecoration = remember(
                     currentTimeLineColor,
@@ -1258,18 +1272,7 @@ internal fun MainE2ChartCard(
                                             LineCartesianLayer.LineProvider.series(
                                                 LineCartesianLayer.rememberLine(
                                                     fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
-                                                    areaFill =
-                                                        LineCartesianLayer.AreaFill.single(
-                                                            Fill(
-                                                                Brush.verticalGradient(
-                                                                    listOf(
-                                                                        lineColor.copy(
-                                                                            alpha = 0.4f
-                                                                        ), Color.Transparent
-                                                                    )
-                                                                )
-                                                            )
-                                                        ),
+                                                    areaFill = observedAreaFill,
                                                     interpolator = LineCartesianLayer.Interpolator.catmullRom(),
                                                 ),
                                                 LineCartesianLayer.rememberLine(
@@ -1478,6 +1481,59 @@ private data class MainE2ChartViewSpec(
 )
 
 private val MainE2ChartViewSpecKey = ExtraStore.Key<MainE2ChartViewSpec>()
+
+// Vico's AreaFill.single uses a path intersection over the panned Catmull-Rom
+// segment; on some visible windows that can fill the ceiling side of the curve.
+// This closes the same visible line path directly to the chart baseline.
+//
+// This forks Vico's internal AreaFill draw logic (pinned to vico 3.1.0), so it
+// relies on the current draw() contract: linePath in absolute canvas coords,
+// layerBounds/isLtr from the context. Re-verify this chart on any Vico bump, and
+// drop this class if the upstream Path.op intersection bug gets fixed.
+//
+// It always fills to layerBounds.bottom, which matches Vico only because the
+// chart pins getMinY = 0 and the default splitY = { 0 }. A non-zero splitY or a
+// second y-axis would need this reworked. Correctness also assumes x is strictly
+// increasing (time), so the closed polygon stays simple under nonzero winding.
+// No automated test guards this; it was verified visually at the bad pan offsets.
+private class MainE2ChartBaselineAreaFill(
+    private val fill: Fill,
+) : LineCartesianLayer.AreaFill {
+    private val paint = Paint()
+    private val areaPath = Path()
+
+    override fun draw(
+        context: CartesianDrawingContext,
+        linePath: Path,
+        halfLineThickness: Float,
+        verticalAxisPosition: Axis.Position.Vertical?,
+    ) {
+        val lineBounds = linePath.getBounds()
+        if (lineBounds.width <= 0f) return
+
+        with(context) {
+            val baselineY = layerBounds.bottom + halfLineThickness
+            val lineEndX = if (isLtr) lineBounds.right else lineBounds.left
+            val lineStartX = if (isLtr) lineBounds.left else lineBounds.right
+
+            areaPath.rewind()
+            areaPath.addPath(linePath)
+            areaPath.lineTo(lineEndX, baselineY)
+            areaPath.lineTo(lineStartX, baselineY)
+            areaPath.close()
+
+            paint.shader = null
+            paint.color = fill.color
+            fill.brush?.applyTo(size = layerBounds.size, p = paint, alpha = 1f)
+            canvas.withSave {
+                canvas.translate(layerBounds.left, layerBounds.top)
+                canvas.clipRect(0f, 0f, layerBounds.width, layerBounds.height)
+                areaPath.translate(Offset(-layerBounds.left, -layerBounds.top))
+                canvas.drawPath(areaPath, paint)
+            }
+        }
+    }
+}
 
 @Composable
 private fun MainE2ChartMinimap(
