@@ -598,7 +598,7 @@ internal object HomeSnapshotCodec {
             updatedAt = updatedAt,
             archivedAt = archivedAt,
             displayDoseUnit = displayDoseUnit,
-            stock = stock,
+            stock = stock.normalizedFor(preparation),
         )
     }
 
@@ -619,6 +619,25 @@ internal object HomeSnapshotCodec {
             openContainerAmount = readNullableDouble(),
             warnAtDaysRemaining = readInt(),
             generation = readLong(),
+        )
+    }
+
+    private fun MedicineStock.normalizedFor(preparation: MedicinePreparation): MedicineStock {
+        if (!trackingEnabled) return this
+        val capacity = when (preparation) {
+            is MedicinePreparation.InjectionMultiUseVial -> preparation.vialVolumeMl
+            is MedicinePreparation.GelContainer -> preparation.containerWeightGrams
+            else -> return this
+        }
+        val sealed = unitsRemaining?.takeIf { it.isFinite() } ?: 0.0
+        val (normalizedOpen, normalizedSealed) = normalizeOpenContainer(
+            open = openContainerAmount,
+            sealed = sealed,
+            capacity = capacity,
+        )
+        return copy(
+            unitsRemaining = normalizedSealed,
+            openContainerAmount = normalizedOpen,
         )
     }
 

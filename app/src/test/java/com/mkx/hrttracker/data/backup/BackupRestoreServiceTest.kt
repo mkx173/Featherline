@@ -184,9 +184,9 @@ class BackupRestoreServiceTest {
 
         val restoredMedicine = medicinesSlot.captured.single()
         assertEquals(true, restoredMedicine.trackingEnabled)
-        assertEquals(30.0, restoredMedicine.stockUnitsRemaining!!, 1e-9)
+        assertEquals(29.0, restoredMedicine.stockUnitsRemaining!!, 1e-9)
         assertEquals(45.0, restoredMedicine.stockUnitsLastTotal!!, 1e-9)
-        assertNull(restoredMedicine.openContainerAmount)
+        assertEquals(1.0, restoredMedicine.openContainerAmount!!, 1e-9)
         assertEquals(10, restoredMedicine.warnAtDaysRemaining)
         assertEquals(3L, restoredMedicine.stockGeneration)
 
@@ -487,6 +487,41 @@ class BackupRestoreServiceTest {
         )
 
         assertEquals(listOf(false), capturedValues)
+    }
+
+    @Test
+    fun restoreBackupBytes_normalizesLegacyEmptyOpenContainerStock() = runTest {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000740")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000741")
+        val snapshot = stockSnapshot(medicineUuid, logUuid).let { base ->
+            val medicine = base.medicines.single()
+            base.copy(
+                medicines = listOf(
+                    medicine.copy(
+                        stock = BackupMedicineStockSnapshot(
+                            trackingEnabled = true,
+                            unitsRemaining = 2.0,
+                            unitsLastTotal = 2.0,
+                            openContainerAmount = 0.0,
+                            warnAtDaysRemaining = 10,
+                            stockGeneration = 3L,
+                        )
+                    )
+                )
+            )
+        }
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(snapshot),
+            password = "password".toCharArray(),
+        )
+        val medicinesSlot = slot<List<MedicineEntity>>()
+
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
+
+        coVerify(exactly = 1) { medicineDao.insertAll(capture(medicinesSlot)) }
+        val restoredMedicine = medicinesSlot.captured.single()
+        assertEquals(1.0, restoredMedicine.stockUnitsRemaining!!, 1e-9)
+        assertEquals(1.0, restoredMedicine.openContainerAmount!!, 1e-9)
     }
 
     private fun snapshotWithWidgetContentScale(scale: Float): BackupSnapshot {
