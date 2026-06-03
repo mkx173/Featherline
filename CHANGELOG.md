@@ -7,7 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- Logging an injection or gel dose can record the actual administered amount as an offset from the plan, set with a snap ruler; it feeds stock and the estradiol projection and shows across Home, Plan, and History.
+- A nudge to start stock tracking after creating a medicine, with a manager toggle and auto-opt-out after three dismissals.
+- A post-log low-stock snackbar with a "View" action and auto-dismiss.
+- Backdated archiving: set the date a plan ended instead of always archiving as of now.
+- An AMOLED pure-black dark theme toggle.
+- Renaming of custom medicines.
+- An appearance setting to adjust Chinese text alignment.
+- Support for Android 8.0 (Oreo) and later.
+
+### Changed
+
+- The app and the home-screen widget now share one Material You palette.
+- Operation and save failures now show as toasts instead of inline red text.
+- Creating a medicine from the manager now opens its detail screen.
+- Group slot removal moved into the slot editor sheet; cards show a tap-to-edit chevron.
+- Single-use vials (ampules) hide the count editor; the amount is set via the dose adjustment.
+- Sealed stock now shows as an inline "(+x)" instead of a separate chip.
+- Dose summaries no longer repeat the group name.
+- General UI polish: refreshed icons, widget previews, stock chip labels, and assorted spacing and wording.
+
+### Fixed
+
+- In-app language and theme changes now apply reliably in place, without a blank-screen flash, and the system bars stay correct.
+- The Home screen now reflects system timezone changes while in foreground.
+- Stock counts for multi-use vials and gels are no longer off by one container in some cases.
+- Restoring a backup now safely rejects oversized or corrupt files instead of hanging or running out of memory.
+- The estradiol projection chart fill no longer renders above the curve or disappears while panning.
+- Onboarding now reflects already-granted permissions, marking the reminder and exact-alarm steps as done instead of prompting again.
+- Stock and dose unit labels are now correctly pluralized and localized.
+- Removed a spurious preset-dose disclaimer in the group slot editor.
 
 ## [1.0.3] - 2026-05-31
 
