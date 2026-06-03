@@ -2,7 +2,7 @@ package com.mkx.hrttracker.ui.components
 
 import androidx.compose.ui.graphics.Color
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.data.repository.RunwayProjection
+import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection

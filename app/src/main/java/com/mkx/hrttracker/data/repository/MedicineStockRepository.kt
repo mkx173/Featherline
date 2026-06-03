@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.di.AppScope
+import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine

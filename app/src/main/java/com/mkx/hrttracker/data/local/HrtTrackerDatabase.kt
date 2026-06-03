@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BloodTestResultEntity::class,
         CustomBloodAnalyteEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
@@ -111,6 +111,17 @@ internal val MIGRATION_4_5: Migration = object : Migration(4, 5) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
             "ALTER TABLE medication_log_entries ADD COLUMN doseAmountDelta REAL"
+        )
+    }
+}
+
+internal val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE INDEX IF NOT EXISTS index_medication_log_entries_category_appliedAtEpochMillis
+            ON medication_log_entries(category, appliedAtEpochMillis)
+            """.trimIndent()
         )
     }
 }

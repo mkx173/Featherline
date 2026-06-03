@@ -93,28 +93,23 @@ interface HomeDao {
 
     @Query(
         """
-        SELECT * FROM medication_log_entries AS entry
-        WHERE entry.category = 'ANTIANDROGEN'
-          AND entry.appliedAtEpochMillis <= :onOrBeforeEpochMillis
-          AND NOT EXISTS (
-            SELECT 1 FROM medication_log_entries AS newer
-            WHERE newer.category = entry.category
-              AND newer.appliedAtEpochMillis <= :onOrBeforeEpochMillis
-              AND (
-                newer.sourceGroupUuid = entry.sourceGroupUuid OR
-                (newer.sourceGroupUuid IS NULL AND entry.sourceGroupUuid IS NULL)
-              )
-              AND newer.applicationType = entry.applicationType
-              AND newer.medicineUuid = entry.medicineUuid
-              AND (
-                newer.appliedAtEpochMillis > entry.appliedAtEpochMillis OR
-                (
-                  newer.appliedAtEpochMillis = entry.appliedAtEpochMillis
-                  AND newer.uuid > entry.uuid
-                )
-              )
-          )
-        ORDER BY entry.appliedAtEpochMillis DESC
+        SELECT
+            uuid, category, medicineUuid, applicationType, doseInstructionKind,
+            tabletFractionNumerator, tabletFractionDenominator, doseVolumeMl,
+            doseWeightGrams, equivalentE2Mg, sourceGroupUuid, scheduleTimeUuid,
+            appliedAtEpochMillis, appliedAtTimeZoneId, scheduledForIso, count,
+            gelApplicationArea, doseAmountDelta
+        FROM (
+            SELECT *, ROW_NUMBER() OVER (
+                PARTITION BY applicationType, medicineUuid, sourceGroupUuid
+                ORDER BY appliedAtEpochMillis DESC, uuid DESC
+            ) AS rn
+            FROM medication_log_entries
+            WHERE category = 'ANTIANDROGEN'
+              AND appliedAtEpochMillis <= :onOrBeforeEpochMillis
+        )
+        WHERE rn = 1
+        ORDER BY appliedAtEpochMillis DESC
         """
     )
     fun observeLatestAntiandrogenEntriesOnOrBefore(
@@ -123,28 +118,23 @@ interface HomeDao {
 
     @Query(
         """
-        SELECT * FROM medication_log_entries AS entry
-        WHERE entry.category = 'ANTIANDROGEN'
-          AND entry.appliedAtEpochMillis <= :onOrBeforeEpochMillis
-          AND NOT EXISTS (
-            SELECT 1 FROM medication_log_entries AS newer
-            WHERE newer.category = entry.category
-              AND newer.appliedAtEpochMillis <= :onOrBeforeEpochMillis
-              AND (
-                newer.sourceGroupUuid = entry.sourceGroupUuid OR
-                (newer.sourceGroupUuid IS NULL AND entry.sourceGroupUuid IS NULL)
-              )
-              AND newer.applicationType = entry.applicationType
-              AND newer.medicineUuid = entry.medicineUuid
-              AND (
-                newer.appliedAtEpochMillis > entry.appliedAtEpochMillis OR
-                (
-                  newer.appliedAtEpochMillis = entry.appliedAtEpochMillis
-                  AND newer.uuid > entry.uuid
-                )
-              )
-          )
-        ORDER BY entry.appliedAtEpochMillis DESC
+        SELECT
+            uuid, category, medicineUuid, applicationType, doseInstructionKind,
+            tabletFractionNumerator, tabletFractionDenominator, doseVolumeMl,
+            doseWeightGrams, equivalentE2Mg, sourceGroupUuid, scheduleTimeUuid,
+            appliedAtEpochMillis, appliedAtTimeZoneId, scheduledForIso, count,
+            gelApplicationArea, doseAmountDelta
+        FROM (
+            SELECT *, ROW_NUMBER() OVER (
+                PARTITION BY applicationType, medicineUuid, sourceGroupUuid
+                ORDER BY appliedAtEpochMillis DESC, uuid DESC
+            ) AS rn
+            FROM medication_log_entries
+            WHERE category = 'ANTIANDROGEN'
+              AND appliedAtEpochMillis <= :onOrBeforeEpochMillis
+        )
+        WHERE rn = 1
+        ORDER BY appliedAtEpochMillis DESC
         """
     )
     suspend fun getLatestAntiandrogenEntriesOnOrBefore(

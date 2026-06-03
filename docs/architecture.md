@@ -45,8 +45,8 @@ are organized by role:
 - [`data`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data) — Room, DataStore, backup
   codec. Three sub-packages; `data/repository` holds 9 `*Repository`
   classes plus `HomeSnapshotStore`, the `MedicationEntityMappers`
-  and `MedicineEntityMappers` helpers, the `DoseInstructionCalculator`,
-  and the stock-projection helpers (see below).
+  and `MedicineEntityMappers` helpers, and the stock-projection helpers
+  (see below).
 - [`ui`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui) — Compose UI. Ten feature
   sub-packages plus `components`, `navigation`, `theme`.
 - [`di`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/di) — Hilt modules. Two files.
@@ -134,25 +134,28 @@ columns plus the active schedule), `SettingsRepository`,
 and `UserProfileRepository` — plus `HomeSnapshotStore` (serializes
 `HomeSnapshotRecord` including the embedded `HomePkProjectionRecord`
 to an encrypted DataStore file) and the supporting files: the
-`MedicationEntityMappers` and `MedicineEntityMappers` helpers, the
-`DoseInstructionCalculator` (which derives `equivalentE2Mg` from a
-medicine's preparation and a `DoseInstruction`), and the stock engine —
-`MedicineStockMutator` (applies the deduction-on-log and
+`MedicationEntityMappers` and `MedicineEntityMappers` helpers and the
+stock engine — `MedicineStockMutator` (applies the deduction-on-log and
 recount/top-up/recover mutations), `ScheduledRunwayCalculator` (a
 365-day forward simulation of upcoming scheduled doses against current
 stock, the source of the "days remaining" runway), `MedicineStockRateCalculator`,
 `MedicineStockStateResolver` (maps a projection to a
-`MedicineStockState`), and the `SimulatedStock` / `RunwayProjection` /
-`MedicineStockTypes` value types. Only repositories are
-exposed across the layer boundary; DAOs and entities stay inside
-`data/`.
+`MedicineStockState`), and the `SimulatedStock` / `MedicineStockTypes`
+value types. The pure-domain `DoseInstructionCalculator` (derives
+`equivalentE2Mg` from a medicine's preparation and a `DoseInstruction`)
+and the `RunwayProjection` result type live in `model/medication`, not
+here. Only repositories are exposed across the layer boundary; DAOs and
+entities stay inside `data/`.
 
 [`data/local`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local)
 holds the Room database, the 10 `@Entity` data classes, the 6 DAOs,
 the migration objects, and the SQLCipher passphrase provider. The
-current schema is version 4 (the medicine-identity refactor reset the
+current schema is version 6 (the medicine-identity refactor reset the
 schema and dropped the legacy v1–v29 migration chain; `MIGRATION_2_3`
-and `MIGRATION_3_4` then added the stock columns on `medicines`). See
+and `MIGRATION_3_4` then added the stock columns on `medicines`, and
+`MIGRATION_4_5` added the `doseAmountDelta` column, and
+`MIGRATION_5_6` added the medication-log `(category, appliedAtEpochMillis)`
+index). See
 [data-model.md](data-model.md) for the per-entity breakdown.
 
 [`data/backup`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup)
