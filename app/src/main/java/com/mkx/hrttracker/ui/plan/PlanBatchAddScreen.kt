@@ -63,6 +63,7 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.datePickerSelectableDates
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
@@ -192,6 +193,7 @@ private fun PlanBatchAddScreenContent(
         PlanBatchDateRangePickerDialog(
             startDate = uiState.startDate,
             endDate = uiState.endDate,
+            today = uiState.today,
             onDateRangeSelected = { startDate, endDate ->
                 onStartDateSelected(startDate)
                 onEndDateSelected(endDate)
@@ -454,12 +456,20 @@ private fun PlanBatchAddRangeSelector(
 private fun PlanBatchDateRangePickerDialog(
     startDate: LocalDate,
     endDate: LocalDate,
+    today: LocalDate,
     onDateRangeSelected: (LocalDate, LocalDate) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // Block future dates: batch-add only backfills occurrences up to now, so a
+    // future end has nothing to add. Keyed on today so it stays correct if the
+    // date rolls over while the screen is open.
+    val selectableDates = remember(today) {
+        datePickerSelectableDates(maximumDate = today)
+    }
     val state = rememberDateRangePickerState(
         initialSelectedStartDate = startDate,
         initialSelectedEndDate = endDate,
+        selectableDates = selectableDates,
     )
 
     DatePickerDialog(
@@ -611,6 +621,7 @@ private fun PlanBatchDateRangePickerDialogPreview() {
         PlanBatchDateRangePickerDialog(
             startDate = LocalDate.of(2026, 4, 20),
             endDate = LocalDate.of(2026, 4, 26),
+            today = LocalDate.of(2026, 4, 26),
             onDateRangeSelected = { _, _ -> },
             onDismiss = { },
         )

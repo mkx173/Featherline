@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.ownsUnloggedOccurrence
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,16 +37,22 @@ class PlanBatchAddViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     settingsRepository: SettingsRepository,
+    appTimeSource: AppTimeSource,
 ) : ViewModel() {
     private val selectionState = MutableStateFlow(PlanBatchAddSelectionState())
+
+    // Drives `today`/`now` so date-derived state (the date-range picker's upper
+    // bound, the future-start guard) stays fresh while the screen is open —
+    // currentMinute ticks each minute and re-reads on foreground/clock changes.
+    private val currentDateTime = appTimeSource.currentMinute
 
     val uiState: StateFlow<PlanBatchAddUiState> = combine(
         medicationGroupRepository.observeGroups(),
         medicationLogRepository.observeEntries(),
         settingsRepository.settingsState,
         selectionState,
-    ) { groupsOrNull, entriesOrNull, settingsState, selection ->
-        val now = LocalDateTime.now()
+        currentDateTime,
+    ) { groupsOrNull, entriesOrNull, settingsState, selection, now ->
         val groups = sortPlanMedicationGroups(groupsOrNull.orEmpty().filter(MedicationGroup::isActive))
         val entries = entriesOrNull.orEmpty()
         val selectedGroup = selection.selectedGroupUuid?.let { groupUuid ->
@@ -93,7 +100,7 @@ class PlanBatchAddViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
-        initialValue = PlanBatchAddUiState(),
+        initialValue = PlanBatchAddUiState(today = currentDateTime.value.toLocalDate()),
     )
 
     fun selectGroup(groupUuid: UUID) {

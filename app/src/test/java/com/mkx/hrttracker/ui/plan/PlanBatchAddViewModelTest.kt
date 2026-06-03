@@ -17,6 +17,7 @@ import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -420,7 +421,10 @@ class PlanBatchAddViewModelTest {
         preparation = MedicinePreparation.Pill(strengthMgPerTablet = 100.0),
     )
 
-    private fun planBatchAddViewModel(groups: List<MedicationGroup>): PlanBatchAddViewModel {
+    private fun planBatchAddViewModel(
+        groups: List<MedicationGroup>,
+        now: LocalDateTime = LocalDateTime.of(2026, 4, 25, 12, 0),
+    ): PlanBatchAddViewModel {
         val medicationGroupRepository = mockk<MedicationGroupRepository>()
         val medicationLogRepository = mockk<MedicationLogRepository>()
         val settingsRepository = mockk<SettingsRepository>()
@@ -436,6 +440,7 @@ class PlanBatchAddViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationReminderScheduler = mockk<MedicationReminderScheduler>(relaxed = true),
             settingsRepository = settingsRepository,
+            appTimeSource = FakeAppTimeSource(initialMinute = now),
         )
     }
 }
