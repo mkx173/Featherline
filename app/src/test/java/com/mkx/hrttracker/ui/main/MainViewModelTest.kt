@@ -174,7 +174,7 @@ class MainViewModelTest {
         assertEquals(normalTick, viewModel.uiState.value.now)
 
         val refreshedMinute = firstMinute.plusHours(2)
-        appTimeSource.refreshToSnapshot(refreshedMinute, zoneId)
+        appTimeSource.setCurrentSnapshot(refreshedMinute, zoneId)
         advanceUntilIdle()
 
         verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any(), any()) }

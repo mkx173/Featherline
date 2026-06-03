@@ -65,13 +65,6 @@ class FakeAppTimeSource(
         )
     }
 
-    fun refreshToSnapshot(currentMinute: LocalDateTime, zoneId: ZoneId) {
-        setCurrentSnapshot(
-            currentMinute = currentMinute,
-            zoneId = zoneId,
-        )
-    }
-
     fun setCurrentInstant(currentInstant: Instant) {
         this.currentInstant = currentInstant
         val currentZone = mutableCurrentSnapshot.value.zone

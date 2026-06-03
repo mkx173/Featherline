@@ -36,9 +36,9 @@ interface AppTimeSource {
 
     /**
      * Forces [currentSnapshot] to re-read the wall clock immediately for active
-     * subscribers. Called when the app returns to the foreground so app time
-     * reflects any date/time/zone change that happened while backgrounded,
-     * instead of waiting up to a minute for the next tick.
+     * subscribers, instead of waiting up to a minute for the next tick. Called
+     * when the app returns to the foreground, and when a system time or timezone
+     * change broadcast arrives, so app time reflects the change right away.
      */
     fun refresh()
 }
