@@ -185,10 +185,25 @@ internal class MedicineStockMutator @Inject constructor() {
         val prepType = MedicinePreparationType.fromStorageValue(entity.preparationType)
         val stockFields = if (prepType.isContainerTopology()) {
             val recountedSealed = maxOf(0.0, recount.unitsRemaining)
+            // Canonicalize a possibly-legacy raw row (empty open with sealed stock
+            // left) before applying the absolute count. The recount field is the
+            // sealed-reserve count entered against the eager-unseal view the user
+            // sees, so the open container must be the healed (full) one — reading
+            // the raw empty open here instead makes promote crack one of the
+            // just-counted containers, persisting one fewer than entered (and one
+            // fewer than the recount preview shows). A genuine no-open row
+            // (sealed = 0) stays empty here and is opened by the promote below.
+            val canonicalOpen = entity.containerSizeOrNull()?.let { capacity ->
+                normalizeOpenContainer(
+                    open = entity.openContainerAmount,
+                    sealed = entity.stockUnitsRemaining?.takeIf { it.isFinite() } ?: 0.0,
+                    capacity = capacity,
+                ).first
+            } ?: entity.openContainerAmount
             entity.promoteFirstContainerIfNeeded(
                 sealedCount = recountedSealed,
                 lastTotal = recountedSealed,
-                openAmount = entity.openContainerAmount,
+                openAmount = canonicalOpen,
             )
         } else {
             val recountedRemaining = maxOf(0.0, recount.unitsRemaining)

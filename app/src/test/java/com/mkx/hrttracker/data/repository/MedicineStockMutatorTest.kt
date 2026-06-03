@@ -986,9 +986,48 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun recount_container_emptyOpenPromotesFirstCountedContainer() = runTest {
+    fun recount_container_legacyEmptyOpenKeepsHealedOpenAndCountsEnteredSealed() = runTest {
+        // Legacy raw row: empty open with sealed stock left. The read boundary
+        // already heals this to a full open container + (sealed-1) reserve, and the
+        // recount UI enters the *sealed reserve* count against that healed view
+        // (preview = sealed*capacity + open). Recount must canonicalize the raw open
+        // before applying the absolute count, so it keeps the healed open and
+        // persists exactly the entered sealed count. Without canonicalization the
+        // raw empty open makes promote crack one of the just-counted containers,
+        // persisting one fewer than entered (and one fewer than the preview shows).
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 2.0, open = 0.0, vialVolume = 1.0)
+
+        mutator.applyRecount(
+            database = database,
+            medicineUuid = medicineUuid,
+            recount = StockRecount(unitsRemaining = 3.0),
+            now = fixedNow,
+        )
+
+        coVerify {
+            medicineDao.updateStockFields(
+                uuid = medicineUuid.toString(),
+                trackingEnabled = true,
+                stockUnitsRemaining = 3.0,
+                stockUnitsLastTotal = 3.0,
+                openContainerAmount = 1.0,
+                warnAtDaysRemaining = 14,
+                stockGeneration = 2L,
+                updatedAtEpochMillis = fixedNow.toEpochMilli(),
+            )
+        }
+    }
+
+    @Test
+    fun recount_container_fromOutOpensOneFromCountedStock() = runTest {
+        // Genuine OUT (no open container at all): recounting fresh stock in must
+        // eagerly open one of the counted containers so an empty open gauge never
+        // persists. Distinct from the legacy-empty case above — there is no healed
+        // open to preserve, so the entered count yields (count-1) reserve + one
+        // open, and the denominator follows the baseline crack.
+        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
+            vialRow(sealed = 0.0, open = null, vialVolume = 1.0)
 
         mutator.applyRecount(
             database = database,
