@@ -13,6 +13,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -429,6 +430,32 @@ class MedicineStockMutatorTest {
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),
             )
         }
+    }
+
+    // Regression guard for the crack's total-preserving invariant. computeTotalStock
+    // (MedicineStockRepository) reads totalStockUnits as open + sealed * capacity and
+    // feeds it into OUT/LOW state and runway; a crack that moved units would silently
+    // shift stock classification and days-remaining. Assert the crack actually fires
+    // here (not a no-op that trivially preserves the total), then that no units moved.
+    @Test
+    fun normalizeOpenContainer_crackPreservesTotalStock() {
+        val capacity = 10.0
+        val openBefore: Double? = 0.0
+        val sealedBefore = 3.0
+
+        val (openAfter, sealedAfter) = normalizeOpenContainer(
+            open = openBefore,
+            sealed = sealedBefore,
+            capacity = capacity,
+        )
+
+        val crackedOpen = requireNotNull(openAfter)
+        assertEquals(capacity, crackedOpen, 1e-9)
+        assertEquals(sealedBefore - 1.0, sealedAfter, 1e-9)
+
+        val totalBefore = (openBefore ?: 0.0) + sealedBefore * capacity
+        val totalAfter = crackedOpen + sealedAfter * capacity
+        assertEquals(totalBefore, totalAfter, 1e-9)
     }
 
     @Test
