@@ -382,6 +382,37 @@ class MedicineStockMutatorTest {
     }
 
     @Test
+    fun resolveDeduction_container_crackKeepsRecountDenominatorFixed() = runTest {
+        // Consumption baseline: a dose that drains the open container and cracks
+        // the next sealed one must NOT drop unitsLastTotal. The denominator is the
+        // recount baseline, so the reserve gauge depletes (here 1/5) instead of
+        // re-basing to full. Guards against extending the crack decrement into the
+        // consumption path.
+        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
+            vialRow(sealed = 2.0, open = 0.25, vialVolume = 1.0, lastTotal = 5.0)
+
+        mutator.resolveDeductionForInsert(
+            database = database,
+            medicineUuid = medicineUuid,
+            requestedDose = 0.25,
+            now = fixedNow,
+        )
+
+        coVerify {
+            medicineDao.updateStockFields(
+                uuid = medicineUuid.toString(),
+                trackingEnabled = true,
+                stockUnitsRemaining = 1.0,
+                stockUnitsLastTotal = 5.0,
+                openContainerAmount = 1.0,
+                warnAtDaysRemaining = 14,
+                stockGeneration = 1L,
+                updatedAtEpochMillis = fixedNow.toEpochMilli(),
+            )
+        }
+    }
+
+    @Test
     fun resolveDeduction_container_exactDrainWithNoSealedStaysOut() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 0.0, open = 0.25, vialVolume = 1.0)
@@ -1220,6 +1251,36 @@ class MedicineStockMutatorTest {
                 stockUnitsRemaining = 2.0,
                 stockUnitsLastTotal = 2.0,
                 openContainerAmount = 5.0,
+                warnAtDaysRemaining = 14,
+                stockGeneration = 1L,
+                updatedAtEpochMillis = fixedNow.toEpochMilli(),
+            )
+        }
+    }
+
+    @Test
+    fun setOpenContainerAmount_zeroOnNonLegacyRowKeepsDenominatorFixed() = runTest {
+        // Emptying the open container (open already positive, so no legacy
+        // canonicalization) re-opens the next sealed one — a consumption event, not
+        // a new baseline. unitsLastTotal stays at the recount baseline (5), so the
+        // gauge reads 1/5, not 1/1. Guards the consumption-vs-baseline distinction.
+        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
+            vialRow(sealed = 2.0, open = 0.4, vialVolume = 1.0, lastTotal = 5.0)
+
+        mutator.applySetOpenContainerAmount(
+            database = database,
+            medicineUuid = medicineUuid,
+            amount = 0.0,
+            now = fixedNow,
+        )
+
+        coVerify {
+            medicineDao.updateStockFields(
+                uuid = medicineUuid.toString(),
+                trackingEnabled = true,
+                stockUnitsRemaining = 1.0,
+                stockUnitsLastTotal = 5.0,
+                openContainerAmount = 1.0,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 1L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),

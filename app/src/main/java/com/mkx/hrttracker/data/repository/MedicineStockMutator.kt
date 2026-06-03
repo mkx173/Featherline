@@ -28,12 +28,17 @@ internal fun normalizeOpenContainer(
 }
 
 /**
- * Drops the sealed-stock gauge denominator (unitsLastTotal) by one when a
- * container has just been cracked open, so the baseline tracks the new sealed
- * count. No-op when nothing cracked or the denominator is absent/non-finite.
- * Every eager-unseal site (write promote, set-open, and the read-boundary
- * normalizers) shares this so a healed row renders the same gauge as a
- * written one.
+ * Drops the sealed-stock gauge denominator (unitsLastTotal) by one for a
+ * baseline-establishing crack, so the denominator equals the sealed count left
+ * after the open container is opened. No-op when nothing cracked or the
+ * denominator is absent/non-finite.
+ *
+ * Only the baseline sites call this: recount/received/enable promotion, and the
+ * legacy read-boundary heal that reconstructs that baseline. Consumption cracks
+ * deliberately do NOT — a dose draining the open container
+ * (resolveContainerDeductionForInsert) and emptying the open container via the
+ * editor keep the recount baseline fixed, so the reserve gauge depletes
+ * (4/4 -> 3/4 -> ...) rather than re-basing to full on every container.
  */
 internal fun decrementDenominatorOnCrack(lastTotal: Double?, cracked: Boolean): Double? {
     if (!cracked) return lastTotal
@@ -316,6 +321,10 @@ internal class MedicineStockMutator @Inject constructor() {
             sealed = rawSealed,
             capacity = containerSize,
         )
+        // The denominator only follows the canonicalization above (reconstructing
+        // a missed baseline crack). The edit's own crack — setting open to empty,
+        // which re-opens the next sealed container — is a consumption event, so it
+        // leaves canonicalLastTotal untouched.
         val canonicalLastTotal = decrementDenominatorOnCrack(
             lastTotal = entity.stockUnitsLastTotal,
             cracked = canonicalSealed != rawSealed,
@@ -379,6 +388,10 @@ internal class MedicineStockMutator @Inject constructor() {
             uuid = entity.uuid,
             trackingEnabled = true,
             stockUnitsRemaining = normalizedSealed.zeroIfTiny(),
+            // Consumption keeps the recount baseline fixed: even when this dose
+            // drains the open container and cracks the next sealed one, the
+            // denominator stays put so the reserve gauge depletes instead of
+            // re-basing to full (see decrementDenominatorOnCrack).
             stockUnitsLastTotal = entity.stockUnitsLastTotal,
             openContainerAmount = normalizedOpen,
             warnAtDaysRemaining = entity.warnAtDaysRemaining,
