@@ -795,7 +795,7 @@ private fun MedicationGroupEditorScreenContent(
             onDismiss = { pendingSinceDate = null },
             initialSelectedDate = initialSinceDate,
             minimumDate = if (uiState.recreatedFromGroupId != null) {
-                currentDate
+                maxOf(currentDate, uiState.originalSinceDate ?: currentDate)
             } else {
                 null
             },

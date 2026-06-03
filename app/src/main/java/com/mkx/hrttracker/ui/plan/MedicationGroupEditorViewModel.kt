@@ -350,10 +350,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateSinceDate(date: LocalDate) {
         _uiState.update {
+            val today = currentMinute.value.toLocalDate()
             editorStateWithUpdatedSinceDate(
                 uiState = it,
                 date = date,
-                minimumRecreatedStartDate = currentMinute.value.toLocalDate(),
+                // A recreated plan can only move its start to its own start date
+                // and later, never earlier — earlier would re-overlap the
+                // archived plan it was split from.
+                minimumRecreatedStartDate = maxOf(today, it.originalSinceDate ?: today),
             )
         }
     }
@@ -1215,7 +1219,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
         val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
         val recreateNow = currentMinute.value
         val recreateNowInstant = appTimeSource.now()
-        val recreateScheduleStartDate = recreateNow.toLocalDate()
+        // Start the recreated plan after the archived plan's cutoff so the two
+        // never own the same day. An end-of-day archive of today pushes the new
+        // start to tomorrow; "now" (null) or an earlier-date archive keeps it at
+        // today.
+        val recreateToday = recreateNow.toLocalDate()
+        val recreateScheduleStartDate =
+            maxOf(recreateToday, archivedThroughDate?.plusDays(1) ?: recreateToday)
 
         viewModelScope.launch {
             _uiState.update {

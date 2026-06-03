@@ -765,6 +765,52 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
+    fun saveGroup_newNoBackfillGroupWithFutureSinceIsEffectiveFromStartOfThatDay() = runTest {
+        // Defense in depth: a no-backfill plan whose start is in the future (e.g.
+        // a recreate beginning the day after an end-of-day archive) pins each
+        // slot's effectiveFrom to that start day, never `now`, so it can never
+        // own a day the archived plan still owns. (`since` already gates
+        // generation, so today-start groups keep effectiveFrom = now.)
+        val savedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
+        val now = Instant.parse("2026-04-25T10:00:00Z")
+        val futureSince = LocalDate.of(2026, 5, 1)
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+
+        repository.saveGroup(
+            uuid = null,
+            name = "Group",
+            colorKey = MedicationGroupColorKey.ROSE,
+            schedule = MedicationGroupScheduleInput(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = futureSince,
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0)),
+            ),
+            medications = emptyList(),
+            includePastScheduledSlots = false,
+            now = now,
+        )
+
+        coVerify {
+            medicationGroupDao.upsertGroupWithItems(
+                group = any(),
+                items = any(),
+                scheduleTimes = capture(savedTimes),
+                weeklyDays = any(),
+            )
+        }
+        assertEquals(
+            futureSince.atStartOfDay().toString(),
+            savedTimes.captured.single().effectiveFromLocalIso,
+        )
+    }
+
+    @Test
     fun saveGroup_forExistingFreshGroupWhenBackfillEnabled_movesCurrentRowsToSinceStart() = runTest {
         val groupUuid = UUID.fromString("30c4a905-64d5-4ef0-8096-60b7d1edc4c4")
         val savedGroup = slot<MedicationGroupEntity>()

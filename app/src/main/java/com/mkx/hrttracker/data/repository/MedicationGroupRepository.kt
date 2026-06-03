@@ -389,7 +389,14 @@ class MedicationGroupRepository @Inject constructor(
                             existingScheduleTime != null && existingTime == time ->
                                 existingScheduleTime.effectiveFromLocalIso
 
-                            else -> nowLocal.toString()
+                            // Defense in depth: a future start date (e.g. a
+                            // recreate that begins the day after an end-of-day
+                            // archive) makes the slot effective from that day's
+                            // start, never `now`, so it cannot own a day the
+                            // archived plan still owns even if `since` is later
+                            // edited back. `since` already gates generation, so
+                            // today-start groups are unchanged (max picks now).
+                            else -> maxOf(nowLocal, schedule.since.atStartOfDay()).toString()
                         }
                         MedicationGroupScheduleTimeEntity(
                             uuid = scheduleTimeUuid.toString(),
