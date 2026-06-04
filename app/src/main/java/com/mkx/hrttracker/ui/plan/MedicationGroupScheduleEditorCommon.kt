@@ -321,8 +321,8 @@ internal fun NotificationsCard(
     enabled: Boolean,
     toggleEnabled: Boolean,
     onToggle: (Boolean) -> Unit,
-    index: Int = 0,
-    count: Int = 1,
+    index: Int? = null,
+    count: Int? = null,
 ) {
     PreferenceSegmentedListItem(
         title = stringResource(R.string.group_notifications_reminder),
@@ -360,8 +360,8 @@ internal fun NotificationsCard(
 internal fun DeleteMedicationGroupRecordsCard(
     enabled: Boolean = true,
     onClick: () -> Unit,
-    index: Int = 0,
-    count: Int = 2,
+    index: Int? = null,
+    count: Int? = null,
 ) {
     DangerZoneListItem(
         label = stringResource(R.string.delete_group_related_records),
@@ -378,8 +378,8 @@ internal fun DeleteMedicationGroupRecordsCard(
 internal fun ArchiveMedicationGroupCard(
     enabled: Boolean = true,
     onClick: () -> Unit,
-    index: Int = 0,
-    count: Int = 1,
+    index: Int? = null,
+    count: Int? = null,
 ) {
     PreferenceSegmentedListItem(
         title = stringResource(R.string.archive_medication_group),
@@ -411,8 +411,8 @@ internal fun ArchiveMedicationGroupCard(
 internal fun DuplicateMedicationGroupCard(
     enabled: Boolean = true,
     onClick: () -> Unit,
-    index: Int = 0,
-    count: Int = 1,
+    index: Int? = null,
+    count: Int? = null,
 ) {
     PreferenceSegmentedListItem(
         title = stringResource(R.string.duplicate_medication_group),
@@ -443,8 +443,8 @@ internal fun DuplicateMedicationGroupCard(
 internal fun DeleteMedicationGroupCard(
     enabled: Boolean = true,
     onClick: () -> Unit,
-    index: Int = 1,
-    count: Int = 2,
+    index: Int? = null,
+    count: Int? = null,
 ) {
     DangerZoneListItem(
         label = stringResource(R.string.delete_medication_group),
