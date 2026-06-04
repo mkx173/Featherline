@@ -108,7 +108,19 @@ android {
             isDebuggable = false
             matchingFallbacks += listOf("release")
         }
+
+        // Dedicated build type for instrumented tests (see testBuildType below). The
+        // distinct applicationId suffix keeps the test app a separate package, so
+        // connectedAndroidTest never overwrites the regular debug install on a device.
+        create("instrumentation") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".androidTest"
+            versionNameSuffix = "-androidTest"
+            matchingFallbacks += listOf("debug")
+        }
     }
+
+    testBuildType = "instrumentation"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -213,5 +225,9 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
 
     debugImplementation(libs.androidx.ui.tooling)
-    debugImplementation(libs.androidx.ui.test.manifest)
+    // createComposeRule() relies on the test-only ComponentActivity from
+    // ui-test-manifest being merged into the app-under-test manifest. Instrumented
+    // tests run against the `instrumentation` build type (testBuildType), so this must
+    // target that build type rather than debug.
+    "instrumentationImplementation"(libs.androidx.ui.test.manifest)
 }
