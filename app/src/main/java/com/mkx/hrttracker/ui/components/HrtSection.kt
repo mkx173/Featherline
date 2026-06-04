@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -128,7 +129,13 @@ fun HrtSection(
     title: String?,
     modifier: Modifier = Modifier,
     topPadding: Boolean = true,
-    headerTrailing: (@Composable () -> Unit)? = null,
+    headerTrailing: (@Composable RowScope.() -> Unit)? = null,
+    // When true, the header title and [headerTrailing] align by their text
+    // baselines instead of vertically centering. The trailing slot must apply
+    // Modifier.alignByBaseline() to its own text. Use for a text trailing (e.g.
+    // a summary) of a different size than the title; leave false for icon/divider
+    // trailings so they stay centered.
+    headerTrailingAlignByBaseline: Boolean = false,
     content: HrtSectionScope.() -> Unit,
 ) {
     val scope = HrtSectionScopeImpl().apply(content)
@@ -137,7 +144,12 @@ fun HrtSection(
 
     Column(modifier = modifier.fillMaxWidth()) {
         if (title != null) {
-            HrtSectionHeader(text = title, topPadding = topPadding, trailing = headerTrailing)
+            HrtSectionHeader(
+                text = title,
+                topPadding = topPadding,
+                trailingAlignByBaseline = headerTrailingAlignByBaseline,
+                trailing = headerTrailing,
+            )
         }
         // Gaps are leading spacers inside each row (not Arrangement.spacedBy) so a
         // collapsed animatedItem leaves no double gap - its leading spacer collapses
@@ -173,7 +185,11 @@ fun HrtSectionHeader(
     text: String,
     modifier: Modifier = Modifier,
     topPadding: Boolean = true,
-    trailing: (@Composable () -> Unit)? = null,
+    // See HrtSection.headerTrailingAlignByBaseline. When true the title opts into
+    // baseline alignment so a text [trailing] sharing the same Row aligns to its
+    // baseline rather than centering.
+    trailingAlignByBaseline: Boolean = false,
+    trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
@@ -185,8 +201,10 @@ fun HrtSectionHeader(
             text = text.uppercase(),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .then(if (trailingAlignByBaseline) Modifier.alignByBaseline() else Modifier),
         )
-        trailing?.invoke()
+        trailing?.invoke(this)
     }
 }

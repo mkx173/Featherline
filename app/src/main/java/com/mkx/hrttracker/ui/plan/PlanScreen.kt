@@ -724,12 +724,14 @@ private fun RegimenSection(
 
     HrtSection(
         title = stringResource(R.string.plan_regimen_title),
+        headerTrailingAlignByBaseline = true,
         headerTrailing = if (regimenSummary != null) {
             {
                 Text(
                     text = regimenSummary.uppercase(),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.alignByBaseline(),
                 )
             }
         } else {

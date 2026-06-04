@@ -87,6 +87,26 @@ class HrtSectionRenderTest {
     }
 
     @Test
+    fun headerWithBaselineAlignedTrailing_rendersTitleAndTrailing() {
+        // Smoke-covers the baseline-aligned trailing path (RowScope trailing +
+        // Modifier.alignByBaseline()). Actual baseline alignment is verified
+        // visually; this guards the code path against compile/runtime breakage.
+        composeRule.setContent {
+            HrtSection(
+                title = "Regimen",
+                headerTrailingAlignByBaseline = true,
+                headerTrailing = {
+                    Text(text = "SUMMARY", modifier = Modifier.alignByBaseline())
+                },
+            ) {
+                item { PositionProbe("a") }
+            }
+        }
+        composeRule.onNodeWithText("REGIMEN").assertIsDisplayed()
+        composeRule.onNodeWithText("SUMMARY").assertIsDisplayed()
+    }
+
+    @Test
     fun rowOutsideSection_hasNoPosition() {
         composeRule.setContent { PositionProbe("solo") }
         composeRule.onNodeWithTag("solo").assertTextEquals("none")
