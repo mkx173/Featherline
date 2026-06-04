@@ -32,7 +32,7 @@ internal fun CharSequence.containsCjkCharacters(): Boolean {
 internal fun Modifier.cjkTextOffset(
     text: CharSequence,
     enabled: Boolean = true,
-    amount: Dp = (-1).dp,
+    amount: Dp = (-1).dp
 ): Modifier {
     if (!enabled || !text.containsCjkCharacters()) {
         return this
@@ -51,7 +51,7 @@ internal fun Modifier.cjkTextOffset(
 internal fun Modifier.cjkTextOffset(
     locale: Locale,
     enabled: Boolean = true,
-    amount: Dp = (-1).dp,
+    amount: Dp = (-1).dp
 ): Modifier {
     if (!enabled || locale.language != Locale.CHINESE.language) {
         return this

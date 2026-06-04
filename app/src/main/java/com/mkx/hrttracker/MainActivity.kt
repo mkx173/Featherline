@@ -137,8 +137,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val startupTimingEnabled =
-            (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 ||
-                packageName.endsWith(".benchmark")
+            (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
         StartupTiming.reset(enabled = startupTimingEnabled)
         val splashScreen = installSplashScreen()
 

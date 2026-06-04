@@ -120,6 +120,8 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.HrtPill
+import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
@@ -505,6 +507,7 @@ internal fun MainE2HeroCard(
     val heroContentColor = colorScheme.primary
     val heroSupportingColor = colorScheme.onSurfaceVariant
     val heroPillContainerColor = colorScheme.secondaryContainer.copy(alpha = 0.7f)
+    val heroPillContentColor = colorScheme.onSecondaryContainer
 
     Box(modifier = modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge)) {
         Surface(
@@ -647,40 +650,22 @@ internal fun MainE2HeroCard(
                             active = showSkeleton,
                             shape = CircleShape,
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = heroPillContainerColor,
-                                contentColor = heroSupportingColor
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = trendIcon,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(13.dp),
-                                        tint = heroSupportingColor
-                                    )
-
-                                    val sinceYesterdayText = if (effectiveIsTrendDeltaDisplayZero) {
-                                        stringResource(R.string.main_e2_no_change_since_yesterday)
-                                    } else {
-                                        stringResource(
-                                            R.string.main_e2_change_since_yesterday,
-                                            trendDeltaLabel
-                                        )
-                                    }
-                                    Text(
-                                        text = sinceYesterdayText,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = heroSupportingColor,
-                                        modifier = Modifier.padding(end = 2.dp).cjkTextOffset(sinceYesterdayText)
-                                    )
-                                }
+                            val sinceYesterdayText = if (effectiveIsTrendDeltaDisplayZero) {
+                                stringResource(R.string.main_e2_no_change_since_yesterday)
+                            } else {
+                                stringResource(
+                                    R.string.main_e2_change_since_yesterday,
+                                    trendDeltaLabel
+                                )
                             }
+                            HrtPill(
+                                label = sinceYesterdayText,
+                                containerColor = heroPillContainerColor,
+                                contentColor = heroPillContentColor,
+                                size = HrtPillSize.Small,
+                                fontWeight = FontWeight.SemiBold,
+                                icon = { Icon(trendIcon, contentDescription = null, modifier = iconModifier) },
+                            )
                         }
 
                         MainInfoPill(
@@ -692,7 +677,7 @@ internal fun MainE2HeroCard(
                             text = lastDoseSummary,
                             iconTint = heroSupportingColor,
                             containerColor = heroPillContainerColor,
-                            contentColor = heroSupportingColor,
+                            contentColor = heroPillContentColor,
                         )
                     }
                 }
@@ -718,31 +703,15 @@ private fun MainE2RangeStatusPill(
     label: String,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
+    HrtPill(
+        label = label,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                painter = painterResource(iconDrawableRes),
-                contentDescription = null,
-                modifier = Modifier.size(13.dp)
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(label)
-            )
-        }
-    }
+        size = HrtPillSize.XSmall,
+        fontWeight = FontWeight.SemiBold,
+        icon = { Icon(painterResource(iconDrawableRes), contentDescription = null, modifier = iconModifier) },
+    )
 }
 
 @Composable
@@ -2564,7 +2533,7 @@ private class VerticalLineDecoration(
 }
 
 @Composable
-private fun MainE2ChartCardHeader(
+    private fun MainE2ChartCardHeader(
     modifier: Modifier = Modifier,
     targetRangeLow: Double,
     targetRangeHigh: Double,
@@ -2627,24 +2596,18 @@ private fun MainE2ChartCardHeader(
         }
 
         if (!hideReferenceRanges) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-            ) {
-                val targetText = stringResource(
+            HrtPill(
+                label = stringResource(
                     R.string.main_e2_chart_target,
                     formatMainE2ConcentrationValue(targetRangeLow, displayUnit),
                     formatMainE2ConcentrationValue(targetRangeHigh, displayUnit),
                     unit
-                )
-                Text(
-                    text = targetText,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).cjkTextOffset(targetText),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
+                ),
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                size = HrtPillSize.XSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
     }
 }
@@ -2840,7 +2803,6 @@ private fun MainAntiandrogenMedicationSubCard(
                         R.drawable.ic_info
                     },
                     text = takenText,
-                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
                 MainInfoPill(
@@ -2857,39 +2819,21 @@ private fun MainInfoPill(
     modifier: Modifier = Modifier,
     iconDrawableRes: Int? = null,
     text: String,
-    iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    iconTint: Color = MaterialTheme.colorScheme.onSecondaryContainer,
     containerColor: Color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    contentColor: Color = MaterialTheme.colorScheme.onSecondaryContainer,
 ) {
-    Surface(
+    HrtPill(
+        label = text,
+        containerColor = containerColor,
+        contentColor = contentColor,
         modifier = modifier,
-        shape = CircleShape,
-        color = containerColor,
-        contentColor = contentColor
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            if (iconDrawableRes != null) {
-                Icon(
-                    painter = painterResource(iconDrawableRes),
-                    contentDescription = null,
-                    tint = iconTint,
-                    modifier = Modifier.size(13.dp)
-                )
-            }
-
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(text)
-            )
-        }
-    }
+        size = HrtPillSize.Small,
+        fontWeight = FontWeight.SemiBold,
+        icon = iconDrawableRes?.let { res ->
+            { Icon(painterResource(res), contentDescription = null, tint = iconTint, modifier = iconModifier) }
+        },
+    )
 }
 
 @Composable
@@ -3742,51 +3686,45 @@ private fun MainTodayTimeRangeHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Surface(
-            shape = CircleShape,
-            color = if (isCurrent) {
+        HrtPill(
+            containerColor = if (isCurrent) {
                 MaterialTheme.colorScheme.tertiaryContainer
             } else {
                 MaterialTheme.colorScheme.surfaceContainer
-            }
+            },
+            size = HrtPillSize.Medium,
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Icon(
-                    painter = painterResource(iconDrawableRes),
-                    contentDescription = null,
-                    tint = if (isCurrent) {
-                        MaterialTheme.colorScheme.onTertiaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    modifier = Modifier.size(14.dp)
-                )
-                Text(
-                    text = timeRangeLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isCurrent) {
-                        MaterialTheme.colorScheme.onTertiaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                    modifier = Modifier.alignByBaseline().cjkTextOffset(timeRangeLabel)
-                )
-                Text(
-                    text = timeRangeTimeLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (isCurrent) {
-                        MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f)
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    modifier = Modifier.alignByBaseline().cjkTextOffset(appLocale)
-                )
-            }
+            Icon(
+                painter = painterResource(iconDrawableRes),
+                contentDescription = null,
+                tint = if (isCurrent) {
+                    MaterialTheme.colorScheme.onTertiaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = timeRangeLabel,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isCurrent) {
+                    MaterialTheme.colorScheme.onTertiaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                modifier = Modifier.alignByBaseline().cjkTextOffset(timeRangeLabel)
+            )
+            Text(
+                text = timeRangeTimeLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (isCurrent) {
+                    MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.alignByBaseline().cjkTextOffset(appLocale)
+            )
         }
         HorizontalDivider(
             modifier = Modifier.weight(1f),

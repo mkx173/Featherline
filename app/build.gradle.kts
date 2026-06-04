@@ -82,12 +82,21 @@ android {
                 abiFilters += listOf("arm64-v8a")
             }
         }
+
+        create("x64") {
+            dimension = "distribution"
+
+            ndk {
+                abiFilters += listOf("x86_64")
+            }
+        }
     }
 
     buildTypes {
         debug {
+            applicationIdSuffix = ".debug"
             versionNameSuffix = "-$gitCommitHash"
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("debug")
         }
 
         release {
@@ -100,14 +109,6 @@ android {
             )
         }
 
-        create("benchmark") {
-            initWith(getByName("release"))
-            applicationIdSuffix = ".benchmark"
-            versionNameSuffix = "-benchmark"
-            signingConfig = signingConfigs.getByName("debug")
-            isDebuggable = false
-            matchingFallbacks += listOf("release")
-        }
     }
 
     compileOptions {
@@ -145,6 +146,7 @@ androidComponents {
 
             val abiName = when (flavor) {
                 "arm64" -> "arm64-v8a"
+                "x64" -> "x86_64"
                 "play" -> "all-abis"
                 else -> flavor
             }
@@ -213,5 +215,7 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
 
     debugImplementation(libs.androidx.ui.tooling)
+    // createComposeRule() relies on the test-only ComponentActivity from
+    // ui-test-manifest being merged into the app-under-test manifest.
     debugImplementation(libs.androidx.ui.test.manifest)
 }

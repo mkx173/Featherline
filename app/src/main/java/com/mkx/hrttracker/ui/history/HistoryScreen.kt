@@ -116,6 +116,8 @@ import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
+import com.mkx.hrttracker.ui.components.HrtPill
+import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
@@ -670,7 +672,7 @@ private fun HistoryScreenContent(
                             val title = stringResource(R.string.tab_history)
                             Text(
                                 text = title,
-                                modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
+                                modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                             )
                         },
                         back = {
@@ -681,7 +683,7 @@ private fun HistoryScreenContent(
                             )
                             Text(
                                 text = title,
-                                modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
+                                modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                             )
                         },
                     )
@@ -1911,63 +1913,57 @@ internal fun HistoryEntryGroupHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Surface(
-            shape = CircleShape,
-            color = if (isToday) {
+        HrtPill(
+            containerColor = if (isToday) {
                 MaterialTheme.colorScheme.tertiaryContainer
             } else {
                 MaterialTheme.colorScheme.surfaceContainer
-            }
+            },
+            size = HrtPillSize.Medium,
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                HistoryStatusIndicator(
-                    status = dayStatus,
-                    colors = historyIndicatorColors(
-                        scheduledMode = if (dayStatus == PlanCalendarDayStatus.MISSED && date.isBefore(today)) {
-                            HistoryIndicatorColorMode.Emphasized
-                        } else {
-                            HistoryIndicatorColorMode.Neutral
-                        },
-                        partialMode = if (isToday) {
-                            HistoryIndicatorColorMode.Neutral
-                        } else {
-                            HistoryIndicatorColorMode.Emphasized
-                        },
-                        selectedColor = if (isToday) {
-                            MaterialTheme.colorScheme.onTertiaryContainer
-                        } else {
-                            null
-                        }
-                    ),
-                    modifier = Modifier.size(14.dp),
-                    showOffPlanBadge = showOffPlanBadge
-                )
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isToday) {
+            HistoryStatusIndicator(
+                status = dayStatus,
+                colors = historyIndicatorColors(
+                    scheduledMode = if (dayStatus == PlanCalendarDayStatus.MISSED && date.isBefore(today)) {
+                        HistoryIndicatorColorMode.Emphasized
+                    } else {
+                        HistoryIndicatorColorMode.Neutral
+                    },
+                    partialMode = if (isToday) {
+                        HistoryIndicatorColorMode.Neutral
+                    } else {
+                        HistoryIndicatorColorMode.Emphasized
+                    },
+                    selectedColor = if (isToday) {
                         MaterialTheme.colorScheme.onTertiaryContainer
                     } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                    modifier = Modifier.alignByBaseline().cjkTextOffset(label)
-                )
-                Text(
-                    text = weekdayDisplayLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (isToday) {
-                        MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f)
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    modifier = Modifier.alignByBaseline().cjkTextOffset(weekdayDisplayLabel),
-                )
-            }
+                        null
+                    }
+                ),
+                modifier = Modifier.size(14.dp),
+                showOffPlanBadge = showOffPlanBadge
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isToday) {
+                    MaterialTheme.colorScheme.onTertiaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                modifier = Modifier.alignByBaseline().cjkTextOffset(label)
+            )
+            Text(
+                text = weekdayDisplayLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (isToday) {
+                    MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.alignByBaseline().cjkTextOffset(weekdayDisplayLabel),
+            )
         }
         if (!countLabel.isNullOrBlank()) {
             HorizontalDivider(

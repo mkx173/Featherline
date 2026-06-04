@@ -229,7 +229,7 @@ private fun PlanBatchAddScreenContent(
                     val title = stringResource(R.string.plan_batch_add_title)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
                 navigationIcon = {

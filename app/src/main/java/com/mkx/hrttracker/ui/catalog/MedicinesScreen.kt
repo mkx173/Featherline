@@ -576,7 +576,7 @@ private fun MedicinesScreenContent(
                     val title = stringResource(titleRes)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
                 navigationIcon = {

@@ -24,4 +24,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "Featherline"
 include(":app")
-include(":macrobenchmark")

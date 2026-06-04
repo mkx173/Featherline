@@ -235,20 +235,13 @@ private fun StockSubcardChip(
     @StringRes chipLabelRes: Int,
     colors: StockSubcardChipColors,
 ) {
-    Surface(
-        color = colors.container,
+    HrtPill(
+        label = stringResource(chipLabelRes),
+        containerColor = colors.container,
         contentColor = colors.content,
-        shape = CircleShape,
-    ) {
-        val chipLabelText = stringResource(chipLabelRes)
-        Text(
-            text = chipLabelText,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp).cjkTextOffset(chipLabelText),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-        )
-    }
+        size = HrtPillSize.XSmall,
+        fontWeight = FontWeight.Medium,
+    )
 }
 
 @Composable

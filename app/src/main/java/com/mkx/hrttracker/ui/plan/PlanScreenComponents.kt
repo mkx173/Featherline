@@ -1,5 +1,7 @@
 package com.mkx.hrttracker.ui.plan
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
@@ -31,9 +32,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
@@ -54,7 +57,8 @@ import com.mkx.hrttracker.model.medication.PlanDaySchedule
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
-import com.mkx.hrttracker.ui.components.FlipSlot
+import com.mkx.hrttracker.ui.components.HrtPill
+import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
@@ -601,29 +605,48 @@ internal fun RegimenGroupCard(
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                    // Rendered unconditionally (not gated on selected/showChevron)
-                    // so the check can flip in/out as `selected` toggles instead of
-                    // popping. When showChevron is false the front face is empty, so
-                    // it flips between blank and the check.
-                    FlipSlot(
-                        flipped = selected,
-                        front = {
-                            if (showChevron) {
-                                Icon(
-                                    imageVector = Icons.Rounded.ChevronRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        },
-                        back = {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = stringResource(R.string.plan_batch_add_group_selected),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        },
-                    )
+                    if (showChevron) {
+                        // Non-selectable call sites render a static chevron (these
+                        // never toggle `selected`).
+                        Icon(
+                            imageVector = if (selected) Icons.Rounded.Check else Icons.Rounded.ChevronRight,
+                            contentDescription = if (selected) {
+                                stringResource(R.string.plan_batch_add_group_selected)
+                            } else {
+                                null
+                            },
+                            tint = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    } else {
+                        // Selectable card: the check fades in/out by animating its
+                        // tint between transparent and primary, using the same
+                        // DefaultEffects spring the SegmentedListItem uses for its
+                        // container-color transition.
+                        val checkColor by animateColorAsState(
+                            targetValue = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                Color.Transparent
+                            },
+                            animationSpec = tween(
+                                durationMillis = 75
+                            ),
+                            label = "regimenGroupCheckColor",
+                        )
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = if (selected) {
+                                stringResource(R.string.plan_batch_add_group_selected)
+                            } else {
+                                null
+                            },
+                            tint = checkColor,
+                        )
+                    }
                 }
             }
 
@@ -865,35 +888,29 @@ private fun RegimenMedicationChip(
 ) {
     val applicationTypeLabel = stringResource(applicationType.labelRes)
 
-    Surface(
-        shape = CircleShape,
-        color = groupColorScheme.primaryContainer,
+    HrtPill(
+        containerColor = groupColorScheme.primaryContainer,
         contentColor = groupColorScheme.onPrimaryContainer,
+        size = HrtPillSize.Medium,
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-        ) {
-            MedicationApplicationIcon(
-                applicationType = applicationType,
-                contentDescription = applicationTypeLabel,
-                modifier = Modifier.size(14.dp),
-            )
-            // For PATCH_OFF (and any other null-medicine route) the title falls back
-            // to the route name, so the label would duplicate it — drop it then.
-            val medicationString = listOfNotNull(
-                medicationName,
-                applicationTypeLabel.takeIf { it != medicationName },
-                doseSummary.takeIf { it.isNotBlank() },
-            ).joinToString(" · ")
-            Text(
-                text = medicationString,
-                style = MaterialTheme.typography.labelMedium,
-                color = groupColorScheme.onPrimaryFixed,
-                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(medicationString)
-            )
-        }
+        MedicationApplicationIcon(
+            applicationType = applicationType,
+            contentDescription = applicationTypeLabel,
+            modifier = Modifier.size(14.dp),
+        )
+        // For PATCH_OFF (and any other null-medicine route) the title falls back
+        // to the route name, so the label would duplicate it — drop it then.
+        val medicationString = listOfNotNull(
+            medicationName,
+            applicationTypeLabel.takeIf { it != medicationName },
+            doseSummary.takeIf { it.isNotBlank() },
+        ).joinToString(" · ")
+        Text(
+            text = medicationString,
+            style = MaterialTheme.typography.labelMedium,
+            color = groupColorScheme.onPrimaryFixed,
+            modifier = Modifier.padding(end = 2.dp).cjkTextOffset(medicationString)
+        )
     }
 }
 

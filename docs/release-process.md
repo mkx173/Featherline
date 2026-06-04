@@ -12,7 +12,7 @@ val gitCommitCount = providers.exec {
 }.standardOutput.asText.get().trim().toInt()
 ```
 
-See [`app/build.gradle.kts:10-12`](https://github.com/mkx173/Featherline/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/app/build.gradle.kts#L10-L12). The `play` and `arm64` flavors share the same `versionCode` at any given commit, so Play Bundle and sideload APK for the same commit map cleanly to each other.
+See [`app/build.gradle.kts:10-12`](https://github.com/mkx173/Featherline/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/app/build.gradle.kts#L10-L12). The `play`, `arm64`, and `x64` flavors share the same `versionCode` at any given commit, so Play Bundle and sideload APKs for the same commit map cleanly to each other.
 
 `versionName` is static (currently `1.0.0`, [`app/build.gradle.kts:57`](https://github.com/mkx173/Featherline/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/app/build.gradle.kts#L57)). Debug builds append the git short SHA via [`versionNameSuffix = "-$gitCommitHash"`](https://github.com/mkx173/Featherline/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/app/build.gradle.kts#L78-L81); the suffix is omitted on release builds.
 
@@ -22,6 +22,8 @@ Two artifacts are produced per release commit, but **only the sideload APK is bu
 
 - **Play Bundle** (`bundlePlayRelease`) — produced locally; submitted to Play Console outside the repo.
 - **Sideload APK** (`assembleArm64Release`) — produced by [`.github/workflows/android-release.yml`](https://github.com/mkx173/Featherline/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/.github/workflows/android-release.yml); uploaded as a workflow artifact for the maintainer to attach to a GitHub Release manually.
+
+An x64 APK (`assembleX64Release`, ABI `x86_64`) is available for local emulator or x86_64-device sideload testing, but it is not part of the automated release workflow.
 
 The output filename pattern (`featherline-<abi>-<versionName>-<versionCode>.apk`) makes the artifact's flavor and version unambiguous at a glance. See the [`androidComponents`](https://github.com/mkx173/Featherline/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/app/build.gradle.kts#L129-L147) block for the naming logic.
 

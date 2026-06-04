@@ -120,6 +120,25 @@ class BackupExportServiceTest {
     }
 
     @Test
+    fun buildBackupSnapshotJson_usesStablePackageNameWhenInstalledPackageHasSuffix() = runTest {
+        every { context.packageName } returns "com.mkx.hrttracker.debug"
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+        val snapshot = BackupSnapshotJsonCodec.decode(
+            service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+        )!!
+
+        assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
+    }
+
+    @Test
     fun buildBackupSnapshotJson_serializesCapsulePreparationUsingPerTabletColumn() = runTest {
         val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000000c0")
         val capsuleMedicine = testCustomMedicine(

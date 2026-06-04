@@ -1,5 +1,0 @@
-<resources>
-    <string name="app_name_benchmark">Featherline Benchmark</string>
-    <string name="benchmark_fixture_ready">Benchmark fixture ready</string>
-    <string name="benchmark_fixture_failed">Benchmark fixture failed</string>
-</resources>

@@ -228,3 +228,8 @@ data class BackupBloodTestResultSnapshot(
 // coerce unknown preparationType strings to PILL on restore, which would
 // silently misclassify capsules — non-additive, hence the bump.
 const val CURRENT_BACKUP_SNAPSHOT_VERSION = 3
+
+// Stable logical app identity for backups. Do not derive this from
+// Context.packageName: build variants may add an install suffix, but their
+// backups must remain portable across release/debug app versions.
+const val BACKUP_APP_PACKAGE_NAME = "com.mkx.hrttracker"

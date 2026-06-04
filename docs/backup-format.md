@@ -117,8 +117,9 @@ flattened into the parent's JSON.
   `medicines` list is positioned ahead of `medicationGroups` and
   `medicationLogs` so the importer can build its valid-medicine FK set
   before walking any item or log that references one.
-- `BackupAppSnapshot` — just `packageName`; restore rejects
-  cross-app files.
+- `BackupAppSnapshot` — just `packageName`; exports write the stable
+  backup identity (`com.mkx.hrttracker`), and restore rejects other app
+  identities.
 - `BackupSettingsSnapshot` — flat DataStore values (dark mode,
   adaptive color, AMOLED pure-black, `cjkTextOffsetEnabled`, reminders,
   archived-record visibility,
@@ -276,7 +277,8 @@ incompatible files are rejected at the cheapest detection point.
      (currently `2..3`); v1 backups are rejected here with no
      migration path because the medicine-identity refactor removed
      the denormalized identity fields older payloads relied on.
-     `app.packageName` must match the running app.
+     `app.packageName` must match the stable backup identity
+     (`com.mkx.hrttracker`), not the installed package name.
    - parseability: enum-name resolution, UUID parsing, `DayOfWeek`
      and `ZoneId.of` round-trips
    - value sanity: positive-finite doses, including `equivalentE2Mg`

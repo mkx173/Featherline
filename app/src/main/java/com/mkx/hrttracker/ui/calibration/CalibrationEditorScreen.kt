@@ -348,7 +348,7 @@ private fun CalibrationEditorScreenContent(
                     )
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
