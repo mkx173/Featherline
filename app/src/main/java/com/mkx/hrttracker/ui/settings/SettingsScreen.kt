@@ -61,6 +61,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -130,6 +131,13 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = uiState.settingsState
     val context = LocalContext.current
+    // The app swaps UI language in place via composition locals (see
+    // MainActivity) without recreating the Activity, so LocalContext.current is
+    // rebuilt on a language change. The long-lived LaunchedEffect(viewModel)
+    // toast collectors below never restart, so they must read the latest
+    // localized context at emit time rather than capturing a context / a
+    // pre-resolved string from the composition that first launched them.
+    val latestContext by rememberUpdatedState(context)
     val activity = LocalActivity.current
     val appLockViewModel: AppLockViewModel = hiltViewModel(
         viewModelStoreOwner = activity as ComponentActivity,
@@ -177,9 +185,6 @@ fun SettingsScreen(
     val backupRestoreIncompatibleFileMessage =
         stringResource(R.string.settings_backup_restore_incompatible_file)
     val backupRestoreFailedMessage = stringResource(R.string.settings_backup_restore_failed)
-    val backupRestoreSuccessMessage = stringResource(R.string.settings_backup_restore_success)
-    val weightMutationFailedMessage = stringResource(R.string.personalization_weight_update_failed)
-    val settingsUpdateFailedMessage = stringResource(R.string.settings_update_failed)
 
     // Restore runs in viewModelScope so it survives the activity recreate
     // that the restored app-locale setting triggers. Results come back
@@ -187,15 +192,19 @@ fun SettingsScreen(
     // shows the toast.
     LaunchedEffect(viewModel) {
         viewModel.backupRestoreEvents.collect { event ->
-            val message = when (event) {
-                BackupRestoreEvent.Success -> backupRestoreSuccessMessage
+            val messageRes = when (event) {
+                BackupRestoreEvent.Success -> R.string.settings_backup_restore_success
                 is BackupRestoreEvent.Failure -> when (event.error) {
                     is IncompatibleBackupFileException,
-                    is IllegalArgumentException -> backupRestoreIncompatibleFileMessage
-                    else -> backupRestoreFailedMessage
+                    is IllegalArgumentException -> R.string.settings_backup_restore_incompatible_file
+                    else -> R.string.settings_backup_restore_failed
                 }
             }
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                latestContext,
+                latestContext.getString(messageRes),
+                Toast.LENGTH_SHORT,
+            ).show()
             viewModel.consumeBackupRestoreEvent()
         }
     }
@@ -209,8 +218,8 @@ fun SettingsScreen(
             when (event) {
                 is WeightMutationEvent.Failure -> {
                     Toast.makeText(
-                        context,
-                        weightMutationFailedMessage,
+                        latestContext,
+                        latestContext.getString(R.string.personalization_weight_update_failed),
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
@@ -223,8 +232,8 @@ fun SettingsScreen(
             when (event) {
                 is SettingsMutationEvent.Failure -> {
                     Toast.makeText(
-                        context,
-                        settingsUpdateFailedMessage,
+                        latestContext,
+                        latestContext.getString(R.string.settings_update_failed),
                         Toast.LENGTH_SHORT,
                     ).show()
                 }

@@ -229,6 +229,11 @@ fun OnboardingScreen(
     var remindersAutoEnabled by rememberSaveable { mutableStateOf(false) }
 
     val context = LocalContext.current
+    // The app swaps UI language in place via composition locals (see
+    // MainActivity) without recreating the Activity, so the long-lived
+    // LaunchedEffect(viewModel) toast collector below must read the latest
+    // localized context at emit time instead of capturing a pre-resolved string.
+    val latestContext by rememberUpdatedState(context)
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
     val activity = LocalActivity.current
@@ -259,7 +264,6 @@ fun OnboardingScreen(
     val remindersEnabledEffective = notificationsGranted && uiState.remindersEnabled
     val notificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
-    val onboardingUpdateFailedMessage = stringResource(R.string.onboarding_update_failed)
 
     LaunchedEffect(reminderCapabilityReconciler) {
         reminderCapabilityReconciler.requestReconcile("onboarding_start")
@@ -297,8 +301,8 @@ fun OnboardingScreen(
             when (event) {
                 is OnboardingMutationEvent.Failure -> {
                     Toast.makeText(
-                        context,
-                        onboardingUpdateFailedMessage,
+                        latestContext,
+                        latestContext.getString(R.string.onboarding_update_failed),
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
