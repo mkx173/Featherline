@@ -90,6 +90,7 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -721,41 +722,30 @@ private fun RegimenSection(
         ).joinToString(" · ")
     }
 
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.plan_regimen_title).uppercase(),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.alignByBaseline()
-            )
-            if (regimenSummary != null) {
+    HrtSection(
+        title = stringResource(R.string.plan_regimen_title),
+        headerTrailing = if (regimenSummary != null) {
+            {
                 Text(
                     text = regimenSummary.uppercase(),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.alignByBaseline()
                 )
             }
-        }
-
-        if (groups.isEmpty()) {
-            SupportMessageListItem(
-                text = stringResource(R.string.plan_empty_state),
-                painter = painterResource(R.drawable.ic_info),
-            )
         } else {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
-            ) {
-                groups.forEachIndexed { index, group ->
+            null
+        },
+    ) {
+        if (groups.isEmpty()) {
+            item {
+                SupportMessageListItem(
+                    text = stringResource(R.string.plan_empty_state),
+                    painter = painterResource(R.drawable.ic_info),
+                )
+            }
+        } else {
+            groups.forEach { group ->
+                item {
                     RegimenGroupCard(
                         group = group,
                         remindersEnabled = remindersEnabled,
@@ -766,8 +756,6 @@ private fun RegimenSection(
                         upcomingOccurrences = nextOccurrencesByGroup[group.uuid].orEmpty(),
                         today = today,
                         onClick = { onGroupClick(group.uuid) },
-                        index = index,
-                        itemCount = groups.size,
                         firstDayOfWeek = firstDayOfWeek,
                     )
                 }
