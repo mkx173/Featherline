@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.plan
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -631,7 +632,9 @@ internal fun RegimenGroupCard(
                             } else {
                                 Color.Transparent
                             },
-                            animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+                            animationSpec = tween(
+                                durationMillis = 75
+                            ),
                             label = "regimenGroupCheckColor",
                         )
                         Icon(
