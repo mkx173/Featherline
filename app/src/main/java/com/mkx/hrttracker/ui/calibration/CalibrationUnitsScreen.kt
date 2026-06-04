@@ -189,7 +189,7 @@ private fun CalibrationUnitsScreenContent(
                     val title = stringResource(R.string.settings_calibration_settings)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title),
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

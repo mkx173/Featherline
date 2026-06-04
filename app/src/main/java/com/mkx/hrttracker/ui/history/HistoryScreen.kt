@@ -672,7 +672,7 @@ private fun HistoryScreenContent(
                             val title = stringResource(R.string.tab_history)
                             Text(
                                 text = title,
-                                modifier = Modifier.cjkTextOffset(title),
+                                modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                             )
                         },
                         back = {
@@ -683,7 +683,7 @@ private fun HistoryScreenContent(
                             )
                             Text(
                                 text = title,
-                                modifier = Modifier.cjkTextOffset(title),
+                                modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                             )
                         },
                     )
