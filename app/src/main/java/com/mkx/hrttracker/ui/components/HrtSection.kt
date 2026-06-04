@@ -1,3 +1,7 @@
+// Canonical section container. New section-style screens MUST use HrtSection
+// rather than hand-rolling a section header + Column(spacedBy(list_segment_gap))
+// + manual index/count. Rows inside an HrtSection inherit their segment position
+// automatically; do not pass index/count there.
 package com.mkx.hrttracker.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
