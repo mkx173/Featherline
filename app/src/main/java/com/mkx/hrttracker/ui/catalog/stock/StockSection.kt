@@ -46,6 +46,7 @@ import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.StockStatusIndicator
@@ -527,48 +528,31 @@ private fun OptInCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column (modifier = modifier) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.stock_section_title).uppercase(),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(4.dp),
-                )
-            }
+    HrtSection(
+        title = stringResource(R.string.stock_section_title),
+        modifier = modifier,
+    ) {
+        item {
+            PreferenceSegmentedListItem(
+                title = stringResource(R.string.stock_optin_title),
+                onClick = onClick,
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_inventory),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
         }
-        PreferenceSegmentedListItem(
-            title = stringResource(R.string.stock_optin_title),
-            index = 0,
-            count = 1,
-            onClick = onClick,
-            leadingContent = {
-                Icon(
-                    painter = painterResource(R.drawable.ic_inventory),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            },
-            trailingContent = {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            },
-        )
     }
-
 }
 
 @Composable
