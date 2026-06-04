@@ -19,6 +19,8 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 
@@ -44,6 +46,34 @@ internal fun segmentPositionsFor(counted: List<Boolean>): List<SegmentPosition?>
         if (visible) SegmentPosition(index++, total) else null
     }
 }
+
+/**
+ * Collapses a row's separate index/count into a single explicit position, or
+ * null to inherit. Requires both or neither -- a partial override (only one set)
+ * would silently mix an explicit value with an inherited one, so it fails loud.
+ */
+internal fun explicitSegmentPosition(index: Int?, count: Int?): SegmentPosition? {
+    require((index == null) == (count == null)) {
+        "Pass both index and count, or neither (got index=$index, count=$count)."
+    }
+    return if (index != null && count != null) SegmentPosition(index, count) else null
+}
+
+/**
+ * Resolves a row's segment position: [explicitPosition] wins; otherwise inherit
+ * from [LocalSegmentPosition] (set by [HrtSection]); otherwise a standalone card
+ * (0 of 1). Single resolution point so rows inside an HrtSection omit index/count.
+ */
+@Composable
+internal fun currentSegmentPosition(explicitPosition: SegmentPosition? = null): SegmentPosition =
+    explicitPosition ?: LocalSegmentPosition.current ?: SegmentPosition(0, 1)
+
+/** Test-observable hook: the resolved [SegmentPosition] a row rendered with. */
+internal val SegmentPositionSemanticsKey = SemanticsPropertyKey<SegmentPosition>("SegmentPosition")
+
+/** Publishes [position] on the node so tests can assert a row honored its inherited position. */
+internal fun Modifier.segmentPositionSemantics(position: SegmentPosition): Modifier =
+    semantics { this[SegmentPositionSemanticsKey] = position }
 
 /** Recorder for [HrtSection] rows. Mirrors LazyListScope: non-composable, appends entries. */
 interface HrtSectionScope {

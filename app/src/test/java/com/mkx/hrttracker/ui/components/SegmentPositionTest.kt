@@ -34,4 +34,24 @@ class SegmentPositionTest {
     fun allHidden_yieldsAllNull() {
         assertEquals(listOf<SegmentPosition?>(null), segmentPositionsFor(listOf(false)))
     }
+
+    @Test
+    fun explicitSegmentPosition_bothProvided_buildsPosition() {
+        assertEquals(SegmentPosition(1, 3), explicitSegmentPosition(index = 1, count = 3))
+    }
+
+    @Test
+    fun explicitSegmentPosition_neitherProvided_isNull() {
+        assertEquals(null, explicitSegmentPosition(index = null, count = null))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun explicitSegmentPosition_indexOnly_throws() {
+        explicitSegmentPosition(index = 1, count = null)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun explicitSegmentPosition_countOnly_throws() {
+        explicitSegmentPosition(index = null, count = 3)
+    }
 }
