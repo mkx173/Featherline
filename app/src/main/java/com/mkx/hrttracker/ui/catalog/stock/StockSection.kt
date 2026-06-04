@@ -105,15 +105,19 @@ private fun HeaderOverflowMenu(
     var expanded by remember { mutableStateOf(false) }
     val editOpenLabel = stringResource(editActionRes(preparation))
     val disableLabel = stringResource(R.string.stock_disable_menu_action)
-    // Size the overflow affordance from the shared section title typography so
-    // it stays visually subordinate in HrtSectionHeader. Falls back to fontSize
-    // when lineHeight is Unspecified, and scales with the user's font-size setting.
+    // Size the overflow affordance to the section title's line height so it never
+    // exceeds the title and therefore never makes HrtSectionHeader taller than a
+    // text-only section header (HrtSectionHeader pads top/bottom around its
+    // tallest child, so a larger button would add header height). Falls back to
+    // fontSize when lineHeight is Unspecified, and scales with the user's
+    // font-size setting. Min interactive size is suppressed below so the button
+    // can match the title rather than the 48dp touch-target default.
     val titleStyle = MaterialTheme.typography.titleSmall
     val density = LocalDensity.current
     val iconSize = with(density) {
         titleStyle.lineHeight.takeOrElse { titleStyle.fontSize }.toDp()
     }
-    val buttonSize = iconSize + 8.dp
+    val buttonSize = iconSize
     Row {
         CompositionLocalProvider(
             LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
