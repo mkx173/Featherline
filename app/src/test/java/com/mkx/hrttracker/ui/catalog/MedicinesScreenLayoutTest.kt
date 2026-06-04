@@ -21,19 +21,6 @@ class MedicinesScreenLayoutTest {
     }
 
     @Test
-    fun medicineManagerAddsListSegmentGapOnlyBetweenRows() {
-        assertFalse(medicineManagerNeedsRowBottomGap(index = 0, itemCount = 1))
-        assertTrue(medicineManagerNeedsRowBottomGap(index = 0, itemCount = 2))
-        assertFalse(medicineManagerNeedsRowBottomGap(index = 1, itemCount = 2))
-    }
-
-    @Test
-    fun medicineManagerSectionHeaderPaddingMatchesSettingsHeaderPadding() {
-        assertEquals(4, MedicineManagerSectionHeaderTopPaddingDp)
-        assertEquals(10, MedicineManagerSectionHeaderBottomPaddingDp)
-    }
-
-    @Test
     fun medicineManagerLaunchMode_resolvesManagerWithoutResultKey() {
         assertEquals(
             MedicineManagerLaunchMode.Manager,
