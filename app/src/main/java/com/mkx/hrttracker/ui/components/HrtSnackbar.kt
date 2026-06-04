@@ -88,7 +88,6 @@ internal fun HrtSnackbar(snackbarData: SnackbarData) {
                         contentDescription = stringResource(
                             R.string.stock_snackbar_action_dismiss,
                         ),
-                        tint = MaterialTheme.colorScheme.surface
                     )
                 }
             }
@@ -112,7 +111,6 @@ internal fun HrtSnackbar(snackbarData: SnackbarData) {
             Text(
                 text = message,
                 modifier = Modifier.cjkTextOffset(message),
-                color = MaterialTheme.colorScheme.surface
             )
         }
     }
