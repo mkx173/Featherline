@@ -258,6 +258,104 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
+    fun processDeathOnRecreatedGroupEditor_restoresRecreatedGroupNotArchivedOriginal() = runTest {
+        // After archive-and-recreate the editor shows the recreated group (B) while the
+        // launch route argument still points at the archived original (A). Process death
+        // must restore B — the group the user is actually editing — with its constraints
+        // intact, not silently fall back to the locked archived original.
+        val archivedOriginalId = UUID.fromString("aaaaaaaa-0000-0000-0000-0000000000a1")
+        val recreatedGroupId = UUID.fromString("bbbbbbbb-0000-0000-0000-0000000000b2")
+        val archivedOriginal = testMedicationGroup(archivedOriginalId).copy(
+            archivedAt = Instant.parse("2026-04-24T00:00:00Z"),
+        )
+        val recreatedGroup = testMedicationGroup(
+            groupUuid = recreatedGroupId,
+            includePastScheduledSlots = false,
+            recreatedFromGroupUuid = archivedOriginalId,
+        )
+        every { medicationGroupRepository.getCachedGroup(archivedOriginalId) } returns archivedOriginal
+        every { medicationGroupRepository.getCachedGroup(recreatedGroupId) } returns recreatedGroup
+        every { medicationGroupRepository.observeGroups() } returns
+            flowOf(listOf(archivedOriginal, recreatedGroup))
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(
+                    MedicationGroupEditorViewModel.GROUP_ID_ARG to archivedOriginalId.toString(),
+                    "editedGroupId" to recreatedGroupId.toString(),
+                )
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        // Restores the recreated group, not the archived route-arg original.
+        assertEquals(recreatedGroupId.toString(), viewModel.uiState.value.editingGroupId)
+        assertEquals(archivedOriginalId.toString(), viewModel.uiState.value.recreatedFromGroupId)
+        assertFalse(viewModel.uiState.value.isArchived)
+
+        // No-past-schedules survives: a recreated group can't backfill past scheduled slots.
+        assertFalse(viewModel.uiState.value.canEditBackfillOption)
+        viewModel.updateIncludePastScheduledSlots(true)
+        assertFalse(viewModel.uiState.value.includePastScheduledSlots)
+
+        // Start-date limit survives: the start can't move before its persisted start date.
+        viewModel.updateSinceDate(LocalDate.of(2026, 3, 1))
+        assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.sinceDate)
+    }
+
+    @Test
+    fun editingGroupId_mirroredToSavedStateHandleForProcessDeathRestore() = runTest {
+        // The recreate flow changes the edited group id away from the launch route arg.
+        // That id must be mirrored to SavedStateHandle so process death can restore the
+        // group the user is editing rather than the original route argument.
+        val savedGroupUuid = UUID.fromString("cccccccc-0000-0000-0000-0000000000c3")
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = any(),
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
+                replacesGroupUuid = any(),
+                now = any(),
+            )
+        } returns savedGroupUuid
+        coEvery { medicationReminderScheduler.rescheduleGroup(any(), any()) } returns Unit
+
+        val savedStateHandle = SavedStateHandle()
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = savedStateHandle,
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+        addExistingMedicineSlot(viewModel)
+
+        viewModel.saveGroup()
+        advanceUntilIdle()
+
+        assertEquals(savedGroupUuid.toString(), viewModel.uiState.value.editingGroupId)
+        assertEquals(savedGroupUuid.toString(), savedStateHandle.get<String>("editedGroupId"))
+    }
+
+    @Test
     fun editingGroup_startsInLoadingStateUntilPersistedGroupLoads() = runTest {
         val groupUuid = UUID.fromString("3c13fbf7-95f5-4c20-8f2d-f902fd82afd2")
         val group = testMedicationGroup(groupUuid)

@@ -86,7 +86,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val appTimeSource: AppTimeSource
 ) : ViewModel() {
     private val savedStateHandle: SavedStateHandle = savedStateHandle
-    private val requestedEditingGroupId = savedStateHandle.get<String>(GROUP_ID_ARG)
+    // The launch route argument names the group the editor was opened for. After an
+    // archive-and-recreate the edited group becomes the new copy while the route arg
+    // still points at the now-archived original, so prefer the mirrored edited id
+    // (written in init) to restore the recreated group after process death.
+    private val requestedEditingGroupId =
+        savedStateHandle.get<String>(EDITED_GROUP_ID_KEY)
+            ?: savedStateHandle.get<String>(GROUP_ID_ARG)
     private val editingGroupUuid = requestedEditingGroupId?.let { groupId ->
         runCatching { UUID.fromString(groupId) }.getOrNull()
     }
@@ -153,6 +159,21 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 .collect { value ->
                     this@MedicationGroupEditorViewModel.savedStateHandle[
                         PENDING_REPLACEMENT_GROUP_ID_KEY
+                    ] = value
+                }
+        }
+
+        viewModelScope.launch {
+            // Mirror the edited group id too. Archive-and-recreate moves it to the new
+            // copy while the launch route arg still names the archived original, so this
+            // is what lets process death restore the recreated group (re-deriving its
+            // start-date and no-past-schedules constraints) instead of the original.
+            _uiState
+                .map { it.editingGroupId }
+                .distinctUntilChanged()
+                .collect { value ->
+                    this@MedicationGroupEditorViewModel.savedStateHandle[
+                        EDITED_GROUP_ID_KEY
                     ] = value
                 }
         }
@@ -1607,6 +1628,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     companion object {
         const val GROUP_ID_ARG = "groupId"
         private const val PENDING_REPLACEMENT_GROUP_ID_KEY = "pendingReplacementGroupId"
+        private const val EDITED_GROUP_ID_KEY = "editedGroupId"
     }
 }
 
