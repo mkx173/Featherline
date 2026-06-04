@@ -4,6 +4,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -89,5 +90,31 @@ class HrtSectionRenderTest {
     fun rowOutsideSection_hasNoPosition() {
         composeRule.setContent { PositionProbe("solo") }
         composeRule.onNodeWithTag("solo").assertTextEquals("none")
+    }
+
+    @Test
+    fun supportMessageAndDangerRows_inSection_inheritPositions() {
+        composeRule.setContent {
+            HrtSection(title = null) {
+                item { SupportMessageListItem(text = "msg") }
+                item { DangerZoneListItem(label = "danger", enabled = true, onClick = {}) }
+            }
+        }
+        composeRule
+            .onNode(
+                SemanticsMatcher.expectValue(
+                    SegmentPositionSemanticsKey,
+                    SegmentPosition(0, 2),
+                )
+            )
+            .assertExists()
+        composeRule
+            .onNode(
+                SemanticsMatcher.expectValue(
+                    SegmentPositionSemanticsKey,
+                    SegmentPosition(1, 2),
+                )
+            )
+            .assertExists()
     }
 }
