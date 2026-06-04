@@ -3694,37 +3694,64 @@ private fun MainTodayTimeRangeHeader(
             },
             size = HrtPillSize.Medium,
         ) {
-            Icon(
-                painter = painterResource(iconDrawableRes),
-                contentDescription = null,
-                tint = if (isCurrent) {
-                    MaterialTheme.colorScheme.onTertiaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                modifier = Modifier.size(14.dp)
-            )
-            Text(
-                text = timeRangeLabel,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = if (isCurrent) {
-                    MaterialTheme.colorScheme.onTertiaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-                modifier = Modifier.alignByBaseline().cjkTextOffset(timeRangeLabel)
-            )
-            Text(
-                text = timeRangeTimeLabel,
-                style = MaterialTheme.typography.labelMedium,
-                color = if (isCurrent) {
-                    MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f)
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                modifier = Modifier.alignByBaseline().cjkTextOffset(appLocale)
-            )
+            // Icon, label, and time share one ConstraintLayout so their vertical
+            // alignment is explicit and independent of each other's height. The icon
+            // is centered on the CJK label (reproducing the pill row's old
+            // CenterVertically pairing), and the time label's baseline is constrained
+            // one-directionally to the CJK label — so neither the time label's metrics
+            // nor its presence can shift the icon/label alignment.
+            ConstraintLayout {
+                val (iconRef, labelRef, timeRef) = createRefs()
+                Icon(
+                    painter = painterResource(iconDrawableRes),
+                    contentDescription = null,
+                    tint = if (isCurrent) {
+                        MaterialTheme.colorScheme.onTertiaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier
+                        .size(14.dp)
+                        .constrainAs(iconRef) {
+                            start.linkTo(parent.start)
+                            top.linkTo(labelRef.top)
+                            bottom.linkTo(labelRef.bottom)
+                        }
+                )
+                Text(
+                    text = timeRangeLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isCurrent) {
+                        MaterialTheme.colorScheme.onTertiaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    modifier = Modifier
+                        .constrainAs(labelRef) {
+                            start.linkTo(iconRef.end, margin = 6.dp)
+                            top.linkTo(parent.top)
+                        }
+                        .cjkTextOffset(timeRangeLabel)
+                )
+                Text(
+                    text = timeRangeTimeLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isCurrent) {
+                        MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    // Locale-based, not content-based: a 24h time string is pure
+                    // digits yet must still ride up with the CJK label.
+                    modifier = Modifier
+                        .constrainAs(timeRef) {
+                            start.linkTo(labelRef.end, margin = 6.dp)
+                            baseline.linkTo(labelRef.baseline)
+                        }
+                        .cjkTextOffset(appLocale)
+                )
+            }
         }
         HorizontalDivider(
             modifier = Modifier.weight(1f),
