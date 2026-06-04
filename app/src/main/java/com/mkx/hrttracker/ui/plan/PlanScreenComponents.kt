@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.plan
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -31,9 +32,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
@@ -54,7 +57,6 @@ import com.mkx.hrttracker.model.medication.PlanDaySchedule
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
-import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
@@ -601,29 +603,46 @@ internal fun RegimenGroupCard(
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                    // Rendered unconditionally (not gated on selected/showChevron)
-                    // so the check can flip in/out as `selected` toggles instead of
-                    // popping. When showChevron is false the front face is empty, so
-                    // it flips between blank and the check.
-                    FlipSlot(
-                        flipped = selected,
-                        front = {
-                            if (showChevron) {
-                                Icon(
-                                    imageVector = Icons.Rounded.ChevronRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        },
-                        back = {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = stringResource(R.string.plan_batch_add_group_selected),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        },
-                    )
+                    if (showChevron) {
+                        // Non-selectable call sites render a static chevron (these
+                        // never toggle `selected`).
+                        Icon(
+                            imageVector = if (selected) Icons.Rounded.Check else Icons.Rounded.ChevronRight,
+                            contentDescription = if (selected) {
+                                stringResource(R.string.plan_batch_add_group_selected)
+                            } else {
+                                null
+                            },
+                            tint = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    } else {
+                        // Selectable card: the check fades in/out by animating its
+                        // tint between transparent and primary, using the same
+                        // DefaultEffects spring the SegmentedListItem uses for its
+                        // container-color transition.
+                        val checkColor by animateColorAsState(
+                            targetValue = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                Color.Transparent
+                            },
+                            animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+                            label = "regimenGroupCheckColor",
+                        )
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = if (selected) {
+                                stringResource(R.string.plan_batch_add_group_selected)
+                            } else {
+                                null
+                            },
+                            tint = checkColor,
+                        )
+                    }
                 }
             }
 
