@@ -193,7 +193,7 @@ fun MainScreen(
                     val title = stringResource(R.string.tab_main)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
+                        modifier = Modifier.cjkTextOffset(title),
                     )
                 },
                 actions = {

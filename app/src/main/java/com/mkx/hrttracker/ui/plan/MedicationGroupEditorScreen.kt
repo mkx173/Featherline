@@ -1288,7 +1288,7 @@ private fun MedicationGroupEditorScreenContent(
                     )
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
+                        modifier = Modifier.cjkTextOffset(title),
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

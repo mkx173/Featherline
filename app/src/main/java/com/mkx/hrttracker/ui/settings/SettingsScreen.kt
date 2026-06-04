@@ -849,7 +849,7 @@ internal fun SettingsScreenContent(
                     val title = stringResource(R.string.tab_settings)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
+                        modifier = Modifier.cjkTextOffset(title),
                     )
                 },
                 scrollBehavior = scrollBehavior
