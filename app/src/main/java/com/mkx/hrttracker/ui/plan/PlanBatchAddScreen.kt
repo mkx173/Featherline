@@ -60,6 +60,7 @@ import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -165,7 +166,7 @@ private fun PlanBatchAddScreenContent(
 
     LaunchedEffect(uiState.selectedGroupUuid, uiState.groups.size) {
         if (uiState.selectedGroupUuid != null) {
-            listState.animateScrollToItem(index = uiState.groups.size + 1)
+            listState.animateScrollToItem(index = 1)
         }
     }
 
@@ -275,65 +276,60 @@ private fun PlanBatchAddScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValues(),
             ) {
-            item(key = "group-heading") {
-                Text(
-                    text = stringResource(R.string.plan_batch_add_select_group).uppercase(),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
-                )
-            }
-
-            if (uiState.groups.isEmpty()) {
-                item(key = "empty-groups") {
-                    SupportMessageListItem(
-                        text = stringResource(R.string.plan_empty_state),
-                        painter = painterResource(R.drawable.ic_info),
-                    )
-                }
-            } else {
-                uiState.groups.forEachIndexed { index, group ->
-                    item(key = group.uuid) {
-                        RegimenGroupCard(
-                            group = group,
-                            remindersEnabled = uiState.remindersEnabled,
-                            hasNotificationAccess = hasNotificationAccess,
-                            appLocale = appLocale,
-                            dateFormatter = dateFormatter,
-                            timeFormatter = timeFormatter,
-                            upcomingOccurrences = uiState.nextOccurrencesByGroup[group.uuid].orEmpty(),
-                            today = uiState.today,
-                            onClick = { onGroupSelected(group.uuid) },
-                            index = index,
-                            itemCount = uiState.groups.size,
-                            selected = group.uuid == uiState.selectedGroupUuid,
-                            showNotificationIcon = false,
-                            showChevron = false,
-                            showUpcomingSection = false,
-                            firstDayOfWeek = uiState.firstDayOfWeek,
-                        )
-                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+                item(key = "group-section") {
+                    HrtSection(
+                        title = stringResource(R.string.plan_batch_add_select_group),
+                        topPadding = false,
+                    ) {
+                        if (uiState.groups.isEmpty()) {
+                            item {
+                                SupportMessageListItem(
+                                    text = stringResource(R.string.plan_empty_state),
+                                    painter = painterResource(R.drawable.ic_info),
+                                )
+                            }
+                        } else {
+                            uiState.groups.forEach { group ->
+                                item {
+                                    RegimenGroupCard(
+                                        group = group,
+                                        remindersEnabled = uiState.remindersEnabled,
+                                        hasNotificationAccess = hasNotificationAccess,
+                                        appLocale = appLocale,
+                                        dateFormatter = dateFormatter,
+                                        timeFormatter = timeFormatter,
+                                        upcomingOccurrences = uiState.nextOccurrencesByGroup[group.uuid].orEmpty(),
+                                        today = uiState.today,
+                                        onClick = { onGroupSelected(group.uuid) },
+                                        selected = group.uuid == uiState.selectedGroupUuid,
+                                        showNotificationIcon = false,
+                                        showChevron = false,
+                                        showUpcomingSection = false,
+                                        firstDayOfWeek = uiState.firstDayOfWeek,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
-            }
 
-            item(key = "range-selector") {
-                Spacer(modifier = Modifier.height(14.dp))
-                PlanBatchAddRangeSelector(
-                    startDate = uiState.startDate,
-                    endDate = uiState.endDate,
-                    entryCount = uiState.entryCount,
-                    manualEntryCount = uiState.manualEntryCount,
-                    skippedEntryCount = uiState.skippedEntryCount,
-                    canConfirm = uiState.canConfirm,
-                    hasSelectedGroup = uiState.selectedGroupUuid != null,
-                    selectedGroupStartsInFuture = uiState.selectedGroupStartsInFuture,
-                    dateFormatter = rangeDateFormatter,
-                    onDateRangeClick = { isRangePickerVisible = true },
-                    onConfirmClick = { isConfirmationVisible = true },
-                )
+                item(key = "range-selector") {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    PlanBatchAddRangeSelector(
+                        startDate = uiState.startDate,
+                        endDate = uiState.endDate,
+                        entryCount = uiState.entryCount,
+                        manualEntryCount = uiState.manualEntryCount,
+                        skippedEntryCount = uiState.skippedEntryCount,
+                        canConfirm = uiState.canConfirm,
+                        hasSelectedGroup = uiState.selectedGroupUuid != null,
+                        selectedGroupStartsInFuture = uiState.selectedGroupStartsInFuture,
+                        dateFormatter = rangeDateFormatter,
+                        onDateRangeClick = { isRangePickerVisible = true },
+                        onConfirmClick = { isConfirmationVisible = true },
+                    )
+                }
             }
-        }
         }
     }
 }
@@ -357,97 +353,90 @@ private fun PlanBatchAddRangeSelector(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
     ) {
-        Text(
-            text = stringResource(R.string.plan_batch_add_range_title).uppercase(),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp)
-        )
-
-
-
-        if (!hasSelectedGroup || selectedGroupStartsInFuture) {
-            // A not-yet-started plan reuses the "no group selected" prompt path,
-            // since there's no valid past range to pick for it.
-            SupportMessageListItem(
-                text = stringResource(
-                    if (selectedGroupStartsInFuture) {
-                        R.string.plan_batch_add_group_not_started
-                    } else {
-                        R.string.plan_batch_add_select_group_prompt
-                    }
-                ),
-                painter = painterResource(R.drawable.ic_info),
-                leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                index = 0,
-                count = 1
-            )
-        } else {
-            SupportMessageListItem(
-                text = stringResource(R.string.plan_batch_add_date_range),
-                supportingText = stringResource(
-                    R.string.plan_batch_add_date_range_value,
-                    dateFormatter(startDate),
-                    dateFormatter(endDate),
-                ),
-                onClick = onDateRangeClick,
-                modifier = Modifier.fillMaxWidth(),
-                painter = painterResource(R.drawable.ic_date_range),
-                leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                leadingIconSize = 24.dp,
-                showChevron = true,
-                index = 0,
-                count = 2
-            )
-            if (entryCount > 0 || skippedEntryCount > 0) {
-                val entriesToAddLabel = if (entryCount > 0) {
-                    pluralStringResource(
-                        R.plurals.plan_batch_add_entries_to_add,
-                        entryCount,
-                        entryCount
+        HrtSection(title = stringResource(R.string.plan_batch_add_range_title)) {
+            if (!hasSelectedGroup || selectedGroupStartsInFuture) {
+                item {
+                    // A not-yet-started plan reuses the "no group selected" prompt path,
+                    // since there's no valid past range to pick for it.
+                    SupportMessageListItem(
+                        text = stringResource(
+                            if (selectedGroupStartsInFuture) {
+                                R.string.plan_batch_add_group_not_started
+                            } else {
+                                R.string.plan_batch_add_select_group_prompt
+                            }
+                        ),
+                        painter = painterResource(R.drawable.ic_info),
+                        leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                } else {
-                    // entryCount == 0 but skippedEntryCount > 0 — the range
-                    // already has matching records, nothing new can be added.
-                    // Avoid rendering "0 records will be added" alongside the
-                    // skipped chip; show a clearer "no new records" line.
-                    stringResource(R.string.plan_batch_add_no_new_entries)
                 }
-                val skippedEntriesLabel = pluralStringResource(
-                    R.plurals.plan_batch_add_entries_skipped,
-                    skippedEntryCount,
-                    skippedEntryCount
-                )
-                SupportMessageListItem(
-                    text = if (skippedEntryCount > 0) {
-                        stringResource(
-                            R.string.plan_batch_add_entries_to_add_with_skipped,
-                            entriesToAddLabel,
-                            skippedEntriesLabel
-                        )
-                    } else {
-                        entriesToAddLabel
-                    },
-                    supportingText = if (manualEntryCount > 0) {
-                        stringResource(R.string.plan_batch_add_manual_before_start_note)
-                    } else {
-                        null
-                    },
-                    painter = painterResource(R.drawable.ic_data_info_alert),
-                    leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    leadingIconSize = 24.dp,
-                    index = 1,
-                    count = 2
-                )
             } else {
-                SupportMessageListItem(
-                    text = stringResource(R.string.plan_batch_add_no_entries),
-                    painter = painterResource(R.drawable.ic_data_info_alert),
-                    leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    leadingIconSize = 24.dp,
-                    index = 1,
-                    count = 2
-                )
+                item {
+                    SupportMessageListItem(
+                        text = stringResource(R.string.plan_batch_add_date_range),
+                        supportingText = stringResource(
+                            R.string.plan_batch_add_date_range_value,
+                            dateFormatter(startDate),
+                            dateFormatter(endDate),
+                        ),
+                        onClick = onDateRangeClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        painter = painterResource(R.drawable.ic_date_range),
+                        leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        leadingIconSize = 24.dp,
+                        showChevron = true,
+                    )
+                }
+                if (entryCount > 0 || skippedEntryCount > 0) {
+                    item {
+                        val entriesToAddLabel = if (entryCount > 0) {
+                            pluralStringResource(
+                                R.plurals.plan_batch_add_entries_to_add,
+                                entryCount,
+                                entryCount
+                            )
+                        } else {
+                            // entryCount == 0 but skippedEntryCount > 0 — the range
+                            // already has matching records, nothing new can be added.
+                            // Avoid rendering "0 records will be added" alongside the
+                            // skipped chip; show a clearer "no new records" line.
+                            stringResource(R.string.plan_batch_add_no_new_entries)
+                        }
+                        val skippedEntriesLabel = pluralStringResource(
+                            R.plurals.plan_batch_add_entries_skipped,
+                            skippedEntryCount,
+                            skippedEntryCount
+                        )
+                        SupportMessageListItem(
+                            text = if (skippedEntryCount > 0) {
+                                stringResource(
+                                    R.string.plan_batch_add_entries_to_add_with_skipped,
+                                    entriesToAddLabel,
+                                    skippedEntriesLabel
+                                )
+                            } else {
+                                entriesToAddLabel
+                            },
+                            supportingText = if (manualEntryCount > 0) {
+                                stringResource(R.string.plan_batch_add_manual_before_start_note)
+                            } else {
+                                null
+                            },
+                            painter = painterResource(R.drawable.ic_data_info_alert),
+                            leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            leadingIconSize = 24.dp,
+                        )
+                    }
+                } else {
+                    item {
+                        SupportMessageListItem(
+                            text = stringResource(R.string.plan_batch_add_no_entries),
+                            painter = painterResource(R.drawable.ic_data_info_alert),
+                            leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            leadingIconSize = 24.dp,
+                        )
+                    }
+                }
             }
         }
 
