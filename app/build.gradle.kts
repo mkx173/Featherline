@@ -82,12 +82,21 @@ android {
                 abiFilters += listOf("arm64-v8a")
             }
         }
+
+        create("x64") {
+            dimension = "distribution"
+
+            ndk {
+                abiFilters += listOf("x86_64")
+            }
+        }
     }
 
     buildTypes {
         debug {
+            applicationIdSuffix = ".debug"
             versionNameSuffix = "-$gitCommitHash"
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("debug")
         }
 
         release {
@@ -100,27 +109,7 @@ android {
             )
         }
 
-        create("benchmark") {
-            initWith(getByName("release"))
-            applicationIdSuffix = ".benchmark"
-            versionNameSuffix = "-benchmark"
-            signingConfig = signingConfigs.getByName("debug")
-            isDebuggable = false
-            matchingFallbacks += listOf("release")
-        }
-
-        // Dedicated build type for instrumented tests (see testBuildType below). The
-        // distinct applicationId suffix keeps the test app a separate package, so
-        // connectedAndroidTest never overwrites the regular debug install on a device.
-        create("instrumentation") {
-            initWith(getByName("debug"))
-            applicationIdSuffix = ".androidTest"
-            versionNameSuffix = "-androidTest"
-            matchingFallbacks += listOf("debug")
-        }
     }
-
-    testBuildType = "instrumentation"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -157,6 +146,7 @@ androidComponents {
 
             val abiName = when (flavor) {
                 "arm64" -> "arm64-v8a"
+                "x64" -> "x86_64"
                 "play" -> "all-abis"
                 else -> flavor
             }
@@ -226,8 +216,6 @@ dependencies {
 
     debugImplementation(libs.androidx.ui.tooling)
     // createComposeRule() relies on the test-only ComponentActivity from
-    // ui-test-manifest being merged into the app-under-test manifest. Instrumented
-    // tests run against the `instrumentation` build type (testBuildType), so this must
-    // target that build type rather than debug.
-    "instrumentationImplementation"(libs.androidx.ui.test.manifest)
+    // ui-test-manifest being merged into the app-under-test manifest.
+    debugImplementation(libs.androidx.ui.test.manifest)
 }

@@ -44,7 +44,7 @@ Run tests locally before opening a PR:
 ./gradlew testPlayDebugUnitTest
 ```
 
-There is no CI test job today, so your local run is the gating signal. The test-suite layout, where to put new tests, and how to run macrobenchmarks live in [`docs/testing.md`](docs/testing.md).
+There is no CI test job today, so your local run is the gating signal. The test-suite layout and where to put new tests live in [`docs/testing.md`](docs/testing.md).
 
 ## Commit messages
 

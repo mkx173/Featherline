@@ -167,7 +167,7 @@ class BackupRestoreService @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "restore_backup_start bytes=${encryptedBytes.size} " +
-                "expectedPackage=${context.packageName}",
+                "expectedBackupPackage=$BACKUP_APP_PACKAGE_NAME installedPackage=${context.packageName}",
         )
         val passwordChars = password.toCharArray()
         val json = try {
@@ -196,7 +196,7 @@ class BackupRestoreService @Inject constructor(
             }
             val snapshot = BackupSnapshotJsonCodec.decode(json)
                 ?: throw IOException("Unable to decode the selected backup file.")
-            snapshot.toValidatedSnapshot(expectedPackageName = context.packageName).also {
+            snapshot.toValidatedSnapshot(expectedPackageName = BACKUP_APP_PACKAGE_NAME).also {
                 diagnosticsLogger.info(TAG, "restore_backup_validated_ok")
             }
         } catch (error: CancellationException) {

@@ -172,7 +172,7 @@ class BackupExportService @Inject constructor(
         return BackupSnapshot(
             exportedAtEpochMillis = exportedAt.toEpochMilli(),
             app = BackupAppSnapshot(
-                packageName = context.packageName,
+                packageName = BACKUP_APP_PACKAGE_NAME,
             ),
             settings = BackupSettingsSnapshot(
                 darkModeOption = settings.darkModeOption.name,

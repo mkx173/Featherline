@@ -28,8 +28,7 @@ download links, see the [repo README](../README.md).
 - [Building](building.md) — prereqs, gradle commands, flavors.
 - [Release process](release-process.md) — versionCode derivation,
   flavor purpose, changelog discipline.
-- [Testing](testing.md) — test suite layout, conventions, benchmark
-  and baseline-profile usage.
+- [Testing](testing.md) — test suite layout and conventions.
 - [Localization](localization.md) — adding a new app language,
   resource layout, locale-aware formatters, and validation steps.
 

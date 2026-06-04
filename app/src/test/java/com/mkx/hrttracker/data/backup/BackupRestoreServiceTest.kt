@@ -145,6 +145,27 @@ class BackupRestoreServiceTest {
     }
 
     @Test
+    fun restoreBackupBytes_acceptsStablePackageBackupWhenInstalledPackageHasSuffix() = runTest {
+        every { context.packageName } returns "com.mkx.hrttracker.debug"
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(emptySnapshot()),
+            password = "password".toCharArray(),
+        )
+
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
+
+        coVerify(exactly = 1) {
+            settingsRepository.restoreSettings(
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(),
+                any(), any(), any(),
+            )
+        }
+    }
+
+    @Test
     fun validateBackupFile_rejects_non_backup_input_before_password_prompt() = runTest {
         val fileUri: Uri = mockk(relaxed = true)
         every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
