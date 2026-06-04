@@ -65,9 +65,9 @@ are organized by role:
   `ActionCallback`. Documented in detail in [widget.md](widget.md).
 
 Two files sit at the package root, outside any sub-package:
-[`HrtTrackerApplication.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/HrtTrackerApplication.kt)
+[`HrtTrackerApplication.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/HrtTrackerApplication.kt)
 (the Hilt `@HiltAndroidApp` entry point) and
-[`MainActivity.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/MainActivity.kt)
+[`MainActivity.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/MainActivity.kt)
 (the single Activity that hosts `HrtTrackerNavHost`).
 
 ## Catalog, regimen, and history
@@ -269,12 +269,12 @@ Shared sub-packages:
 Hilt is the DI framework. The application has two top-level modules,
 both installed in `SingletonComponent`:
 
-- [`AppCoroutineModule`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/di/AppCoroutineModule.kt)
+- [`AppCoroutineModule`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/di/AppCoroutineModule.kt)
   — provides `@DefaultDispatcher CoroutineDispatcher`
   (`Dispatchers.Default`) and `@AppScope CoroutineScope` (a
   `SupervisorJob` on the default dispatcher). The two qualifiers
   (`@DefaultDispatcher`, `@AppScope`) are declared in the same file.
-- [`AppTimeModule`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/di/AppTimeModule.kt)
+- [`AppTimeModule`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/di/AppTimeModule.kt)
   — provides a `java.time.Clock` (system UTC) and an `AppTimeSource`
   that wraps the clock to support tickable test seams and atomic
   `(minute, zone)` observation. `HrtTrackerApplication` refreshes it on
@@ -295,7 +295,7 @@ stores are `@Singleton` and constructor-injected.
 ## Compose navigation
 
 Navigation is single-Activity, single-NavHost. The entry point is
-[`HrtTrackerNavHost`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt),
+[`HrtTrackerNavHost`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt),
 which routes between Compose destinations declared via a `Screen`
 sealed class. At time of writing the app exposes 12 top-level
 destinations, grouped by feature area: `Main`, `Plan` (plus
@@ -314,14 +314,14 @@ actions and tracked back to their top-level parent via the
 `topLevelParent` nav-argument.
 
 Routed-screen body content is capped at 640dp by
-[`AppContentContainer`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/components/AppContentContainer.kt),
+[`AppContentContainer`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/ui/components/AppContentContainer.kt),
 applied inside each screen's own `Scaffold` body. The top app bar
 stays full-width — only the scrollable content centers within the cap.
 This avoids scroll-elevation color seams at the top-bar edges while
 keeping cards and charts at a comfortable reading width on tablets.
 
 Transition motion is centralized in
-[`NavigationTransitions`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/navigation/NavigationTransitions.kt).
+[`NavigationTransitions`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/ui/navigation/NavigationTransitions.kt).
 The four `NavHost` transition slots
 (`enterTransition`, `exitTransition`, `popEnterTransition`,
 `popExitTransition`) and the `sizeTransform` are wired once at the
@@ -378,13 +378,13 @@ wires together.
 The home screen has two cached layers, both observed by
 `MainViewModel` through `HomeRepository`:
 
-- [`HomeSnapshotRepository`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/repository/HomeSnapshotRepository.kt)
+- [`HomeSnapshotRepository`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/HomeSnapshotRepository.kt)
   owns the plan-and-fulfillment cache for the home screen.
   Every home-related mutation (a dose log, a schedule edit, a profile
   update) routes through `runHomeDataMutation`, which holds a mutex,
   bumps the durable generation counter via `HomeSnapshotGenerationStore`,
   runs the mutation, and then asynchronously refreshes the snapshot.
-- [`HomeSnapshotStore`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/repository/HomeSnapshotStore.kt)
+- [`HomeSnapshotStore`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/HomeSnapshotStore.kt)
   persists the snapshot as an encrypted DataStore file
   (`home_snapshot.pb`) so the home screen paints from cache on cold
   start before live Room observation catches up. The persisted record

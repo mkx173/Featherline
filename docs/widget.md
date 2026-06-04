@@ -42,7 +42,7 @@ seat: see [Update triggers](#update-triggers) below.
 
 ### Build
 
-[`WidgetSnapshotBuilder.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetSnapshotBuilder.kt)
+[`WidgetSnapshotBuilder.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetSnapshotBuilder.kt)
 exposes one internal function, `buildWidgetSnapshotRecord`. It is pure
 in the same sense the reminder planner is: given a `HomeSnapshotRecord`,
 a `SettingsState`, and a `LocalDateTime`, it returns a
@@ -90,7 +90,7 @@ new language.
 
 ### Persist
 
-[`WidgetSnapshotStore.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetSnapshotStore.kt)
+[`WidgetSnapshotStore.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetSnapshotStore.kt)
 persists the snapshot as an encrypted DataStore file
 (`widget_snapshot.pb`). The serializer wraps a custom
 `WidgetSnapshotCrypto` that uses an AES-256-GCM key minted in the
@@ -107,14 +107,14 @@ widget then falls back to its empty-setup composable rather than
 rendering against an obsolete shape.
 
 The store is also the
-[`GlanceStateDefinition`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L146)
+[`GlanceStateDefinition`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L146)
 for both widgets, so Glance composables read straight from the same
 file via `currentState<WidgetSnapshotState>()`. There is no in-memory
 cache to keep coherent.
 
 ### Render
 
-[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt)
+[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt)
 hosts two `GlanceAppWidget` subclasses:
 
 - `HrtWidgetMedium` — `SizeMode.Exact`, targeting a 2×2 launcher cell.
@@ -137,13 +137,13 @@ colors are enabled, else the baked `DefaultSeedColor`), and stacks
 `CompositionLocalProvider`s for the color scheme, content scale,
 background alpha, and forced-dark override. Shared Glance components
 live in
-[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt):
+[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt):
 `WidgetShell`, `ProgressRing`, `ProgressBar`, `DoseRow`,
 `TrailingButton`, and `widgetRowHighlightIntent`.
 
 The `appwidget-provider` XML
-([`hrt_widget_medium_info.xml`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/res/xml/hrt_widget_medium_info.xml),
-[`hrt_widget_large_info.xml`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/res/xml/hrt_widget_large_info.xml))
+([`hrt_widget_medium_info.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/res/xml/hrt_widget_medium_info.xml),
+[`hrt_widget_large_info.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/res/xml/hrt_widget_large_info.xml))
 declares `resizeMode="horizontal|vertical"` plus a `minWidth` /
 `minHeight` smaller than the target cell, so the launcher can resize
 the widget down. The Glance composition does not branch on size — it
@@ -155,7 +155,7 @@ scales (see below) rather than swapping to a compact layout.
 launcher hands out for the 2×2 / 4×2 cell, which varies by device and
 launcher. To keep the visual scale stable across devices and resizes,
 `widgetScale(widgetKey)` in
-[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt)
+[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt)
 captures a device baseline on the widget's first update and reuses it
 forever. `SizeMode.Exact` composes the widget once *per size* —
 portrait and landscape — in a single update, so the baseline is the
@@ -237,7 +237,7 @@ graph TD
 ```
 
 - **Home-data changes.**
-  [`HomeWidgetManager`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/HomeWidgetManager.kt)
+  [`HomeWidgetManager`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HomeWidgetManager.kt)
   is a Hilt `@Singleton` started from `HrtTrackerApplication`. It
   subscribes to `homeSnapshotRepository.observeHomeSnapshot()` with
   `filterNotNull()` and calls
@@ -257,7 +257,7 @@ graph TD
   the current home snapshot without forcing a home rebuild — the home
   snapshot itself is unchanged when only widget-only inputs change.
 - **Wall-clock drift.**
-  [`WidgetDailyRefreshWorker`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetDailyRefreshWorker.kt)
+  [`WidgetDailyRefreshWorker`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetDailyRefreshWorker.kt)
   is a periodic `CoroutineWorker` enqueued every 15 minutes (plus one
   one-shot at app start). It reads the persisted snapshot, checks
   whether the snapshot's `anchorDateEpochDay` is before today's date,
@@ -269,14 +269,14 @@ graph TD
   just calls `updateAllHrtWidgets` to re-render against the existing
   snapshot.
 - **Date / time / timezone events.**
-  [`WidgetDateReceiver`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetDateReceiver.kt)
+  [`WidgetDateReceiver`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetDateReceiver.kt)
   is a manifest-declared `BroadcastReceiver` for the widget-owned
   midnight alarm, `BOOT_COMPLETED`, plus best-effort
   `ACTION_DATE_CHANGED`, `ACTION_TIME_CHANGED`, and
   `ACTION_TIMEZONE_CHANGED`. Android 8+ does not exempt
   `ACTION_DATE_CHANGED` manifest receivers from background broadcast
   limits, so `HomeWidgetManager` also arms
-  [`WidgetMidnightRefreshScheduler`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetMidnightRefreshScheduler.kt)
+  [`WidgetMidnightRefreshScheduler`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetMidnightRefreshScheduler.kt)
   for the next local midnight. A reboot clears that exact alarm, so the
   receiver re-arms it on every delivery — including `BOOT_COMPLETED` —
   and uses `goAsync()` to force a home refresh, again leaning on the
@@ -291,7 +291,7 @@ graph TD
   formatter without forcing a home rebuild.
 
 Two render paths exist in
-[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt):
+[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt):
 
 - **`pushHrtWidgets(context, record)`** — composes a one-shot
   `RemoteViews` via `GlanceRemoteViews().compose(...)` and pushes it
@@ -313,7 +313,7 @@ Two render paths exist in
 
 ## Quick-log action
 
-[`QuickLogActionCallback`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/QuickLogActionCallback.kt)
+[`QuickLogActionCallback`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/QuickLogActionCallback.kt)
 is the `ActionCallback` wired to the medium widget's action button and
 the large widget's per-row log buttons. Its parameter contract is five
 keys: `GroupUuidKey`, `ScheduleTimeUuidKey` (nullable), `ScheduledAtKey`
@@ -324,7 +324,7 @@ catalog `Medicine.uuid`), and `ArchivedGroupRowKey` (whether the tapped
 row was rendered as an archived-group row).
 
 The callback resolves the group via the
-[`WidgetEntryPoint`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/widget/WidgetEntryPoint.kt)
+[`WidgetEntryPoint`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetEntryPoint.kt)
 Hilt accessor (the standard pattern for getting Hilt-bound singletons
 from non-`@AndroidEntryPoint` receivers and callbacks), narrows the
 medication list when `MedicationUuidKey` is set (matching against
@@ -371,7 +371,7 @@ target the wrong group. Manual records (which carry
 non-nullable key is safe.
 
 `collapseToGroupRow` in
-[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L120)
+[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L120)
 is the seat that produces the representative row: it picks the
 strongest status (`DONE` > `OVERDUE` > `DUE_SOON` > `UPCOMING` >
 `LOGGED_OUT_OF_WINDOW`), forwards `groupUuid` / `scheduleTimeUuid`, and
@@ -381,7 +381,7 @@ group.
 ## Highlight deep link
 
 `widgetRowHighlightIntent` in
-[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt#L365)
+[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt#L365)
 builds the `MainActivity` intent used when the user taps a widget row
 (as distinct from the log button). It uses a `hrttracker://` data URI
 plus `EXTRA_HIGHLIGHT_*` extras so the home screen can scroll to and
@@ -393,7 +393,7 @@ because Android coalesces `PendingIntent`s with equal `data`.
 ## Background widget surface
 
 `WidgetShell` in
-[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt#L63)
+[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt#L63)
 applies the user-configurable background alpha and the rounded
 container, and wraps the entire widget in `clickable(actionStartActivity<MainActivity>())`
 so the top-level tap target is the app, with row-level and

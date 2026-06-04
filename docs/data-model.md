@@ -9,11 +9,11 @@ format used for manual backups, see [backup-format.md](backup-format.md).
 
 ## Database setup
 
-- [`HrtTrackerDatabase`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt)
+- [`HrtTrackerDatabase`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt)
   is the Room database at schema version 6. It declares 10 entities
   and exposes 6 DAOs. `exportSchema` is off — schemas are tracked via
   migration objects in source rather than committed schema JSON.
-- [`DatabaseHolder`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/DatabaseHolder.kt)
+- [`DatabaseHolder`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/DatabaseHolder.kt)
   builds the database via `Room.databaseBuilder`, installs a
   `SupportOpenHelperFactory` from SQLCipher's `net.zetetic` artifact,
   and registers `MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4`,
@@ -21,7 +21,7 @@ format used for manual backups, see [backup-format.md](backup-format.md).
   No `fallbackToDestructiveMigration`
   is wired — a missing migration crashes loudly in every build, debug
   and release, so silent data loss can't slip through.
-- [`DatabasePassphraseProvider`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/DatabasePassphraseProvider.kt)
+- [`DatabasePassphraseProvider`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/DatabasePassphraseProvider.kt)
   produces the SQLCipher passphrase. A 32-byte random passphrase is
   generated on first launch, AES/GCM-encrypted with a key stored in
   the Android Keystore (`MASTER_KEY_ALIAS = "hrt_tracker_database_master_key"`),
@@ -37,7 +37,7 @@ notable invariant.
 
 ### `MedicineEntity`
 
-Defined in [`MedicineEntities.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/MedicineEntities.kt).
+Defined in [`MedicineEntities.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicineEntities.kt).
 Annotated `@Entity(tableName = "medicines")` — one row per known
 medicine in the catalog (built-in plus user-defined custom), keyed on
 a UUID. This is the canonical identity for "what substance, in what
@@ -97,7 +97,7 @@ by looking up that fixed key before inserting.
 
 ### `UserProfileEntity`
 
-Defined in [`UserProfileEntity.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/UserProfileEntity.kt).
+Defined in [`UserProfileEntity.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/UserProfileEntity.kt).
 Annotated `@Entity(tableName = "user_profile")` — a singleton row
 keyed on `id = "default"`. Stores
 the body-weight inputs that feed PK simulation
@@ -108,7 +108,7 @@ timestamp via `updatedAtEpochMillis`.
 
 ### `MedicationGroupEntity`
 
-Defined in [`MedicationGroupEntities.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/MedicationGroupEntities.kt).
+Defined in [`MedicationGroupEntities.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicationGroupEntities.kt).
 Annotated `@Entity(tableName = "medication_groups")` — one row per
 medication group, where a group is a set of medications that share
 a reminder schedule. Stores `name`,
@@ -124,7 +124,7 @@ fulfillment links.
 
 ### `MedicationGroupItemEntity`
 
-Defined in [`MedicationGroupEntities.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/MedicationGroupEntities.kt).
+Defined in [`MedicationGroupEntities.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicationGroupEntities.kt).
 Annotated `@Entity(tableName = "medication_group_items")` — one row
 per medication slot in a group. Two foreign keys: to
 `medication_groups.uuid` with `ON DELETE CASCADE` (a deleted group
@@ -151,7 +151,7 @@ backups. All other persisted slots populate it.
 
 ### `MedicationGroupScheduleTimeEntity`
 
-Defined in [`MedicationGroupEntities.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/MedicationGroupEntities.kt).
+Defined in [`MedicationGroupEntities.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicationGroupEntities.kt).
 Annotated `@Entity(tableName = "medication_group_schedule_times")` —
 one row per time-of-day a group's schedule fires (`hourOfDay`,
 `minuteOfHour`). FK to
@@ -161,7 +161,7 @@ apply only to future occurrences without rewriting history.
 
 ### `MedicationGroupWeeklyDayEntity`
 
-Defined in [`MedicationGroupEntities.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/MedicationGroupEntities.kt).
+Defined in [`MedicationGroupEntities.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicationGroupEntities.kt).
 Annotated `@Entity(tableName = "medication_group_weekly_days")` with
 a composite primary key `(groupUuid, dayOfWeek)`; one row per
 (group, weekday) selected when
@@ -172,7 +172,7 @@ concrete occurrences.
 
 ### `MedicationLogEntryEntity`
 
-Defined in [`MedicationLogEntryEntity.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/MedicationLogEntryEntity.kt).
+Defined in [`MedicationLogEntryEntity.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicationLogEntryEntity.kt).
 Annotated `@Entity(tableName = "medication_log_entries")` — one row
 per logged dose. Identity is a nullable `medicineUuid` reference
 (no Room FK constraint on this column: the log is intentionally
@@ -209,7 +209,7 @@ sourceGroupUuid)` identity). The primary key remains `uuid`.
 
 ### `BloodTestPanelEntity`
 
-Defined in [`BloodTestEntities.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt).
+Defined in [`BloodTestEntities.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt).
 Annotated `@Entity(tableName = "blood_test_panels")` — one row per
 blood-test sitting. Stores
 `collectedAtInstantEpochMillis` / `collectedAtTimeZoneId` (when the
@@ -220,7 +220,7 @@ support the trend chart's chronological scan.
 
 ### `BloodTestResultEntity`
 
-Defined in [`BloodTestEntities.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt).
+Defined in [`BloodTestEntities.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt).
 Annotated `@Entity(tableName = "blood_test_results")` — one row per
 analyte result inside a panel. FK to `blood_test_panels.uuid`
 (`ON DELETE CASCADE`) and an
@@ -237,7 +237,7 @@ enforce one-row-per-analyte within a panel.
 
 ### `CustomBloodAnalyteEntity`
 
-Defined in [`BloodTestEntities.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt).
+Defined in [`BloodTestEntities.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt).
 Annotated `@Entity(tableName = "custom_blood_analytes")` — one row
 per user-defined analyte not
 present in the builtin `BloodTestCatalog`. Stores raw `name` /
@@ -270,7 +270,7 @@ types:
 
 `MedicineEntity` is a flat union of nullable columns, but the
 in-memory model splits cleanly along two axes — defined in
-[`MedicineModels.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/model/medication/MedicineModels.kt).
+[`MedicineModels.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/medication/MedicineModels.kt).
 
 - **`MedicinePreparation`** (sealed) describes what's in the package:
   `Pill`, `Capsule`, `InjectionSingleUseVial`,
@@ -284,14 +284,14 @@ in-memory model splits cleanly along two axes — defined in
   `TabletFraction(numerator, denominator)`, `WholeUnit`,
   `VolumeMl`, `WeightGrams`, `Noop`. Compatibility against a
   preparation type is encoded in
-  [`MedicinePreparationForm.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/model/medication/MedicinePreparationForm.kt)
+  [`MedicinePreparationForm.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/medication/MedicinePreparationForm.kt)
   (e.g., `VolumeMl` is only valid with `INJECTION_MULTI_USE_VIAL`,
   `Noop` only with PATCH_OFF). Group slots and log entries persist
   the discriminator + value columns described in their entity
   sections; the model converts both ways.
 
 Find-or-create dedup uses
-[`MedicineIdentityKey`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/model/medication/MedicineIdentityKey.kt),
+[`MedicineIdentityKey`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/medication/MedicineIdentityKey.kt),
 a canonical-string fingerprint over (selection, preparation type,
 preparation fields). Catalog keys take the form
 `C|<medicationKey>|<prep-type>|field=value...`, custom keys
@@ -302,7 +302,7 @@ trailing zeros stripped, so 1.0 mg and 1.000000 mg hash identically.
 
 Mass-equivalent dosing — what gets snapshotted into
 `equivalentE2Mg` on each log row — is computed by
-[`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt)
+[`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt)
 from the medicine's preparation plus the dose instruction. It
 replaces the per-entry estradiol math that used to live in
 `EstradiolEquivalentCalculator` (deleted). Patch release-rate doses
@@ -348,7 +348,7 @@ Patterns shared across entities:
 
 Six DAO interfaces, each backing the entities in its namesake area.
 
-- [`MedicineDao`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/MedicineDao.kt)
+- [`MedicineDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicineDao.kt)
   — catalog of `medicines`. Active/archived list observers,
   by-UUID and by-identity-key lookups, targeted updates
   (`updateDisplayName`, `updatePreparationFields`, `archive`,
@@ -365,14 +365,14 @@ Six DAO interfaces, each backing the entities in its namesake area.
   separate fetch off a group or log observation join on this so
   display-name / preparation / archive edits propagate without
   needing the primary table to change too.
-- [`UserProfileDao`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/UserProfileDao.kt)
+- [`UserProfileDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/UserProfileDao.kt)
   — singleton-row read / observe / upsert for `user_profile`.
-- [`MedicationGroupDao`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/MedicationGroupDao.kt)
+- [`MedicationGroupDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicationGroupDao.kt)
   — group plus items plus schedule times plus weekly days, observed
   via Flow as the combined `MedicationGroupWithItemsEntity` projection.
   The `upsertGroupWithItems` `@Transaction` rewrites every child
   table to match the supplied lists in one atomic step.
-- [`MedicationLogDao`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/MedicationLogDao.kt)
+- [`MedicationLogDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicationLogDao.kt)
   — log inserts, batch reads by ID, the
   `getLatestEntryByCategoryOnOrBefore` query, schedule-time renames
   (`updateScheduledForTimeForEntries`), the
@@ -381,12 +381,12 @@ Six DAO interfaces, each backing the entities in its namesake area.
   `observeScheduledEntriesInWindow` / `getScheduledEntriesInWindow`
   reads that index already-logged scheduled doses for the stock
   runway projection.
-- [`BloodTestDao`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestDao.kt)
+- [`BloodTestDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestDao.kt)
   — panels, results, and custom analytes; the
   `upsertPanelWithResults` `@Transaction`; the
   `getBuiltinTrendPoints` / `getCustomTrendPoints` projections that
   feed the chart.
-- [`HomeDao`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/HomeDao.kt)
+- [`HomeDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HomeDao.kt)
   — the composite queries feeding the home screen:
   `observeActiveGroups`, `observeScheduleEntries`,
   `observeLatestAntiandrogenEntriesOnOrBefore` (one row per
@@ -402,7 +402,7 @@ The medicine-identity refactor reset the schema: v29 → v30 was
 abandoned mid-flight and the database was collapsed to v1, with
 `DatabaseMigrations.kt` deleted entirely. The current chain starts
 fresh at v1 and bumps via `Migration` objects declared inline in
-[`HrtTrackerDatabase.kt`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt).
+[`HrtTrackerDatabase.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt).
 The chain today is `MIGRATION_1_2` → `MIGRATION_2_3` → `MIGRATION_3_4`
 → `MIGRATION_4_5` → `MIGRATION_5_6`.
 `MIGRATION_1_2` adds the `displayDoseUnit` column to `medicines` with a

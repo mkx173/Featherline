@@ -8,7 +8,7 @@ The whole subsystem lives in
 
 ## Analyte catalog
 
-[`BloodTestCatalog.kt`](https://github.com/mkx173/Featherline/blob/c13fb98e8109fec775ea4722794475945d5165bb/app/src/main/java/com/mkx/hrttracker/model/bloodtest/BloodTestCatalog.kt)
+[`BloodTestCatalog.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/bloodtest/BloodTestCatalog.kt)
 exposes a single `object BloodTestCatalog` keyed by two enums and one
 data class:
 
@@ -67,14 +67,14 @@ stays in one place — there are no scattered `if (unit == X)` arms in
 repositories or UI code (calibration's per-analyte defaults and
 display strings are a UI seat, not a conversion seat). Second,
 **canonical-value persistence** (the `canonicalValue` column on
-[`BloodTestResultEntity`](https://github.com/mkx173/Featherline/blob/c13fb98e8109fec775ea4722794475945d5165bb/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt#L70))
+[`BloodTestResultEntity`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt#L70))
 lets the trend chart sort and compare across rows that were entered in
 different units without re-converting on every read.
 
 ## Custom analytes
 
 Users can define their own analytes outside the catalog —
-[`CustomBloodAnalyteEntity`](https://github.com/mkx173/Featherline/blob/c13fb98e8109fec775ea4722794475945d5165bb/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt#L33)
+[`CustomBloodAnalyteEntity`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt#L33)
 holds an abbreviation, a display name, and a free-text `unitLabel`.
 See the entity blurb in
 [`data-model.md`](data-model.md#custombloodanalyteentity) for the
@@ -82,7 +82,7 @@ schema and FK shape.
 
 Custom analytes have no factor table, so there is nothing to convert
 against. The write path in
-[`BloodTestRepository.kt`](https://github.com/mkx173/Featherline/blob/c13fb98e8109fec775ea4722794475945d5165bb/app/src/main/java/com/mkx/hrttracker/data/repository/BloodTestRepository.kt)
+[`BloodTestRepository.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/BloodTestRepository.kt)
 splits on the result-input sealed type: the
 `BloodTestResultInput.Builtin` branch calls `BloodTestCatalog.toCanonical(...)`,
 and the `BloodTestResultInput.Custom` branch sets
@@ -97,7 +97,7 @@ share their `unitLabel`.
 
 ## `AllowedAnalyteUnit` validated type
 
-[`AllowedAnalyteUnit`](https://github.com/mkx173/Featherline/blob/c13fb98e8109fec775ea4722794475945d5165bb/app/src/main/java/com/mkx/hrttracker/model/bloodtest/AllowedAnalyteUnit.kt)
+[`AllowedAnalyteUnit`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/bloodtest/AllowedAnalyteUnit.kt)
 is a `data class` with a private constructor and a smart constructor
 `AllowedAnalyteUnit.of(analyte, unit)` that requires
 `BloodTestCatalog.isUnitAllowed(analyte, unit)`. Once you hold an
@@ -107,14 +107,14 @@ validated against the catalog.
 It crosses layer boundaries at exactly the points where an
 out-of-catalog pair would be a bug:
 
-- [`SettingsRepository.setCalibrationDefaultUnit`](https://github.com/mkx173/Featherline/blob/c13fb98e8109fec775ea4722794475945d5165bb/app/src/main/java/com/mkx/hrttracker/data/repository/SettingsRepository.kt)
+- [`SettingsRepository.setCalibrationDefaultUnit`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/SettingsRepository.kt)
   and `setHomeE2DisplayUnit` take `AllowedAnalyteUnit` rather than a
   raw `(BloodAnalyteKey, BloodUnitKey)` tuple — UI cannot push a
   nonsense pair into DataStore.
 - `SettingsRepository.restoreSettings` accepts `Set<AllowedAnalyteUnit>`
   and a single `AllowedAnalyteUnit` for the E2 display unit. Backup
   restore reuses this entry point.
-- [`BackupRestoreService.toValidatedSettings`](https://github.com/mkx173/Featherline/blob/c13fb98e8109fec775ea4722794475945d5165bb/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt)
+- [`BackupRestoreService.toValidatedSettings`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt)
   decodes raw storage strings from a backup snapshot and constructs
   `AllowedAnalyteUnit.of(...)` per entry; an unsupported pair throws
   during validation, before any Room write happens.

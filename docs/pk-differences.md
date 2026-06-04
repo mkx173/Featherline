@@ -14,7 +14,7 @@ catalog (`PKSharedCatalog.json`), and Swift implementations
 (`PKparameter.swift`, `PKcore.swift`, `SimulationEngine`) targeting iOS
 and watchOS. The math, the route catalog, and the population-average
 parameters in
-[`PkCatalog`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1203)
+[`PkCatalog`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1203)
 trace back to that reference. Anyone wanting the math itself —
 compartment equations, parameter provenance, literature anchors —
 should read the upstream README and its `pk_research/` workspace.
@@ -26,9 +26,9 @@ should read the upstream README and its `pk_research/` workspace.
   gel, and fallback patches; constant-rate input for labelled patches;
   dual-pathway (fast mucosal + slow swallowed-oral) for sublingual.
   Implemented in
-  [`ThreeCompartmentModel`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L849)
+  [`ThreeCompartmentModel`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L849)
   and consumed by
-  [`PkSimulationEngine`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L586).
+  [`PkSimulationEngine`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L586).
 - **Route catalog and compound metadata.** `PkRoute`, `PkCompound`,
   and `PkCatalog`'s `compounds` / `twoPartDepot` / `formationFraction`
   / `hydrolysisK2` / `oralKAbs` / `oralBioavailability` mirror the
@@ -44,17 +44,17 @@ should read the upstream README and its `pk_research/` workspace.
 - **Single-hormone simulation runtime.** Upstream's catalog and
   simulator drive both estradiol and testosterone end-to-end.
   Featherline keeps the testosterone constants in
-  [`PkCatalog`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1203)
+  [`PkCatalog`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1203)
   for parity but wires only the estradiol path through
-  [`toEstradiolPkDoseEvent`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1069),
+  [`toEstradiolPkDoseEvent`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1069),
   `buildEstradiolEvents`, and
-  [`simulateMainEstradiolTrend`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L314);
+  [`simulateMainEstradiolTrend`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L314);
   the testosterone surface stays dormant until the planned PK engine
   swap lands.
 - **Planned-dose projection.** Upstream simulates the doses you give
   it. Featherline synthesizes virtual future-dose events for
   unfulfilled scheduled slots via
-  [`buildEstradiolPkSimulationEntries`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkPlannedEntries.kt#L25)
+  [`buildEstradiolPkSimulationEntries`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/pk/PkPlannedEntries.kt#L25)
   so the home chart can show a "if you take everything on schedule"
   curve to the right of the prediction marker. The `isPlanned` flag
   propagates to dose markers so the UI can distinguish logged from
@@ -75,9 +75,9 @@ should read the upstream README and its `pk_research/` workspace.
   underplot their local peaks. Both options also pin the prediction
   instant, the previous-day instant, and every logged-event instant.
   The trend
-  ([`mainChartSampleTimeH`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L490))
+  ([`mainChartSampleTimeH`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L490))
   and projection
-  ([`mainProjectionSampleTimeH`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L533))
+  ([`mainProjectionSampleTimeH`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L533))
   paths share the strategy but differ in which "exact" instants they
   pin.
 - **Option-aware chart-window rounding contract.**
@@ -105,18 +105,18 @@ should read the upstream README and its `pk_research/` workspace.
   in
   [`architecture.md#home-snapshot-and-pk-projection-cache`](architecture.md#home-snapshot-and-pk-projection-cache);
   the widget consumes `widgetPkProjection` via
-  [`WidgetSnapshotBuilder`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetSnapshotBuilder.kt)
+  [`WidgetSnapshotBuilder`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetSnapshotBuilder.kt)
   with its own expiry check on the widget render path. Upstream has
   no equivalent because it has no persistent home snapshot.
 - **Active-mg conversion on the data path.** Upstream resolves dose
   events directly inside its simulator. Featherline computes the
   per-event active-mg-as-E2 upstream of the simulator in
-  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt),
+  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt),
   which resolves a `Medicine`'s `MedicinePreparation` +
   `DoseInstruction` into mg-as-E2 using the calculator's own
   per-compound molecular-weight constants and persists it on the log
   row as `equivalentE2Mg`. Inside the simulator,
-  [`pkDoseAmounts`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1106)
+  [`pkDoseAmounts`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1106)
   prefers the snapshotted value for non-patch routes (falling back to
   `DoseInstructionCalculator.perUnitEquivalentE2Mg` for planned
   entries or legacy rows that have no snapshot) and reads the patch
@@ -129,7 +129,7 @@ should read the upstream README and its `pk_research/` workspace.
 - **Duplicated molecular-weight constants.** Estradiol
   molecular-weight constants live in `PkCatalog.compounds` and again
   in
-  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt),
+  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt),
   which log creation uses to snapshot `equivalentE2Mg` and planned PK
   entries use to rederive it when no snapshot exists. Medication UI
   code also uses the calculator for raw dose amount and patch
@@ -152,12 +152,12 @@ should read the upstream README and its `pk_research/` workspace.
   configure the sublingual θ — the fraction of a sublingual dose
   absorbed through the buccal mucosa (fast pathway) versus swallowed
   and absorbed orally (slow pathway). Featherline's
-  [`PkDoseEvent`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L73)
+  [`PkDoseEvent`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L73)
   carries an optional `sublingualTheta: Double?` field for parity, but
   nothing in the UI ever sets it. The
-  [`PkParameterResolver.SUBLINGUAL`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L820)
+  [`PkParameterResolver.SUBLINGUAL`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L820)
   branch always falls back to the catalog default
-  [`PkCatalog.standardSublingualTheta = 0.11`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1204).
+  [`PkCatalog.standardSublingualTheta = 0.11`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1204).
   Real per-person variation in mucosal-vs-swallowed fraction can be
   substantial; Featherline does not currently expose it for tuning.
 
@@ -168,7 +168,7 @@ The PK engine swap gates three deferred refactors, all enumerated in
 
 - Consolidate the fragmented PK math (constants, three-compartment
   simulation, dose-equivalence) so `PkCatalog` and
-  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt)'s
+  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt)'s
   overlapping molecular-weight constants collapse into one source of
   truth.
 - Untangle the projection cache from `HomeSnapshotRepository` so PK
