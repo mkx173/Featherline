@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
@@ -57,6 +56,8 @@ import com.mkx.hrttracker.model.medication.PlanDaySchedule
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.HrtPill
+import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
@@ -884,35 +885,29 @@ private fun RegimenMedicationChip(
 ) {
     val applicationTypeLabel = stringResource(applicationType.labelRes)
 
-    Surface(
-        shape = CircleShape,
-        color = groupColorScheme.primaryContainer,
+    HrtPill(
+        containerColor = groupColorScheme.primaryContainer,
         contentColor = groupColorScheme.onPrimaryContainer,
+        size = HrtPillSize.Medium,
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-        ) {
-            MedicationApplicationIcon(
-                applicationType = applicationType,
-                contentDescription = applicationTypeLabel,
-                modifier = Modifier.size(14.dp),
-            )
-            // For PATCH_OFF (and any other null-medicine route) the title falls back
-            // to the route name, so the label would duplicate it — drop it then.
-            val medicationString = listOfNotNull(
-                medicationName,
-                applicationTypeLabel.takeIf { it != medicationName },
-                doseSummary.takeIf { it.isNotBlank() },
-            ).joinToString(" · ")
-            Text(
-                text = medicationString,
-                style = MaterialTheme.typography.labelMedium,
-                color = groupColorScheme.onPrimaryFixed,
-                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(medicationString)
-            )
-        }
+        MedicationApplicationIcon(
+            applicationType = applicationType,
+            contentDescription = applicationTypeLabel,
+            modifier = Modifier.size(14.dp),
+        )
+        // For PATCH_OFF (and any other null-medicine route) the title falls back
+        // to the route name, so the label would duplicate it — drop it then.
+        val medicationString = listOfNotNull(
+            medicationName,
+            applicationTypeLabel.takeIf { it != medicationName },
+            doseSummary.takeIf { it.isNotBlank() },
+        ).joinToString(" · ")
+        Text(
+            text = medicationString,
+            style = MaterialTheme.typography.labelMedium,
+            color = groupColorScheme.onPrimaryFixed,
+            modifier = Modifier.padding(end = 2.dp).cjkTextOffset(medicationString)
+        )
     }
 }
 

@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -15,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.StickyNote2
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -81,6 +81,8 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.HrtPill
+import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -929,17 +931,17 @@ private fun CalibrationPanelMetadataRow(
             val elapsedLabel =
                 "E2 +${calibrationElapsedDurationLabel(elapsedMillis).replace(" ", "")}"
 
-            CalibrationPanelPill(
-                color = MaterialTheme.colorScheme.tertiaryContainer
+            HrtPill(
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                size = HrtPillSize.Small,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 1.dp),
             ) {
                 Text(
                     text = elapsedLabel,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onTertiaryContainer,
                     maxLines = 1,
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp, vertical = 1.dp)
-                        .cjkTextOffset(elapsedLabel),
+                    modifier = Modifier.cjkTextOffset(elapsedLabel),
                 )
             }
         }
@@ -949,17 +951,17 @@ private fun CalibrationPanelMetadataRow(
                 remainingResultCount,
                 remainingResultCount,
             )
-            CalibrationPanelPill(
-                color = MaterialTheme.colorScheme.surfaceContainerHigh
+            HrtPill(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                size = HrtPillSize.Small,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 1.dp),
             ) {
                 Text(
                     text = extraEntriesLabel,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp, vertical = 1.dp)
-                        .cjkTextOffset(extraEntriesLabel),
+                    modifier = Modifier.cjkTextOffset(extraEntriesLabel),
                 )
             }
         }
@@ -979,21 +981,6 @@ private fun CalibrationPanelMetadataRow(
                 modifier = Modifier.size(15.dp),
             )
         }
-    }
-}
-
-@Composable
-private fun CalibrationPanelPill(
-    modifier: Modifier = Modifier,
-    color: Color,
-    content: @Composable () -> Unit,
-) {
-    Surface(
-        modifier = modifier,
-        shape = CircleShape,
-        color = color
-    ) {
-        content()
     }
 }
 

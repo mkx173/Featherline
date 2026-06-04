@@ -5,14 +5,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -57,11 +59,10 @@ import androidx.compose.ui.relocation.bringIntoView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -71,6 +72,8 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.HrtPill
+import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calibrationUnitLabel
@@ -152,30 +155,14 @@ internal fun CalibrationCrossZonePill(
     label: String,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
+    HrtPill(
+        label = label,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Public,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(14.dp)
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(label)
-            )
-        }
-    }
+        size = HrtPillSize.Medium,
+        icon = { Icon(Icons.Rounded.Public, contentDescription = null, modifier = iconModifier) },
+    )
 }
 
 @Composable
@@ -183,38 +170,16 @@ internal fun CalibrationElapsedEstradiolDosePill(
     elapsedMillis: Long,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
+    HrtPill(
+        label = stringResource(
+            R.string.settings_calibration_last_e2_elapsed,
+            calibrationElapsedDurationLabel(elapsedMillis)
+        ),
+        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
         modifier = modifier,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.tertiaryContainer
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_labs),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                modifier = Modifier.size(14.dp)
-            )
-            Text(
-                text = stringResource(
-                    R.string.settings_calibration_last_e2_elapsed,
-                    calibrationElapsedDurationLabel(elapsedMillis)
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
-                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(
-                    stringResource(
-                        R.string.settings_calibration_last_e2_elapsed,
-                        calibrationElapsedDurationLabel(elapsedMillis)
-                    )
-                )
-            )
-        }
-    }
+        size = HrtPillSize.Medium,
+        icon = { Icon(painterResource(R.drawable.ic_labs), contentDescription = null, modifier = iconModifier) },
+    )
 }
 
 @Composable
@@ -415,49 +380,37 @@ internal fun CalibrationAnalyteCard(
             if (defaultUnitValueLabel != null || showRangeStatusChip) Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                // Pin the row to its tallest pill so a taller line box (e.g. CJK range
+                // labels) doesn't leave the converted-value pill looking stunted beside it.
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(top = 4.dp)
             ) {
                 if (defaultUnitValueLabel != null) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-                        ) {
-                            Box(
-                                modifier = Modifier.size(18.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_conversion_path),
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.size(14.dp),
-                                )
-                            }
-                            Text(
-                                text = defaultUnitValueLabel,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(end = 4.dp),
-                                textAlign = TextAlign.End
+                    HrtPill(
+                        label = defaultUnitValueLabel,
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.fillMaxHeight(),
+                        size = HrtPillSize.Medium,
+                        icon = {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_conversion_path),
+                                contentDescription = null,
+                                modifier = iconModifier,
                             )
-                        }
-                    }
+                        },
+                        fontWeight = FontWeight.Medium
+                    )
                 }
                 if (showRangeStatusChip) {
                     Spacer(modifier = Modifier.width(8.dp))
-                    CalibrationRangeStatusChip(status = rangeStatus)
+                    CalibrationRangeStatusChip(
+                        status = rangeStatus,
+                        modifier = Modifier.fillMaxHeight(),
+                    )
                 }
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
@@ -692,8 +645,11 @@ private fun LayoutCoordinates.localRectOf(
 }
 
 @Composable
-private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
-    val icon = when (status) {
+private fun CalibrationRangeStatusChip(
+    status: CalibrationRangeStatus,
+    modifier: Modifier = Modifier,
+) {
+    val iconPainter = when (status) {
         CalibrationRangeStatus.ABOVE -> painterResource(R.drawable.ic_expand_circle_up)
         CalibrationRangeStatus.BELOW -> painterResource(R.drawable.ic_expand_circle_down)
         CalibrationRangeStatus.IN_RANGE -> painterResource(R.drawable.ic_adjust)
@@ -703,35 +659,14 @@ private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
         CalibrationRangeStatus.BELOW -> R.string.settings_calibration_range_status_below
         CalibrationRangeStatus.IN_RANGE -> R.string.settings_calibration_range_status_in_range
     }
-    val label = stringResource(labelRes)
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.secondaryContainer,
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-        ) {
-            Box(
-                modifier = Modifier.size(18.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(14.dp),
-                )
-            }
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(label)
-            )
-        }
-    }
+    HrtPill(
+        label = stringResource(labelRes),
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = modifier,
+        size = HrtPillSize.Medium,
+        icon = { Icon(iconPainter, contentDescription = null, modifier = iconModifier) },
+        fontWeight = FontWeight.Medium,
+    )
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
