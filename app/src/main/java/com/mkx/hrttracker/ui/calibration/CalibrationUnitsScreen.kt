@@ -76,6 +76,7 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
@@ -121,7 +122,6 @@ private fun CalibrationUnitsScreenContent(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val listSegmentGap = dimensionResource(R.dimen.list_segment_gap)
     val sectionSpacing = dimensionResource(R.dimen.padding_medium)
     val archiveSuccessMessage =
         stringResource(R.string.settings_calibration_custom_analyte_archive_success)
@@ -222,79 +222,71 @@ private fun CalibrationUnitsScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValues(),
             ) {
-            item(key = "builtin-header") {
-                CalibrationSettingsSectionHeader(
-                    title = stringResource(R.string.settings_calibration_builtin_analytes),
-                    topPadding = false
-                )
-            }
-
-            item(key = "builtin-list") {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(listSegmentGap),
-                ) {
-                    calibrationAnalytes.forEachIndexed { index, analyteKey ->
-                        CalibrationUnitPreferenceItem(
-                            analyteKey = analyteKey,
-                            selectedUnit = defaultCalibrationUnitFor(analyteKey, uiState.settingsState),
-                            index = index,
-                            count = calibrationAnalytes.size,
-                            onUnitChange = { unit -> onUnitChange(analyteKey, unit) },
-                        )
-                    }
-                }
-            }
-
-            item(key = "custom-header") {
-                Spacer(modifier = Modifier.height(sectionSpacing))
-                CalibrationSettingsSectionHeader(
-                    title = stringResource(R.string.settings_calibration_custom_analytes),
-                )
-            }
-
-            if (uiState.customAnalytes.isEmpty()) {
-                item(key = "custom-empty") {
-                    SupportMessageListItem(
-                        text = stringResource(R.string.settings_calibration_custom_analytes_empty),
-                        painter = painterResource(R.drawable.ic_info),
-                        index = 0,
-                        count = 1,
-                    )
-                }
-            } else {
-                item(key = "custom-list") {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(listSegmentGap),
+                item(key = "builtin-section") {
+                    HrtSection(
+                        title = stringResource(R.string.settings_calibration_builtin_analytes),
+                        topPadding = false,
                     ) {
-                        uiState.customAnalytes.forEachIndexed { index, analyte ->
-                            CalibrationCustomAnalyteItem(
-                                customAnalyte = analyte,
-                                index = index,
-                                count = uiState.customAnalytes.size,
-                                onClick = {
-                                    openCustomAnalyteDialog(
-                                        customAnalyteId = analyte.uuid.toString()
-                                    )
-                                },
-                            )
+                        calibrationAnalytes.forEach { analyteKey ->
+                            item {
+                                CalibrationUnitPreferenceItem(
+                                    analyteKey = analyteKey,
+                                    selectedUnit = defaultCalibrationUnitFor(
+                                        analyteKey,
+                                        uiState.settingsState
+                                    ),
+                                    onUnitChange = { unit -> onUnitChange(analyteKey, unit) },
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            item {
-                HrtButton(
-                    text = stringResource(R.string.add),
-                    onClick = { openCustomAnalyteDialog(customAnalyteId = null) },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    icon = Icons.Rounded.Add,
-                    iconModifier = Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)),
-                    iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
-                )
+                item(key = "custom-section") {
+                    Spacer(modifier = Modifier.height(sectionSpacing))
+
+                    HrtSection(
+                        title = stringResource(R.string.settings_calibration_custom_analytes),
+                    ) {
+                        if (uiState.customAnalytes.isEmpty()) {
+                            item {
+                                SupportMessageListItem(
+                                    text = stringResource(
+                                        R.string.settings_calibration_custom_analytes_empty
+                                    ),
+                                    painter = painterResource(R.drawable.ic_info),
+                                )
+                            }
+                        } else {
+                            uiState.customAnalytes.forEach { analyte ->
+                                item {
+                                    CalibrationCustomAnalyteItem(
+                                        customAnalyte = analyte,
+                                        onClick = {
+                                            openCustomAnalyteDialog(
+                                                customAnalyteId = analyte.uuid.toString()
+                                            )
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    HrtButton(
+                        text = stringResource(R.string.add),
+                        onClick = { openCustomAnalyteDialog(customAnalyteId = null) },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        icon = Icons.Rounded.Add,
+                        iconModifier = Modifier.size(
+                            ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
+                        ),
+                        iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
+                    )
+                }
             }
-        }
         }
     }
 
@@ -312,34 +304,12 @@ private fun CalibrationUnitsScreenContent(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun CalibrationSettingsSectionHeader(
-    modifier: Modifier = Modifier,
-    title: String,
-    topPadding: Boolean = true,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(bottom = 10.dp, top = if (topPadding) 4.dp else 0.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = title.uppercase(),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
 @Composable
 private fun CalibrationUnitPreferenceItem(
     analyteKey: BloodAnalyteKey,
     selectedUnit: BloodUnitKey,
-    index: Int,
-    count: Int,
+    index: Int? = null,
+    count: Int? = null,
     onUnitChange: (BloodUnitKey) -> Unit,
 ) {
     val title = stringResource(calibrationAnalyteFullNameRes(analyteKey))
@@ -368,8 +338,8 @@ private fun CalibrationUnitPreferenceItem(
 @Composable
 private fun CalibrationCustomAnalyteItem(
     customAnalyte: CustomBloodAnalyte,
-    index: Int,
-    count: Int,
+    index: Int? = null,
+    count: Int? = null,
     onClick: () -> Unit,
 ) {
     val supportingText = buildString {
