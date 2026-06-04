@@ -89,6 +89,7 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
@@ -397,95 +398,91 @@ private fun MedicineDetailScreenContent(
                             )
                             if (stockProjection.medicine.stock.trackingEnabled) {
                                 Spacer(Modifier.height(8.dp))
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(
-                                        dimensionResource(R.dimen.list_segment_gap),
-                                    ),
-                                ) {
-                                    PreferenceSegmentedListItem(
-                                        title = stringResource(R.string.stock_adjust_row_label),
-                                        index = 0,
-                                        count = 2,
-                                        onClick = { onOpenAdjustSheet(AdjustSheetTab.RECEIVED) },
-                                        leadingContent = {
-                                            Box(
-                                                modifier = Modifier.size(24.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    painter = painterResource(R.drawable.ic_box),
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        },
-                                        trailingContent = {
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        },
-                                    )
-                                    var warnAtMenuExpanded by remember { mutableStateOf(false) }
-                                    val warnAtDays =
-                                        stockProjection.medicine.stock.warnAtDaysRemaining
-                                    val warnAtValueText = if (warnAtDays <= 0) {
-                                        stringResource(R.string.stock_warnat_value_off)
-                                    } else {
-                                        stringResource(
-                                            R.string.stock_warnat_value_days,
-                                            warnAtDays,
-                                        )
-                                    }
-                                    Box {
+                                HrtSection(title = null) {
+                                    item {
                                         PreferenceSegmentedListItem(
-                                            title = stringResource(
-                                                R.string.stock_warnat_row_title,
-                                            ),
-                                            supportingText = warnAtValueText,
-                                            index = 1,
-                                            count = 2,
-                                            onClick = { warnAtMenuExpanded = true },
+                                            title = stringResource(R.string.stock_adjust_row_label),
+                                            onClick = { onOpenAdjustSheet(AdjustSheetTab.RECEIVED) },
                                             leadingContent = {
                                                 Box(
                                                     modifier = Modifier.size(24.dp),
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     Icon(
-                                                        painter = painterResource(
-                                                            R.drawable.ic_production_quantity_limits,
-                                                        ),
+                                                        painter = painterResource(R.drawable.ic_box),
                                                         contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        modifier = Modifier.size(22.dp)
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                 }
                                             },
-                                        )
-                                        HrtDropdownMenu(
-                                            expanded = warnAtMenuExpanded,
-                                            onDismissRequest = {
-                                                warnAtMenuExpanded = false
-                                            },
-                                            modifier = Modifier.width(IntrinsicSize.Min),
-                                            items = WARN_AT_OPTIONS.map { days ->
-                                                val text = if (days <= 0) {
-                                                    stringResource(
-                                                        R.string.stock_warnat_value_off,
-                                                    )
-                                                } else {
-                                                    stringResource(
-                                                        R.string.stock_warnat_value_days,
-                                                        days,
-                                                    )
-                                                }
-                                                HrtDropdownMenuItem(
-                                                    text = text,
-                                                    onClick = { onSubmitWarnAt(days) },
+                                            trailingContent = {
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
                                             },
                                         )
+                                    }
+                                    item {
+                                        var warnAtMenuExpanded by remember { mutableStateOf(false) }
+                                        val warnAtDays =
+                                            stockProjection.medicine.stock.warnAtDaysRemaining
+                                        val warnAtValueText = if (warnAtDays <= 0) {
+                                            stringResource(R.string.stock_warnat_value_off)
+                                        } else {
+                                            stringResource(
+                                                R.string.stock_warnat_value_days,
+                                                warnAtDays,
+                                            )
+                                        }
+                                        Box {
+                                            PreferenceSegmentedListItem(
+                                                title = stringResource(
+                                                    R.string.stock_warnat_row_title,
+                                                ),
+                                                supportingText = warnAtValueText,
+                                                onClick = { warnAtMenuExpanded = true },
+                                                leadingContent = {
+                                                    Box(
+                                                        modifier = Modifier.size(24.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Icon(
+                                                            painter = painterResource(
+                                                                R.drawable.ic_production_quantity_limits,
+                                                            ),
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            modifier = Modifier.size(22.dp)
+                                                        )
+                                                    }
+                                                },
+                                            )
+                                            HrtDropdownMenu(
+                                                expanded = warnAtMenuExpanded,
+                                                onDismissRequest = {
+                                                    warnAtMenuExpanded = false
+                                                },
+                                                modifier = Modifier.width(IntrinsicSize.Min),
+                                                items = WARN_AT_OPTIONS.map { days ->
+                                                    val text = if (days <= 0) {
+                                                        stringResource(
+                                                            R.string.stock_warnat_value_off,
+                                                        )
+                                                    } else {
+                                                        stringResource(
+                                                            R.string.stock_warnat_value_days,
+                                                            days,
+                                                        )
+                                                    }
+                                                    HrtDropdownMenuItem(
+                                                        text = text,
+                                                        onClick = { onSubmitWarnAt(days) },
+                                                    )
+                                                },
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -494,27 +491,23 @@ private fun MedicineDetailScreenContent(
                 }
 
                 item(key = "linked-groups") {
-                    Column {
-                        SectionHeader(text = stringResource(R.string.medicine_linked_groups))
-                        if (uiState.linkedActiveSlots.isEmpty()) {
-                            SupportMessageListItem(
-                                text = stringResource(R.string.medicine_linked_groups_empty),
-                                painter = painterResource(R.drawable.ic_info),
-                            )
+                    // Same medicine can appear in multiple slots of one group;
+                    // collapse to one card per group so the screen shows the
+                    // group context rather than repeated rows.
+                    val linkedGroups = uiState.linkedActiveSlots
+                        .distinctBy { it.group.uuid }
+                        .map { it.group }
+                    HrtSection(title = stringResource(R.string.medicine_linked_groups)) {
+                        if (linkedGroups.isEmpty()) {
+                            item {
+                                SupportMessageListItem(
+                                    text = stringResource(R.string.medicine_linked_groups_empty),
+                                    painter = painterResource(R.drawable.ic_info),
+                                )
+                            }
                         } else {
-                            // Same medicine can appear in multiple slots of one
-                            // group; collapse to one card per group so the
-                            // screen shows the group context rather than
-                            // repeated rows.
-                            val linkedGroups = uiState.linkedActiveSlots
-                                .distinctBy { it.group.uuid }
-                                .map { it.group }
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(
-                                    dimensionResource(R.dimen.list_segment_gap),
-                                ),
-                            ) {
-                                linkedGroups.forEachIndexed { index, group ->
+                            linkedGroups.forEach { group ->
+                                item {
                                     RegimenGroupCard(
                                         group = group,
                                         remindersEnabled = false,
@@ -525,8 +518,6 @@ private fun MedicineDetailScreenContent(
                                         upcomingOccurrences = emptyList(),
                                         today = today,
                                         onClick = { onGroupClick(group.uuid) },
-                                        index = index,
-                                        itemCount = linkedGroups.size,
                                         showNotificationIcon = false,
                                         showChevron = true,
                                         showUpcomingSection = false,
@@ -540,17 +531,16 @@ private fun MedicineDetailScreenContent(
 
                 if (!isPatchOff) {
                     item(key = "danger-zone") {
-                        Column {
-                            SectionHeader(
-                                text = stringResource(R.string.group_danger_zone_title),
-                            )
-                            ArchiveAction(
-                                canArchive = uiState.linkedActiveSlots.isEmpty(),
-                                linkedActiveGroupCount = uiState.linkedActiveSlots
-                                    .distinctBy { it.group.uuid }
-                                    .size,
-                                onArchiveClick = { archiveConfirmOpen = true },
-                            )
+                        HrtSection(title = stringResource(R.string.group_danger_zone_title)) {
+                            item {
+                                ArchiveAction(
+                                    canArchive = uiState.linkedActiveSlots.isEmpty(),
+                                    linkedActiveGroupCount = uiState.linkedActiveSlots
+                                        .distinctBy { it.group.uuid }
+                                        .size,
+                                    onArchiveClick = { archiveConfirmOpen = true },
+                                )
+                            }
                         }
                     }
                 }
@@ -796,8 +786,6 @@ private fun ArchiveAction(
     // here is a normal lifecycle action, not a destructive danger-zone op.
     PreferenceSegmentedListItem(
         title = stringResource(R.string.medicine_archive_action),
-        index = 0,
-        count = 1,
         enabled = canArchive,
         onClick = onArchiveClick,
         supportingText = supportText,
@@ -817,25 +805,6 @@ private fun ArchiveAction(
             )
         },
     )
-}
-
-// Matches MedicationGroupEditorScreen.EditorSectionHeader so the medicine
-// detail page shares the same vertical rhythm as the group editor.
-@Composable
-private fun SectionHeader(text: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = text.uppercase(),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(4.dp),
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
