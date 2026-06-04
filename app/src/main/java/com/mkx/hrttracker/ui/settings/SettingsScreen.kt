@@ -1769,6 +1769,12 @@ internal fun resolveSettingsSecuritySectionLayout(
     }
 }
 
+internal fun shouldShowAdaptiveColor(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
+    sdkInt >= Build.VERSION_CODES.S
+
+internal fun shouldShowCjkTextOffset(appLanguageOption: AppLanguageOption): Boolean =
+    appLanguageOption == AppLanguageOption.SIMPLIFIED_CHINESE
+
 internal fun resolveSettingsAppearanceSectionLayout(
     sdkInt: Int = Build.VERSION.SDK_INT,
     showCjkTextOffset: Boolean = false,
