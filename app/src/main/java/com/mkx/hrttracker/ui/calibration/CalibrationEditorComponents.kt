@@ -81,8 +81,8 @@ import com.mkx.hrttracker.util.calibrationUnitLabel
 @Composable
 internal fun CalibrationEditorCard(
     modifier: Modifier = Modifier,
-    index: Int = 0,
-    count: Int = 1,
+    index: Int? = null,
+    count: Int? = null,
     content: @Composable () -> Unit,
 ) {
     EditorSegmentedListItem(
@@ -240,8 +240,8 @@ internal fun CalibrationAnalyteCard(
     onValueChange: (String) -> Unit,
     onUnitChange: (BloodUnitKey) -> Unit,
     onRemoveClick: () -> Unit,
-    index: Int = 0,
-    count: Int = 1,
+    index: Int? = null,
+    count: Int? = null,
     hideReferenceRanges: Boolean = false,
 ) {
     CalibrationEditorCard(
@@ -449,8 +449,8 @@ internal fun CalibrationCustomAnalyteCard(
     onImeNext: () -> Unit = { },
     onValueChange: (String) -> Unit,
     onRemoveClick: () -> Unit,
-    index: Int = 0,
-    count: Int = 1,
+    index: Int? = null,
+    count: Int? = null,
 ) {
     CalibrationEditorCard(
         index = index,
