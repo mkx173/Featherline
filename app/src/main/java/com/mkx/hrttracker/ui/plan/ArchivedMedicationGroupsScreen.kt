@@ -1,10 +1,7 @@
 package com.mkx.hrttracker.ui.plan
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -26,7 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -36,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -134,41 +131,36 @@ private fun ArchivedMedicationGroupsScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValues(),
             ) {
-            item(key = "archived-heading") {
-                Text(
-                    text = stringResource(R.string.plan_archived_groups).uppercase(),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
-                )
-            }
-
-            if (uiState.groups.isEmpty()) {
-                item(key = "empty-groups") {
-                    SupportMessageListItem(
-                        text = stringResource(R.string.plan_archived_groups_empty),
-                        painter = painterResource(R.drawable.ic_info),
-                    )
-                }
-            } else {
-                uiState.groups.forEachIndexed { index, group ->
-                    item(key = group.uuid) {
-                        ArchivedMedicationGroupCard(
-                            group = group,
-                            appLocale = appLocale,
-                            dateFormatter = dateFormatter,
-                            timeFormatter = timeFormatter,
-                            today = uiState.today,
-                            firstDayOfWeek = uiState.firstDayOfWeek,
-                            onClick = { onGroupClick(group.uuid) },
-                            index = index,
-                            itemCount = uiState.groups.size,
-                        )
-                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+                item(key = "archived-groups") {
+                    HrtSection(
+                        title = stringResource(R.string.plan_archived_groups),
+                        topPadding = false,
+                    ) {
+                        if (uiState.groups.isEmpty()) {
+                            item {
+                                SupportMessageListItem(
+                                    text = stringResource(R.string.plan_archived_groups_empty),
+                                    painter = painterResource(R.drawable.ic_info),
+                                )
+                            }
+                        } else {
+                            uiState.groups.forEach { group ->
+                                item {
+                                    ArchivedMedicationGroupCard(
+                                        group = group,
+                                        appLocale = appLocale,
+                                        dateFormatter = dateFormatter,
+                                        timeFormatter = timeFormatter,
+                                        today = uiState.today,
+                                        firstDayOfWeek = uiState.firstDayOfWeek,
+                                        onClick = { onGroupClick(group.uuid) },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
-        }
         }
     }
 }
@@ -182,8 +174,8 @@ private fun ArchivedMedicationGroupCard(
     today: LocalDate,
     firstDayOfWeek: DayOfWeek,
     onClick: () -> Unit,
-    index: Int,
-    itemCount: Int,
+    index: Int? = null,
+    itemCount: Int? = null,
 ) {
     val zoneId = remember { ZoneId.systemDefault() }
     val createdDate = remember(group.createdAt, zoneId) {
