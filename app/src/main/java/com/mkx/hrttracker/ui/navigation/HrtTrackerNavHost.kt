@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -389,6 +390,14 @@ fun HrtTrackerNavHost(
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
     val snackbarContext = LocalContext.current
+    // The app switches UI language in place via composition locals without
+    // recreating the Activity (see MainActivity), so LocalContext.current is
+    // rebuilt on a language change. These flow collectors live in
+    // LaunchedEffect(Unit) blocks that never restart, which would otherwise
+    // freeze the captured context on the language active when first launched and
+    // emit toasts in the stale language. rememberUpdatedState keeps the latest
+    // localized context available to the long-lived collectors.
+    val latestSnackbarContext by rememberUpdatedState(snackbarContext)
     val stockNudgeViewModel: StockTrackingNudgeViewModel = hiltViewModel()
     val stockNudgeEnabled by stockNudgeViewModel.enabled
         .collectAsStateWithLifecycle(initialValue = true)
@@ -448,7 +457,7 @@ fun HrtTrackerNavHost(
     LaunchedEffect(Unit) {
         stockNudgeViewModel.autoDisabledEvents.collect {
             Toast.makeText(
-                snackbarContext,
+                latestSnackbarContext,
                 R.string.stock_nudge_disabled_toast,
                 Toast.LENGTH_LONG,
             ).show()
@@ -458,7 +467,7 @@ fun HrtTrackerNavHost(
     LaunchedEffect(Unit) {
         stockNudgeViewModel.optInFailureEvents.collect {
             Toast.makeText(
-                snackbarContext,
+                latestSnackbarContext,
                 R.string.medicine_stock_update_failure,
                 Toast.LENGTH_SHORT,
             ).show()
@@ -468,13 +477,13 @@ fun HrtTrackerNavHost(
     LaunchedEffect(Unit) {
         stockNudgeViewModel.optInAddedEvents.collect { confirmation ->
             val countText = stockInventoryCountText(
-                context = snackbarContext,
+                context = latestSnackbarContext,
                 preparation = confirmation.preparation,
                 count = confirmation.amount,
             ) ?: return@collect
             Toast.makeText(
-                snackbarContext,
-                snackbarContext.getString(R.string.stock_nudge_added_toast, countText),
+                latestSnackbarContext,
+                latestSnackbarContext.getString(R.string.stock_nudge_added_toast, countText),
                 Toast.LENGTH_SHORT,
             ).show()
         }
