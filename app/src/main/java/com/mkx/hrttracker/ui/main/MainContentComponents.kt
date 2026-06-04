@@ -2803,7 +2803,6 @@ private fun MainAntiandrogenMedicationSubCard(
                         R.drawable.ic_info
                     },
                     text = takenText,
-                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
                 MainInfoPill(
