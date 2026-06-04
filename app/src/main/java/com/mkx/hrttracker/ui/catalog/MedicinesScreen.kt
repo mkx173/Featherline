@@ -73,6 +73,7 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
@@ -88,9 +89,6 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.UUID
-
-internal const val MedicineManagerSectionHeaderTopPaddingDp = 4
-internal const val MedicineManagerSectionHeaderBottomPaddingDp = 10
 
 internal sealed interface MedicineManagerLaunchMode {
     data object Manager : MedicineManagerLaunchMode
@@ -145,10 +143,6 @@ internal fun medicineManagerTitle(
 
 internal fun medicineManagerNeedsSectionTopSpacing(sectionIndex: Int): Boolean {
     return sectionIndex > 0
-}
-
-internal fun medicineManagerNeedsRowBottomGap(index: Int, itemCount: Int): Boolean {
-    return index < itemCount - 1
 }
 
 internal enum class MedicineManagerTrailingContentKind {
@@ -659,26 +653,21 @@ private fun MedicinesScreenContent(
                 }
 
                 uiState.activeSections.forEachIndexed { sectionIndex, section ->
-                    item(key = "header-${section.category.name}") {
+                    item(key = "section-${section.category.name}") {
                         MedicineManagerSectionTopSpacing(sectionIndex = sectionIndex)
-                        MedicineManagerSectionTitle(
-                            text = stringResource(section.category.labelRes).uppercase(),
-                            topPadding = sectionIndex != 0
-                        )
-                    }
-                    section.medicines.forEachIndexed { index, item ->
-                        item(key = "medicine-${item.medicine.uuid}") {
-                            MedicineRow(
-                                item = item,
-                                index = index,
-                                itemCount = section.medicines.size,
-                                onClick = { onMedicineClick(item.medicine.uuid) },
-                                showOnboardingChevron = showOnboardingBanner,
-                            )
-                            MedicineManagerRowBottomGap(
-                                index = index,
-                                itemCount = section.medicines.size,
-                            )
+                        HrtSection(
+                            title = stringResource(section.category.labelRes),
+                            topPadding = sectionIndex != 0,
+                        ) {
+                            section.medicines.forEach { medicineItem ->
+                                item {
+                                    MedicineRow(
+                                        item = medicineItem,
+                                        onClick = { onMedicineClick(medicineItem.medicine.uuid) },
+                                        showOnboardingChevron = showOnboardingBanner,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -708,43 +697,8 @@ private fun MedicineManagerSectionTopSpacing(sectionIndex: Int) {
 }
 
 @Composable
-private fun MedicineManagerRowBottomGap(
-    index: Int,
-    itemCount: Int,
-) {
-    if (medicineManagerNeedsRowBottomGap(index = index, itemCount = itemCount)) {
-        Spacer(
-            modifier = Modifier.height(
-                dimensionResource(R.dimen.list_segment_gap),
-            ),
-        )
-    }
-}
-
-@Composable
-private fun MedicineManagerSectionTitle(
-    text: String,
-    modifier: Modifier = Modifier,
-    topPadding: Boolean = true,
-) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                top = if (topPadding) MedicineManagerSectionHeaderTopPaddingDp.dp else 0.dp,
-                bottom = MedicineManagerSectionHeaderBottomPaddingDp.dp,
-            ),
-    )
-}
-
-@Composable
 private fun MedicineRow(
     item: MedicineListItem,
-    index: Int,
-    itemCount: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     showOnboardingChevron: Boolean = false,
@@ -771,8 +725,6 @@ private fun MedicineRow(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         stockSubcardContainerColor = MaterialTheme.colorScheme.surfaceContainer,
         leadingIconAsForm = true,
-        index = index,
-        itemCount = itemCount,
     )
 }
 

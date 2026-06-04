@@ -46,6 +46,8 @@ import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.HrtSectionHeader
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.StockStatusIndicator
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -70,10 +72,19 @@ fun StockSection(
     }
 
     Column(modifier = modifier) {
-        SectionHeader(
-            projection = projection,
-            onEditOpenContainer = onEditOpenContainer,
-            onDisableTracking = onDisableTracking,
+        HrtSectionHeader(
+            text = stringResource(R.string.stock_section_title),
+            trailing = {
+                HeaderOverflowMenu(
+                    preparation = projection.medicine.preparation,
+                    // Hide the edit-container item until a vial/container is open;
+                    // before promotion there's nothing to edit. Disable tracking is
+                    // always available while StockSection is rendered.
+                    onEditOpenContainer = onEditOpenContainer
+                        .takeIf { projection.medicine.stock.openContainerAmount != null },
+                    onDisableTracking = onDisableTracking,
+                )
+            },
         )
         Column(
             verticalArrangement = Arrangement.spacedBy(
@@ -86,45 +97,6 @@ fun StockSection(
 }
 
 @Composable
-private fun SectionHeader(
-    projection: MedicineStockProjection,
-    onEditOpenContainer: () -> Unit,
-    onDisableTracking: () -> Unit,
-) {
-    // Matches MedicineDetailScreen.SectionHeader / EditorSectionHeader: 6dp
-    // bottom row padding + 4dp all-sides text padding for the same vertical
-    // rhythm across detail-page sections.
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.stock_section_title).uppercase(),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(4.dp),
-            )
-        }
-        HeaderOverflowMenu(
-            preparation = projection.medicine.preparation,
-            // Hide the edit-container item until a vial/container is open;
-            // before promotion there's nothing to edit. Disable tracking is
-            // always available while StockSection is rendered.
-            onEditOpenContainer = onEditOpenContainer
-                .takeIf { projection.medicine.stock.openContainerAmount != null },
-            onDisableTracking = onDisableTracking,
-        )
-    }
-}
-
-@Composable
 private fun HeaderOverflowMenu(
     preparation: MedicinePreparation,
     onEditOpenContainer: (() -> Unit)?,
@@ -133,16 +105,19 @@ private fun HeaderOverflowMenu(
     var expanded by remember { mutableStateOf(false) }
     val editOpenLabel = stringResource(editActionRes(preparation))
     val disableLabel = stringResource(R.string.stock_disable_menu_action)
-    // Match the title text's vertical box (line-height + the 4.dp Text padding
-    // applied above/below) so the overflow doesn't make the header taller than
-    // it would be without one. Falls back to fontSize when lineHeight is
-    // Unspecified, and scales with the user's font-size setting.
+    // Size the overflow affordance to the section title's line height so it never
+    // exceeds the title and therefore never makes HrtSectionHeader taller than a
+    // text-only section header (HrtSectionHeader pads top/bottom around its
+    // tallest child, so a larger button would add header height). Falls back to
+    // fontSize when lineHeight is Unspecified, and scales with the user's
+    // font-size setting. Min interactive size is suppressed below so the button
+    // can match the title rather than the 48dp touch-target default.
     val titleStyle = MaterialTheme.typography.titleSmall
     val density = LocalDensity.current
     val iconSize = with(density) {
         titleStyle.lineHeight.takeOrElse { titleStyle.fontSize }.toDp()
     }
-    val buttonSize = iconSize + 8.dp
+    val buttonSize = iconSize
     Row {
         CompositionLocalProvider(
             LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
@@ -557,48 +532,31 @@ private fun OptInCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column (modifier = modifier) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.stock_section_title).uppercase(),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(4.dp),
-                )
-            }
+    HrtSection(
+        title = stringResource(R.string.stock_section_title),
+        modifier = modifier,
+    ) {
+        item {
+            PreferenceSegmentedListItem(
+                title = stringResource(R.string.stock_optin_title),
+                onClick = onClick,
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_inventory),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
         }
-        PreferenceSegmentedListItem(
-            title = stringResource(R.string.stock_optin_title),
-            index = 0,
-            count = 1,
-            onClick = onClick,
-            leadingContent = {
-                Icon(
-                    painter = painterResource(R.drawable.ic_inventory),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            },
-            trailingContent = {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            },
-        )
     }
-
 }
 
 @Composable

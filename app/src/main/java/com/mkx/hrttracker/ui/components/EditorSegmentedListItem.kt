@@ -15,8 +15,8 @@ import androidx.compose.ui.graphics.Shape
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun EditorSegmentedListItem(
-    index: Int,
-    count: Int,
+    index: Int? = null,
+    count: Int? = null,
     modifier: Modifier = Modifier,
     // Null onClick renders a non-clickable static card with the same segmented
     // shape and container color — used for purely informational rows that
@@ -35,13 +35,16 @@ fun EditorSegmentedListItem(
     overlineContent: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
+    val position = currentSegmentPosition(explicitSegmentPosition(index, count))
+    val taggedModifier = modifier.segmentPositionSemantics(position)
+
     if (onClick == null) {
         Surface(
-            modifier = modifier,
+            modifier = taggedModifier,
             color = containerColor,
             shape = segmentedListItemShape(
-                index = index,
-                count = count,
+                index = position.index,
+                count = position.count,
                 cornerShape = cornerShape,
             ),
         ) {
@@ -57,7 +60,7 @@ fun EditorSegmentedListItem(
         return
     }
     SegmentedListItem(
-        modifier = modifier,
+        modifier = taggedModifier,
         enabled = enabled,
         onClick = onClick,
         onLongClick = onLongClick,
@@ -66,8 +69,8 @@ fun EditorSegmentedListItem(
             disabledContainerColor = disabledContainerColor,
         ),
         shapes = segmentedListItemShapes(
-            index = index,
-            count = count,
+            index = position.index,
+            count = position.count,
             cornerShape = cornerShape,
             pressedShape = pressedShape,
         ),

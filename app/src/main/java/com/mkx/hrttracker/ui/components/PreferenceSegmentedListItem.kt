@@ -18,8 +18,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun PreferenceSegmentedListItem(
     title: String,
-    index: Int,
-    count: Int,
+    index: Int? = null,
+    count: Int? = null,
     // Null onClick renders a non-clickable static row (no ripple), matching
     // the static path EditorSegmentedListItem supports.
     onClick: (() -> Unit)? = null,

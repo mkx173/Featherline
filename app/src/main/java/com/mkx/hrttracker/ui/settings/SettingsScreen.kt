@@ -20,11 +20,6 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -109,6 +104,7 @@ import com.mkx.hrttracker.ui.components.BackupPasswordDialog
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
@@ -818,16 +814,12 @@ internal fun SettingsScreenContent(
     val scrollState = rememberScrollState()
     val weightSummary = formatWeightSummary(uiState.userProfile)
     val appLanguageOption = AppLanguageOption.fromLocale(rememberAppLocale())
-    val appearanceLayout = resolveSettingsAppearanceSectionLayout(
-        showCjkTextOffset = appLanguageOption == AppLanguageOption.SIMPLIFIED_CHINESE,
-    )
 
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
         scrollState = scrollState,
         state = topAppBarState
     )
-    val hasReminderSupportMessage = reminderSupportState != SettingsReminderSupportState.NONE
 
     val initialScrollToTopSignal = remember { scrollToTopSignal }
     LaunchedEffect(scrollToTopSignal) {
@@ -862,160 +854,127 @@ internal fun SettingsScreenContent(
                     .verticalScroll(scrollState)
                     .padding(appContentPaddingValues()),
             ) {
-            SettingsSectionTitle(
-                text = stringResource(R.string.settings_personalization),
-                topPadding = false
-            )
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(
-                    dimensionResource(R.dimen.list_segment_gap)
-                )
-            ) {
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.personalization_weight),
-                    supportingText = weightSummary,
-                    supportingCjkTextOffsetEnabled = uiState.userProfile.weightOriginalValue == null,
-                    index = 0,
-                    count = 2,
-                    onClick = {
-                        if (!uiState.isWeightMutationInProgress) {
-                            showWeightDialog = true
-                        }
-                    },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_monitor_weight)
-                        )
-                    },
-                    trailingContent = {
-                        SettingsChevronTrailingIcon()
-                    }
-                )
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_personalization_calibration),
-                    index = 1,
-                    count = 2,
-                    onClick = onCalibrationClick,
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_experiment)
-                        )
-                    },
-                    trailingContent = {
-                        SettingsChevronTrailingIcon()
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-
-            SettingsSectionTitle(
-                text = stringResource(R.string.settings_notifications)
-            )
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(
-                    dimensionResource(R.dimen.list_segment_gap)
-                )
-            ) {
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_reminders),
-                    supportingText = stringResource(R.string.settings_reminders_summary),
-                    enabled = hasNotificationAccess,
-                    index = 0,
-                    count = if (hasReminderSupportMessage) 2 else 1,
-                    onClick = {
-                        if (hasNotificationAccess) {
-                            onRemindersEnabledChange(!settingsState.remindersEnabled)
-                        }
-                    },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_notifications)
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = settingsState.remindersEnabled && hasNotificationAccess,
-                            onCheckedChange = onRemindersEnabledChange,
-                            enabled = hasNotificationAccess
+                HrtSection(
+                    title = stringResource(R.string.settings_personalization),
+                    topPadding = false
+                ) {
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.personalization_weight),
+                            supportingText = weightSummary,
+                            supportingCjkTextOffsetEnabled = uiState.userProfile.weightOriginalValue == null,
+                            onClick = {
+                                if (!uiState.isWeightMutationInProgress) {
+                                    showWeightDialog = true
+                                }
+                            },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_monitor_weight)
+                                )
+                            },
+                            trailingContent = {
+                                SettingsChevronTrailingIcon()
+                            }
                         )
                     }
-                )
 
-                if (reminderSupportState == SettingsReminderSupportState.NOTIFICATION_OFF) {
-                    SettingsSupportMessage(
-                        text = stringResource(R.string.settings_reminders_permission_off_summary),
-                        painter = painterResource(R.drawable.ic_error_outline),
-                        onClick = { onRemindersEnabledChange(true) },
-                        showChevron = true,
-                        index = 1,
-                        count = 2
-                    )
-                } else if (reminderSupportState == SettingsReminderSupportState.EXACT_ALARM_OFF) {
-                    SettingsSupportMessage(
-                        text = stringResource(R.string.group_notifications_inexact_warning),
-                        painter = painterResource(R.drawable.ic_error_outline),
-                        onClick = { showExactAlarmRecoveryDialog = true },
-                        showChevron = true,
-                        index = 1,
-                        count = 2
-                    )
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_personalization_calibration),
+                            onClick = onCalibrationClick,
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_experiment)
+                                )
+                            },
+                            trailingContent = {
+                                SettingsChevronTrailingIcon()
+                            }
+                        )
+                    }
                 }
 
-            }
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
 
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-
-            SettingsSectionTitle(
-                text = stringResource(R.string.settings_security)
-            )
-
-            val securitySectionLayout =
-                resolveSettingsSecuritySectionLayout(settingsState.screenLockProtectionEnabled)
-            val securitySectionGap = dimensionResource(R.dimen.list_segment_gap)
-
-            Column {
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_screen_lock_protection),
-                    supportingText = stringResource(R.string.settings_screen_lock_protection_summary),
-                    onClick = {
-                        onScreenLockProtectionToggle(
-                            !settingsState.screenLockProtectionEnabled
+                HrtSection(title = stringResource(R.string.settings_notifications)) {
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_reminders),
+                            supportingText = stringResource(R.string.settings_reminders_summary),
+                            enabled = hasNotificationAccess,
+                            onClick = {
+                                if (hasNotificationAccess) {
+                                    onRemindersEnabledChange(!settingsState.remindersEnabled)
+                                }
+                            },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_notifications)
+                                )
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = settingsState.remindersEnabled && hasNotificationAccess,
+                                    onCheckedChange = onRemindersEnabledChange,
+                                    enabled = hasNotificationAccess
+                                )
+                            }
                         )
-                    },
-                    index = 0,
-                    count = securitySectionLayout.itemCount,
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_lock)
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = settingsState.screenLockProtectionEnabled,
-                            onCheckedChange = onScreenLockProtectionToggle
-                        )
-                    },
-                )
+                    }
 
-                AnimatedVisibility(
-                    visible = settingsState.screenLockProtectionEnabled,
-                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
-                    label = "settings-app-lock-grace-period",
-                ) {
-                    Column {
-                        Spacer(modifier = Modifier.height(securitySectionGap))
+                    if (reminderSupportState == SettingsReminderSupportState.NOTIFICATION_OFF) {
+                        item {
+                            SettingsSupportMessage(
+                                text = stringResource(R.string.settings_reminders_permission_off_summary),
+                                painter = painterResource(R.drawable.ic_error_outline),
+                                onClick = { onRemindersEnabledChange(true) },
+                                showChevron = true,
+                            )
+                        }
+                    } else if (reminderSupportState == SettingsReminderSupportState.EXACT_ALARM_OFF) {
+                        item {
+                            SettingsSupportMessage(
+                                text = stringResource(R.string.group_notifications_inexact_warning),
+                                painter = painterResource(R.drawable.ic_error_outline),
+                                onClick = { showExactAlarmRecoveryDialog = true },
+                                showChevron = true,
+                            )
+                        }
+                    }
+                }
 
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+                HrtSection(title = stringResource(R.string.settings_security)) {
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_screen_lock_protection),
+                            supportingText = stringResource(R.string.settings_screen_lock_protection_summary),
+                            onClick = {
+                                onScreenLockProtectionToggle(
+                                    !settingsState.screenLockProtectionEnabled
+                                )
+                            },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_lock)
+                                )
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = settingsState.screenLockProtectionEnabled,
+                                    onCheckedChange = onScreenLockProtectionToggle
+                                )
+                            },
+                        )
+                    }
+
+                    animatedItem(visible = settingsState.screenLockProtectionEnabled) {
                         Box {
                             SettingsSegmentedListItem(
                                 title = stringResource(R.string.settings_app_lock_grace_period),
                                 supportingText = stringResource(settingsState.appLockGracePeriodOption.labelRes),
-                                index = 1,
-                                count = securitySectionLayout.itemCount,
                                 onClick = { setAppLockGracePeriodMenuExpanded(true) },
                                 leadingContent = {
                                     SettingsLeadingIconSlot(
@@ -1036,586 +995,544 @@ internal fun SettingsScreenContent(
                             )
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(securitySectionGap))
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_hide_screen_content),
-                    supportingText = stringResource(R.string.settings_hide_screen_content_summary),
-                    onClick = {
-                        onHideScreenContentEnabledChange(
-                            !settingsState.hideScreenContentEnabled
-                        )
-                    },
-                    index = securitySectionLayout.hideScreenContentIndex,
-                    count = securitySectionLayout.itemCount,
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_visibility_off)
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = settingsState.hideScreenContentEnabled,
-                            onCheckedChange = onHideScreenContentEnabledChange
-                        )
-                    },
-                )
-            }
-
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-
-            SettingsSectionTitle(
-                text = stringResource(R.string.settings_display)
-            )
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(
-                    dimensionResource(R.dimen.list_segment_gap)
-                )
-            ) {
-
-                Box {
-                    SettingsSegmentedListItem(
-                        title = stringResource(R.string.settings_first_day_of_week),
-                        supportingText = stringResource(settingsState.firstDayOfWeekOption.menuLabelRes),
-                        index = 0,
-                        count = 4,
-                        onClick = { setFirstDayOfWeekMenuExpanded(true) },
-                        leadingContent = {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_today)
-                            )
-                        }
-                    )
-                    HrtDropdownMenu(
-                        expanded = isFirstDayOfWeekMenuExpanded,
-                        onDismissRequest = { setFirstDayOfWeekMenuExpanded(false) },
-                        modifier = Modifier.width(IntrinsicSize.Min),
-                        items = FirstDayOfWeekOption.entries.map { option ->
-                            HrtDropdownMenuItem(
-                                text = stringResource(option.menuLabelRes),
-                                onClick = { onFirstDayOfWeekOptionChange(option) },
-                            )
-                        },
-                    )
-                }
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_hide_reference_ranges),
-                    index = 1,
-                    count = 4,
-                    onClick = {
-                        onHideReferenceRangesChange(!settingsState.hideReferenceRanges)
-                    },
-                    leadingContent = {
-                        Box(
-                            modifier = Modifier.size(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            SettingsLeadingIconSlot(
-                                modifier = Modifier.size(22.dp),
-                                painter = painterResource(R.drawable.ic_auto_stories_off)
-                            )
-                        }
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = settingsState.hideReferenceRanges,
-                            onCheckedChange = onHideReferenceRangesChange
-                        )
-                    }
-                )
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_hide_archived_group_records),
-                    index = 2,
-                    count = 4,
-                    onClick = {
-                        onShowArchivedGroupRecordsChange(!settingsState.showArchivedGroupRecords)
-                    },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_history_off)
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = !settingsState.showArchivedGroupRecords,
-                            onCheckedChange = { hideArchivedGroupRecords ->
-                                onShowArchivedGroupRecordsChange(!hideArchivedGroupRecords)
-                            }
-                        )
-                    }
-                )
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_hide_medication_details),
-                    supportingText = stringResource(R.string.settings_hide_medication_details_summary),
-                    index = 3,
-                    count = 4,
-                    onClick = {
-                        onHideMedicationDetailsChange(!settingsState.hideMedicationDetails)
-                    },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_pill_off)
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = settingsState.hideMedicationDetails,
-                            onCheckedChange = onHideMedicationDetailsChange
-                        )
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-
-            SettingsSectionTitle(
-                text = stringResource(R.string.settings_appearance)
-            )
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(
-                    dimensionResource(R.dimen.list_segment_gap)
-                )
-            ) {
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_widget_appearance),
-                    index = appearanceLayout.widgetAppearanceIndex,
-                    count = appearanceLayout.itemCount,
-                    onClick = { showWidgetAppearanceDialog = true },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_widgets)
-                        )
-                    },
-                    trailingContent = {
-                        SettingsChevronTrailingIcon()
-                    }
-                )
-                Box {
-                    SettingsSegmentedListItem(
-                        title = stringResource(R.string.settings_app_language),
-                        // Derive the displayed language from the locale the UI is actually
-                        // rendering in (LocalConfiguration), not the ViewModel's
-                        // appLanguageOption. Both mirror the same setting, but the global
-                        // locale flips a frame before the ViewModel's combine/stateIn relays
-                        // the new option, which made this row briefly show the old language
-                        // name. Reading the live locale keeps it in lockstep with the rest of
-                        // the re-localized UI.
-                        supportingText = stringResource(appLanguageOption.labelRes),
-                        index = appearanceLayout.appLanguageIndex,
-                        count = appearanceLayout.itemCount,
-                        onClick = { setLanguageMenuExpanded(true) },
-                        leadingContent = {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_language)
-                            )
-                        }
-                    )
-                    HrtDropdownMenu(
-                        expanded = isLanguageMenuExpanded,
-                        onDismissRequest = { setLanguageMenuExpanded(false) },
-                        modifier = Modifier.width(IntrinsicSize.Min),
-                        items = AppLanguageOption.entries.map { option ->
-                            HrtDropdownMenuItem(
-                                text = stringResource(option.labelRes),
-                                onClick = { pendingLanguageOption = option },
-                            )
-                        },
-                        onExitFinished = {
-                            pendingLanguageOption?.let { option ->
-                                onAppLanguageOptionChange(option)
-                                pendingLanguageOption = null
-                            }
-                        },
-                    )
-                }
-
-                Box {
-                    SettingsSegmentedListItem(
-                        title = stringResource(R.string.settings_dark_mode),
-                        // Show the just-picked option immediately even though the actual
-                        // theme switch is deferred until the dropdown finishes dismissing.
-                        supportingText = stringResource(
-                            (pendingDarkModeOption ?: settingsState.darkModeOption).labelRes
-                        ),
-                        index = appearanceLayout.darkModeIndex,
-                        count = appearanceLayout.itemCount,
-                        onClick = { setDarkModeMenuExpanded(true) },
-                        leadingContent = {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_dark_mode)
-                            )
-                        }
-                    )
-                    HrtDropdownMenu(
-                        expanded = isDarkModeMenuExpanded,
-                        onDismissRequest = { setDarkModeMenuExpanded(false) },
-                        modifier = Modifier.width(IntrinsicSize.Min),
-                        items = DarkModeOption.entries.map { option ->
-                            HrtDropdownMenuItem(
-                                text = stringResource(option.labelRes),
-                                onClick = { pendingDarkModeOption = option },
-                            )
-                        },
-                        onExitFinished = {
-                            // Apply the deferred switch once the menu is gone. The pending
-                            // value is cleared by the LaunchedEffect above once the committed
-                            // setting catches up, so the row never flickers back.
-                            pendingDarkModeOption?.let(onDarkModeOptionChange)
-                        },
-                    )
-                }
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_amoled_black),
-                    index = appearanceLayout.pureBlackIndex,
-                    count = appearanceLayout.itemCount,
-                    onClick = {
-                        onPureBlackEnabledChange(!settingsState.pureBlackEnabled)
-                    },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_invert_colors)
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = settingsState.pureBlackEnabled,
-                            onCheckedChange = onPureBlackEnabledChange
-                        )
-                    }
-                )
-
-                appearanceLayout.adaptiveColorIndex?.let { adaptiveColorIndex ->
-                    SettingsSegmentedListItem(
-                        title = stringResource(R.string.settings_adaptive_color),
-                        index = adaptiveColorIndex,
-                        count = appearanceLayout.itemCount,
-                        onClick = {
-                            onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
-                        },
-                        leadingContent = {
-                            Box(
-                                modifier = Modifier.size(24.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                SettingsLeadingIconSlot(
-                                    painter = painterResource(R.drawable.ic_palette),
-                                    modifier = Modifier.size(22.dp)
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_hide_screen_content),
+                            supportingText = stringResource(R.string.settings_hide_screen_content_summary),
+                            onClick = {
+                                onHideScreenContentEnabledChange(
+                                    !settingsState.hideScreenContentEnabled
                                 )
-                            }
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = settingsState.adaptiveColorEnabled,
-                                onCheckedChange = onAdaptiveColorEnabledChange
-                            )
-                        }
-                    )
+                            },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_visibility_off)
+                                )
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = settingsState.hideScreenContentEnabled,
+                                    onCheckedChange = onHideScreenContentEnabledChange
+                                )
+                            },
+                        )
+                    }
                 }
 
-                appearanceLayout.cjkTextOffsetIndex?.let { cjkTextOffsetIndex ->
-                    SettingsSegmentedListItem(
-                        title = stringResource(R.string.settings_cjk_text_offset),
-                        supportingText = stringResource(R.string.settings_cjk_text_offset_summary),
-                        index = cjkTextOffsetIndex,
-                        count = appearanceLayout.itemCount,
-                        onClick = {
-                            onCjkTextOffsetEnabledChange(!settingsState.cjkTextOffsetEnabled)
-                        },
-                        leadingContent = {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_text_up)
-                            )
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = settingsState.cjkTextOffsetEnabled,
-                                onCheckedChange = onCjkTextOffsetEnabledChange
-                            )
-                        }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-
-            SettingsSectionTitle(
-                text = stringResource(R.string.settings_backup_restore)
-            )
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(
-                    dimensionResource(R.dimen.list_segment_gap)
-                )
-            ) {
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_backup_to_file),
-                    enabled = !isBackupActionBlocked,
-                    index = 0,
-                    count = 2,
-                    onClick = onBackupToFileClick,
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_file_export)
-                        )
-                    },
-                    trailingContent = {
-                        SettingsChevronTrailingIcon()
-                    }
-                )
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_restore_from_file),
-                    enabled = !isBackupActionBlocked,
-                    index = 1,
-                    count = 2,
-                    onClick = onRestoreFromFileClick,
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_settings_backup_restore)
-                        )
-                    },
-                    trailingContent = {
-                        SettingsChevronTrailingIcon()
-                    }
-                )
-            }
-
-            if (showDiagnosticsExport) {
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
 
-                SettingsSectionTitle(
-                    text = stringResource(R.string.settings_diagnostics)
-                )
-
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(
-                        dimensionResource(R.dimen.list_segment_gap)
-                    )
-                ) {
-                    SettingsSegmentedListItem(
-                        title = stringResource(R.string.settings_diagnostics_export_logs),
-                        enabled = !isDiagnosticsExportInProgress,
-                        index = 0,
-                        count = 1,
-                        onClick = onExportDiagnosticLogsClick,
-                        leadingContent = {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_bug_report)
+                HrtSection(title = stringResource(R.string.settings_display)) {
+                    item {
+                        Box {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_first_day_of_week),
+                                supportingText = stringResource(settingsState.firstDayOfWeekOption.menuLabelRes),
+                                onClick = { setFirstDayOfWeekMenuExpanded(true) },
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_today)
+                                    )
+                                }
                             )
-                        },
-                        trailingContent = {
-                            SettingsChevronTrailingIcon()
+                            HrtDropdownMenu(
+                                expanded = isFirstDayOfWeekMenuExpanded,
+                                onDismissRequest = { setFirstDayOfWeekMenuExpanded(false) },
+                                modifier = Modifier.width(IntrinsicSize.Min),
+                                items = FirstDayOfWeekOption.entries.map { option ->
+                                    HrtDropdownMenuItem(
+                                        text = stringResource(option.menuLabelRes),
+                                        onClick = { onFirstDayOfWeekOptionChange(option) },
+                                    )
+                                },
+                            )
                         }
-                    )
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_hide_reference_ranges),
+                            onClick = {
+                                onHideReferenceRangesChange(!settingsState.hideReferenceRanges)
+                            },
+                            leadingContent = {
+                                Box(
+                                    modifier = Modifier.size(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    SettingsLeadingIconSlot(
+                                        modifier = Modifier.size(22.dp),
+                                        painter = painterResource(R.drawable.ic_auto_stories_off)
+                                    )
+                                }
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = settingsState.hideReferenceRanges,
+                                    onCheckedChange = onHideReferenceRangesChange
+                                )
+                            }
+                        )
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_hide_archived_group_records),
+                            onClick = {
+                                onShowArchivedGroupRecordsChange(!settingsState.showArchivedGroupRecords)
+                            },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_history_off)
+                                )
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = !settingsState.showArchivedGroupRecords,
+                                    onCheckedChange = { hideArchivedGroupRecords ->
+                                        onShowArchivedGroupRecordsChange(!hideArchivedGroupRecords)
+                                    }
+                                )
+                            }
+                        )
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_hide_medication_details),
+                            supportingText = stringResource(R.string.settings_hide_medication_details_summary),
+                            onClick = {
+                                onHideMedicationDetailsChange(!settingsState.hideMedicationDetails)
+                            },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_pill_off)
+                                )
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = settingsState.hideMedicationDetails,
+                                    onCheckedChange = onHideMedicationDetailsChange
+                                )
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+                HrtSection(title = stringResource(R.string.settings_appearance)) {
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_widget_appearance),
+                            onClick = { showWidgetAppearanceDialog = true },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_widgets)
+                                )
+                            },
+                            trailingContent = {
+                                SettingsChevronTrailingIcon()
+                            }
+                        )
+                    }
+
+                    item {
+                        Box {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_app_language),
+                                // Derive the displayed language from the locale the UI is actually
+                                // rendering in (LocalConfiguration), not the ViewModel's
+                                // appLanguageOption. Both mirror the same setting, but the global
+                                // locale flips a frame before the ViewModel's combine/stateIn relays
+                                // the new option, which made this row briefly show the old language
+                                // name. Reading the live locale keeps it in lockstep with the rest of
+                                // the re-localized UI.
+                                supportingText = stringResource(appLanguageOption.labelRes),
+                                onClick = { setLanguageMenuExpanded(true) },
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_language)
+                                    )
+                                }
+                            )
+                            HrtDropdownMenu(
+                                expanded = isLanguageMenuExpanded,
+                                onDismissRequest = { setLanguageMenuExpanded(false) },
+                                modifier = Modifier.width(IntrinsicSize.Min),
+                                items = AppLanguageOption.entries.map { option ->
+                                    HrtDropdownMenuItem(
+                                        text = stringResource(option.labelRes),
+                                        onClick = { pendingLanguageOption = option },
+                                    )
+                                },
+                                onExitFinished = {
+                                    pendingLanguageOption?.let { option ->
+                                        onAppLanguageOptionChange(option)
+                                        pendingLanguageOption = null
+                                    }
+                                },
+                            )
+                        }
+                    }
+
+                    item {
+                        Box {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_dark_mode),
+                                // Show the just-picked option immediately even though the actual
+                                // theme switch is deferred until the dropdown finishes dismissing.
+                                supportingText = stringResource(
+                                    (pendingDarkModeOption ?: settingsState.darkModeOption).labelRes
+                                ),
+                                onClick = { setDarkModeMenuExpanded(true) },
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_dark_mode)
+                                    )
+                                }
+                            )
+                            HrtDropdownMenu(
+                                expanded = isDarkModeMenuExpanded,
+                                onDismissRequest = { setDarkModeMenuExpanded(false) },
+                                modifier = Modifier.width(IntrinsicSize.Min),
+                                items = DarkModeOption.entries.map { option ->
+                                    HrtDropdownMenuItem(
+                                        text = stringResource(option.labelRes),
+                                        onClick = { pendingDarkModeOption = option },
+                                    )
+                                },
+                                onExitFinished = {
+                                    // Apply the deferred switch once the menu is gone. The pending
+                                    // value is cleared by the LaunchedEffect above once the committed
+                                    // setting catches up, so the row never flickers back.
+                                    pendingDarkModeOption?.let(onDarkModeOptionChange)
+                                },
+                            )
+                        }
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_amoled_black),
+                            onClick = {
+                                onPureBlackEnabledChange(!settingsState.pureBlackEnabled)
+                            },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_invert_colors)
+                                )
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = settingsState.pureBlackEnabled,
+                                    onCheckedChange = onPureBlackEnabledChange
+                                )
+                            }
+                        )
+                    }
+
+                    if (shouldShowAdaptiveColor()) {
+                        item {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_adaptive_color),
+                                onClick = {
+                                    onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
+                                },
+                                leadingContent = {
+                                    Box(
+                                        modifier = Modifier.size(24.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        SettingsLeadingIconSlot(
+                                            painter = painterResource(R.drawable.ic_palette),
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                },
+                                trailingContent = {
+                                    Switch(
+                                        checked = settingsState.adaptiveColorEnabled,
+                                        onCheckedChange = onAdaptiveColorEnabledChange
+                                    )
+                                }
+                            )
+                        }
+                    }
+
+                    if (shouldShowCjkTextOffset(appLanguageOption)) {
+                        item {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_cjk_text_offset),
+                                supportingText = stringResource(R.string.settings_cjk_text_offset_summary),
+                                onClick = {
+                                    onCjkTextOffsetEnabledChange(!settingsState.cjkTextOffsetEnabled)
+                                },
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_text_up)
+                                    )
+                                },
+                                trailingContent = {
+                                    Switch(
+                                        checked = settingsState.cjkTextOffsetEnabled,
+                                        onCheckedChange = onCjkTextOffsetEnabledChange
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+                HrtSection(title = stringResource(R.string.settings_backup_restore)) {
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_backup_to_file),
+                            enabled = !isBackupActionBlocked,
+                            onClick = onBackupToFileClick,
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_file_export)
+                                )
+                            },
+                            trailingContent = {
+                                SettingsChevronTrailingIcon()
+                            }
+                        )
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_restore_from_file),
+                            enabled = !isBackupActionBlocked,
+                            onClick = onRestoreFromFileClick,
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_settings_backup_restore)
+                                )
+                            },
+                            trailingContent = {
+                                SettingsChevronTrailingIcon()
+                            }
+                        )
+                    }
+                }
+
+                if (showDiagnosticsExport) {
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+                    HrtSection(title = stringResource(R.string.settings_diagnostics)) {
+                        item {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_diagnostics_export_logs),
+                                enabled = !isDiagnosticsExportInProgress,
+                                onClick = onExportDiagnosticLogsClick,
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_bug_report)
+                                    )
+                                },
+                                trailingContent = {
+                                    SettingsChevronTrailingIcon()
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+                HrtSection(title = stringResource(R.string.settings_about)) {
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_about_privacy_policy),
+                            onClick = {
+                                showExternalLinkDialog(
+                                    url = privacyPolicyUrl,
+                                    titleRes = R.string.settings_about_privacy_policy
+                                )
+                            },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_privacy_tip)
+                                )
+                            },
+                            trailingContent = {
+                                SettingsLinkTrailingIcon()
+                            }
+                        )
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_about_open_source_licenses),
+                            onClick = {
+                                showExternalLinkDialog(
+                                    url = BuildConfig.THIRD_PARTY_NOTICES_URL,
+                                    titleRes = R.string.settings_about_open_source_licenses
+                                )
+                            },
+                            leadingContent = {
+                                Box(
+                                    modifier = Modifier.size(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_code_blocks),
+                                    )
+                                }
+                            },
+                            trailingContent = {
+                                SettingsLinkTrailingIcon()
+                            }
+                        )
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_about_model),
+                            onClick = {
+                                showExternalLinkDialog(
+                                    url = MODEL_REPOSITORY_URL,
+                                    titleRes = R.string.settings_about_model
+                                )
+                            },
+                            leadingContent = {
+                                Box(
+                                    modifier = Modifier.size(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_quick_reference),
+                                    )
+                                }
+                            },
+                            trailingContent = {
+                                SettingsLinkTrailingIcon()
+                            }
+                        )
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_github_repo),
+                            onClick = {
+                                showExternalLinkDialog(
+                                    url = APP_REPOSITORY_URL,
+                                    titleRes = R.string.settings_github_repo
+                                )
+                            },
+                            leadingContent = {
+                                Box(
+                                    modifier = Modifier.size(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_github),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            },
+                            trailingContent = {
+                                SettingsLinkTrailingIcon()
+                            }
+                        )
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_about_contact_developer),
+                            onClick = {
+                                showExternalLinkDialog(
+                                    url = DEVELOPER_X_URL,
+                                    titleRes = R.string.settings_about_contact_developer
+                                )
+                            },
+                            leadingContent = {
+                                Box(
+                                    modifier = Modifier.size(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_x),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            },
+                            trailingContent = {
+                                SettingsLinkTrailingIcon()
+                            }
+                        )
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_about_feedback),
+                            supportingText = stringResource(R.string.settings_about_feedback_summary),
+                            onClick = { showFeedbackEmailDialog = true },
+                            leadingContent = {
+                                Box(
+                                    modifier = Modifier.size(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_contact_support),
+                                    )
+                                }
+
+                            },
+                            trailingContent = {
+                                SettingsLinkTrailingIcon()
+                            }
+                        )
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = appName,
+                            supportingText = appInfoSummary,
+                            onClick = {
+                                val now = SystemClock.elapsedRealtime()
+                                val isInsideTapWindow =
+                                    versionTapCount > 0 && now - firstVersionTapAt <= VERSION_TAP_WINDOW_MS
+                                versionTapCount = if (isInsideTapWindow) {
+                                    versionTapCount + 1
+                                } else {
+                                    firstVersionTapAt = now
+                                    1
+                                }
+                                if (versionTapCount >= VERSION_EASTER_EGG_TAP_COUNT) {
+                                    versionTapCount = 0
+                                    firstVersionTapAt = 0L
+                                    lastCopiedToast?.cancel()
+                                    lastCopiedToast = null
+                                    Toast.makeText(context, easterEggMessage, Toast.LENGTH_SHORT).show()
+                                } else if (now - lastAppInfoCopiedAt >= VERSION_COPY_THROTTLE_MS) {
+                                    context.getSystemService(ClipboardManager::class.java)
+                                        ?.setPrimaryClip(ClipData.newPlainText(appName, appInfoCopyText))
+                                    lastAppInfoCopiedAt = now
+                                    lastCopiedToast?.cancel()
+                                    lastCopiedToast = Toast.makeText(context, copyAppInfoMessage, Toast.LENGTH_SHORT)
+                                        .also { it.show() }
+                                }
+                            },
+                            leadingContent = {
+                                Box(
+                                    modifier = Modifier.size(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_info_filled),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                        )
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-
-            SettingsSectionTitle(
-                text = stringResource(R.string.settings_about)
-            )
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(
-                    dimensionResource(R.dimen.list_segment_gap)
-                )
-            ) {
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_about_privacy_policy),
-                    index = 0,
-                    count = 7,
-                    onClick = {
-                        showExternalLinkDialog(
-                            url = privacyPolicyUrl,
-                            titleRes = R.string.settings_about_privacy_policy
-                        )
-                    },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_privacy_tip)
-                        )
-                    },
-                    trailingContent = {
-                        SettingsLinkTrailingIcon()
-                    }
-                )
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_about_open_source_licenses),
-                    index = 1,
-                    count = 7,
-                    onClick = {
-                        showExternalLinkDialog(
-                            url = BuildConfig.THIRD_PARTY_NOTICES_URL,
-                            titleRes = R.string.settings_about_open_source_licenses
-                        )
-                    },
-                    leadingContent = {
-                        Box(
-                            modifier = Modifier.size(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_code_blocks),
-                            )
-                        }
-                    },
-                    trailingContent = {
-                        SettingsLinkTrailingIcon()
-                    }
-                )
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_about_model),
-                    index = 2,
-                    count = 7,
-                    onClick = {
-                        showExternalLinkDialog(
-                            url = MODEL_REPOSITORY_URL,
-                            titleRes = R.string.settings_about_model
-                        )
-                    },
-                    leadingContent = {
-                        Box(
-                            modifier = Modifier.size(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_quick_reference),
-                            )
-                        }
-                    },
-                    trailingContent = {
-                        SettingsLinkTrailingIcon()
-                    }
-                )
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_github_repo),
-                    index = 3,
-                    count = 7,
-                    onClick = {
-                        showExternalLinkDialog(
-                            url = APP_REPOSITORY_URL,
-                            titleRes = R.string.settings_github_repo
-                        )
-                    },
-                    leadingContent = {
-                        Box(
-                            modifier = Modifier.size(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_github),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    },
-                    trailingContent = {
-                        SettingsLinkTrailingIcon()
-                    }
-                )
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_about_contact_developer),
-                    index = 4,
-                    count = 7,
-                    onClick = {
-                        showExternalLinkDialog(
-                            url = DEVELOPER_X_URL,
-                            titleRes = R.string.settings_about_contact_developer
-                        )
-                    },
-                    leadingContent = {
-                        Box(
-                            modifier = Modifier.size(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_x),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    },
-                    trailingContent = {
-                        SettingsLinkTrailingIcon()
-                    }
-                )
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_about_feedback),
-                    supportingText = stringResource(R.string.settings_about_feedback_summary),
-                    index = 5,
-                    count = 7,
-                    onClick = { showFeedbackEmailDialog = true },
-                    leadingContent = {
-                        Box(
-                            modifier = Modifier.size(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_contact_support),
-                            )
-                        }
-
-                    },
-                    trailingContent = {
-                        SettingsLinkTrailingIcon()
-                    }
-                )
-
-                SettingsSegmentedListItem(
-                    title = appName,
-                    supportingText = appInfoSummary,
-                    index = 6,
-                    count = 7,
-                    onClick = {
-                        val now = SystemClock.elapsedRealtime()
-                        val isInsideTapWindow =
-                            versionTapCount > 0 && now - firstVersionTapAt <= VERSION_TAP_WINDOW_MS
-                        versionTapCount = if (isInsideTapWindow) {
-                            versionTapCount + 1
-                        } else {
-                            firstVersionTapAt = now
-                            1
-                        }
-                        if (versionTapCount >= VERSION_EASTER_EGG_TAP_COUNT) {
-                            versionTapCount = 0
-                            firstVersionTapAt = 0L
-                            lastCopiedToast?.cancel()
-                            lastCopiedToast = null
-                            Toast.makeText(context, easterEggMessage, Toast.LENGTH_SHORT).show()
-                        } else if (now - lastAppInfoCopiedAt >= VERSION_COPY_THROTTLE_MS) {
-                            context.getSystemService(ClipboardManager::class.java)
-                                ?.setPrimaryClip(ClipData.newPlainText(appName, appInfoCopyText))
-                            lastAppInfoCopiedAt = now
-                            lastCopiedToast?.cancel()
-                            lastCopiedToast = Toast.makeText(context, copyAppInfoMessage, Toast.LENGTH_SHORT)
-                                .also { it.show() }
-                        }
-                    },
-                    leadingContent = {
-                        Box(
-                            modifier = Modifier.size(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_info_filled),
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
-                )
-            }
-        }
         }
     }
 
@@ -1715,21 +1632,6 @@ internal fun SettingsScreenContent(
     }
 }
 
-internal data class SettingsSecuritySectionLayout(
-    val itemCount: Int,
-    val hideScreenContentIndex: Int,
-)
-
-internal data class SettingsAppearanceSectionLayout(
-    val itemCount: Int,
-    val widgetAppearanceIndex: Int,
-    val appLanguageIndex: Int,
-    val cjkTextOffsetIndex: Int?,
-    val darkModeIndex: Int,
-    val adaptiveColorIndex: Int?,
-    val pureBlackIndex: Int,
-)
-
 internal enum class SettingsReminderSupportState {
     NONE,
     NOTIFICATION_OFF,
@@ -1753,58 +1655,11 @@ internal fun resolveSettingsReminderSupportState(
     }
 }
 
-internal fun resolveSettingsSecuritySectionLayout(
-    screenLockProtectionEnabled: Boolean,
-): SettingsSecuritySectionLayout {
-    return if (screenLockProtectionEnabled) {
-        SettingsSecuritySectionLayout(
-            itemCount = 3,
-            hideScreenContentIndex = 2,
-        )
-    } else {
-        SettingsSecuritySectionLayout(
-            itemCount = 2,
-            hideScreenContentIndex = 1,
-        )
-    }
-}
+internal fun shouldShowAdaptiveColor(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
+    sdkInt >= Build.VERSION_CODES.S
 
-internal fun resolveSettingsAppearanceSectionLayout(
-    sdkInt: Int = Build.VERSION.SDK_INT,
-    showCjkTextOffset: Boolean = false,
-): SettingsAppearanceSectionLayout {
-    var nextIndex = 0
-    val widgetAppearanceIndex = nextIndex++
-    val appLanguageIndex = nextIndex++
-    val darkModeIndex = nextIndex++
-    val pureBlackIndex = nextIndex++
-    val adaptiveColorIndex = if (sdkInt >= Build.VERSION_CODES.S) nextIndex++ else null
-    val cjkTextOffsetIndex = if (showCjkTextOffset) nextIndex++ else null
-
-    return SettingsAppearanceSectionLayout(
-        itemCount = nextIndex,
-        widgetAppearanceIndex = widgetAppearanceIndex,
-        appLanguageIndex = appLanguageIndex,
-        cjkTextOffsetIndex = cjkTextOffsetIndex,
-        darkModeIndex = darkModeIndex,
-        adaptiveColorIndex = adaptiveColorIndex,
-        pureBlackIndex = pureBlackIndex,
-    )
-}
-
-@Composable
-private fun SettingsSectionTitle(
-    text: String,
-    modifier: Modifier = Modifier,
-    topPadding: Boolean = true,
-) {
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.fillMaxWidth().padding(bottom = 10.dp, top = if (topPadding) 4.dp else 0.dp)
-    )
-}
+internal fun shouldShowCjkTextOffset(appLanguageOption: AppLanguageOption): Boolean =
+    appLanguageOption == AppLanguageOption.SIMPLIFIED_CHINESE
 
 @Composable
 private fun SettingsLeadingIconSlot(
@@ -1861,8 +1716,8 @@ private fun SettingsLinkTrailingIcon() {
 @Composable
 private fun SettingsSegmentedListItem(
     title: String,
-    index: Int,
-    count: Int,
+    index: Int? = null,
+    count: Int? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
@@ -1902,16 +1757,12 @@ private fun SettingsSupportMessage(
     painter: Painter? = null,
     onClick: (() -> Unit)? = null,
     showChevron: Boolean = false,
-    index: Int = 0,
-    count: Int = 1,
 ) {
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
         SettingsSegmentedListItem(
             title = text,
-            index = index,
-            count = count,
             onClick = onClick ?: {},
             modifier = Modifier.wrapContentHeight(),
             leadingContent = {

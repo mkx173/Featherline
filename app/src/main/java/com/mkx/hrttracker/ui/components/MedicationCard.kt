@@ -158,9 +158,10 @@ internal fun MedicationCardWithStockSubcard(
     leadingIconContentDescription: String? = null,
     enabled: Boolean = true,
     leadingIconAsForm: Boolean = false,
-    index: Int = 0,
-    itemCount: Int = 1,
+    index: Int? = null,
+    itemCount: Int? = null,
 ) {
+    val position = currentSegmentPosition(explicitSegmentPosition(index, itemCount))
     val showStockSubcard = medicationStockSubcardModel(
         projection = stockProjection,
         mutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
@@ -181,9 +182,9 @@ internal fun MedicationCardWithStockSubcard(
     val stockSubcardIsAnimatingOrVisible =
         stockSubcardVisibilityState.currentState || stockSubcardVisibilityState.targetState
     val cardSegment = if (stockSubcardIsAnimatingOrVisible) {
-        medicationCardWithStockHostSegment(rowIndex = index, rowCount = itemCount)
+        medicationCardWithStockHostSegment(rowIndex = position.index, rowCount = position.count)
     } else {
-        MedicationCardWithStockSegment(index = index, count = itemCount)
+        MedicationCardWithStockSegment(index = position.index, count = position.count)
     }
     MedicationCard(
         medicine = medicine,
@@ -266,8 +267,8 @@ internal fun MedicationCard(
     // Dose surfaces leave this off and keep the per-route icon.
     leadingIconAsForm: Boolean = false,
     enabled: Boolean = true,
-    index: Int = 0,
-    itemCount: Int = 1,
+    index: Int? = null,
+    itemCount: Int? = null,
     embeddedContent: (@Composable () -> Unit)? = null,
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = groupColorKey)

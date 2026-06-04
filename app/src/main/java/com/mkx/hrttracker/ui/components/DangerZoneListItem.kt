@@ -21,8 +21,8 @@ fun DangerZoneListItem(
     modifier: Modifier = Modifier,
     icon: ImageVector = Icons.Rounded.DeleteForever,
     iconPainter: Painter? = null,
-    index: Int = 0,
-    count: Int = 1,
+    index: Int? = null,
+    count: Int? = null,
     supportText: String? = null,
 ) {
 
