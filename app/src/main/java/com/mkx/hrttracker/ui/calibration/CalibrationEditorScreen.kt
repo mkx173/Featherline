@@ -70,6 +70,7 @@ import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
+import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -423,75 +424,66 @@ private fun CalibrationEditorScreenContent(
                 )
 
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                Text(
-                    text = stringResource(R.string.settings_calibration_results).uppercase(),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 10.dp, top = 4.dp),
-                )
-
                 val totalCount = uiState.drafts.size
-                uiState.drafts.forEachIndexed { index, draft ->
-                    val nextDraft = uiState.drafts.getOrNull(index + 1)
-                    val nextFocusRequester = nextDraft
-                        ?.let { analyteFocusRequesters.getValue(it.draftKey) }
-                    // All drafts stay composed in a regular Column, so the next
-                    // field's FocusRequester is always attached when IME Next
-                    // fires. Direct requestFocus is sufficient.
-                    val onImeNext: () -> Unit = if (nextFocusRequester != null) {
-                        { nextFocusRequester.requestFocus() }
-                    } else {
-                        { contentFocusManager.clearFocus() }
-                    }
+                HrtSection(title = stringResource(R.string.settings_calibration_results)) {
+                    uiState.drafts.forEachIndexed { index, draft ->
+                        val nextDraft = uiState.drafts.getOrNull(index + 1)
+                        val nextFocusRequester = nextDraft
+                            ?.let { analyteFocusRequesters.getValue(it.draftKey) }
+                        // All drafts stay composed in a regular Column, so the next
+                        // field's FocusRequester is always attached when IME Next
+                        // fires. Direct requestFocus is sufficient.
+                        val onImeNext: () -> Unit = if (nextFocusRequester != null) {
+                            { nextFocusRequester.requestFocus() }
+                        } else {
+                            { contentFocusManager.clearFocus() }
+                        }
 
-                    draft.analyteKey?.let { analyteKey ->
-                        CalibrationAnalyteCard(
-                            index = index,
-                            count = totalCount,
-                            analyteKey = analyteKey,
-                            valueText = draft.valueText,
-                            isError = draft.draftKey in uiState.invalidDraftKeys,
-                            unit = checkNotNull(draft.unit),
-                            defaultUnit = checkNotNull(draft.defaultUnit),
-                            originalUnit = draft.originalUnit,
-                            focusRequester = analyteFocusRequesters.getValue(draft.draftKey),
-                            nextFocusRequester = nextFocusRequester,
-                            imeAction = calibrationEditorAnalyteImeAction(index, totalCount),
-                            onImeNext = onImeNext,
-                            onValueChange = { value ->
-                                onBuiltinAnalyteValueChange(analyteKey, value)
-                            },
-                            onUnitChange = { unit ->
-                                onBuiltinAnalyteUnitChange(analyteKey, unit)
-                            },
-                            onRemoveClick = { onRemoveBuiltinAnalyteClick(analyteKey) },
-                            hideReferenceRanges = uiState.hideReferenceRanges,
-                        )
-                    } ?: CalibrationCustomAnalyteCard(
-                        focusRequester = analyteFocusRequesters.getValue(draft.draftKey),
-                        nextFocusRequester = nextFocusRequester,
-                        imeAction = calibrationEditorAnalyteImeAction(index, totalCount),
-                        onImeNext = onImeNext,
-                        index = index,
-                        count = totalCount,
-                        abbreviation = checkNotNull(draft.customAnalyteAbbreviation),
-                        name = checkNotNull(draft.customAnalyteName),
-                        unitLabel = checkNotNull(draft.customUnitLabel),
-                        valueText = draft.valueText,
-                        isError = draft.draftKey in uiState.invalidDraftKeys,
-                        onValueChange = { value ->
-                            onCustomAnalyteValueChange(
-                                checkNotNull(draft.customAnalyteUuid),
-                                value,
+                        item {
+                            draft.analyteKey?.let { analyteKey ->
+                                CalibrationAnalyteCard(
+                                    analyteKey = analyteKey,
+                                    valueText = draft.valueText,
+                                    isError = draft.draftKey in uiState.invalidDraftKeys,
+                                    unit = checkNotNull(draft.unit),
+                                    defaultUnit = checkNotNull(draft.defaultUnit),
+                                    originalUnit = draft.originalUnit,
+                                    focusRequester = analyteFocusRequesters.getValue(draft.draftKey),
+                                    nextFocusRequester = nextFocusRequester,
+                                    imeAction = calibrationEditorAnalyteImeAction(index, totalCount),
+                                    onImeNext = onImeNext,
+                                    onValueChange = { value ->
+                                        onBuiltinAnalyteValueChange(analyteKey, value)
+                                    },
+                                    onUnitChange = { unit ->
+                                        onBuiltinAnalyteUnitChange(analyteKey, unit)
+                                    },
+                                    onRemoveClick = { onRemoveBuiltinAnalyteClick(analyteKey) },
+                                    hideReferenceRanges = uiState.hideReferenceRanges,
+                                )
+                            } ?: CalibrationCustomAnalyteCard(
+                                focusRequester = analyteFocusRequesters.getValue(draft.draftKey),
+                                nextFocusRequester = nextFocusRequester,
+                                imeAction = calibrationEditorAnalyteImeAction(index, totalCount),
+                                onImeNext = onImeNext,
+                                abbreviation = checkNotNull(draft.customAnalyteAbbreviation),
+                                name = checkNotNull(draft.customAnalyteName),
+                                unitLabel = checkNotNull(draft.customUnitLabel),
+                                valueText = draft.valueText,
+                                isError = draft.draftKey in uiState.invalidDraftKeys,
+                                onValueChange = { value ->
+                                    onCustomAnalyteValueChange(
+                                        checkNotNull(draft.customAnalyteUuid),
+                                        value,
+                                    )
+                                },
+                                onRemoveClick = {
+                                    onRemoveCustomAnalyteClick(
+                                        checkNotNull(draft.customAnalyteUuid)
+                                    )
+                                },
                             )
-                        },
-                        onRemoveClick = {
-                            onRemoveCustomAnalyteClick(checkNotNull(draft.customAnalyteUuid))
-                        },
-                    )
-
-                    if (index < totalCount - 1) {
-                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+                        }
                     }
                 }
 
@@ -526,17 +518,15 @@ private fun CalibrationEditorScreenContent(
                 }
 
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                Text(
-                    text = stringResource(R.string.settings_calibration_notes_label).uppercase(),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp),
-                )
-                CalibrationNotesCard(
-                    notes = notesDraft,
-                    onNotesChange = { notesDraft = it },
-                    onNotesCommit = { onNotesCommit(notesDraft) },
-                )
+                HrtSection(title = stringResource(R.string.settings_calibration_notes_label)) {
+                    item {
+                        CalibrationNotesCard(
+                            notes = notesDraft,
+                            onNotesChange = { notesDraft = it },
+                            onNotesCommit = { onNotesCommit(notesDraft) },
+                        )
+                    }
+                }
 
                 if (uiState.isEditing) {
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
