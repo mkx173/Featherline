@@ -169,6 +169,17 @@ private fun PlanBatchAddScreenContent(
         savedEntryCount,
         savedEntryCount,
     )
+    val deductStockSupportingText = when {
+        uiState.selectedGroupUuid == null ->
+            stringResource(R.string.plan_batch_add_select_group_prompt)
+        !uiState.selectedGroupHasTrackedMedicine ->
+            stringResource(R.string.plan_batch_add_deduct_stock_none_tracked)
+        else -> pluralStringResource(
+            R.plurals.plan_batch_add_deduct_stock_change_count,
+            uiState.stockPreviewItems.size,
+            uiState.stockPreviewItems.size,
+        )
+    }
     val shouldDeselectOnBack = uiState.selectedGroupUuid != null && !uiState.isSaving
 
     fun clearSelectionAndDismissDialogs() {
@@ -328,6 +339,7 @@ private fun PlanBatchAddScreenContent(
                     Spacer(modifier = Modifier.height(14.dp))
                     PlanBatchAddStockSection(
                         deductStock = uiState.deductStock,
+                        supportingText = deductStockSupportingText,
                         groupColorKey = uiState.selectedGroupColorKey,
                         previewItems = uiState.stockPreviewItems,
                         onDeductStockChange = onDeductStockChange,
@@ -474,21 +486,12 @@ private fun PlanBatchAddRangeSelector(
 @Composable
 private fun PlanBatchAddStockSection(
     deductStock: Boolean,
+    supportingText: String,
     groupColorKey: MedicationGroupColorKey?,
     previewItems: List<PlanBatchAddStockPreviewItem>,
     onDeductStockChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var retainedPreviewItems by remember {
-        mutableStateOf(emptyList<PlanBatchAddStockPreviewItem>())
-    }
-    LaunchedEffect(previewItems) {
-        if (previewItems.isNotEmpty()) {
-            retainedPreviewItems = previewItems
-        }
-    }
-    val visiblePreviewItems = if (deductStock) previewItems else retainedPreviewItems
-
     HrtSection(
         title = stringResource(R.string.plan_batch_add_stock_title),
         modifier = modifier,
@@ -496,7 +499,7 @@ private fun PlanBatchAddStockSection(
         item {
             PreferenceSegmentedListItem(
                 title = stringResource(R.string.plan_batch_add_deduct_stock),
-                supportingText = stringResource(R.string.plan_batch_add_deduct_stock_supporting),
+                supportingText = supportingText,
                 onClick = { onDeductStockChange(!deductStock) },
                 trailingContent = {
                     Switch(
@@ -506,7 +509,7 @@ private fun PlanBatchAddStockSection(
                 },
             )
         }
-        visiblePreviewItems.forEach { item ->
+        previewItems.forEach { item ->
             animatedItem(visible = deductStock) {
                 key(item.key) {
                     MedicationCardWithStockSubcard(

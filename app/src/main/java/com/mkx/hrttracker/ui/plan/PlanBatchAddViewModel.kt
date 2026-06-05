@@ -99,6 +99,14 @@ class PlanBatchAddViewModel @Inject constructor(
         // (start after end). Flag it so the UI shows a prompt instead.
         val selectedGroupStartsInFuture = selectedGroup != null &&
             selectedGroup.schedule.since.isAfter(today)
+        val selectedGroupHasTrackedMedicine = selectedGroup != null && run {
+            val groupMedicineUuids = selectedGroup.medications
+                .mapNotNullTo(mutableSetOf()) { medication -> medication.medicine?.uuid }
+            projections.any { projection ->
+                projection.medicine.uuid in groupMedicineUuids &&
+                    projection.medicine.stock.trackingEnabled
+            }
+        }
         val startDate = selection.startDate ?: selectedGroup?.schedule?.since ?: today
         val endDate = selection.endDate ?: today
         val entryPlan = if (selectedGroup != null) {
@@ -135,15 +143,14 @@ class PlanBatchAddViewModel @Inject constructor(
             manualEntryCount = entryPlan.entries.count { entry -> entry.sourceGroupUuid == null },
             skippedEntryCount = entryPlan.skippedEntryCount,
             deductStock = selection.deductStock,
-            stockPreviewItems = if (selection.deductStock) {
-                buildPlanBatchAddStockPreviewItems(
-                    entriesToAdd = entryPlan.entries,
-                    stockProjections = projections,
-                    projectHypotheticalStock = medicineStockRepository::projectHypotheticalStock,
-                )
-            } else {
-                emptyList()
-            },
+            selectedGroupHasTrackedMedicine = selectedGroupHasTrackedMedicine,
+            // Built regardless of the toggle so the switch's supporting text can
+            // report how many medicines would change stock before it is flipped on.
+            stockPreviewItems = buildPlanBatchAddStockPreviewItems(
+                entriesToAdd = entryPlan.entries,
+                stockProjections = projections,
+                projectHypotheticalStock = medicineStockRepository::projectHypotheticalStock,
+            ),
             isSaving = selection.isSaving,
             isSaved = selection.isSaved,
             savedEntryCount = selection.savedEntryCount,
@@ -373,6 +380,7 @@ data class PlanBatchAddUiState(
     val manualEntryCount: Int = 0,
     val skippedEntryCount: Int = 0,
     val deductStock: Boolean = false,
+    val selectedGroupHasTrackedMedicine: Boolean = false,
     val stockPreviewItems: List<PlanBatchAddStockPreviewItem> = emptyList(),
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,

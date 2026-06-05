@@ -719,6 +719,97 @@ class PlanBatchAddViewModelTest {
         )
     }
 
+    @Test
+    fun selectedGroupHasTrackedMedicine_trueWhenAnyGroupMedicineTracksStock() = runTest {
+        // Drives the deduct-stock switch supporting text: when at least one
+        // medicine in the group tracks stock, the switch reports the change.
+        val tracked = estradiolMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 5.0,
+                unitsLastTotal = 5.0,
+            )
+        )
+        val untracked = spironolactoneMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(trackingEnabled = false),
+        )
+        val group = trackedMedicineGroup(medicines = listOf(tracked, untracked))
+        val viewModel = planBatchAddViewModelWithProjections(
+            group = group,
+            projections = listOf(
+                stockProjection(medicine = tracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY),
+                stockProjection(medicine = untracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.UNTRACKED),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectGroup(group.uuid)
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.selectedGroupHasTrackedMedicine)
+    }
+
+    @Test
+    fun selectedGroupHasTrackedMedicine_falseWhenNoGroupMedicineTracksStock() = runTest {
+        val untracked = spironolactoneMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(trackingEnabled = false),
+        )
+        val group = trackedMedicineGroup(medicines = listOf(untracked))
+        val viewModel = planBatchAddViewModelWithProjections(
+            group = group,
+            projections = listOf(
+                stockProjection(medicine = untracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.UNTRACKED),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectGroup(group.uuid)
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.uiState.value.selectedGroupHasTrackedMedicine)
+    }
+
+    private fun trackedMedicineGroup(
+        medicines: List<com.mkx.hrttracker.model.medication.Medicine>,
+    ): MedicationGroup {
+        return medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = medicines.map { medicine -> testMedicationGroupMedication(medicine = medicine) },
+        )
+    }
+
+    private fun planBatchAddViewModelWithProjections(
+        group: MedicationGroup,
+        projections: List<com.mkx.hrttracker.model.medication.MedicineStockProjection>,
+        now: LocalDateTime = LocalDateTime.of(2026, 4, 10, 12, 0),
+    ): PlanBatchAddViewModel {
+        val medicationGroupRepository = mockk<MedicationGroupRepository>()
+        val medicationLogRepository = mockk<MedicationLogRepository>(relaxed = true)
+        val settingsRepository = mockk<SettingsRepository>()
+        val medicineStockRepository = mockk<MedicineStockRepository>(relaxed = true)
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState(remindersEnabled = true))
+        every { medicineStockRepository.getCachedProjections() } returns projections
+        every { medicineStockRepository.observeProjections() } returns flowOf(projections)
+
+        return PlanBatchAddViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicationReminderScheduler = mockk(relaxed = true),
+            settingsRepository = settingsRepository,
+            appTimeSource = FakeAppTimeSource(initialMinute = now),
+        )
+    }
+
     private fun medicationGroup(
         uuid: UUID = UUID.fromString("621f4792-93d2-4d42-aa86-fab9d5c968b1"),
         schedule: MedicationGroupSchedule,
