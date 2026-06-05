@@ -21,13 +21,17 @@ import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.util.FakeAppTimeSource
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -516,6 +520,75 @@ class PlanBatchAddViewModelTest {
                 entriesToAdd = listOf(entry),
             ).canConfirm
         )
+    }
+
+    @Test
+    fun saveSelectedRange_withDeductStockEmitsPostLogStockWarningOnce() = runTest {
+        val medicine = estradiolMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 1.0,
+                unitsLastTotal = 1.0,
+            )
+        )
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = medicine)),
+        )
+        val medicationGroupRepository = mockk<MedicationGroupRepository>()
+        val medicationLogRepository = mockk<MedicationLogRepository>()
+        val settingsRepository = mockk<SettingsRepository>()
+        val medicineStockRepository = mockk<MedicineStockRepository>()
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState(remindersEnabled = true))
+        every { medicineStockRepository.getCachedProjections() } returns emptyList()
+        every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
+        coEvery { medicationLogRepository.saveBackfillEntries(any(), deductStock = true) } returns Unit
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
+            stockProjection(
+                medicine = medicine,
+                state = com.mkx.hrttracker.model.medication.MedicineStockState.OUT,
+            )
+        )
+
+        val viewModel = PlanBatchAddViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = mockk<MedicationReminderScheduler>(relaxed = true),
+            settingsRepository = settingsRepository,
+            medicineStockRepository = medicineStockRepository,
+            appTimeSource = FakeAppTimeSource(initialMinute = LocalDateTime.of(2026, 4, 10, 12, 0)),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectGroup(group.uuid)
+        viewModel.setDeductStock(true)
+        advanceUntilIdle()
+
+        val warnings = mutableListOf<PostLogStockWarning>()
+        val collectJob = launch {
+            viewModel.stockWarnings.collect { warning -> warnings += warning }
+        }
+        advanceUntilIdle()
+        viewModel.saveSelectedRange()
+        advanceUntilIdle()
+        collectJob.cancel()
+
+        assertEquals(
+            listOf(PostLogStockWarning.Single(medicine, com.mkx.hrttracker.model.medication.MedicineStockState.OUT)),
+            warnings,
+        )
+        coVerify(exactly = 1) {
+            medicationLogRepository.saveBackfillEntries(any(), deductStock = true)
+        }
     }
 
     @Test
