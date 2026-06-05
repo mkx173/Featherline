@@ -214,7 +214,10 @@ private fun PlanBatchAddScreenContent(
 
     LaunchedEffect(uiState.isSaved, savedEntryCount) {
         if (uiState.isSaved) {
-            if (savedEntryCount > 0) {
+            // When the save also raised a stock warning snackbar, skip the toast so
+            // the two don't overlap at the bottom of the screen; the snackbar alone
+            // already confirms the save landed.
+            if (savedEntryCount > 0 && !uiState.savedWithStockWarning) {
                 Toast.makeText(context, saveSuccessMessage, Toast.LENGTH_SHORT).show()
             }
             onSavedStateConsumed()

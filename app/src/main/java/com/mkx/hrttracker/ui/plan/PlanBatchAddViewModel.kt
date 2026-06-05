@@ -165,6 +165,7 @@ class PlanBatchAddViewModel @Inject constructor(
             isSaving = selection.isSaving,
             isSaved = selection.isSaved,
             savedEntryCount = selection.savedEntryCount,
+            savedWithStockWarning = selection.savedWithStockWarning,
             saveResult = selection.saveResult,
         )
     }.stateIn(
@@ -307,6 +308,7 @@ class PlanBatchAddViewModel @Inject constructor(
                 isSaving = true,
                 isSaved = false,
                 savedEntryCount = null,
+                savedWithStockWarning = false,
                 saveResult = null,
                 deductStock = false,
             )
@@ -355,6 +357,7 @@ class PlanBatchAddViewModel @Inject constructor(
                         isSaving = false,
                         isSaved = true,
                         savedEntryCount = entriesToSave.size,
+                        savedWithStockWarning = postLogStockWarning != null,
                         saveResult = null,
                     )
                 } else {
@@ -363,6 +366,7 @@ class PlanBatchAddViewModel @Inject constructor(
                         isSaving = false,
                         isSaved = false,
                         savedEntryCount = null,
+                        savedWithStockWarning = false,
                         saveResult = saveResult,
                         deductStock = shouldDeductStock,
                     )
@@ -376,7 +380,7 @@ class PlanBatchAddViewModel @Inject constructor(
 
     fun consumeSavedState() {
         selectionState.update { state ->
-            state.copy(isSaved = false, savedEntryCount = null)
+            state.copy(isSaved = false, savedEntryCount = null, savedWithStockWarning = false)
         }
     }
 
@@ -410,6 +414,9 @@ data class PlanBatchAddUiState(
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
     val savedEntryCount: Int? = null,
+    // When the save also surfaced a stock warning snackbar, the success toast is
+    // suppressed to avoid the two overlapping at the bottom of the screen.
+    val savedWithStockWarning: Boolean = false,
     val saveResult: PlanBatchAddSaveResult? = null,
 ) {
     val entryCount: Int
@@ -438,6 +445,9 @@ private data class PlanBatchAddSelectionState(
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
     val savedEntryCount: Int? = null,
+    // True when this save emitted a post-log stock warning, so the screen can
+    // suppress the success toast and let the snackbar stand alone (no overlap).
+    val savedWithStockWarning: Boolean = false,
     val saveResult: PlanBatchAddSaveResult? = null,
     val deductStock: Boolean = false,
 )

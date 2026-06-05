@@ -785,7 +785,7 @@ private fun MedicationGroupEditorScreenContent(
                 skipped,
                 skipped,
             ),
-            Toast.LENGTH_LONG,
+            Toast.LENGTH_SHORT,
         ).show()
         onDuplicateArchivedGroupResultConsumed()
     }
