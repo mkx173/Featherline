@@ -31,7 +31,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -523,7 +522,7 @@ class PlanBatchAddViewModelTest {
     }
 
     @Test
-    fun saveSelectedRange_withDeductStockEmitsPostLogStockWarningOnce() = runTest {
+    fun saveSelectedRange_withDeductStockRetainsPostLogStockWarningUntilConsumed() = runTest {
         val medicine = estradiolMedicine().copy(
             stock = com.mkx.hrttracker.model.medication.MedicineStock(
                 trackingEnabled = true,
@@ -581,19 +580,22 @@ class PlanBatchAddViewModelTest {
         viewModel.setDeductStock(true)
         advanceUntilIdle()
 
-        val warnings = mutableListOf<PostLogStockWarning>()
-        val collectJob = launch {
-            viewModel.stockWarnings.collect { warning -> warnings += warning }
-        }
-        advanceUntilIdle()
         viewModel.saveSelectedRange()
         advanceUntilIdle()
-        collectJob.cancel()
 
         assertEquals(
-            listOf(PostLogStockWarning.Single(medicine, com.mkx.hrttracker.model.medication.MedicineStockState.OUT)),
-            warnings,
+            PostLogStockWarning.Single(medicine, com.mkx.hrttracker.model.medication.MedicineStockState.OUT),
+            viewModel.uiState.value.postLogStockWarning,
         )
+        viewModel.consumeSavedState()
+        advanceUntilIdle()
+        assertEquals(
+            PostLogStockWarning.Single(medicine, com.mkx.hrttracker.model.medication.MedicineStockState.OUT),
+            viewModel.uiState.value.postLogStockWarning,
+        )
+        viewModel.consumePostLogStockWarning()
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.postLogStockWarning)
         coVerify(exactly = 1) {
             medicationLogRepository.saveBackfillEntries(any(), deductStock = true)
         }
@@ -699,16 +701,10 @@ class PlanBatchAddViewModelTest {
         viewModel.selectGroup(group.uuid)
         advanceUntilIdle()
 
-        val warnings = mutableListOf<PostLogStockWarning>()
-        val collectJob = launch {
-            viewModel.stockWarnings.collect { warning -> warnings += warning }
-        }
-        advanceUntilIdle()
         viewModel.saveSelectedRange()
         advanceUntilIdle()
-        collectJob.cancel()
 
-        assertEquals(emptyList<PostLogStockWarning>(), warnings)
+        assertNull(viewModel.uiState.value.postLogStockWarning)
         coVerify(exactly = 1) {
             medicationLogRepository.saveBackfillEntries(any(), deductStock = false)
         }

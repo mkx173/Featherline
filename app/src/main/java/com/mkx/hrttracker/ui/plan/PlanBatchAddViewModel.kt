@@ -31,12 +31,9 @@ import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -79,9 +76,6 @@ class PlanBatchAddViewModel @Inject constructor(
     ) { selection, projections ->
         selection to projections
     }
-
-    private val stockWarningEvents = MutableSharedFlow<PostLogStockWarning>(extraBufferCapacity = 1)
-    val stockWarnings: SharedFlow<PostLogStockWarning> = stockWarningEvents.asSharedFlow()
 
     val uiState: StateFlow<PlanBatchAddUiState> = combine(
         medicationGroupRepository.observeGroups(),
@@ -165,7 +159,7 @@ class PlanBatchAddViewModel @Inject constructor(
             isSaving = selection.isSaving,
             isSaved = selection.isSaved,
             savedEntryCount = selection.savedEntryCount,
-            savedWithStockWarning = selection.savedWithStockWarning,
+            postLogStockWarning = selection.postLogStockWarning,
             saveResult = selection.saveResult,
         )
     }.stateIn(
@@ -308,7 +302,7 @@ class PlanBatchAddViewModel @Inject constructor(
                 isSaving = true,
                 isSaved = false,
                 savedEntryCount = null,
-                savedWithStockWarning = false,
+                postLogStockWarning = null,
                 saveResult = null,
                 deductStock = false,
             )
@@ -357,7 +351,7 @@ class PlanBatchAddViewModel @Inject constructor(
                         isSaving = false,
                         isSaved = true,
                         savedEntryCount = entriesToSave.size,
-                        savedWithStockWarning = postLogStockWarning != null,
+                        postLogStockWarning = postLogStockWarning,
                         saveResult = null,
                     )
                 } else {
@@ -366,21 +360,24 @@ class PlanBatchAddViewModel @Inject constructor(
                         isSaving = false,
                         isSaved = false,
                         savedEntryCount = null,
-                        savedWithStockWarning = false,
+                        postLogStockWarning = null,
                         saveResult = saveResult,
                         deductStock = shouldDeductStock,
                     )
                 }
-            }
-            postLogStockWarning?.let { warning ->
-                stockWarningEvents.emit(warning)
             }
         }
     }
 
     fun consumeSavedState() {
         selectionState.update { state ->
-            state.copy(isSaved = false, savedEntryCount = null, savedWithStockWarning = false)
+            state.copy(isSaved = false, savedEntryCount = null)
+        }
+    }
+
+    fun consumePostLogStockWarning() {
+        selectionState.update { state ->
+            state.copy(postLogStockWarning = null)
         }
     }
 
@@ -414,9 +411,11 @@ data class PlanBatchAddUiState(
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
     val savedEntryCount: Int? = null,
-    // When the save also surfaced a stock warning snackbar, the success toast is
-    // suppressed to avoid the two overlapping at the bottom of the screen.
-    val savedWithStockWarning: Boolean = false,
+    // The stock warning raised by the save, if any. Carried in retained UI state
+    // (not a one-shot event) so a config-change race can't drop the snackbar while
+    // the success toast is still suppressed. The screen dispatches it to the
+    // snackbar, suppresses the toast when it is non-null, then consumes it.
+    val postLogStockWarning: PostLogStockWarning? = null,
     val saveResult: PlanBatchAddSaveResult? = null,
 ) {
     val entryCount: Int
@@ -445,9 +444,7 @@ private data class PlanBatchAddSelectionState(
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
     val savedEntryCount: Int? = null,
-    // True when this save emitted a post-log stock warning, so the screen can
-    // suppress the success toast and let the snackbar stand alone (no overlap).
-    val savedWithStockWarning: Boolean = false,
+    val postLogStockWarning: PostLogStockWarning? = null,
     val saveResult: PlanBatchAddSaveResult? = null,
     val deductStock: Boolean = false,
 )

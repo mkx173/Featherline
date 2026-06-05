@@ -46,7 +46,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -94,13 +93,6 @@ fun PlanBatchAddScreen(
     viewModel: PlanBatchAddViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val latestOnStockWarning by rememberUpdatedState(onStockWarning)
-
-    LaunchedEffect(viewModel) {
-        viewModel.stockWarnings.collect { warning ->
-            latestOnStockWarning(warning)
-        }
-    }
 
     PlanBatchAddScreenContent(
         uiState = uiState,
@@ -111,7 +103,9 @@ fun PlanBatchAddScreen(
         onEndDateSelected = viewModel::updateEndDate,
         onDeductStockChange = viewModel::setDeductStock,
         onSaveClick = viewModel::saveSelectedRange,
+        onStockWarning = onStockWarning,
         onSavedStateConsumed = viewModel::consumeSavedState,
+        onStockWarningConsumed = viewModel::consumePostLogStockWarning,
         onSaveResultConsumed = viewModel::onSaveResultConsumed,
         modifier = modifier,
     )
@@ -128,7 +122,9 @@ private fun PlanBatchAddScreenContent(
     onEndDateSelected: (LocalDate) -> Unit,
     onDeductStockChange: (Boolean) -> Unit,
     onSaveClick: () -> Unit,
+    onStockWarning: (PostLogStockWarning) -> Unit,
     onSavedStateConsumed: () -> Unit,
+    onStockWarningConsumed: () -> Unit,
     onSaveResultConsumed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -212,15 +208,20 @@ private fun PlanBatchAddScreenContent(
         }
     }
 
-    LaunchedEffect(uiState.isSaved, savedEntryCount) {
+    LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
-            // When the save also raised a stock warning snackbar, skip the toast so
-            // the two don't overlap at the bottom of the screen; the snackbar alone
-            // already confirms the save landed.
-            if (savedEntryCount > 0 && !uiState.savedWithStockWarning) {
+            val warning = uiState.postLogStockWarning
+            // When the save also raised a stock warning, dispatch the snackbar and
+            // skip the toast so the two don't overlap at the bottom of the screen;
+            // the snackbar alone already confirms the save landed. The warning rides
+            // in retained UI state, so a config-change race can't drop it.
+            if (warning != null) {
+                onStockWarning(warning)
+            } else if (savedEntryCount > 0) {
                 Toast.makeText(context, saveSuccessMessage, Toast.LENGTH_SHORT).show()
             }
             onSavedStateConsumed()
+            onStockWarningConsumed()
         }
     }
 
@@ -733,7 +734,9 @@ private fun PlanBatchAddScreenPreview() {
             onEndDateSelected = { },
             onDeductStockChange = { },
             onSaveClick = { },
+            onStockWarning = { },
             onSavedStateConsumed = { },
+            onStockWarningConsumed = { },
             onSaveResultConsumed = { },
         )
     }
