@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
+import android.os.Bundle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
@@ -79,8 +80,10 @@ private suspend fun GlanceAppWidget.provideHrtContent(
     provideContent {
         // Re-read on every composition so the baseline picks up the launcher's portrait
         // cell height as soon as options are reported (Glance recomposes on options change).
-        val deviceBaselineHeightDp = appWidgetId?.let {
-            portraitBaselineHeightDp(AppWidgetManager.getInstance(context), it)
+        val deviceBaselineHeightDp = appWidgetId?.let { widgetId ->
+            runCatching { AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId) }
+                .getOrNull()
+                ?.let { options -> portraitBaselineHeightDp(options) }
         }
         val state = currentState<WidgetSnapshotState>()
         val snapshot = state.record?.takeIf { it.schemaVersion == WIDGET_SNAPSHOT_SCHEMA_VERSION }
@@ -245,8 +248,11 @@ private suspend fun pushHrtWidget(
         appWidgetManager.getAppWidgetIds(ComponentName(context, receiverClass))
     }.getOrElse { intArrayOf() }
     appWidgetIds.forEach { appWidgetId ->
-        val size = currentWidgetSizeDp(context, appWidgetManager, appWidgetId, isMedium)
-        val deviceBaselineHeightDp = portraitBaselineHeightDp(appWidgetManager, appWidgetId)
+        // Read the launcher options once and derive both the compose size and the baseline
+        // height from the same bundle, rather than fetching options twice for one widget.
+        val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+        val size = currentWidgetSizeDp(context, options, isMedium)
+        val deviceBaselineHeightDp = portraitBaselineHeightDp(options)
         val result = runCatching {
             GlanceRemoteViews().compose(context = context, size = size) {
                 HrtWidgetThemed(context, record, deviceBaselineHeightDp) { snapshot ->
@@ -263,11 +269,9 @@ private suspend fun pushHrtWidget(
 // how SizeMode.Exact picks the size Glance composes against.
 private fun currentWidgetSizeDp(
     context: Context,
-    appWidgetManager: AppWidgetManager,
-    appWidgetId: Int,
+    options: Bundle,
     isMedium: Boolean,
 ): DpSize {
-    val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
     val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
     val maxWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH)
     val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
@@ -290,14 +294,9 @@ private fun currentWidgetSizeDp(
 // The launcher's portrait target-cell height (OPTION_APPWIDGET_MAX_HEIGHT) in dp, used as
 // the device baseline. It is the same value regardless of the current orientation, so
 // feeding it into baseline capture removes the portrait/landscape ordering hazard that let
-// the short landscape pass lock the baseline first. Returns null until options are reported.
-private fun portraitBaselineHeightDp(appWidgetManager: AppWidgetManager, appWidgetId: Int): Float? {
-    val maxHeight = runCatching {
-        appWidgetManager.getAppWidgetOptions(appWidgetId)
-            .getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
-    }.getOrDefault(0)
-    return maxHeight.takeIf { it > 0 }?.toFloat()
-}
+// the short landscape pass lock the baseline first. Returns null until options report it.
+private fun portraitBaselineHeightDp(options: Bundle): Float? =
+    options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT).takeIf { it > 0 }?.toFloat()
 
 // ── Group-aware row collapsing ────────────────────────────────────────────────
 
@@ -413,13 +412,13 @@ private fun widgetScale(widgetKey: String): Float {
     val baselineDp = previewBaselineDp ?: run {
         val context = LocalContext.current
         // Portrait target-cell height from the launcher options — identical across the
-        // portrait/landscape Exact passes. Null until options are reported; in that gap we
-        // don't capture (so a fallback frame can't lock a wrong baseline) and render at the
-        // reference scale until a real height arrives.
-        val currentHeightDp = LocalDeviceBaselineHeight.current
+        // portrait/landscape Exact passes. 0f until options report it; in that gap it is out
+        // of the sane range, so we don't capture (a fallback frame can't lock a wrong
+        // baseline) and render at the reference scale until a real height arrives.
+        val currentHeightDp = LocalDeviceBaselineHeight.current ?: 0f
         val prefs = context.getSharedPreferences(WIDGET_BASELINE_PREFS, Context.MODE_PRIVATE)
         val storedDp = prefs.getFloat(widgetKey, 0f)
-        if (currentHeightDp != null && shouldPersistWidgetBaselineHeight(storedDp, currentHeightDp)) {
+        if (shouldPersistWidgetBaselineHeight(storedDp, currentHeightDp)) {
             SideEffect {
                 val existingDp = prefs.getFloat(widgetKey, 0f)
                 val mergedDp = mergeWidgetBaselineHeightDp(existingDp, currentHeightDp)
@@ -428,7 +427,7 @@ private fun widgetScale(widgetKey: String): Float {
                 }
             }
         }
-        resolveWidgetBaselineHeightDp(storedDp, currentHeightDp ?: 0f)
+        resolveWidgetBaselineHeightDp(storedDp, currentHeightDp)
     }
     return widgetBaselineScaleRatio(baselineDp) * LocalWidgetScale.current
 }

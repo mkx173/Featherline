@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- API 31+ variant of res/xml/hrt_widget_medium_info.xml. Identical to the base file
+     except for the android:configure + android:widgetFeatures reconfigure wiring below.
+     Resource qualifiers fully override (they do not merge), so keep every shared attribute
+     in sync with res/xml/hrt_widget_medium_info.xml whenever either changes. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"
     android:minHeight="110dp"

@@ -16,6 +16,7 @@ import com.mkx.hrttracker.ui.components.LocalCjkTextOffsetEnabled
 import com.mkx.hrttracker.ui.settings.WidgetAppearanceDialog
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -23,8 +24,10 @@ import javax.inject.Inject
 // Hosts only the widget-appearance dialog over a translucent window, launched by the
 // launcher's long-press "reconfigure" affordance (WIDGET_FEATURE_RECONFIGURABLE, API 31+).
 // Widget settings are global, so the specific appWidgetId is irrelevant to what we edit; it
-// is read only to satisfy the first-placement RESULT_OK contract on launchers that ignore
-// configuration_optional.
+// is echoed back only to satisfy the RESULT_OK contract on launchers that ignore
+// configuration_optional and invoke this on first placement. The result defaults to
+// RESULT_CANCELED and only flips to RESULT_OK once the user saves, so backing out of such a
+// first-placement config removes the widget instead of silently keeping an unconfigured one.
 @AndroidEntryPoint
 class WidgetConfigActivity : AppCompatActivity() {
 
@@ -44,10 +47,11 @@ class WidgetConfigActivity : AppCompatActivity() {
             AppWidgetManager.EXTRA_APPWIDGET_ID,
             AppWidgetManager.INVALID_APPWIDGET_ID,
         ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
-        // configuration_optional should prevent first-placement invocation on API 31+, but be
-        // safe on launchers that ignore it: returning RESULT_OK keeps the placed widget.
+        // Default to CANCELED; Save flips this to RESULT_OK below. On a launcher that ignores
+        // configuration_optional and invokes this on first placement, this makes Cancel/Back
+        // actually cancel the placement rather than confirm it.
         setResult(
-            RESULT_OK,
+            RESULT_CANCELED,
             Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId),
         )
 
@@ -59,7 +63,18 @@ class WidgetConfigActivity : AppCompatActivity() {
             // that would let Save overwrite real settings with defaults. Render nothing until
             // the persisted value resolves.
             val settings by produceState<SettingsState?>(initialValue = null) {
-                value = settingsRepository.getCurrentSettings()
+                value = try {
+                    settingsRepository.getCurrentSettings()
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (error: Exception) {
+                    // getCurrentSettings reads DataStore directly, bypassing the repository's
+                    // IOException .catch. If that read fails we cannot show the dialog seeded
+                    // with real values (and must not seed placeholders -- Save would clobber
+                    // persisted settings), so close the window instead of stranding a blank one.
+                    finish()
+                    return@produceState
+                }
             }
             settings?.let { loaded ->
                 HrtTrackerTheme(
@@ -75,6 +90,10 @@ class WidgetConfigActivity : AppCompatActivity() {
                             backgroundAlpha = loaded.widgetBackgroundAlpha,
                             darkModeOption = loaded.widgetDarkModeOption,
                             onAppearanceChange = { scale, alpha, darkMode ->
+                                setResult(
+                                    RESULT_OK,
+                                    Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId),
+                                )
                                 appScope.launch {
                                     settingsRepository.setWidgetAppearance(scale, alpha, darkMode)
                                 }
