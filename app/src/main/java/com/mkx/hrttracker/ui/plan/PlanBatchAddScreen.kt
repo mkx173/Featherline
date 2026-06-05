@@ -386,11 +386,23 @@ private fun PlanBatchAddRangeSelector(
     onConfirmClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val rangeEnabled = hasSelectedGroup && !selectedGroupStartsInFuture
+    // Drive the chevron fade from this stable scope rather than the row's
+    // trailing slot: SegmentedListItem re-composes that slot as it toggles
+    // `enabled`, which would defer the animation's first frame (a visible lag).
+    val chevronTint by animateColorAsState(
+        targetValue = if (rangeEnabled) {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+            Color.Transparent
+        },
+        animationSpec = tween(durationMillis = 75),
+        label = "planBatchRangeChevron",
+    )
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
     ) {
-        val rangeEnabled = hasSelectedGroup && !selectedGroupStartsInFuture
         HrtSection(title = stringResource(R.string.plan_batch_add_range_title)) {
             item {
                 PreferenceSegmentedListItem(
@@ -420,17 +432,8 @@ private fun PlanBatchAddRangeSelector(
                         )
                     },
                     trailingContent = {
-                        // Fade the chevron with the same 75ms tween the regimen
-                        // group card uses for its selection check.
-                        val chevronTint by animateColorAsState(
-                            targetValue = if (rangeEnabled) {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            } else {
-                                Color.Transparent
-                            },
-                            animationSpec = tween(durationMillis = 75),
-                            label = "planBatchRangeChevron",
-                        )
+                        // Same 75ms tween the regimen group card uses for its
+                        // selection check; computed above so it isn't reset.
                         Icon(
                             imageVector = Icons.Rounded.ChevronRight,
                             contentDescription = null,
@@ -469,11 +472,6 @@ private fun PlanBatchAddRangeSelector(
                                 )
                             } else {
                                 entriesToAddLabel
-                            },
-                            supportingText = if (manualEntryCount > 0) {
-                                stringResource(R.string.plan_batch_add_manual_before_start_note)
-                            } else {
-                                null
                             },
                             painter = painterResource(R.drawable.ic_data_info_alert),
                             leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
