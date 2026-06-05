@@ -442,52 +442,51 @@ private fun PlanBatchAddRangeSelector(
                     },
                 )
             }
-            if (rangeEnabled) {
-                if (entryCount > 0 || skippedEntryCount > 0) {
-                    item {
-                        val entriesToAddLabel = if (entryCount > 0) {
+            // One entry-summary row that animates in/out with the selection,
+            // its text covering all cases (records to add, skipped-only, none).
+            animatedItem(visible = rangeEnabled) {
+                val liveMessage = if (entryCount > 0 || skippedEntryCount > 0) {
+                    val entriesToAddLabel = if (entryCount > 0) {
+                        pluralStringResource(
+                            R.plurals.plan_batch_add_entries_to_add,
+                            entryCount,
+                            entryCount,
+                        )
+                    } else {
+                        // entryCount == 0 but skippedEntryCount > 0 — the range
+                        // already has matching records, nothing new can be added.
+                        // Show a clearer "no new records" line beside the skipped chip.
+                        stringResource(R.string.plan_batch_add_no_new_entries)
+                    }
+                    if (skippedEntryCount > 0) {
+                        stringResource(
+                            R.string.plan_batch_add_entries_to_add_with_skipped,
+                            entriesToAddLabel,
                             pluralStringResource(
-                                R.plurals.plan_batch_add_entries_to_add,
-                                entryCount,
-                                entryCount
-                            )
-                        } else {
-                            // entryCount == 0 but skippedEntryCount > 0 — the range
-                            // already has matching records, nothing new can be added.
-                            // Avoid rendering "0 records will be added" alongside the
-                            // skipped chip; show a clearer "no new records" line.
-                            stringResource(R.string.plan_batch_add_no_new_entries)
-                        }
-                        val skippedEntriesLabel = pluralStringResource(
-                            R.plurals.plan_batch_add_entries_skipped,
-                            skippedEntryCount,
-                            skippedEntryCount
+                                R.plurals.plan_batch_add_entries_skipped,
+                                skippedEntryCount,
+                                skippedEntryCount,
+                            ),
                         )
-                        SupportMessageListItem(
-                            text = if (skippedEntryCount > 0) {
-                                stringResource(
-                                    R.string.plan_batch_add_entries_to_add_with_skipped,
-                                    entriesToAddLabel,
-                                    skippedEntriesLabel
-                                )
-                            } else {
-                                entriesToAddLabel
-                            },
-                            painter = painterResource(R.drawable.ic_data_info_alert),
-                            leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            leadingIconSize = 24.dp,
-                        )
+                    } else {
+                        entriesToAddLabel
                     }
                 } else {
-                    item {
-                        SupportMessageListItem(
-                            text = stringResource(R.string.plan_batch_add_no_entries),
-                            painter = painterResource(R.drawable.ic_data_info_alert),
-                            leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            leadingIconSize = 24.dp,
-                        )
-                    }
+                    stringResource(R.string.plan_batch_add_no_entries)
                 }
+                // Latch the message while visible so the row keeps its text through
+                // the exit collapse (entryCount drops to 0 on deselect) instead of
+                // flashing "no entries" as it shrinks.
+                var latchedMessage by remember { mutableStateOf(liveMessage) }
+                if (rangeEnabled) {
+                    latchedMessage = liveMessage
+                }
+                SupportMessageListItem(
+                    text = latchedMessage,
+                    painter = painterResource(R.drawable.ic_data_info_alert),
+                    leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    leadingIconSize = 24.dp,
+                )
             }
         }
 
@@ -564,7 +563,7 @@ private fun PlanBatchAddStockSection(
                                 afterStock = item.afterStock,
                                 stockState = item.stockState,
                                 runway = item.runway,
-                                modifier = Modifier.padding(bottom = 8.dp)
+                                modifier = Modifier.padding(bottom = 6.dp)
                             )
                         },
                     )
