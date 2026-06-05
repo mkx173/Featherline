@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for Android 8.0 (Oreo) and later.
 - Optional stock deduction when batch-adding backfilled doses, with a per-medicine before/after preview.
 - The blood-test result editor now keeps an in-progress entry if the app is killed in the background.
+- The home-screen widget's appearance can now be adjusted from the launcher's long-press reconfigure menu (Android 12+), not just in Settings.
 
 ### Changed
 
@@ -48,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Batch-add no longer shows an inverted range for a not-yet-started plan, and the range stays correct across a date rollover.
 - The medication-group editor now restores the group you were editing after the app is killed, instead of an archived original.
 - Batch-add now keeps your selection when a save fails, instead of discarding it.
+- The home-screen widget no longer renders its content too small on some devices and launchers.
+- The widget content-scale and opacity sliders now save the exact percentage shown.
 
 ## [1.0.3] - 2026-05-31
 

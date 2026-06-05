@@ -86,21 +86,23 @@ class HrtWidgetScaleTest {
     }
 
     @Test
-    fun firstUpdateBatch_locksBaselineToTallestSizeComposition() {
-        // SizeMode.Exact composes the widget once per size (portrait + landscape) in a
-        // single update; every composition reads storedDp before any persists, so the
-        // persists must merge by max. Otherwise whichever composition's SideEffect runs
-        // last wins — and the short landscape composition makes the widget render tiny.
-        val portraitShort = 225f
-        val portraitTall = 226f
-        val landscape = 112f
-        var stored = 0f
-        for (height in listOf(portraitShort, portraitTall, landscape)) {
-            // Each composition in the batch reads the same storedDp = 0.
-            assertTrue(shouldPersistWidgetBaselineHeight(storedDp = 0f, currentHeightDp = height))
-            // Their SideEffects then run in order, each merging into the stored value.
-            stored = mergeWidgetBaselineHeightDp(existingDp = stored, currentHeightDp = height)
-        }
-        assertEquals(portraitTall, stored)
+    fun resolveWidgetBaselineHeightDp_fallsBackToReferenceWhenPortraitHeightUnavailable() {
+        // When the launcher never reports a usable OPTION_APPWIDGET_MAX_HEIGHT, widgetScale
+        // passes 0f (null height) here; an oversized cell passes a height above the sane
+        // range. Both must resolve to the reference so the widget renders at scale 1.0 rather
+        // than capturing nonsense — the guard for the >400dp / option-not-reported cases.
+        assertEquals(276f, resolveWidgetBaselineHeightDp(storedDp = 0f, currentHeightDp = 0f))
+        assertEquals(276f, resolveWidgetBaselineHeightDp(storedDp = 0f, currentHeightDp = 999f))
+    }
+
+    @Test
+    fun widgetScale_fallsBackToUnitScaleWhenPortraitHeightUnavailable() {
+        // End-to-end of the fallback: an unavailable/oversized portrait height resolves to the
+        // reference, whose baseline ratio is exactly 1.0 — so an unscalable cell renders at the
+        // design size, not collapsed or oversized.
+        val unavailable = resolveWidgetBaselineHeightDp(storedDp = 0f, currentHeightDp = 0f)
+        val oversized = resolveWidgetBaselineHeightDp(storedDp = 0f, currentHeightDp = 999f)
+        assertEquals(1f, widgetBaselineScaleRatio(unavailable), 1e-6f)
+        assertEquals(1f, widgetBaselineScaleRatio(oversized), 1e-6f)
     }
 }

@@ -600,16 +600,21 @@ fun SettingsScreen(
     }
 }
 
+// Snap a slider value to whole-percent steps so the value that gets saved matches the
+// "NN%" label shown next to the slider (e.g. 1.0455 → 1.05, displayed as 105%). Without
+// this the slider saves its raw continuous position while the label rounds for display.
+private fun snapToWholePercent(value: Float): Float = (value * 100).roundToInt() / 100f
+
 @Composable
-private fun WidgetAppearanceDialog(
+internal fun WidgetAppearanceDialog(
     contentScale: Float,
     backgroundAlpha: Float,
     darkModeOption: DarkModeOption,
     onAppearanceChange: (Float, Float, DarkModeOption) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var localContentScale by remember { mutableStateOf(contentScale.coerceIn(0.5f, 1.5f)) }
-    var localBackgroundAlpha by remember { mutableStateOf(backgroundAlpha.coerceIn(0.5f, 1f)) }
+    var localContentScale by remember { mutableStateOf(snapToWholePercent(contentScale.coerceIn(0.5f, 1.5f))) }
+    var localBackgroundAlpha by remember { mutableStateOf(snapToWholePercent(backgroundAlpha.coerceIn(0.5f, 1f))) }
     var localDarkModeOption by remember { mutableStateOf(darkModeOption) }
     var isDarkModeMenuExpanded by remember { mutableStateOf(false) }
     AlertDialog(
@@ -634,7 +639,7 @@ private fun WidgetAppearanceDialog(
                     }
                     Slider(
                         value = localContentScale,
-                        onValueChange = { localContentScale = it },
+                        onValueChange = { localContentScale = snapToWholePercent(it) },
                         valueRange = 0.5f..1.5f,
                     )
                 }
@@ -655,7 +660,7 @@ private fun WidgetAppearanceDialog(
                     }
                     Slider(
                         value = localBackgroundAlpha,
-                        onValueChange = { localBackgroundAlpha = it },
+                        onValueChange = { localBackgroundAlpha = snapToWholePercent(it) },
                         valueRange = 0.5f..1f,
                     )
                 }
