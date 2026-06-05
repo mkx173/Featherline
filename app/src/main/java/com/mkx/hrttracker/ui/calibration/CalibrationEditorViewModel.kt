@@ -20,10 +20,15 @@ import com.mkx.hrttracker.model.settings.calibrationDefaultUnitFor
 import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.formatCalibrationNumericValue
 import com.mkx.hrttracker.util.zoneDisplayName
+import com.squareup.moshi.JsonClass
+import com.squareup.moshi.Moshi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNot
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -55,6 +60,9 @@ class CalibrationEditorViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+    private val savedStateHandle: SavedStateHandle = savedStateHandle
+    private val draftSnapshotAdapter =
+        Moshi.Builder().build().adapter(CalibrationEditorDraftSnapshot::class.java)
     private val editingPanelUuid = savedStateHandle.get<String>(PANEL_ID_ARG)?.let { panelId ->
         runCatching { UUID.fromString(panelId) }.getOrNull()
     }
@@ -62,8 +70,39 @@ class CalibrationEditorViewModel @Inject constructor(
     private var latestSettingsState = settingsRepository.settingsState.value
     private val cachedCustomAnalytes = bloodTestRepository.getCachedActiveCustomAnalytes()
     private val cachedEditingPanel = editingPanelUuid?.let(bloodTestRepository::getCachedPanel)
-    private val _uiState = MutableStateFlow(
-        cachedEditingPanel?.toEditorState()?.copy(
+    // The calibration form is almost entirely external input, so its in-progress
+    // draft is persisted across process death — the one editor exempt from the
+    // "input loss is acceptable" rule.
+    private val restoredDraftSnapshot: CalibrationEditorDraftSnapshot? =
+        savedStateHandle.get<String>(DRAFT_SNAPSHOT_KEY)?.let { json ->
+            runCatching { draftSnapshotAdapter.fromJson(json) }.getOrNull()
+        }
+    private val _uiState = MutableStateFlow(buildInitialEditorState())
+    val uiState: StateFlow<CalibrationEditorUiState> = _uiState.asStateFlow()
+
+    init {
+        observeCalibrationDefaultUnits()
+        persistDraftSnapshotAcrossProcessDeath()
+        if (cachedCustomAnalytes == null) {
+            refreshAvailableCustomAnalytes()
+        }
+        if (restoredDraftSnapshot != null) {
+            // The restored draft is the source of truth for the form, so don't reload
+            // the panel over the user's in-progress edits. The elapsed-dose readout is
+            // derived, so recompute it from the restored collected date/time.
+            refreshTimeSinceLastEstradiolDose()
+        } else {
+            if (editingPanelUuid == null) {
+                refreshTimeSinceLastEstradiolDose()
+            }
+            if (cachedEditingPanel == null) {
+                editingPanelUuid?.let(::loadPanelForEditing)
+            }
+        }
+    }
+
+    private fun buildInitialEditorState(): CalibrationEditorUiState {
+        val baseState = cachedEditingPanel?.toEditorState()?.copy(
             customAnalytes = cachedCustomAnalytes.orEmpty(),
         ) ?: run {
             val collectedDate = LocalDate.now(defaultZoneId)
@@ -90,19 +129,18 @@ class CalibrationEditorViewModel @Inject constructor(
                 hideReferenceRanges = latestSettingsState.hideReferenceRanges,
             )
         }
-    )
-    val uiState: StateFlow<CalibrationEditorUiState> = _uiState.asStateFlow()
+        return restoredDraftSnapshot?.applyTo(baseState, latestSettingsState) ?: baseState
+    }
 
-    init {
-        observeCalibrationDefaultUnits()
-        if (cachedCustomAnalytes == null) {
-            refreshAvailableCustomAnalytes()
-        }
-        if (editingPanelUuid == null) {
-            refreshTimeSinceLastEstradiolDose()
-        }
-        if (cachedEditingPanel == null) {
-            editingPanelUuid?.let(::loadPanelForEditing)
+    private fun persistDraftSnapshotAcrossProcessDeath() {
+        viewModelScope.launch {
+            _uiState
+                .filterNot { state -> state.isLoading }
+                .map { state -> state.toDraftSnapshot() }
+                .distinctUntilChanged()
+                .collect { snapshot ->
+                    savedStateHandle[DRAFT_SNAPSHOT_KEY] = draftSnapshotAdapter.toJson(snapshot)
+                }
         }
     }
 
@@ -544,6 +582,7 @@ class CalibrationEditorViewModel @Inject constructor(
 
     companion object {
         const val PANEL_ID_ARG = "panelId"
+        private const val DRAFT_SNAPSHOT_KEY = "calibrationDraft"
     }
 }
 
@@ -686,4 +725,88 @@ private fun CalibrationEditorUiState.toCollectedAtInstant(zoneId: ZoneId): Insta
     return LocalDateTime.of(collectedDate, collectedTime)
         .atZone(zoneId)
         .toInstant()
+}
+
+// Process-death snapshot of the calibration form's user input. Stored as JSON in
+// SavedStateHandle using primitive encodings (epoch day/second, storage values, uuid
+// strings) so it survives without parcelization. Derived fields (default unit,
+// elapsed-dose readout, validation flags, the custom-analyte catalog) are recomputed.
+@JsonClass(generateAdapter = true)
+internal data class CalibrationEditorDraftSnapshot(
+    val collectedDateEpochDay: Long,
+    val collectedTimeSecondOfDay: Int,
+    val collectedZoneId: String,
+    val notes: String,
+    val drafts: List<CalibrationResultDraftSnapshot>,
+)
+
+@JsonClass(generateAdapter = true)
+internal data class CalibrationResultDraftSnapshot(
+    val analyteKey: String? = null,
+    val customAnalyteUuid: String? = null,
+    val customAnalyteAbbreviation: String? = null,
+    val customAnalyteName: String? = null,
+    val customUnitLabel: String? = null,
+    val resultUuid: String? = null,
+    val valueText: String = "",
+    val unit: String? = null,
+    val originalUnit: String? = null,
+    val isUnitUserSelected: Boolean = false,
+)
+
+internal fun CalibrationEditorUiState.toDraftSnapshot(): CalibrationEditorDraftSnapshot {
+    return CalibrationEditorDraftSnapshot(
+        collectedDateEpochDay = collectedDate.toEpochDay(),
+        collectedTimeSecondOfDay = collectedTime.toSecondOfDay(),
+        collectedZoneId = collectedZoneId.id,
+        notes = notes,
+        drafts = drafts.map { draft ->
+            CalibrationResultDraftSnapshot(
+                analyteKey = draft.analyteKey?.storageValue,
+                customAnalyteUuid = draft.customAnalyteUuid?.toString(),
+                customAnalyteAbbreviation = draft.customAnalyteAbbreviation,
+                customAnalyteName = draft.customAnalyteName,
+                customUnitLabel = draft.customUnitLabel,
+                resultUuid = draft.resultUuid?.toString(),
+                valueText = draft.valueText,
+                unit = draft.unit?.storageValue,
+                originalUnit = draft.originalUnit?.storageValue,
+                isUnitUserSelected = draft.isUnitUserSelected,
+            )
+        },
+    )
+}
+
+internal fun CalibrationEditorDraftSnapshot.applyTo(
+    base: CalibrationEditorUiState,
+    settingsState: SettingsState,
+): CalibrationEditorUiState {
+    return base.copy(
+        isLoading = false,
+        collectedDate = LocalDate.ofEpochDay(collectedDateEpochDay),
+        collectedTime = LocalTime.ofSecondOfDay(collectedTimeSecondOfDay.toLong()),
+        collectedZoneId = runCatching { ZoneId.of(collectedZoneId) }
+            .getOrDefault(base.collectedZoneId),
+        notes = notes,
+        drafts = drafts.map { draft -> draft.toDraftUiState(settingsState) },
+    )
+}
+
+private fun CalibrationResultDraftSnapshot.toDraftUiState(
+    settingsState: SettingsState,
+): CalibrationResultDraftUiState {
+    val resolvedAnalyteKey = BloodAnalyteKey.fromStorageValue(analyteKey)
+    return CalibrationResultDraftUiState(
+        analyteKey = resolvedAnalyteKey,
+        customAnalyteUuid = customAnalyteUuid?.let { runCatching { UUID.fromString(it) }.getOrNull() },
+        customAnalyteAbbreviation = customAnalyteAbbreviation,
+        customAnalyteName = customAnalyteName,
+        customUnitLabel = customUnitLabel,
+        resultUuid = resultUuid?.let { runCatching { UUID.fromString(it) }.getOrNull() },
+        valueText = valueText,
+        unit = BloodUnitKey.fromStorageValue(unit),
+        defaultUnit = resolvedAnalyteKey?.let { defaultCalibrationUnitFor(it, settingsState) },
+        originalUnit = BloodUnitKey.fromStorageValue(originalUnit),
+        isUnitUserSelected = isUnitUserSelected,
+    )
 }
