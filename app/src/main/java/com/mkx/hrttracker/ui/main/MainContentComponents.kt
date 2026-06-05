@@ -2792,7 +2792,7 @@ private fun MainAntiandrogenMedicationSubCard(
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

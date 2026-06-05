@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -652,7 +653,8 @@ internal fun RegimenGroupCard(
 
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(bottom = 2.dp)
             ) {
                 group.medications.forEach { medication ->
                     val doseSummary = listOfNotNull(
