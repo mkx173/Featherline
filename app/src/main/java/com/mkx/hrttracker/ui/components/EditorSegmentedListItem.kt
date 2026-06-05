@@ -2,11 +2,9 @@ package com.mkx.hrttracker.ui.components
 
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,36 +36,35 @@ fun EditorSegmentedListItem(
     val position = currentSegmentPosition(explicitSegmentPosition(index, count))
     val taggedModifier = modifier.segmentPositionSemantics(position)
 
-    if (onClick == null) {
-        Surface(
-            modifier = taggedModifier,
-            color = containerColor,
-            shape = segmentedListItemShape(
-                index = position.index,
-                count = position.count,
-                cornerShape = cornerShape,
-            ),
-        ) {
-            ListItem(
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                leadingContent = leadingContent,
-                trailingContent = trailingContent,
-                supportingContent = supportingContent,
-                overlineContent = overlineContent,
-                headlineContent = content,
-            )
-        }
-        return
+    // A null onClick is a static, non-interactive row. Route it through the same
+    // SegmentedListItem as clickable rows — but disabled, so it never ripples —
+    // with its disabled colors pinned to the enabled defaults so it keeps
+    // full-strength colors. Using one composable for both keeps static and
+    // clickable rows the same height and avoids resetting animated slot content
+    // (e.g. a fading trailing icon) when a row toggles between the two.
+    val isClickable = onClick != null
+    val colors = if (isClickable) {
+        ListItemDefaults.colors(
+            containerColor = containerColor,
+            disabledContainerColor = disabledContainerColor,
+        )
+    } else {
+        ListItemDefaults.colors(
+            containerColor = containerColor,
+            disabledContainerColor = containerColor,
+            disabledContentColor = MaterialTheme.colorScheme.onSurface,
+            disabledLeadingContentColor = MaterialTheme.colorScheme.onSurface,
+            disabledTrailingContentColor = MaterialTheme.colorScheme.onSurface,
+            disabledOverlineContentColor = MaterialTheme.colorScheme.onSurface,
+            disabledSupportingContentColor = MaterialTheme.colorScheme.onSurface,
+        )
     }
     SegmentedListItem(
         modifier = taggedModifier,
-        enabled = enabled,
-        onClick = onClick,
+        enabled = isClickable && enabled,
+        onClick = onClick ?: {},
         onLongClick = onLongClick,
-        colors = ListItemDefaults.colors(
-            containerColor = containerColor,
-            disabledContainerColor = disabledContainerColor,
-        ),
+        colors = colors,
         shapes = segmentedListItemShapes(
             index = position.index,
             count = position.count,

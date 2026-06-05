@@ -2,6 +2,8 @@ package com.mkx.hrttracker.ui.plan
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +18,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePickerDefaults
@@ -47,6 +50,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
@@ -386,40 +390,56 @@ private fun PlanBatchAddRangeSelector(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
     ) {
+        val rangeEnabled = hasSelectedGroup && !selectedGroupStartsInFuture
         HrtSection(title = stringResource(R.string.plan_batch_add_range_title)) {
-            if (!hasSelectedGroup || selectedGroupStartsInFuture) {
-                item {
-                    // A not-yet-started plan reuses the "no group selected" prompt path,
-                    // since there's no valid past range to pick for it.
-                    SupportMessageListItem(
-                        text = stringResource(
-                            if (selectedGroupStartsInFuture) {
-                                R.string.plan_batch_add_group_not_started
-                            } else {
-                                R.string.plan_batch_add_select_group_prompt
-                            }
-                        ),
-                        painter = painterResource(R.drawable.ic_info),
-                        leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                item {
-                    SupportMessageListItem(
-                        text = stringResource(R.string.plan_batch_add_date_range),
-                        supportingText = stringResource(
+            item {
+                PreferenceSegmentedListItem(
+                    title = stringResource(R.string.plan_batch_add_date_range),
+                    // The "select a group" / "not started" prompts ride on the
+                    // range row's supporting line instead of a separate item.
+                    supportingText = when {
+                        !hasSelectedGroup ->
+                            stringResource(R.string.plan_batch_add_select_group_prompt)
+                        selectedGroupStartsInFuture ->
+                            stringResource(R.string.plan_batch_add_group_not_started)
+                        else -> stringResource(
                             R.string.plan_batch_add_date_range_value,
                             dateFormatter(startDate),
                             dateFormatter(endDate),
-                        ),
-                        onClick = onDateRangeClick,
-                        modifier = Modifier.fillMaxWidth(),
-                        painter = painterResource(R.drawable.ic_date_range),
-                        leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        leadingIconSize = 24.dp,
-                        showChevron = true,
-                    )
-                }
+                        )
+                    },
+                    // Static (non-clickable) until a started group is selected.
+                    // EditorSegmentedListItem keeps a null-onClick row the same
+                    // height and full-color (no ripple), so only the chevron fades.
+                    onClick = if (rangeEnabled) onDateRangeClick else null,
+                    leadingContent = {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_date_range),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    trailingContent = {
+                        // Fade the chevron with the same 75ms tween the regimen
+                        // group card uses for its selection check.
+                        val chevronTint by animateColorAsState(
+                            targetValue = if (rangeEnabled) {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            } else {
+                                Color.Transparent
+                            },
+                            animationSpec = tween(durationMillis = 75),
+                            label = "planBatchRangeChevron",
+                        )
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = chevronTint,
+                        )
+                    },
+                )
+            }
+            if (rangeEnabled) {
                 if (entryCount > 0 || skippedEntryCount > 0) {
                     item {
                         val entriesToAddLabel = if (entryCount > 0) {
