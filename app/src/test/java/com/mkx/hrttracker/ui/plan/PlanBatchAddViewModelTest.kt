@@ -672,7 +672,10 @@ class PlanBatchAddViewModelTest {
     }
 
     @Test
-    fun buildPlanBatchAddStockPreviewItems_keepsSeparateRowsForDifferentDoseSignatures() {
+    fun buildPlanBatchAddStockPreviewItems_collapsesDoseSignaturesIntoOneCardPerMedicine() {
+        // A medicine logged with several dose signatures must surface as a single
+        // stock card whose subcard reflects the cumulative deduction of every
+        // entry — not duplicate cards each repeating the medicine's final stock.
         val medicine = estradiolMedicine().copy(
             stock = com.mkx.hrttracker.model.medication.MedicineStock(
                 trackingEnabled = true,
@@ -705,9 +708,14 @@ class PlanBatchAddViewModelTest {
             },
         )
 
+        assertEquals(1, items.size)
+        // First contributing entry is the representative shown on the card.
+        assertEquals(MedicationApplicationType.ORAL, items.single().applicationType)
+        // Both 1-tablet deductions applied: 10 - 1 - 1 = 8.
         assertEquals(
-            listOf(MedicationApplicationType.ORAL, MedicationApplicationType.SUBLINGUAL),
-            items.map(PlanBatchAddStockPreviewItem::applicationType),
+            8.0,
+            items.single().stockProjection.medicine.stock.unitsRemaining ?: error("missing stock"),
+            0.0,
         )
     }
 

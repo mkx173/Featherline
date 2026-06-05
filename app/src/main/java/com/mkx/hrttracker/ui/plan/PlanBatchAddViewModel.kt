@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -300,7 +301,7 @@ class PlanBatchAddViewModel @Inject constructor(
             val postLogStockWarning = if (isSaved && shouldDeductStock && affectedMedicineUuids.isNotEmpty()) {
                 runCatching {
                     resolvePostLogStockWarning(
-                        projections = medicineStockRepository.projectAllOnce(now = java.time.Instant.now()),
+                        projections = medicineStockRepository.projectAllOnce(now = Instant.now()),
                         affectedMedicineUuids = affectedMedicineUuids,
                     )
                 }.getOrElse { failure ->
@@ -403,20 +404,8 @@ data class PlanBatchAddStockPreviewItem(
     val stockProjection: MedicineStockProjection,
 ) {
     val key: String
-        get() = listOf(
-            medicine.uuid.toString(),
-            applicationType.name,
-            doseInstruction.toString(),
-            medicationCount.toString(),
-        ).joinToString("|")
+        get() = medicine.uuid.toString()
 }
-
-private data class PlanBatchAddStockPreviewSignature(
-    val medicineUuid: UUID,
-    val applicationType: MedicationApplicationType,
-    val doseInstruction: DoseInstruction,
-    val medicationCount: Int,
-)
 
 internal fun buildPlanBatchAddStockPreviewItems(
     entriesToAdd: List<MedicationLogEntryInput>,
@@ -427,7 +416,11 @@ internal fun buildPlanBatchAddStockPreviewItems(
 
     val projectionsByMedicineUuid = stockProjections.associateBy { projection -> projection.medicine.uuid }
     val afterStockByMedicineUuid = linkedMapOf<UUID, MedicineStock>()
-    val representativeBySignature = linkedMapOf<PlanBatchAddStockPreviewSignature, MedicationLogEntryInput>()
+    // One card per affected tracked medicine. The first contributing entry is the
+    // representative shown on the card; the stock subcard reflects the cumulative
+    // after-stock of every entry for that medicine, so a medicine with several
+    // dose signatures is not rendered as duplicate cards with identical stock.
+    val representativeByMedicineUuid = linkedMapOf<UUID, MedicationLogEntryInput>()
 
     entriesToAdd.forEach { entry ->
         val medicineUuid = entry.medicineUuid ?: return@forEach
@@ -445,21 +438,12 @@ internal fun buildPlanBatchAddStockPreviewItems(
             stock = currentStock,
             requestedDose = requestedDose,
         )
-        representativeBySignature.putIfAbsent(
-            PlanBatchAddStockPreviewSignature(
-                medicineUuid = medicineUuid,
-                applicationType = entry.applicationType,
-                doseInstruction = entry.doseInstruction,
-                medicationCount = entry.count.coerceAtLeast(1),
-            ),
-            entry,
-        )
+        representativeByMedicineUuid.putIfAbsent(medicineUuid, entry)
     }
 
-    return representativeBySignature.mapNotNull { (signature, entry) ->
-        val currentProjection = projectionsByMedicineUuid[signature.medicineUuid] ?: return@mapNotNull null
-        val medicine = currentProjection.medicine
-        val afterStock = afterStockByMedicineUuid[signature.medicineUuid] ?: return@mapNotNull null
+    return representativeByMedicineUuid.mapNotNull { (medicineUuid, entry) ->
+        val medicine = projectionsByMedicineUuid[medicineUuid]?.medicine ?: return@mapNotNull null
+        val afterStock = afterStockByMedicineUuid[medicineUuid] ?: return@mapNotNull null
         val afterProjection = projectHypotheticalStock(medicine, afterStock) ?: return@mapNotNull null
         PlanBatchAddStockPreviewItem(
             medicine = medicine,
