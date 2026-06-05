@@ -119,8 +119,8 @@
     <string name="plan_batch_add_date_range">日期范围</string>
     <string name="plan_batch_add_date_range_value">%1$s 至 %2$s</string>
     <string name="plan_batch_add_stock_title">库存</string>
-    <string name="plan_batch_add_deduct_stock">从库存扣除</string>
-    <string name="plan_batch_add_deduct_stock_none_tracked">此分组中没有药物开启库存追踪</string>
+    <string name="plan_batch_add_deduct_stock">更新库存数量</string>
+    <string name="plan_batch_add_deduct_stock_none_tracked">这个分组里没有追踪库存的药物</string>
     <string name="plan_batch_add_select_group_prompt">请先选择一个分组</string>
     <string name="plan_batch_add_group_not_started">请选择一个开始日期在过去的分组</string>
     <string name="plan_batch_add_no_entries">此范围内没有可添加的记录</string>
@@ -694,7 +694,7 @@
         <item quantity="other">要为「%2$s」在 %3$s 至 %4$s 期间添加 %1$d 条记录吗？</item>
     </plurals>
     <plurals name="plan_batch_add_deduct_stock_change_count">
-        <item quantity="other">%1$d 种药物将扣除库存</item>
+        <item quantity="other">将更新 %1$d 种药物的库存</item>
     </plurals>
     <plurals name="history_summary_logged_entries">
         <item quantity="other">条记录</item>

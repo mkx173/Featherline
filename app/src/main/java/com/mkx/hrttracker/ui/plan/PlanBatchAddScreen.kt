@@ -532,7 +532,7 @@ private fun PlanBatchAddStockSection(
                 supportingText = supportingText,
                 leadingContent = {
                     Icon(
-                        painter = painterResource(R.drawable.ic_inventory),
+                        painter = painterResource(R.drawable.ic_box_edit),
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
