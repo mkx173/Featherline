@@ -615,14 +615,13 @@ class PlanBatchAddViewModelTest {
         val items = buildPlanBatchAddStockPreviewItems(
             entriesToAdd = listOf(entry),
             stockProjections = listOf(projection),
-            projectHypotheticalStock = { _, _ -> error("untracked medicine should not project") },
         )
 
         assertEquals(emptyList<PlanBatchAddStockPreviewItem>(), items)
     }
 
     @Test
-    fun buildPlanBatchAddStockPreviewItems_appliesDeductionsPerEntryAndRecomputesProjectionState() {
+    fun buildPlanBatchAddStockPreviewItems_appliesDeductionsPerEntryIntoCumulativeAfterStock() {
         val medicine = estradiolMedicine().copy(
             stock = com.mkx.hrttracker.model.medication.MedicineStock(
                 trackingEnabled = true,
@@ -657,25 +656,20 @@ class PlanBatchAddViewModelTest {
         val items = buildPlanBatchAddStockPreviewItems(
             entriesToAdd = entries,
             stockProjections = listOf(currentProjection),
-            projectHypotheticalStock = { projectedMedicine, afterStock ->
-                currentProjection.copy(
-                    medicine = projectedMedicine.copy(stock = afterStock),
-                    totalStockUnits = afterStock.unitsRemaining ?: 0.0,
-                    state = com.mkx.hrttracker.model.medication.MedicineStockState.OUT,
-                )
-            },
         )
 
         assertEquals(1, items.size)
-        assertEquals(com.mkx.hrttracker.model.medication.MedicineStockState.OUT, items.single().stockProjection.state)
-        assertEquals(0.0, items.single().stockProjection.medicine.stock.unitsRemaining ?: error("missing stock"), 0.0)
+        // before stock is the medicine's current stock; afterStock is cumulative.
+        assertEquals(2.0, items.single().medicine.stock.unitsRemaining ?: error("missing before"), 0.0)
+        // Both 1-tablet deductions applied to one medicine: 2 - 1 - 1 = 0.
+        assertEquals(0.0, items.single().afterStock.unitsRemaining ?: error("missing after"), 0.0)
     }
 
     @Test
     fun buildPlanBatchAddStockPreviewItems_collapsesDoseSignaturesIntoOneCardPerMedicine() {
         // A medicine logged with several dose signatures must surface as a single
-        // stock card whose subcard reflects the cumulative deduction of every
-        // entry — not duplicate cards each repeating the medicine's final stock.
+        // card whose after-stock reflects the cumulative deduction of every entry
+        // — not duplicate cards each repeating the medicine's final stock.
         val medicine = estradiolMedicine().copy(
             stock = com.mkx.hrttracker.model.medication.MedicineStock(
                 trackingEnabled = true,
@@ -703,9 +697,6 @@ class PlanBatchAddViewModelTest {
         val items = buildPlanBatchAddStockPreviewItems(
             entriesToAdd = listOf(tabletEntry, sublingualEntry),
             stockProjections = listOf(currentProjection),
-            projectHypotheticalStock = { projectedMedicine, afterStock ->
-                currentProjection.copy(medicine = projectedMedicine.copy(stock = afterStock))
-            },
         )
 
         assertEquals(1, items.size)
@@ -714,7 +705,7 @@ class PlanBatchAddViewModelTest {
         // Both 1-tablet deductions applied: 10 - 1 - 1 = 8.
         assertEquals(
             8.0,
-            items.single().stockProjection.medicine.stock.unitsRemaining ?: error("missing stock"),
+            items.single().afterStock.unitsRemaining ?: error("missing stock"),
             0.0,
         )
     }

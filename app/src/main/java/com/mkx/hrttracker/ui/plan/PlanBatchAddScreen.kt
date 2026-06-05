@@ -66,7 +66,7 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtSection
-import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
+import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
@@ -500,6 +500,13 @@ private fun PlanBatchAddStockSection(
             PreferenceSegmentedListItem(
                 title = stringResource(R.string.plan_batch_add_deduct_stock),
                 supportingText = supportingText,
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_inventory),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
                 onClick = { onDeductStockChange(!deductStock) },
                 trailingContent = {
                     Switch(
@@ -512,15 +519,21 @@ private fun PlanBatchAddStockSection(
         previewItems.forEach { item ->
             animatedItem(visible = deductStock) {
                 key(item.key) {
-                    MedicationCardWithStockSubcard(
+                    MedicationCard(
                         medicine = item.medicine,
                         doseInstruction = item.doseInstruction,
                         applicationType = item.applicationType,
                         medicationCount = item.medicationCount,
                         groupColorKey = groupColorKey,
-                        stockProjection = item.stockProjection,
-                        stockSubcardContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                         enabled = false,
+                        embeddedContent = {
+                            PlanBatchAddStockPreviewSubcard(
+                                preparation = item.medicine.preparation,
+                                beforeStock = item.medicine.stock,
+                                afterStock = item.afterStock,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        },
                     )
                 }
             }

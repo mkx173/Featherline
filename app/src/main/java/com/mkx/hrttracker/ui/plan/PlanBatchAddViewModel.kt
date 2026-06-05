@@ -149,7 +149,6 @@ class PlanBatchAddViewModel @Inject constructor(
             stockPreviewItems = buildPlanBatchAddStockPreviewItems(
                 entriesToAdd = entryPlan.entries,
                 stockProjections = projections,
-                projectHypotheticalStock = medicineStockRepository::projectHypotheticalStock,
             ),
             isSaving = selection.isSaving,
             isSaved = selection.isSaved,
@@ -414,7 +413,9 @@ data class PlanBatchAddStockPreviewItem(
     val applicationType: MedicationApplicationType,
     val doseInstruction: DoseInstruction,
     val medicationCount: Int,
-    val stockProjection: MedicineStockProjection,
+    // Stock after applying every entry's deduction via the shared deduction
+    // helper. medicine.stock is the "before" value; this is the "after".
+    val afterStock: MedicineStock,
 ) {
     val key: String
         get() = medicine.uuid.toString()
@@ -423,7 +424,6 @@ data class PlanBatchAddStockPreviewItem(
 internal fun buildPlanBatchAddStockPreviewItems(
     entriesToAdd: List<MedicationLogEntryInput>,
     stockProjections: List<MedicineStockProjection>,
-    projectHypotheticalStock: (Medicine, MedicineStock) -> MedicineStockProjection?,
 ): List<PlanBatchAddStockPreviewItem> {
     if (entriesToAdd.isEmpty() || stockProjections.isEmpty()) return emptyList()
 
@@ -457,13 +457,12 @@ internal fun buildPlanBatchAddStockPreviewItems(
     return representativeByMedicineUuid.mapNotNull { (medicineUuid, entry) ->
         val medicine = projectionsByMedicineUuid[medicineUuid]?.medicine ?: return@mapNotNull null
         val afterStock = afterStockByMedicineUuid[medicineUuid] ?: return@mapNotNull null
-        val afterProjection = projectHypotheticalStock(medicine, afterStock) ?: return@mapNotNull null
         PlanBatchAddStockPreviewItem(
             medicine = medicine,
             applicationType = entry.applicationType,
             doseInstruction = entry.doseInstruction,
             medicationCount = entry.count.coerceAtLeast(1),
-            stockProjection = afterProjection,
+            afterStock = afterStock,
         )
     }
 }
