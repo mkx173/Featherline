@@ -456,7 +456,10 @@ class MedicineRepositoryTest {
     }
 
     @Test
-    fun updatePreparation_trackingOn_clearsStockBeforePrepUpdate() = runTest {
+    fun updatePreparation_trackingOn_changedPreparation_preservesStock() = runTest {
+        // Editing only the numeric preparation fields (2 mg → 4 mg tablets)
+        // keeps the physical tablet count valid: tracking must stay on and the
+        // stock must not be wiped — the prep fields are rewritten in place.
         val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
         val existing = medicineEntity(uuid = uuid.toString()).copy(trackingEnabled = true)
         stubUnitMutation()
@@ -470,8 +473,10 @@ class MedicineRepositoryTest {
             now = Instant.parse("2026-05-22T00:00:00Z"),
         )
 
-        coVerifyOrder {
-            stockMutator.clearStockOnPreparationEdit(database, uuid, any())
+        coVerify(exactly = 0) {
+            stockMutator.clearStockOnPreparationEdit(any(), any(), any())
+        }
+        coVerify(exactly = 1) {
             dao.updatePreparationFields(
                 uuid.toString(),
                 any(),
@@ -488,6 +493,31 @@ class MedicineRepositoryTest {
                 any(),
                 any(),
             )
+        }
+    }
+
+    @Test
+    fun updatePreparation_trackingOn_unchangedPreparation_doesNotClearStock() = runTest {
+        // A display-name-only edit routes through the merged editor, which (when
+        // the medicine is unlocked) still hands updatePreparation the existing,
+        // untouched preparation. Re-saving the same preparation must not wipe
+        // stock — otherwise renaming a tracked medicine silently disables
+        // tracking. The default entity is Pill(2.0); we re-submit the same.
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val existing = medicineEntity(uuid = uuid.toString()).copy(trackingEnabled = true)
+        stubUnitMutation()
+        coEvery { dao.getByUuid(uuid.toString()) } returns existing
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 0
+        coEvery { dao.getByIdentityKey(any()) } returns null
+
+        repository.updatePreparation(
+            uuid = uuid,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+            now = Instant.parse("2026-05-22T00:00:00Z"),
+        )
+
+        coVerify(exactly = 0) {
+            stockMutator.clearStockOnPreparationEdit(any(), any(), any())
         }
     }
 

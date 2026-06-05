@@ -384,13 +384,15 @@ class MedicineRepository @Inject internal constructor(
                 if (collision != null && collision.uuid != existing.uuid) {
                     throw MedicineIdentityCollisionException(newIdentityKey)
                 }
-                if (existing.trackingEnabled) {
-                    stockMutator.clearStockOnPreparationEdit(
-                        database = database,
-                        medicineUuid = uuid,
-                        now = now,
-                    )
-                }
+                // A preparation edit must NOT touch stock. The editor only lets
+                // the user adjust the numeric fields of the existing preparation
+                // (it can't switch preparation *type*), so the physical
+                // inventory — N tablets, N vials + open mL, N patches, open
+                // grams — stays valid; only the derived dose math / runway
+                // recomputes. Clearing here would silently disable tracking,
+                // which bit display-name-only saves: the merged editor commits
+                // the untouched preparation alongside the new name, and on an
+                // unlocked medicine that round-trip used to wipe stock.
                 val storageFields = preparation.toStorageFields()
                 // Reuse the existing column value when the caller passed null,
                 // so a partial update (preparation only, no unit change) is a
