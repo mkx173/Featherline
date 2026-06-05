@@ -77,6 +77,10 @@ class CalibrationEditorViewModel @Inject constructor(
         savedStateHandle.get<String>(DRAFT_SNAPSHOT_KEY)?.let { json ->
             runCatching { draftSnapshotAdapter.fromJson(json) }.getOrNull()
         }
+    // Once a save/delete succeeds the editor navigates away, so persistence stops and the
+    // stored snapshot is cleared: otherwise a process death in the post-save window would
+    // restore the committed entry as a new unsaved draft and duplicate it on re-save.
+    private var draftPersistenceFinished = false
     private val _uiState = MutableStateFlow(buildInitialEditorState())
     val uiState: StateFlow<CalibrationEditorUiState> = _uiState.asStateFlow()
 
@@ -139,9 +143,17 @@ class CalibrationEditorViewModel @Inject constructor(
                 .map { state -> state.toDraftSnapshot() }
                 .distinctUntilChanged()
                 .collect { snapshot ->
-                    savedStateHandle[DRAFT_SNAPSHOT_KEY] = draftSnapshotAdapter.toJson(snapshot)
+                    if (!draftPersistenceFinished) {
+                        savedStateHandle[DRAFT_SNAPSHOT_KEY] = draftSnapshotAdapter.toJson(snapshot)
+                    }
                 }
         }
+    }
+
+    // Stop persisting and drop the stored snapshot once the entry is committed.
+    private fun finishDraftPersistence() {
+        draftPersistenceFinished = true
+        savedStateHandle[DRAFT_SNAPSHOT_KEY] = null
     }
 
     fun updateCollectedDate(date: LocalDate) {
@@ -310,6 +322,9 @@ class CalibrationEditorViewModel @Inject constructor(
                     now = Instant.now(),
                 )
             }.onSuccess { savedPanelUuid ->
+                // Set before the state update below so the persistence collector skips the
+                // resulting saved emission and the cleared snapshot stays cleared.
+                finishDraftPersistence()
                 val pickerOffset = latestState.collectedZoneId.rules.getOffset(collectedAt)
                 val deviceOffset = defaultZoneId.rules.getOffset(collectedAt)
                 val crossZoneText = if (pickerOffset == deviceOffset) {
@@ -358,6 +373,9 @@ class CalibrationEditorViewModel @Inject constructor(
                 onFailure = { CalibrationDeleteEntryResult.FAILURE },
             )
             val isDeleted = deleteResult == null
+            if (isDeleted) {
+                finishDraftPersistence()
+            }
 
             _uiState.update { state ->
                 state.copy(
