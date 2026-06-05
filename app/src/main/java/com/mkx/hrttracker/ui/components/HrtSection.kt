@@ -21,6 +21,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
@@ -87,9 +92,10 @@ interface HrtSectionScope {
 
     /**
      * A row that animates in/out with [visible]. Always rendered (so it can
-     * animate out), but only counted toward the segment group when visible -
-     * matching the prior resolve*SectionLayout behavior, including the brief
-     * corner-snap during the transition.
+     * animate out), but only counted toward the segment group when visible, so
+     * its siblings reflow their shapes as it appears/disappears. While it animates
+     * out it retains its last segment shape (see [HrtSection]) rather than snapping
+     * to a standalone card mid-collapse.
      */
     fun animatedItem(visible: Boolean, content: @Composable () -> Unit)
 }
@@ -156,32 +162,43 @@ fun HrtSection(
         // collapsed animatedItem leaves no double gap - its leading spacer collapses
         // together with its AnimatedVisibility content.
         scope.entries.forEachIndexed { i, entry ->
-            val position = positions[i]
-            // The leading gap belongs to the row whenever an earlier row is
-            // visible, independent of this row's own visibility. Gating it on
-            // preceding visibility (not this row's own nulled-out position) keeps
-            // the gap inside the AnimatedVisibility content so it collapses
-            // together with the row on exit, instead of vanishing the instant
-            // the row turns invisible.
-            val hasLeadingGap = visibilities.take(i).any { it }
-            val body: @Composable () -> Unit = {
-                CompositionLocalProvider(LocalSegmentPosition provides position) {
-                    Column {
-                        if (hasLeadingGap) {
-                            Spacer(modifier = Modifier.height(gap))
+            key(i) {
+                // An animating-out row stops being counted, so its own position
+                // would drop to null (a standalone, fully-rounded card) and its
+                // corners would morph mid-collapse. Latch the last counted position
+                // so the leaving row keeps its shape; siblings still reflow off the
+                // live count.
+                val rawPosition = positions[i]
+                var lastPosition by remember { mutableStateOf(rawPosition) }
+                if (rawPosition != null) lastPosition = rawPosition
+                val position = rawPosition ?: lastPosition
+
+                // The leading gap belongs to the row whenever an earlier row is
+                // visible, independent of this row's own visibility. Gating it on
+                // preceding visibility (not this row's own nulled-out position) keeps
+                // the gap inside the AnimatedVisibility content so it collapses
+                // together with the row on exit, instead of vanishing the instant
+                // the row turns invisible.
+                val hasLeadingGap = visibilities.take(i).any { it }
+                val body: @Composable () -> Unit = {
+                    CompositionLocalProvider(LocalSegmentPosition provides position) {
+                        Column {
+                            if (hasLeadingGap) {
+                                Spacer(modifier = Modifier.height(gap))
+                            }
+                            entry.content()
                         }
-                        entry.content()
                     }
                 }
-            }
-            if (entry.animated) {
-                AnimatedVisibility(
-                    visible = entry.visible,
-                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
-                ) { body() }
-            } else {
-                body()
+                if (entry.animated) {
+                    AnimatedVisibility(
+                        visible = entry.visible,
+                        enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                        exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                    ) { body() }
+                } else {
+                    body()
+                }
             }
         }
     }
