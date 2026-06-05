@@ -101,7 +101,7 @@ the IV length, the IV, and then the ciphertext. A
 rather than crashing the launcher.
 
 Wire-format compatibility is gated by `WIDGET_SNAPSHOT_SCHEMA_VERSION`
-(currently `12`). `observeSnapshot()` and `readSnapshot()` both filter
+(currently `13`). `observeSnapshot()` and `readSnapshot()` both filter
 records whose `schemaVersion` doesn't match and log a diagnostic — the
 widget then falls back to its empty-setup composable rather than
 rendering against an obsolete shape.
@@ -157,25 +157,27 @@ launcher. To keep the visual scale stable across devices and resizes,
 `widgetScale(widgetKey)` in
 [`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt)
 captures a device baseline on the widget's first update and reuses it
-forever. `SizeMode.Exact` composes the widget once *per size* —
-portrait and landscape — in a single update, so the baseline is the
-*tallest* sane height of that first batch: each composition reads the
-baseline before any persists, so the persists merge by max
-(`mergeWidgetBaselineHeightDp`) rather than letting the short landscape
-composition win the race. It is stored in the `hrt_widget_baseline`
-SharedPreferences (`medium_height_dp_v2` / `large_height_dp_v2` — the
-`_v2` suffix is bumped when the capture logic changes so stale
-baselines are dropped). Every later render returns `(baselineDp /
-WIDGET_BASELINE_REFERENCE_DP) * LocalWidgetScale.current` — so resize
-shrinks the underlying cell but not the rendered scale. `WidgetShell`
-republishes the resulting value through `LocalWidgetScale` so every
-child composable picks it up.
+forever. The baseline is the launcher's **portrait** target-cell
+height, read straight from `OPTION_APPWIDGET_MAX_HEIGHT`
+(`portraitBaselineHeightDp`) and threaded in through
+`LocalDeviceBaselineHeight` — the same value on every `SizeMode.Exact`
+pass, so capture does not depend on whether the portrait or landscape
+composition runs (and persists) first. It is stored in the
+`hrt_widget_baseline` SharedPreferences (`medium_height_dp_v3` /
+`large_height_dp_v3` — the suffix is bumped when the capture logic
+changes so stale baselines are dropped). Every later render returns
+`(baselineDp / WIDGET_BASELINE_REFERENCE_DP) * LocalWidgetScale.current`
+— so resize shrinks the underlying cell but not the rendered scale.
+`WidgetShell` republishes the resulting value through `LocalWidgetScale`
+so every child composable picks it up.
 
-Heights outside `[50, 400]` dp are treated as transient (e.g. 0dp
-loading frames) and *not* persisted; the render falls back to
-`WIDGET_BASELINE_REFERENCE_DP = 276f` until a sane size shows up.
-During launcher-picker previews, `LocalPreviewBaselineHeight` is
-provided in `HrtPreviewContent` and short-circuits this whole path.
+The baseline is only captured once the launcher reports options; until
+then — and for heights outside `[50, 400]` dp (e.g. 0dp loading frames)
+— nothing is persisted and the render falls back to
+`WIDGET_BASELINE_REFERENCE_DP = 276f`, so a transient frame can't lock a
+wrong baseline. During launcher-picker previews,
+`LocalPreviewBaselineHeight` is provided in `HrtPreviewContent` and
+short-circuits this whole path.
 
 ## Launcher preview
 
@@ -214,6 +216,25 @@ The Compose preview path also drives `@GlancePreview`-annotated
 composables in `HrtWidget.kt` (`MediumWidgetPreview`,
 `LargeWidgetPreview`) so the preview matches what the picker renders
 at design time.
+
+## Reconfigure
+
+On API 31+ both providers add `android:configure` plus
+`android:widgetFeatures="reconfigurable|configuration_optional"` in their
+`xml-v31/` provider info, so the launcher's long-press menu offers a
+reconfigure affordance (the base `xml/` variant omits this, so older
+launchers have no entry). It launches
+[`WidgetConfigActivity`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigActivity.kt),
+a translucent activity that hosts the shared `WidgetAppearanceDialog`
+(content scale, background opacity, dark-mode) over the home screen.
+Widget appearance is **global**, not per-widget, so the `appWidgetId` is
+ignored apart from returning `RESULT_OK` (kept for launchers that invoke
+the activity on first placement despite `configuration_optional`). The
+activity reads the **persisted** settings via
+`settingsRepository.getCurrentSettings()` — not the eager `settingsState`
+placeholder, whose pre-DataStore defaults would let a cold-start Save
+overwrite real settings — and writes through `@AppScope` so the persist
+outlives the dialog's synchronous Save→`finish()`.
 
 ## Update triggers
 
@@ -345,7 +366,7 @@ in-app log, and the callback then shows the same worst-severity
 low-stock toast as the notification "Log all" action (see
 [reminders.md](reminders.md#notify)). The widget snapshot itself carries
 no stock data — `WidgetSnapshotRecord` is unchanged and
-`WIDGET_SNAPSHOT_SCHEMA_VERSION` stays `12`; low-stock state surfaces in
+`WIDGET_SNAPSHOT_SCHEMA_VERSION` stays `13`; low-stock state surfaces in
 the app (home section + toasts), not on the widget.
 
 ### Archived-group doses
