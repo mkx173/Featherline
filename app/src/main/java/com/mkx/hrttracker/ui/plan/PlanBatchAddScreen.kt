@@ -28,6 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -39,8 +40,10 @@ import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,11 +59,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
+import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -78,10 +85,18 @@ import java.util.UUID
 @Composable
 fun PlanBatchAddScreen(
     onNavigateBack: () -> Unit,
+    onStockWarning: (PostLogStockWarning) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlanBatchAddViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val latestOnStockWarning by rememberUpdatedState(onStockWarning)
+
+    LaunchedEffect(viewModel) {
+        viewModel.stockWarnings.collect { warning ->
+            latestOnStockWarning(warning)
+        }
+    }
 
     PlanBatchAddScreenContent(
         uiState = uiState,
@@ -90,6 +105,7 @@ fun PlanBatchAddScreen(
         onSelectionCleared = viewModel::clearSelection,
         onStartDateSelected = viewModel::updateStartDate,
         onEndDateSelected = viewModel::updateEndDate,
+        onDeductStockChange = viewModel::setDeductStock,
         onSaveClick = viewModel::saveSelectedRange,
         onSavedStateConsumed = viewModel::consumeSavedState,
         onSaveResultConsumed = viewModel::onSaveResultConsumed,
@@ -106,6 +122,7 @@ private fun PlanBatchAddScreenContent(
     onSelectionCleared: () -> Unit,
     onStartDateSelected: (LocalDate) -> Unit,
     onEndDateSelected: (LocalDate) -> Unit,
+    onDeductStockChange: (Boolean) -> Unit,
     onSaveClick: () -> Unit,
     onSavedStateConsumed: () -> Unit,
     onSaveResultConsumed: () -> Unit,
@@ -329,6 +346,18 @@ private fun PlanBatchAddScreenContent(
                         onConfirmClick = { isConfirmationVisible = true },
                     )
                 }
+
+                item(key = "stock-section") {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    PlanBatchAddStockSection(
+                        deductStock = uiState.deductStock,
+                        enabled = uiState.selectedGroupUuid != null &&
+                            uiState.entryCount > 0 &&
+                            !uiState.isSaving,
+                        previewItems = uiState.stockPreviewItems,
+                        onDeductStockChange = onDeductStockChange,
+                    )
+                }
             }
         }
     }
@@ -447,6 +476,64 @@ private fun PlanBatchAddRangeSelector(
             icon = Icons.Rounded.Add,
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         )
+    }
+}
+
+@Composable
+private fun PlanBatchAddStockSection(
+    deductStock: Boolean,
+    enabled: Boolean,
+    previewItems: List<PlanBatchAddStockPreviewItem>,
+    onDeductStockChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var retainedPreviewItems by remember {
+        mutableStateOf(emptyList<PlanBatchAddStockPreviewItem>())
+    }
+    LaunchedEffect(previewItems) {
+        if (previewItems.isNotEmpty()) {
+            retainedPreviewItems = previewItems
+        }
+    }
+    val visiblePreviewItems = if (deductStock) previewItems else retainedPreviewItems
+
+    HrtSection(
+        title = stringResource(R.string.plan_batch_add_stock_title),
+        modifier = modifier,
+    ) {
+        item {
+            PreferenceSegmentedListItem(
+                title = stringResource(R.string.plan_batch_add_deduct_stock),
+                supportingText = stringResource(R.string.plan_batch_add_deduct_stock_supporting),
+                enabled = enabled,
+                onClick = {
+                    if (enabled) onDeductStockChange(!deductStock)
+                },
+                trailingContent = {
+                    Switch(
+                        checked = deductStock,
+                        enabled = enabled,
+                        onCheckedChange = onDeductStockChange,
+                    )
+                },
+            )
+        }
+        visiblePreviewItems.forEach { item ->
+            animatedItem(visible = deductStock) {
+                key(item.key) {
+                    MedicationCardWithStockSubcard(
+                        medicine = item.medicine,
+                        doseInstruction = item.doseInstruction,
+                        applicationType = item.applicationType,
+                        medicationCount = item.medicationCount,
+                        groupColorKey = null,
+                        stockProjection = item.stockProjection,
+                        missingGroupColorTreatment = MedicationCardMissingGroupColorTreatment.NEUTRAL_GROUP_PALETTE,
+                        enabled = false,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -601,6 +688,7 @@ private fun PlanBatchAddScreenPreview() {
             onSelectionCleared = { },
             onStartDateSelected = { },
             onEndDateSelected = { },
+            onDeductStockChange = { },
             onSaveClick = { },
             onSavedStateConsumed = { },
             onSaveResultConsumed = { },

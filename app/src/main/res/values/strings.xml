@@ -123,6 +123,9 @@
     <string name="plan_batch_add_range_title">Date range</string>
     <string name="plan_batch_add_date_range">Range</string>
     <string name="plan_batch_add_date_range_value">%1$s–%2$s</string>
+    <string name="plan_batch_add_stock_title">Stock</string>
+    <string name="plan_batch_add_deduct_stock">Deduct from stock</string>
+    <string name="plan_batch_add_deduct_stock_supporting">Use current stock counts for this backfill.</string>
     <string name="plan_batch_add_select_group_prompt">Please select a group first.</string>
     <string name="plan_batch_add_group_not_started">Please select a group with a start date in the past.</string>
     <string name="plan_batch_add_no_entries">No entries can be added in this range.</string>

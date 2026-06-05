@@ -118,6 +118,9 @@
     <string name="plan_batch_add_range_title">日期范围</string>
     <string name="plan_batch_add_date_range">日期范围</string>
     <string name="plan_batch_add_date_range_value">%1$s 至 %2$s</string>
+    <string name="plan_batch_add_stock_title">库存</string>
+    <string name="plan_batch_add_deduct_stock">从库存扣除</string>
+    <string name="plan_batch_add_deduct_stock_supporting">此次补录会使用当前库存数量</string>
     <string name="plan_batch_add_select_group_prompt">请先选择一个分组</string>
     <string name="plan_batch_add_group_not_started">请选择一个开始日期在过去的分组</string>
     <string name="plan_batch_add_no_entries">此范围内没有可添加的记录</string>
