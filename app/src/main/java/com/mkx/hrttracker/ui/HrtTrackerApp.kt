@@ -72,26 +72,11 @@ internal fun postLogStockWarningSnackbarMessage(
                 MedicineStockState.NO_RUNWAY -> unsupportedPostLogStockWarningState(warning.state)
             }
         }
-        is PostLogStockWarning.Many -> when (warning.state) {
-            MedicineStockState.OUT -> context.resources.getQuantityString(
-                R.plurals.stock_toast_out_multiple,
-                warning.count,
-                warning.count,
-            )
-            MedicineStockState.IMMINENT -> context.resources.getQuantityString(
-                R.plurals.stock_toast_imminent_multiple,
-                warning.count,
-                warning.count,
-            )
-            MedicineStockState.USER_LOW -> context.resources.getQuantityString(
-                R.plurals.stock_toast_user_low_multiple,
-                warning.count,
-                warning.count,
-            )
-            MedicineStockState.HEALTHY,
-            MedicineStockState.UNTRACKED,
-            MedicineStockState.NO_RUNWAY -> unsupportedPostLogStockWarningState(warning.state)
-        }
+        is PostLogStockWarning.Many -> context.resources.getQuantityString(
+            R.plurals.stock_toast_many_attention,
+            warning.count,
+            warning.count,
+        )
     }
 }
 

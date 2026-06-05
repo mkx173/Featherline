@@ -89,6 +89,10 @@
         <item quantity="one">%1$d medicine low on stock</item>
         <item quantity="other">%1$d medicines low on stock</item>
     </plurals>
+    <plurals name="stock_toast_many_attention">
+        <item quantity="one">Stock status of %1$d medicine needs your attention</item>
+        <item quantity="other">Stock status of %1$d medicines need your attention</item>
+    </plurals>
     <string name="stock_snackbar_action_view">View</string>
     <string name="stock_snackbar_action_dismiss">Dismiss</string>
     <string name="stock_nudge_message">Enable stock tracking for %1$s?</string>

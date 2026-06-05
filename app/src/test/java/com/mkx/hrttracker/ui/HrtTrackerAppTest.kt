@@ -60,36 +60,18 @@ class HrtTrackerAppTest {
     }
 
     @Test
-    fun postLogStockWarningSnackbarMessage_manyUsesCountPluralForWorstState() {
+    fun postLogStockWarningSnackbarMessage_manyUsesGenericAttentionPluralWithTotalCount() {
         every { context.resources } returns resources
         every {
-            resources.getQuantityString(R.plurals.stock_toast_out_multiple, 3, 3)
-        } returns "3 medicines out of stock"
-        every {
-            resources.getQuantityString(R.plurals.stock_toast_imminent_multiple, 2, 2)
-        } returns "2 medicines almost out"
-        every {
-            resources.getQuantityString(R.plurals.stock_toast_user_low_multiple, 4, 4)
-        } returns "4 medicines low on stock"
+            resources.getQuantityString(R.plurals.stock_toast_many_attention, 2, 2)
+        } returns "Stock status of 2 medicines need your attention"
 
+        // Many collapses a mixed-severity batch into one count-only line; it
+        // must not name a severity, so the worst tier is deliberately dropped.
         assertEquals(
-            "3 medicines out of stock",
+            "Stock status of 2 medicines need your attention",
             postLogStockWarningSnackbarMessage(
-                warning = PostLogStockWarning.Many(3, MedicineStockState.OUT),
-                context = context,
-            ),
-        )
-        assertEquals(
-            "2 medicines almost out",
-            postLogStockWarningSnackbarMessage(
-                warning = PostLogStockWarning.Many(2, MedicineStockState.IMMINENT),
-                context = context,
-            ),
-        )
-        assertEquals(
-            "4 medicines low on stock",
-            postLogStockWarningSnackbarMessage(
-                warning = PostLogStockWarning.Many(4, MedicineStockState.USER_LOW),
+                warning = PostLogStockWarning.Many(2),
                 context = context,
             ),
         )
@@ -119,7 +101,7 @@ class HrtTrackerAppTest {
     @Test
     fun postLogStockWarningDestination_manyRoutesToMedicinesListUnderCurrentTab() {
         val destination = postLogStockWarningDestination(
-            PostLogStockWarning.Many(2, MedicineStockState.OUT),
+            PostLogStockWarning.Many(2),
             topLevelParentRoute = Screen.Plan.route,
         )
 

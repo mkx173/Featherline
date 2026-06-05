@@ -438,20 +438,14 @@ internal suspend fun showPostLogToast(
                 }
             }
         }
-        is PostLogStockWarning.Many -> {
-            when (warning.state) {
-                MedicineStockState.OUT -> reminderNotificationManager.showStockOutCountToast(warning.count)
-                MedicineStockState.IMMINENT -> reminderNotificationManager.showStockImminentCountToast(warning.count)
-                MedicineStockState.USER_LOW -> reminderNotificationManager.showStockUserLowCountToast(warning.count)
-                else -> reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
-            }
-        }
+        is PostLogStockWarning.Many ->
+            reminderNotificationManager.showStockManyAttentionToast(warning.count)
     }
 }
 
 sealed interface PostLogStockWarning {
     data class Single(val medicine: Medicine, val state: MedicineStockState) : PostLogStockWarning
-    data class Many(val count: Int, val state: MedicineStockState) : PostLogStockWarning
+    data class Many(val count: Int) : PostLogStockWarning
 }
 
 internal fun resolvePostLogStockWarning(
@@ -466,25 +460,16 @@ internal fun resolvePostLogStockWarning(
                 it.state == MedicineStockState.USER_LOW
         }
     if (warned.isEmpty()) return null
-    val worst = warned.minBy { it.state.severityOrder() }.state
     return if (warned.size == 1) {
-        PostLogStockWarning.Single(warned.single().medicine, worst)
+        val only = warned.single()
+        PostLogStockWarning.Single(only.medicine, only.state)
     } else {
-        PostLogStockWarning.Many(warned.size, worst)
+        // Mixed severities collapse to one generic "needs attention" message
+        // (see showStockManyAttentionToast); only the total count is shown.
+        PostLogStockWarning.Many(warned.size)
     }
 }
 
 private fun Int?.orZero(): Int = this ?: 0
-
-private fun MedicineStockState.severityOrder(): Int {
-    return when (this) {
-        MedicineStockState.OUT -> 0
-        MedicineStockState.IMMINENT -> 1
-        MedicineStockState.USER_LOW -> 2
-        MedicineStockState.HEALTHY,
-        MedicineStockState.UNTRACKED,
-        MedicineStockState.NO_RUNWAY -> Int.MAX_VALUE
-    }
-}
 
 private const val TAG = "MedicationReminderActionHandler"

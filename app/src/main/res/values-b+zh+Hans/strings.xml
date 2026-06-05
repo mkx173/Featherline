@@ -84,6 +84,9 @@
     <plurals name="stock_toast_user_low_multiple">
         <item quantity="other">%1$d 种药品库存不足</item>
     </plurals>
+    <plurals name="stock_toast_many_attention">
+        <item quantity="other">%1$d 种药品的库存状态需要您留意</item>
+    </plurals>
     <string name="stock_snackbar_action_view">查看</string>
     <string name="stock_snackbar_action_dismiss">关闭</string>
     <string name="stock_nudge_message">为 %1$s 启用库存跟踪？</string>

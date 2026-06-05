@@ -316,7 +316,7 @@ class MedicationReminderActionHandlerTest {
     }
 
     @Test
-    fun logNow_twoUserLowMedicinesAfterSave_showsUserLowCountToast() = runTest {
+    fun logNow_twoUserLowMedicinesAfterSave_showsManyAttentionToast() = runTest {
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
         val firstGroup = medicationGroup(
             uuid = UUID.fromString("39c14b90-3225-4c96-8375-e509c43b7b4a"),
@@ -352,7 +352,7 @@ class MedicationReminderActionHandlerTest {
             now = scheduledAt.plusMinutes(10),
         )
 
-        verify { notificationManager.showStockUserLowCountToast(2) }
+        verify { notificationManager.showStockManyAttentionToast(2) }
         verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
     }
 
@@ -396,7 +396,7 @@ class MedicationReminderActionHandlerTest {
     }
 
     @Test
-    fun logNow_outAndUserLowAfterSave_showsOutCountToastForAllWarnedMedicines() = runTest {
+    fun logNow_outAndUserLowAfterSave_showsManyAttentionToastForAllWarnedMedicines() = runTest {
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
         val outGroup = medicationGroup(
             uuid = UUID.fromString("6747b45a-c0bb-4588-bf27-fb487df7387e"),
@@ -430,7 +430,7 @@ class MedicationReminderActionHandlerTest {
             now = scheduledAt.plusMinutes(10),
         )
 
-        verify { notificationManager.showStockOutCountToast(2) }
+        verify { notificationManager.showStockManyAttentionToast(2) }
         verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
     }
 
@@ -729,7 +729,7 @@ class MedicationReminderActionHandlerTest {
         )
 
         assertEquals(
-            PostLogStockWarning.Many(count = 2, state = MedicineStockState.OUT),
+            PostLogStockWarning.Many(count = 2),
             warning,
         )
     }

@@ -210,9 +210,12 @@ on the main looper.
 
 After a "Log all" action logs doses, `logNow` re-projects stock for the
 affected medicines and, if any landed in a warning state, shows a
-low-stock toast via the manager's `showStock{Out,Imminent,UserLow}{,Count}Toast`
-helpers (worst severity wins; a single-medicine toast names the medicine
-unless `hideMedicationDetails` is on, otherwise a count-plural toast).
+low-stock toast. A **single** warned medicine names it via
+`showStock{Out,Imminent,UserLow}Toast` (or, when `hideMedicationDetails`
+is on, the matching `…CountToast` with count 1 — severity tier, no name).
+**Multiple** warned medicines collapse to one generic
+`showStockManyAttentionToast` ("stock status of N medicines need your
+attention"); the per-medicine severities are not surfaced here.
 This is a toast only — there is **no dedicated low-stock notification
 channel**; the only channel is `dose_reminders`, and the persistent
 low-stock surface is the home `MainLowStockSection`. The widget

@@ -244,6 +244,17 @@ class ReminderNotificationManager @Inject constructor(
         )
     }
 
+    fun showStockManyAttentionToast(count: Int) {
+        diagnosticsLogger.info(TAG, "reminder_notification_stock_many_attention_toast count=$count")
+        showToast(
+            context.resources.getQuantityString(
+                R.plurals.stock_toast_many_attention,
+                count,
+                count,
+            )
+        )
+    }
+
     fun showDoseReminderNothingToAddToast() {
         diagnosticsLogger.info(TAG, "reminder_notification_nothing_to_add_toast")
         showToast(context.getString(R.string.reminder_notification_nothing_to_add))
