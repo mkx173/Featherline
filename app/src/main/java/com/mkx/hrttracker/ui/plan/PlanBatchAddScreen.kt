@@ -544,6 +544,8 @@ private fun PlanBatchAddStockSection(
                                 preparation = item.medicine.preparation,
                                 beforeStock = item.medicine.stock,
                                 afterStock = item.afterStock,
+                                stockState = item.stockState,
+                                runway = item.runway,
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
                         },

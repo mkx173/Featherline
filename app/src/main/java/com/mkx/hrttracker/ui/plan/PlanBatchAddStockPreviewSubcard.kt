@@ -3,6 +3,8 @@ package com.mkx.hrttracker.ui.plan
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -10,44 +12,98 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.stockInventoryCountText
 import com.mkx.hrttracker.ui.components.stockRateUnitRes
+import com.mkx.hrttracker.ui.components.stockSubcardChipColors
+import com.mkx.hrttracker.ui.components.stockSubcardChipLabelRes
+import com.mkx.hrttracker.ui.components.stockSubcardRunwayText
+import com.mkx.hrttracker.ui.components.stockSubcardTone
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.text.NumberFormat
+import java.time.LocalDate
 
 /**
- * Minimal before -> after stock preview shown under each medicine card on the
- * batch-add screen. Unlike the shared [com.mkx.hrttracker.ui.components.MedicationStockSubcard]
- * it has no status chip, runway, or progress bar — it only states the projected
- * stock change so a power user can see the result before saving:
- *  - count preparations: "10 tablets → 8 tablets"
- *  - container preparations: "2 vials + 0.5 mL → 1 vial + 0.75 mL"
+ * Compact stock preview shown under each medicine card on the batch-add screen,
+ * rendered as a [FlowRow] of pills:
+ *  - projected stock change ("10 tablets → 8 tablets", or
+ *    "2 vials + 0.5 mL → 1 vial + 0.75 mL" for containers)
+ *  - current stock status (e.g. "Low", "Out")
+ *  - current days remaining (e.g. "5 days")
+ *
+ * The status/runway pills reuse the shared stock mappings
+ * ([stockSubcardChipLabelRes], [stockSubcardRunwayText]) so their copy stays in
+ * sync with [com.mkx.hrttracker.ui.components.MedicationStockSubcard].
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PlanBatchAddStockPreviewSubcard(
     preparation: MedicinePreparation,
     beforeStock: MedicineStock,
     afterStock: MedicineStock,
+    stockState: MedicineStockState,
+    runway: RunwayProjection,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val beforeText = stockPreviewAmountText(context, preparation, beforeStock)
     val afterText = stockPreviewAmountText(context, preparation, afterStock)
+    val statusLabel = stockSubcardChipLabelRes(stockState)?.let { stringResource(it) }
+    val runwayModel = stockSubcardRunwayText(runway)
+    val daysLabel = when {
+        runwayModel == null -> null
+        runwayModel.pluralResId != null && runwayModel.intArg != null ->
+            pluralStringResource(runwayModel.pluralResId, runwayModel.intArg, runwayModel.intArg)
+        runwayModel.resId != null -> stringResource(runwayModel.resId)
+        else -> null
+    }
 
-    HrtPill(
-        label = "$beforeText → $afterText",
-        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-        size = HrtPillSize.Medium,
-        icon = { Icon(painterResource(R.drawable.ic_inventory_2), null, iconModifier) },
+    val containerColor = MaterialTheme.colorScheme.secondaryContainer
+    // The status pill carries severity color (tertiary for low, error for
+    // almost-out/out), reusing the shared chip tone so it matches the chip in
+    // MedicationStockSubcard; the other pills stay neutral.
+    val statusColors = stockSubcardChipColors(stockSubcardTone(stockState))
+
+    FlowRow(
         modifier = modifier,
-    )
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (statusLabel != null) {
+            HrtPill(
+                label = statusLabel,
+                containerColor = statusColors.container,
+                contentColor = statusColors.content,
+                size = HrtPillSize.Medium,
+                icon = { Icon(painterResource(R.drawable.ic_shopping_cart), null, iconModifier) },
+            )
+        }
+        if (daysLabel != null) {
+            HrtPill(
+                label = daysLabel,
+                containerColor = statusColors.container,
+                contentColor = statusColors.content,
+                size = HrtPillSize.Medium,
+                icon = { Icon(painterResource(R.drawable.ic_calendar_clock), null, iconModifier) },
+            )
+        }
+        HrtPill(
+            label = "$beforeText → $afterText",
+            containerColor = containerColor,
+            size = HrtPillSize.Medium,
+            icon = { Icon(painterResource(R.drawable.ic_inventory_2), null, iconModifier) },
+        )
+    }
 }
 
 /**
@@ -111,6 +167,8 @@ private fun PlanBatchAddStockPreviewSubcardPreview() {
                     unitsRemaining = 8.0,
                     unitsLastTotal = 10.0,
                 ),
+                stockState = MedicineStockState.HEALTHY,
+                runway = RunwayProjection.Days(days = 30, lastFulfillable = LocalDate.of(2026, 5, 1)),
             )
             // Multi-use vial: open amount + sealed vials; the batch cracks a vial.
             PlanBatchAddStockPreviewSubcard(
@@ -130,6 +188,8 @@ private fun PlanBatchAddStockPreviewSubcardPreview() {
                     unitsLastTotal = 2.0,
                     openContainerAmount = 0.75,
                 ),
+                stockState = MedicineStockState.USER_LOW,
+                runway = RunwayProjection.Days(days = 6, lastFulfillable = LocalDate.of(2026, 4, 16)),
             )
             // Gel container: open grams + sealed containers.
             PlanBatchAddStockPreviewSubcard(
@@ -149,6 +209,8 @@ private fun PlanBatchAddStockPreviewSubcardPreview() {
                     unitsLastTotal = 4.0,
                     openContainerAmount = 20.0,
                 ),
+                stockState = MedicineStockState.OUT,
+                runway = RunwayProjection.Days(days = 0, lastFulfillable = LocalDate.of(2026, 4, 10)),
             )
         }
     }

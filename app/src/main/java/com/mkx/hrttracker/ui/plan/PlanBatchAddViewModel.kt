@@ -19,6 +19,8 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.ownsUnloggedOccurrence
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
@@ -416,6 +418,9 @@ data class PlanBatchAddStockPreviewItem(
     // Stock after applying every entry's deduction via the shared deduction
     // helper. medicine.stock is the "before" value; this is the "after".
     val afterStock: MedicineStock,
+    // Current (pre-deduction) projection status + runway, shown as info pills.
+    val stockState: MedicineStockState,
+    val runway: RunwayProjection,
 ) {
     val key: String
         get() = medicine.uuid.toString()
@@ -455,14 +460,16 @@ internal fun buildPlanBatchAddStockPreviewItems(
     }
 
     return representativeByMedicineUuid.mapNotNull { (medicineUuid, entry) ->
-        val medicine = projectionsByMedicineUuid[medicineUuid]?.medicine ?: return@mapNotNull null
+        val projection = projectionsByMedicineUuid[medicineUuid] ?: return@mapNotNull null
         val afterStock = afterStockByMedicineUuid[medicineUuid] ?: return@mapNotNull null
         PlanBatchAddStockPreviewItem(
-            medicine = medicine,
+            medicine = projection.medicine,
             applicationType = entry.applicationType,
             doseInstruction = entry.doseInstruction,
             medicationCount = entry.count.coerceAtLeast(1),
             afterStock = afterStock,
+            stockState = projection.state,
+            runway = projection.runway,
         )
     }
 }
