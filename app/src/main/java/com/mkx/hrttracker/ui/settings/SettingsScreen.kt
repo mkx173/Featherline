@@ -210,7 +210,7 @@ fun SettingsScreen(
     }
     LaunchedEffect(uiState.securityErrorMessageRes) {
         val messageRes = uiState.securityErrorMessageRes ?: return@LaunchedEffect
-        Toast.makeText(context, context.getString(messageRes), Toast.LENGTH_LONG).show()
+        Toast.makeText(latestContext, latestContext.getString(messageRes), Toast.LENGTH_LONG).show()
         viewModel.consumeSecurityError()
     }
     LaunchedEffect(viewModel) {

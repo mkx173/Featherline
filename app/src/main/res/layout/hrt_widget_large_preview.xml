@@ -6,7 +6,11 @@
   three rows from previewSnapshot(): CPA done, Estradiol due-soon, Progesterone
   upcoming. Keep status/color/trailing-text choices in sync with the snapshot.
 -->
+<!-- RemoteViews layout: framework ImageView ignores app:tint, so android:tint
+     is required; UseAppTint is a false positive (suppressed file-wide). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UseAppTint"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"

@@ -414,6 +414,10 @@ fun HrtTrackerNavHost(
                 currentDestination?.hierarchy?.any { it.route == navItem.screen.route } == true
             }?.screen
             ?: Screen.Main
+    // actionLabel is resolved at snackbar time off the localized snackbarContext;
+    // stringResource() isn't callable in this callback, so the
+    // LocalContextGetResourceValueCall lint false-positives here.
+    @Suppress("LocalContextGetResourceValueCall")
     val showPostLogStockWarning: (PostLogStockWarning) -> Unit = { warning ->
         val message = postLogStockWarningSnackbarMessage(warning, snackbarContext)
         val actionLabel = snackbarContext.getString(R.string.stock_snackbar_action_view)
@@ -441,10 +445,17 @@ fun HrtTrackerNavHost(
     LaunchedEffect(pendingNudge) {
         val medicine = pendingNudge ?: return@LaunchedEffect
         val displayName = medicineDisplayName(medicine, snackbarContext)
+        // Resolved off the localized snackbarContext at emit time; stringResource()
+        // isn't callable inside LaunchedEffect, so the
+        // LocalContextGetResourceValueCall lint false-positives here.
+        @Suppress("LocalContextGetResourceValueCall")
+        val nudgeMessage = snackbarContext.getString(R.string.stock_nudge_message, displayName)
+        @Suppress("LocalContextGetResourceValueCall")
+        val nudgeActionLabel = snackbarContext.getString(R.string.stock_nudge_action_enable)
         val result = snackbarHostState.showSnackbar(
             StockNudgeVisuals(
-                message = snackbarContext.getString(R.string.stock_nudge_message, displayName),
-                actionLabel = snackbarContext.getString(R.string.stock_nudge_action_enable),
+                message = nudgeMessage,
+                actionLabel = nudgeActionLabel,
                 onDismissTapped = { stockNudgeViewModel.onNudgeDismissedViaX() },
             ),
         )

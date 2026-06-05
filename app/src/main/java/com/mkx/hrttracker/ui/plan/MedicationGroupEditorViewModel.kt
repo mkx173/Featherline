@@ -2269,7 +2269,7 @@ data class MedicationGroupEditorUiState(
 
 data class ArchiveDateWindowUiState(
     val minDate: LocalDate? = null,
-    val maxDate: LocalDate = LocalDate.EPOCH,
+    val maxDate: LocalDate = LocalDate.ofEpochDay(0),
     val isLoaded: Boolean = false,
     val isSelectable: Boolean = false,
 )

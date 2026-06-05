@@ -20,6 +20,11 @@ data class AuthenticationPromptRequest(
     @param:StringRes val descriptionRes: Int? = null,
 )
 
+// Strings are resolved inside LaunchedEffect off the localized LocalContext (see
+// the body comments), where stringResource() isn't callable. The
+// LocalContextGetResourceValueCall lint can't model that effect-scoped, in-app
+// locale usage and false-positives here.
+@Suppress("LocalContextGetResourceValueCall")
 @Composable
 fun AppAuthenticationPromptEffect(
     request: AuthenticationPromptRequest?,
