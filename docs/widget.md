@@ -228,9 +228,10 @@ launchers have no entry). It launches
 a translucent activity that hosts the shared `WidgetAppearanceDialog`
 (content scale, background opacity, dark-mode) over the home screen.
 Widget appearance is **global**, not per-widget, so the `appWidgetId` is
-ignored apart from returning `RESULT_OK` (kept for launchers that invoke
-the activity on first placement despite `configuration_optional`). The
-activity reads the **persisted** settings via
+only echoed back in the result: the activity defaults to `RESULT_CANCELED`
+and flips to `RESULT_OK` on Save, so cancelling a first-placement config on
+a launcher that ignores `configuration_optional` removes the widget rather
+than keeping it unconfigured. The activity reads the **persisted** settings via
 `settingsRepository.getCurrentSettings()` — not the eager `settingsState`
 placeholder, whose pre-DataStore defaults would let a cold-start Save
 overwrite real settings — and writes through `@AppScope` so the persist
