@@ -139,7 +139,8 @@ fun HrtSection(
     content: HrtSectionScope.() -> Unit,
 ) {
     val scope = HrtSectionScopeImpl().apply(content)
-    val positions = segmentPositionsFor(scope.entries.map { it.visible })
+    val visibilities = scope.entries.map { it.visible }
+    val positions = segmentPositionsFor(visibilities)
     val gap = dimensionResource(R.dimen.list_segment_gap)
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -156,10 +157,17 @@ fun HrtSection(
         // together with its AnimatedVisibility content.
         scope.entries.forEachIndexed { i, entry ->
             val position = positions[i]
+            // The leading gap belongs to the row whenever an earlier row is
+            // visible, independent of this row's own visibility. Gating it on
+            // preceding visibility (not this row's own nulled-out position) keeps
+            // the gap inside the AnimatedVisibility content so it collapses
+            // together with the row on exit, instead of vanishing the instant
+            // the row turns invisible.
+            val hasLeadingGap = visibilities.take(i).any { it }
             val body: @Composable () -> Unit = {
                 CompositionLocalProvider(LocalSegmentPosition provides position) {
                     Column {
-                        if (position != null && position.index > 0) {
+                        if (hasLeadingGap) {
                             Spacer(modifier = Modifier.height(gap))
                         }
                         entry.content()

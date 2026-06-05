@@ -492,6 +492,19 @@ private fun PlanBatchAddStockSection(
     onDeductStockChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Keep the last non-empty preview set rendered so the cards can animate out
+    // when the toggle turns off OR the group is deselected (which empties
+    // previewItems) — visibility, not list membership, drives the animation.
+    var retainedPreviewItems by remember {
+        mutableStateOf(emptyList<PlanBatchAddStockPreviewItem>())
+    }
+    LaunchedEffect(previewItems) {
+        if (previewItems.isNotEmpty()) {
+            retainedPreviewItems = previewItems
+        }
+    }
+    val previewVisible = deductStock && previewItems.isNotEmpty()
+
     HrtSection(
         title = stringResource(R.string.plan_batch_add_stock_title),
         modifier = modifier,
@@ -516,8 +529,8 @@ private fun PlanBatchAddStockSection(
                 },
             )
         }
-        previewItems.forEach { item ->
-            animatedItem(visible = deductStock) {
+        retainedPreviewItems.forEach { item ->
+            animatedItem(visible = previewVisible) {
                 key(item.key) {
                     MedicationCard(
                         medicine = item.medicine,
