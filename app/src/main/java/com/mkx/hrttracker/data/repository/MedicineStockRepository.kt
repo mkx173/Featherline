@@ -154,6 +154,21 @@ class MedicineStockRepository @Inject constructor(
         )
     }
 
+    fun projectHypotheticalStock(
+        medicine: Medicine,
+        hypotheticalStock: MedicineStock,
+    ): MedicineStockProjection? {
+        val cache = projectionsCacheFlow.value ?: return null
+        val zoneId = scheduleZoneId()
+        return project(
+            medicine = medicine.copy(stock = hypotheticalStock),
+            activeGroups = cache.activeGroups,
+            logEntries = stockWindowLogEntries(cache.logEntries, cache.now, zoneId),
+            now = cache.now,
+            zoneId = zoneId,
+        )
+    }
+
     internal fun projectAll(
         medicines: List<Medicine>,
         activeGroups: List<MedicationGroup>,
