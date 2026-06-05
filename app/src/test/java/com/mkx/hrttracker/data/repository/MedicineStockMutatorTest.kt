@@ -330,6 +330,40 @@ class MedicineStockMutatorTest {
     }
 
     @Test
+    fun resolveDeduction_containerMissingCapacity_doesNotWrite() = runTest {
+        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
+            vialRow(sealed = 2.0, open = 0.5).copy(vialVolumeMl = null)
+
+        mutator.resolveDeductionForInsert(
+            database = database,
+            medicineUuid = medicineUuid,
+            requestedDose = 0.25,
+            now = fixedNow,
+        )
+
+        coVerify(exactly = 0) {
+            medicineDao.updateStockFields(any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun resolveDeduction_containerInvalidCapacity_doesNotWrite() = runTest {
+        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
+            vialRow(sealed = 2.0, open = 0.5).copy(vialVolumeMl = 0.0)
+
+        mutator.resolveDeductionForInsert(
+            database = database,
+            medicineUuid = medicineUuid,
+            requestedDose = 0.25,
+            now = fixedNow,
+        )
+
+        coVerify(exactly = 0) {
+            medicineDao.updateStockFields(any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
     fun resolveDeduction_container_case1_simpleDecrement() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
