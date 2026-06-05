@@ -356,6 +356,129 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
+    fun processDeathDuringArchivedGroupDuplicate_restoresDuplicateDraftNotArchivedSource() = runTest {
+        // Duplicating an archived group produces an unsaved new-group draft in place
+        // while the launch route arg still points at the archived source. Process death
+        // should re-derive the duplicate from the remembered source, not dump the user
+        // back on the read-only archived original.
+        val archivedSourceId = UUID.fromString("aaaaaaaa-0000-0000-0000-0000000000d1")
+        val archivedSource = testMedicationGroup(archivedSourceId).copy(
+            archivedAt = Instant.parse("2026-04-24T00:00:00Z"),
+        )
+        every { medicationGroupRepository.getCachedGroup(archivedSourceId) } returns archivedSource
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(archivedSource))
+
+        val savedStateHandle = SavedStateHandle(
+            mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to archivedSourceId.toString())
+        )
+        val firstSession = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = savedStateHandle,
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+        assertTrue(firstSession.uiState.value.isArchived)
+
+        firstSession.duplicateArchivedGroup()
+        advanceUntilIdle()
+        assertNull(firstSession.uiState.value.editingGroupId)
+        assertFalse(firstSession.uiState.value.isArchived)
+        assertEquals(1, firstSession.uiState.value.medications.size)
+
+        // Process death.
+        val restoredSession = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = savedStateHandle,
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        val restored = restoredSession.uiState.value
+        // Re-derived duplicate draft (new unsaved group), not the archived source.
+        assertNull(restored.editingGroupId)
+        assertFalse(restored.isArchived)
+        assertEquals(1, restored.medications.size)
+    }
+
+    @Test
+    fun savingDuplicatedArchivedGroup_clearsRecoverySoProcessDeathLoadsSavedGroup() = runTest {
+        val archivedSourceId = UUID.fromString("aaaaaaaa-0000-0000-0000-0000000000d2")
+        val savedDuplicateId = UUID.fromString("bbbbbbbb-0000-0000-0000-0000000000d3")
+        val archivedSource = testMedicationGroup(archivedSourceId).copy(
+            archivedAt = Instant.parse("2026-04-24T00:00:00Z"),
+        )
+        val savedDuplicate = testMedicationGroup(savedDuplicateId)
+        every { medicationGroupRepository.getCachedGroup(archivedSourceId) } returns archivedSource
+        every { medicationGroupRepository.getCachedGroup(savedDuplicateId) } returns savedDuplicate
+        every { medicationGroupRepository.observeGroups() } returns
+            flowOf(listOf(archivedSource, savedDuplicate))
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = any(),
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
+                replacesGroupUuid = any(),
+                now = any(),
+            )
+        } returns savedDuplicateId
+        coEvery { medicationReminderScheduler.rescheduleGroup(any(), any()) } returns Unit
+
+        val savedStateHandle = SavedStateHandle(
+            mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to archivedSourceId.toString())
+        )
+        val firstSession = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = savedStateHandle,
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+        firstSession.duplicateArchivedGroup()
+        advanceUntilIdle()
+        firstSession.saveGroup()
+        advanceUntilIdle()
+        assertEquals(savedDuplicateId.toString(), firstSession.uiState.value.editingGroupId)
+
+        // Process death after saving: load the saved group, not a re-derived duplicate.
+        val restoredSession = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = savedStateHandle,
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        assertEquals(savedDuplicateId.toString(), restoredSession.uiState.value.editingGroupId)
+        assertFalse(restoredSession.uiState.value.isArchived)
+    }
+
+    @Test
     fun editingGroup_startsInLoadingStateUntilPersistedGroupLoads() = runTest {
         val groupUuid = UUID.fromString("3c13fbf7-95f5-4c20-8f2d-f902fd82afd2")
         val group = testMedicationGroup(groupUuid)

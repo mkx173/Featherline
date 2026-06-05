@@ -86,13 +86,24 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val appTimeSource: AppTimeSource
 ) : ViewModel() {
     private val savedStateHandle: SavedStateHandle = savedStateHandle
+    // Set while duplicating an archived group (an unsaved new-group draft). Persisted so
+    // process death can re-derive the duplicate from its source rather than falling back
+    // to the archived original named by the launch route arg.
+    private val restoredDuplicateSourceGroupId =
+        savedStateHandle.get<String>(DUPLICATE_SOURCE_GROUP_ID_KEY)
     // The launch route argument names the group the editor was opened for. After an
     // archive-and-recreate the edited group becomes the new copy while the route arg
     // still points at the now-archived original, so prefer the mirrored edited id
-    // (written in init) to restore the recreated group after process death.
+    // (written in init) to restore the recreated group after process death. A restored
+    // duplicate draft is a brand-new group, so don't reload a persisted group by id —
+    // it is re-derived from its source in init instead.
     private val requestedEditingGroupId =
-        savedStateHandle.get<String>(EDITED_GROUP_ID_KEY)
-            ?: savedStateHandle.get<String>(GROUP_ID_ARG)
+        if (restoredDuplicateSourceGroupId != null) {
+            null
+        } else {
+            savedStateHandle.get<String>(EDITED_GROUP_ID_KEY)
+                ?: savedStateHandle.get<String>(GROUP_ID_ARG)
+        }
     private val editingGroupUuid = requestedEditingGroupId?.let { groupId ->
         runCatching { UUID.fromString(groupId) }.getOrNull()
     }
@@ -128,14 +139,17 @@ class MedicationGroupEditorViewModel @Inject constructor(
             // was actually persisted. Don't clobber recreatedFromGroupId — that's a
             // DB-derived lineage tag set by toEditorState above and is unrelated to
             // process-death recovery of the in-flight archive-and-recreate draft.
-            if (restoredPendingReplacementGroupId != null) {
-                baseState.copy(
+            when {
+                restoredDuplicateSourceGroupId != null -> baseState.copy(
+                    duplicateSourceGroupId = restoredDuplicateSourceGroupId,
+                    isLoadingGroupForEditing = true,
+                )
+                restoredPendingReplacementGroupId != null -> baseState.copy(
                     pendingReplacementGroupId = restoredPendingReplacementGroupId,
                     recreatedFromGroupId = baseState.recreatedFromGroupId
                         ?: restoredPendingReplacementGroupId,
                 )
-            } else {
-                baseState
+                else -> baseState
             }
         }
     )
@@ -174,6 +188,19 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 .collect { value ->
                     this@MedicationGroupEditorViewModel.savedStateHandle[
                         EDITED_GROUP_ID_KEY
+                    ] = value
+                }
+        }
+
+        viewModelScope.launch {
+            // Mirror the duplicate-source lineage so process death can re-derive an
+            // unsaved duplicate-of-archived draft instead of reloading the source.
+            _uiState
+                .map { it.duplicateSourceGroupId }
+                .distinctUntilChanged()
+                .collect { value ->
+                    this@MedicationGroupEditorViewModel.savedStateHandle[
+                        DUPLICATE_SOURCE_GROUP_ID_KEY
                     ] = value
                 }
         }
@@ -220,7 +247,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
         }
 
-        if (editingGroupUuid == null) {
+        if (editingGroupUuid == null && restoredDuplicateSourceGroupId == null) {
             viewModelScope.launch {
                 val index = settingsRepository.peekNextGroupNameIndex()
                 _uiState.update { currentState ->
@@ -288,6 +315,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
         if (editingGroupUuid != null && cachedEditingGroup == null) {
             loadGroupForEditing(editingGroupUuid)
+        }
+
+        if (restoredDuplicateSourceGroupId != null) {
+            recreateDuplicateDraftFromSource(restoredDuplicateSourceGroupId)
         }
     }
 
@@ -1010,6 +1041,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     } else {
                         it.pendingReplacementGroupId
                     },
+                    // Once saved it's a real group; drop the duplicate-recovery lineage
+                    // so process death reloads the saved group, not a re-derived copy.
+                    duplicateSourceGroupId = if (isSaved) {
+                        null
+                    } else {
+                        it.duplicateSourceGroupId
+                    },
                     isSaving = false,
                     isSaved = isSaved,
                     isFinishingAfterSave = isSaved,
@@ -1101,41 +1139,82 @@ class MedicationGroupEditorViewModel @Inject constructor(
         ) {
             return
         }
-        val usedColors = latestGroups.map(MedicationGroup::colorKey)
-            .ifEmpty { listOf(currentState.groupColorKey) }
-        val resolvedGroupName = resolveMedicationGroupName(
-            groupName = currentState.groupName,
-            defaultGroupName = currentState.defaultGroupName,
-            isEditing = currentState.isEditing,
-        )
-        val colorKey = nextAvailableMedicationGroupColor(
-            usedColors = usedColors,
-            seed = UUID.randomUUID().hashCode(),
-        )
-        val duplicateScheduleStartDate = currentMinute.value.toLocalDate()
-        // Drop slots whose resolved medicine is archived. The save path's
-        // findOrCreate would silently revive a matching archived medicine,
-        // which is too lossy for a user who explicitly archived it. Skip
-        // these slots and toast the count so the user can re-add them
-        // intentionally.
-        val activeMedications = currentState.medications.filterNot {
-            it.resolvedMedicine?.isArchived == true
+        // Slots whose resolved medicine is archived are dropped (see
+        // buildDuplicatedDraftState); toast the count so the user can re-add them
+        // intentionally rather than silently reviving an archived medicine on save.
+        val skippedArchivedCount = currentState.medications.count { medication ->
+            medication.resolvedMedicine?.isArchived == true
         }
-        val skippedArchivedCount = currentState.medications.size - activeMedications.size
-        val sourceForCopy = currentState.copy(medications = activeMedications)
-
         _uiState.update {
-            sourceForCopy.toUnsavedDuplicatedGroupState(
-                resolvedGroupName = resolvedGroupName,
-                defaultGroupName = currentState.defaultGroupName,
-                colorKey = colorKey,
-                scheduleStartDate = duplicateScheduleStartDate,
-            ).copy(
+            buildDuplicatedDraftState(currentState).copy(
                 scrollToTopRequestVersion = it.scrollToTopRequestVersion + 1,
                 duplicateArchivedGroupSkippedCount = skippedArchivedCount.takeIf { count ->
                     count > 0
                 },
             )
+        }
+    }
+
+    // Builds the unsaved duplicate draft from a source editor state (the archived group
+    // being copied). Shared by the live "Duplicate" action and process-death recovery so
+    // both produce the same draft. Drops archived-medicine slots: the save path's
+    // findOrCreate would silently revive a matching archived medicine, too lossy for a
+    // user who explicitly archived it.
+    private fun buildDuplicatedDraftState(
+        source: MedicationGroupEditorUiState,
+    ): MedicationGroupEditorUiState {
+        val usedColors = latestGroups.map(MedicationGroup::colorKey)
+            .ifEmpty { listOf(source.groupColorKey) }
+        val resolvedGroupName = resolveMedicationGroupName(
+            groupName = source.groupName,
+            defaultGroupName = source.defaultGroupName,
+            isEditing = source.isEditing,
+        )
+        val colorKey = nextAvailableMedicationGroupColor(
+            usedColors = usedColors,
+            seed = UUID.randomUUID().hashCode(),
+        )
+        val activeMedications = source.medications.filterNot {
+            it.resolvedMedicine?.isArchived == true
+        }
+        return source.copy(medications = activeMedications).toUnsavedDuplicatedGroupState(
+            resolvedGroupName = resolvedGroupName,
+            defaultGroupName = source.defaultGroupName,
+            colorKey = colorKey,
+            scheduleStartDate = currentMinute.value.toLocalDate(),
+        )
+    }
+
+    // Process-death recovery for an unsaved duplicate-of-archived draft: reload the
+    // remembered source group and re-derive the duplicate, instead of leaving the user
+    // on the read-only archived original. The user's in-draft edits are not preserved
+    // (input loss is acceptable); the copied content is.
+    private fun recreateDuplicateDraftFromSource(sourceGroupId: String) {
+        val sourceUuid = runCatching { UUID.fromString(sourceGroupId) }.getOrNull()
+        if (sourceUuid == null) {
+            _uiState.update {
+                it.copy(isLoadingGroupForEditing = false, duplicateSourceGroupId = null)
+            }
+            return
+        }
+        viewModelScope.launch {
+            val sourceGroup = loadPersistedGroupSnapshot(sourceUuid)
+            if (sourceGroup == null) {
+                _uiState.update {
+                    it.copy(isLoadingGroupForEditing = false, duplicateSourceGroupId = null)
+                }
+                return@launch
+            }
+            val sourceState = sourceGroup.toEditorState(
+                remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
+                relatedEntryCount = 0,
+                plannedEntryCount = 0,
+            )
+            _uiState.update { current ->
+                buildDuplicatedDraftState(sourceState).copy(
+                    activeMedicines = current.activeMedicines,
+                )
+            }
         }
     }
 
@@ -1629,6 +1708,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         const val GROUP_ID_ARG = "groupId"
         private const val PENDING_REPLACEMENT_GROUP_ID_KEY = "pendingReplacementGroupId"
         private const val EDITED_GROUP_ID_KEY = "editedGroupId"
+        private const val DUPLICATE_SOURCE_GROUP_ID_KEY = "duplicateSourceGroupId"
     }
 }
 
@@ -1742,6 +1822,7 @@ private fun MedicationGroupEditorUiState.toUnsavedRecreatedGroupState(
         includePastScheduledSlots = false,
         isScheduleStartDateLocked = true,
         pendingReplacementGroupId = archivedGroupId,
+        duplicateSourceGroupId = null,
         notificationsEnabled = notificationsEnabled,
     ).copy(
         sinceDate = scheduleStartDate,
@@ -1761,6 +1842,8 @@ private fun MedicationGroupEditorUiState.toUnsavedDuplicatedGroupState(
         includePastScheduledSlots = true,
         isScheduleStartDateLocked = false,
         pendingReplacementGroupId = null,
+        // Remember the archived source so process death can re-derive this duplicate.
+        duplicateSourceGroupId = editingGroupId,
         notificationsEnabled = notificationsEnabled,
     ).copy(
         sinceDate = scheduleStartDate,
@@ -1774,6 +1857,7 @@ private fun MedicationGroupEditorUiState.toUnsavedCopiedGroupState(
     includePastScheduledSlots: Boolean,
     isScheduleStartDateLocked: Boolean,
     pendingReplacementGroupId: String?,
+    duplicateSourceGroupId: String?,
     notificationsEnabled: Boolean,
 ): MedicationGroupEditorUiState {
     val copiedMedications = medications.map { medication ->
@@ -1832,6 +1916,7 @@ private fun MedicationGroupEditorUiState.toUnsavedCopiedGroupState(
         isDeleteRelatedEntriesConfirmationVisible = false,
         pendingReplacementGroupId = pendingReplacementGroupId,
         recreatedFromGroupId = pendingReplacementGroupId,
+        duplicateSourceGroupId = duplicateSourceGroupId,
         archiveMedicationGroupResult = null,
         archiveAndRecreateMedicationGroupResult = null,
         deleteRelatedEntriesResult = null,
@@ -2138,6 +2223,9 @@ data class MedicationGroupEditorUiState(
     val isDeleteRelatedEntriesConfirmationVisible: Boolean = false,
     val pendingReplacementGroupId: String? = null,
     val recreatedFromGroupId: String? = null,
+    // Set on an unsaved duplicate-of-archived draft: the archived source's id, persisted
+    // so process death can re-derive the duplicate instead of reloading the source.
+    val duplicateSourceGroupId: String? = null,
     val archiveMedicationGroupResult: ArchiveMedicationGroupResult? = null,
     val archiveAndRecreateMedicationGroupResult: ArchiveAndRecreateMedicationGroupResult? = null,
     val deleteRelatedEntriesResult: DeleteRelatedEntriesResult? = null,
