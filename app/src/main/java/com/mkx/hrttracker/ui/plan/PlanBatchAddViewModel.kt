@@ -12,6 +12,7 @@ import com.mkx.hrttracker.data.repository.resolveRequestedDoseForStock
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
@@ -117,6 +118,7 @@ class PlanBatchAddViewModel @Inject constructor(
             groups = groups,
             selectedGroupUuid = selectedGroup?.uuid,
             selectedGroupName = selectedGroup?.name.orEmpty(),
+            selectedGroupColorKey = selectedGroup?.colorKey,
             selectedGroupStartsInFuture = selectedGroupStartsInFuture,
             startDate = startDate,
             endDate = endDate,
@@ -207,6 +209,8 @@ class PlanBatchAddViewModel @Inject constructor(
         // group is not yet selectable, so its range stays unset (the UI shows
         // the prompt) — this avoids freezing a stale `today` that a later
         // rollover would turn into an inverted range.
+        // Preserve deductStock across group changes — switching the selected
+        // group must not silently flip the user's stock-deduction choice.
         selectionState.update { state ->
             state.copy(
                 selectedGroupUuid = groupUuid,
@@ -215,12 +219,13 @@ class PlanBatchAddViewModel @Inject constructor(
                 isSaved = false,
                 savedEntryCount = null,
                 saveResult = null,
-                deductStock = false,
             )
         }
     }
 
     fun clearSelection() {
+        // Preserve deductStock when the user deselects the group — clearing the
+        // selection must not silently flip the user's stock-deduction choice.
         selectionState.update { state ->
             state.copy(
                 selectedGroupUuid = null,
@@ -229,7 +234,6 @@ class PlanBatchAddViewModel @Inject constructor(
                 isSaved = false,
                 savedEntryCount = null,
                 saveResult = null,
-                deductStock = false,
             )
         }
     }
@@ -357,6 +361,7 @@ data class PlanBatchAddUiState(
     val groups: List<MedicationGroup> = emptyList(),
     val selectedGroupUuid: UUID? = null,
     val selectedGroupName: String = "",
+    val selectedGroupColorKey: MedicationGroupColorKey? = null,
     val selectedGroupStartsInFuture: Boolean = false,
     val startDate: LocalDate = LocalDate.now(),
     val endDate: LocalDate = LocalDate.now(),
