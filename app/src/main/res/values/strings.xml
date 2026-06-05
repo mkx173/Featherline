@@ -185,7 +185,10 @@
     <string name="history_delete_all_entries_title">Delete all records</string>
     <string name="history_delete_all_entries_success">Deleted all records.</string>
     <string name="history_delete_all_entries_failure">Unable to delete records.</string>
-    <string name="history_delete_selected_entries_success">Deleted selected records.</string>
+    <plurals name="history_delete_selected_entries_success">
+        <item quantity="one">Deleted %1$d record.</item>
+        <item quantity="other">Deleted %1$d records.</item>
+    </plurals>
     <string name="history_delete_selected_entries_failure">Unable to delete selected records.</string>
     <plurals name="history_delete_all_entries_confirmation">
         <item quantity="one">Delete all %1$d record?</item>

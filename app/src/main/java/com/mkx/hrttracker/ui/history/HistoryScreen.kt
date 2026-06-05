@@ -489,8 +489,6 @@ private fun HistoryScreenContent(
         stringResource(R.string.history_delete_all_entries_success)
     val deleteAllEntriesFailureMessage =
         stringResource(R.string.history_delete_all_entries_failure)
-    val deleteSelectedEntriesSuccessMessage =
-        stringResource(R.string.history_delete_selected_entries_success)
     val deleteSelectedEntriesFailureMessage =
         stringResource(R.string.history_delete_selected_entries_failure)
 
@@ -499,17 +497,21 @@ private fun HistoryScreenContent(
     }
 
     LaunchedEffect(uiState.deleteSelectedEntriesResult) {
-        when (uiState.deleteSelectedEntriesResult) {
-            HistoryDeleteSelectedEntriesResult.SUCCESS -> {
+        when (val result = uiState.deleteSelectedEntriesResult) {
+            is HistoryDeleteSelectedEntriesResult.Success -> {
                 Toast.makeText(
                     context,
-                    deleteSelectedEntriesSuccessMessage,
+                    context.resources.getQuantityString(
+                        R.plurals.history_delete_selected_entries_success,
+                        result.deletedEntryCount,
+                        result.deletedEntryCount,
+                    ),
                     Toast.LENGTH_SHORT
                 ).show()
                 onDeleteSelectedResultConsumed()
             }
 
-            HistoryDeleteSelectedEntriesResult.FAILURE -> {
+            HistoryDeleteSelectedEntriesResult.Failure -> {
                 Toast.makeText(
                     context,
                     deleteSelectedEntriesFailureMessage,

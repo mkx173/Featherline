@@ -266,11 +266,15 @@ class HistoryViewModel @Inject constructor(
             val result = runCatching {
                 medicationLogRepository.deleteEntries(entryIdsToDelete)
             }.fold(
-                onSuccess = { HistoryDeleteSelectedEntriesResult.SUCCESS },
-                onFailure = { HistoryDeleteSelectedEntriesResult.FAILURE },
+                onSuccess = {
+                    HistoryDeleteSelectedEntriesResult.Success(
+                        deletedEntryCount = entryIdsToDelete.size,
+                    )
+                },
+                onFailure = { HistoryDeleteSelectedEntriesResult.Failure },
             )
 
-            if (result == HistoryDeleteSelectedEntriesResult.SUCCESS) {
+            if (result is HistoryDeleteSelectedEntriesResult.Success) {
                 runCatching { medicationReminderScheduler.rescheduleAll() }
                 selectedEntryIds.value = emptySet()
             }
@@ -353,9 +357,10 @@ enum class HistoryDeleteAllEntriesResult {
     FAILURE,
 }
 
-enum class HistoryDeleteSelectedEntriesResult {
-    SUCCESS,
-    FAILURE,
+sealed interface HistoryDeleteSelectedEntriesResult {
+    data class Success(val deletedEntryCount: Int) : HistoryDeleteSelectedEntriesResult
+
+    data object Failure : HistoryDeleteSelectedEntriesResult
 }
 
 private data class HistoryDeletionUiState(

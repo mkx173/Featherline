@@ -187,7 +187,7 @@ class HistoryViewModelTest {
         assertFalse(viewModel.uiState.value.isDeletingSelectedEntries)
         assertFalse(viewModel.uiState.value.isSelectionMode)
         assertEquals(
-            HistoryDeleteSelectedEntriesResult.SUCCESS,
+            HistoryDeleteSelectedEntriesResult.Success(deletedEntryCount = 1),
             viewModel.uiState.value.deleteSelectedEntriesResult,
         )
 
@@ -196,6 +196,51 @@ class HistoryViewModelTest {
 
         assertNull(viewModel.uiState.value.deleteSelectedEntriesResult)
         coVerify(exactly = 1) { medicationLogRepository.deleteEntries(setOf(entry.uuid)) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun deleteSelectedEntries_successResultIncludesDeletedEntryCount() = runTest {
+        val firstEntry = testMedicationLogEntry(
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
+        )
+        val secondEntry = testMedicationLogEntry(
+            medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-26T01:00:00Z"),
+        )
+        val entryIds = setOf(firstEntry.uuid, secondEntry.uuid)
+        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(firstEntry, secondEntry))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicationLogRepository.deleteEntries(entryIds) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        viewModel.selectEntries(entryIds)
+        viewModel.showDeleteConfirmation()
+        viewModel.deleteSelectedEntries()
+        advanceUntilIdle()
+
+        assertEquals(
+            HistoryDeleteSelectedEntriesResult.Success(deletedEntryCount = 2),
+            viewModel.uiState.value.deleteSelectedEntriesResult,
+        )
+        coVerify(exactly = 1) { medicationLogRepository.deleteEntries(entryIds) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
@@ -231,7 +276,7 @@ class HistoryViewModelTest {
         assertFalse(viewModel.uiState.value.isDeletingSelectedEntries)
         assertFalse(viewModel.uiState.value.isSelectionMode)
         assertEquals(
-            HistoryDeleteSelectedEntriesResult.SUCCESS,
+            HistoryDeleteSelectedEntriesResult.Success(deletedEntryCount = 1),
             viewModel.uiState.value.deleteSelectedEntriesResult,
         )
         coVerify(exactly = 1) { medicationLogRepository.deleteEntries(setOf(entry.uuid)) }
@@ -270,7 +315,7 @@ class HistoryViewModelTest {
         assertTrue(viewModel.uiState.value.isSelectionMode)
         assertFalse(viewModel.uiState.value.isDeleteConfirmationVisible)
         assertEquals(
-            HistoryDeleteSelectedEntriesResult.FAILURE,
+            HistoryDeleteSelectedEntriesResult.Failure,
             viewModel.uiState.value.deleteSelectedEntriesResult,
         )
 

@@ -178,7 +178,9 @@
     <string name="history_delete_all_entries_title">删除全部记录</string>
     <string name="history_delete_all_entries_success">已删除全部记录</string>
     <string name="history_delete_all_entries_failure">无法删除记录</string>
-    <string name="history_delete_selected_entries_success">已删除所选记录</string>
+    <plurals name="history_delete_selected_entries_success">
+        <item quantity="other">已删除 %1$d 条记录</item>
+    </plurals>
     <string name="history_delete_selected_entries_failure">无法删除所选记录</string>
     <plurals name="history_delete_all_entries_confirmation">
         <item quantity="other">要删除全部 %1$d 条记录吗？</item>
