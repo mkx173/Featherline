@@ -136,7 +136,9 @@ and `UserProfileRepository` — plus `HomeSnapshotStore` (serializes
 to an encrypted DataStore file) and the supporting files: the
 `MedicationEntityMappers` and `MedicineEntityMappers` helpers and the
 stock engine — `MedicineStockMutator` (applies the deduction-on-log and
-recount/top-up/recover mutations), `ScheduledRunwayCalculator` (a
+recount/top-up/recover mutations, delegating the per-dose math to
+`MedicineStockDeduction` — the pure helper shared with the batch-add
+stock preview), `ScheduledRunwayCalculator` (a
 365-day forward simulation of upcoming scheduled doses against current
 stock, the source of the "days remaining" runway), `MedicineStockRateCalculator`,
 `MedicineStockStateResolver` (maps a projection to a
@@ -209,7 +211,9 @@ Feature sub-packages, one screen tree each:
   the collapsible low-stock section (`MainLowStockSection`) that lists
   medicines in a warning state.
 - [`ui/plan`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/plan) — the plan tab: medication-group
-  list, the group editor, the batch-add flow, the archived-groups
+  list, the group editor, the batch-add flow (with an opt-in
+  stock-deduction preview that projects before/after stock per
+  medicine), the archived-groups
   screen. Hosts a top-bar icon that opens the catalog manager
   (`ui/catalog`).
 - [`ui/history`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/history) — the log-entries history

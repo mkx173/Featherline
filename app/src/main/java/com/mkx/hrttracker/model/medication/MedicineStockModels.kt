@@ -30,6 +30,22 @@ enum class MedicineStockState {
     NO_RUNWAY,
 }
 
+/**
+ * Low-stock urgency rank for detecting a *new or worsened* warning: higher is
+ * more urgent, 0 means not a low-stock warning state. Shared by the home
+ * low-stock auto-expand and the post-log "only warn when it got worse" check.
+ */
+fun MedicineStockState.lowStockSeverityRank(): Int {
+    return when (this) {
+        MedicineStockState.USER_LOW -> 1
+        MedicineStockState.IMMINENT -> 2
+        MedicineStockState.OUT -> 3
+        MedicineStockState.HEALTHY,
+        MedicineStockState.UNTRACKED,
+        MedicineStockState.NO_RUNWAY -> 0
+    }
+}
+
 /** Derived projection per medicine for stock UI consumption. */
 data class MedicineStockProjection(
     val medicine: Medicine,

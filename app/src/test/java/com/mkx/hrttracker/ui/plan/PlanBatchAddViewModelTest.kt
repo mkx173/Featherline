@@ -1,8 +1,12 @@
 package com.mkx.hrttracker.ui.plan
 
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
+import com.mkx.hrttracker.data.repository.MedicationLogEntryInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -17,13 +21,17 @@ import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.util.FakeAppTimeSource
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -514,6 +522,508 @@ class PlanBatchAddViewModelTest {
         )
     }
 
+    @Test
+    fun saveSelectedRange_withDeductStockEmitsPostLogStockWarningOnce() = runTest {
+        val medicine = estradiolMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 1.0,
+                unitsLastTotal = 1.0,
+            )
+        )
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = medicine)),
+        )
+        val medicationGroupRepository = mockk<MedicationGroupRepository>()
+        val medicationLogRepository = mockk<MedicationLogRepository>()
+        val settingsRepository = mockk<SettingsRepository>()
+        val medicineStockRepository = mockk<MedicineStockRepository>()
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState(remindersEnabled = true))
+        every { medicineStockRepository.getCachedProjections() } returns emptyList()
+        every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
+        coEvery { medicationLogRepository.saveBackfillEntries(any(), deductStock = true) } returns Unit
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+            listOf(
+                stockProjection(
+                    medicine = medicine,
+                    state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY,
+                )
+            ),
+            listOf(
+                stockProjection(
+                    medicine = medicine,
+                    state = com.mkx.hrttracker.model.medication.MedicineStockState.OUT,
+                )
+            ),
+        )
+
+        val viewModel = PlanBatchAddViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = mockk<MedicationReminderScheduler>(relaxed = true),
+            settingsRepository = settingsRepository,
+            medicineStockRepository = medicineStockRepository,
+            appTimeSource = FakeAppTimeSource(initialMinute = LocalDateTime.of(2026, 4, 10, 12, 0)),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectGroup(group.uuid)
+        viewModel.setDeductStock(true)
+        advanceUntilIdle()
+
+        val warnings = mutableListOf<PostLogStockWarning>()
+        val collectJob = launch {
+            viewModel.stockWarnings.collect { warning -> warnings += warning }
+        }
+        advanceUntilIdle()
+        viewModel.saveSelectedRange()
+        advanceUntilIdle()
+        collectJob.cancel()
+
+        assertEquals(
+            listOf(PostLogStockWarning.Single(medicine, com.mkx.hrttracker.model.medication.MedicineStockState.OUT)),
+            warnings,
+        )
+        coVerify(exactly = 1) {
+            medicationLogRepository.saveBackfillEntries(any(), deductStock = true)
+        }
+    }
+
+    @Test
+    fun saveSelectedRange_failureRestoresSelectedGroupAndDeductStockChoice() = runTest {
+        val medicine = estradiolMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 1.0,
+                unitsLastTotal = 1.0,
+            )
+        )
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = medicine)),
+        )
+        val medicationGroupRepository = mockk<MedicationGroupRepository>()
+        val medicationLogRepository = mockk<MedicationLogRepository>()
+        val settingsRepository = mockk<SettingsRepository>()
+        val medicineStockRepository = mockk<MedicineStockRepository>()
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState(remindersEnabled = true))
+        every { medicineStockRepository.getCachedProjections() } returns emptyList()
+        every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
+        coEvery {
+            medicationLogRepository.saveBackfillEntries(any(), deductStock = true)
+        } throws RuntimeException("save failed")
+
+        val viewModel = PlanBatchAddViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = mockk<MedicationReminderScheduler>(relaxed = true),
+            settingsRepository = settingsRepository,
+            medicineStockRepository = medicineStockRepository,
+            appTimeSource = FakeAppTimeSource(initialMinute = LocalDateTime.of(2026, 4, 10, 12, 0)),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectGroup(group.uuid)
+        viewModel.setDeductStock(true)
+        advanceUntilIdle()
+        viewModel.saveSelectedRange()
+        advanceUntilIdle()
+
+        assertEquals(group.uuid, viewModel.uiState.value.selectedGroupUuid)
+        assertEquals(true, viewModel.uiState.value.deductStock)
+        assertEquals(PlanBatchAddSaveResult.FAILURE, viewModel.uiState.value.saveResult)
+        assertEquals(true, viewModel.uiState.value.canConfirm)
+    }
+
+    @Test
+    fun saveSelectedRange_withoutDeductStockSavesWithoutStockWarning() = runTest {
+        val medicine = estradiolMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 1.0,
+                unitsLastTotal = 1.0,
+            )
+        )
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = medicine)),
+        )
+        val medicationGroupRepository = mockk<MedicationGroupRepository>()
+        val medicationLogRepository = mockk<MedicationLogRepository>()
+        val settingsRepository = mockk<SettingsRepository>()
+        val medicineStockRepository = mockk<MedicineStockRepository>()
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState(remindersEnabled = true))
+        every { medicineStockRepository.getCachedProjections() } returns emptyList()
+        every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
+        coEvery { medicationLogRepository.saveBackfillEntries(any(), deductStock = false) } returns Unit
+
+        val viewModel = PlanBatchAddViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = mockk<MedicationReminderScheduler>(relaxed = true),
+            settingsRepository = settingsRepository,
+            medicineStockRepository = medicineStockRepository,
+            appTimeSource = FakeAppTimeSource(initialMinute = LocalDateTime.of(2026, 4, 10, 12, 0)),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectGroup(group.uuid)
+        advanceUntilIdle()
+
+        val warnings = mutableListOf<PostLogStockWarning>()
+        val collectJob = launch {
+            viewModel.stockWarnings.collect { warning -> warnings += warning }
+        }
+        advanceUntilIdle()
+        viewModel.saveSelectedRange()
+        advanceUntilIdle()
+        collectJob.cancel()
+
+        assertEquals(emptyList<PostLogStockWarning>(), warnings)
+        coVerify(exactly = 1) {
+            medicationLogRepository.saveBackfillEntries(any(), deductStock = false)
+        }
+        coVerify(exactly = 0) {
+            medicineStockRepository.projectAllOnce(any())
+        }
+    }
+
+    @Test
+    fun buildPlanBatchAddStockPreviewItems_excludesUntrackedMedicines() {
+        val medicine = estradiolMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                trackingEnabled = false,
+                unitsRemaining = null,
+            )
+        )
+        val projection = stockProjection(
+            medicine = medicine,
+            state = com.mkx.hrttracker.model.medication.MedicineStockState.UNTRACKED,
+        )
+        val entry = MedicationLogEntryInput(
+            medicineUuid = medicine.uuid,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = null,
+            appliedAt = Instant.EPOCH,
+            count = 1,
+        )
+
+        val items = buildPlanBatchAddStockPreviewItems(
+            entriesToAdd = listOf(entry),
+            stockProjections = listOf(projection),
+        )
+
+        assertEquals(emptyList<PlanBatchAddStockPreviewItem>(), items)
+    }
+
+    @Test
+    fun buildPlanBatchAddStockPreviewItems_appliesDeductionsPerEntryIntoCumulativeAfterStock() {
+        val medicine = estradiolMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 2.0,
+                unitsLastTotal = 2.0,
+                warnAtDaysRemaining = 14,
+            )
+        )
+        val currentProjection = stockProjection(
+            medicine = medicine,
+            state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY,
+        )
+        val entries = listOf(
+            MedicationLogEntryInput(
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = null,
+                appliedAt = Instant.EPOCH,
+                count = 1,
+            ),
+            MedicationLogEntryInput(
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = null,
+                appliedAt = Instant.EPOCH.plusMillis(1),
+                count = 1,
+            ),
+        )
+
+        val items = buildPlanBatchAddStockPreviewItems(
+            entriesToAdd = entries,
+            stockProjections = listOf(currentProjection),
+        )
+
+        assertEquals(1, items.size)
+        // before stock is the medicine's current stock; afterStock is cumulative.
+        assertEquals(2.0, items.single().medicine.stock.unitsRemaining ?: error("missing before"), 0.0)
+        // Both 1-tablet deductions applied to one medicine: 2 - 1 - 1 = 0.
+        assertEquals(0.0, items.single().afterStock.unitsRemaining ?: error("missing after"), 0.0)
+    }
+
+    @Test
+    fun buildPlanBatchAddStockPreviewItems_collapsesDoseSignaturesIntoOneCardPerMedicine() {
+        // A medicine logged with several dose signatures must surface as a single
+        // card whose after-stock reflects the cumulative deduction of every entry
+        // — not duplicate cards each repeating the medicine's final stock.
+        val medicine = estradiolMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 10.0,
+                unitsLastTotal = 10.0,
+            )
+        )
+        val currentProjection = stockProjection(
+            medicine = medicine,
+            state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY,
+        )
+        val tabletEntry = MedicationLogEntryInput(
+            medicineUuid = medicine.uuid,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = null,
+            appliedAt = Instant.EPOCH,
+            count = 1,
+        )
+        val sublingualEntry = tabletEntry.copy(
+            applicationType = MedicationApplicationType.SUBLINGUAL,
+            appliedAt = Instant.EPOCH.plusMillis(1),
+        )
+
+        val items = buildPlanBatchAddStockPreviewItems(
+            entriesToAdd = listOf(tabletEntry, sublingualEntry),
+            stockProjections = listOf(currentProjection),
+        )
+
+        assertEquals(1, items.size)
+        // First contributing entry is the representative shown on the card.
+        assertEquals(MedicationApplicationType.ORAL, items.single().applicationType)
+        // Both 1-tablet deductions applied: 10 - 1 - 1 = 8.
+        assertEquals(
+            8.0,
+            items.single().afterStock.unitsRemaining ?: error("missing stock"),
+            0.0,
+        )
+    }
+
+    @Test
+    fun selectedGroupHasTrackedMedicine_trueWhenAnyGroupMedicineTracksStock() = runTest {
+        // Drives the deduct-stock switch supporting text: when at least one
+        // medicine in the group tracks stock, the switch reports the change.
+        val tracked = estradiolMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 5.0,
+                unitsLastTotal = 5.0,
+            )
+        )
+        val untracked = spironolactoneMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(trackingEnabled = false),
+        )
+        val group = trackedMedicineGroup(medicines = listOf(tracked, untracked))
+        val viewModel = planBatchAddViewModelWithProjections(
+            group = group,
+            projections = listOf(
+                stockProjection(medicine = tracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY),
+                stockProjection(medicine = untracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.UNTRACKED),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectGroup(group.uuid)
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.selectedGroupHasTrackedMedicine)
+    }
+
+    @Test
+    fun selectedGroupHasTrackedMedicine_falseWhenNoGroupMedicineTracksStock() = runTest {
+        val untracked = spironolactoneMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(trackingEnabled = false),
+        )
+        val group = trackedMedicineGroup(medicines = listOf(untracked))
+        val viewModel = planBatchAddViewModelWithProjections(
+            group = group,
+            projections = listOf(
+                stockProjection(medicine = untracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.UNTRACKED),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectGroup(group.uuid)
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.uiState.value.selectedGroupHasTrackedMedicine)
+    }
+
+    @Test
+    fun deductStockAvailability_reportsAvailableWhenTrackedMedicineWouldChangeStock() = runTest {
+        val tracked = estradiolMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 5.0,
+                unitsLastTotal = 5.0,
+            )
+        )
+        val group = trackedMedicineGroup(medicines = listOf(tracked))
+        val viewModel = planBatchAddViewModelWithProjections(
+            group = group,
+            projections = listOf(
+                stockProjection(medicine = tracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectGroup(group.uuid)
+        advanceUntilIdle()
+
+        assertEquals(DeductStockAvailability.AVAILABLE, viewModel.uiState.value.deductStockAvailability)
+    }
+
+    @Test
+    fun deductStockAvailability_distinguishesUnavailableSelectionStates() = runTest {
+        val tracked = estradiolMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 5.0,
+                unitsLastTotal = 5.0,
+            )
+        )
+        val untracked = spironolactoneMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(trackingEnabled = false),
+        )
+        val selectedGroupStartsInFuture = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 5, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = tracked)),
+        )
+        val selectedGroupHasNoChangesYet = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(23, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = tracked)),
+        )
+        val selectedGroupHasNoTrackedMedicine = trackedMedicineGroup(medicines = listOf(untracked))
+
+        val noGroupViewModel = planBatchAddViewModelWithProjections(
+            group = trackedMedicineGroup(medicines = listOf(tracked)),
+            projections = listOf(
+                stockProjection(medicine = tracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY),
+            ),
+        )
+        val futureViewModel = planBatchAddViewModelWithProjections(
+            group = selectedGroupStartsInFuture,
+            projections = listOf(
+                stockProjection(medicine = tracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY),
+            ),
+            now = LocalDateTime.of(2026, 4, 10, 12, 0),
+        )
+        val noChangesViewModel = planBatchAddViewModelWithProjections(
+            group = selectedGroupHasNoChangesYet,
+            projections = listOf(
+                stockProjection(medicine = tracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY),
+            ),
+            now = LocalDateTime.of(2026, 4, 10, 12, 0),
+        )
+        val noneTrackedViewModel = planBatchAddViewModelWithProjections(
+            group = selectedGroupHasNoTrackedMedicine,
+            projections = listOf(
+                stockProjection(medicine = untracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.UNTRACKED),
+            ),
+        )
+        advanceUntilIdle()
+
+        futureViewModel.selectGroup(selectedGroupStartsInFuture.uuid)
+        noChangesViewModel.selectGroup(selectedGroupHasNoChangesYet.uuid)
+        noneTrackedViewModel.selectGroup(selectedGroupHasNoTrackedMedicine.uuid)
+        advanceUntilIdle()
+
+        assertEquals(DeductStockAvailability.NO_GROUP, noGroupViewModel.uiState.value.deductStockAvailability)
+        assertEquals(DeductStockAvailability.NOT_STARTED, futureViewModel.uiState.value.deductStockAvailability)
+        assertEquals(DeductStockAvailability.NO_CHANGES, noChangesViewModel.uiState.value.deductStockAvailability)
+        assertEquals(DeductStockAvailability.NONE_TRACKED, noneTrackedViewModel.uiState.value.deductStockAvailability)
+    }
+
+    private fun trackedMedicineGroup(
+        medicines: List<com.mkx.hrttracker.model.medication.Medicine>,
+    ): MedicationGroup {
+        return medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = medicines.map { medicine -> testMedicationGroupMedication(medicine = medicine) },
+        )
+    }
+
+    private fun planBatchAddViewModelWithProjections(
+        group: MedicationGroup,
+        projections: List<com.mkx.hrttracker.model.medication.MedicineStockProjection>,
+        now: LocalDateTime = LocalDateTime.of(2026, 4, 10, 12, 0),
+    ): PlanBatchAddViewModel {
+        val medicationGroupRepository = mockk<MedicationGroupRepository>()
+        val medicationLogRepository = mockk<MedicationLogRepository>(relaxed = true)
+        val settingsRepository = mockk<SettingsRepository>()
+        val medicineStockRepository = mockk<MedicineStockRepository>(relaxed = true)
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState(remindersEnabled = true))
+        every { medicineStockRepository.getCachedProjections() } returns projections
+        every { medicineStockRepository.observeProjections() } returns flowOf(projections)
+
+        return PlanBatchAddViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicationReminderScheduler = mockk(relaxed = true),
+            settingsRepository = settingsRepository,
+            appTimeSource = FakeAppTimeSource(initialMinute = now),
+        )
+    }
+
     private fun medicationGroup(
         uuid: UUID = UUID.fromString("621f4792-93d2-4d42-aa86-fab9d5c968b1"),
         schedule: MedicationGroupSchedule,
@@ -543,6 +1053,24 @@ class PlanBatchAddViewModelTest {
         preparation = MedicinePreparation.Pill(strengthMgPerTablet = 100.0),
     )
 
+    private fun stockProjection(
+        medicine: com.mkx.hrttracker.model.medication.Medicine,
+        state: com.mkx.hrttracker.model.medication.MedicineStockState,
+    ): com.mkx.hrttracker.model.medication.MedicineStockProjection {
+        return com.mkx.hrttracker.model.medication.MedicineStockProjection(
+            medicine = medicine,
+            dosesPerDayMagnitude = 1.0,
+            totalStockUnits = medicine.stock.unitsRemaining ?: 0.0,
+            runway = com.mkx.hrttracker.model.medication.RunwayProjection.Days(
+                days = 30,
+                lastFulfillable = LocalDate.of(2026, 5, 1),
+            ),
+            intervalDays = 1,
+            maxPerAdministration = 1.0,
+            state = state,
+        )
+    }
+
     private fun planBatchAddViewModel(
         groups: List<MedicationGroup>,
         now: LocalDateTime = LocalDateTime.of(2026, 4, 25, 12, 0),
@@ -550,10 +1078,13 @@ class PlanBatchAddViewModelTest {
     ): PlanBatchAddViewModel {
         val medicationGroupRepository = mockk<MedicationGroupRepository>()
         val medicationLogRepository = mockk<MedicationLogRepository>()
+        val medicineStockRepository = mockk<MedicineStockRepository>(relaxed = true)
         val settingsRepository = mockk<SettingsRepository>()
 
         every { medicationGroupRepository.observeGroups() } returns flowOf(groups)
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { medicineStockRepository.getCachedProjections() } returns emptyList()
+        every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
         every { settingsRepository.settingsState } returns MutableStateFlow(
             SettingsState(remindersEnabled = true)
         )
@@ -561,6 +1092,7 @@ class PlanBatchAddViewModelTest {
         return PlanBatchAddViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = mockk<MedicationReminderScheduler>(relaxed = true),
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,

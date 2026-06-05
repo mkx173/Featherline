@@ -60,6 +60,24 @@ class HrtTrackerAppTest {
     }
 
     @Test
+    fun postLogStockWarningSnackbarMessage_manyUsesGenericAttentionPluralWithTotalCount() {
+        every { context.resources } returns resources
+        every {
+            resources.getQuantityString(R.plurals.stock_toast_many_attention, 2, 2)
+        } returns "Stock status of 2 medicines need your attention"
+
+        // Many collapses a mixed-severity batch into one count-only line; it
+        // must not name a severity, so the worst tier is deliberately dropped.
+        assertEquals(
+            "Stock status of 2 medicines need your attention",
+            postLogStockWarningSnackbarMessage(
+                warning = PostLogStockWarning.Many(2),
+                context = context,
+            ),
+        )
+    }
+
+    @Test
     fun postLogStockWarningDestination_singleDeepLinksToThatMedicineDetailUnderCurrentTab() {
         val uuid = UUID.fromString("11111111-2222-3333-4444-555555555555")
         val medicine = testMedicine(uuid = uuid)
@@ -76,6 +94,19 @@ class HrtTrackerAppTest {
                 medicineId = uuid.toString(),
                 topLevelParentRoute = Screen.Main.route,
             ),
+            destination,
+        )
+    }
+
+    @Test
+    fun postLogStockWarningDestination_manyRoutesToMedicinesListUnderCurrentTab() {
+        val destination = postLogStockWarningDestination(
+            PostLogStockWarning.Many(2),
+            topLevelParentRoute = Screen.Plan.route,
+        )
+
+        assertEquals(
+            Screen.Medicines.createRoute(topLevelParentRoute = Screen.Plan.route),
             destination,
         )
     }

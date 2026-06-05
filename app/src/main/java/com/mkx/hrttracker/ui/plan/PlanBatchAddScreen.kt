@@ -2,6 +2,8 @@ package com.mkx.hrttracker.ui.plan
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +18,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePickerDefaults
@@ -28,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -39,11 +43,14 @@ import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
@@ -56,11 +63,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.MedicationCard
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -78,10 +89,18 @@ import java.util.UUID
 @Composable
 fun PlanBatchAddScreen(
     onNavigateBack: () -> Unit,
+    onStockWarning: (PostLogStockWarning) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlanBatchAddViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val latestOnStockWarning by rememberUpdatedState(onStockWarning)
+
+    LaunchedEffect(viewModel) {
+        viewModel.stockWarnings.collect { warning ->
+            latestOnStockWarning(warning)
+        }
+    }
 
     PlanBatchAddScreenContent(
         uiState = uiState,
@@ -90,6 +109,7 @@ fun PlanBatchAddScreen(
         onSelectionCleared = viewModel::clearSelection,
         onStartDateSelected = viewModel::updateStartDate,
         onEndDateSelected = viewModel::updateEndDate,
+        onDeductStockChange = viewModel::setDeductStock,
         onSaveClick = viewModel::saveSelectedRange,
         onSavedStateConsumed = viewModel::consumeSavedState,
         onSaveResultConsumed = viewModel::onSaveResultConsumed,
@@ -106,6 +126,7 @@ private fun PlanBatchAddScreenContent(
     onSelectionCleared: () -> Unit,
     onStartDateSelected: (LocalDate) -> Unit,
     onEndDateSelected: (LocalDate) -> Unit,
+    onDeductStockChange: (Boolean) -> Unit,
     onSaveClick: () -> Unit,
     onSavedStateConsumed: () -> Unit,
     onSaveResultConsumed: () -> Unit,
@@ -152,6 +173,22 @@ private fun PlanBatchAddScreenContent(
         savedEntryCount,
         savedEntryCount,
     )
+    val deductStockSupportingText = when (uiState.deductStockAvailability) {
+        DeductStockAvailability.NO_GROUP ->
+            stringResource(R.string.plan_batch_add_select_group_prompt)
+        DeductStockAvailability.NONE_TRACKED ->
+            stringResource(R.string.plan_batch_add_deduct_stock_none_tracked)
+        DeductStockAvailability.NOT_STARTED ->
+            stringResource(R.string.plan_batch_add_group_not_started)
+        DeductStockAvailability.NO_CHANGES ->
+            stringResource(R.string.plan_batch_add_select_group_no_available_medicines)
+        DeductStockAvailability.AVAILABLE -> pluralStringResource(
+            R.plurals.plan_batch_add_deduct_stock_change_count,
+            uiState.stockPreviewItems.size,
+            uiState.stockPreviewItems.size,
+        )
+    }
+    val addStockSwitchEnabled = uiState.deductStockAvailability == DeductStockAvailability.AVAILABLE
     val shouldDeselectOnBack = uiState.selectedGroupUuid != null && !uiState.isSaving
 
     fun clearSelectionAndDismissDialogs() {
@@ -162,12 +199,6 @@ private fun PlanBatchAddScreenContent(
 
     BackHandler(enabled = shouldDeselectOnBack) {
         clearSelectionAndDismissDialogs()
-    }
-
-    LaunchedEffect(uiState.selectedGroupUuid, uiState.groups.size) {
-        if (uiState.selectedGroupUuid != null) {
-            listState.animateScrollToItem(index = 1)
-        }
     }
 
     LaunchedEffect(uiState.saveResult) {
@@ -313,13 +344,24 @@ private fun PlanBatchAddScreenContent(
                     }
                 }
 
+                item(key = "stock-section") {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    PlanBatchAddStockSection(
+                        deductStock = uiState.deductStock,
+                        supportingText = deductStockSupportingText,
+                        groupColorKey = uiState.selectedGroupColorKey,
+                        previewItems = uiState.stockPreviewItems,
+                        onDeductStockChange = onDeductStockChange,
+                        switchEnabled = addStockSwitchEnabled
+                    )
+                }
+
                 item(key = "range-selector") {
                     Spacer(modifier = Modifier.height(14.dp))
                     PlanBatchAddRangeSelector(
                         startDate = uiState.startDate,
                         endDate = uiState.endDate,
                         entryCount = uiState.entryCount,
-                        manualEntryCount = uiState.manualEntryCount,
                         skippedEntryCount = uiState.skippedEntryCount,
                         canConfirm = uiState.canConfirm,
                         hasSelectedGroup = uiState.selectedGroupUuid != null,
@@ -339,7 +381,6 @@ private fun PlanBatchAddRangeSelector(
     startDate: LocalDate,
     endDate: LocalDate,
     entryCount: Int,
-    manualEntryCount: Int,
     skippedEntryCount: Int,
     canConfirm: Boolean,
     hasSelectedGroup: Boolean,
@@ -349,94 +390,107 @@ private fun PlanBatchAddRangeSelector(
     onConfirmClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val rangeEnabled = hasSelectedGroup && !selectedGroupStartsInFuture
+    // Drive the chevron fade from this stable scope rather than the row's
+    // trailing slot: SegmentedListItem re-composes that slot as it toggles
+    // `enabled`, which would defer the animation's first frame (a visible lag).
+    val chevronTint by animateColorAsState(
+        targetValue = if (rangeEnabled) {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+            Color.Transparent
+        },
+        animationSpec = tween(durationMillis = 75),
+        label = "planBatchRangeChevron",
+    )
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
     ) {
         HrtSection(title = stringResource(R.string.plan_batch_add_range_title)) {
-            if (!hasSelectedGroup || selectedGroupStartsInFuture) {
-                item {
-                    // A not-yet-started plan reuses the "no group selected" prompt path,
-                    // since there's no valid past range to pick for it.
-                    SupportMessageListItem(
-                        text = stringResource(
-                            if (selectedGroupStartsInFuture) {
-                                R.string.plan_batch_add_group_not_started
-                            } else {
-                                R.string.plan_batch_add_select_group_prompt
-                            }
-                        ),
-                        painter = painterResource(R.drawable.ic_info),
-                        leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                item {
-                    SupportMessageListItem(
-                        text = stringResource(R.string.plan_batch_add_date_range),
-                        supportingText = stringResource(
+            item {
+                PreferenceSegmentedListItem(
+                    title = stringResource(R.string.plan_batch_add_date_range),
+                    // The "select a group" / "not started" prompts ride on the
+                    // range row's supporting line instead of a separate item.
+                    supportingText = when {
+                        !hasSelectedGroup ->
+                            stringResource(R.string.plan_batch_add_select_group_prompt)
+                        selectedGroupStartsInFuture ->
+                            stringResource(R.string.plan_batch_add_group_not_started)
+                        else -> stringResource(
                             R.string.plan_batch_add_date_range_value,
                             dateFormatter(startDate),
                             dateFormatter(endDate),
-                        ),
-                        onClick = onDateRangeClick,
-                        modifier = Modifier.fillMaxWidth(),
-                        painter = painterResource(R.drawable.ic_date_range),
-                        leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        leadingIconSize = 24.dp,
-                        showChevron = true,
-                    )
-                }
-                if (entryCount > 0 || skippedEntryCount > 0) {
-                    item {
-                        val entriesToAddLabel = if (entryCount > 0) {
+                        )
+                    },
+                    // Static (non-clickable) until a started group is selected.
+                    // EditorSegmentedListItem keeps a null-onClick row the same
+                    // height and full-color (no ripple), so only the chevron fades.
+                    onClick = if (rangeEnabled) onDateRangeClick else null,
+                    leadingContent = {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_date_range),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    trailingContent = {
+                        // Same 75ms tween the regimen group card uses for its
+                        // selection check; computed above so it isn't reset.
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = chevronTint,
+                        )
+                    },
+                )
+            }
+            // One entry-summary row that animates in/out with the selection,
+            // its text covering all cases (records to add, skipped-only, none).
+            animatedItem(visible = rangeEnabled) {
+                val liveMessage = if (entryCount > 0 || skippedEntryCount > 0) {
+                    val entriesToAddLabel = if (entryCount > 0) {
+                        pluralStringResource(
+                            R.plurals.plan_batch_add_entries_to_add,
+                            entryCount,
+                            entryCount,
+                        )
+                    } else {
+                        // entryCount == 0 but skippedEntryCount > 0 — the range
+                        // already has matching records, nothing new can be added.
+                        // Show a clearer "no new records" line beside the skipped chip.
+                        stringResource(R.string.plan_batch_add_no_new_entries)
+                    }
+                    if (skippedEntryCount > 0) {
+                        stringResource(
+                            R.string.plan_batch_add_entries_to_add_with_skipped,
+                            entriesToAddLabel,
                             pluralStringResource(
-                                R.plurals.plan_batch_add_entries_to_add,
-                                entryCount,
-                                entryCount
-                            )
-                        } else {
-                            // entryCount == 0 but skippedEntryCount > 0 — the range
-                            // already has matching records, nothing new can be added.
-                            // Avoid rendering "0 records will be added" alongside the
-                            // skipped chip; show a clearer "no new records" line.
-                            stringResource(R.string.plan_batch_add_no_new_entries)
-                        }
-                        val skippedEntriesLabel = pluralStringResource(
-                            R.plurals.plan_batch_add_entries_skipped,
-                            skippedEntryCount,
-                            skippedEntryCount
+                                R.plurals.plan_batch_add_entries_skipped,
+                                skippedEntryCount,
+                                skippedEntryCount,
+                            ),
                         )
-                        SupportMessageListItem(
-                            text = if (skippedEntryCount > 0) {
-                                stringResource(
-                                    R.string.plan_batch_add_entries_to_add_with_skipped,
-                                    entriesToAddLabel,
-                                    skippedEntriesLabel
-                                )
-                            } else {
-                                entriesToAddLabel
-                            },
-                            supportingText = if (manualEntryCount > 0) {
-                                stringResource(R.string.plan_batch_add_manual_before_start_note)
-                            } else {
-                                null
-                            },
-                            painter = painterResource(R.drawable.ic_data_info_alert),
-                            leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            leadingIconSize = 24.dp,
-                        )
+                    } else {
+                        entriesToAddLabel
                     }
                 } else {
-                    item {
-                        SupportMessageListItem(
-                            text = stringResource(R.string.plan_batch_add_no_entries),
-                            painter = painterResource(R.drawable.ic_data_info_alert),
-                            leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            leadingIconSize = 24.dp,
-                        )
-                    }
+                    stringResource(R.string.plan_batch_add_no_entries)
                 }
+                // Latch the message while visible so the row keeps its text through
+                // the exit collapse (entryCount drops to 0 on deselect) instead of
+                // flashing "no entries" as it shrinks.
+                var latchedMessage by remember { mutableStateOf(liveMessage) }
+                if (rangeEnabled) {
+                    latchedMessage = liveMessage
+                }
+                SupportMessageListItem(
+                    text = latchedMessage,
+                    painter = painterResource(R.drawable.ic_data_info_alert),
+                    leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    leadingIconSize = 24.dp,
+                )
             }
         }
 
@@ -447,6 +501,79 @@ private fun PlanBatchAddRangeSelector(
             icon = Icons.Rounded.Add,
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         )
+    }
+}
+
+@Composable
+private fun PlanBatchAddStockSection(
+    deductStock: Boolean,
+    supportingText: String,
+    groupColorKey: MedicationGroupColorKey?,
+    previewItems: List<PlanBatchAddStockPreviewItem>,
+    onDeductStockChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    switchEnabled: Boolean
+) {
+    // Keep the last non-empty preview set rendered so the cards can animate out
+    // when the toggle turns off OR the group is deselected (which empties
+    // previewItems) — visibility, not list membership, drives the animation.
+    var retainedPreviewItems by remember {
+        mutableStateOf(emptyList<PlanBatchAddStockPreviewItem>())
+    }
+    if (previewItems.isNotEmpty()) {
+        retainedPreviewItems = previewItems
+    }
+    val previewVisible = deductStock && previewItems.isNotEmpty()
+
+    HrtSection(
+        title = stringResource(R.string.plan_batch_add_stock_title),
+        modifier = modifier,
+    ) {
+        item {
+            PreferenceSegmentedListItem(
+                title = stringResource(R.string.plan_batch_add_deduct_stock),
+                supportingText = supportingText,
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_box_edit),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                onClick = if (switchEnabled) { { onDeductStockChange(!deductStock) } } else null,
+                trailingContent = {
+                    Switch(
+                        checked = deductStock,
+                        onCheckedChange = onDeductStockChange,
+                        enabled = switchEnabled
+                    )
+                },
+            )
+        }
+        retainedPreviewItems.forEach { item ->
+            animatedItem(visible = previewVisible) {
+                key(item.key) {
+                    MedicationCard(
+                        medicine = item.medicine,
+                        doseInstruction = item.doseInstruction,
+                        applicationType = item.applicationType,
+                        medicationCount = item.medicationCount,
+                        groupColorKey = groupColorKey,
+                        enabled = false,
+                        embeddedContent = {
+                            PlanBatchAddStockPreviewSubcard(
+                                preparation = item.medicine.preparation,
+                                beforeStock = item.medicine.stock,
+                                afterStock = item.afterStock,
+                                stockState = item.stockState,
+                                runway = item.runway,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                        },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -601,6 +728,7 @@ private fun PlanBatchAddScreenPreview() {
             onSelectionCleared = { },
             onStartDateSelected = { },
             onEndDateSelected = { },
+            onDeductStockChange = { },
             onSaveClick = { },
             onSavedStateConsumed = { },
             onSaveResultConsumed = { },

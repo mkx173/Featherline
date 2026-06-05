@@ -1,7 +1,5 @@
 package com.mkx.hrttracker.data.repository
 
-import kotlin.math.abs
-
 data class SimulatedStock(
     val open: Double,
     val sealed: Double,
@@ -12,16 +10,16 @@ data class SimulatedStock(
 fun SimulatedStock.applyDose(perDose: Double): SimulatedStock? {
     if (perDose <= 0.0) return this
     if (!isContainer) {
-        return if (open + EPSILON >= perDose) {
+        return if (open + FLOAT_EPSILON >= perDose) {
             copy(open = (open - perDose).coerceAtLeast(0.0).zeroIfTiny())
         } else {
             null
         }
     }
-    if (open + EPSILON >= perDose) {
+    if (open + FLOAT_EPSILON >= perDose) {
         return copy(open = (open - perDose).coerceAtLeast(0.0).zeroIfTiny())
     }
-    if (sealed + EPSILON < 1.0 || containerCapacity + EPSILON < perDose) {
+    if (sealed + FLOAT_EPSILON < 1.0 || containerCapacity + FLOAT_EPSILON < perDose) {
         return null
     }
     return copy(
@@ -44,7 +42,3 @@ fun simulateNDoses(
     }
     return fulfilled
 }
-
-private const val EPSILON = 1e-9
-
-private fun Double.zeroIfTiny(): Double = if (abs(this) <= EPSILON) 0.0 else this

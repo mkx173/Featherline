@@ -84,6 +84,9 @@
     <plurals name="stock_toast_user_low_multiple">
         <item quantity="other">%1$d 种药品库存不足</item>
     </plurals>
+    <plurals name="stock_toast_many_attention">
+        <item quantity="other">%1$d 种药品的库存状态需要您留意</item>
+    </plurals>
     <string name="stock_snackbar_action_view">查看</string>
     <string name="stock_snackbar_action_dismiss">关闭</string>
     <string name="stock_nudge_message">为 %1$s 启用库存跟踪？</string>
@@ -118,7 +121,11 @@
     <string name="plan_batch_add_range_title">日期范围</string>
     <string name="plan_batch_add_date_range">日期范围</string>
     <string name="plan_batch_add_date_range_value">%1$s 至 %2$s</string>
+    <string name="plan_batch_add_stock_title">库存</string>
+    <string name="plan_batch_add_deduct_stock">更新库存数量</string>
+    <string name="plan_batch_add_deduct_stock_none_tracked">这个分组里没有追踪库存的药物</string>
     <string name="plan_batch_add_select_group_prompt">请先选择一个分组</string>
+    <string name="plan_batch_add_select_group_no_available_medicines">此范围内没有库存变化</string>
     <string name="plan_batch_add_group_not_started">请选择一个开始日期在过去的分组</string>
     <string name="plan_batch_add_no_entries">此范围内没有可添加的记录</string>
     <string name="plan_batch_add_no_new_entries">没有新记录可添加</string>
@@ -689,6 +696,9 @@
     </plurals>
     <plurals name="plan_batch_add_confirm_message">
         <item quantity="other">要为「%2$s」在 %3$s 至 %4$s 期间添加 %1$d 条记录吗？</item>
+    </plurals>
+    <plurals name="plan_batch_add_deduct_stock_change_count">
+        <item quantity="other">将更新 %1$d 种药物的库存</item>
     </plurals>
     <plurals name="history_summary_logged_entries">
         <item quantity="other">条记录</item>

@@ -25,44 +25,58 @@ fun HrtTrackerApp(
     )
 }
 
-// Only single-medicine warnings reach the snackbar: in-app logging saves one
-// medicine at a time, so resolvePostLogStockWarning is always called with a
-// single UUID. (Multi-medicine warnings only arise from the reminder action
-// path, which renders its own count toasts and never uses these helpers.)
-// Deep-link to that medicine's detail page (where stock is managed), rooted
-// under the caller's current top-level tab so the highlighted tab stays put
-// and the back stack doesn't accumulate cross-tab entries.
+// In-app post-log stock warnings are rendered by the NavHost snackbar. Manual
+// logging still produces Single in practice, but batch-add can produce Many, so
+// these helpers accept the full sealed warning type.
+// Single deep-links to that medicine's detail page (where stock is managed);
+// Many routes to the medicines list. Destinations are rooted under the caller's
+// current top-level tab so the highlighted tab stays put and the back stack
+// doesn't accumulate cross-tab entries.
 internal fun postLogStockWarningDestination(
-    warning: PostLogStockWarning.Single,
+    warning: PostLogStockWarning,
     topLevelParentRoute: String,
 ): String {
-    return Screen.MedicineDetail.createRoute(
-        medicineId = warning.medicine.uuid.toString(),
-        topLevelParentRoute = topLevelParentRoute,
-    )
+    return when (warning) {
+        is PostLogStockWarning.Single -> Screen.MedicineDetail.createRoute(
+            medicineId = warning.medicine.uuid.toString(),
+            topLevelParentRoute = topLevelParentRoute,
+        )
+        is PostLogStockWarning.Many -> Screen.Medicines.createRoute(
+            topLevelParentRoute = topLevelParentRoute,
+        )
+    }
 }
 
 internal fun postLogStockWarningSnackbarMessage(
-    warning: PostLogStockWarning.Single,
+    warning: PostLogStockWarning,
     context: Context,
 ): String {
-    val displayName = medicineDisplayName(warning.medicine, context)
-    return when (warning.state) {
-        MedicineStockState.OUT -> context.getString(
-            R.string.stock_toast_out_single,
-            displayName,
+    return when (warning) {
+        is PostLogStockWarning.Single -> {
+            val displayName = medicineDisplayName(warning.medicine, context)
+            when (warning.state) {
+                MedicineStockState.OUT -> context.getString(
+                    R.string.stock_toast_out_single,
+                    displayName,
+                )
+                MedicineStockState.IMMINENT -> context.getString(
+                    R.string.stock_toast_imminent_single,
+                    displayName,
+                )
+                MedicineStockState.USER_LOW -> context.getString(
+                    R.string.stock_toast_user_low_single,
+                    displayName,
+                )
+                MedicineStockState.HEALTHY,
+                MedicineStockState.UNTRACKED,
+                MedicineStockState.NO_RUNWAY -> unsupportedPostLogStockWarningState(warning.state)
+            }
+        }
+        is PostLogStockWarning.Many -> context.resources.getQuantityString(
+            R.plurals.stock_toast_many_attention,
+            warning.count,
+            warning.count,
         )
-        MedicineStockState.IMMINENT -> context.getString(
-            R.string.stock_toast_imminent_single,
-            displayName,
-        )
-        MedicineStockState.USER_LOW -> context.getString(
-            R.string.stock_toast_user_low_single,
-            displayName,
-        )
-        MedicineStockState.HEALTHY,
-        MedicineStockState.UNTRACKED,
-        MedicineStockState.NO_RUNWAY -> unsupportedPostLogStockWarningState(warning.state)
     }
 }
 

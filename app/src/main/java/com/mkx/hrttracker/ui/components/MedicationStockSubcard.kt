@@ -240,7 +240,7 @@ private fun StockSubcardChip(
         containerColor = colors.container,
         contentColor = colors.content,
         size = HrtPillSize.XSmall,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.SemiBold,
     )
 }
 
@@ -470,7 +470,7 @@ internal fun stockSubcardProgressIndicatorColors(
 }
 
 @Composable
-private fun stockSubcardChipColors(
+internal fun stockSubcardChipColors(
     tone: MedicationStockSubcardTone,
 ): StockSubcardChipColors {
     return when (tone) {
@@ -595,7 +595,7 @@ private fun stockSubcardSealedSupplement(
 }
 
 @StringRes
-private fun stockSubcardChipLabelRes(state: MedicineStockState): Int? {
+internal fun stockSubcardChipLabelRes(state: MedicineStockState): Int? {
     return when (state) {
         MedicineStockState.HEALTHY -> R.string.stock_subcard_chip_in_stock
         MedicineStockState.USER_LOW -> R.string.stock_subcard_chip_low
@@ -606,7 +606,7 @@ private fun stockSubcardChipLabelRes(state: MedicineStockState): Int? {
     }
 }
 
-private fun stockSubcardTone(state: MedicineStockState): MedicationStockSubcardTone {
+internal fun stockSubcardTone(state: MedicineStockState): MedicationStockSubcardTone {
     return when (state) {
         MedicineStockState.HEALTHY -> MedicationStockSubcardTone.HEALTHY
         MedicineStockState.USER_LOW -> MedicationStockSubcardTone.WARNING
@@ -619,7 +619,7 @@ private fun stockSubcardTone(state: MedicineStockState): MedicationStockSubcardT
     }
 }
 
-private fun stockSubcardRunwayText(
+internal fun stockSubcardRunwayText(
     runway: RunwayProjection,
 ): MedicationStockSubcardText? {
     return when (runway) {

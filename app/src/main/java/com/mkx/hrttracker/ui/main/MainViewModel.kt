@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.lowStockSeverityRank
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
@@ -339,17 +340,6 @@ class MainViewModel @Inject constructor(
                 .takeIf { state -> state.lowStockSeverityRank() > 0 }
                 ?.let { state -> projection.medicine.uuid.toString() to state }
         }.toMap()
-    }
-
-    private fun MedicineStockState.lowStockSeverityRank(): Int {
-        return when (this) {
-            MedicineStockState.USER_LOW -> 1
-            MedicineStockState.IMMINENT -> 2
-            MedicineStockState.OUT -> 3
-            MedicineStockState.HEALTHY,
-            MedicineStockState.UNTRACKED,
-            MedicineStockState.NO_RUNWAY -> 0
-        }
     }
 
     private data class HomeTimeKey(

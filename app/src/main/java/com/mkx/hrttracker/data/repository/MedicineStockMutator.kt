@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
-import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import java.time.Instant
@@ -10,9 +9,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
 
-private const val FLOAT_EPSILON = 1e-9
+internal const val FLOAT_EPSILON = 1e-9
 
-private fun Double.zeroIfTiny(): Double {
+internal fun Double.zeroIfTiny(): Double {
     return if (abs(this) <= FLOAT_EPSILON) 0.0 else this
 }
 
@@ -72,26 +71,38 @@ internal class MedicineStockMutator @Inject constructor() {
             return
         }
 
-        val nowMs = now.toEpochMilli()
-
-        if (!prepType.isContainerTopology()) {
-            val remaining = entity.stockUnitsRemaining ?: 0.0
-            val actuallyDeducted = minOf(requestedDose, remaining).coerceAtLeast(0.0)
-            val newRemaining = (remaining - actuallyDeducted).zeroIfTiny()
-            dao.updateStockFields(
-                uuid = entity.uuid,
-                trackingEnabled = true,
-                stockUnitsRemaining = newRemaining,
-                stockUnitsLastTotal = entity.stockUnitsLastTotal,
-                openContainerAmount = null,
-                warnAtDaysRemaining = entity.warnAtDaysRemaining,
-                stockGeneration = entity.stockGeneration,
-                updatedAtEpochMillis = nowMs,
-            )
+        val containerCapacity = entity.containerSizeOrNull()
+        if (prepType.isContainerTopology() &&
+            (containerCapacity == null || !containerCapacity.isFinite() || containerCapacity <= 0.0)
+        ) {
             return
         }
 
-        resolveContainerDeductionForInsert(dao, entity, requestedDose, nowMs)
+        val nowMs = now.toEpochMilli()
+        val updated = deductInsertedDoseStock(
+            preparationType = prepType,
+            containerCapacity = containerCapacity,
+            fields = StockDeductionFields(
+                unitsRemaining = entity.stockUnitsRemaining,
+                unitsLastTotal = entity.stockUnitsLastTotal,
+                openContainerAmount = entity.openContainerAmount,
+            ),
+            requestedDose = requestedDose,
+        )
+        dao.updateStockFields(
+            uuid = entity.uuid,
+            trackingEnabled = true,
+            stockUnitsRemaining = updated.unitsRemaining,
+            stockUnitsLastTotal = updated.unitsLastTotal,
+            openContainerAmount = if (prepType.isContainerTopology()) {
+                updated.openContainerAmount
+            } else {
+                null
+            },
+            warnAtDaysRemaining = entity.warnAtDaysRemaining,
+            stockGeneration = entity.stockGeneration,
+            updatedAtEpochMillis = nowMs,
+        )
     }
 
     /** Bumps stockGeneration, clears stock columns, and resets warnAtDaysRemaining. */
@@ -360,64 +371,6 @@ internal class MedicineStockMutator @Inject constructor() {
             stockGeneration = entity.stockGeneration,
             updatedAtEpochMillis = now.toEpochMilli(),
         )
-    }
-
-    private suspend fun resolveContainerDeductionForInsert(
-        dao: MedicineDao,
-        entity: MedicineEntity,
-        requestedDose: Double,
-        nowMs: Long,
-    ) {
-        val containerSize = entity.containerSizeOrNull() ?: return
-        val open = entity.openContainerAmount ?: 0.0
-        val sealed = entity.stockUnitsRemaining ?: 0.0
-        val dose = requestedDose.coerceAtLeast(0.0)
-
-        val newSealed: Double
-        val newOpen: Double
-
-        when {
-            hasSufficientOpenAmount(open = open, dose = dose) -> {
-                newSealed = sealed
-                newOpen = (open - dose).zeroIfTiny().coerceAtLeast(0.0)
-            }
-
-            sealed >= 1.0 -> {
-                newSealed = sealed - 1.0
-                newOpen = maxOf(0.0, containerSize - dose)
-            }
-
-            else -> {
-                newSealed = sealed
-                newOpen = 0.0
-            }
-        }
-
-        val (normalizedOpen, normalizedSealed) = normalizeOpenContainer(
-            open = newOpen.zeroIfTiny(),
-            sealed = newSealed,
-            capacity = containerSize,
-        )
-
-        dao.updateStockFields(
-            uuid = entity.uuid,
-            trackingEnabled = true,
-            stockUnitsRemaining = normalizedSealed.zeroIfTiny(),
-            // Consumption keeps the recount baseline fixed: even when this dose
-            // drains the open container and cracks the next sealed one, the
-            // denominator stays put so the reserve gauge depletes instead of
-            // re-basing to full (see decrementDenominatorOnCrack).
-            stockUnitsLastTotal = entity.stockUnitsLastTotal,
-            openContainerAmount = normalizedOpen,
-            warnAtDaysRemaining = entity.warnAtDaysRemaining,
-            stockGeneration = entity.stockGeneration,
-            updatedAtEpochMillis = nowMs,
-        )
-    }
-
-    private fun hasSufficientOpenAmount(open: Double, dose: Double): Boolean {
-        if (dose <= 0.0 || open >= dose) return true
-        return open > FLOAT_EPSILON && dose - open <= FLOAT_EPSILON
     }
 
     private suspend fun clearStockInternal(
