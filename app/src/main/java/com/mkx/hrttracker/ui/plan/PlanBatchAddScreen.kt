@@ -178,12 +178,20 @@ private fun PlanBatchAddScreenContent(
             stringResource(R.string.plan_batch_add_select_group_prompt)
         !uiState.selectedGroupHasTrackedMedicine ->
             stringResource(R.string.plan_batch_add_deduct_stock_none_tracked)
+        uiState.selectedGroupStartsInFuture ->
+            stringResource(R.string.plan_batch_add_group_not_started)
+        uiState.stockPreviewItems.isEmpty() ->
+            stringResource(R.string.plan_batch_add_select_group_no_available_medicines)
         else -> pluralStringResource(
             R.plurals.plan_batch_add_deduct_stock_change_count,
             uiState.stockPreviewItems.size,
             uiState.stockPreviewItems.size,
         )
     }
+    val addStockSwitchEnabled = uiState.selectedGroupUuid != null
+            && uiState.selectedGroupHasTrackedMedicine
+            && !uiState.selectedGroupStartsInFuture
+            && !uiState.stockPreviewItems.isEmpty()
     val shouldDeselectOnBack = uiState.selectedGroupUuid != null && !uiState.isSaving
 
     fun clearSelectionAndDismissDialogs() {
@@ -347,6 +355,7 @@ private fun PlanBatchAddScreenContent(
                         groupColorKey = uiState.selectedGroupColorKey,
                         previewItems = uiState.stockPreviewItems,
                         onDeductStockChange = onDeductStockChange,
+                        switchEnabled = addStockSwitchEnabled
                     )
                 }
 
@@ -356,7 +365,6 @@ private fun PlanBatchAddScreenContent(
                         startDate = uiState.startDate,
                         endDate = uiState.endDate,
                         entryCount = uiState.entryCount,
-                        manualEntryCount = uiState.manualEntryCount,
                         skippedEntryCount = uiState.skippedEntryCount,
                         canConfirm = uiState.canConfirm,
                         hasSelectedGroup = uiState.selectedGroupUuid != null,
@@ -376,7 +384,6 @@ private fun PlanBatchAddRangeSelector(
     startDate: LocalDate,
     endDate: LocalDate,
     entryCount: Int,
-    manualEntryCount: Int,
     skippedEntryCount: Int,
     canConfirm: Boolean,
     hasSelectedGroup: Boolean,
@@ -508,6 +515,7 @@ private fun PlanBatchAddStockSection(
     previewItems: List<PlanBatchAddStockPreviewItem>,
     onDeductStockChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    switchEnabled: Boolean
 ) {
     // Keep the last non-empty preview set rendered so the cards can animate out
     // when the toggle turns off OR the group is deselected (which empties
@@ -537,11 +545,12 @@ private fun PlanBatchAddStockSection(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
-                onClick = { onDeductStockChange(!deductStock) },
+                onClick = if (switchEnabled) { { onDeductStockChange(!deductStock) } } else null,
                 trailingContent = {
                     Switch(
                         checked = deductStock,
                         onCheckedChange = onDeductStockChange,
+                        enabled = switchEnabled
                     )
                 },
             )

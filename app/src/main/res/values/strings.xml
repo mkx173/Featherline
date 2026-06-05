@@ -131,6 +131,7 @@
     <string name="plan_batch_add_deduct_stock">Update stock counts</string>
     <string name="plan_batch_add_deduct_stock_none_tracked">This group has no tracked medicines.</string>
     <string name="plan_batch_add_select_group_prompt">Please select a group first.</string>
+    <string name="plan_batch_add_select_group_no_available_medicines">No stock changes in this range.</string>
     <string name="plan_batch_add_group_not_started">Please select a group with a start date in the past.</string>
     <string name="plan_batch_add_no_entries">No entries can be added in this range.</string>
     <string name="plan_batch_add_no_new_entries">No new records to add</string>
