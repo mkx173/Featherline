@@ -601,7 +601,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun WidgetAppearanceDialog(
+internal fun WidgetAppearanceDialog(
     contentScale: Float,
     backgroundAlpha: Float,
     darkModeOption: DarkModeOption,
