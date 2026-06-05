@@ -96,11 +96,16 @@ class ManualMedicineLogSaverTest {
                 doseAmountDelta = 0.1,
             )
         } returns Unit
-        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
-            stockProjection(
-                medicine = medicine,
-                state = MedicineStockState.IMMINENT,
-            )
+        // Before the log the medicine was healthy (empty projection list); only
+        // the post-log drop to IMMINENT should produce a warning.
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+            emptyList(),
+            listOf(
+                stockProjection(
+                    medicine = medicine,
+                    state = MedicineStockState.IMMINENT,
+                )
+            ),
         )
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 

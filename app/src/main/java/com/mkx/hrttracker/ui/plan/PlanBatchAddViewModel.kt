@@ -287,6 +287,9 @@ class PlanBatchAddViewModel @Inject constructor(
         if (entriesToSave.isEmpty() || selectionState.value.isSaving) {
             return
         }
+        // "Before" baseline from the same projections the preview showed, so the
+        // post-save warning only fires for medicines this batch worsened.
+        val beforeStockStates = stockProjections.value.associate { it.medicine.uuid to it.state }
 
         selectionState.update { state ->
             state.copy(
@@ -315,6 +318,7 @@ class PlanBatchAddViewModel @Inject constructor(
                     resolvePostLogStockWarning(
                         projections = medicineStockRepository.projectAllOnce(now = Instant.now()),
                         affectedMedicineUuids = affectedMedicineUuids,
+                        beforeStatesByUuid = beforeStockStates,
                     )
                 }.getOrElse { failure ->
                     if (failure is CancellationException) throw failure

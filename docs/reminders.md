@@ -209,8 +209,11 @@ for "Logged N", "Nothing to add", and "Snoozed N minutes" are dispatched
 on the main looper.
 
 After a "Log all" action logs doses, `logNow` re-projects stock for the
-affected medicines and, if any landed in a warning state, shows a
-low-stock toast. A **single** warned medicine names it via
+affected medicines and warns only for those the log pushed into a **worse**
+low-stock tier — it snapshots each medicine's state before the deduction
+(`captureStockStatesForLog`) and `resolvePostLogStockWarning` keeps only
+medicines whose `lowStockSeverityRank` rose, so an already-low medicine
+that stays low does not re-warn. A **single** warned medicine names it via
 `showStock{Out,Imminent,UserLow}Toast` (or, when `hideMedicationDetails`
 is on, the matching `…CountToast` with count 1 — severity tier, no name).
 **Multiple** warned medicines collapse to one generic

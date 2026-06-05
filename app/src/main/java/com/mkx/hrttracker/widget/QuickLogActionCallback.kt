@@ -8,6 +8,7 @@ import androidx.glance.appwidget.action.ActionCallback
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.reminder.MedicationReminderSlot
+import com.mkx.hrttracker.reminder.captureStockStatesForLog
 import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
 import com.mkx.hrttracker.reminder.showPostLogToast
 import dagger.hilt.android.EntryPointAccessors
@@ -15,6 +16,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
+import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
 
@@ -102,12 +104,19 @@ class QuickLogActionCallback : ActionCallback {
                 // saveNewEntries goes through runHomeDataMutation, which rewrites the home
                 // snapshot. HomeWidgetManager's home-snapshot observer picks that up and
                 // re-derives the widget snapshot — no explicit widget refresh needed.
+                // Snapshot stock before the deduction so the toast only fires for
+                // medicines this quick-log pushed into a worse tier.
+                val beforeStockStates = captureStockStatesForLog(
+                    medicineStockRepository = medicineStockRepository,
+                    now = Instant.from(appliedAt.atZone(zoneId)),
+                )
                 logRepository.saveNewEntries(missingEntries)
                 showPostLogToast(
                     entriesToSave = missingEntries,
                     now = appliedAt,
                     medicineStockRepository = medicineStockRepository,
                     reminderNotificationManager = reminderNotificationManager,
+                    beforeStatesByUuid = beforeStockStates,
                     hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails,
                 )
             } else {

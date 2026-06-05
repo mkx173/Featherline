@@ -21,6 +21,7 @@ import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.reminder.captureStockStatesForLog
 import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
@@ -353,6 +354,16 @@ class MedicationLogEntryViewModel @Inject constructor(
             } else {
                 request.selectedMedicineUuid
             }
+            // Snapshot stock before the deduction so a new-insert warning only
+            // fires when this log worsens the medicine's tier (edits never warn).
+            val beforeStockStates = if (request.editingEntryUuids.isEmpty() && medicineUuid != null) {
+                captureStockStatesForLog(
+                    medicineStockRepository = medicineStockRepository,
+                    now = Instant.now(),
+                )
+            } else {
+                emptyMap()
+            }
             val saveResult = runCatching {
                 // On edit the repository ignores medicine identity (locked); on a
                 // new log the routed picker already resolved a Medicine UUID.
@@ -396,6 +407,7 @@ class MedicationLogEntryViewModel @Inject constructor(
                     resolvePostLogStockWarning(
                         projections = medicineStockRepository.projectAllOnce(now = Instant.now()),
                         affectedMedicineUuids = setOf(medicineUuid),
+                        beforeStatesByUuid = beforeStockStates,
                     )
                 }.getOrElse { failure ->
                     if (failure is CancellationException) throw failure

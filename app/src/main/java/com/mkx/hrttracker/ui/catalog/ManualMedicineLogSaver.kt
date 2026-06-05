@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.reminder.captureStockStatesForLog
 import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -40,6 +41,12 @@ internal suspend fun saveManualMedicineLog(
         doseInstruction
     }
 
+    // Snapshot stock before the deduction so the warning only fires when this
+    // log actually worsens the medicine's tier.
+    val beforeStockStates = captureStockStatesForLog(
+        medicineStockRepository = medicineStockRepository,
+        now = Instant.now(),
+    )
     val saveResult = try {
         medicationLogRepository.saveEntry(
             uuid = null,
@@ -67,6 +74,7 @@ internal suspend fun saveManualMedicineLog(
         resolvePostLogStockWarning(
             projections = medicineStockRepository.projectAllOnce(now = Instant.now()),
             affectedMedicineUuids = setOf(medicineUuid),
+            beforeStatesByUuid = beforeStockStates,
         )
     }.getOrElse { failure ->
         if (failure is CancellationException) throw failure

@@ -265,8 +265,11 @@ class MedicationReminderActionHandlerTest {
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } just Runs
-        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
-            stockProjection(medicine, MedicineStockState.USER_LOW)
+        // First projection is the pre-log "before" baseline (empty = was healthy),
+        // second is the post-log result that the warning is derived from.
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+            emptyList(),
+            listOf(stockProjection(medicine, MedicineStockState.USER_LOW)),
         )
 
         actionHandler.logNow(
@@ -299,8 +302,11 @@ class MedicationReminderActionHandlerTest {
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } just Runs
-        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
-            stockProjection(medicine, MedicineStockState.USER_LOW)
+        // First projection is the pre-log "before" baseline (empty = was healthy),
+        // second is the post-log result that the warning is derived from.
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+            emptyList(),
+            listOf(stockProjection(medicine, MedicineStockState.USER_LOW)),
         )
 
         actionHandler.logNow(
@@ -340,9 +346,12 @@ class MedicationReminderActionHandlerTest {
         coEvery { groupRepository.getGroup(secondGroup.uuid) } returns secondGroup
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } just Runs
-        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
-            stockProjection(firstMedicine, MedicineStockState.USER_LOW),
-            stockProjection(secondMedicine, MedicineStockState.USER_LOW),
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+            emptyList(),
+            listOf(
+                stockProjection(firstMedicine, MedicineStockState.USER_LOW),
+                stockProjection(secondMedicine, MedicineStockState.USER_LOW),
+            ),
         )
 
         actionHandler.logNow(
@@ -379,9 +388,12 @@ class MedicationReminderActionHandlerTest {
         coEvery { groupRepository.getGroup(healthyGroup.uuid) } returns healthyGroup
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } just Runs
-        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
-            stockProjection(outMedicine, MedicineStockState.OUT),
-            stockProjection(healthyMedicine, MedicineStockState.HEALTHY),
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+            emptyList(),
+            listOf(
+                stockProjection(outMedicine, MedicineStockState.OUT),
+                stockProjection(healthyMedicine, MedicineStockState.HEALTHY),
+            ),
         )
 
         actionHandler.logNow(
@@ -418,9 +430,12 @@ class MedicationReminderActionHandlerTest {
         coEvery { groupRepository.getGroup(lowGroup.uuid) } returns lowGroup
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } just Runs
-        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
-            stockProjection(outMedicine, MedicineStockState.OUT),
-            stockProjection(lowMedicine, MedicineStockState.USER_LOW),
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+            emptyList(),
+            listOf(
+                stockProjection(outMedicine, MedicineStockState.OUT),
+                stockProjection(lowMedicine, MedicineStockState.USER_LOW),
+            ),
         )
 
         actionHandler.logNow(
@@ -632,6 +647,7 @@ class MedicationReminderActionHandlerTest {
                 now = LocalDateTime.of(2026, 4, 20, 9, 10),
                 medicineStockRepository = medicineStockRepository,
                 reminderNotificationManager = notificationManager,
+                beforeStatesByUuid = emptyMap(),
             )
             fail("Expected CancellationException")
         } catch (exception: CancellationException) {
@@ -665,6 +681,7 @@ class MedicationReminderActionHandlerTest {
                 stockProjection(lowMedicine, MedicineStockState.USER_LOW),
             ),
             affectedMedicineUuids = setOf(outMedicine.uuid),
+            beforeStatesByUuid = emptyMap(),
         )
 
         assertEquals(
@@ -687,6 +704,7 @@ class MedicationReminderActionHandlerTest {
         val warning = resolvePostLogStockWarning(
             projections = listOf(stockProjection(medicine, MedicineStockState.HEALTHY)),
             affectedMedicineUuids = setOf(medicine.uuid),
+            beforeStatesByUuid = emptyMap(),
         )
 
         assertNull(warning)
@@ -726,10 +744,51 @@ class MedicationReminderActionHandlerTest {
                 stockProjection(healthyMedicine, MedicineStockState.HEALTHY),
             ),
             affectedMedicineUuids = setOf(outMedicine.uuid, lowMedicine.uuid, healthyMedicine.uuid),
+            beforeStatesByUuid = emptyMap(),
         )
 
         assertEquals(
             PostLogStockWarning.Many(count = 2),
+            warning,
+        )
+    }
+
+    @Test
+    fun resolvePostLogStockWarning_onlyWarnsForMedicinesThatWorsened() {
+        val droppedGroup = medicationGroup(
+            uuid = UUID.fromString("0a4c8d2e-1111-4c2a-9a5b-000000000001"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val stayedGroup = medicationGroup(
+            uuid = UUID.fromString("0a4c8d2e-2222-4c2a-9a5b-000000000002"),
+            name = "Spiro",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.SPIRONOLACTONE,
+            medicationCount = 1,
+        )
+        val droppedMedicine = droppedGroup.medications.single().medicine!!
+        val stayedMedicine = stayedGroup.medications.single().medicine!!
+
+        val warning = resolvePostLogStockWarning(
+            projections = listOf(
+                stockProjection(droppedMedicine, MedicineStockState.USER_LOW),
+                stockProjection(stayedMedicine, MedicineStockState.USER_LOW),
+            ),
+            affectedMedicineUuids = setOf(droppedMedicine.uuid, stayedMedicine.uuid),
+            beforeStatesByUuid = mapOf(
+                // Already low before the log → unchanged tier → must be skipped,
+                // so an existing low-stock medicine doesn't re-warn on every dose.
+                stayedMedicine.uuid to MedicineStockState.USER_LOW,
+                // Was healthy before → dropping to low is a genuine worsening.
+                droppedMedicine.uuid to MedicineStockState.HEALTHY,
+            ),
+        )
+
+        assertEquals(
+            PostLogStockWarning.Single(droppedMedicine, MedicineStockState.USER_LOW),
             warning,
         )
     }

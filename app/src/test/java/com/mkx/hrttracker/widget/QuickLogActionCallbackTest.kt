@@ -97,8 +97,9 @@ class QuickLogActionCallbackTest {
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } just Runs
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
-        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
-            stockProjection(medicine, MedicineStockState.USER_LOW)
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+            emptyList(),
+            listOf(stockProjection(medicine, MedicineStockState.USER_LOW)),
         )
 
         QuickLogActionCallback().onAction(context, glanceId, parameters)
@@ -147,8 +148,9 @@ class QuickLogActionCallbackTest {
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } just Runs
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(hideMedicationDetails = true)
-        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
-            stockProjection(medicine, MedicineStockState.USER_LOW)
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+            emptyList(),
+            listOf(stockProjection(medicine, MedicineStockState.USER_LOW)),
         )
 
         QuickLogActionCallback().onAction(context, glanceId, parameters)
@@ -263,8 +265,9 @@ class QuickLogActionCallbackTest {
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } just Runs
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
-        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
-            stockProjection(medicine, MedicineStockState.USER_LOW)
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+            emptyList(),
+            listOf(stockProjection(medicine, MedicineStockState.USER_LOW)),
         )
 
         QuickLogActionCallback().onAction(context, glanceId, parameters)
@@ -313,8 +316,9 @@ class QuickLogActionCallbackTest {
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } just Runs
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
-        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
-            stockProjection(medicine, MedicineStockState.USER_LOW)
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+            emptyList(),
+            listOf(stockProjection(medicine, MedicineStockState.USER_LOW)),
         )
         coEvery { updateAllHrtWidgets(appContext) } just Runs
 

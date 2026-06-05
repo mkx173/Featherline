@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.isActive
+import com.mkx.hrttracker.model.medication.lowStockSeverityRank
 import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
@@ -87,6 +88,12 @@ class MedicationReminderActionHandler @Inject constructor(
         }
 
         if (entriesToSave.isNotEmpty()) {
+            // Snapshot stock state before the deduction so the toast only fires
+            // for medicines this log actually pushed into a worse tier.
+            val beforeStockStates = captureStockStatesForLog(
+                medicineStockRepository = medicineStockRepository,
+                now = Instant.from(now.atZone(ZoneId.systemDefault())),
+            )
             medicationLogRepository.saveNewEntries(entriesToSave)
             diagnosticsLogger.info(
                 TAG,
@@ -97,6 +104,7 @@ class MedicationReminderActionHandler @Inject constructor(
                 now = now,
                 medicineStockRepository = medicineStockRepository,
                 reminderNotificationManager = reminderNotificationManager,
+                beforeStatesByUuid = beforeStockStates,
                 hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails,
             )
         } else {
@@ -400,11 +408,32 @@ internal fun MedicationReminderSlot.toMedicationGroupSlotKey(): MedicationGroupS
     )
 }
 
+/**
+ * Snapshots each medicine's current stock state, keyed by UUID, for use as the
+ * "before" baseline of a post-log warning. Must be called before the log's
+ * deduction is written. A projection failure degrades to an empty map (every
+ * post-log warning tier then reads as newly worsened), but cancellation
+ * propagates.
+ */
+internal suspend fun captureStockStatesForLog(
+    medicineStockRepository: MedicineStockRepository,
+    now: Instant,
+): Map<UUID, MedicineStockState> {
+    return runCatching {
+        medicineStockRepository.projectAllOnce(now = now)
+            .associate { projection -> projection.medicine.uuid to projection.state }
+    }.getOrElse { failure ->
+        if (failure is CancellationException) throw failure
+        emptyMap()
+    }
+}
+
 internal suspend fun showPostLogToast(
     entriesToSave: Collection<MedicationLogEntryInput>,
     now: LocalDateTime,
     medicineStockRepository: MedicineStockRepository,
     reminderNotificationManager: ReminderNotificationManager,
+    beforeStatesByUuid: Map<UUID, MedicineStockState>,
     hideMedicationDetails: Boolean = false,
 ) {
     val affectedMedicineUuids = entriesToSave
@@ -419,7 +448,7 @@ internal suspend fun showPostLogToast(
         return
     }
 
-    when (val warning = resolvePostLogStockWarning(projections, affectedMedicineUuids)) {
+    when (val warning = resolvePostLogStockWarning(projections, affectedMedicineUuids, beforeStatesByUuid)) {
         null -> reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
         is PostLogStockWarning.Single -> {
             if (hideMedicationDetails) {
@@ -451,13 +480,18 @@ sealed interface PostLogStockWarning {
 internal fun resolvePostLogStockWarning(
     projections: List<MedicineStockProjection>,
     affectedMedicineUuids: Set<UUID>,
+    beforeStatesByUuid: Map<UUID, MedicineStockState>,
 ): PostLogStockWarning? {
     val warned = projections
         .filter { it.medicine.uuid in affectedMedicineUuids }
-        .filter {
-            it.state == MedicineStockState.OUT ||
-                it.state == MedicineStockState.IMMINENT ||
-                it.state == MedicineStockState.USER_LOW
+        // Only warn when this log pushed the medicine into a worse low-stock
+        // tier. An already-low medicine that stays low (unchanged rank) must not
+        // re-warn. Logs only deduct, so a higher rank means this log changed it;
+        // the rank is 0 for non-warning states, so this also drops medicines that
+        // are still healthy after the log.
+        .filter { projection ->
+            val beforeRank = beforeStatesByUuid[projection.medicine.uuid]?.lowStockSeverityRank() ?: 0
+            projection.state.lowStockSeverityRank() > beforeRank
         }
     if (warned.isEmpty()) return null
     return if (warned.size == 1) {

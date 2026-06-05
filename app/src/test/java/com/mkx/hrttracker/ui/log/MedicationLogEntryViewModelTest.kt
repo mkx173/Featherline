@@ -1368,11 +1368,16 @@ class MedicationLogEntryViewModelTest {
                 count = 1,
             )
         } returns Unit
-        coEvery { medicineStockRepository.projectAllOnce(any()) } returns listOf(
-            stockProjection(
-                medicine = medicine,
-                state = MedicineStockState.USER_LOW,
-            )
+        // Was healthy before this log (empty baseline); the post-log drop to
+        // USER_LOW is what should surface the warning.
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+            emptyList(),
+            listOf(
+                stockProjection(
+                    medicine = medicine,
+                    state = MedicineStockState.USER_LOW,
+                )
+            ),
         )
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
