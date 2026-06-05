@@ -240,7 +240,7 @@ private fun StockSubcardChip(
         containerColor = colors.container,
         contentColor = colors.content,
         size = HrtPillSize.XSmall,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.SemiBold,
     )
 }
 

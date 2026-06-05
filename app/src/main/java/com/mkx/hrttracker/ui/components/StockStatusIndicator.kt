@@ -51,7 +51,7 @@ private fun StockChip(
         icon = palette.iconRes?.let { iconRes ->
             { Icon(painterResource(iconRes), contentDescription = null, modifier = iconModifier) }
         },
-        fontWeight = FontWeight.Medium
+        fontWeight = FontWeight.SemiBold
     )
 }
 

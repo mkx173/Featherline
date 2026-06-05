@@ -467,11 +467,11 @@ internal fun MainE2HeroCard(
         displayUnit = displayUnit,
     )
     val effectiveIsTrendDeltaDisplayZero = showSkeleton || isTrendDeltaDisplayZero
-    val trendIcon = when {
-        effectiveIsTrendDeltaDisplayZero -> Icons.AutoMirrored.Rounded.TrendingFlat
-        section.changeSinceYesterday > 0 -> Icons.AutoMirrored.Rounded.TrendingUp
-        section.changeSinceYesterday < 0 -> Icons.AutoMirrored.Rounded.TrendingDown
-        else -> Icons.AutoMirrored.Rounded.TrendingFlat
+    val trendIconPainterRes = when {
+        effectiveIsTrendDeltaDisplayZero -> R.drawable.ic_trending_flat_heavy
+        section.changeSinceYesterday > 0 -> R.drawable.ic_trending_up_heavy
+        section.changeSinceYesterday < 0 -> R.drawable.ic_trending_down_heavy
+        else -> R.drawable.ic_trending_flat_heavy
     }
     val lastDoseSummary = mainE2LastDoseSummary(
         section = section,
@@ -491,10 +491,10 @@ internal fun MainE2HeroCard(
     // stays visually continuous instead of popping below→above as the value
     // arrives.
     val rangeStatusIconDrawableRes = when {
-        showSkeleton -> R.drawable.ic_adjust
-        section.currentValue > section.targetMax -> R.drawable.ic_expand_circle_up
-        section.currentValue < section.targetMin -> R.drawable.ic_expand_circle_down
-        else -> R.drawable.ic_adjust
+        showSkeleton -> R.drawable.ic_adjust_heavy
+        section.currentValue > section.targetMax -> R.drawable.ic_expand_circle_up_heavy
+        section.currentValue < section.targetMin -> R.drawable.ic_expand_circle_down_heavy
+        else -> R.drawable.ic_adjust_heavy
     }
     val rangeStatusLabelRes = when {
         showSkeleton -> R.string.settings_calibration_range_status_in_range
@@ -664,15 +664,21 @@ internal fun MainE2HeroCard(
                                 contentColor = heroPillContentColor,
                                 size = HrtPillSize.Small,
                                 fontWeight = FontWeight.SemiBold,
-                                icon = { Icon(trendIcon, contentDescription = null, modifier = iconModifier) },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(trendIconPainterRes),
+                                        contentDescription = null,
+                                        modifier = iconModifier
+                                    )
+                                },
                             )
                         }
 
                         MainInfoPill(
                             iconDrawableRes = if (hasPreviousRecord) {
-                                R.drawable.ic_check_circle
+                                R.drawable.ic_check_circle_heavy
                             } else {
-                                R.drawable.ic_info
+                                R.drawable.ic_info_heavy
                             },
                             text = lastDoseSummary,
                             iconTint = heroSupportingColor,
@@ -2798,15 +2804,15 @@ private fun MainAntiandrogenMedicationSubCard(
             ) {
                 MainInfoPill(
                     iconDrawableRes = if (hasPreviousRecord) {
-                        R.drawable.ic_check_circle
+                        R.drawable.ic_check_circle_heavy
                     } else {
-                        R.drawable.ic_info
+                        R.drawable.ic_info_heavy
                     },
                     text = takenText,
                 )
 
                 MainInfoPill(
-                    iconDrawableRes = R.drawable.ic_schedule,
+                    iconDrawableRes = R.drawable.ic_schedule_heavy,
                     text = dueText,
                 )
             }
