@@ -139,7 +139,7 @@ class MedicationLogRepositoryStockTest {
     }
 
     @Test
-    fun saveBackfillEntries_skipsMutator() = runTest {
+    fun saveBackfillEntries_defaultSkipsMutator() = runTest {
         // Backfill flows (batch-add, "show and generate past records") are
         // retrospective reconciliation — the doses left inventory long before
         // these rows were created, so stock must stay tied to the user's own
@@ -174,6 +174,54 @@ class MedicationLogRepositoryStockTest {
             stockMutator.resolveDeductionForInsert(any(), any(), any(), any())
         }
         assertEquals(listOf(1, 2), captured.captured.map { it.count })
+    }
+
+    @Test
+    fun saveBackfillEntries_deductStockTrueInvokesMutatorForEachEntryBeforeInsert() = runTest {
+        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns pillEntity()
+
+        val captured = slot<List<MedicationLogEntryEntity>>()
+        coEvery { logDao.insertEntries(capture(captured)) } returns Unit
+
+        repository.saveBackfillEntries(
+            entries = listOf(
+                MedicationLogEntryInput(
+                    medicineUuid = medicineUuid,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    sourceGroupUuid = null,
+                    appliedAt = Instant.ofEpochMilli(0L),
+                    count = 1,
+                ),
+                MedicationLogEntryInput(
+                    medicineUuid = medicineUuid,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 2),
+                    sourceGroupUuid = null,
+                    appliedAt = Instant.ofEpochMilli(1L),
+                    count = 4,
+                ),
+            ),
+            deductStock = true,
+        )
+
+        coVerify(exactly = 1) { medicineDao.getByUuid(medicineUuid.toString()) }
+        coVerifyOrder {
+            stockMutator.resolveDeductionForInsert(
+                database = database,
+                medicineUuid = medicineUuid,
+                requestedDose = 1.0,
+                now = any(),
+            )
+            stockMutator.resolveDeductionForInsert(
+                database = database,
+                medicineUuid = medicineUuid,
+                requestedDose = 2.0,
+                now = any(),
+            )
+            logDao.insertEntries(any())
+        }
+        assertEquals(listOf(1, 4), captured.captured.map { it.count })
     }
 
     @Test
