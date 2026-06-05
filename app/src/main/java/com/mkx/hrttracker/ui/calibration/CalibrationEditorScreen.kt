@@ -522,7 +522,13 @@ private fun CalibrationEditorScreenContent(
                     item {
                         CalibrationNotesCard(
                             notes = notesDraft,
-                            onNotesChange = { notesDraft = it },
+                            // Commit live (not just on focus loss) so the ViewModel's
+                            // persisted draft snapshot captures in-progress notes for
+                            // process-death restore, matching the analyte value fields.
+                            onNotesChange = {
+                                notesDraft = it
+                                onNotesCommit(it)
+                            },
                             onNotesCommit = { onNotesCommit(notesDraft) },
                         )
                     }

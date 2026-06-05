@@ -20,10 +20,18 @@ import com.mkx.hrttracker.model.settings.calibrationDefaultUnitFor
 import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.formatCalibrationNumericValue
 import com.mkx.hrttracker.util.zoneDisplayName
+import com.squareup.moshi.JsonClass
+import com.squareup.moshi.Moshi
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNot
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -55,6 +63,9 @@ class CalibrationEditorViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+    private val savedStateHandle: SavedStateHandle = savedStateHandle
+    private val draftSnapshotAdapter =
+        Moshi.Builder().build().adapter(CalibrationEditorDraftSnapshot::class.java)
     private val editingPanelUuid = savedStateHandle.get<String>(PANEL_ID_ARG)?.let { panelId ->
         runCatching { UUID.fromString(panelId) }.getOrNull()
     }
@@ -62,8 +73,44 @@ class CalibrationEditorViewModel @Inject constructor(
     private var latestSettingsState = settingsRepository.settingsState.value
     private val cachedCustomAnalytes = bloodTestRepository.getCachedActiveCustomAnalytes()
     private val cachedEditingPanel = editingPanelUuid?.let(bloodTestRepository::getCachedPanel)
-    private val _uiState = MutableStateFlow(
-        cachedEditingPanel?.toEditorState()?.copy(
+    // The calibration form is almost entirely external input, so its in-progress
+    // draft is persisted across process death — the one editor exempt from the
+    // "input loss is acceptable" rule.
+    private val restoredDraftSnapshot: CalibrationEditorDraftSnapshot? =
+        savedStateHandle.get<String>(DRAFT_SNAPSHOT_KEY)?.let { json ->
+            runCatching { draftSnapshotAdapter.fromJson(json) }.getOrNull()
+        }
+    // Once a save/delete succeeds the editor navigates away, so persistence stops (the
+    // collector job is cancelled) and the stored snapshot is cleared: otherwise a process
+    // death in the post-save window would restore the committed entry as a new unsaved
+    // draft and duplicate it on re-save.
+    private var draftPersistenceJob: Job? = null
+    private val _uiState = MutableStateFlow(buildInitialEditorState())
+    val uiState: StateFlow<CalibrationEditorUiState> = _uiState.asStateFlow()
+
+    init {
+        observeCalibrationDefaultUnits()
+        persistDraftSnapshotAcrossProcessDeath()
+        if (cachedCustomAnalytes == null) {
+            refreshAvailableCustomAnalytes()
+        }
+        if (restoredDraftSnapshot != null) {
+            // The restored draft is the source of truth for the form, so don't reload
+            // the panel over the user's in-progress edits. The elapsed-dose readout is
+            // derived, so recompute it from the restored collected date/time.
+            refreshTimeSinceLastEstradiolDose()
+        } else {
+            if (editingPanelUuid == null) {
+                refreshTimeSinceLastEstradiolDose()
+            }
+            if (cachedEditingPanel == null) {
+                editingPanelUuid?.let(::loadPanelForEditing)
+            }
+        }
+    }
+
+    private fun buildInitialEditorState(): CalibrationEditorUiState {
+        val baseState = cachedEditingPanel?.toEditorState()?.copy(
             customAnalytes = cachedCustomAnalytes.orEmpty(),
         ) ?: run {
             val collectedDate = LocalDate.now(defaultZoneId)
@@ -90,20 +137,34 @@ class CalibrationEditorViewModel @Inject constructor(
                 hideReferenceRanges = latestSettingsState.hideReferenceRanges,
             )
         }
-    )
-    val uiState: StateFlow<CalibrationEditorUiState> = _uiState.asStateFlow()
+        return restoredDraftSnapshot?.applyTo(baseState, latestSettingsState) ?: baseState
+    }
 
-    init {
-        observeCalibrationDefaultUnits()
-        if (cachedCustomAnalytes == null) {
-            refreshAvailableCustomAnalytes()
+    @OptIn(FlowPreview::class) // Flow.debounce is stable in practice; opt in explicitly.
+    private fun persistDraftSnapshotAcrossProcessDeath() {
+        draftPersistenceJob = viewModelScope.launch {
+            _uiState
+                .filterNot { state -> state.isLoading }
+                // Coalesce keystroke bursts: persist the settled draft shortly after the
+                // user pauses instead of re-deriving the snapshot and re-serializing the
+                // whole form to JSON on every character. SavedStateHandle only has to be
+                // current by onSaveInstanceState, so a short debounce is loss-free in the
+                // realistic process-death path (the app is backgrounded — typing stopped —
+                // well before the system kills it).
+                .debounce(DRAFT_PERSIST_DEBOUNCE_MS)
+                .map { state -> state.toDraftSnapshot() }
+                .distinctUntilChanged()
+                .collect { snapshot ->
+                    savedStateHandle[DRAFT_SNAPSHOT_KEY] = draftSnapshotAdapter.toJson(snapshot)
+                }
         }
-        if (editingPanelUuid == null) {
-            refreshTimeSinceLastEstradiolDose()
-        }
-        if (cachedEditingPanel == null) {
-            editingPanelUuid?.let(::loadPanelForEditing)
-        }
+    }
+
+    // Stop persisting and drop the stored snapshot once the entry is committed. Cancelling
+    // the collector guarantees no later emission can re-write the cleared key.
+    private fun finishDraftPersistence() {
+        draftPersistenceJob?.cancel()
+        savedStateHandle[DRAFT_SNAPSHOT_KEY] = null
     }
 
     fun updateCollectedDate(date: LocalDate) {
@@ -272,6 +333,9 @@ class CalibrationEditorViewModel @Inject constructor(
                     now = Instant.now(),
                 )
             }.onSuccess { savedPanelUuid ->
+                // Cancel before the state update below so the collector is torn down before
+                // it can observe the saved emission and the cleared snapshot stays cleared.
+                finishDraftPersistence()
                 val pickerOffset = latestState.collectedZoneId.rules.getOffset(collectedAt)
                 val deviceOffset = defaultZoneId.rules.getOffset(collectedAt)
                 val crossZoneText = if (pickerOffset == deviceOffset) {
@@ -320,6 +384,9 @@ class CalibrationEditorViewModel @Inject constructor(
                 onFailure = { CalibrationDeleteEntryResult.FAILURE },
             )
             val isDeleted = deleteResult == null
+            if (isDeleted) {
+                finishDraftPersistence()
+            }
 
             _uiState.update { state ->
                 state.copy(
@@ -544,6 +611,8 @@ class CalibrationEditorViewModel @Inject constructor(
 
     companion object {
         const val PANEL_ID_ARG = "panelId"
+        private const val DRAFT_SNAPSHOT_KEY = "calibrationDraft"
+        private const val DRAFT_PERSIST_DEBOUNCE_MS = 250L
     }
 }
 
@@ -686,4 +755,88 @@ private fun CalibrationEditorUiState.toCollectedAtInstant(zoneId: ZoneId): Insta
     return LocalDateTime.of(collectedDate, collectedTime)
         .atZone(zoneId)
         .toInstant()
+}
+
+// Process-death snapshot of the calibration form's user input. Stored as JSON in
+// SavedStateHandle using primitive encodings (epoch day/second, storage values, uuid
+// strings) so it survives without parcelization. Derived fields (default unit,
+// elapsed-dose readout, validation flags, the custom-analyte catalog) are recomputed.
+@JsonClass(generateAdapter = true)
+internal data class CalibrationEditorDraftSnapshot(
+    val collectedDateEpochDay: Long,
+    val collectedTimeSecondOfDay: Int,
+    val collectedZoneId: String,
+    val notes: String,
+    val drafts: List<CalibrationResultDraftSnapshot>,
+)
+
+@JsonClass(generateAdapter = true)
+internal data class CalibrationResultDraftSnapshot(
+    val analyteKey: String? = null,
+    val customAnalyteUuid: String? = null,
+    val customAnalyteAbbreviation: String? = null,
+    val customAnalyteName: String? = null,
+    val customUnitLabel: String? = null,
+    val resultUuid: String? = null,
+    val valueText: String = "",
+    val unit: String? = null,
+    val originalUnit: String? = null,
+    val isUnitUserSelected: Boolean = false,
+)
+
+internal fun CalibrationEditorUiState.toDraftSnapshot(): CalibrationEditorDraftSnapshot {
+    return CalibrationEditorDraftSnapshot(
+        collectedDateEpochDay = collectedDate.toEpochDay(),
+        collectedTimeSecondOfDay = collectedTime.toSecondOfDay(),
+        collectedZoneId = collectedZoneId.id,
+        notes = notes,
+        drafts = drafts.map { draft ->
+            CalibrationResultDraftSnapshot(
+                analyteKey = draft.analyteKey?.storageValue,
+                customAnalyteUuid = draft.customAnalyteUuid?.toString(),
+                customAnalyteAbbreviation = draft.customAnalyteAbbreviation,
+                customAnalyteName = draft.customAnalyteName,
+                customUnitLabel = draft.customUnitLabel,
+                resultUuid = draft.resultUuid?.toString(),
+                valueText = draft.valueText,
+                unit = draft.unit?.storageValue,
+                originalUnit = draft.originalUnit?.storageValue,
+                isUnitUserSelected = draft.isUnitUserSelected,
+            )
+        },
+    )
+}
+
+internal fun CalibrationEditorDraftSnapshot.applyTo(
+    base: CalibrationEditorUiState,
+    settingsState: SettingsState,
+): CalibrationEditorUiState {
+    return base.copy(
+        isLoading = false,
+        collectedDate = LocalDate.ofEpochDay(collectedDateEpochDay),
+        collectedTime = LocalTime.ofSecondOfDay(collectedTimeSecondOfDay.toLong()),
+        collectedZoneId = runCatching { ZoneId.of(collectedZoneId) }
+            .getOrDefault(base.collectedZoneId),
+        notes = notes,
+        drafts = drafts.map { draft -> draft.toDraftUiState(settingsState) },
+    )
+}
+
+private fun CalibrationResultDraftSnapshot.toDraftUiState(
+    settingsState: SettingsState,
+): CalibrationResultDraftUiState {
+    val resolvedAnalyteKey = BloodAnalyteKey.fromStorageValue(analyteKey)
+    return CalibrationResultDraftUiState(
+        analyteKey = resolvedAnalyteKey,
+        customAnalyteUuid = customAnalyteUuid?.let { runCatching { UUID.fromString(it) }.getOrNull() },
+        customAnalyteAbbreviation = customAnalyteAbbreviation,
+        customAnalyteName = customAnalyteName,
+        customUnitLabel = customUnitLabel,
+        resultUuid = resultUuid?.let { runCatching { UUID.fromString(it) }.getOrNull() },
+        valueText = valueText,
+        unit = BloodUnitKey.fromStorageValue(unit),
+        defaultUnit = resolvedAnalyteKey?.let { defaultCalibrationUnitFor(it, settingsState) },
+        originalUnit = BloodUnitKey.fromStorageValue(originalUnit),
+        isUnitUserSelected = isUnitUserSelected,
+    )
 }

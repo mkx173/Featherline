@@ -42,6 +42,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -303,6 +304,178 @@ class CalibrationEditorViewModelTest {
         assertEquals("18.4", customDraft.valueText)
         assertNull(customDraft.unit)
         assertNull(customDraft.defaultUnit)
+    }
+
+    @Test
+    fun processDeath_restoresInProgressNewPanelForm() = runTest {
+        // The calibration editor is the one form where almost everything is external
+        // input, so its in-progress draft must survive process death: collected
+        // date/time, selected analytes, their order, value, unit, and note.
+        val savedStateHandle = SavedStateHandle()
+        val firstSession = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            savedStateHandle,
+        )
+        advanceUntilIdle()
+        firstSession.updateCollectedDate(LocalDate.of(2026, 4, 24))
+        firstSession.updateCollectedTime(LocalTime.of(9, 30))
+        firstSession.updateNotes("Taken fasting")
+        firstSession.removeAnalyte(BloodAnalyteKey.T)
+        firstSession.addAnalyte(BloodAnalyteKey.PROG)
+        firstSession.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
+        firstSession.updateAnalyteUnit(BloodAnalyteKey.E2, BloodUnitKey.PMOL_L)
+        firstSession.updateAnalyteValue(BloodAnalyteKey.PROG, "1.2")
+        advanceUntilIdle()
+
+        // Process death: a fresh ViewModel restores from the same SavedStateHandle.
+        val restoredSession = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            savedStateHandle,
+        )
+        advanceUntilIdle()
+
+        val restored = restoredSession.uiState.value
+        assertFalse(restored.isLoading)
+        assertEquals(LocalDate.of(2026, 4, 24), restored.collectedDate)
+        assertEquals(LocalTime.of(9, 30), restored.collectedTime)
+        assertEquals("Taken fasting", restored.notes)
+        // Selected analytes and their order survive.
+        assertEquals(
+            listOf(BloodAnalyteKey.E2, BloodAnalyteKey.PROG),
+            restored.drafts.mapNotNull(CalibrationResultDraftUiState::analyteKey),
+        )
+        val e2 = restored.drafts.first { it.analyteKey == BloodAnalyteKey.E2 }
+        assertEquals("152.4", e2.valueText)
+        assertEquals(BloodUnitKey.PMOL_L, e2.unit)
+        assertTrue(e2.isUnitUserSelected)
+        val prog = restored.drafts.first { it.analyteKey == BloodAnalyteKey.PROG }
+        assertEquals("1.2", prog.valueText)
+    }
+
+    @Test
+    fun processDeath_existingPanel_restoresEditsOverDbLoadAndKeepsResultUuids() = runTest {
+        val panelUuid = UUID.fromString("4a3e2f1d-0c9b-4a87-8d6e-1f2a3b4c5d6e")
+        val e2ResultUuid = UUID.fromString("5bce6841-c2d5-4192-ba59-ab18e95fdb4a")
+        val panel = testBloodTestPanel(
+            uuid = panelUuid,
+            collectedAt = Instant.parse("2026-04-24T00:30:00Z"),
+            notes = "Original note",
+            results = listOf(
+                BloodTestResult(
+                    uuid = e2ResultUuid,
+                    createdAt = Instant.parse("2026-04-24T00:30:00Z"),
+                    displayOrder = 0,
+                    analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.E2),
+                    value = 100.0,
+                    unitSnapshot = BloodUnitKey.PMOL_L.storageValue,
+                    canonicalValue = 27.2,
+                ),
+            ),
+        )
+        coEvery { repository.getPanel(panelUuid) } returns panel
+        val resultInputSlot = slot<List<BloodTestResultInput>>()
+        coEvery {
+            repository.savePanel(
+                uuid = panelUuid,
+                collectedAt = any(),
+                collectedAtTimeZoneId = any(),
+                notes = any(),
+                results = capture(resultInputSlot),
+                now = any(),
+            )
+        } returns panelUuid
+
+        val savedStateHandle = SavedStateHandle(
+            mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
+        )
+        val firstSession = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            savedStateHandle,
+        )
+        advanceUntilIdle()
+        firstSession.updateNotes("Edited note")
+        firstSession.updateAnalyteValue(BloodAnalyteKey.E2, "250")
+        advanceUntilIdle()
+
+        // Process death: restored draft must win over the persisted DB values.
+        val restoredSession = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            savedStateHandle,
+        )
+        advanceUntilIdle()
+
+        val restored = restoredSession.uiState.value
+        assertFalse(restored.isLoading)
+        assertTrue(restored.isEditing)
+        assertEquals("Edited note", restored.notes)
+        assertEquals("250", restored.drafts.first { it.analyteKey == BloodAnalyteKey.E2 }.valueText)
+        // The restored session must not re-read the DB (snapshot is the source of truth).
+        coVerify(exactly = 1) { repository.getPanel(panelUuid) }
+
+        // Saving the restored draft updates the same result row, not a duplicate.
+        restoredSession.save()
+        advanceUntilIdle()
+        val savedResult = resultInputSlot.captured.single() as BloodTestResultInput.Builtin
+        assertEquals(e2ResultUuid, savedResult.uuid)
+        assertEquals(250.0, savedResult.value, 1e-9)
+    }
+
+    @Test
+    fun savingNewPanel_clearsPersistedDraftSoProcessDeathDoesNotRestoreSavedAsDuplicate() = runTest {
+        val savedPanelUuid = UUID.fromString("3a7d2c9e-1b44-4f0e-9a2c-7d6e5f4c3b2a")
+        coEvery {
+            repository.savePanel(
+                uuid = null,
+                collectedAt = any(),
+                collectedAtTimeZoneId = any(),
+                notes = any(),
+                results = any(),
+                now = any(),
+            )
+        } returns savedPanelUuid
+
+        val savedStateHandle = SavedStateHandle()
+        val firstSession = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            savedStateHandle,
+        )
+        advanceUntilIdle()
+        firstSession.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
+        firstSession.updateAnalyteUnit(BloodAnalyteKey.E2, BloodUnitKey.PMOL_L)
+        firstSession.updateAnalyteValue(BloodAnalyteKey.T, "31.7")
+        firstSession.updateAnalyteUnit(BloodAnalyteKey.T, BloodUnitKey.NMOL_L)
+        advanceUntilIdle()
+        // The in-progress draft is persisted while editing.
+        assertNotNull(savedStateHandle.get<String>("calibrationDraft"))
+
+        firstSession.save()
+        advanceUntilIdle()
+        assertTrue(firstSession.uiState.value.isSaved)
+
+        // A successful save clears the draft snapshot, so process death in the
+        // post-save/pre-navigation window cannot restore the just-saved panel as a new
+        // unsaved draft (which would create a duplicate when saved again).
+        assertNull(savedStateHandle.get<String>("calibrationDraft"))
+
+        val restoredSession = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            savedStateHandle,
+        )
+        advanceUntilIdle()
+        assertNull(restoredSession.uiState.value.panelUuid)
+        assertTrue(restoredSession.uiState.value.drafts.all { it.valueText.isEmpty() })
     }
 
     @Test
