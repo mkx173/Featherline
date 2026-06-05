@@ -9,9 +9,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
 
-private const val FLOAT_EPSILON = 1e-9
+internal const val FLOAT_EPSILON = 1e-9
 
-private fun Double.zeroIfTiny(): Double {
+internal fun Double.zeroIfTiny(): Double {
     return if (abs(this) <= FLOAT_EPSILON) 0.0 else this
 }
 

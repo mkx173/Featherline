@@ -3,7 +3,6 @@ package com.mkx.hrttracker.data.repository
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStock
-import kotlin.math.abs
 
 internal data class StockDeductionFields(
     val unitsRemaining: Double?,
@@ -120,11 +119,5 @@ private fun MedicinePreparation.containerCapacityOrNull(): Double? {
 
 private fun hasSufficientOpenAmount(open: Double, dose: Double): Boolean {
     if (dose <= 0.0 || open >= dose) return true
-    return open > STOCK_DEDUCTION_FLOAT_EPSILON && dose - open <= STOCK_DEDUCTION_FLOAT_EPSILON
-}
-
-private const val STOCK_DEDUCTION_FLOAT_EPSILON = 1e-9
-
-private fun Double.zeroIfTiny(): Double {
-    return if (abs(this) <= STOCK_DEDUCTION_FLOAT_EPSILON) 0.0 else this
+    return open > FLOAT_EPSILON && dose - open <= FLOAT_EPSILON
 }

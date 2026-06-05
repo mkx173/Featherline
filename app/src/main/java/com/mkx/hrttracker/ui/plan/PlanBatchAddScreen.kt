@@ -173,25 +173,22 @@ private fun PlanBatchAddScreenContent(
         savedEntryCount,
         savedEntryCount,
     )
-    val deductStockSupportingText = when {
-        uiState.selectedGroupUuid == null ->
+    val deductStockSupportingText = when (uiState.deductStockAvailability) {
+        DeductStockAvailability.NO_GROUP ->
             stringResource(R.string.plan_batch_add_select_group_prompt)
-        !uiState.selectedGroupHasTrackedMedicine ->
+        DeductStockAvailability.NONE_TRACKED ->
             stringResource(R.string.plan_batch_add_deduct_stock_none_tracked)
-        uiState.selectedGroupStartsInFuture ->
+        DeductStockAvailability.NOT_STARTED ->
             stringResource(R.string.plan_batch_add_group_not_started)
-        uiState.stockPreviewItems.isEmpty() ->
+        DeductStockAvailability.NO_CHANGES ->
             stringResource(R.string.plan_batch_add_select_group_no_available_medicines)
-        else -> pluralStringResource(
+        DeductStockAvailability.AVAILABLE -> pluralStringResource(
             R.plurals.plan_batch_add_deduct_stock_change_count,
             uiState.stockPreviewItems.size,
             uiState.stockPreviewItems.size,
         )
     }
-    val addStockSwitchEnabled = uiState.selectedGroupUuid != null
-            && uiState.selectedGroupHasTrackedMedicine
-            && !uiState.selectedGroupStartsInFuture
-            && !uiState.stockPreviewItems.isEmpty()
+    val addStockSwitchEnabled = uiState.deductStockAvailability == DeductStockAvailability.AVAILABLE
     val shouldDeselectOnBack = uiState.selectedGroupUuid != null && !uiState.isSaving
 
     fun clearSelectionAndDismissDialogs() {
@@ -523,10 +520,8 @@ private fun PlanBatchAddStockSection(
     var retainedPreviewItems by remember {
         mutableStateOf(emptyList<PlanBatchAddStockPreviewItem>())
     }
-    LaunchedEffect(previewItems) {
-        if (previewItems.isNotEmpty()) {
-            retainedPreviewItems = previewItems
-        }
+    if (previewItems.isNotEmpty()) {
+        retainedPreviewItems = previewItems
     }
     val previewVisible = deductStock && previewItems.isNotEmpty()
 

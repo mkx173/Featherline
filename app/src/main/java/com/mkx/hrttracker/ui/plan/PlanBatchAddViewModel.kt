@@ -25,6 +25,7 @@ import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.ownsUnloggedOccurrence
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.reminder.captureStockStatesForLog
 import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
@@ -122,6 +123,19 @@ class PlanBatchAddViewModel @Inject constructor(
         } else {
             PlanBatchAddEntryPlan()
         }
+        // Built regardless of the toggle so the switch's supporting text can
+        // report how many medicines would change stock before it is flipped on.
+        val stockPreviewItems = buildPlanBatchAddStockPreviewItems(
+            entriesToAdd = entryPlan.entries,
+            stockProjections = projections,
+        )
+        val deductStockAvailability = when {
+            selectedGroup == null -> DeductStockAvailability.NO_GROUP
+            !selectedGroupHasTrackedMedicine -> DeductStockAvailability.NONE_TRACKED
+            selectedGroupStartsInFuture -> DeductStockAvailability.NOT_STARTED
+            stockPreviewItems.isEmpty() -> DeductStockAvailability.NO_CHANGES
+            else -> DeductStockAvailability.AVAILABLE
+        }
 
         PlanBatchAddUiState(
             isLoading = groupsOrNull == null || entriesOrNull == null,
@@ -146,12 +160,8 @@ class PlanBatchAddViewModel @Inject constructor(
             skippedEntryCount = entryPlan.skippedEntryCount,
             deductStock = selection.deductStock,
             selectedGroupHasTrackedMedicine = selectedGroupHasTrackedMedicine,
-            // Built regardless of the toggle so the switch's supporting text can
-            // report how many medicines would change stock before it is flipped on.
-            stockPreviewItems = buildPlanBatchAddStockPreviewItems(
-                entriesToAdd = entryPlan.entries,
-                stockProjections = projections,
-            ),
+            deductStockAvailability = deductStockAvailability,
+            stockPreviewItems = stockPreviewItems,
             isSaving = selection.isSaving,
             isSaved = selection.isSaved,
             savedEntryCount = selection.savedEntryCount,
@@ -287,9 +297,9 @@ class PlanBatchAddViewModel @Inject constructor(
         if (entriesToSave.isEmpty() || selectionState.value.isSaving) {
             return
         }
-        // "Before" baseline from the same projections the preview showed, so the
-        // post-save warning only fires for medicines this batch worsened.
-        val beforeStockStates = stockProjections.value.associate { it.medicine.uuid to it.state }
+        // A failed save must leave the user's batch intact to retry; the optimistic
+        // update below clears the selection and the toggle, so remember them.
+        val previousSelectedGroupUuid = currentUiState.selectedGroupUuid
 
         selectionState.update { state ->
             state.copy(
@@ -303,6 +313,14 @@ class PlanBatchAddViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            // "Before" baseline from a fresh projection taken just before the
+            // deduction (same as the manual/reminder/widget paths), so the post-save
+            // warning only fires for medicines this batch pushed into a worse tier.
+            val beforeStockStates = if (shouldDeductStock && affectedMedicineUuids.isNotEmpty()) {
+                captureStockStatesForLog(medicineStockRepository, now = Instant.now())
+            } else {
+                emptyMap()
+            }
             val saveResult = runCatching {
                 medicationLogRepository.saveBackfillEntries(
                     entries = entriesToSave,
@@ -341,11 +359,12 @@ class PlanBatchAddViewModel @Inject constructor(
                     )
                 } else {
                     state.copy(
-                        selectedGroupUuid = null,
+                        selectedGroupUuid = previousSelectedGroupUuid,
                         isSaving = false,
                         isSaved = false,
                         savedEntryCount = null,
                         saveResult = saveResult,
+                        deductStock = shouldDeductStock,
                     )
                 }
             }
@@ -386,6 +405,7 @@ data class PlanBatchAddUiState(
     val skippedEntryCount: Int = 0,
     val deductStock: Boolean = false,
     val selectedGroupHasTrackedMedicine: Boolean = false,
+    val deductStockAvailability: DeductStockAvailability = DeductStockAvailability.NO_GROUP,
     val stockPreviewItems: List<PlanBatchAddStockPreviewItem> = emptyList(),
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
@@ -401,6 +421,14 @@ data class PlanBatchAddUiState(
 
 enum class PlanBatchAddSaveResult {
     FAILURE,
+}
+
+enum class DeductStockAvailability {
+    NO_GROUP,
+    NONE_TRACKED,
+    NOT_STARTED,
+    NO_CHANGES,
+    AVAILABLE,
 }
 
 private data class PlanBatchAddSelectionState(

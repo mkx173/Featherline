@@ -17,6 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.isContainerTopology
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockState
@@ -69,9 +70,9 @@ internal fun PlanBatchAddStockPreviewSubcard(
     }
 
     val containerColor = MaterialTheme.colorScheme.secondaryContainer
-    // The status pill carries severity color (tertiary for low, error for
-    // almost-out/out), reusing the shared chip tone so it matches the chip in
-    // MedicationStockSubcard; the other pills stay neutral.
+    // The status and days-remaining pills carry severity color (tertiary for
+    // low, error for almost-out/out), reusing the shared chip tone so they match
+    // MedicationStockSubcard; only the before-to-after stock pill stays neutral.
     val statusColors = stockSubcardChipColors(stockSubcardTone(stockState))
 
     FlowRow(
@@ -120,8 +121,7 @@ private fun stockPreviewAmountText(
     val primaryText = stockInventoryCountText(context, preparation, primaryCount)
         ?: stockPreviewNumber(primaryCount)
 
-    val isContainer = preparation is MedicinePreparation.InjectionMultiUseVial ||
-        preparation is MedicinePreparation.GelContainer
+    val isContainer = preparation.type.isContainerTopology()
     if (!isContainer) return primaryText
 
     val openAmount = stock.openContainerAmount ?: 0.0
