@@ -86,21 +86,19 @@ class HrtWidgetScaleTest {
     }
 
     @Test
-    fun firstUpdateBatch_locksBaselineToTallestSizeComposition() {
-        // SizeMode.Exact composes the widget once per size (portrait + landscape) in a
-        // single update; every composition reads storedDp before any persists, so the
-        // persists must merge by max. Otherwise whichever composition's SideEffect runs
-        // last wins — and the short landscape composition makes the widget render tiny.
-        val portraitShort = 225f
-        val portraitTall = 226f
-        val landscape = 112f
+    fun mergeByMax_keepsTallestHeightRegardlessOfPersistOrder() {
+        // Capture feeds the portrait cell height (OPTION_APPWIDGET_MAX_HEIGHT) on every
+        // SizeMode.Exact pass, so passes normally agree. Merge-by-max is the guard for the
+        // edge where options report a real height on one pass but a shorter fallback on
+        // another: the taller value must win no matter which persists last. (The old _v2
+        // logic instead read per-composition LocalSize, so a short landscape pass could lock
+        // the baseline first and shrink the widget — the bug this capture change fixes.)
+        val tall = 226f
+        val short = 112f
         var stored = 0f
-        for (height in listOf(portraitShort, portraitTall, landscape)) {
-            // Each composition in the batch reads the same storedDp = 0.
-            assertTrue(shouldPersistWidgetBaselineHeight(storedDp = 0f, currentHeightDp = height))
-            // Their SideEffects then run in order, each merging into the stored value.
+        for (height in listOf(short, tall, short)) {
             stored = mergeWidgetBaselineHeightDp(existingDp = stored, currentHeightDp = height)
         }
-        assertEquals(portraitTall, stored)
+        assertEquals(tall, stored)
     }
 }
