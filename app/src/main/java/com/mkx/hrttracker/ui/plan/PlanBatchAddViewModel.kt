@@ -5,20 +5,34 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogEntryInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.data.repository.deductInsertedDoseStock
+import com.mkx.hrttracker.data.repository.resolveRequestedDoseForStock
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.ownsUnloggedOccurrence
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -35,6 +49,7 @@ import javax.inject.Inject
 class PlanBatchAddViewModel @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
+    private val medicineStockRepository: MedicineStockRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     settingsRepository: SettingsRepository,
     appTimeSource: AppTimeSource,
@@ -46,13 +61,31 @@ class PlanBatchAddViewModel @Inject constructor(
     // currentMinute ticks each minute and re-reads on foreground/clock changes.
     private val currentDateTime = appTimeSource.currentMinute
 
+    private val stockProjections = medicineStockRepository.observeProjections()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = medicineStockRepository.getCachedProjections().orEmpty(),
+        )
+
+    private val selectionAndStock = combine(
+        selectionState,
+        stockProjections,
+    ) { selection, projections ->
+        selection to projections
+    }
+
+    private val stockWarningEvents = MutableSharedFlow<PostLogStockWarning>(extraBufferCapacity = 1)
+    val stockWarnings: SharedFlow<PostLogStockWarning> = stockWarningEvents.asSharedFlow()
+
     val uiState: StateFlow<PlanBatchAddUiState> = combine(
         medicationGroupRepository.observeGroups(),
         medicationLogRepository.observeEntries(),
         settingsRepository.settingsState,
-        selectionState,
+        selectionAndStock,
         currentDateTime,
-    ) { groupsOrNull, entriesOrNull, settingsState, selection, now ->
+    ) { groupsOrNull, entriesOrNull, settingsState, selectionWithProjections, now ->
+        val (selection, projections) = selectionWithProjections
         val groups = sortPlanMedicationGroups(groupsOrNull.orEmpty().filter(MedicationGroup::isActive))
         val entries = entriesOrNull.orEmpty()
         val selectedGroup = selection.selectedGroupUuid?.let { groupUuid ->
@@ -98,6 +131,16 @@ class PlanBatchAddViewModel @Inject constructor(
             entriesToAdd = entryPlan.entries,
             manualEntryCount = entryPlan.entries.count { entry -> entry.sourceGroupUuid == null },
             skippedEntryCount = entryPlan.skippedEntryCount,
+            deductStock = selection.deductStock,
+            stockPreviewItems = if (selection.deductStock) {
+                buildPlanBatchAddStockPreviewItems(
+                    entriesToAdd = entryPlan.entries,
+                    stockProjections = projections,
+                    projectHypotheticalStock = medicineStockRepository::projectHypotheticalStock,
+                )
+            } else {
+                emptyList()
+            },
             isSaving = selection.isSaving,
             isSaved = selection.isSaved,
             savedEntryCount = selection.savedEntryCount,
@@ -171,6 +214,7 @@ class PlanBatchAddViewModel @Inject constructor(
                 isSaved = false,
                 savedEntryCount = null,
                 saveResult = null,
+                deductStock = false,
             )
         }
     }
@@ -184,8 +228,14 @@ class PlanBatchAddViewModel @Inject constructor(
                 isSaved = false,
                 savedEntryCount = null,
                 saveResult = null,
+                deductStock = false,
             )
         }
+    }
+
+    fun setDeductStock(value: Boolean) {
+        if (selectionState.value.isSaving) return
+        selectionState.update { state -> state.copy(deductStock = value) }
     }
 
     fun updateStartDate(date: LocalDate) {
@@ -217,7 +267,10 @@ class PlanBatchAddViewModel @Inject constructor(
     }
 
     fun saveSelectedRange() {
-        val entriesToSave = uiState.value.entriesToAdd
+        val currentUiState = uiState.value
+        val entriesToSave = currentUiState.entriesToAdd
+        val shouldDeductStock = currentUiState.deductStock
+        val affectedMedicineUuids = entriesToSave.mapNotNull(MedicationLogEntryInput::medicineUuid).toSet()
         if (entriesToSave.isEmpty() || selectionState.value.isSaving) {
             return
         }
@@ -229,17 +282,34 @@ class PlanBatchAddViewModel @Inject constructor(
                 isSaved = false,
                 savedEntryCount = null,
                 saveResult = null,
+                deductStock = false,
             )
         }
 
         viewModelScope.launch {
             val saveResult = runCatching {
-                medicationLogRepository.saveBackfillEntries(entriesToSave)
+                medicationLogRepository.saveBackfillEntries(
+                    entries = entriesToSave,
+                    deductStock = shouldDeductStock,
+                )
             }.fold(
                 onSuccess = { null },
                 onFailure = { PlanBatchAddSaveResult.FAILURE },
             )
             val isSaved = saveResult == null
+            val postLogStockWarning = if (isSaved && shouldDeductStock && affectedMedicineUuids.isNotEmpty()) {
+                runCatching {
+                    resolvePostLogStockWarning(
+                        projections = medicineStockRepository.projectAllOnce(now = java.time.Instant.now()),
+                        affectedMedicineUuids = affectedMedicineUuids,
+                    )
+                }.getOrElse { failure ->
+                    if (failure is CancellationException) throw failure
+                    null
+                }
+            } else {
+                null
+            }
             if (isSaved) {
                 runCatching { medicationReminderScheduler.rescheduleAll() }
             }
@@ -261,6 +331,9 @@ class PlanBatchAddViewModel @Inject constructor(
                         saveResult = saveResult,
                     )
                 }
+            }
+            postLogStockWarning?.let { warning ->
+                stockWarningEvents.emit(warning)
             }
         }
     }
@@ -293,6 +366,8 @@ data class PlanBatchAddUiState(
     val entriesToAdd: List<MedicationLogEntryInput> = emptyList(),
     val manualEntryCount: Int = 0,
     val skippedEntryCount: Int = 0,
+    val deductStock: Boolean = false,
+    val stockPreviewItems: List<PlanBatchAddStockPreviewItem> = emptyList(),
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
     val savedEntryCount: Int? = null,
@@ -317,7 +392,84 @@ private data class PlanBatchAddSelectionState(
     val isSaved: Boolean = false,
     val savedEntryCount: Int? = null,
     val saveResult: PlanBatchAddSaveResult? = null,
+    val deductStock: Boolean = false,
 )
+
+data class PlanBatchAddStockPreviewItem(
+    val medicine: Medicine,
+    val applicationType: MedicationApplicationType,
+    val doseInstruction: DoseInstruction,
+    val medicationCount: Int,
+    val stockProjection: MedicineStockProjection,
+) {
+    val key: String
+        get() = listOf(
+            medicine.uuid.toString(),
+            applicationType.name,
+            doseInstruction.toString(),
+            medicationCount.toString(),
+        ).joinToString("|")
+}
+
+private data class PlanBatchAddStockPreviewSignature(
+    val medicineUuid: UUID,
+    val applicationType: MedicationApplicationType,
+    val doseInstruction: DoseInstruction,
+    val medicationCount: Int,
+)
+
+internal fun buildPlanBatchAddStockPreviewItems(
+    entriesToAdd: List<MedicationLogEntryInput>,
+    stockProjections: List<MedicineStockProjection>,
+    projectHypotheticalStock: (Medicine, MedicineStock) -> MedicineStockProjection?,
+): List<PlanBatchAddStockPreviewItem> {
+    if (entriesToAdd.isEmpty() || stockProjections.isEmpty()) return emptyList()
+
+    val projectionsByMedicineUuid = stockProjections.associateBy { projection -> projection.medicine.uuid }
+    val afterStockByMedicineUuid = linkedMapOf<UUID, MedicineStock>()
+    val representativeBySignature = linkedMapOf<PlanBatchAddStockPreviewSignature, MedicationLogEntryInput>()
+
+    entriesToAdd.forEach { entry ->
+        val medicineUuid = entry.medicineUuid ?: return@forEach
+        val projection = projectionsByMedicineUuid[medicineUuid] ?: return@forEach
+        val medicine = projection.medicine
+        if (!medicine.stock.trackingEnabled) return@forEach
+        val requestedDose = resolveRequestedDoseForStock(
+            preparation = medicine.preparation,
+            doseInstruction = entry.doseInstruction,
+            count = entry.count.coerceAtLeast(1),
+        ) ?: return@forEach
+        val currentStock = afterStockByMedicineUuid[medicineUuid] ?: medicine.stock
+        afterStockByMedicineUuid[medicineUuid] = deductInsertedDoseStock(
+            preparation = medicine.preparation,
+            stock = currentStock,
+            requestedDose = requestedDose,
+        )
+        representativeBySignature.putIfAbsent(
+            PlanBatchAddStockPreviewSignature(
+                medicineUuid = medicineUuid,
+                applicationType = entry.applicationType,
+                doseInstruction = entry.doseInstruction,
+                medicationCount = entry.count.coerceAtLeast(1),
+            ),
+            entry,
+        )
+    }
+
+    return representativeBySignature.mapNotNull { (signature, entry) ->
+        val currentProjection = projectionsByMedicineUuid[signature.medicineUuid] ?: return@mapNotNull null
+        val medicine = currentProjection.medicine
+        val afterStock = afterStockByMedicineUuid[signature.medicineUuid] ?: return@mapNotNull null
+        val afterProjection = projectHypotheticalStock(medicine, afterStock) ?: return@mapNotNull null
+        PlanBatchAddStockPreviewItem(
+            medicine = medicine,
+            applicationType = entry.applicationType,
+            doseInstruction = entry.doseInstruction,
+            medicationCount = entry.count.coerceAtLeast(1),
+            stockProjection = afterProjection,
+        )
+    }
+}
 
 internal fun buildPlanBatchAddEntries(
     group: MedicationGroup,
