@@ -23,9 +23,12 @@ import com.mkx.hrttracker.util.zoneDisplayName
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.map
@@ -77,10 +80,11 @@ class CalibrationEditorViewModel @Inject constructor(
         savedStateHandle.get<String>(DRAFT_SNAPSHOT_KEY)?.let { json ->
             runCatching { draftSnapshotAdapter.fromJson(json) }.getOrNull()
         }
-    // Once a save/delete succeeds the editor navigates away, so persistence stops and the
-    // stored snapshot is cleared: otherwise a process death in the post-save window would
-    // restore the committed entry as a new unsaved draft and duplicate it on re-save.
-    private var draftPersistenceFinished = false
+    // Once a save/delete succeeds the editor navigates away, so persistence stops (the
+    // collector job is cancelled) and the stored snapshot is cleared: otherwise a process
+    // death in the post-save window would restore the committed entry as a new unsaved
+    // draft and duplicate it on re-save.
+    private var draftPersistenceJob: Job? = null
     private val _uiState = MutableStateFlow(buildInitialEditorState())
     val uiState: StateFlow<CalibrationEditorUiState> = _uiState.asStateFlow()
 
@@ -136,23 +140,30 @@ class CalibrationEditorViewModel @Inject constructor(
         return restoredDraftSnapshot?.applyTo(baseState, latestSettingsState) ?: baseState
     }
 
+    @OptIn(FlowPreview::class) // Flow.debounce is stable in practice; opt in explicitly.
     private fun persistDraftSnapshotAcrossProcessDeath() {
-        viewModelScope.launch {
+        draftPersistenceJob = viewModelScope.launch {
             _uiState
                 .filterNot { state -> state.isLoading }
+                // Coalesce keystroke bursts: persist the settled draft shortly after the
+                // user pauses instead of re-deriving the snapshot and re-serializing the
+                // whole form to JSON on every character. SavedStateHandle only has to be
+                // current by onSaveInstanceState, so a short debounce is loss-free in the
+                // realistic process-death path (the app is backgrounded — typing stopped —
+                // well before the system kills it).
+                .debounce(DRAFT_PERSIST_DEBOUNCE_MS)
                 .map { state -> state.toDraftSnapshot() }
                 .distinctUntilChanged()
                 .collect { snapshot ->
-                    if (!draftPersistenceFinished) {
-                        savedStateHandle[DRAFT_SNAPSHOT_KEY] = draftSnapshotAdapter.toJson(snapshot)
-                    }
+                    savedStateHandle[DRAFT_SNAPSHOT_KEY] = draftSnapshotAdapter.toJson(snapshot)
                 }
         }
     }
 
-    // Stop persisting and drop the stored snapshot once the entry is committed.
+    // Stop persisting and drop the stored snapshot once the entry is committed. Cancelling
+    // the collector guarantees no later emission can re-write the cleared key.
     private fun finishDraftPersistence() {
-        draftPersistenceFinished = true
+        draftPersistenceJob?.cancel()
         savedStateHandle[DRAFT_SNAPSHOT_KEY] = null
     }
 
@@ -322,8 +333,8 @@ class CalibrationEditorViewModel @Inject constructor(
                     now = Instant.now(),
                 )
             }.onSuccess { savedPanelUuid ->
-                // Set before the state update below so the persistence collector skips the
-                // resulting saved emission and the cleared snapshot stays cleared.
+                // Cancel before the state update below so the collector is torn down before
+                // it can observe the saved emission and the cleared snapshot stays cleared.
                 finishDraftPersistence()
                 val pickerOffset = latestState.collectedZoneId.rules.getOffset(collectedAt)
                 val deviceOffset = defaultZoneId.rules.getOffset(collectedAt)
@@ -601,6 +612,7 @@ class CalibrationEditorViewModel @Inject constructor(
     companion object {
         const val PANEL_ID_ARG = "panelId"
         private const val DRAFT_SNAPSHOT_KEY = "calibrationDraft"
+        private const val DRAFT_PERSIST_DEBOUNCE_MS = 250L
     }
 }
 

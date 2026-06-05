@@ -268,11 +268,15 @@ class MedicationGroupEditorLoadStateTest {
         val archivedOriginal = testMedicationGroup(archivedOriginalId).copy(
             archivedAt = Instant.parse("2026-04-24T00:00:00Z"),
         )
+        // Give the recreated group a start date AFTER the test clock (2026-04-25) so the
+        // persisted originalSinceDate — not the today floor — is the binding minimum. This
+        // is what lets the assertions below actually fail if restore drops originalSinceDate.
+        val recreatedStartDate = LocalDate.of(2026, 5, 1)
         val recreatedGroup = testMedicationGroup(
             groupUuid = recreatedGroupId,
             includePastScheduledSlots = false,
             recreatedFromGroupUuid = archivedOriginalId,
-        )
+        ).let { group -> group.copy(schedule = group.schedule.copy(since = recreatedStartDate)) }
         every { medicationGroupRepository.getCachedGroup(archivedOriginalId) } returns archivedOriginal
         every { medicationGroupRepository.getCachedGroup(recreatedGroupId) } returns recreatedGroup
         every { medicationGroupRepository.observeGroups() } returns
@@ -306,9 +310,18 @@ class MedicationGroupEditorLoadStateTest {
         viewModel.updateIncludePastScheduledSlots(true)
         assertFalse(viewModel.uiState.value.includePastScheduledSlots)
 
-        // Start-date limit survives: the start can't move before its persisted start date.
-        viewModel.updateSinceDate(LocalDate.of(2026, 3, 1))
-        assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.sinceDate)
+        // Start-date floor survives: the recreated group's persisted start (2026-05-01)
+        // is restored as the minimum. A date between today (2026-04-25) and that start is
+        // rejected — this can only hold if originalSinceDate survived process death; a
+        // today-only floor would accept 2026-04-28 and move the start.
+        assertEquals(recreatedStartDate, viewModel.uiState.value.sinceDate)
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 28))
+        assertEquals(recreatedStartDate, viewModel.uiState.value.sinceDate)
+
+        // Positive control: a date at/after the persisted start IS accepted, proving the
+        // rejection above is the start-date floor and not the field being locked outright.
+        viewModel.updateSinceDate(LocalDate.of(2026, 5, 10))
+        assertEquals(LocalDate.of(2026, 5, 10), viewModel.uiState.value.sinceDate)
     }
 
     @Test
