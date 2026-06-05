@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renaming of custom medicines.
 - An appearance setting to adjust Chinese text alignment.
 - Support for Android 8.0 (Oreo) and later.
+- Optional stock deduction when batch-adding backfilled doses, with a per-medicine before/after preview.
+- The blood-test result editor now keeps an in-progress entry if the app is killed in the background.
 
 ### Changed
 
@@ -27,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Single-use vials (ampules) hide the count editor; the amount is set via the dose adjustment.
 - Sealed stock now shows as an inline "(+x)" instead of a separate chip.
 - Dose summaries no longer repeat the group name.
+- The post-log low-stock warning now fires only when a medicine drops to a worse stock tier, and several medicines collapse into one message.
+- The batch-add date range is now limited to today and earlier.
 - General UI polish: refreshed icons, widget previews, stock chip labels, and assorted spacing and wording.
 
 ### Fixed
@@ -39,6 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Onboarding now reflects already-granted permissions, marking the reminder and exact-alarm steps as done instead of prompting again.
 - Stock and dose unit labels are now correctly pluralized and localized.
 - Removed a spurious preset-dose disclaimer in the group slot editor.
+- Event-driven toasts now appear in the app's current language instead of the one active at launch.
+- Editing or renaming a medicine's preparation no longer clears its stock or turns off tracking.
+- Batch-add no longer shows an inverted range for a not-yet-started plan, and the range stays correct across a date rollover.
+- The medication-group editor now restores the group you were editing after the app is killed, instead of an archived original.
+- Batch-add now keeps your selection when a save fails, instead of discarding it.
 
 ## [1.0.3] - 2026-05-31
 
