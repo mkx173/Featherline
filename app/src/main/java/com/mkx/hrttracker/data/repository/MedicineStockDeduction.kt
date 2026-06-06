@@ -78,8 +78,8 @@ private fun deductContainerInsertedDoseStock(
 ): StockDeductionFields {
     val capacity = containerCapacity?.takeIf { it.isFinite() && it > 0.0 } ?: return fields
     val split = deductContainerTotal(
-        open = fields.openContainerAmount ?: 0.0,
-        sealed = fields.unitsRemaining ?: 0.0,
+        open = fields.openContainerAmount?.takeIf { it.isFinite() } ?: 0.0,
+        sealed = fields.unitsRemaining?.takeIf { it.isFinite() } ?: 0.0,
         capacity = capacity,
         dose = requestedDose,
     )

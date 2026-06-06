@@ -4,6 +4,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStock
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MedicineStockDeductionTest {
@@ -88,6 +89,30 @@ class MedicineStockDeductionTest {
         assertEquals(0.0, result.unitsRemaining ?: error("missing sealed"), 1e-9)
         assertEquals(0.8, result.openContainerAmount ?: error("missing open"), 1e-9)
         assertEquals(4.0, result.unitsLastTotal ?: error("missing denominator"), 0.0)
+    }
+
+    @Test
+    fun containerDeductionTreatsNonFiniteStoredOpenAmountAsEmpty() {
+        // A corrupt non-finite open amount (e.g. a NaN persisted by a legacy
+        // write) must not flow into the total round-trip and poison every stock
+        // field. It is treated as an empty open, so the dose simply cracks a
+        // sealed unit and the result stays finite (open 0 + 2*10 - 1 -> 9, one
+        // sealed left), rather than writing NaN/NaN back to the database.
+        val result = deductInsertedDoseStock(
+            preparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+            containerCapacity = 10.0,
+            fields = StockDeductionFields(
+                unitsRemaining = 2.0,
+                unitsLastTotal = 4.0,
+                openContainerAmount = Double.NaN,
+            ),
+            requestedDose = 1.0,
+        )
+
+        val open = result.openContainerAmount ?: error("missing open")
+        assertTrue("open must stay finite", open.isFinite())
+        assertEquals(9.0, open, 1e-9)
+        assertEquals(1.0, result.unitsRemaining ?: error("missing sealed"), 1e-9)
     }
 
     @Test

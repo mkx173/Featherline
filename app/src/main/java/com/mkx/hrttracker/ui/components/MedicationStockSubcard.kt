@@ -47,6 +47,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.FLOAT_EPSILON
 import com.mkx.hrttracker.data.repository.deductInsertedDoseStock
 import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicationKey
@@ -341,14 +342,7 @@ private fun StockSubcardMetricCell(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val labelText = stringResource(row.labelRes)
-                val sealedSuffix = row.sealedSupplement?.let { supplement ->
-                    val previewCountText = supplement.previewCountText
-                    if (previewCountText != null) {
-                        " (+${supplement.countText} → +$previewCountText)"
-                    } else {
-                        " (+${supplement.countText})"
-                    }
-                }.orEmpty()
+                val sealedSuffix = row.sealedSupplement?.labelSuffix().orEmpty()
                 Text(
                     text = labelText + sealedSuffix,
                     modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(labelText),
@@ -641,7 +635,18 @@ private fun openContainerStockSubcardRow(
 private fun sealedCountDecreased(current: Double?, preview: Double?): Boolean {
     val resolvedCurrent = current?.takeIf { it.isFinite() } ?: return false
     val resolvedPreview = preview?.takeIf { it.isFinite() } ?: return false
-    return resolvedPreview < resolvedCurrent - STOCK_SUBCARD_FLOAT_EPSILON
+    return resolvedPreview < resolvedCurrent - FLOAT_EPSILON
+}
+
+// Formats the sealed-reserve count appended to the row label, e.g. " (+2)", or
+// " (+2 → +1)" when a previewed dose is about to crack one of the reserve units.
+private fun MedicationStockSubcardSealedSupplement.labelSuffix(): String {
+    val preview = previewCountText
+    return if (preview != null) {
+        " (+$countText → +$preview)"
+    } else {
+        " (+$countText)"
+    }
 }
 
 private fun stockPoolSubcardRow(
@@ -807,8 +812,6 @@ private fun stockMutationPreview(
         openContainerAmountAfter = after.openContainerAmount,
     )
 }
-
-private const val STOCK_SUBCARD_FLOAT_EPSILON = 1e-9
 
 @Preview(
     name = "Medication Stock Subcard",

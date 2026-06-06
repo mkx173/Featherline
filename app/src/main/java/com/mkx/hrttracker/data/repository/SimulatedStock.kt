@@ -9,7 +9,10 @@ data class SimulatedStock(
 
 fun SimulatedStock.applyDose(perDose: Double): SimulatedStock? {
     if (perDose <= 0.0) return this
-    if (!isContainer) {
+    val capacity = containerCapacity.takeIf { isContainer && it.isFinite() && it > 0.0 }
+    if (capacity == null) {
+        // Pool stock, or a container with no usable capacity: only the open pool
+        // is drawable, so the dose is fulfillable exactly when it covers it.
         return if (open + FLOAT_EPSILON >= perDose) {
             copy(open = (open - perDose).coerceAtLeast(0.0).zeroIfTiny())
         } else {
@@ -19,12 +22,7 @@ fun SimulatedStock.applyDose(perDose: Double): SimulatedStock? {
     // Fulfillable whenever the total on hand covers the dose, regardless of how
     // many vial boundaries it crosses. The shared total round-trip conserves
     // volume and re-splits under the strict unseal invariant.
-    val capacity = containerCapacity.takeIf { it.isFinite() && it > 0.0 }
-    val total = if (capacity != null) open + sealed * capacity else open
-    if (total + FLOAT_EPSILON < perDose) return null
-    if (capacity == null) {
-        return copy(open = (open - perDose).coerceAtLeast(0.0).zeroIfTiny())
-    }
+    if (open + sealed * capacity + FLOAT_EPSILON < perDose) return null
     val split = deductContainerTotal(
         open = open,
         sealed = sealed,
