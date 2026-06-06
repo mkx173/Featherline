@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dose summaries no longer repeat the group name.
 - The post-log low-stock warning now fires only when a medicine drops to a worse stock tier, and several medicines collapse into one message.
 - The batch-add date range is now limited to today and earlier.
+- Deleting selected History records now reports how many were removed.
 - General UI polish: refreshed icons, widget previews, stock chip labels, and assorted spacing and wording.
 
 ### Fixed
@@ -51,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Batch-add now keeps your selection when a save fails, instead of discarding it.
 - The home-screen widget no longer renders its content too small on some devices and launchers.
 - The widget content-scale and opacity sliders now save the exact percentage shown.
+- A dose that crosses into a freshly opened multi-use vial or gel container now carries the leftover amount across instead of discarding it, and a dose larger than one container draws from as many as needed.
+- Batch-add no longer loses its post-log low-stock warning after a rotation, or shows a duplicate toast alongside the snackbar.
 
 ## [1.0.3] - 2026-05-31
 
