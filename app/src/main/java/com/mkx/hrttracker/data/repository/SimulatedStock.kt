@@ -22,8 +22,11 @@ fun SimulatedStock.applyDose(perDose: Double): SimulatedStock? {
     if (sealed + FLOAT_EPSILON < 1.0 || containerCapacity + FLOAT_EPSILON < perDose) {
         return null
     }
+    // Exact-split: the open dreg is consumed first, so only the residual
+    // (perDose - open) is drawn from the freshly cracked unit, carrying the dreg
+    // forward instead of discarding it.
     return copy(
-        open = (containerCapacity - perDose).coerceAtLeast(0.0).zeroIfTiny(),
+        open = (containerCapacity - (perDose - open)).coerceAtLeast(0.0).zeroIfTiny(),
         sealed = (sealed - 1.0).coerceAtLeast(0.0).zeroIfTiny(),
     )
 }

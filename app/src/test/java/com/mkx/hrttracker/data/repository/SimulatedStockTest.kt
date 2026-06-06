@@ -26,12 +26,17 @@ class SimulatedStockTest {
     }
 
     @Test
-    fun containerDiscardsOpenPartialWhenOpeningSealedUnit() {
+    fun containerCarriesOpenPartialIntoFreshUnitAllowingAnExtraDose() {
+        // Exact-split: the first 0.7 dose consumes the 0.5 open plus 0.2 from a
+        // fresh unit, leaving 1.0 - 0.2 = 0.8 (the 0.5 dreg is carried, not
+        // discarded). That carried volume lets the second 0.7 dose still be
+        // fulfilled from the open vial, where crack-and-discard would have left
+        // only 0.3 and stopped at one dose.
         val state = SimulatedStock(open = 0.5, sealed = 1.0, containerCapacity = 1.0, isContainer = true)
 
         val fulfilled = simulateNDoses(state = state, n = 2, perDose = 0.7)
 
-        assertEquals(1, fulfilled)
+        assertEquals(2, fulfilled)
     }
 
     @Test
@@ -67,12 +72,15 @@ class SimulatedStockTest {
     }
 
     @Test
-    fun containerDoseThatExceedsOpenDiscardsDregAndDrawsFullDoseFromFreshContainer() {
+    fun containerDoseThatExceedsOpenCarriesDregIntoFreshContainer() {
+        // Exact-split: 0.1 open + 0.15 from a fresh 10 mL container fulfils the
+        // 0.25 dose, leaving 10 - 0.15 = 9.85 (the 0.1 dreg is carried, not
+        // discarded, which would leave 9.75).
         val state = SimulatedStock(open = 0.1, sealed = 1.0, containerCapacity = 10.0, isContainer = true)
 
         val next = requireNotNull(state.applyDose(perDose = 0.25))
 
-        assertEquals(9.75, next.open, 1e-9)
+        assertEquals(9.85, next.open, 1e-9)
         assertEquals(0.0, next.sealed, 1e-9)
     }
 }

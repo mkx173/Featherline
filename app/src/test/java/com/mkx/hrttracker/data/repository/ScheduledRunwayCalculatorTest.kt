@@ -188,7 +188,7 @@ class ScheduledRunwayCalculatorTest {
     }
 
     @Test
-    fun containerTopologyWorkedExampleOnlyFulfillsOneDose() {
+    fun containerTopologyWorkedExampleFulfillsTwoDosesViaDregCarryOver() {
         val medicine = vial(
             stock = MedicineStock(
                 trackingEnabled = true,
@@ -210,7 +210,11 @@ class ScheduledRunwayCalculatorTest {
             ),
         )
 
-        assertEquals(RunwayProjection.Days(days = 0, lastFulfillable = today), runway)
+        // Exact-split conserves the 1.5 mL on hand (0.5 open + one 1.0 mL vial).
+        // Dose 1 drains the 0.5 dreg and 0.2 from a cracked vial (-> 0.8 left);
+        // dose 2 is fulfilled from that carried 0.8. Crack-and-discard would have
+        // wasted the 0.5 dreg and stopped after a single dose today.
+        assertEquals(RunwayProjection.Days(days = 1, lastFulfillable = today.plusDays(1)), runway)
     }
 
     @Test

@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.medication.testPatchOffMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.util.Locale
@@ -354,7 +355,7 @@ class MedicationStockSubcardTest {
     }
 
     @Test
-    fun openContainerPreviewExactDrainShowsZeroWithoutPreShowingCrack() {
+    fun openContainerPreviewExactDrainPromotesFreshSealedUnit() {
         val preparation = MedicinePreparation.InjectionMultiUseVial(
             concentrationMgPerMl = 20.0,
             vialVolumeMl = 5.0,
@@ -374,16 +375,18 @@ class MedicationStockSubcardTest {
 
         requireNotNull(model)
         val row = model.rows.single()
-        assertEquals("1.25", row.valueText)
-        assertEquals("0 / 5", row.previewValueText)
-        // The preview depletes the open container toward empty only; the eager
-        // crack of a sealed container surfaces on the post-save re-render, never
-        // mid-preview, so the sealed supplement count stays frozen at 2 here.
+        // The dose exactly empties the open vial; the deduction then promotes a
+        // sealed unit to a fresh full open container, and the preview mirrors
+        // that committed state (5 / 5, one fewer sealed) so preview == commit.
+        assertEquals("5 / 5", row.previewValueText)
+        assertTrue(row.opensNewContainer)
         assertEquals("2", row.sealedSupplement?.countText)
+        assertEquals("1", row.sealedSupplement?.previewCountText)
+        assertEquals(R.drawable.ic_humidity_low, row.iconRes)
     }
 
     @Test
-    fun openContainerPreviewOpenLessThanDoseShowsZeroWithoutDregSplit() {
+    fun openContainerPreviewStraddleCarriesDregAndOpensSealedUnit() {
         val preparation = MedicinePreparation.InjectionMultiUseVial(
             concentrationMgPerMl = 20.0,
             vialVolumeMl = 10.0,
@@ -402,12 +405,43 @@ class MedicationStockSubcardTest {
 
         requireNotNull(model)
         val row = model.rows.single()
-        assertEquals("0.1", row.valueText)
-        assertEquals("0 / 10", row.previewValueText)
-        // A dose larger than the open dreg still previews the open container at
-        // empty without splitting the dose or pre-showing the crack, so the
-        // sealed supplement count is unchanged until the write actually lands.
+        // 0.1 dreg carried, 0.15 residual drawn from the cracked unit:
+        // 10 - (0.25 - 0.1) = 9.85, and the last sealed unit is consumed.
+        assertEquals("9.85 / 10", row.previewValueText)
+        assertTrue(row.opensNewContainer)
         assertEquals("1", row.sealedSupplement?.countText)
+        assertEquals("0", row.sealedSupplement?.previewCountText)
+        assertEquals(R.drawable.ic_humidity_low, row.iconRes)
+    }
+
+    @Test
+    fun openContainerWithinVialDoseDoesNotOpenNewContainer() {
+        val preparation = MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = 20.0,
+            vialVolumeMl = 5.0,
+        )
+        val model = medicationStockSubcardModel(
+            projection = projection(
+                preparation = preparation,
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 2.0,
+                    unitsLastTotal = 4.0,
+                    openContainerAmount = 1.25,
+                ),
+            ),
+            mutationPreviewDoseMagnitude = 0.5,
+        )
+
+        requireNotNull(model)
+        val row = model.rows.single()
+        // Dose fits within the open vial: no crack, no icon swap, no sealed
+        // preview, and the before -> after value keeps both ends.
+        assertEquals("1.25", row.valueText)
+        assertEquals("0.75 / 5", row.previewValueText)
+        assertFalse(row.opensNewContainer)
+        assertNull(row.sealedSupplement?.previewCountText)
+        assertEquals(R.drawable.ic_humidity_mid, row.iconRes)
     }
 
     @Test

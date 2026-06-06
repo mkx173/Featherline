@@ -90,7 +90,10 @@ private fun deductContainerInsertedDoseStock(
         }
         sealed >= 1.0 -> {
             newSealed = sealed - 1.0
-            newOpen = maxOf(0.0, capacity - dose)
+            // Exact-split: the open dreg is consumed first, so only the residual
+            // (dose - open) is drawn from the freshly cracked unit. The dreg is
+            // carried into the new container instead of being discarded.
+            newOpen = maxOf(0.0, capacity - (dose - open))
         }
         else -> {
             newSealed = sealed

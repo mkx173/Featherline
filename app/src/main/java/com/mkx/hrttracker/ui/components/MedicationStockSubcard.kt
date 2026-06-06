@@ -3,6 +3,12 @@ package com.mkx.hrttracker.ui.components
 import androidx.annotation.DrawableRes
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.painterResource
@@ -39,6 +46,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.deductInsertedDoseStock
 import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
@@ -87,6 +95,7 @@ internal enum class MedicationStockSubcardRowKind(
 
 internal data class MedicationStockSubcardSealedSupplement(
     val countText: String,
+    val previewCountText: String? = null,
 )
 
 internal data class MedicationStockSubcardText(
@@ -104,9 +113,10 @@ internal data class MedicationStockSubcardRowModel(
     val previewPluralCount: Double? = null,
     val progress: Float,
     val sealedSupplement: MedicationStockSubcardSealedSupplement? = null,
+    val opensNewContainer: Boolean = false,
 ) {
     @get:DrawableRes
-    val iconRes: Int get() = kind.iconRes
+    val iconRes: Int get() = if (opensNewContainer) R.drawable.ic_humidity_low else kind.iconRes
 
     @get:StringRes
     val contentDescriptionRes: Int get() = kind.contentDescriptionRes
@@ -292,15 +302,28 @@ private fun StockSubcardMetricCell(
         }
         Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
-            LinearProgressIndicator(
-                progress = { row.progress },
-                color = progressIndicatorColors.color,
-                trackColor = progressIndicatorColors.trackColor,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 6.dp)
-                    .height(6.dp),
-            )
+            val progressModifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp)
+                .height(6.dp)
+            // When the previewed dose opens a new container, the current bar
+            // shows the dreg that is about to be drained into the fresh unit;
+            // pulse it so the upward jump of the value reads as "this empties,
+            // a new container opens".
+            if (row.opensNewContainer) {
+                PulsingStockSubcardProgressIndicator(
+                    progress = row.progress,
+                    colors = progressIndicatorColors,
+                    modifier = progressModifier,
+                )
+            } else {
+                LinearProgressIndicator(
+                    progress = { row.progress },
+                    color = progressIndicatorColors.color,
+                    trackColor = progressIndicatorColors.trackColor,
+                    modifier = progressModifier,
+                )
+            }
             Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -308,7 +331,14 @@ private fun StockSubcardMetricCell(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val labelText = stringResource(row.labelRes)
-                val sealedSuffix = row.sealedSupplement?.let { " (+${it.countText})" }.orEmpty()
+                val sealedSuffix = row.sealedSupplement?.let { supplement ->
+                    val previewCountText = supplement.previewCountText
+                    if (previewCountText != null) {
+                        " (+${supplement.countText} → +$previewCountText)"
+                    } else {
+                        " (+${supplement.countText})"
+                    }
+                }.orEmpty()
                 Text(
                     text = labelText + sealedSuffix,
                     modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(labelText),
@@ -325,6 +355,30 @@ private fun StockSubcardMetricCell(
             }
         }
     }
+}
+
+@Composable
+private fun PulsingStockSubcardProgressIndicator(
+    progress: Float,
+    colors: StockSubcardProgressIndicatorColors,
+    modifier: Modifier = Modifier,
+) {
+    val transition = rememberInfiniteTransition(label = "stockDregPulse")
+    val pulseAlpha = transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "stockDregPulseAlpha",
+    )
+    LinearProgressIndicator(
+        progress = { progress },
+        color = colors.color,
+        trackColor = colors.trackColor,
+        modifier = modifier.alpha(pulseAlpha.value),
+    )
 }
 
 @Composable
@@ -353,16 +407,20 @@ private fun StockSubcardValueText(
     Row(
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = row.valueText,
-            style = textStyle,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.End,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.alignByBaseline(),
-        )
+        // Opening a new container skips the "before" volume: the current dreg is
+        // shown on the pulsing bar instead, so the value reads "→ <fresh unit>".
+        if (!row.opensNewContainer) {
+            Text(
+                text = row.valueText,
+                style = textStyle,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.alignByBaseline(),
+            )
+        }
         Text(
             text = " → ",
             style = textStyle,
@@ -508,6 +566,7 @@ private fun stockSubcardRows(
                     valueUnitRes = R.string.stock_unit_ml,
                     sealedCount = stock.unitsRemaining,
                     mutationPreviewOpenAmount = mutationPreview?.openContainerAmountAfter,
+                    mutationPreviewSealedCount = mutationPreview?.unitsRemainingAfter,
                 )
             } ?: stockPoolSubcardRow(stock, preparation, mutationPreview),
         )
@@ -521,6 +580,7 @@ private fun stockSubcardRows(
                     valueUnitRes = R.string.stock_unit_g,
                     sealedCount = stock.unitsRemaining,
                     mutationPreviewOpenAmount = mutationPreview?.openContainerAmountAfter,
+                    mutationPreviewSealedCount = mutationPreview?.unitsRemainingAfter,
                 )
             } ?: stockPoolSubcardRow(stock, preparation, mutationPreview),
         )
@@ -538,11 +598,16 @@ private fun openContainerStockSubcardRow(
     @StringRes valueUnitRes: Int,
     sealedCount: Double?,
     mutationPreviewOpenAmount: Double?,
+    mutationPreviewSealedCount: Double?,
 ): MedicationStockSubcardRowModel {
     val valueText = stockSubcardValueText(
         numerator = openAmount,
         denominator = capacity,
         mutationPreviewNumerator = mutationPreviewOpenAmount,
+    )
+    val opensNewContainer = sealedCountDecreased(
+        current = sealedCount,
+        preview = mutationPreviewSealedCount,
     )
     return MedicationStockSubcardRowModel(
         kind = kind,
@@ -557,8 +622,16 @@ private fun openContainerStockSubcardRow(
         ),
         sealedSupplement = stockSubcardSealedSupplement(
             sealedCount = sealedCount,
+            previewSealedCount = if (opensNewContainer) mutationPreviewSealedCount else null,
         ),
+        opensNewContainer = opensNewContainer,
     )
+}
+
+private fun sealedCountDecreased(current: Double?, preview: Double?): Boolean {
+    val resolvedCurrent = current?.takeIf { it.isFinite() } ?: return false
+    val resolvedPreview = preview?.takeIf { it.isFinite() } ?: return false
+    return resolvedPreview < resolvedCurrent - STOCK_SUBCARD_FLOAT_EPSILON
 }
 
 private fun stockPoolSubcardRow(
@@ -587,10 +660,14 @@ private fun stockPoolSubcardRow(
 
 private fun stockSubcardSealedSupplement(
     sealedCount: Double?,
+    previewSealedCount: Double? = null,
 ): MedicationStockSubcardSealedSupplement? {
     val resolvedCount = sealedCount?.takeIf { it.isFinite() && it >= 0.0 } ?: return null
     return MedicationStockSubcardSealedSupplement(
         countText = formatStockSubcardCount(resolvedCount),
+        previewCountText = previewSealedCount
+            ?.takeIf { it.isFinite() && it >= 0.0 }
+            ?.let { formatStockSubcardCount(it) },
     )
 }
 
@@ -705,54 +782,23 @@ private fun stockMutationPreview(
     val dose = requestedDose?.takeIf { it.isFinite() && it >= 0.0 } ?: return null
     val stock = medicine.stock
     if (!stock.trackingEnabled) return null
-    return when (val preparation = medicine.preparation) {
-        is MedicinePreparation.InjectionMultiUseVial -> containerStockMutationPreview(
-            stock = stock,
-            containerCapacity = preparation.vialVolumeMl,
-            requestedDose = dose,
-        )
+    if (medicine.preparation is MedicinePreparation.PatchOff) return null
 
-        is MedicinePreparation.GelContainer -> containerStockMutationPreview(
-            stock = stock,
-            containerCapacity = preparation.containerWeightGrams,
-            requestedDose = dose,
-        )
-
-        is MedicinePreparation.PatchOff -> null
-
-        else -> {
-            val remaining = stock.unitsRemaining?.takeIf { it.isFinite() } ?: return null
-            val deducted = minOf(dose, remaining).coerceAtLeast(0.0)
-            StockSubcardMutationPreview(
-                unitsRemainingAfter = (remaining - deducted).coerceAtLeast(0.0).zeroIfTiny(),
-                openContainerAmountAfter = null,
-            )
-        }
-    }
-}
-
-private fun containerStockMutationPreview(
-    stock: MedicineStock,
-    containerCapacity: Double,
-    requestedDose: Double,
-): StockSubcardMutationPreview? {
-    containerCapacity.takeIf { it.isFinite() && it > 0.0 } ?: return null
-    val open = stock.openContainerAmount?.takeIf { it.isFinite() } ?: 0.0
-    val sealed = stock.unitsRemaining?.takeIf { it.isFinite() } ?: 0.0
-    val dose = requestedDose.coerceAtLeast(0.0)
-    val openAfter = (open - dose).coerceAtLeast(0.0).zeroIfTiny()
-
+    // Mirror the exact deduction the write will apply (carry-over, sealed crack,
+    // and eager promotion of an emptied container) so the preview never diverges
+    // from the committed stock.
+    val after = deductInsertedDoseStock(
+        preparation = medicine.preparation,
+        stock = stock,
+        requestedDose = dose,
+    )
     return StockSubcardMutationPreview(
-        unitsRemainingAfter = sealed.coerceAtLeast(0.0).zeroIfTiny(),
-        openContainerAmountAfter = openAfter,
+        unitsRemainingAfter = after.unitsRemaining,
+        openContainerAmountAfter = after.openContainerAmount,
     )
 }
 
 private const val STOCK_SUBCARD_FLOAT_EPSILON = 1e-9
-
-private fun Double.zeroIfTiny(): Double {
-    return if (kotlin.math.abs(this) <= STOCK_SUBCARD_FLOAT_EPSILON) 0.0 else this
-}
 
 @Preview(
     name = "Medication Stock Subcard",

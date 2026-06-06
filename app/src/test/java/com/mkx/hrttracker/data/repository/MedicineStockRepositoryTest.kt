@@ -258,7 +258,7 @@ class MedicineStockRepositoryTest {
     }
 
     @Test
-    fun projectAllReturnsImminentForContainerThatOnlyFitsOneDoseByTopology() {
+    fun projectAllReturnsUserLowForContainerThatFitsTwoDosesViaDregCarryOver() {
         val medicine = vial(
             MedicineStock(
                 trackingEnabled = true,
@@ -282,9 +282,13 @@ class MedicineStockRepositoryTest {
             now = clock.instant(),
         ).single()
 
-        assertEquals(RunwayProjection.Days(0, LocalDate.of(2026, 1, 1)), projection.runway)
+        // Exact-split carries the 0.5 dreg into the cracked vial, so two 0.7 mL
+        // doses are fulfillable (today + tomorrow) instead of one. With two doses
+        // on hand the state is no longer IMMINENT (imminentDoseCount >= 2) and
+        // falls to USER_LOW under the 14-day warn threshold.
+        assertEquals(RunwayProjection.Days(1, LocalDate.of(2026, 1, 2)), projection.runway)
         assertEquals(0.7, projection.maxPerAdministration, 1e-9)
-        assertEquals(MedicineStockState.IMMINENT, projection.state)
+        assertEquals(MedicineStockState.USER_LOW, projection.state)
     }
 
     @Test

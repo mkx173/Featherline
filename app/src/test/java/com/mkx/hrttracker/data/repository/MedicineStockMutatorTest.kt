@@ -473,7 +473,7 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun resolveDeduction_container_openLessThanDoseKeepsAcceptedDregLossBehavior() = runTest {
+    fun resolveDeduction_container_openLessThanDoseCarriesDregIntoFreshUnit() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 1.0, open = 0.1, vialVolume = 10.0)
 
@@ -484,13 +484,15 @@ class MedicineStockMutatorTest {
             now = fixedNow,
         )
 
+        // Exact-split: the 0.1 dreg is consumed first, only the 0.15 residual is
+        // drawn from the fresh 10 mL vial, leaving 10 - 0.15 = 9.85 (not 9.75).
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
                 trackingEnabled = true,
                 stockUnitsRemaining = 0.0,
                 stockUnitsLastTotal = null,
-                openContainerAmount = 9.75,
+                openContainerAmount = 9.85,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 1L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),
@@ -525,7 +527,7 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun resolveDeduction_container_case2_autoPromote_partialResidueDiscarded() = runTest {
+    fun resolveDeduction_container_case2_autoPromote_partialResidueCarried() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 2.0, open = 0.2, vialVolume = 1.0)
 
@@ -536,13 +538,15 @@ class MedicineStockMutatorTest {
             now = fixedNow,
         )
 
+        // Exact-split: the 0.2 dreg is consumed, only the 0.3 residual comes from
+        // the cracked unit, so the new open vial keeps 1.0 - 0.3 = 0.7 (not 0.5).
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
                 trackingEnabled = true,
                 stockUnitsRemaining = 1.0,
                 stockUnitsLastTotal = null,
-                openContainerAmount = 0.5,
+                openContainerAmount = 0.7,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 1L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),
@@ -640,13 +644,15 @@ class MedicineStockMutatorTest {
             now = fixedNow,
         )
 
+        // Exact-split: 20 g dreg consumed, only the 5 g residual drawn from the
+        // fresh 80 g container, leaving 80 - 5 = 75 (not 55).
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
                 trackingEnabled = true,
                 stockUnitsRemaining = 0.0,
                 stockUnitsLastTotal = null,
-                openContainerAmount = 55.0,
+                openContainerAmount = 75.0,
                 warnAtDaysRemaining = 14,
                 stockGeneration = 1L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),
