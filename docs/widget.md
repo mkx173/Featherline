@@ -462,6 +462,10 @@ renders the `RemoteViews`.
   to defend against repeated app starts.
 - The 15-minute worker interval is the WorkManager floor for periodic
   work — do not lower it expecting tighter cadence.
+- Release minification must keep each `GlanceAppWidget` subclass distinct.
+  `app/proguard-rules.pro` pins them because Glance resolves instances by
+  `javaClass`; if R8 merges `HrtWidgetMedium` and `HrtWidgetLarge`, release
+  builds can send the medium layout to the large widget.
 - **Keep the `RemoteViews` tree structurally stable across updates.** The
   synchronous `pushHrtWidgets` path pushes a freshly composed `RemoteViews`
   into the launcher's *existing* `LazyColumn` collection adapter via

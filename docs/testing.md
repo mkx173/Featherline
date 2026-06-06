@@ -25,7 +25,7 @@ Two test source roots:
 
 Add `--info` for verbose Gradle logs; the `--tests` flag accepts wildcards.
 
-JVM unit tests set [`unitTests.isReturnDefaultValues = true`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L123-L125) — un-mocked Android framework calls return `null` / `0` / `false` rather than throwing. This keeps pure-Kotlin tests JVM-runnable but means you can't rely on default-return semantics for behaviour verification. Mock or instrument when the test depends on framework state.
+JVM unit tests set [`unitTests.isReturnDefaultValues = true`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L149-L151) — un-mocked Android framework calls return `null` / `0` / `false` rather than throwing. This keeps pure-Kotlin tests JVM-runnable but means you can't rely on default-return semantics for behaviour verification. Mock or instrument when the test depends on framework state.
 
 After a run, Gradle writes HTML reports for browsing:
 

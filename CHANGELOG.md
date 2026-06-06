@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Batch-add now keeps your selection when a save fails, instead of discarding it.
 - The home-screen widget no longer renders its content too small on some devices and launchers.
 - The widget content-scale and opacity sliders now save the exact percentage shown.
+- The large home-screen widget no longer sometimes renders the medium widget layout in release builds.
 - A dose that crosses into a freshly opened multi-use vial or gel container now carries the leftover amount across instead of discarding it, and a dose larger than one container draws from as many as needed.
 - Stock runway and status no longer jump the moment a scheduled dose's time passes unlogged; the dose still counts for the rest of that day.
 - Batch-add no longer loses its post-log low-stock warning after a rotation, or shows a duplicate toast alongside the snackbar.
