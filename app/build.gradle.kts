@@ -131,6 +131,21 @@ android {
         }
     }
 
+    packaging {
+        resources {
+            // Bundled Apache license/notice copies and per-artifact version stamps
+            // aren't needed at runtime (third-party attribution is served via
+            // THIRD_PARTY_NOTICES_URL). DebugProbesKt.bin is the kotlinx-coroutines
+            // debug-agent probe, unused in release.
+            excludes += listOf(
+                "META-INF/**/LICENSE.txt",
+                "META-INF/NOTICE.md",
+                "META-INF/*.version",
+                "DebugProbesKt.bin",
+            )
+        }
+    }
+
     testOptions {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
@@ -174,7 +189,6 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.constraintlayout.compose)
-    implementation(libs.material)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material3.adaptive.navigation.suite)
     implementation(libs.androidx.navigation.compose)
