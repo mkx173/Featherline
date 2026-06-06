@@ -30,6 +30,14 @@ internal data class WidgetColorScheme(
     val outlineVariant: ColorProvider,
 )
 
+// Glance's androidx.glance.unit.ColorProvider(Color) factory is public, but it shares its
+// file-level class (ColorProviderKt) with the @RestrictTo(LIBRARY_GROUP) ColorProvider(@ColorRes
+// Int) overload. Lint's RestrictedApi check resolves by class + method name and conflates the two,
+// so it flags the (legitimate) Color call as restricted. The warning is compile-time only with no
+// runtime effect; route the Color factory through here so the suppression lives in one place.
+@Suppress("RestrictedApi")
+internal fun fixedColorProvider(color: Color): ColorProvider = ColorProvider(color)
+
 // Builds a ColorProvider that either follows the launcher's day/night state (when
 // forcedDark is null) or pins to one mode (when the user picked LIGHT or DARK in
 // the app's settings). The launcher's day/night doesn't track the app's
@@ -37,8 +45,8 @@ internal data class WidgetColorScheme(
 // on the widget.
 private fun colorProvider(light: Color, dark: Color, forcedDark: Boolean?): ColorProvider =
     when (forcedDark) {
-        true -> ColorProvider(dark)
-        false -> ColorProvider(light)
+        true -> fixedColorProvider(dark)
+        false -> fixedColorProvider(light)
         null -> DayNightColorProvider(light, dark)
     }
 
@@ -84,9 +92,9 @@ private val dayNightGroupProviders: Map<MedicationGroupColorKey?, ColorProvider>
         DayNightColorProvider(day = palette.lightAccent, night = palette.darkAccent)
     }
 private val lightGroupProviders: Map<MedicationGroupColorKey?, ColorProvider> =
-    MedicationGroupPalettes.mapValues { (_, palette) -> ColorProvider(palette.lightAccent) }
+    MedicationGroupPalettes.mapValues { (_, palette) -> fixedColorProvider(palette.lightAccent) }
 private val darkGroupProviders: Map<MedicationGroupColorKey?, ColorProvider> =
-    MedicationGroupPalettes.mapValues { (_, palette) -> ColorProvider(palette.darkAccent) }
+    MedicationGroupPalettes.mapValues { (_, palette) -> fixedColorProvider(palette.darkAccent) }
 
 internal fun groupAccentColor(colorKey: MedicationGroupColorKey?, forcedDark: Boolean? = null): ColorProvider {
     val providers = when (forcedDark) {

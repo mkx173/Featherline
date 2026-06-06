@@ -91,7 +91,7 @@ private fun RoundedMaskImage(
         alpha = resolvedColor.alpha,
         modifier = modifier,
         contentScale = ContentScale.FillBounds,
-        colorFilter = ColorFilter.tint(ColorProvider(resolvedColor.copy(alpha = 1f))),
+        colorFilter = ColorFilter.tint(fixedColorProvider(resolvedColor.copy(alpha = 1f))),
     )
 }
 
