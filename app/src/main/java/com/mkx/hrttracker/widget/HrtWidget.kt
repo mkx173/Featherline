@@ -204,35 +204,47 @@ suspend fun updateAllHrtWidgets(context: Context) {
     }
 }
 
-// Widget push entry point. Android 13+ uses a synchronous push that bypasses Glance's lazy session.
-// Glance's update()/updateAll()
-// only signal the session, whose recomposition is driven by the app process's frame
-// clock — backgrounded, no frames are produced and the update stalls until the launcher
-// next draws or the app relaunches. GlanceRemoteViews.compose() runs a one-shot,
-// frame-clock-independent composition; pushing the result via AppWidgetManager updates
-// the (foreground) launcher immediately, even from the background.
-// API 26-32 use the original session-backed update path because the synchronous RemoteViews
-// composition path is unreliable there.
+// Widget push entry point. The synchronous push (GlanceRemoteViews.compose() +
+// AppWidgetManager.updateAppWidget) bypasses Glance's lazy session: update()/updateAll() only
+// signal the session, whose recomposition is driven by the app process's frame clock —
+// backgrounded, no frames are produced and the update stalls until the launcher next draws or
+// the app relaunches, and on a foregrounded tap the session spin-up briefly paints the
+// initialLayout loading view (the "loading" flash). The one-shot compose pushes finished
+// RemoteViews straight to the launcher, immediately and flash-free, even from the background.
 //
-// Tradeoff: we compose a single RemoteViews for the current orientation's size rather
-// than Glance's automatic portrait/landscape variants. Acceptable here because content
-// scale is frozen to the captured per-device baseline.
+// The catch is collection-backed views: a bare updateAppWidget() does not rebind a Glance
+// LazyColumn below API 33 (only the session update / notifyAppWidgetViewDataChanged does), so
+// the list would render stale. We therefore split per widget:
+//   • Medium widget — plain views only, no LazyColumn → synchronous push on every API level.
+//   • Large widget  — contains a LazyColumn → synchronous push only on API 33+, where the
+//     platform rebinds inline collections from updateAppWidget; below 33 it falls back to the
+//     session path (which reads the snapshot just written to the DataStore).
+//
+// Tradeoff (synchronous path): we compose a single RemoteViews for the current orientation's
+// size rather than Glance's automatic portrait/landscape variants. Acceptable here because
+// content scale is frozen to the captured per-device baseline.
 //
 // A null record renders the empty-setup state, so clearWidgetSnapshot can reuse the same
-// API-selected widget update path.
+// widget update path.
 @OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
 suspend fun pushHrtWidgets(context: Context, record: WidgetSnapshotRecord?) {
-    if (!shouldUseSynchronousWidgetPush()) {
-        updateAllHrtWidgets(context)
-        return
-    }
     val appWidgetManager = AppWidgetManager.getInstance(context)
     coroutineScope {
         launch { pushHrtWidget(context, appWidgetManager, HrtWidgetMediumReceiver::class.java, record, isMedium = true) }
-        launch { pushHrtWidget(context, appWidgetManager, HrtWidgetLargeReceiver::class.java, record, isMedium = false) }
+        launch {
+            if (shouldUseSynchronousWidgetPush()) {
+                pushHrtWidget(context, appWidgetManager, HrtWidgetLargeReceiver::class.java, record, isMedium = false)
+            } else {
+                HrtWidgetLarge().glanceUpdateAll(context)
+            }
+        }
     }
 }
 
+// Whether the LARGE widget (the only one with a collection-backed LazyColumn) can take the
+// synchronous push. Below API 33 a bare updateAppWidget() won't rebind the LazyColumn, so it
+// must use the session path; API 33+ rebinds inline collections from updateAppWidget. The
+// medium widget has no collection and always takes the synchronous push regardless.
 internal fun shouldUseSynchronousWidgetPush(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
     sdkInt >= Build.VERSION_CODES.TIRAMISU
 
