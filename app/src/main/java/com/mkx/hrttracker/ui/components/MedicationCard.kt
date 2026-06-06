@@ -153,6 +153,7 @@ internal fun MedicationCardWithStockSubcard(
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
     stockSubcardContainerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
     stockMutationPreviewDoseMagnitude: Double? = null,
+    previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? = null,
     isSelected: Boolean = false,
     onLeadingIconClick: (() -> Unit)? = null,
     leadingIconContentDescription: String? = null,
@@ -224,6 +225,7 @@ internal fun MedicationCardWithStockSubcard(
                             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                             shape = MaterialTheme.shapes.small,
                             mutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
+                            previewPostMutationState = previewPostMutationState,
                         )
                     }
                 }
