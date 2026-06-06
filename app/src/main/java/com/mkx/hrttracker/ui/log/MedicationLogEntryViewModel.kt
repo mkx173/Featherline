@@ -14,7 +14,9 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.isCompatibleWith
 import com.mkx.hrttracker.model.medication.isWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
@@ -89,6 +91,11 @@ class MedicationLogEntryViewModel @Inject constructor(
             }
         }
     }
+
+    fun previewState(
+        medicineUuid: UUID,
+        hypotheticalStock: MedicineStock,
+    ): MedicineStockState? = medicineStockRepository.previewState(medicineUuid, hypotheticalStock)
 
     fun initialize(
         entryIds: List<String>,
