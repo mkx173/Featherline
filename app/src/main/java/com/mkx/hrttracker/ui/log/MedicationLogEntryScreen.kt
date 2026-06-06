@@ -25,6 +25,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.FulfilledScheduledSlot
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
@@ -142,10 +143,33 @@ fun MedicationLogEntryScreen(
     }
 
     val previewStateMedicineUuid = uiState.resolvedMedicine?.uuid
+    // The dose being logged fulfills this scheduled slot; exclude it from the
+    // preview's runway recompute so a future occurrence is not double-counted
+    // (pre-deducted stock + still-pending occurrence) into a pessimistic status.
+    val previewFulfilledSlot = remember(
+        uiState.sourceGroupUuid,
+        uiState.scheduleTimeUuid,
+        uiState.scheduledFor,
+    ) {
+        val groupUuid = uiState.sourceGroupUuid
+        val scheduleTimeUuid = uiState.scheduleTimeUuid
+        val scheduledFor = uiState.scheduledFor
+        if (groupUuid != null && scheduleTimeUuid != null && scheduledFor != null) {
+            FulfilledScheduledSlot(
+                groupUuid = groupUuid,
+                scheduleTimeUuid = scheduleTimeUuid,
+                scheduledFor = scheduledFor,
+            )
+        } else {
+            null
+        }
+    }
     val previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? =
-        remember(previewStateMedicineUuid, viewModel) {
+        remember(previewStateMedicineUuid, previewFulfilledSlot, viewModel) {
             previewStateMedicineUuid?.let { uuid ->
-                { hypothetical: MedicineStock -> viewModel.previewState(uuid, hypothetical) }
+                { hypothetical: MedicineStock ->
+                    viewModel.previewState(uuid, hypothetical, previewFulfilledSlot)
+                }
             }
         }
 

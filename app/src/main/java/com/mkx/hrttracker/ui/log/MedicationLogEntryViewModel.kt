@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.FulfilledScheduledSlot
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -95,7 +96,9 @@ class MedicationLogEntryViewModel @Inject constructor(
     fun previewState(
         medicineUuid: UUID,
         hypotheticalStock: MedicineStock,
-    ): MedicineStockState? = medicineStockRepository.previewState(medicineUuid, hypotheticalStock)
+        fulfilledSlot: FulfilledScheduledSlot? = null,
+    ): MedicineStockState? =
+        medicineStockRepository.previewState(medicineUuid, hypotheticalStock, fulfilledSlot)
 
     fun initialize(
         entryIds: List<String>,

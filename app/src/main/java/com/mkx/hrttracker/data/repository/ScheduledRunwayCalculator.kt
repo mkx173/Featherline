@@ -28,6 +28,10 @@ object ScheduledRunwayCalculator {
         logEntries: List<MedicationLogEntry>,
         now: Instant,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        // Preview-only: a future scheduled slot the caller is about to fulfill with
+        // a not-yet-persisted log. Excluded from demand so a pre-deducted preview
+        // stock is not charged twice for the same occurrence.
+        fulfilledSlot: FulfilledScheduledSlot? = null,
     ): RunwayProjection {
         if (!medicine.stock.trackingEnabled) return RunwayProjection.NoSchedule
 
@@ -40,6 +44,7 @@ object ScheduledRunwayCalculator {
             nowLocal = nowLocal,
             horizonEnd = today.plusDays(HORIZON_DAYS),
             zoneId = zoneId,
+            fulfilledSlot = fulfilledSlot,
         )
         if (doses.isEmpty()) return RunwayProjection.NoSchedule
 
@@ -69,6 +74,7 @@ object ScheduledRunwayCalculator {
         nowLocal: LocalDateTime,
         horizonEnd: LocalDate,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        fulfilledSlot: FulfilledScheduledSlot? = null,
     ): List<MedicineDoseOccurrence> {
         if (!medicine.stock.trackingEnabled) return emptyList()
 
@@ -85,6 +91,15 @@ object ScheduledRunwayCalculator {
             )
             for (occurrence in occurrences) {
                 if (occurrence.scheduledFor.isBefore(nowLocal)) continue
+                // Drop the slot a not-yet-saved preview log will fulfill, so its
+                // demand is not double-counted against already-deducted stock.
+                if (fulfilledSlot != null &&
+                    fulfilledSlot.groupUuid == group.uuid &&
+                    fulfilledSlot.scheduleTimeUuid == occurrence.scheduleTimeUuid &&
+                    fulfilledSlot.scheduledFor == occurrence.scheduledFor
+                ) {
+                    continue
+                }
 
                 val planSlot = MedicationGroupSlotKey(
                     scheduleTimeUuid = occurrence.scheduleTimeUuid,
@@ -268,6 +283,17 @@ internal data class MedicineDoseOccurrence(
     val scheduleTimeUuid: UUID,
     val signatureKey: String,
     val perDose: Double,
+)
+
+/**
+ * Identifies a single scheduled occurrence a preview is about to fulfill with a
+ * log that has not been persisted yet. Used to exclude that occurrence from
+ * runway demand so a pre-deducted preview stock is not charged for it twice.
+ */
+data class FulfilledScheduledSlot(
+    val groupUuid: UUID,
+    val scheduleTimeUuid: UUID,
+    val scheduledFor: LocalDateTime,
 )
 
 internal fun initialSimulatedStock(medicine: Medicine): SimulatedStock {

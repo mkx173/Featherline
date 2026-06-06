@@ -147,11 +147,14 @@ class MedicineStockRepository @Inject constructor(
     fun previewState(
         medicineUuid: UUID,
         hypotheticalStock: MedicineStock,
-    ): MedicineStockState? = previewProjection(medicineUuid, hypotheticalStock)?.state
+        fulfilledSlot: FulfilledScheduledSlot? = null,
+    ): MedicineStockState? =
+        previewProjection(medicineUuid, hypotheticalStock, fulfilledSlot)?.state
 
     private fun previewProjection(
         medicineUuid: UUID,
         hypotheticalStock: MedicineStock,
+        fulfilledSlot: FulfilledScheduledSlot? = null,
     ): MedicineStockProjection? {
         val cache = projectionsCacheFlow.value ?: return null
         val medicine = cache.medicines.firstOrNull { it.uuid == medicineUuid } ?: return null
@@ -162,6 +165,7 @@ class MedicineStockRepository @Inject constructor(
             logEntries = stockWindowLogEntries(cache.logEntries, cache.now, zoneId),
             now = cache.now,
             zoneId = zoneId,
+            fulfilledSlot = fulfilledSlot,
         )
     }
 
@@ -197,6 +201,7 @@ class MedicineStockRepository @Inject constructor(
         logEntries: List<MedicationLogEntry>,
         now: Instant,
         zoneId: ZoneId,
+        fulfilledSlot: FulfilledScheduledSlot? = null,
     ): MedicineStockProjection {
         val total = computeTotalStock(medicine)
         val rate = computeDosesPerDayMagnitude(medicine, activeGroups)
@@ -206,6 +211,7 @@ class MedicineStockRepository @Inject constructor(
             logEntries = logEntries,
             now = now,
             zoneId = zoneId,
+            fulfilledSlot = fulfilledSlot,
         )
         val intervalDays = computeIntervalDays(medicine, activeGroups, now, zoneId)
         val maxPerAdministration = ScheduledRunwayCalculator.maxPerAdministration(
