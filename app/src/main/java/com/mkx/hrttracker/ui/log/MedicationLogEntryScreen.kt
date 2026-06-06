@@ -27,6 +27,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
@@ -139,11 +141,20 @@ fun MedicationLogEntryScreen(
         viewModel.consumeCrossZoneToast()
     }
 
+    val previewStateMedicineUuid = uiState.resolvedMedicine?.uuid
+    val previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? =
+        remember(previewStateMedicineUuid, viewModel) {
+            previewStateMedicineUuid?.let { uuid ->
+                { hypothetical: MedicineStock -> viewModel.previewState(uuid, hypothetical) }
+            }
+        }
+
     MedicationLogEntryScreenBody(
         modifier = modifier,
         uiState = uiState,
         sheetState = sheetState,
         isSheetLocked = isSheetLockedState.value,
+        previewPostMutationState = previewPostMutationState,
         onDismissRequest = onDismissRequest,
         onCloseClick = {
             hideBottomSheet(scope, sheetState, onDismissRequest)
@@ -165,6 +176,7 @@ private fun MedicationLogEntryScreenBody(
     uiState: MedicationLogEntryUiState,
     sheetState: SheetState,
     isSheetLocked: Boolean,
+    previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? = null,
     onDismissRequest: () -> Unit,
     onCloseClick: () -> Unit,
     onAppliedDateChange: (LocalDate) -> Unit,
@@ -228,6 +240,7 @@ private fun MedicationLogEntryScreenBody(
         lockedMedicine = uiState.resolvedMedicine,
         selectedStockProjection = uiState.selectedStockProjection,
         stockMutationPreviewDoseMagnitude = previewDoseMagnitude,
+        previewPostMutationState = previewPostMutationState,
         allowsActualDoseDelta = uiState.allowsActualDoseDelta,
         showActualDoseDeltaReadOnly = uiState.showActualDoseDeltaReadOnly,
         doseAmountDelta = uiState.doseAmountDelta,

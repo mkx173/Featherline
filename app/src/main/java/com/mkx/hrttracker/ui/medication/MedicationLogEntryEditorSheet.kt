@@ -57,6 +57,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
@@ -109,6 +110,7 @@ fun MedicationLogEntryEditorSheet(
     lockedMedicine: Medicine?,
     selectedStockProjection: MedicineStockProjection? = null,
     stockMutationPreviewDoseMagnitude: Double? = null,
+    previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? = null,
     allowsActualDoseDelta: Boolean = false,
     showActualDoseDeltaReadOnly: Boolean = false,
     doseAmountDelta: Double? = null,
@@ -195,6 +197,7 @@ fun MedicationLogEntryEditorSheet(
                 sourceGroupScheduleOffsetOutsideFulfillmentWindow,
             selectedStockProjection = selectedStockProjection,
             stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
+            previewPostMutationState = previewPostMutationState,
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -256,6 +259,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
     sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean,
     selectedStockProjection: MedicineStockProjection? = null,
     stockMutationPreviewDoseMagnitude: Double? = null,
+    previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? = null,
 ) {
     val groupName = sourceGroupName?.takeIf(String::isNotBlank)
     val hasGroupInfo = groupName != null && sourceGroupScheduledForText != null
@@ -288,6 +292,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
             )
         },
         stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
+        previewPostMutationState = previewPostMutationState,
         missingGroupColorTreatment = linkedMedicationSummaryMissingGroupColorTreatment(
             sourceGroupColorKey = sourceGroupColorKey,
         ),
