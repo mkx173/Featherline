@@ -40,6 +40,7 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -143,26 +144,34 @@ fun MedicationLogEntryScreen(
     }
 
     val previewStateMedicineUuid = uiState.resolvedMedicine?.uuid
+    val appliedAt = LocalDateTime.of(uiState.appliedDate, uiState.appliedTime)
+    val sourceGroupScheduleOffsetOutsideFulfillmentWindow = remember(
+        uiState.sourceGroupUuid,
+        uiState.scheduledFor,
+        uiState.sourceGroupPreviousScheduledFor,
+        uiState.sourceGroupNextScheduledFor,
+        uiState.appliedDate,
+        uiState.appliedTime,
+    ) {
+        uiState.shouldWarnScheduleWillNotBeFulfilled(appliedAt)
+    }
     // The dose being logged fulfills this scheduled slot; exclude it from the
     // preview's runway recompute so a future occurrence is not double-counted
-    // (pre-deducted stock + still-pending occurrence) into a pessimistic status.
+    // (pre-deducted stock + still-pending occurrence), but only when the saved
+    // log will actually fulfill the slot.
     val previewFulfilledSlot = remember(
         uiState.sourceGroupUuid,
         uiState.scheduleTimeUuid,
         uiState.scheduledFor,
+        sourceGroupScheduleOffsetOutsideFulfillmentWindow,
     ) {
-        val groupUuid = uiState.sourceGroupUuid
-        val scheduleTimeUuid = uiState.scheduleTimeUuid
-        val scheduledFor = uiState.scheduledFor
-        if (groupUuid != null && scheduleTimeUuid != null && scheduledFor != null) {
-            FulfilledScheduledSlot(
-                groupUuid = groupUuid,
-                scheduleTimeUuid = scheduleTimeUuid,
-                scheduledFor = scheduledFor,
-            )
-        } else {
-            null
-        }
+        previewFulfilledScheduledSlot(
+            sourceGroupUuid = uiState.sourceGroupUuid,
+            scheduleTimeUuid = uiState.scheduleTimeUuid,
+            scheduledFor = uiState.scheduledFor,
+            sourceGroupScheduleOffsetOutsideFulfillmentWindow =
+                sourceGroupScheduleOffsetOutsideFulfillmentWindow,
+        )
     }
     val previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? =
         remember(previewStateMedicineUuid, previewFulfilledSlot, viewModel) {
@@ -179,6 +188,8 @@ fun MedicationLogEntryScreen(
         sheetState = sheetState,
         isSheetLocked = isSheetLockedState.value,
         previewPostMutationState = previewPostMutationState,
+        sourceGroupScheduleOffsetOutsideFulfillmentWindow =
+            sourceGroupScheduleOffsetOutsideFulfillmentWindow,
         onDismissRequest = onDismissRequest,
         onCloseClick = {
             hideBottomSheet(scope, sheetState, onDismissRequest)
@@ -193,6 +204,26 @@ fun MedicationLogEntryScreen(
     )
 }
 
+internal fun previewFulfilledScheduledSlot(
+    sourceGroupUuid: UUID?,
+    scheduleTimeUuid: UUID?,
+    scheduledFor: LocalDateTime?,
+    sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean,
+): FulfilledScheduledSlot? {
+    if (sourceGroupScheduleOffsetOutsideFulfillmentWindow) {
+        return null
+    }
+    return if (sourceGroupUuid != null && scheduleTimeUuid != null && scheduledFor != null) {
+        FulfilledScheduledSlot(
+            groupUuid = sourceGroupUuid,
+            scheduleTimeUuid = scheduleTimeUuid,
+            scheduledFor = scheduledFor,
+        )
+    } else {
+        null
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MedicationLogEntryScreenBody(
@@ -201,6 +232,7 @@ private fun MedicationLogEntryScreenBody(
     sheetState: SheetState,
     isSheetLocked: Boolean,
     previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? = null,
+    sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean,
     onDismissRequest: () -> Unit,
     onCloseClick: () -> Unit,
     onAppliedDateChange: (LocalDate) -> Unit,
@@ -273,9 +305,8 @@ private fun MedicationLogEntryScreenBody(
         sourceGroupName = uiState.sourceGroupName,
         sourceGroupColorKey = uiState.sourceGroupColorKey,
         sourceGroupScheduledFor = uiState.scheduledFor,
-        sourceGroupScheduleOffsetOutsideFulfillmentWindow = uiState.shouldWarnScheduleWillNotBeFulfilled(
-            LocalDateTime.of(uiState.appliedDate, uiState.appliedTime)
-        ),
+        sourceGroupScheduleOffsetOutsideFulfillmentWindow =
+            sourceGroupScheduleOffsetOutsideFulfillmentWindow,
         countText = uiState.countText,
         appliedDate = uiState.appliedDate,
         appliedTime = uiState.appliedTime,
@@ -425,6 +456,7 @@ private fun MedicationLogEntryScreenPreview() {
             ),
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             isSheetLocked = false,
+            sourceGroupScheduleOffsetOutsideFulfillmentWindow = false,
             onDismissRequest = { },
             onCloseClick = { },
             onAppliedDateChange = { },

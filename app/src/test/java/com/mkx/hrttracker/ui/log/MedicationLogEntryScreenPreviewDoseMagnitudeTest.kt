@@ -9,8 +9,44 @@ import com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.LocalDateTime
+import java.util.UUID
 
 class MedicationLogEntryScreenPreviewDoseMagnitudeTest {
+    @Test
+    fun previewFulfilledSlotIsBuiltWhenAppliedTimeWillFulfillSchedule() {
+        val groupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val scheduleTimeUuid = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
+
+        val slot = previewFulfilledScheduledSlot(
+            sourceGroupUuid = groupUuid,
+            scheduleTimeUuid = scheduleTimeUuid,
+            scheduledFor = scheduledFor,
+            sourceGroupScheduleOffsetOutsideFulfillmentWindow = false,
+        )
+
+        requireNotNull(slot)
+        assertEquals(groupUuid, slot.groupUuid)
+        assertEquals(scheduleTimeUuid, slot.scheduleTimeUuid)
+        assertEquals(scheduledFor, slot.scheduledFor)
+    }
+
+    @Test
+    fun previewFulfilledSlotIsNullWhenAppliedTimeWillNotFulfillSchedule() {
+        val groupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val scheduleTimeUuid = UUID.fromString("22222222-2222-2222-2222-222222222222")
+
+        val slot = previewFulfilledScheduledSlot(
+            sourceGroupUuid = groupUuid,
+            scheduleTimeUuid = scheduleTimeUuid,
+            scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0),
+            sourceGroupScheduleOffsetOutsideFulfillmentWindow = true,
+        )
+
+        assertNull(slot)
+    }
+
     @Test
     fun previewDoseMagnitudeForMultiUseVialUsesExactEffectiveActualAmount() {
         val medicine = testMedicine(
