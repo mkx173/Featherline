@@ -736,7 +736,7 @@ private fun sealedCountDecreased(current: Double?, preview: Double?): Boolean {
 }
 
 // Formats the sealed-reserve count appended to the row label, e.g. " (+2)", or
-// " (+2 → +1)" when a previewed dose is about to crack one of the reserve units.
+// " (+2 → 1)" when a previewed dose is about to crack one of the reserve units.
 private fun MedicationStockSubcardSealedSupplement.labelSuffix(): String {
     val preview = previewCountText
     return if (preview != null) {
