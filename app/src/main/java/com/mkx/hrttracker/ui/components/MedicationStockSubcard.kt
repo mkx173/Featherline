@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.components
 import androidx.annotation.DrawableRes
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -293,11 +294,20 @@ private fun StockSubcardMetricCell(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    painter = painterResource(row.iconRes),
-                    contentDescription = null,
-                    modifier = Modifier.size(row.iconSize),
-                )
+                // Crossfade the droplet as the previewed dose crosses a container
+                // boundary (mid -> low), so the icon swap reads as a smooth fill
+                // change rather than a hard cut while dragging the dose.
+                Crossfade(
+                    targetState = row.iconRes,
+                    animationSpec = tween(durationMillis = 200),
+                    label = "stockRowIconCrossfade",
+                ) { iconRes ->
+                    Icon(
+                        painter = painterResource(iconRes),
+                        contentDescription = null,
+                        modifier = Modifier.size(row.iconSize),
+                    )
+                }
             }
         }
         Spacer(modifier = Modifier.width(8.dp))

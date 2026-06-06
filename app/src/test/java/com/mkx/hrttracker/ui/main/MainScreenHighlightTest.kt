@@ -41,7 +41,7 @@ class MainScreenHighlightTest {
     }
 
     @Test
-    fun runDoseRowHighlightLifecycle_waitsForScrollSettleBeforeFlashReady() = runTest {
+    fun runDoseRowHighlightLifecycle_waitsForScrollSettleThenDelaysBeforeFlashReady() = runTest {
         val scrollSettled = CompletableDeferred<Unit>()
         val events = mutableListOf<String>()
         val job = launch {
@@ -52,6 +52,7 @@ class MainScreenHighlightTest {
                     events += "waitScrollSettled"
                     scrollSettled.await()
                 },
+                preFlashDelayMillis = 150L,
                 clearDelayMillis = 0,
                 consumeHighlightRequest = { events += "consume" },
             )
@@ -64,9 +65,24 @@ class MainScreenHighlightTest {
             events,
         )
 
+        // The row is now in view, but the flash must wait out the pre-flash delay
+        // rather than firing the instant the scroll settles.
         scrollSettled.complete(Unit)
         runCurrent()
+        assertEquals(
+            listOf("flashReady=false", "layoutFrame", "waitScrollSettled"),
+            events,
+        )
 
+        advanceTimeBy(100L)
+        runCurrent()
+        assertFalse(
+            "flash fired before the pre-flash delay elapsed",
+            events.contains("flashReady=true"),
+        )
+
+        advanceTimeBy(50L)
+        runCurrent()
         assertEquals(
             listOf(
                 "flashReady=false",
@@ -92,6 +108,7 @@ class MainScreenHighlightTest {
                 setFlashReady = { ready -> events += "flashReady=$ready" },
                 awaitFirstLayoutFrame = { },
                 awaitScrollSettled = { },
+                preFlashDelayMillis = 0L,
                 clearDelayMillis = 10_000L,
                 consumeHighlightRequest = { events += "consume" },
             )
