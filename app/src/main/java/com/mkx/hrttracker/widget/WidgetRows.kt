@@ -625,7 +625,7 @@ internal fun DoseRow(
                 contentDescription = LocalContext.current.getString(
                     R.string.archived_group_record_indicator
                 ),
-                modifier = GlanceModifier.size((18f * scale).dp),
+                modifier = GlanceModifier.size((20f * scale).dp),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
             )
             // Only separate the archive icon from the trailing text when that text is shown.
