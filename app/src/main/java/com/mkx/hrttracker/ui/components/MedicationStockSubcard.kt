@@ -6,6 +6,7 @@ import androidx.annotation.StringRes
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -309,17 +310,25 @@ private fun StockSubcardMetricCell(
                 .height(6.dp)
             // When the previewed dose opens a new container, show two bars: the
             // fresh container, full, on the left; the current container on the
-            // right, blinking as the dose drains it away into the new one.
-            if (row.opensNewContainer) {
+            // right, blinking as the dose drains it away into the new one. The
+            // left bar's width is animated by its weight so dragging the slider
+            // past the unseal boundary opens/collapses it smoothly instead of a
+            // hard swap to a single bar.
+            val newContainerBarWeight = animateFloatAsState(
+                targetValue = if (row.opensNewContainer) 1f else 0f,
+                animationSpec = tween(durationMillis = 220),
+                label = "stockNewContainerBarWeight",
+            ).value
+            if (newContainerBarWeight > 0.005f) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = progressModifier,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp * newContainerBarWeight),
                 ) {
                     LinearProgressIndicator(
                         progress = { 1f },
                         color = progressIndicatorColors.color,
                         trackColor = progressIndicatorColors.trackColor,
-                        modifier = Modifier.weight(1f).height(6.dp),
+                        modifier = Modifier.weight(newContainerBarWeight).height(6.dp),
                     )
                     PulsingStockSubcardProgressIndicator(
                         progress = row.progress,
