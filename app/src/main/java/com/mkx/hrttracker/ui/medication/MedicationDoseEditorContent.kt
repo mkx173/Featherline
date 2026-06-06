@@ -526,6 +526,13 @@ internal fun MedicationCountTextField(
     @StringRes errorMessageRes: Int? = null,
 ) {
     val focusManager = LocalFocusManager.current
+    // On API 26, clearing focus in a sheet makes the platform jump focus back
+    // to the first text field; parking on the sheet's non-text anchor instead
+    // dismisses the IME without the jump. Falls back to clearFocus off-sheet.
+    val dismissFocusAnchor = LocalSheetDismissFocusRequester.current
+    val dismissKeyboard: () -> Unit = {
+        dismissFocusAnchor?.requestFocus() ?: focusManager.clearFocus()
+    }
     val stepBaseCount = countStepBase(value)
     var textFieldValue by remember(value) {
         mutableStateOf(
@@ -584,6 +591,6 @@ internal fun MedicationCountTextField(
             keyboardType = KeyboardType.Number,
             imeAction = ImeAction.Done,
         ),
-        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+        keyboardActions = KeyboardActions(onDone = { dismissKeyboard() }),
     )
 }

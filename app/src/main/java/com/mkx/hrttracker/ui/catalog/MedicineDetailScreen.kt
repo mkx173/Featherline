@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
@@ -59,11 +61,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -97,6 +102,7 @@ import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.medication.LocalSheetDismissFocusRequester
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
 import com.mkx.hrttracker.ui.medication.hasRawMassDoseField
@@ -837,6 +843,19 @@ private fun MedicineEditSheet(
     // by a locked notice and updatePreparation is skipped on Save.
     val canSave = if (isLocked) showsDisplayName else candidate != null
 
+    // IME Next chain across the visible editable fields: the rename field (when
+    // shown) flows into the preparation's numeric fields, and the last field
+    // ends with Done. A locked medicine disables the preparation fields, so they
+    // drop out of the chain and the rename field terminates it. Reuses
+    // CreateMedicineField + nextField/imeActionFor from CreateMedicineSheet.
+    val focusRequesters = remember {
+        CreateMedicineField.entries.associateWith { FocusRequester() }
+    }
+    val editFields = buildList {
+        if (showsDisplayName) add(CreateMedicineField.DISPLAY_NAME)
+        if (!isLocked) addAll(preparationEditFields(draft))
+    }
+
     MedicationEditorSheetScaffold(
         title = stringResource(R.string.medicine_edit_title),
         sheetState = sheetState,
@@ -876,6 +895,12 @@ private fun MedicineEditSheet(
                 defaultName = defaultName,
                 displayName = displayName,
                 onDisplayNameChange = onDisplayNameChange,
+                focusRequester = focusRequesters.getValue(CreateMedicineField.DISPLAY_NAME),
+                imeAction = imeActionFor(editFields, CreateMedicineField.DISPLAY_NAME),
+                onImeNext = {
+                    nextField(editFields, CreateMedicineField.DISPLAY_NAME)
+                        ?.let { focusRequesters.getValue(it).requestFocus() }
+                },
             )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         }
@@ -885,6 +910,8 @@ private fun MedicineEditSheet(
             showsUnitPicker = isCustom &&
                 draft.preparationType.hasRawMassDoseField(draft.patchSpecKind),
             enabled = !isLocked,
+            focusRequesters = focusRequesters,
+            editFields = editFields,
         )
     }
 }
@@ -899,8 +926,17 @@ private fun EditDisplayNameField(
     defaultName: String,
     displayName: String,
     onDisplayNameChange: (String) -> Unit,
+    focusRequester: FocusRequester,
+    imeAction: ImeAction,
+    onImeNext: () -> Unit,
 ) {
     val focusManager = LocalFocusManager.current
+    // Park on the sheet's non-text anchor instead of clearing focus: on API 26
+    // clearFocus jumps focus back to the first field rather than dismissing.
+    val dismissFocusAnchor = LocalSheetDismissFocusRequester.current
+    val dismissKeyboard: () -> Unit = {
+        dismissFocusAnchor?.requestFocus() ?: focusManager.clearFocus()
+    }
     val displayNameState = rememberTextFieldState(initialText = displayName)
     val currentDisplayName by rememberUpdatedState(displayName)
     val currentOnDisplayNameChange by rememberUpdatedState(onDisplayNameChange)
@@ -930,12 +966,14 @@ private fun EditDisplayNameField(
                 contentDescription = null,
             )
         },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .focusRequester(focusRequester),
         lineLimits = TextFieldLineLimits.SingleLine,
-        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-            imeAction = androidx.compose.ui.text.input.ImeAction.Done,
-        ),
-        onKeyboardAction = { focusManager.clearFocus() },
+        keyboardOptions = KeyboardOptions(imeAction = imeAction),
+        onKeyboardAction = {
+            if (imeAction == ImeAction.Next) onImeNext() else dismissKeyboard()
+        },
     )
 }
 
@@ -945,8 +983,18 @@ private fun PreparationEditorFields(
     draft: MedicinePreparationDraftUiState,
     onDraftChange: (MedicinePreparationDraftUiState) -> Unit,
     showsUnitPicker: Boolean,
+    focusRequesters: Map<CreateMedicineField, FocusRequester>,
+    editFields: List<CreateMedicineField>,
     enabled: Boolean = true,
 ) {
+    // Advances the IME to the next field in the chain; the last field has a Done
+    // action instead, so this never runs there.
+    val onImeNextFor: (CreateMedicineField) -> () -> Unit = { field ->
+        {
+            nextField(editFields, field)
+                ?.let { focusRequesters.getValue(it).requestFocus() }
+        }
+    }
     // Identity is fixed for an existing medicine — the sheet never offers a
     // preparation-type switch; we only edit the numeric fields of the
     // preparation the medicine already declared. (Switching preparation type
@@ -973,6 +1021,9 @@ private fun PreparationEditorFields(
                         leadingIconRes = R.drawable.ic_medication,
                         enabled = enabled,
                         onValueChange = { onDraftChange(draft.copy(pillStrengthMg = it)) },
+                        focusRequester = focusRequesters.getValue(CreateMedicineField.PILL_STRENGTH),
+                        imeAction = imeActionFor(editFields, CreateMedicineField.PILL_STRENGTH),
+                        onImeNext = onImeNextFor(CreateMedicineField.PILL_STRENGTH),
                     )
                     PreparationDoseUnitPicker(
                         selectedUnit = draft.displayDoseUnit,
@@ -994,6 +1045,9 @@ private fun PreparationEditorFields(
                         leadingIconRes = R.drawable.ic_vaccines,
                         enabled = enabled,
                         onValueChange = { onDraftChange(draft.copy(singleUseVialStrengthMg = it)) },
+                        focusRequester = focusRequesters.getValue(CreateMedicineField.VIAL_STRENGTH),
+                        imeAction = imeActionFor(editFields, CreateMedicineField.VIAL_STRENGTH),
+                        onImeNext = onImeNextFor(CreateMedicineField.VIAL_STRENGTH),
                     )
                     PreparationDoseUnitPicker(
                         selectedUnit = draft.displayDoseUnit,
@@ -1014,6 +1068,9 @@ private fun PreparationEditorFields(
                     leadingIconRes = R.drawable.ic_humidity_percentage,
                     enabled = enabled,
                     onValueChange = { onDraftChange(draft.copy(concentrationMgPerMl = it)) },
+                    focusRequester = focusRequesters.getValue(CreateMedicineField.CONCENTRATION_MG_PER_ML),
+                    imeAction = imeActionFor(editFields, CreateMedicineField.CONCENTRATION_MG_PER_ML),
+                    onImeNext = onImeNextFor(CreateMedicineField.CONCENTRATION_MG_PER_ML),
                 )
                 NumericInputField(
                     value = draft.vialVolumeMl,
@@ -1022,6 +1079,9 @@ private fun PreparationEditorFields(
                     leadingIconRes = R.drawable.ic_fluid,
                     enabled = enabled,
                     onValueChange = { onDraftChange(draft.copy(vialVolumeMl = it)) },
+                    focusRequester = focusRequesters.getValue(CreateMedicineField.VIAL_VOLUME_ML),
+                    imeAction = imeActionFor(editFields, CreateMedicineField.VIAL_VOLUME_ML),
+                    onImeNext = onImeNextFor(CreateMedicineField.VIAL_VOLUME_ML),
                 )
             }
 
@@ -1033,6 +1093,9 @@ private fun PreparationEditorFields(
                     leadingIconRes = R.drawable.ic_humidity_percentage,
                     enabled = enabled,
                     onValueChange = { onDraftChange(draft.copy(gelConcentrationPercent = it)) },
+                    focusRequester = focusRequesters.getValue(CreateMedicineField.GEL_PERCENT),
+                    imeAction = imeActionFor(editFields, CreateMedicineField.GEL_PERCENT),
+                    onImeNext = onImeNextFor(CreateMedicineField.GEL_PERCENT),
                 )
                 NumericInputField(
                     value = draft.sachetWeightGrams,
@@ -1041,6 +1104,9 @@ private fun PreparationEditorFields(
                     leadingIconRes = R.drawable.ic_weight,
                     enabled = enabled,
                     onValueChange = { onDraftChange(draft.copy(sachetWeightGrams = it)) },
+                    focusRequester = focusRequesters.getValue(CreateMedicineField.SACHET_WEIGHT),
+                    imeAction = imeActionFor(editFields, CreateMedicineField.SACHET_WEIGHT),
+                    onImeNext = onImeNextFor(CreateMedicineField.SACHET_WEIGHT),
                 )
             }
 
@@ -1052,6 +1118,9 @@ private fun PreparationEditorFields(
                     leadingIconRes = R.drawable.ic_humidity_percentage,
                     enabled = enabled,
                     onValueChange = { onDraftChange(draft.copy(gelConcentrationPercent = it)) },
+                    focusRequester = focusRequesters.getValue(CreateMedicineField.GEL_PERCENT),
+                    imeAction = imeActionFor(editFields, CreateMedicineField.GEL_PERCENT),
+                    onImeNext = onImeNextFor(CreateMedicineField.GEL_PERCENT),
                 )
                 NumericInputField(
                     value = draft.containerWeightGrams,
@@ -1060,6 +1129,9 @@ private fun PreparationEditorFields(
                     leadingIconRes = R.drawable.ic_weight,
                     enabled = enabled,
                     onValueChange = { onDraftChange(draft.copy(containerWeightGrams = it)) },
+                    focusRequester = focusRequesters.getValue(CreateMedicineField.CONTAINER_WEIGHT),
+                    imeAction = imeActionFor(editFields, CreateMedicineField.CONTAINER_WEIGHT),
+                    onImeNext = onImeNextFor(CreateMedicineField.CONTAINER_WEIGHT),
                 )
             }
 
@@ -1098,6 +1170,9 @@ private fun PreparationEditorFields(
                                 onValueChange = {
                                     onDraftChange(draft.copy(patchTotalMg = it))
                                 },
+                                focusRequester = focusRequesters.getValue(CreateMedicineField.PATCH_TOTAL_MG),
+                                imeAction = imeActionFor(editFields, CreateMedicineField.PATCH_TOTAL_MG),
+                                onImeNext = onImeNextFor(CreateMedicineField.PATCH_TOTAL_MG),
                             )
                             PreparationDoseUnitPicker(
                                 selectedUnit = draft.displayDoseUnit,
@@ -1119,6 +1194,9 @@ private fun PreparationEditorFields(
                         onValueChange = {
                             onDraftChange(draft.copy(patchReleaseRateMcgPerDay = it))
                         },
+                        focusRequester = focusRequesters.getValue(CreateMedicineField.PATCH_RELEASE_RATE),
+                        imeAction = imeActionFor(editFields, CreateMedicineField.PATCH_RELEASE_RATE),
+                        onImeNext = onImeNextFor(CreateMedicineField.PATCH_RELEASE_RATE),
                     )
                 }
             }
@@ -1130,6 +1208,35 @@ private fun PreparationEditorFields(
             MedicinePreparationType.PATCH_OFF -> Unit
         }
     }
+}
+
+// Ordered IME-chain fields for a preparation draft, keyed by CreateMedicineField
+// so MedicineEditSheet can reuse nextField/imeActionFor. Mirrors the field order
+// rendered by PreparationEditorFields for each preparation type.
+private fun preparationEditFields(
+    draft: MedicinePreparationDraftUiState,
+): List<CreateMedicineField> = when (draft.preparationType) {
+    MedicinePreparationType.PILL,
+    MedicinePreparationType.CAPSULE -> listOf(CreateMedicineField.PILL_STRENGTH)
+    MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
+        listOf(CreateMedicineField.VIAL_STRENGTH)
+    MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> listOf(
+        CreateMedicineField.CONCENTRATION_MG_PER_ML,
+        CreateMedicineField.VIAL_VOLUME_ML,
+    )
+    MedicinePreparationType.GEL_SACHET -> listOf(
+        CreateMedicineField.GEL_PERCENT,
+        CreateMedicineField.SACHET_WEIGHT,
+    )
+    MedicinePreparationType.GEL_CONTAINER -> listOf(
+        CreateMedicineField.GEL_PERCENT,
+        CreateMedicineField.CONTAINER_WEIGHT,
+    )
+    MedicinePreparationType.PATCH -> when (draft.patchSpecKind) {
+        PatchSpecKind.TOTAL_MG -> listOf(CreateMedicineField.PATCH_TOTAL_MG)
+        PatchSpecKind.RELEASE_RATE -> listOf(CreateMedicineField.PATCH_RELEASE_RATE)
+    }
+    MedicinePreparationType.PATCH_OFF -> emptyList()
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -1192,11 +1299,23 @@ private fun NumericInputField(
     suffix: String? = null,
     @androidx.annotation.DrawableRes leadingIconRes: Int? = null,
     enabled: Boolean = true,
+    focusRequester: FocusRequester? = null,
+    imeAction: ImeAction = ImeAction.Done,
+    onImeNext: (() -> Unit)? = null,
 ) {
+    val focusManager = LocalFocusManager.current
+    // Park on the sheet's non-text anchor instead of clearing focus: on API 26
+    // clearFocus lets the window re-grant focus to a field, reopening the IME.
+    val dismissFocusAnchor = LocalSheetDismissFocusRequester.current
+    val dismissKeyboard: () -> Unit = {
+        dismissFocusAnchor?.requestFocus() ?: focusManager.clearFocus()
+    }
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .let { if (focusRequester != null) it.focusRequester(focusRequester) else it },
         label = { Text(text = label) },
         suffix = suffix?.let { { Text(text = it) } },
         leadingIcon = leadingIconRes?.let { iconRes ->
@@ -1209,8 +1328,13 @@ private fun NumericInputField(
         },
         singleLine = true,
         enabled = enabled,
-        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+        keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Decimal,
+            imeAction = imeAction,
+        ),
+        keyboardActions = KeyboardActions(
+            onNext = { onImeNext?.invoke() ?: dismissKeyboard() },
+            onDone = { dismissKeyboard() },
         ),
     )
 }
