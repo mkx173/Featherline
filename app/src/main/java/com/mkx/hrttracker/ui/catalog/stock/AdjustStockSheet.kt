@@ -59,6 +59,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -137,7 +138,11 @@ fun AdjustStockSheet(
             val dismissFocusAnchor = remember { FocusRequester() }
             LaunchedEffect(Unit) { dismissFocusAnchor.requestFocus() }
             Spacer(
+                // Decorative dismiss anchor: focusable for the IME workaround
+                // but kept out of the a11y/traversal tree so TalkBack and
+                // keyboard navigation don't land on an empty stop.
                 modifier = Modifier
+                    .clearAndSetSemantics {}
                     .focusRequester(dismissFocusAnchor)
                     .focusable(),
             )
