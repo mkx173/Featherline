@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -141,11 +142,21 @@ class MedicineStockRepository @Inject constructor(
     fun previewRunway(
         medicineUuid: UUID,
         hypotheticalStock: MedicineStock,
-    ): RunwayProjection? {
+    ): RunwayProjection? = previewProjection(medicineUuid, hypotheticalStock)?.runway
+
+    fun previewState(
+        medicineUuid: UUID,
+        hypotheticalStock: MedicineStock,
+    ): MedicineStockState? = previewProjection(medicineUuid, hypotheticalStock)?.state
+
+    private fun previewProjection(
+        medicineUuid: UUID,
+        hypotheticalStock: MedicineStock,
+    ): MedicineStockProjection? {
         val cache = projectionsCacheFlow.value ?: return null
         val medicine = cache.medicines.firstOrNull { it.uuid == medicineUuid } ?: return null
         val zoneId = scheduleZoneId()
-        return ScheduledRunwayCalculator.computeScheduledRunway(
+        return project(
             medicine = medicine.copy(stock = hypotheticalStock),
             activeGroups = cache.activeGroups,
             logEntries = stockWindowLogEntries(cache.logEntries, cache.now, zoneId),
