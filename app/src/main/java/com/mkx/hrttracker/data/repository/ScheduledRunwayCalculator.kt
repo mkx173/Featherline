@@ -90,7 +90,12 @@ object ScheduledRunwayCalculator {
                 zoneId = zoneId,
             )
             for (occurrence in occurrences) {
-                if (occurrence.scheduledFor.isBefore(nowLocal)) continue
+                // Start-of-today cutoff: a scheduled dose is owed for the whole
+                // day it falls on, so today's occurrences keep counting as demand
+                // even after their time of day passes. Dropping them at the exact
+                // `now` instant made runway jump up the moment a slot went by
+                // unlogged; a date boundary keeps it stable through the day.
+                if (occurrence.scheduledFor.toLocalDate().isBefore(nowLocal.toLocalDate())) continue
                 // Drop the slot a not-yet-saved preview log will fulfill, so its
                 // demand is not double-counted against already-deducted stock.
                 if (fulfilledSlot != null &&

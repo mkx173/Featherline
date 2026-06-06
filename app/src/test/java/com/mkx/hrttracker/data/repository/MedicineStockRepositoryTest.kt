@@ -334,7 +334,10 @@ class MedicineStockRepositoryTest {
             zoneId = providedZone,
         ).single()
 
-        assertEquals(RunwayProjection.Days(1, LocalDate.of(2026, 1, 2)), projection.runway)
+        // now = Jan 1 08:30 JST -> today is Jan 1 in the provided zone, and under
+        // the start-of-today cutoff today's slot counts, so the single pill is
+        // consumed today. (Were the zone misread as UTC, this would be 2025-12-31.)
+        assertEquals(RunwayProjection.Days(0, LocalDate.of(2026, 1, 1)), projection.runway)
     }
 
     @Test

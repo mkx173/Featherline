@@ -73,7 +73,10 @@ class ScheduledRunwayCalculatorTest {
             ),
             vialVolumeMl = 1.2,
         )
-        val afterTodaysSlot = LocalDateTime.of(today, LocalTime.NOON).atZone(zoneId).toInstant()
+        // Midday today: the 08:00 slot has passed but is unlogged, so under the
+        // start-of-today cutoff it still counts as demand. 1.2ml / 0.25ml = 4
+        // doses land on today, +7, +14, +21 (sparse weekly steps, not amortized).
+        val middayToday = LocalDateTime.of(today, LocalTime.NOON).atZone(zoneId).toInstant()
 
         val runway = compute(
             medicine = medicine,
@@ -85,10 +88,25 @@ class ScheduledRunwayCalculatorTest {
                     weeklyDaysOfWeek = setOf(today.dayOfWeek),
                 )
             ),
-            now = afterTodaysSlot,
+            now = middayToday,
         )
 
-        assertEquals(RunwayProjection.Days(days = 28, lastFulfillable = today.plusDays(28)), runway)
+        assertEquals(RunwayProjection.Days(days = 21, lastFulfillable = today.plusDays(21)), runway)
+    }
+
+    @Test
+    fun unloggedDoseEarlierTodayStillCountsAfterItsScheduledTime() {
+        // Start-of-today cutoff: a scheduled dose is owed for the whole day it
+        // falls on, so today's 08:00 slot still counts at noon even though it is
+        // unlogged and its time has already passed. Prevents the intraday jump
+        // where runway lengthened the instant a scheduled time went by unlogged.
+        val medicine = pill(unitsRemaining = 1.0)
+        val group = dailyGroup(medicine)
+        val afternoon = LocalDateTime.of(today, LocalTime.NOON).atZone(zoneId).toInstant()
+
+        val runway = compute(medicine = medicine, activeGroups = listOf(group), now = afternoon)
+
+        assertEquals(RunwayProjection.Days(days = 0, lastFulfillable = today), runway)
     }
 
     @Test
