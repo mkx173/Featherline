@@ -382,7 +382,9 @@ class MedicationStockSubcardTest {
         assertTrue(row.opensNewContainer)
         assertEquals("2", row.sealedSupplement?.countText)
         assertEquals("1", row.sealedSupplement?.previewCountText)
-        assertEquals(R.drawable.ic_humidity_low, row.iconRes)
+        // Icon no longer swaps: the two-bar treatment carries the "opens a new
+        // container" meaning, so the droplet stays mid.
+        assertEquals(R.drawable.ic_humidity_mid, row.iconRes)
     }
 
     @Test
@@ -411,7 +413,7 @@ class MedicationStockSubcardTest {
         assertTrue(row.opensNewContainer)
         assertEquals("1", row.sealedSupplement?.countText)
         assertEquals("0", row.sealedSupplement?.previewCountText)
-        assertEquals(R.drawable.ic_humidity_low, row.iconRes)
+        assertEquals(R.drawable.ic_humidity_mid, row.iconRes)
     }
 
     @Test

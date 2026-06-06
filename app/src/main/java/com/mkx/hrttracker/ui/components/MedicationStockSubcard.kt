@@ -3,7 +3,6 @@ package com.mkx.hrttracker.ui.components
 import androidx.annotation.DrawableRes
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -118,7 +117,7 @@ internal data class MedicationStockSubcardRowModel(
     val opensNewContainer: Boolean = false,
 ) {
     @get:DrawableRes
-    val iconRes: Int get() = if (opensNewContainer) R.drawable.ic_humidity_low else kind.iconRes
+    val iconRes: Int get() = kind.iconRes
 
     @get:StringRes
     val contentDescriptionRes: Int get() = kind.contentDescriptionRes
@@ -295,20 +294,11 @@ private fun StockSubcardMetricCell(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                // Crossfade the droplet as the previewed dose crosses a container
-                // boundary (mid -> low), so the icon swap reads as a smooth fill
-                // change rather than a hard cut while dragging the dose.
-                Crossfade(
-                    targetState = row.iconRes,
-                    animationSpec = tween(durationMillis = 200),
-                    label = "stockRowIconCrossfade",
-                ) { iconRes ->
-                    Icon(
-                        painter = painterResource(iconRes),
-                        contentDescription = null,
-                        modifier = Modifier.size(row.iconSize),
-                    )
-                }
+                Icon(
+                    painter = painterResource(row.iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(row.iconSize),
+                )
             }
         }
         Spacer(modifier = Modifier.width(8.dp))
@@ -317,16 +307,26 @@ private fun StockSubcardMetricCell(
                 .fillMaxWidth()
                 .padding(top = 6.dp)
                 .height(6.dp)
-            // When the previewed dose opens a new container, the current bar
-            // shows the dreg that is about to be drained into the fresh unit;
-            // pulse it so the upward jump of the value reads as "this empties,
-            // a new container opens".
+            // When the previewed dose opens a new container, show two bars: the
+            // fresh container, full, on the left; the current container on the
+            // right, blinking as the dose drains it away into the new one.
             if (row.opensNewContainer) {
-                PulsingStockSubcardProgressIndicator(
-                    progress = row.progress,
-                    colors = progressIndicatorColors,
-                    modifier = progressModifier,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    LinearProgressIndicator(
+                        progress = { 1f },
+                        color = progressIndicatorColors.color,
+                        trackColor = progressIndicatorColors.trackColor,
+                        modifier = Modifier.weight(1f).height(6.dp),
+                    )
+                    PulsingStockSubcardProgressIndicator(
+                        progress = row.progress,
+                        colors = progressIndicatorColors,
+                        modifier = Modifier.weight(1f).height(6.dp),
+                    )
+                }
             } else {
                 LinearProgressIndicator(
                     progress = { row.progress },
