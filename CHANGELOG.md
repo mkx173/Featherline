@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stock runway and status no longer jump the moment a scheduled dose's time passes unlogged; the dose still counts for the rest of that day.
 - Batch-add no longer loses its post-log low-stock warning after a rotation, or shows a duplicate toast alongside the snackbar.
 - On Android 8, editor sheets no longer open the keyboard on entry or leave it stuck open; editing a medicine also steps through its fields with the keyboard's Next button.
+- On Android 8–12, the smaller home-screen widget no longer briefly flashes a loading spinner when it refreshes.
 
 ## [1.0.3] - 2026-05-31
 

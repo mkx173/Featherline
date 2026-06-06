@@ -316,22 +316,39 @@ Two render paths exist in
 [`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt):
 
 - **`pushHrtWidgets(context, record)`** — composes a one-shot
-  `RemoteViews` via `GlanceRemoteViews().compose(...)` and pushes it
-  with `AppWidgetManager.updateAppWidget`. Used by
-  `writeWidgetSnapshot` after every persist (and `clearWidgetSnapshot`
-  with a `null` record for the empty state). It bypasses Glance's
-  session, whose frame-clock-driven recomposition stalls while the app
-  is backgrounded, so an off-screen settings change applies immediately.
+  `RemoteViews` per widget via `GlanceRemoteViews().compose(...)` and pushes
+  it with `AppWidgetManager.updateAppWidget`. Used by `writeWidgetSnapshot`
+  after every persist (and `clearWidgetSnapshot` with a `null` record for
+  the empty state). It bypasses Glance's session, whose frame-clock-driven
+  recomposition stalls while the app is backgrounded (so an off-screen
+  settings change applies immediately) and, on a foregrounded tap, briefly
+  paints the `initialLayout` loading spinner during session spin-up.
   Tradeoff: a single composed size instead of Glance's portrait/landscape
   variants — fine because content scale is frozen to the baseline.
-  This path also imposes a **structural-stability requirement** on the
-  composables (see [Notable invariants](#notable-invariants)): because
+
+  The synchronous push is gated **per widget** by
+  `shouldUseSynchronousWidgetPush`:
+  - The **medium** widget is built only from plain views, so
+    `updateAppWidget` refreshes it on every API level — it always takes the
+    synchronous push, avoiding the loading-spinner flash.
+  - The **large** widget contains a `LazyColumn` (a collection-backed view).
+    A bare `updateAppWidget` does not rebind that collection below API 33
+    (only the session update / `notifyAppWidgetViewDataChanged` does, and
+    Glance does not expose the collection's view id), so below 33 it falls
+    back to the session path and renders the snapshot just written to the
+    DataStore — and still flashes the loading spinner there. API 33+ rebinds
+    inline `RemoteCollectionItems` from `updateAppWidget`, so the synchronous
+    push is used.
+
+  On the synchronous path this imposes a **structural-stability requirement**
+  on the composables (see [Notable invariants](#notable-invariants)): because
   `updateAppWidget` reuses the launcher's existing `LazyColumn` collection
   adapter, the composed `RemoteViews` tree must keep the same shape across
   updates, or the adapter recycles a stale/blank item view.
 - **`updateAllHrtWidgets(context)`** — `glanceUpdateAll` for both sizes;
   the worker and quick-log paths call it when the snapshot hasn't
-  changed (nothing new to push).
+  changed (nothing new to push). The large widget below API 33 also reuses
+  `glanceUpdateAll` (for that one size) as its `pushHrtWidgets` fallback.
 
 ## Quick-log action
 
