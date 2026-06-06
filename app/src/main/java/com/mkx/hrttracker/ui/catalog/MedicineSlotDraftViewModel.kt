@@ -6,6 +6,8 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.PostLogStockWarning
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -50,6 +52,11 @@ class MedicineSlotDraftViewModel @Inject constructor(
             MedicineSlotDraftUiState(appliedZoneId = it.appliedZoneId)
         }
     }
+
+    fun previewStateFor(
+        medicineUuid: UUID,
+        hypotheticalStock: MedicineStock,
+    ): MedicineStockState? = medicineStockRepository.previewState(medicineUuid, hypotheticalStock)
 
     fun updateAppliedDate(appliedDate: LocalDate) {
         _uiState.update { state ->

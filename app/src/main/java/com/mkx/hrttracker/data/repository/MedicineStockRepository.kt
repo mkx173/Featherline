@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -141,16 +142,30 @@ class MedicineStockRepository @Inject constructor(
     fun previewRunway(
         medicineUuid: UUID,
         hypotheticalStock: MedicineStock,
-    ): RunwayProjection? {
+    ): RunwayProjection? = previewProjection(medicineUuid, hypotheticalStock)?.runway
+
+    fun previewState(
+        medicineUuid: UUID,
+        hypotheticalStock: MedicineStock,
+        fulfilledSlot: FulfilledScheduledSlot? = null,
+    ): MedicineStockState? =
+        previewProjection(medicineUuid, hypotheticalStock, fulfilledSlot)?.state
+
+    private fun previewProjection(
+        medicineUuid: UUID,
+        hypotheticalStock: MedicineStock,
+        fulfilledSlot: FulfilledScheduledSlot? = null,
+    ): MedicineStockProjection? {
         val cache = projectionsCacheFlow.value ?: return null
         val medicine = cache.medicines.firstOrNull { it.uuid == medicineUuid } ?: return null
         val zoneId = scheduleZoneId()
-        return ScheduledRunwayCalculator.computeScheduledRunway(
+        return project(
             medicine = medicine.copy(stock = hypotheticalStock),
             activeGroups = cache.activeGroups,
             logEntries = stockWindowLogEntries(cache.logEntries, cache.now, zoneId),
             now = cache.now,
             zoneId = zoneId,
+            fulfilledSlot = fulfilledSlot,
         )
     }
 
@@ -186,6 +201,7 @@ class MedicineStockRepository @Inject constructor(
         logEntries: List<MedicationLogEntry>,
         now: Instant,
         zoneId: ZoneId,
+        fulfilledSlot: FulfilledScheduledSlot? = null,
     ): MedicineStockProjection {
         val total = computeTotalStock(medicine)
         val rate = computeDosesPerDayMagnitude(medicine, activeGroups)
@@ -195,6 +211,7 @@ class MedicineStockRepository @Inject constructor(
             logEntries = logEntries,
             now = now,
             zoneId = zoneId,
+            fulfilledSlot = fulfilledSlot,
         )
         val intervalDays = computeIntervalDays(medicine, activeGroups, now, zoneId)
         val maxPerAdministration = ScheduledRunwayCalculator.maxPerAdministration(

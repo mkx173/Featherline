@@ -23,7 +23,9 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.medication.ActualAmountRulerCard
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
@@ -167,6 +169,10 @@ fun ExistingMedicineDoseSheet(
             null
         }
     }
+    val previewPostMutationState: ((MedicineStock) -> MedicineStockState?) =
+        remember(medicine.uuid, viewModel) {
+            { hypothetical: MedicineStock -> viewModel.previewStateFor(medicine.uuid, hypothetical) }
+        }
     val displayedStockProjection = slotDraftStockProjectionForDisplay(
         mode = mode,
         isStockProjectionFrozen = isStockProjectionFrozen,
@@ -254,6 +260,7 @@ fun ExistingMedicineDoseSheet(
             canRepickMedicine = false,
             selectedStockProjection = displayedStockProjection,
             stockMutationPreviewDoseMagnitude = previewDoseMagnitude,
+            previewPostMutationState = previewPostMutationState,
             onMedicineDraftChange = { transform ->
                 val reduced = MedicationDoseDraft(
                     medicineDraft = medicineDraft,

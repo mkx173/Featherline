@@ -334,7 +334,10 @@ class MedicineStockRepositoryTest {
             zoneId = providedZone,
         ).single()
 
-        assertEquals(RunwayProjection.Days(1, LocalDate.of(2026, 1, 2)), projection.runway)
+        // now = Jan 1 08:30 JST -> today is Jan 1 in the provided zone, and under
+        // the start-of-today cutoff today's slot counts, so the single pill is
+        // consumed today. (Were the zone misread as UTC, this would be 2025-12-31.)
+        assertEquals(RunwayProjection.Days(0, LocalDate.of(2026, 1, 1)), projection.runway)
     }
 
     @Test
@@ -383,6 +386,104 @@ class MedicineStockRepositoryTest {
                 RunwayProjection.Days(days = 21, lastFulfillable = LocalDate.of(2026, 1, 22)),
                 preview,
             )
+        } finally {
+            projectionScope.cancel()
+        }
+    }
+
+    @Test
+    fun previewStateReturnsHealthyForAmpleHypotheticalStock() = runTest {
+        val medicine = patch(
+            MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 1.0,
+                unitsLastTotal = 1.0,
+                openContainerAmount = null,
+                warnAtDaysRemaining = 14,
+                generation = 1L,
+            )
+        )
+        val group = weeklyGroup(
+            medicine = medicine,
+            weeklyDaysOfWeek = setOf(DayOfWeek.THURSDAY),
+            applicationType = MedicationApplicationType.PATCH_ON,
+            doseInstruction = DoseInstruction.WholeUnit,
+        )
+        val medicines = MutableStateFlow(listOf(medicine))
+        every { medicineRepository.observeAllActive() } returns medicines
+        every { medicineRepository.observeAllActiveOrNull() } returns medicines
+        every { medicationGroupRepository.observeGroups() } returns
+            MutableStateFlow<List<MedicationGroup>?>(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
+        val projectionScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val repository = MedicineStockRepository(
+                medicineRepository = medicineRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicationLogRepository = medicationLogRepository,
+                homeSnapshotRepository = homeSnapshotRepository,
+                appScope = projectionScope,
+                clock = clock,
+            )
+            advanceUntilIdle()
+
+            // 4 patches on a weekly schedule => 21-day runway (> warn 14) => HEALTHY.
+            val state = repository.previewState(
+                medicineUuid = medicine.uuid,
+                hypotheticalStock = medicine.stock.copy(unitsRemaining = 4.0),
+            )
+
+            assertEquals(MedicineStockState.HEALTHY, state)
+        } finally {
+            projectionScope.cancel()
+        }
+    }
+
+    @Test
+    fun previewStateReturnsOutWhenHypotheticalStockIsEmpty() = runTest {
+        val medicine = patch(
+            MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 1.0,
+                unitsLastTotal = 1.0,
+                openContainerAmount = null,
+                warnAtDaysRemaining = 14,
+                generation = 1L,
+            )
+        )
+        val group = weeklyGroup(
+            medicine = medicine,
+            weeklyDaysOfWeek = setOf(DayOfWeek.THURSDAY),
+            applicationType = MedicationApplicationType.PATCH_ON,
+            doseInstruction = DoseInstruction.WholeUnit,
+        )
+        val medicines = MutableStateFlow(listOf(medicine))
+        every { medicineRepository.observeAllActive() } returns medicines
+        every { medicineRepository.observeAllActiveOrNull() } returns medicines
+        every { medicationGroupRepository.observeGroups() } returns
+            MutableStateFlow<List<MedicationGroup>?>(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
+        val projectionScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val repository = MedicineStockRepository(
+                medicineRepository = medicineRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicationLogRepository = medicationLogRepository,
+                homeSnapshotRepository = homeSnapshotRepository,
+                appScope = projectionScope,
+                clock = clock,
+            )
+            advanceUntilIdle()
+
+            // Empty hypothetical stock => totalStockUnits == 0 => OUT.
+            val state = repository.previewState(
+                medicineUuid = medicine.uuid,
+                hypotheticalStock = medicine.stock.copy(unitsRemaining = 0.0, unitsLastTotal = 0.0),
+            )
+
+            assertEquals(MedicineStockState.OUT, state)
         } finally {
             projectionScope.cancel()
         }

@@ -53,7 +53,9 @@ import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -72,6 +74,7 @@ internal fun MedicationEditorContent(
     canEditMedicationIdentity: Boolean,
     selectedStockProjection: MedicineStockProjection? = null,
     stockMutationPreviewDoseMagnitude: Double? = null,
+    previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? = null,
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
     onOpenMedicinePicker: () -> Unit,
@@ -102,6 +105,7 @@ internal fun MedicationEditorContent(
             onOpenMedicinePicker = { if (!isSaving) onOpenMedicinePicker() },
             selectedStockProjection = selectedStockProjection,
             stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
+            previewPostMutationState = previewPostMutationState,
         )
 
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
@@ -132,6 +136,7 @@ internal fun MedicationEditorContent(
         onOpenMedicinePicker = { if (!isSaving) onOpenMedicinePicker() },
         selectedStockProjection = selectedStockProjection,
         stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
+        previewPostMutationState = previewPostMutationState,
         trailingIndicator = summaryTrailingIndicator,
     )
 
@@ -181,6 +186,7 @@ private fun MedicationSummaryHeader(
     onOpenMedicinePicker: () -> Unit,
     selectedStockProjection: MedicineStockProjection? = null,
     stockMutationPreviewDoseMagnitude: Double? = null,
+    previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? = null,
     trailingIndicator: MedicationSummaryTrailingIndicator? = null,
 ) {
     MedicationEditorSectionLabel(stringResource(R.string.field_medication), topPadding = false)
@@ -200,6 +206,7 @@ private fun MedicationSummaryHeader(
             )
         },
         stockMutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
+        previewPostMutationState = previewPostMutationState,
         onClick = onOpenMedicinePicker,
         modifier = Modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,

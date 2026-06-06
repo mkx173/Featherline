@@ -73,7 +73,10 @@ class ScheduledRunwayCalculatorTest {
             ),
             vialVolumeMl = 1.2,
         )
-        val afterTodaysSlot = LocalDateTime.of(today, LocalTime.NOON).atZone(zoneId).toInstant()
+        // Midday today: the 08:00 slot has passed but is unlogged, so under the
+        // start-of-today cutoff it still counts as demand. 1.2ml / 0.25ml = 4
+        // doses land on today, +7, +14, +21 (sparse weekly steps, not amortized).
+        val middayToday = LocalDateTime.of(today, LocalTime.NOON).atZone(zoneId).toInstant()
 
         val runway = compute(
             medicine = medicine,
@@ -85,10 +88,25 @@ class ScheduledRunwayCalculatorTest {
                     weeklyDaysOfWeek = setOf(today.dayOfWeek),
                 )
             ),
-            now = afterTodaysSlot,
+            now = middayToday,
         )
 
-        assertEquals(RunwayProjection.Days(days = 28, lastFulfillable = today.plusDays(28)), runway)
+        assertEquals(RunwayProjection.Days(days = 21, lastFulfillable = today.plusDays(21)), runway)
+    }
+
+    @Test
+    fun unloggedDoseEarlierTodayStillCountsAfterItsScheduledTime() {
+        // Start-of-today cutoff: a scheduled dose is owed for the whole day it
+        // falls on, so today's 08:00 slot still counts at noon even though it is
+        // unlogged and its time has already passed. Prevents the intraday jump
+        // where runway lengthened the instant a scheduled time went by unlogged.
+        val medicine = pill(unitsRemaining = 1.0)
+        val group = dailyGroup(medicine)
+        val afternoon = LocalDateTime.of(today, LocalTime.NOON).atZone(zoneId).toInstant()
+
+        val runway = compute(medicine = medicine, activeGroups = listOf(group), now = afternoon)
+
+        assertEquals(RunwayProjection.Days(days = 0, lastFulfillable = today), runway)
     }
 
     @Test
@@ -138,6 +156,61 @@ class ScheduledRunwayCalculatorTest {
         )
 
         assertEquals(RunwayProjection.Days(days = 1, lastFulfillable = today.plusDays(1)), runway)
+    }
+
+    @Test
+    fun fulfilledSlotExcludesThatOccurrenceFromEnumeration() {
+        val medicine = pill(unitsRemaining = 30.0)
+        val group = dailyGroup(medicine)
+        val scheduledFor = LocalDateTime.of(today, LocalTime.of(8, 0))
+        val slotUuid = group.schedule.timeSlots.single().uuid
+
+        val withoutSuppression = enumerate(medicine = medicine, activeGroups = listOf(group))
+        assertEquals(scheduledFor, withoutSuppression.first().scheduledFor)
+
+        val withSuppression = ScheduledRunwayCalculator.enumerateUnfulfilledOccurrencesForMedicine(
+            medicine = medicine,
+            activeGroups = listOf(group),
+            logEntries = emptyList(),
+            nowLocal = LocalDateTime.of(today, LocalTime.of(7, 0)),
+            horizonEnd = today.plusDays(ScheduledRunwayCalculator.HORIZON_DAYS),
+            zoneId = zoneId,
+            fulfilledSlot = FulfilledScheduledSlot(
+                groupUuid = group.uuid,
+                scheduleTimeUuid = slotUuid,
+                scheduledFor = scheduledFor,
+            ),
+        )
+        // The pre-logged slot is gone, so the first remaining demand is tomorrow.
+        assertEquals(scheduledFor.plusDays(1), withSuppression.first().scheduledFor)
+    }
+
+    @Test
+    fun fulfilledSlotPreventsDoubleCountingPreLoggedFutureDoseInRunway() {
+        // Preview scenario: the dose being logged is already deducted from stock
+        // (2 doses left). Without suppression the to-be-saved future slot is still
+        // counted, costing a day of runway; suppressing it matches post-save reality.
+        val medicine = pill(unitsRemaining = 2.0)
+        val group = dailyGroup(medicine)
+        val scheduledFor = LocalDateTime.of(today, LocalTime.of(8, 0))
+        val slotUuid = group.schedule.timeSlots.single().uuid
+
+        val doubleCounted = compute(medicine = medicine, activeGroups = listOf(group))
+        assertEquals(RunwayProjection.Days(days = 1, lastFulfillable = today.plusDays(1)), doubleCounted)
+
+        val suppressed = ScheduledRunwayCalculator.computeScheduledRunway(
+            medicine = medicine,
+            activeGroups = listOf(group),
+            logEntries = emptyList(),
+            now = now,
+            zoneId = zoneId,
+            fulfilledSlot = FulfilledScheduledSlot(
+                groupUuid = group.uuid,
+                scheduleTimeUuid = slotUuid,
+                scheduledFor = scheduledFor,
+            ),
+        )
+        assertEquals(RunwayProjection.Days(days = 2, lastFulfillable = today.plusDays(2)), suppressed)
     }
 
     @Test

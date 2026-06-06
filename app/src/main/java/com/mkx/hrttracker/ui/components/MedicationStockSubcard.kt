@@ -3,10 +3,10 @@ package com.mkx.hrttracker.ui.components
 import androidx.annotation.DrawableRes
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -118,7 +118,7 @@ internal data class MedicationStockSubcardRowModel(
     val opensNewContainer: Boolean = false,
 ) {
     @get:DrawableRes
-    val iconRes: Int get() = if (opensNewContainer) R.drawable.ic_humidity_low else kind.iconRes
+    val iconRes: Int get() = kind.iconRes
 
     @get:StringRes
     val contentDescriptionRes: Int get() = kind.contentDescriptionRes
@@ -132,6 +132,9 @@ internal data class MedicationStockSubcardRowModel(
 internal data class MedicationStockSubcardModel(
     @param:StringRes val chipLabelRes: Int?,
     val tone: MedicationStockSubcardTone,
+    val currentValueTone: MedicationStockSubcardTone,
+    val previewValueTone: MedicationStockSubcardTone?,
+    val blinkPreview: Boolean,
     val runwayText: MedicationStockSubcardText?,
     val rows: List<MedicationStockSubcardRowModel>,
 ) {
@@ -141,6 +144,7 @@ internal data class MedicationStockSubcardModel(
 internal fun medicationStockSubcardModel(
     projection: MedicineStockProjection?,
     mutationPreviewDoseMagnitude: Double? = null,
+    previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? = null,
 ): MedicationStockSubcardModel? {
     projection ?: return null
     val medicine = projection.medicine
@@ -148,18 +152,37 @@ internal fun medicationStockSubcardModel(
     if (!stock.trackingEnabled || projection.state == MedicineStockState.UNTRACKED) return null
     if (medicine.preparation is MedicinePreparation.PatchOff) return null
 
+    val preview = stockMutationPreview(
+        medicine = medicine,
+        requestedDose = mutationPreviewDoseMagnitude,
+    )
     val rows = stockSubcardRows(
         projection = projection,
-        mutationPreview = stockMutationPreview(
-            medicine = medicine,
-            requestedDose = mutationPreviewDoseMagnitude,
-        ),
+        mutationPreview = preview,
     )
     if (rows.isEmpty()) return null
 
+    val currentState = projection.state
+    val currentValueTone = stockSubcardTone(currentState)
+    val postMutationState = preview?.afterStock?.let { after ->
+        previewPostMutationState?.invoke(after)
+    }
+    val hasPreview = rows.any { it.previewValueText != null }
+    val previewValueTone = when {
+        !hasPreview -> null
+        postMutationState != null -> stockSubcardTone(postMutationState)
+        else -> currentValueTone
+    }
+    val blinkPreview = hasPreview &&
+        postMutationState != null &&
+        postMutationState != currentState
+
     return MedicationStockSubcardModel(
-        chipLabelRes = stockSubcardChipLabelRes(projection.state),
-        tone = stockSubcardTone(projection.state),
+        chipLabelRes = stockSubcardChipLabelRes(currentState),
+        tone = stockSubcardTone(currentState),
+        currentValueTone = currentValueTone,
+        previewValueTone = previewValueTone,
+        blinkPreview = blinkPreview,
         runwayText = stockSubcardRunwayText(projection.runway),
         rows = rows,
     )
@@ -172,11 +195,13 @@ internal fun MedicationStockSubcard(
     modifier: Modifier = Modifier,
     shape: Shape = MaterialTheme.shapes.medium,
     mutationPreviewDoseMagnitude: Double? = null,
+    previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? = null,
 ) {
-    val model = remember(projection, mutationPreviewDoseMagnitude) {
+    val model = remember(projection, mutationPreviewDoseMagnitude, previewPostMutationState) {
         medicationStockSubcardModel(
             projection = projection,
             mutationPreviewDoseMagnitude = mutationPreviewDoseMagnitude,
+            previewPostMutationState = previewPostMutationState,
         )
     } ?: return
     val chipColors = stockSubcardChipColors(model.tone)
@@ -237,6 +262,9 @@ internal fun MedicationStockSubcard(
                 rows = model.rows,
                 iconContainerColor = iconContainerColor,
                 progressIndicatorColors = progressIndicatorColors,
+                currentValueTone = model.currentValueTone,
+                previewValueTone = model.previewValueTone,
+                blinkPreview = model.blinkPreview,
             )
         }
     }
@@ -261,12 +289,18 @@ private fun StockSubcardMetrics(
     rows: List<MedicationStockSubcardRowModel>,
     iconContainerColor: Color,
     progressIndicatorColors: StockSubcardProgressIndicatorColors,
+    currentValueTone: MedicationStockSubcardTone,
+    previewValueTone: MedicationStockSubcardTone?,
+    blinkPreview: Boolean,
 ) {
     rows.firstOrNull()?.let { row ->
         StockSubcardMetricCell(
             row = row,
             iconContainerColor = iconContainerColor,
             progressIndicatorColors = progressIndicatorColors,
+            currentValueTone = currentValueTone,
+            previewValueTone = previewValueTone,
+            blinkPreview = blinkPreview,
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -277,6 +311,9 @@ private fun StockSubcardMetricCell(
     row: MedicationStockSubcardRowModel,
     iconContainerColor: Color,
     progressIndicatorColors: StockSubcardProgressIndicatorColors,
+    currentValueTone: MedicationStockSubcardTone,
+    previewValueTone: MedicationStockSubcardTone?,
+    blinkPreview: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val metricTextStyle = MaterialTheme.typography.labelMedium
@@ -295,20 +332,11 @@ private fun StockSubcardMetricCell(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                // Crossfade the droplet as the previewed dose crosses a container
-                // boundary (mid -> low), so the icon swap reads as a smooth fill
-                // change rather than a hard cut while dragging the dose.
-                Crossfade(
-                    targetState = row.iconRes,
-                    animationSpec = tween(durationMillis = 200),
-                    label = "stockRowIconCrossfade",
-                ) { iconRes ->
-                    Icon(
-                        painter = painterResource(iconRes),
-                        contentDescription = null,
-                        modifier = Modifier.size(row.iconSize),
-                    )
-                }
+                Icon(
+                    painter = painterResource(row.iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(row.iconSize),
+                )
             }
         }
         Spacer(modifier = Modifier.width(8.dp))
@@ -317,16 +345,43 @@ private fun StockSubcardMetricCell(
                 .fillMaxWidth()
                 .padding(top = 6.dp)
                 .height(6.dp)
-            // When the previewed dose opens a new container, the current bar
-            // shows the dreg that is about to be drained into the fresh unit;
-            // pulse it so the upward jump of the value reads as "this empties,
-            // a new container opens".
-            if (row.opensNewContainer) {
-                PulsingStockSubcardProgressIndicator(
-                    progress = row.progress,
-                    colors = progressIndicatorColors,
+            // When the previewed dose opens a new container, show two bars: the
+            // fresh container, full, on the left; the current container on the
+            // right, blinking as the dose drains it away into the new one. The
+            // left bar's width is animated by its weight so dragging the slider
+            // past the unseal boundary opens/collapses it smoothly instead of a
+            // hard swap to a single bar.
+            val newContainerBarWeight = animateFloatAsState(
+                targetValue = if (row.opensNewContainer) 1f else 0f,
+                animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+                label = "stockNewContainerBarWeight",
+            ).value
+            val pulseAlpha = if (row.opensNewContainer || blinkPreview) {
+                rememberStockSubcardPulseAlpha()
+            } else {
+                1f
+            }
+            if (newContainerBarWeight > 0.005f) {
+                Row(
                     modifier = progressModifier,
-                )
+                    horizontalArrangement = Arrangement.spacedBy(6.dp * newContainerBarWeight),
+                ) {
+                    LinearProgressIndicator(
+                        progress = { 1f },
+                        color = progressIndicatorColors.color,
+                        trackColor = progressIndicatorColors.trackColor,
+                        modifier = Modifier.weight(newContainerBarWeight).height(6.dp),
+                    )
+                    PulsingStockSubcardProgressIndicator(
+                        progress = row.progress,
+                        colors = progressIndicatorColors,
+                        // Blink only while the dose actually opens a container; as
+                        // the bar collapses back the current container settles solid.
+                        pulsing = row.opensNewContainer,
+                        pulseAlpha = pulseAlpha,
+                        modifier = Modifier.weight(1f).height(6.dp),
+                    )
+                }
             } else {
                 LinearProgressIndicator(
                     progress = { row.progress },
@@ -355,6 +410,10 @@ private fun StockSubcardMetricCell(
                 StockSubcardValueText(
                     row = row,
                     textStyle = metricTextStyle,
+                    currentValueTone = currentValueTone,
+                    previewValueTone = previewValueTone,
+                    blinkPreview = blinkPreview,
+                    pulseAlpha = pulseAlpha,
                 )
             }
         }
@@ -362,26 +421,34 @@ private fun StockSubcardMetricCell(
 }
 
 @Composable
-private fun PulsingStockSubcardProgressIndicator(
-    progress: Float,
-    colors: StockSubcardProgressIndicatorColors,
-    modifier: Modifier = Modifier,
-) {
-    val transition = rememberInfiniteTransition(label = "stockDregPulse")
-    val pulseAlpha = transition.animateFloat(
+private fun rememberStockSubcardPulseAlpha(): Float {
+    // Callers create this only when a pulse is active, then share the same alpha
+    // across every blinking element in the metric row.
+    val transition = rememberInfiniteTransition(label = "stockSubcardPulse")
+    return transition.animateFloat(
         initialValue = 1f,
         targetValue = 0.3f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis = 900, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse,
         ),
-        label = "stockDregPulseAlpha",
-    )
+        label = "stockSubcardPulseAlpha",
+    ).value
+}
+
+@Composable
+private fun PulsingStockSubcardProgressIndicator(
+    progress: Float,
+    colors: StockSubcardProgressIndicatorColors,
+    pulsing: Boolean,
+    pulseAlpha: Float,
+    modifier: Modifier = Modifier,
+) {
     LinearProgressIndicator(
         progress = { progress },
         color = colors.color,
         trackColor = colors.trackColor,
-        modifier = modifier.alpha(pulseAlpha.value),
+        modifier = modifier.alpha(if (pulsing) pulseAlpha else 1f),
     )
 }
 
@@ -389,7 +456,22 @@ private fun PulsingStockSubcardProgressIndicator(
 private fun StockSubcardValueText(
     row: MedicationStockSubcardRowModel,
     textStyle: androidx.compose.ui.text.TextStyle,
+    currentValueTone: MedicationStockSubcardTone,
+    previewValueTone: MedicationStockSubcardTone?,
+    blinkPreview: Boolean,
+    pulseAlpha: Float,
 ) {
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val tertiary = MaterialTheme.colorScheme.tertiary
+    val error = MaterialTheme.colorScheme.error
+    val currentColor = stockSubcardValueTextColor(currentValueTone, onSurface, tertiary, error)
+    val previewColor = stockSubcardValueTextColor(
+        previewValueTone ?: currentValueTone,
+        onSurface,
+        tertiary,
+        error,
+    )
+
     val previewValueText = row.previewValueText
     if (previewValueText == null) {
         Text(
@@ -399,7 +481,7 @@ private fun StockSubcardValueText(
                 pluralCount = row.valuePluralCount,
             ),
             style = textStyle,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = currentColor,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.End,
             maxLines = 1,
@@ -407,6 +489,8 @@ private fun StockSubcardValueText(
         )
         return
     }
+
+    val blinkAlpha = if (blinkPreview) pulseAlpha else 1f
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -417,7 +501,7 @@ private fun StockSubcardValueText(
             Text(
                 text = row.valueText,
                 style = textStyle,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = currentColor,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.End,
                 maxLines = 1,
@@ -440,12 +524,12 @@ private fun StockSubcardValueText(
                 pluralCount = row.previewPluralCount,
             ),
             style = textStyle,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = previewColor,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.End,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.alignByBaseline(),
+            modifier = Modifier.alignByBaseline().alpha(blinkAlpha),
         )
     }
 }
@@ -529,6 +613,19 @@ internal fun stockSubcardProgressIndicatorColors(
             trackColor = secondaryContainer,
         )
     }
+}
+
+internal fun stockSubcardValueTextColor(
+    tone: MedicationStockSubcardTone,
+    onSurface: Color,
+    tertiary: Color,
+    error: Color,
+): Color = when (tone) {
+    MedicationStockSubcardTone.WARNING -> tertiary
+    MedicationStockSubcardTone.ERROR -> error
+    MedicationStockSubcardTone.HEALTHY,
+    MedicationStockSubcardTone.NEUTRAL,
+    -> onSurface
 }
 
 @Composable
@@ -788,6 +885,7 @@ private fun formatStockSubcardCount(value: Double?): String {
 private data class StockSubcardMutationPreview(
     val unitsRemainingAfter: Double?,
     val openContainerAmountAfter: Double?,
+    val afterStock: MedicineStock,
 )
 
 private fun stockMutationPreview(
@@ -810,6 +908,7 @@ private fun stockMutationPreview(
     return StockSubcardMutationPreview(
         unitsRemainingAfter = after.unitsRemaining,
         openContainerAmountAfter = after.openContainerAmount,
+        afterStock = after,
     )
 }
 

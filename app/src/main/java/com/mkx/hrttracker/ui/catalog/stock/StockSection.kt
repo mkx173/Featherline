@@ -56,6 +56,8 @@ import com.mkx.hrttracker.ui.components.stockCountPluralQuantity
 import com.mkx.hrttracker.ui.components.stockInventoryUnitRes
 import com.mkx.hrttracker.ui.components.stockUnitNounPluralForUnitRes
 import com.mkx.hrttracker.ui.components.stockRateUnitRes
+import com.mkx.hrttracker.ui.components.stockSubcardTone
+import com.mkx.hrttracker.ui.components.stockSubcardValueTextColor
 import java.util.Locale
 
 @Composable
@@ -193,10 +195,6 @@ private fun StockRows(projection: MedicineStockProjection) {
                     denominator = stock.unitsLastTotal,
                     unitRes = R.string.stock_unit_vials,
                 ),
-                // The sealed count is just an integer; its color stays neutral
-                // even when overall stock is low or out, otherwise the user
-                // reads a healthy "3" as if it were dangerous. The status chip
-                // and stock gauges carry the state color instead.
                 index = index++,
                 count = totalRows,
                 progress = computeProgress(
@@ -331,7 +329,12 @@ private fun StockRowCard(
                     Text(
                         text = trailingCountText,
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = stockSubcardValueTextColor(
+                            tone = stockSubcardTone(progressState),
+                            onSurface = MaterialTheme.colorScheme.onSurface,
+                            tertiary = MaterialTheme.colorScheme.tertiary,
+                            error = MaterialTheme.colorScheme.error,
+                        ),
                         modifier = Modifier.alignByBaseline().cjkTextOffset(trailingCountText)
                     )
                 }
