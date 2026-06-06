@@ -3,15 +3,18 @@ package com.mkx.hrttracker.ui.main
 import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -87,6 +90,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.withSave
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -216,16 +220,35 @@ private const val MainE2ChartThirtyDaySegmentCount: Int = 2240
 
 private const val MainE2ChartZoomFloorRoundingHours = 24.0
 
-internal suspend fun runDoseRowHighlightFlashEffect(
-    setFlashActive: (Boolean) -> Unit,
-    holdMillis: Long,
+// Peak of the pulse: 1f lerps the row container fully to secondaryContainer; the
+// fall returns it to 0f (the rest container color).
+internal const val DoseRowHighlightPeakFraction = 1f
+
+// Physics-based springs rather than duration+easing tweens. A tween reaches its
+// target at a fixed time and stops dead, so the easing's terminal velocity shows
+// up as a snap at the tail of the fade. A critically-damped (no-bounce) spring
+// decelerates asymptotically to rest — velocity approaches 0 as it settles —
+// which is what makes the fade-out tail read as smooth. NoBouncy avoids any
+// overshoot back below 0 that would re-tint the row on the way out.
+private val DoseRowHighlightPulseRiseSpec: AnimationSpec<Float> = spring(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = Spring.StiffnessMediumLow,
+)
+private val DoseRowHighlightPulseFallSpec: AnimationSpec<Float> = spring(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = Spring.StiffnessVeryLow,
+)
+
+/**
+ * Drives a single rise-then-fall highlight pulse: spring up to [DoseRowHighlightPeakFraction]
+ * then back to 0 with no plateau, so the cue reads as one smooth sweep rather than a
+ * fade-in/hold/fade-out blink. [animate] runs each leg with its target fraction and spring.
+ */
+internal suspend fun runDoseRowHighlightPulse(
+    animate: suspend (targetFraction: Float, spec: AnimationSpec<Float>) -> Unit,
 ) {
-    try {
-        setFlashActive(true)
-        delay(holdMillis)
-    } finally {
-        setFlashActive(false)
-    }
+    animate(DoseRowHighlightPeakFraction, DoseRowHighlightPulseRiseSpec)
+    animate(0f, DoseRowHighlightPulseFallSpec)
 }
 
 internal fun mainE2ChartZoomFloorHours(
@@ -3085,12 +3108,7 @@ private fun MainTodayDoseRow(
     modifier: Modifier = Modifier
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    var flashActive by remember { mutableStateOf(false) }
-    val flashAlpha by animateFloatAsState(
-        targetValue = if (flashActive) 1f else 0f,
-        animationSpec = if (flashActive) tween(150) else tween(600),
-        label = "dose-row-highlight",
-    )
+    val highlightFraction = remember { Animatable(0f) }
     LaunchedEffect(isHighlightScrollTarget) {
         if (isHighlightScrollTarget) {
             bringIntoViewRequester.bringIntoView()
@@ -3098,14 +3116,13 @@ private fun MainTodayDoseRow(
     }
     LaunchedEffect(isHighlightFlashReady) {
         if (!isHighlightFlashReady) {
-            flashActive = false
+            highlightFraction.snapTo(0f)
             return@LaunchedEffect
         }
 
-        runDoseRowHighlightFlashEffect(
-            setFlashActive = { active -> flashActive = active },
-            holdMillis = 300,
-        )
+        runDoseRowHighlightPulse { target, spec ->
+            highlightFraction.animateTo(target, spec)
+        }
     }
     val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
@@ -3155,12 +3172,25 @@ private fun MainTodayDoseRow(
         }
     }
 
-    val rowShape = segmentedListItemShape(index = index, count = itemCount)
+    // Highlight by animating the row's own container color (rest ->
+    // secondaryContainer) rather than fading a translucent overlay: blending a
+    // low-alpha layer over the surface quantises to visible 8-bit steps in the
+    // fade tail, whereas lerping between two opaque colors does not. Tinting the
+    // item's real container (rather than a fill behind a transparent one) keeps
+    // SegmentedListItem's press-shape morph. Reading the pulse fraction here
+    // recomposes the row each pulse frame, but the body is only cheap string
+    // building — the heavier trailing content is its own composable scope.
+    val containerColor = lerp(
+        MaterialTheme.colorScheme.surfaceContainerLow,
+        MaterialTheme.colorScheme.secondaryContainer,
+        highlightFraction.value,
+    )
     Box {
         EditorSegmentedListItem(
             index = index,
             count = itemCount,
             onClick = onStatusClick,
+            containerColor = containerColor,
             modifier = modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester),
         ) {
             Row(
@@ -3215,18 +3245,6 @@ private fun MainTodayDoseRow(
                 )
             }
         }
-        if (flashAlpha > 0f) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .clip(rowShape)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(
-                            alpha = 0.55f * flashAlpha,
-                        )
-                    )
-            )
-        }
     }
 }
 
@@ -3242,12 +3260,7 @@ private fun MainUpcomingDoseRow(
     modifier: Modifier = Modifier
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    var flashActive by remember { mutableStateOf(false) }
-    val flashAlpha by animateFloatAsState(
-        targetValue = if (flashActive) 1f else 0f,
-        animationSpec = if (flashActive) tween(150) else tween(1000),
-        label = "dose-row-highlight",
-    )
+    val highlightFraction = remember { Animatable(0f) }
     LaunchedEffect(isHighlightScrollTarget) {
         if (isHighlightScrollTarget) {
             bringIntoViewRequester.bringIntoView()
@@ -3255,14 +3268,13 @@ private fun MainUpcomingDoseRow(
     }
     LaunchedEffect(isHighlightFlashReady) {
         if (!isHighlightFlashReady) {
-            flashActive = false
+            highlightFraction.snapTo(0f)
             return@LaunchedEffect
         }
 
-        runDoseRowHighlightFlashEffect(
-            setFlashActive = { active -> flashActive = active },
-            holdMillis = 600,
-        )
+        runDoseRowHighlightPulse { target, spec ->
+            highlightFraction.animateTo(target, spec)
+        }
     }
     val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
@@ -3275,13 +3287,20 @@ private fun MainUpcomingDoseRow(
         doseText,
     ).joinToString(separator = " · ")
     val timeLabel = row.scheduledAt.toLocalTime().format(timeFormatter)
-    val rowShape = segmentedListItemShape(index = index, count = itemCount)
+    // See MainTodayDoseRow: animate the container color (rest -> secondaryContainer)
+    // rather than fading a translucent overlay, to avoid 8-bit banding in the tail.
+    val containerColor = lerp(
+        MaterialTheme.colorScheme.surfaceContainerLow,
+        MaterialTheme.colorScheme.secondaryContainer,
+        highlightFraction.value,
+    )
 
     Box {
         EditorSegmentedListItem(
             index = index,
             count = itemCount,
             onClick = null,
+            containerColor = containerColor,
             modifier = modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester),
             trailingContent = {
                 Text(
@@ -3328,18 +3347,6 @@ private fun MainUpcomingDoseRow(
                     }
                 }
             }
-        }
-        if (flashAlpha > 0f) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .clip(rowShape)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(
-                            alpha = 0.55f * flashAlpha,
-                        )
-                    )
-            )
         }
     }
 }

@@ -5,8 +5,6 @@ import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -19,23 +17,19 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainContentComponentsTest {
     @Test
-    fun runDoseRowHighlightFlashEffect_turnsFlashOffAfterHold() = runTest {
-        val events = mutableListOf<String>()
-        val job = launch {
-            runDoseRowHighlightFlashEffect(
-                setFlashActive = { active -> events += "flash=$active" },
-                holdMillis = 0,
-            )
-        }
-
-        runCurrent()
+    fun runDoseRowHighlightPulse_risesToPeakThenFallsToZeroWithoutPlateau() = runTest {
+        // The pulse must be a single rise-then-fall sweep ending at fully
+        // transparent: a peak leg up to DoseRowHighlightPeakAlpha followed by a
+        // fall leg back to 0, with no hold in between. A plateau (or a final
+        // target above 0) would reintroduce the fade-in/hold/fade-out blink the
+        // pulse replaces.
+        val targets = mutableListOf<Float>()
+        runDoseRowHighlightPulse { target, _ -> targets += target }
 
         assertEquals(
-            listOf("flash=true", "flash=false"),
-            events,
+            listOf(DoseRowHighlightPeakFraction, 0f),
+            targets,
         )
-
-        job.cancel()
     }
 
     @Test
