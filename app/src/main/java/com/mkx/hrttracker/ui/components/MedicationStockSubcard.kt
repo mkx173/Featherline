@@ -316,7 +316,7 @@ private fun StockSubcardMetricCell(
             // hard swap to a single bar.
             val newContainerBarWeight = animateFloatAsState(
                 targetValue = if (row.opensNewContainer) 1f else 0f,
-                animationSpec = tween(durationMillis = 220),
+                animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
                 label = "stockNewContainerBarWeight",
             ).value
             if (newContainerBarWeight > 0.005f) {
@@ -333,6 +333,9 @@ private fun StockSubcardMetricCell(
                     PulsingStockSubcardProgressIndicator(
                         progress = row.progress,
                         colors = progressIndicatorColors,
+                        // Blink only while the dose actually opens a container; as
+                        // the bar collapses back the current container settles solid.
+                        pulsing = row.opensNewContainer,
                         modifier = Modifier.weight(1f).height(6.dp),
                     )
                 }
@@ -374,8 +377,12 @@ private fun StockSubcardMetricCell(
 private fun PulsingStockSubcardProgressIndicator(
     progress: Float,
     colors: StockSubcardProgressIndicatorColors,
+    pulsing: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    // The transition is created unconditionally (Compose requires it) so toggling
+    // [pulsing] does not recompose this into a different node; the blink is just
+    // gated out of the applied alpha when the dose no longer opens a container.
     val transition = rememberInfiniteTransition(label = "stockDregPulse")
     val pulseAlpha = transition.animateFloat(
         initialValue = 1f,
@@ -390,7 +397,7 @@ private fun PulsingStockSubcardProgressIndicator(
         progress = { progress },
         color = colors.color,
         trackColor = colors.trackColor,
-        modifier = modifier.alpha(pulseAlpha.value),
+        modifier = modifier.alpha(if (pulsing) pulseAlpha.value else 1f),
     )
 }
 
