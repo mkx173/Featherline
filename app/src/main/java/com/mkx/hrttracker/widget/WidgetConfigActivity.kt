@@ -1,14 +1,23 @@
 package com.mkx.hrttracker.widget
 
+import android.app.WallpaperColors
+import android.app.WallpaperManager
 import android.appwidget.AppWidgetManager
 import android.content.Intent
+import android.content.res.Configuration
+import android.content.res.Resources
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -41,6 +50,7 @@ class WidgetConfigActivity : AppCompatActivity() {
     lateinit var appScope: CoroutineScope
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        applyEdgeToEdgeSystemBars()
         super.onCreate(savedInstanceState)
 
         val appWidgetId = intent?.getIntExtra(
@@ -103,6 +113,21 @@ class WidgetConfigActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+    }
+
+    private fun applyEdgeToEdgeSystemBars() {
+        val barStyle = SystemBarStyle.auto(
+            Color.Transparent.toArgb(),
+            Color.Transparent.toArgb(),
+        )
+        enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
+        disableNavigationBarContrast()
+    }
+
+    private fun disableNavigationBarContrast() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
         }
     }
 }
