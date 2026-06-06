@@ -38,6 +38,7 @@ _Nothing yet._
 - Stock counts now take on the low/out status color, and the dose editor's projected after-dose value blinks when the dose would change the status tier.
 - The batch-add date range is now limited to today and earlier.
 - Deleting selected History records now reports how many were removed.
+- Opening a dose from the home-screen widget now scrolls the highlighted dose near the center of the screen instead of just into view.
 - General UI polish: refreshed icons, the pre-Android-12 splash icon, widget previews, stock chip labels, and assorted spacing and wording.
 
 ### Fixed

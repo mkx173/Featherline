@@ -292,25 +292,28 @@ internal fun mainDoseRowHighlightScrollTargetKey(
 ): String? {
     if (highlightRequest == null) return null
 
-    var targetKey: String? = null
+    // First matching row in rendered order (last-night -> today by time range ->
+    // upcoming). The first match is the scroll target so it lands at the highlight
+    // anchor (see LocalBringIntoViewSpec in MainContent); any later matches then
+    // sit below it.
     uiState.lastNightSection.rows.forEach { row ->
         if (highlightRequest.matches(row)) {
-            targetKey = mainTodayDoseRowCompositionKey(row)
+            return mainTodayDoseRowCompositionKey(row)
         }
     }
     mainTodayDoseRowsByTimeRange(uiState.todaySection.rows).forEach { (_, rows) ->
         rows.forEach { row ->
             if (highlightRequest.matches(row)) {
-                targetKey = mainTodayDoseRowCompositionKey(row)
+                return mainTodayDoseRowCompositionKey(row)
             }
         }
     }
     uiState.upcomingSection.rows.forEach { row ->
         if (highlightRequest.matches(row)) {
-            targetKey = mainUpcomingDoseRowCompositionKey(row)
+            return mainUpcomingDoseRowCompositionKey(row)
         }
     }
-    return targetKey
+    return null
 }
 
 private const val MainE2ChartMinimapRangeEpsilonHours = 1e-3

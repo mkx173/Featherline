@@ -1,6 +1,9 @@
 package com.mkx.hrttracker.ui.main
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -47,6 +50,7 @@ import com.mkx.hrttracker.util.zoneDisplayName
 import java.util.Locale
 import java.util.UUID
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MainContent(
     modifier: Modifier = Modifier,
@@ -78,67 +82,99 @@ fun MainContent(
             null
         }
     }
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(appContentPaddingValues()),
-    ) {
-        uiState.timeZoneChangeNotice?.let { notice ->
-            MainTimeZoneChangeNoticeBanner(
-                notice = notice,
-                appLocale = appLocale,
-                onDismiss = onDismissTimeZoneChangeNotice,
+    // Anchor the deep-link highlight target slightly above center instead of
+    // edge-aligning it: the dose rows trigger bringIntoView() when highlighted,
+    // and the default spec scrolls the minimum to make the row just visible.
+    // Placing the row's center at the upper third of the viewport keeps it clear
+    // of the bottom sheet that opens when the row is tapped, while still reading
+    // as roughly centered. The scroll container clamps at content bounds, so a
+    // target near the top/bottom lands as close to this anchor as it can.
+    val highlightBringIntoViewSpec = remember {
+        object : BringIntoViewSpec {
+            override fun calculateScrollDistance(
+                offset: Float,
+                size: Float,
+                containerSize: Float,
+            ): Float = offset - (containerSize * 0.33f - size / 2f)
+        }
+    }
+    CompositionLocalProvider(LocalBringIntoViewSpec provides highlightBringIntoViewSpec) {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(appContentPaddingValues()),
+        ) {
+            uiState.timeZoneChangeNotice?.let { notice ->
+                MainTimeZoneChangeNoticeBanner(
+                    notice = notice,
+                    appLocale = appLocale,
+                    onDismiss = onDismissTimeZoneChangeNotice,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            MainLowStockSection(
+                warnings = uiState.stockWarnings,
+                expanded = uiState.lowStockSectionExpanded,
+                onExpandedChange = onLowStockSectionExpandedChange,
+                onMedicineClick = onMedicineDetailClick,
             )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
+            if (uiState.stockWarnings.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
-        MainLowStockSection(
-            warnings = uiState.stockWarnings,
-            expanded = uiState.lowStockSectionExpanded,
-            onExpandedChange = onLowStockSectionExpandedChange,
-            onMedicineClick = onMedicineDetailClick,
-        )
-        if (uiState.stockWarnings.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        MainE2HeroCard(
-            section = uiState.e2Hero,
-            now = uiState.now,
-            displayUnit = uiState.homeE2DisplayUnit,
-            trendReady = uiState.e2TrendReady,
-            hideReferenceRanges = uiState.hideReferenceRanges,
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-        MainE2ChartCard(
-            section = uiState.e2Chart,
-            now = uiState.now,
-            appLocale = appLocale,
-            unit = uiState.e2Hero.unit,
-            displayUnit = uiState.homeE2DisplayUnit,
-            targetRangeLow = uiState.e2Hero.targetMin,
-            targetRangeHigh = uiState.e2Hero.targetMax,
-            trendReady = uiState.e2TrendReady,
-            hideReferenceRanges = uiState.hideReferenceRanges,
-            onChartWindowOptionSelected = onE2ChartWindowOptionSelected,
-        )
-
-        if (uiState.antiandrogenCards.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            MainAntiandrogenCard(
-                cards = uiState.antiandrogenCards,
+            MainE2HeroCard(
+                section = uiState.e2Hero,
                 now = uiState.now,
-                dateFormatter = dateFormatter,
-                timeFormatter = timeFormatter,
+                displayUnit = uiState.homeE2DisplayUnit,
+                trendReady = uiState.e2TrendReady,
+                hideReferenceRanges = uiState.hideReferenceRanges,
             )
-        }
 
-        if (uiState.lastNightSection.rows.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            MainE2ChartCard(
+                section = uiState.e2Chart,
+                now = uiState.now,
+                appLocale = appLocale,
+                unit = uiState.e2Hero.unit,
+                displayUnit = uiState.homeE2DisplayUnit,
+                targetRangeLow = uiState.e2Hero.targetMin,
+                targetRangeHigh = uiState.e2Hero.targetMax,
+                trendReady = uiState.e2TrendReady,
+                hideReferenceRanges = uiState.hideReferenceRanges,
+                onChartWindowOptionSelected = onE2ChartWindowOptionSelected,
+            )
+
+            if (uiState.antiandrogenCards.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                MainAntiandrogenCard(
+                    cards = uiState.antiandrogenCards,
+                    now = uiState.now,
+                    dateFormatter = dateFormatter,
+                    timeFormatter = timeFormatter,
+                )
+            }
+
+            if (uiState.lastNightSection.rows.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                MainLastNightSection(
+                    section = uiState.lastNightSection,
+                    now = uiState.now,
+                    dateFormatter = dayHeaderDateFormatter,
+                    timeFormatter = timeFormatter,
+                    highlightRequest = highlightRequest,
+                    highlightEffectsEnabled = highlightEffectsEnabled,
+                    highlightFlashReady = highlightFlashReady,
+                    highlightScrollTargetKey = highlightScrollTargetKey,
+                    onQuickLogDoseClick = onQuickLogDoseClick,
+                    onEntryClick = onEntryClick
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
-            MainLastNightSection(
-                section = uiState.lastNightSection,
+            MainTodaySection(
+                section = uiState.todaySection,
                 now = uiState.now,
                 dateFormatter = dayHeaderDateFormatter,
                 timeFormatter = timeFormatter,
@@ -149,40 +185,26 @@ fun MainContent(
                 onQuickLogDoseClick = onQuickLogDoseClick,
                 onEntryClick = onEntryClick
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+            MainUpcomingSection(
+                section = uiState.upcomingSection,
+                dateFormatter = dayHeaderDateFormatter,
+                timeFormatter = timeFormatter,
+                highlightRequest = highlightRequest,
+                highlightEffectsEnabled = highlightEffectsEnabled,
+                highlightFlashReady = highlightFlashReady,
+                highlightScrollTargetKey = highlightScrollTargetKey,
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+            val disclaimerKinds = if (uiState.hideReferenceRanges) {
+                listOf(MedicalDisclaimerKind.PLASMA_CONCENTRATION_ESTIMATES)
+            } else {
+                MedicalDisclaimerSets.home
+            }
+            MedicalDisclaimerText(kinds = disclaimerKinds)
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        MainTodaySection(
-            section = uiState.todaySection,
-            now = uiState.now,
-            dateFormatter = dayHeaderDateFormatter,
-            timeFormatter = timeFormatter,
-            highlightRequest = highlightRequest,
-            highlightEffectsEnabled = highlightEffectsEnabled,
-            highlightFlashReady = highlightFlashReady,
-            highlightScrollTargetKey = highlightScrollTargetKey,
-            onQuickLogDoseClick = onQuickLogDoseClick,
-            onEntryClick = onEntryClick
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-        MainUpcomingSection(
-            section = uiState.upcomingSection,
-            dateFormatter = dayHeaderDateFormatter,
-            timeFormatter = timeFormatter,
-            highlightRequest = highlightRequest,
-            highlightEffectsEnabled = highlightEffectsEnabled,
-            highlightFlashReady = highlightFlashReady,
-            highlightScrollTargetKey = highlightScrollTargetKey,
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-        val disclaimerKinds = if (uiState.hideReferenceRanges) {
-            listOf(MedicalDisclaimerKind.PLASMA_CONCENTRATION_ESTIMATES)
-        } else {
-            MedicalDisclaimerSets.home
-        }
-        MedicalDisclaimerText(kinds = disclaimerKinds)
     }
 }
 

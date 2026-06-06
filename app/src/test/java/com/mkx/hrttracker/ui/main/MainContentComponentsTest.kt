@@ -33,7 +33,7 @@ class MainContentComponentsTest {
     }
 
     @Test
-    fun mainDoseRowHighlightScrollTargetKey_usesLastMatchingTodayRowInRenderedOrder() {
+    fun mainDoseRowHighlightScrollTargetKey_usesFirstMatchingTodayRowInRenderedOrder() {
         val morningGroupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
         val eveningGroupUuid = UUID.fromString("22222222-2222-2222-2222-222222222222")
         val morningSlotUuid = UUID.fromString("33333333-3333-3333-3333-333333333333")
@@ -70,6 +70,8 @@ class MainContentComponentsTest {
                 ),
             )
         )
+        // Rows are stored evening-first, but they render grouped by time range
+        // (morning before evening), so the morning row is rendered first.
         val uiState = MainUiState(
             now = morningAt,
             todaySection = MainTodaySectionUiState(
@@ -78,8 +80,10 @@ class MainContentComponentsTest {
             ),
         )
 
+        // The first match in rendered order is the scroll target so it lands
+        // closest to the viewport center (the later evening match sits below it).
         assertEquals(
-            mainTodayDoseRowCompositionKey(eveningRow),
+            mainTodayDoseRowCompositionKey(morningRow),
             mainDoseRowHighlightScrollTargetKey(uiState, request),
         )
     }
