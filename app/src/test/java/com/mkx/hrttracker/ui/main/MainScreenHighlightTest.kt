@@ -14,6 +14,11 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainScreenHighlightTest {
     @Test
+    fun doseRowHighlightPreFlashDelay_isSeventyFiveMillis() {
+        assertEquals(75L, doseRowHighlightPreFlashDelayMillis())
+    }
+
+    @Test
     fun awaitDoseRowHighlightScrollSettled_waitsForIdleStableFrames() = runTest {
         val frameStates = listOf(
             true to 10,
@@ -41,7 +46,7 @@ class MainScreenHighlightTest {
     }
 
     @Test
-    fun runDoseRowHighlightLifecycle_waitsForScrollSettleThenDelaysBeforeFlashReady() = runTest {
+    fun runDoseRowHighlightLifecycle_waitsForScrollSettleThenDelays75MillisBeforeFlashReady() = runTest {
         val scrollSettled = CompletableDeferred<Unit>()
         val events = mutableListOf<String>()
         val job = launch {
@@ -52,7 +57,7 @@ class MainScreenHighlightTest {
                     events += "waitScrollSettled"
                     scrollSettled.await()
                 },
-                preFlashDelayMillis = 150L,
+                preFlashDelayMillis = 75L,
                 clearDelayMillis = 0,
                 consumeHighlightRequest = { events += "consume" },
             )
@@ -74,14 +79,14 @@ class MainScreenHighlightTest {
             events,
         )
 
-        advanceTimeBy(100L)
+        advanceTimeBy(50L)
         runCurrent()
         assertFalse(
             "flash fired before the pre-flash delay elapsed",
             events.contains("flashReady=true"),
         )
 
-        advanceTimeBy(50L)
+        advanceTimeBy(25L)
         runCurrent()
         assertEquals(
             listOf(
@@ -123,5 +128,12 @@ class MainScreenHighlightTest {
         job.join()
 
         assertTrue("request not consumed after cancellation", events.contains("consume"))
+    }
+
+    private fun doseRowHighlightPreFlashDelayMillis(): Long {
+        val field = Class.forName("com.mkx.hrttracker.ui.main.MainScreenKt")
+            .getDeclaredField("DoseRowHighlightPreFlashDelayMillis")
+        field.isAccessible = true
+        return field.getLong(null)
     }
 }

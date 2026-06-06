@@ -56,7 +56,7 @@ import kotlinx.coroutines.delay
 import java.util.UUID
 
 private const val DoseRowHighlightClearDelayMillis = 2_000L
-private const val DoseRowHighlightPreFlashDelayMillis = 150L
+private const val DoseRowHighlightPreFlashDelayMillis = 75L
 private const val DoseRowHighlightScrollSettleFrameCount = 2
 
 internal suspend fun runDoseRowHighlightLifecycle(
