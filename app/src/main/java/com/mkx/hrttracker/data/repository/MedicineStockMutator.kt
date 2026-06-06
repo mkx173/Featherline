@@ -8,6 +8,7 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
+import kotlin.math.ceil
 
 internal const val FLOAT_EPSILON = 1e-9
 
@@ -24,6 +25,34 @@ internal fun normalizeOpenContainer(
     if (usableOpen > FLOAT_EPSILON) return open to sealed
     if (sealed < 1.0 || !capacity.isFinite() || capacity <= 0.0) return open to sealed
     return capacity to (sealed - 1.0).coerceAtLeast(0.0).zeroIfTiny()
+}
+
+internal data class ContainerStockSplit(val open: Double, val sealed: Double)
+
+/**
+ * Deducts a dose from container stock by collapsing it to a single total
+ * (open + sealed * capacity), subtracting, and re-splitting under the strict
+ * unseal invariant: exactly one container stays "open" holding (0, capacity],
+ * with [ContainerStockSplit.sealed] full unopened units behind it.
+ *
+ * This conserves volume across any number of vial boundaries — a single dose
+ * larger than one container simply drains as many as the total allows — and
+ * self-normalizes (an exact multiple of capacity leaves a full open unit, never
+ * an empty open with sealed reserves). The recount denominator (unitsLastTotal)
+ * is never part of the total, so consumption never re-bases it.
+ */
+internal fun deductContainerTotal(
+    open: Double,
+    sealed: Double,
+    capacity: Double,
+    dose: Double,
+): ContainerStockSplit {
+    val total = open + sealed * capacity
+    val newTotal = (total - dose.coerceAtLeast(0.0)).coerceAtLeast(0.0).zeroIfTiny()
+    if (newTotal <= 0.0) return ContainerStockSplit(open = 0.0, sealed = 0.0)
+    val sealedAfter = (ceil(newTotal / capacity - FLOAT_EPSILON) - 1.0).coerceAtLeast(0.0)
+    val openAfter = (newTotal - sealedAfter * capacity).zeroIfTiny()
+    return ContainerStockSplit(open = openAfter, sealed = sealedAfter)
 }
 
 /**

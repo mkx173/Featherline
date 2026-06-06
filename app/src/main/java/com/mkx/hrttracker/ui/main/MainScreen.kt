@@ -56,12 +56,14 @@ import kotlinx.coroutines.delay
 import java.util.UUID
 
 private const val DoseRowHighlightClearDelayMillis = 2_000L
+private const val DoseRowHighlightPreFlashDelayMillis = 150L
 private const val DoseRowHighlightScrollSettleFrameCount = 2
 
 internal suspend fun runDoseRowHighlightLifecycle(
     setFlashReady: (Boolean) -> Unit,
     awaitFirstLayoutFrame: suspend () -> Unit,
     awaitScrollSettled: suspend () -> Unit,
+    preFlashDelayMillis: Long,
     clearDelayMillis: Long,
     consumeHighlightRequest: () -> Unit,
 ) {
@@ -69,6 +71,9 @@ internal suspend fun runDoseRowHighlightLifecycle(
         setFlashReady(false)
         awaitFirstLayoutFrame()
         awaitScrollSettled()
+        // Let the row settle in view for a beat before the highlight fires, so
+        // the flash reads as a deliberate cue rather than firing mid-arrival.
+        delay(preFlashDelayMillis)
         setFlashReady(true)
         delay(clearDelayMillis)
     } finally {
@@ -145,6 +150,7 @@ fun MainScreen(
                     awaitFrame = { withFrameNanos { } },
                 )
             },
+            preFlashDelayMillis = DoseRowHighlightPreFlashDelayMillis,
             clearDelayMillis = DoseRowHighlightClearDelayMillis,
             consumeHighlightRequest = { viewModel.consumeHighlightRequest(activeRequest) },
         )
