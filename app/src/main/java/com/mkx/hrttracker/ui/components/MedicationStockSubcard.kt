@@ -132,6 +132,9 @@ internal data class MedicationStockSubcardRowModel(
 internal data class MedicationStockSubcardModel(
     @param:StringRes val chipLabelRes: Int?,
     val tone: MedicationStockSubcardTone,
+    val currentValueTone: MedicationStockSubcardTone,
+    val previewValueTone: MedicationStockSubcardTone?,
+    val blinkPreview: Boolean,
     val runwayText: MedicationStockSubcardText?,
     val rows: List<MedicationStockSubcardRowModel>,
 ) {
@@ -141,6 +144,7 @@ internal data class MedicationStockSubcardModel(
 internal fun medicationStockSubcardModel(
     projection: MedicineStockProjection?,
     mutationPreviewDoseMagnitude: Double? = null,
+    previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? = null,
 ): MedicationStockSubcardModel? {
     projection ?: return null
     val medicine = projection.medicine
@@ -148,18 +152,37 @@ internal fun medicationStockSubcardModel(
     if (!stock.trackingEnabled || projection.state == MedicineStockState.UNTRACKED) return null
     if (medicine.preparation is MedicinePreparation.PatchOff) return null
 
+    val preview = stockMutationPreview(
+        medicine = medicine,
+        requestedDose = mutationPreviewDoseMagnitude,
+    )
     val rows = stockSubcardRows(
         projection = projection,
-        mutationPreview = stockMutationPreview(
-            medicine = medicine,
-            requestedDose = mutationPreviewDoseMagnitude,
-        ),
+        mutationPreview = preview,
     )
     if (rows.isEmpty()) return null
 
+    val currentState = projection.state
+    val currentValueTone = stockSubcardTone(currentState)
+    val postMutationState = preview?.afterStock?.let { after ->
+        previewPostMutationState?.invoke(after)
+    }
+    val hasPreview = rows.any { it.previewValueText != null }
+    val previewValueTone = when {
+        !hasPreview -> null
+        postMutationState != null -> stockSubcardTone(postMutationState)
+        else -> currentValueTone
+    }
+    val blinkPreview = hasPreview &&
+        postMutationState != null &&
+        postMutationState != currentState
+
     return MedicationStockSubcardModel(
-        chipLabelRes = stockSubcardChipLabelRes(projection.state),
-        tone = stockSubcardTone(projection.state),
+        chipLabelRes = stockSubcardChipLabelRes(currentState),
+        tone = stockSubcardTone(currentState),
+        currentValueTone = currentValueTone,
+        previewValueTone = previewValueTone,
+        blinkPreview = blinkPreview,
         runwayText = stockSubcardRunwayText(projection.runway),
         rows = rows,
     )
@@ -547,6 +570,19 @@ internal fun stockSubcardProgressIndicatorColors(
     }
 }
 
+internal fun stockSubcardValueTextColor(
+    tone: MedicationStockSubcardTone,
+    onSurface: Color,
+    tertiary: Color,
+    error: Color,
+): Color = when (tone) {
+    MedicationStockSubcardTone.WARNING -> tertiary
+    MedicationStockSubcardTone.ERROR -> error
+    MedicationStockSubcardTone.HEALTHY,
+    MedicationStockSubcardTone.NEUTRAL,
+    -> onSurface
+}
+
 @Composable
 internal fun stockSubcardChipColors(
     tone: MedicationStockSubcardTone,
@@ -804,6 +840,7 @@ private fun formatStockSubcardCount(value: Double?): String {
 private data class StockSubcardMutationPreview(
     val unitsRemainingAfter: Double?,
     val openContainerAmountAfter: Double?,
+    val afterStock: MedicineStock,
 )
 
 private fun stockMutationPreview(
@@ -826,6 +863,7 @@ private fun stockMutationPreview(
     return StockSubcardMutationPreview(
         unitsRemainingAfter = after.unitsRemaining,
         openContainerAmountAfter = after.openContainerAmount,
+        afterStock = after,
     )
 }
 

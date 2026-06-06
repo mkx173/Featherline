@@ -112,6 +112,94 @@ class MedicationStockSubcardTest {
     }
 
     @Test
+    fun currentValueToneFollowsProjectionState() {
+        val model = medicationStockSubcardModel(
+            projection = projection(
+                stock = MedicineStock(trackingEnabled = true, unitsRemaining = 8.0, unitsLastTotal = 84.0),
+                state = MedicineStockState.USER_LOW,
+            ),
+        )
+        requireNotNull(model)
+        assertEquals(MedicationStockSubcardTone.WARNING, model.currentValueTone)
+        assertNull(model.previewValueTone)
+        assertFalse(model.blinkPreview)
+    }
+
+    @Test
+    fun previewValueToneAndBlinkFollowPostMutationState() {
+        // Current HEALTHY, post-mutation state from lambda = USER_LOW -> blink + tertiary tone.
+        val model = medicationStockSubcardModel(
+            projection = projection(
+                stock = MedicineStock(trackingEnabled = true, unitsRemaining = 4.0, unitsLastTotal = 10.0),
+                state = MedicineStockState.HEALTHY,
+            ),
+            mutationPreviewDoseMagnitude = 1.0,
+            previewPostMutationState = { MedicineStockState.USER_LOW },
+        )
+        requireNotNull(model)
+        assertEquals(MedicationStockSubcardTone.HEALTHY, model.currentValueTone)
+        assertEquals(MedicationStockSubcardTone.WARNING, model.previewValueTone)
+        assertTrue(model.blinkPreview)
+    }
+
+    @Test
+    fun blinkFiresOnSameColorStateChange() {
+        // IMMINENT -> OUT: both ERROR tone, but states differ -> blink true.
+        val model = medicationStockSubcardModel(
+            projection = projection(
+                stock = MedicineStock(trackingEnabled = true, unitsRemaining = 1.0, unitsLastTotal = 10.0),
+                state = MedicineStockState.IMMINENT,
+            ),
+            mutationPreviewDoseMagnitude = 1.0,
+            previewPostMutationState = { MedicineStockState.OUT },
+        )
+        requireNotNull(model)
+        assertEquals(MedicationStockSubcardTone.ERROR, model.previewValueTone)
+        assertTrue(model.blinkPreview)
+    }
+
+    @Test
+    fun noBlinkWhenPostMutationStateEqualsCurrent() {
+        val model = medicationStockSubcardModel(
+            projection = projection(
+                stock = MedicineStock(trackingEnabled = true, unitsRemaining = 4.0, unitsLastTotal = 10.0),
+                state = MedicineStockState.HEALTHY,
+            ),
+            mutationPreviewDoseMagnitude = 1.0,
+            previewPostMutationState = { MedicineStockState.HEALTHY },
+        )
+        requireNotNull(model)
+        assertEquals(MedicationStockSubcardTone.HEALTHY, model.previewValueTone)
+        assertFalse(model.blinkPreview)
+    }
+
+    @Test
+    fun previewToneFallsBackToCurrentWhenNoStateProvider() {
+        val model = medicationStockSubcardModel(
+            projection = projection(
+                stock = MedicineStock(trackingEnabled = true, unitsRemaining = 4.0, unitsLastTotal = 10.0),
+                state = MedicineStockState.USER_LOW,
+            ),
+            mutationPreviewDoseMagnitude = 1.0,
+            previewPostMutationState = null,
+        )
+        requireNotNull(model)
+        assertEquals(MedicationStockSubcardTone.WARNING, model.previewValueTone)
+        assertFalse(model.blinkPreview)
+    }
+
+    @Test
+    fun valueTextColorMapsToneToTertiaryAndError() {
+        val onSurface = Color(0xFF111111)
+        val tertiary = Color(0xFF222222)
+        val error = Color(0xFF333333)
+        assertEquals(onSurface, stockSubcardValueTextColor(MedicationStockSubcardTone.HEALTHY, onSurface, tertiary, error))
+        assertEquals(tertiary, stockSubcardValueTextColor(MedicationStockSubcardTone.WARNING, onSurface, tertiary, error))
+        assertEquals(error, stockSubcardValueTextColor(MedicationStockSubcardTone.ERROR, onSurface, tertiary, error))
+        assertEquals(onSurface, stockSubcardValueTextColor(MedicationStockSubcardTone.NEUTRAL, onSurface, tertiary, error))
+    }
+
+    @Test
     fun poolProjectionBuildsOneStockPoolRow() {
         val model = medicationStockSubcardModel(
             projection(
