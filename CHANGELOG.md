@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stock counts now take on the low/out status color, and the dose editor's projected after-dose value blinks when the dose would change the status tier.
 - The batch-add date range is now limited to today and earlier.
 - Deleting selected History records now reports how many were removed.
-- General UI polish: refreshed icons, widget previews, stock chip labels, and assorted spacing and wording.
+- General UI polish: refreshed icons, the pre-Android-12 splash icon, widget previews, stock chip labels, and assorted spacing and wording.
 
 ### Fixed
 
@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A dose that crosses into a freshly opened multi-use vial or gel container now carries the leftover amount across instead of discarding it, and a dose larger than one container draws from as many as needed.
 - Stock runway and status no longer jump the moment a scheduled dose's time passes unlogged; the dose still counts for the rest of that day.
 - Batch-add no longer loses its post-log low-stock warning after a rotation, or shows a duplicate toast alongside the snackbar.
+- On Android 8, editor sheets no longer open the keyboard on entry or leave it stuck open; editing a medicine also steps through its fields with the keyboard's Next button.
 
 ## [1.0.3] - 2026-05-31
 
