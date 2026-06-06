@@ -356,6 +356,11 @@ private fun StockSubcardMetricCell(
                 animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
                 label = "stockNewContainerBarWeight",
             ).value
+            val pulseAlpha = if (row.opensNewContainer || blinkPreview) {
+                rememberStockSubcardPulseAlpha()
+            } else {
+                1f
+            }
             if (newContainerBarWeight > 0.005f) {
                 Row(
                     modifier = progressModifier,
@@ -373,6 +378,7 @@ private fun StockSubcardMetricCell(
                         // Blink only while the dose actually opens a container; as
                         // the bar collapses back the current container settles solid.
                         pulsing = row.opensNewContainer,
+                        pulseAlpha = pulseAlpha,
                         modifier = Modifier.weight(1f).height(6.dp),
                     )
                 }
@@ -407,6 +413,7 @@ private fun StockSubcardMetricCell(
                     currentValueTone = currentValueTone,
                     previewValueTone = previewValueTone,
                     blinkPreview = blinkPreview,
+                    pulseAlpha = pulseAlpha,
                 )
             }
         }
@@ -415,8 +422,8 @@ private fun StockSubcardMetricCell(
 
 @Composable
 private fun rememberStockSubcardPulseAlpha(): Float {
-    // Created unconditionally so callers can gate the applied alpha (not the node)
-    // without recomposing into a different animation node.
+    // Callers create this only when a pulse is active, then share the same alpha
+    // across every blinking element in the metric row.
     val transition = rememberInfiniteTransition(label = "stockSubcardPulse")
     return transition.animateFloat(
         initialValue = 1f,
@@ -434,9 +441,9 @@ private fun PulsingStockSubcardProgressIndicator(
     progress: Float,
     colors: StockSubcardProgressIndicatorColors,
     pulsing: Boolean,
+    pulseAlpha: Float,
     modifier: Modifier = Modifier,
 ) {
-    val pulseAlpha = rememberStockSubcardPulseAlpha()
     LinearProgressIndicator(
         progress = { progress },
         color = colors.color,
@@ -452,6 +459,7 @@ private fun StockSubcardValueText(
     currentValueTone: MedicationStockSubcardTone,
     previewValueTone: MedicationStockSubcardTone?,
     blinkPreview: Boolean,
+    pulseAlpha: Float,
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     val tertiary = MaterialTheme.colorScheme.tertiary
@@ -482,7 +490,6 @@ private fun StockSubcardValueText(
         return
     }
 
-    val pulseAlpha = rememberStockSubcardPulseAlpha()
     val blinkAlpha = if (blinkPreview) pulseAlpha else 1f
 
     Row(
