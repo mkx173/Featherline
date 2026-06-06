@@ -16,19 +16,22 @@ fun SimulatedStock.applyDose(perDose: Double): SimulatedStock? {
             null
         }
     }
-    if (open + FLOAT_EPSILON >= perDose) {
+    // Fulfillable whenever the total on hand covers the dose, regardless of how
+    // many vial boundaries it crosses. The shared total round-trip conserves
+    // volume and re-splits under the strict unseal invariant.
+    val capacity = containerCapacity.takeIf { it.isFinite() && it > 0.0 }
+    val total = if (capacity != null) open + sealed * capacity else open
+    if (total + FLOAT_EPSILON < perDose) return null
+    if (capacity == null) {
         return copy(open = (open - perDose).coerceAtLeast(0.0).zeroIfTiny())
     }
-    if (sealed + FLOAT_EPSILON < 1.0 || containerCapacity + FLOAT_EPSILON < perDose) {
-        return null
-    }
-    // Exact-split: the open dreg is consumed first, so only the residual
-    // (perDose - open) is drawn from the freshly cracked unit, carrying the dreg
-    // forward instead of discarding it.
-    return copy(
-        open = (containerCapacity - (perDose - open)).coerceAtLeast(0.0).zeroIfTiny(),
-        sealed = (sealed - 1.0).coerceAtLeast(0.0).zeroIfTiny(),
+    val split = deductContainerTotal(
+        open = open,
+        sealed = sealed,
+        capacity = capacity,
+        dose = perDose,
     )
+    return copy(open = split.open, sealed = split.sealed)
 }
 
 fun simulateNDoses(

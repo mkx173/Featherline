@@ -65,6 +65,19 @@ class SimulatedStockTest {
     }
 
     @Test
+    fun containerSingleDoseSpansMultipleContainersWhenTotalSuffices() {
+        // A dose larger than one container is fulfilled by draining across vials
+        // as long as the total on hand covers it: 3.5 mL total, 2.7 mL dose ->
+        // 0.8 mL left as a fresh open vial, all sealed units consumed.
+        val state = SimulatedStock(open = 0.5, sealed = 3.0, containerCapacity = 1.0, isContainer = true)
+
+        val next = requireNotNull(state.applyDose(perDose = 2.7))
+
+        assertEquals(0.8, next.open, 1e-9)
+        assertEquals(0.0, next.sealed, 1e-9)
+    }
+
+    @Test
     fun applyReturnsNullWhenDoseExceedsFreshContainerCapacity() {
         val state = SimulatedStock(open = 0.0, sealed = 1.0, containerCapacity = 0.5, isContainer = true)
 

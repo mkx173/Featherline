@@ -546,7 +546,7 @@ class MedicineStockMutatorTest {
                 trackingEnabled = true,
                 stockUnitsRemaining = 1.0,
                 stockUnitsLastTotal = null,
-                openContainerAmount = 0.7,
+                openContainerAmount = match { amount -> abs(amount - 0.7) < 1e-9 },
                 warnAtDaysRemaining = 14,
                 stockGeneration = 1L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),
@@ -581,7 +581,7 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun resolveDeduction_container_case2_doseExceedsOpenPlusOneContainer_drainsThenEagerlyOpensLastSealed() = runTest {
+    fun resolveDeduction_container_case2_doseExceedsOpenPlusOneContainer_drainsAcrossUnitsConservingVolume() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
             vialRow(sealed = 2.0, open = 0.2, vialVolume = 1.0)
 
@@ -592,13 +592,17 @@ class MedicineStockMutatorTest {
             now = fixedNow,
         )
 
+        // The 1.5 dose exceeds open (0.2) plus one full vial; the total round-trip
+        // drains across both sealed units conserving volume: 2.2 - 1.5 = 0.7 left
+        // as a fresh open vial. The old single-crack path lost the 0.3 excess and
+        // left a stale full vial (open 1.0, sealed 0).
         coVerify {
             medicineDao.updateStockFields(
                 uuid = medicineUuid.toString(),
                 trackingEnabled = true,
                 stockUnitsRemaining = 0.0,
                 stockUnitsLastTotal = null,
-                openContainerAmount = 1.0,
+                openContainerAmount = match { amount -> abs(amount - 0.7) < 1e-9 },
                 warnAtDaysRemaining = 14,
                 stockGeneration = 1L,
                 updatedAtEpochMillis = fixedNow.toEpochMilli(),

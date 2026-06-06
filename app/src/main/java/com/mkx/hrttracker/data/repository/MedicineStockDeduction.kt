@@ -77,38 +77,15 @@ private fun deductContainerInsertedDoseStock(
     requestedDose: Double,
 ): StockDeductionFields {
     val capacity = containerCapacity?.takeIf { it.isFinite() && it > 0.0 } ?: return fields
-    val open = fields.openContainerAmount ?: 0.0
-    val sealed = fields.unitsRemaining ?: 0.0
-    val dose = requestedDose.coerceAtLeast(0.0)
-
-    val newSealed: Double
-    val newOpen: Double
-    when {
-        hasSufficientOpenAmount(open = open, dose = dose) -> {
-            newSealed = sealed
-            newOpen = (open - dose).zeroIfTiny().coerceAtLeast(0.0)
-        }
-        sealed >= 1.0 -> {
-            newSealed = sealed - 1.0
-            // Exact-split: the open dreg is consumed first, so only the residual
-            // (dose - open) is drawn from the freshly cracked unit. The dreg is
-            // carried into the new container instead of being discarded.
-            newOpen = maxOf(0.0, capacity - (dose - open))
-        }
-        else -> {
-            newSealed = sealed
-            newOpen = 0.0
-        }
-    }
-
-    val (normalizedOpen, normalizedSealed) = normalizeOpenContainer(
-        open = newOpen.zeroIfTiny(),
-        sealed = newSealed,
+    val split = deductContainerTotal(
+        open = fields.openContainerAmount ?: 0.0,
+        sealed = fields.unitsRemaining ?: 0.0,
         capacity = capacity,
+        dose = requestedDose,
     )
     return fields.copy(
-        unitsRemaining = normalizedSealed.zeroIfTiny(),
-        openContainerAmount = normalizedOpen,
+        unitsRemaining = split.sealed,
+        openContainerAmount = split.open,
     )
 }
 
@@ -118,9 +95,4 @@ private fun MedicinePreparation.containerCapacityOrNull(): Double? {
         is MedicinePreparation.GelContainer -> containerWeightGrams
         else -> null
     }
-}
-
-private fun hasSufficientOpenAmount(open: Double, dose: Double): Boolean {
-    if (dose <= 0.0 || open >= dose) return true
-    return open > FLOAT_EPSILON && dose - open <= FLOAT_EPSILON
 }

@@ -69,6 +69,28 @@ class MedicineStockDeductionTest {
     }
 
     @Test
+    fun containerDeductionDrainsMultipleSealedUnitsForALargeDose() {
+        // A single dose larger than open + one vial spans several containers and
+        // still conserves volume: total 3.5 - 2.7 = 0.8 left as a new open vial,
+        // all sealed units consumed (the branchy single-crack path would have
+        // lost the excess and left a stale sealed unit).
+        val result = deductInsertedDoseStock(
+            preparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+            containerCapacity = 1.0,
+            fields = StockDeductionFields(
+                unitsRemaining = 3.0,
+                unitsLastTotal = 4.0,
+                openContainerAmount = 0.5,
+            ),
+            requestedDose = 2.7,
+        )
+
+        assertEquals(0.0, result.unitsRemaining ?: error("missing sealed"), 1e-9)
+        assertEquals(0.8, result.openContainerAmount ?: error("missing open"), 1e-9)
+        assertEquals(4.0, result.unitsLastTotal ?: error("missing denominator"), 0.0)
+    }
+
+    @Test
     fun containerDeductionNormalizesEmptyOpenWhenSealedRemains() {
         val result = deductInsertedDoseStock(
             preparationType = MedicinePreparationType.GEL_CONTAINER,
