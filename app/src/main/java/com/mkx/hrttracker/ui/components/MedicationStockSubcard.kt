@@ -740,7 +740,7 @@ private fun sealedCountDecreased(current: Double?, preview: Double?): Boolean {
 private fun MedicationStockSubcardSealedSupplement.labelSuffix(): String {
     val preview = previewCountText
     return if (preview != null) {
-        " (+$countText → +$preview)"
+        " (+$countText → $preview)"
     } else {
         " (+$countText)"
     }
