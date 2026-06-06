@@ -57,6 +57,7 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.medication.DoseAssistPresetRow
+import com.mkx.hrttracker.ui.medication.LocalSheetDismissFocusRequester
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicationEditorSectionLabel
 import com.mkx.hrttracker.ui.medication.MedicationNumericField
@@ -314,6 +315,12 @@ private fun DisplayNameField(
     onImeNext: (() -> Unit)? = null,
 ) {
     val focusManager = LocalFocusManager.current
+    // Park on the sheet's non-text anchor instead of clearing focus: on API 26
+    // clearFocus jumps focus back to the first field rather than dismissing.
+    val dismissFocusAnchor = LocalSheetDismissFocusRequester.current
+    val dismissKeyboard: () -> Unit = {
+        dismissFocusAnchor?.requestFocus() ?: focusManager.clearFocus()
+    }
     val displayNameState = rememberTextFieldState(initialText = medicineDraft.displayName)
     val currentDisplayName by rememberUpdatedState(medicineDraft.displayName)
     val currentOnMedicineDraftChange by rememberUpdatedState(onMedicineDraftChange)
@@ -360,9 +367,9 @@ private fun DisplayNameField(
         keyboardOptions = KeyboardOptions(imeAction = imeAction),
         onKeyboardAction = {
             if (imeAction == ImeAction.Next) {
-                onImeNext?.invoke() ?: focusManager.clearFocus()
+                onImeNext?.invoke() ?: dismissKeyboard()
             } else {
-                focusManager.clearFocus()
+                dismissKeyboard()
             }
         },
     )

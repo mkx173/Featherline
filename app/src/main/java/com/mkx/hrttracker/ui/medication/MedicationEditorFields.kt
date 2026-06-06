@@ -73,6 +73,13 @@ internal fun MedicationNumericField(
     onImeNext: (() -> Unit)? = null,
 ) {
     val focusManager = LocalFocusManager.current
+    // On API 26, clearing focus in a sheet makes the platform jump focus back
+    // to the first text field; parking on the sheet's non-text anchor instead
+    // dismisses the IME without the jump. Falls back to clearFocus off-sheet.
+    val dismissFocusAnchor = LocalSheetDismissFocusRequester.current
+    val dismissKeyboard: () -> Unit = {
+        dismissFocusAnchor?.requestFocus() ?: focusManager.clearFocus()
+    }
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -105,8 +112,8 @@ internal fun MedicationNumericField(
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
         keyboardActions = KeyboardActions(
-            onNext = { onImeNext?.invoke() ?: focusManager.clearFocus() },
-            onDone = { focusManager.clearFocus() },
+            onNext = { onImeNext?.invoke() ?: dismissKeyboard() },
+            onDone = { dismissKeyboard() },
         ),
     )
 }

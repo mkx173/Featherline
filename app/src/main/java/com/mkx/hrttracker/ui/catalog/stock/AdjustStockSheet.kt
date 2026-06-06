@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.catalog.stock
 import androidx.annotation.DrawableRes
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,6 +65,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.medication.LocalSheetDismissFocusRequester
 import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
@@ -125,6 +128,20 @@ fun AdjustStockSheet(
                     bottom = dimensionResource(R.dimen.padding_large) + navigationBarBottomPadding,
                 ),
         ) {
+            // On API 26 the ModalBottomSheet window auto-focuses the first text
+            // field, opening the IME on entry; a field's IME action then clears
+            // focus and the window re-grants it to that same field, so the
+            // keyboard won't dismiss. Parking focus on this non-text anchor —
+            // requested on entry, and reused for IME dismissal via
+            // LocalSheetDismissFocusRequester — avoids both.
+            val dismissFocusAnchor = remember { FocusRequester() }
+            LaunchedEffect(Unit) { dismissFocusAnchor.requestFocus() }
+            Spacer(
+                modifier = Modifier
+                    .focusRequester(dismissFocusAnchor)
+                    .focusable(),
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -160,20 +177,24 @@ fun AdjustStockSheet(
 
             Spacer(Modifier.height(dimensionResource(R.dimen.padding_small)))
 
-            when (activeTab) {
-                AdjustSheetTab.RECOUNT -> RecountForm(
-                    projection = projection,
-                    isContainer = isContainer,
-                    previewRunway = previewRunway,
-                    onSubmit = onRecount,
-                )
+            CompositionLocalProvider(
+                LocalSheetDismissFocusRequester provides dismissFocusAnchor,
+            ) {
+                when (activeTab) {
+                    AdjustSheetTab.RECOUNT -> RecountForm(
+                        projection = projection,
+                        isContainer = isContainer,
+                        previewRunway = previewRunway,
+                        onSubmit = onRecount,
+                    )
 
-                AdjustSheetTab.RECEIVED -> ReceivedForm(
-                    projection = projection,
-                    isContainer = isContainer,
-                    previewRunway = previewRunway,
-                    onSubmit = onReceived,
-                )
+                    AdjustSheetTab.RECEIVED -> ReceivedForm(
+                        projection = projection,
+                        isContainer = isContainer,
+                        previewRunway = previewRunway,
+                        onSubmit = onReceived,
+                    )
+                }
             }
         }
     }
@@ -426,6 +447,12 @@ private fun StockStepperCard(
     } ?: unit
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+    // Park on the sheet's non-text anchor instead of clearing focus: on API 26
+    // clearFocus lets the window re-grant focus to this field, reopening the IME.
+    val dismissFocusAnchor = LocalSheetDismissFocusRequester.current
+    val dismissKeyboard: () -> Unit = {
+        dismissFocusAnchor?.requestFocus() ?: focusManager.clearFocus()
+    }
 
     EditorSegmentedListItem(
         index = 0,
@@ -512,7 +539,7 @@ private fun StockStepperCard(
                         },
                         imeAction = ImeAction.Done,
                     ),
-                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                    keyboardActions = KeyboardActions(onDone = { dismissKeyboard() }),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     modifier = Modifier
                         .matchParentSize()
