@@ -592,11 +592,7 @@ internal fun DoseRow(
                 text = fullName,
                 modifier = GlanceModifier.fillMaxWidth(),
                 style = TextStyle(
-                    color = if (row.status == WidgetDoseStatus.UPCOMING) {
-                        colors.onSurfaceVariant
-                    } else {
-                        colors.onSurface
-                    },
+                    color = colors.onSurface,
                     fontSize = (18f * scale).sp,
                     fontWeight = FontWeight.Medium,
                 ),
