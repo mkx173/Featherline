@@ -8,4 +8,4 @@
 -->
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@mipmap/ic_launcher"
-    android:inset="17%" />
+    android:inset="25%" />
