@@ -37,6 +37,13 @@ internal fun ColorScheme.amoledContainers(): ColorScheme = copy(
     surfaceBright = surfaceBright.atTone(AMOLED_TOP_TONE * 1.2),
 )
 
+// MaterialKolor's SPEC_2025 errorContainer is a fully saturated, opaque tone; the app uses it
+// only as a soft 25%-alpha tint behind stock chips. Bake that alpha into the scheme so call
+// sites can read errorContainer directly. The system palette ships its own gentle errorContainer,
+// so it is deliberately left at full alpha (this is only applied on the MaterialKolor path).
+internal fun ColorScheme.dimErrorContainer(): ColorScheme =
+    copy(errorContainer = errorContainer.copy(alpha = 0.25f))
+
 // Full AMOLED transform for a dark scheme that isn't already amoled (e.g. the framework
 // dynamic scheme). The first copy mirrors MaterialKolor's isAmoled exactly — it blackens
 // background/surface and whitens their on-colors, and nothing else — then amoledContainers()

@@ -643,7 +643,7 @@ internal fun stockSubcardChipColors(
             content = MaterialTheme.colorScheme.onTertiaryContainer,
         )
         MedicationStockSubcardTone.ERROR -> StockSubcardChipColors(
-            container = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+            container = MaterialTheme.colorScheme.errorContainer,
             content = MaterialTheme.colorScheme.onErrorContainer,
         )
         MedicationStockSubcardTone.NEUTRAL -> StockSubcardChipColors(

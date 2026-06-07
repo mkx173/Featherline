@@ -31,7 +31,8 @@ fun HrtTrackerTheme(
             isAmoled = darkTheme && amoled,
             specVersion = ColorSpec.SpecVersion.SPEC_2025,
             modifyColorScheme = { scheme ->
-                if (darkTheme && amoled) scheme.amoledContainers() else scheme
+                val base = scheme.dimErrorContainer()
+                if (darkTheme && amoled) base.amoledContainers() else base
             },
         )
     }
