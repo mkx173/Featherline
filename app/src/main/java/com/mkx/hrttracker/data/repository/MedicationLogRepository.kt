@@ -18,7 +18,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -53,10 +52,23 @@ class MedicationLogRepository @Inject internal constructor(
                         database.medicationLogDao().observeEntries(),
                         database.medicineDao().observeMedicineChangeVersion(),
                     ) { entries, _ ->
-                        val medicinesByUuid = database.resolveMedicinesForEntries(entries)
-                        entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
+                        // Resolve + map can throw transiently: observeEntries() and
+                        // observeMedicineChangeVersion() are independently-invalidated
+                        // Room flows, so combine can pair a stale entry list with an
+                        // already-mutated medicines table (e.g. a restore swaps every
+                        // medicine UUID in one transaction). The separate point-in-time
+                        // resolveMedicinesForEntries() then can't resolve the old UUID and
+                        // toMedicationLogEntryModel()'s checkNotNull(medicine) throws.
+                        // Handle it HERE, per emission, so the failure degrades a single
+                        // (stale) emission instead of cancelling the upstream Room
+                        // observation — the next, consistent emission recovers. A terminal
+                        // `.catch` outside flatMapLatest would instead freeze this flow
+                        // until the database (and thus the app process) is rebuilt.
+                        runCatching {
+                            val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                            entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
+                        }.getOrDefault(emptyList())
                     }
-                        .catch { emit(emptyList()) }
                 }
             }
             .stateIn(

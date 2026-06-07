@@ -10,7 +10,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -35,9 +34,15 @@ class UserProfileRepository @Inject constructor(
                 } else {
                     database.userProfileDao().observeProfile()
                         .map<UserProfileEntity?, UserProfile?> { entity ->
-                            entity?.toModel() ?: UserProfile()
+                            // Handle per emission rather than via a terminal `.catch`
+                            // inside flatMapLatest: a terminal catch would freeze this
+                            // Eagerly, app-scoped flow — and the Settings weight — until
+                            // the database (app process) is rebuilt. toModel() can't
+                            // currently throw, so this is defensive parity with the
+                            // medication/medicine flows that share this shape.
+                            runCatching { entity?.toModel() ?: UserProfile() }
+                                .getOrDefault(UserProfile())
                         }
-                        .catch { emit(UserProfile()) }
                 }
             }
             // Seed the flow from the home snapshot cache so screens that bind the

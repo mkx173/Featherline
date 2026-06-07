@@ -23,7 +23,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -50,8 +49,17 @@ class MedicineRepository @Inject internal constructor(
                     flowOf<List<Medicine>?>(null)
                 } else {
                     database.medicineDao().observeAllActive()
-                        .map { entities -> entities.map(MedicineEntity::toMedicineModel) }
-                        .catch { emit(emptyList()) }
+                        .map { entities ->
+                            // Map per emission inside runCatching: a single malformed
+                            // row (e.g. an unparseable enum or UUID introduced by a
+                            // restore) must degrade this one emission, not permanently
+                            // terminate the observation. A terminal `.catch` here sits
+                            // inside flatMapLatest, so it would freeze this Eagerly,
+                            // app-scoped flow — and the Medicines list — until the
+                            // database (app process) is rebuilt.
+                            runCatching { entities.map(MedicineEntity::toMedicineModel) }
+                                .getOrDefault(emptyList())
+                        }
                 }
             }
             .stateIn(
