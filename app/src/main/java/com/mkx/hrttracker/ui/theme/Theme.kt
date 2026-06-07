@@ -3,6 +3,8 @@ package com.mkx.hrttracker.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import com.materialkolor.dynamiccolor.ColorSpec
@@ -20,12 +22,17 @@ fun HrtTrackerTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val colorScheme = if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val (light, dark) = systemColorSchemes(context)
-        val base = if (darkTheme) dark else light
-        if (darkTheme && amoled) base.amoled() else base
-    } else {
-        rememberDynamicColorScheme(
+    val colorScheme = when {
+        // API 31+ with adaptive on: read the live system palette directly (mirrors AndroidX).
+        // Unremembered on purpose so a wallpaper/accent change flows through on recomposition;
+        // only the active mode is built, not both.
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val base = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (darkTheme && amoled) base.amoled() else base
+        }
+
+        // Adaptive off, or API 26-30 with no system palette: regenerate from DefaultSeedColor.
+        else -> rememberDynamicColorScheme(
             seedColor = DefaultSeedColor,
             isDark = darkTheme,
             isAmoled = darkTheme && amoled,
