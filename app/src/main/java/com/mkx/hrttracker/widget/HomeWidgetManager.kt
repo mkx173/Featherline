@@ -21,6 +21,7 @@ import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.observeUses24HourTimeFormat
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -74,6 +75,9 @@ class HomeWidgetManager @Inject constructor(
                     runCatching {
                         widgetSnapshotRepository.writeWidgetSnapshot(snapshot)
                     }.onFailure { throwable ->
+                        // Don't let runCatching swallow cancellation of this app-scoped
+                        // collector; rethrow so the coroutine stops cleanly.
+                        if (throwable is CancellationException) throw throwable
                         diagnosticsLogger.warning(TAG, "widget_snapshot_home_observer_failed", throwable)
                     }
                 }
@@ -100,6 +104,7 @@ class HomeWidgetManager @Inject constructor(
                     runCatching {
                         widgetSnapshotRepository.refreshWidgetSnapshot()
                     }.onFailure { throwable ->
+                        if (throwable is CancellationException) throw throwable
                         diagnosticsLogger.warning(TAG, "widget_snapshot_settings_refresh_failed", throwable)
                     }
                 }
@@ -116,6 +121,7 @@ class HomeWidgetManager @Inject constructor(
                     runCatching {
                         widgetSnapshotRepository.refreshWidgetSnapshot()
                     }.onFailure { throwable ->
+                        if (throwable is CancellationException) throw throwable
                         diagnosticsLogger.warning(TAG, "widget_snapshot_time_format_refresh_failed", throwable)
                     }
                 }
@@ -176,6 +182,7 @@ class HomeWidgetManager @Inject constructor(
                     }
                 }
             }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
                 diagnosticsLogger.warning(TAG, "widget_generated_preview_publish_failed", throwable)
             }
         }
