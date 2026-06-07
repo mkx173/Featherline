@@ -36,3 +36,14 @@ internal fun ColorScheme.amoledContainers(): ColorScheme = copy(
     surfaceContainerHighest = surfaceContainerHighest.atTone(AMOLED_TOP_TONE),
     surfaceBright = surfaceBright.atTone(AMOLED_TOP_TONE * 1.2),
 )
+
+// Full AMOLED transform for a dark scheme that isn't already amoled (e.g. the framework
+// dynamic scheme). The first copy mirrors MaterialKolor's isAmoled exactly — it blackens
+// background/surface and whitens their on-colors, and nothing else — then amoledContainers()
+// compresses the elevated ramp, matching the in-app modifyColorScheme path one-for-one.
+internal fun ColorScheme.amoled(): ColorScheme = copy(
+    background = Color.Black,
+    onBackground = Color.White,
+    surface = Color.Black,
+    onSurface = Color.White,
+).amoledContainers()

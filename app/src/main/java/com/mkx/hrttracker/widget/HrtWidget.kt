@@ -54,7 +54,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.ui.theme.DefaultSeedColor
-import com.mkx.hrttracker.ui.theme.resolveSeedColor
+import com.mkx.hrttracker.ui.theme.systemColorSchemes
 import com.mkx.hrttracker.util.currentAppLocale
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import kotlinx.coroutines.coroutineScope
@@ -110,8 +110,15 @@ private fun HrtWidgetThemed(
     // locale, so without this the chrome ("TODAY", "DONE", E2 label) renders in the system
     // language while the snapshot's baked medication/dose strings are in the app language.
     val localizedContext = context.withLanguageTag(snapshot?.appLanguageTag)
-    val seed = resolveSeedColor(localizedContext, adaptiveEnabled = adaptiveEnabled)
-    val widgetColors = widgetColorScheme(seed, alpha, forcedDark)
+    // Mirror AndroidX on API 31+ with adaptive on: read the live system palette. Otherwise
+    // regenerate from the baked seed via MaterialKolor. Widgets never apply AMOLED.
+    val (lightScheme, darkScheme) =
+        if (adaptiveEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            systemColorSchemes(localizedContext)
+        } else {
+            seededWidgetColorSchemes(DefaultSeedColor)
+        }
+    val widgetColors = widgetColorScheme(lightScheme, darkScheme, alpha, forcedDark)
     GlanceTheme {
         CompositionLocalProvider(
             // GlanceRemoteViews.compose does not seed LocalContext the way the session
