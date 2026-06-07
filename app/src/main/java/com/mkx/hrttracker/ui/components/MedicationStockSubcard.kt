@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -59,6 +60,7 @@ import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.rememberAppLocale
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -317,6 +319,7 @@ private fun StockSubcardMetricCell(
     modifier: Modifier = Modifier,
 ) {
     val metricTextStyle = MaterialTheme.typography.labelMedium
+    val appLocale = rememberAppLocale()
 
     Row(
         modifier = modifier.height(IntrinsicSize.Min),
@@ -393,20 +396,20 @@ private fun StockSubcardMetricCell(
             Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val labelText = stringResource(row.labelRes)
                 val sealedSuffix = row.sealedSupplement?.labelSuffix().orEmpty()
                 Text(
                     text = labelText + sealedSuffix,
-                    modifier = Modifier.weight(1f).alignByBaseline(),
+                    modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(appLocale),
                     style = metricTextStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                Spacer(modifier = Modifier.width(6.dp))
                 StockSubcardValueText(
                     row = row,
                     textStyle = metricTextStyle,
@@ -453,7 +456,7 @@ private fun PulsingStockSubcardProgressIndicator(
 }
 
 @Composable
-private fun StockSubcardValueText(
+private fun RowScope.StockSubcardValueText(
     row: MedicationStockSubcardRowModel,
     textStyle: androidx.compose.ui.text.TextStyle,
     currentValueTone: MedicationStockSubcardTone,
@@ -461,6 +464,7 @@ private fun StockSubcardValueText(
     blinkPreview: Boolean,
     pulseAlpha: Float,
 ) {
+    val appLocale = rememberAppLocale()
     val onSurface = MaterialTheme.colorScheme.onSurface
     val tertiary = MaterialTheme.colorScheme.tertiary
     val error = MaterialTheme.colorScheme.error
@@ -486,52 +490,49 @@ private fun StockSubcardValueText(
             textAlign = TextAlign.End,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.alignByBaseline().cjkTextOffset(appLocale),
         )
         return
     }
 
     val blinkAlpha = if (blinkPreview) pulseAlpha else 1f
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Opening a new container skips the "before" volume: the current dreg is
-        // shown on the pulsing bar instead, so the value reads "→ <fresh unit>".
-        if (!row.opensNewContainer) {
-            Text(
-                text = row.valueText,
-                style = textStyle,
-                color = currentColor,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.End,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.alignByBaseline(),
-            )
-        }
+    // Opening a new container skips the "before" volume: the current dreg is
+    // shown on the pulsing bar instead, so the value reads "→ <fresh unit>".
+    if (!row.opensNewContainer) {
         Text(
-            text = " → ",
+            text = row.valueText,
             style = textStyle,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            modifier = Modifier.alignByBaseline(),
-        )
-        Text(
-            text = resolvedStockValueText(
-                valueText = previewValueText,
-                unitRes = row.valueUnitRes,
-                pluralCount = row.previewPluralCount,
-            ),
-            style = textStyle,
-            color = previewColor,
+            color = currentColor,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.End,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.alignByBaseline().alpha(blinkAlpha),
+            modifier = Modifier.alignByBaseline().cjkTextOffset(appLocale),
         )
     }
+    Text(
+        text = " → ",
+        style = textStyle,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        modifier = Modifier.alignByBaseline().cjkTextOffset(appLocale),
+    )
+    Text(
+        text = resolvedStockValueText(
+            valueText = previewValueText,
+            unitRes = row.valueUnitRes,
+            pluralCount = row.previewPluralCount,
+        ),
+        style = textStyle,
+        color = previewColor,
+        fontWeight = FontWeight.SemiBold,
+        textAlign = TextAlign.End,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.alignByBaseline().cjkTextOffset(appLocale).alpha(blinkAlpha),
+    )
 }
 
 @Composable
