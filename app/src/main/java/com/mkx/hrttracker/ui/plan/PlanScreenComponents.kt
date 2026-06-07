@@ -336,7 +336,7 @@ private fun SelectedDayRow(
                     Text(
                         text = titleText,
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(titleText),
+                        modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset("$titleText$timeLabel"),
                         fontWeight = FontWeight.Normal,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -348,7 +348,7 @@ private fun SelectedDayRow(
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.End,
                         maxLines = 1,
-                        modifier = Modifier.alignByBaseline().cjkTextOffset(titleText)
+                        modifier = Modifier.alignByBaseline().cjkTextOffset("$titleText$timeLabel")
                     )
                 }
                 Row(
