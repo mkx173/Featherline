@@ -263,10 +263,11 @@ Shared sub-packages:
   `Screen` sealed class, and the navigation-transition specs. See
   the section below.
 - [`ui/theme`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/theme) — Material 3 color scheme, typography,
-  shapes. App and widget share one seed (`resolveSeedColor`:
-  `system_accent1_500` on API 31+ when adaptive color is on, else the
-  baked `DefaultSeedColor`) expanded by MaterialKolor; the AMOLED
-  pure-black toggle forces a true-black background over that scheme.
+  shapes. On API 31+ with adaptive color on, the app and widget read the
+  system Material You palette directly (`systemColorSchemes`, matching
+  AndroidX); otherwise MaterialKolor expands the baked `DefaultSeedColor`.
+  The AMOLED pure-black toggle forces a true-black background over that
+  scheme.
 
 ## Dependency injection
 

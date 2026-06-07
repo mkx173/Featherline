@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+
+- On Android 12+, the app and widget now follow the system's full Material You palette (its secondary and tertiary accents, not just the primary color).
 
 ## [1.1.1] - 2026-06-07
 
