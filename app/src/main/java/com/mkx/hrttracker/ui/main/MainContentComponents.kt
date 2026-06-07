@@ -3312,7 +3312,8 @@ private fun MainUpcomingDoseRow(
                     fontWeight = FontWeight.Normal,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.End,
-                    maxLines = 1
+                    maxLines = 1,
+                    modifier = Modifier.cjkTextOffset(timeLabel)
                 )
             }
         ) {

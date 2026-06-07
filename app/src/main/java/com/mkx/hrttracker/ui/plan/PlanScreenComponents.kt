@@ -336,7 +336,7 @@ private fun SelectedDayRow(
                     Text(
                         text = titleText,
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f).alignByBaseline(),
+                        modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(titleText),
                         fontWeight = FontWeight.Normal,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -348,7 +348,7 @@ private fun SelectedDayRow(
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.End,
                         maxLines = 1,
-                        modifier = Modifier.alignByBaseline()
+                        modifier = Modifier.alignByBaseline().cjkTextOffset(titleText)
                     )
                 }
                 Row(
@@ -510,7 +510,8 @@ internal fun RegimenGroupCard(
                     Text(
                         text = group.name,
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.cjkTextOffset(group.name)
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -679,11 +680,13 @@ internal fun RegimenGroupCard(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                 )
 
+                val upcomingText = stringResource(R.string.plan_group_upcoming_title)
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = stringResource(R.string.plan_group_upcoming_title).uppercase(),
+                        text = upcomingText.uppercase(),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.cjkTextOffset(upcomingText)
                     )
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),

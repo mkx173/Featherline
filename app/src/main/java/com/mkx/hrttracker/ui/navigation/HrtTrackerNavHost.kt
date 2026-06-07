@@ -81,6 +81,7 @@ import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.stockInventoryCountText
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.MedicationLogEntryEditSnapshot
@@ -644,7 +645,11 @@ fun HrtTrackerNavHost(
                             )
                         },
                         label = {
-                            Text(text = stringResource(navItem.screen.label))
+                            val screenLabelText = stringResource(navItem.screen.label)
+                            Text(
+                                text = screenLabelText,
+                                modifier = Modifier.cjkTextOffset(screenLabelText)
+                            )
                         }
                     )
                 }

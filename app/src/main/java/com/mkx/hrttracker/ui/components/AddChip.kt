@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.components
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -16,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -25,7 +27,7 @@ import com.mkx.hrttracker.R
 fun AddChip(
     onClick: () -> Unit,
     label: String = stringResource(R.string.add),
-    icon: ImageVector = Icons.Rounded.Add,
+    @DrawableRes painterResourceId: Int = R.drawable.ic_add,
     enabled: Boolean = true,
 ) {
     val containerColor = if (enabled) {
@@ -54,7 +56,7 @@ fun AddChip(
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = icon,
+                    painter = painterResource(painterResourceId),
                     contentDescription = null,
                     modifier = Modifier.size(16.dp)
                 )

@@ -131,7 +131,7 @@ internal fun WeeklyScheduleEditor(
                     AddChip(
                         onClick = onResetDaysOfWeek,
                         label = stringResource(R.string.group_schedule_reset_days_to_start),
-                        icon = Icons.Rounded.RestartAlt,
+                        painterResourceId = R.drawable.ic_restart_alt,
                         enabled = daySelectionEnabled && !isDaySelectionAtDefault,
                     )
                 }

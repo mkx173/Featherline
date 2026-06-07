@@ -400,7 +400,7 @@ private fun StockSubcardMetricCell(
                 val sealedSuffix = row.sealedSupplement?.labelSuffix().orEmpty()
                 Text(
                     text = labelText + sealedSuffix,
-                    modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(labelText),
+                    modifier = Modifier.weight(1f).alignByBaseline(),
                     style = metricTextStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium,
