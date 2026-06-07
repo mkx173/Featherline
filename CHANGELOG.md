@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _Nothing yet._
 
+## [1.1.1] - 2026-06-07
+
+### Fixed
+
+- Restoring a backup now reliably refreshes the Plan screen (and the medicines list) instead of occasionally showing stale data until the app was restarted.
+
 ## [1.1.0] - 2026-06-07
 
 ### Added
@@ -123,7 +129,8 @@ First public release on Google Play.
 - Material 3 interface with dynamic color.
 - Fully on-device, encrypted local storage — no accounts, no telemetry, no network calls.
 
-[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/mkx173/Featherline/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/mkx173/Featherline/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/mkx173/Featherline/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/mkx173/Featherline/compare/v1.0.1...v1.0.2

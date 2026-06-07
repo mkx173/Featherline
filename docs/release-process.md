@@ -14,7 +14,7 @@ val gitCommitCount = providers.exec {
 
 See [`app/build.gradle.kts:10-12`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L10-L12). The `play`, `arm64`, and `x64` flavors share the same `versionCode` at any given commit, so Play Bundle and sideload APKs for the same commit map cleanly to each other.
 
-`versionName` is static (currently `1.1.0`, [`app/build.gradle.kts:61`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L61)). Debug builds append the git short SHA via [`versionNameSuffix = "-$gitCommitHash"`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L96-L99); the suffix is omitted on release builds.
+`versionName` is static. Debug builds append the git short SHA via [`versionNameSuffix = "-$gitCommitHash"`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L96-L99); the suffix is omitted on release builds.
 
 ## Release artifacts
 
