@@ -392,7 +392,7 @@ private fun SelectedDayRow(
                             color = labelColor,
                             textAlign = TextAlign.End,
                             maxLines = 1,
-                            modifier = Modifier.alignByBaseline().cjkTextOffset(titleText)
+                            modifier = Modifier.alignByBaseline().cjkTextOffset(labelDisplayText)
                         )
                     }
                 }
