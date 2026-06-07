@@ -31,6 +31,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -744,6 +745,45 @@ class MedicineRepositoryTest {
             UUID.fromString(recoveredUuid),
             emissions.last()?.singleOrNull()?.uuid,
         )
+    }
+
+    // Companion to the malformed-row test above, guarding the OTHER failure surface:
+    // an error from the Room flow ITSELF (not the per-row mapping) — e.g. a corrupt
+    // database or disk I/O fault surfacing the query as an exception. The terminal
+    // `.catch` must degrade that to an empty list. Without it the exception reaches
+    // the Eagerly, app-scoped stateIn collector running in appScope (a SupervisorJob
+    // with no CoroutineExceptionHandler) and crashes the process instead of leaving a
+    // stale/empty screen.
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeAllActive_degradesToEmptyWhenRoomFlowErrors() = runTest {
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns flow {
+            emit(listOf(medicineEntity()))
+            throw IllegalStateException("simulated Room query failure")
+        }
+
+        val freshRepository = MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        val emissions = mutableListOf<List<Medicine>?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            freshRepository.observeAllActiveOrNull().collect { emissions += it }
+        }
+
+        advanceUntilIdle()
+
+        // The failing Room flow must surface as an empty list, not propagate out of
+        // the app-scoped collector (which would otherwise fail this test with the
+        // uncaught IllegalStateException).
+        assertEquals(emptyList<Medicine>(), emissions.last())
     }
 
     private fun medicineEntity(

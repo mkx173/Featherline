@@ -19,6 +19,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -77,6 +78,15 @@ class MedicationLogRepository @Inject internal constructor(
                             emptyList()
                         }
                     }
+                        // Per-emission runCatching above recovers from transform
+                        // failures; this terminal catch separately guards the Room
+                        // flows themselves failing (DB corruption / I/O error). Without
+                        // it an upstream error would reach the Eagerly, app-scoped
+                        // stateIn collector and crash the process — appScope is a
+                        // SupervisorJob with no CoroutineExceptionHandler. Transform
+                        // throws are caught above and never reach here, so the
+                        // transient-restore freeze does not return.
+                        .catch { emit(emptyList()) }
                 }
             }
             .stateIn(

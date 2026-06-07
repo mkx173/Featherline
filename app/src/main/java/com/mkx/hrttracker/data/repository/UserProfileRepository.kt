@@ -11,6 +11,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -51,6 +52,13 @@ class UserProfileRepository @Inject constructor(
                                     UserProfile()
                                 }
                         }
+                        // Per-emission runCatching above recovers from a transform
+                        // failure; this terminal catch separately guards the Room flow
+                        // itself failing (DB corruption / I/O error). Without it an
+                        // upstream error would reach the Eagerly, app-scoped stateIn
+                        // collector and crash the process — appScope is a SupervisorJob
+                        // with no CoroutineExceptionHandler.
+                        .catch { emit(UserProfile()) }
                 }
             }
             // Seed the flow from the home snapshot cache so screens that bind the
