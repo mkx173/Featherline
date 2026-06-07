@@ -532,8 +532,6 @@ internal fun MainE2HeroCard(
     val colorScheme = MaterialTheme.colorScheme
     val heroContentColor = colorScheme.primary
     val heroSupportingColor = colorScheme.onSurfaceVariant
-    val heroPillContainerColor = colorScheme.secondaryContainer.copy(alpha = 0.7f)
-    val heroPillContentColor = colorScheme.onSecondaryContainer
 
     Box(modifier = modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge)) {
         Surface(
@@ -686,15 +684,16 @@ internal fun MainE2HeroCard(
                             }
                             HrtPill(
                                 label = sinceYesterdayText,
-                                containerColor = heroPillContainerColor,
-                                contentColor = heroPillContentColor,
+                                containerColor = colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                                contentColor = colorScheme.onSecondaryContainer,
                                 size = HrtPillSize.Small,
                                 fontWeight = FontWeight.SemiBold,
                                 icon = {
                                     Icon(
                                         painter = painterResource(trendIconPainterRes),
                                         contentDescription = null,
-                                        modifier = iconModifier
+                                        modifier = iconModifier,
+                                        tint = colorScheme.onSecondaryContainer
                                     )
                                 },
                             )
@@ -707,9 +706,6 @@ internal fun MainE2HeroCard(
                                 R.drawable.ic_info_heavy
                             },
                             text = lastDoseSummary,
-                            iconTint = heroSupportingColor,
-                            containerColor = heroPillContainerColor,
-                            contentColor = heroPillContentColor,
                         )
                     }
                 }
@@ -2851,19 +2847,23 @@ private fun MainInfoPill(
     modifier: Modifier = Modifier,
     iconDrawableRes: Int? = null,
     text: String,
-    iconTint: Color = MaterialTheme.colorScheme.onSecondaryContainer,
-    containerColor: Color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-    contentColor: Color = MaterialTheme.colorScheme.onSecondaryContainer,
 ) {
     HrtPill(
         label = text,
-        containerColor = containerColor,
-        contentColor = contentColor,
+        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         modifier = modifier,
         size = HrtPillSize.Small,
         fontWeight = FontWeight.SemiBold,
         icon = iconDrawableRes?.let { res ->
-            { Icon(painterResource(res), contentDescription = null, tint = iconTint, modifier = iconModifier) }
+            {
+                Icon(
+                    painterResource(res),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = iconModifier
+                )
+            }
         },
     )
 }
