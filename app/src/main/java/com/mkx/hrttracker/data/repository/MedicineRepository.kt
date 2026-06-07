@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.normalizeCustomMedicationName
 import com.mkx.hrttracker.util.ToastManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -58,7 +59,14 @@ class MedicineRepository @Inject internal constructor(
                             // app-scoped flow — and the Medicines list — until the
                             // database (app process) is rebuilt.
                             runCatching { entities.map(MedicineEntity::toMedicineModel) }
-                                .getOrDefault(emptyList())
+                                .getOrElse { error ->
+                                    // No suspension point inside the block today, so
+                                    // cancellation can't surface here — but rethrow it
+                                    // anyway so runCatching never silently swallows
+                                    // cancellation if a suspend call is added later.
+                                    if (error is CancellationException) throw error
+                                    emptyList()
+                                }
                         }
                 }
             }

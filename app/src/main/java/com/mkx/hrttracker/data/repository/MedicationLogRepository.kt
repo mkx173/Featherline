@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.isCompatibleWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -67,7 +68,14 @@ class MedicationLogRepository @Inject internal constructor(
                         runCatching {
                             val medicinesByUuid = database.resolveMedicinesForEntries(entries)
                             entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
-                        }.getOrDefault(emptyList())
+                        }.getOrElse { error ->
+                            // resolveMedicinesForEntries() suspends, so cancellation
+                            // surfaces here as a CancellationException. runCatching would
+                            // swallow it (unlike the Flow .catch this replaced); rethrow so
+                            // flatMapLatest/scope cancellation is honoured.
+                            if (error is CancellationException) throw error
+                            emptyList()
+                        }
                     }
                 }
             }

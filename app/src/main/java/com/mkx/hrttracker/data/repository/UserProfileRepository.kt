@@ -5,6 +5,7 @@ import com.mkx.hrttracker.data.local.UserProfileEntity
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -41,7 +42,14 @@ class UserProfileRepository @Inject constructor(
                             // currently throw, so this is defensive parity with the
                             // medication/medicine flows that share this shape.
                             runCatching { entity?.toModel() ?: UserProfile() }
-                                .getOrDefault(UserProfile())
+                                .getOrElse { error ->
+                                    // No suspension point inside the block today, so
+                                    // cancellation can't surface here — but rethrow it
+                                    // anyway so runCatching never silently swallows
+                                    // cancellation if a suspend call is added later.
+                                    if (error is CancellationException) throw error
+                                    UserProfile()
+                                }
                         }
                 }
             }
@@ -52,7 +60,13 @@ class UserProfileRepository @Inject constructor(
             .onStart {
                 runCatching {
                     homeSnapshotRepository.readUsableHomeSnapshot()?.userProfile
-                }.getOrNull()?.let { emit(it) }
+                }.getOrElse { error ->
+                    // readUsableHomeSnapshot() suspends; don't let runCatching swallow
+                    // cancellation of the collecting scope. Any other failure is
+                    // non-fatal here — the authoritative Room flow follows immediately.
+                    if (error is CancellationException) throw error
+                    null
+                }?.let { emit(it) }
             }
             .stateIn(
                 scope = appScope,

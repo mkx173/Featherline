@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.planCalendarDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -72,7 +73,14 @@ class MedicationGroupRepository @Inject constructor(
                         runCatching {
                             val medicinesByUuid = database.resolveMedicinesForGroups(groups)
                             groups.map { it.toMedicationGroupModel(medicinesByUuid) }
-                        }.getOrDefault(emptyList())
+                        }.getOrElse { error ->
+                            // resolveMedicinesForGroups() suspends, so cancellation
+                            // surfaces here as a CancellationException. runCatching would
+                            // swallow it (unlike the Flow .catch this replaced); rethrow so
+                            // flatMapLatest/scope cancellation is honoured.
+                            if (error is CancellationException) throw error
+                            emptyList()
+                        }
                     }
                 }
             }
