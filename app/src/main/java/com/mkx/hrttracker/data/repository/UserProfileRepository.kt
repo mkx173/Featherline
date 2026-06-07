@@ -5,6 +5,7 @@ import com.mkx.hrttracker.data.local.UserProfileEntity
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -35,8 +36,28 @@ class UserProfileRepository @Inject constructor(
                 } else {
                     database.userProfileDao().observeProfile()
                         .map<UserProfileEntity?, UserProfile?> { entity ->
-                            entity?.toModel() ?: UserProfile()
+                            // Handle per emission rather than via a terminal `.catch`
+                            // inside flatMapLatest: a terminal catch would freeze this
+                            // Eagerly, app-scoped flow — and the Settings weight — until
+                            // the database (app process) is rebuilt. toModel() can't
+                            // currently throw, so this is defensive parity with the
+                            // medication/medicine flows that share this shape.
+                            runCatching { entity?.toModel() ?: UserProfile() }
+                                .getOrElse { error ->
+                                    // No suspension point inside the block today, so
+                                    // cancellation can't surface here — but rethrow it
+                                    // anyway so runCatching never silently swallows
+                                    // cancellation if a suspend call is added later.
+                                    if (error is CancellationException) throw error
+                                    UserProfile()
+                                }
                         }
+                        // Per-emission runCatching above recovers from a transform
+                        // failure; this terminal catch separately guards the Room flow
+                        // itself failing (DB corruption / I/O error). Without it an
+                        // upstream error would reach the Eagerly, app-scoped stateIn
+                        // collector and crash the process — appScope is a SupervisorJob
+                        // with no CoroutineExceptionHandler.
                         .catch { emit(UserProfile()) }
                 }
             }
@@ -47,7 +68,13 @@ class UserProfileRepository @Inject constructor(
             .onStart {
                 runCatching {
                     homeSnapshotRepository.readUsableHomeSnapshot()?.userProfile
-                }.getOrNull()?.let { emit(it) }
+                }.getOrElse { error ->
+                    // readUsableHomeSnapshot() suspends; don't let runCatching swallow
+                    // cancellation of the collecting scope. Any other failure is
+                    // non-fatal here — the authoritative Room flow follows immediately.
+                    if (error is CancellationException) throw error
+                    null
+                }?.let { emit(it) }
             }
             .stateIn(
                 scope = appScope,

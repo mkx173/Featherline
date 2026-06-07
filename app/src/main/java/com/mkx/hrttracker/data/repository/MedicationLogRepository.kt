@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.isCompatibleWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -53,9 +54,38 @@ class MedicationLogRepository @Inject internal constructor(
                         database.medicationLogDao().observeEntries(),
                         database.medicineDao().observeMedicineChangeVersion(),
                     ) { entries, _ ->
-                        val medicinesByUuid = database.resolveMedicinesForEntries(entries)
-                        entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
+                        // Resolve + map can throw transiently: observeEntries() and
+                        // observeMedicineChangeVersion() are independently-invalidated
+                        // Room flows, so combine can pair a stale entry list with an
+                        // already-mutated medicines table (e.g. a restore swaps every
+                        // medicine UUID in one transaction). The separate point-in-time
+                        // resolveMedicinesForEntries() then can't resolve the old UUID and
+                        // toMedicationLogEntryModel()'s checkNotNull(medicine) throws.
+                        // Handle it HERE, per emission, so the failure degrades a single
+                        // (stale) emission instead of cancelling the upstream Room
+                        // observation — the next, consistent emission recovers. A terminal
+                        // `.catch` outside flatMapLatest would instead freeze this flow
+                        // until the database (and thus the app process) is rebuilt.
+                        runCatching {
+                            val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                            entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
+                        }.getOrElse { error ->
+                            // resolveMedicinesForEntries() suspends, so cancellation
+                            // surfaces here as a CancellationException. runCatching would
+                            // swallow it (unlike the Flow .catch this replaced); rethrow so
+                            // flatMapLatest/scope cancellation is honoured.
+                            if (error is CancellationException) throw error
+                            emptyList()
+                        }
                     }
+                        // Per-emission runCatching above recovers from transform
+                        // failures; this terminal catch separately guards the Room
+                        // flows themselves failing (DB corruption / I/O error). Without
+                        // it an upstream error would reach the Eagerly, app-scoped
+                        // stateIn collector and crash the process — appScope is a
+                        // SupervisorJob with no CoroutineExceptionHandler. Transform
+                        // throws are caught above and never reach here, so the
+                        // transient-restore freeze does not return.
                         .catch { emit(emptyList()) }
                 }
             }

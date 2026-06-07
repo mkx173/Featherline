@@ -30,6 +30,7 @@ import io.mockk.slot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -1917,6 +1918,93 @@ class MedicationGroupRepositoryTest {
         assertEquals(
             "Renamed",
             after?.first()?.medications?.first()?.medicine?.displayName,
+        )
+    }
+
+    // Regression for the "Plan screen doesn't update after restore until app
+    // restart" bug. A backup restore swaps every medicine UUID inside one
+    // transaction. Room delivers the medicines-table invalidation independently
+    // from the medication_groups invalidation, so the combine() backing
+    // observeGroups() can re-run its transform with the still-stale OLD group
+    // (which references the OLD medicine UUID) paired against the already-swapped
+    // medicines table. The separate point-in-time getByUuids() then fails to
+    // resolve the old UUID and toMedicationGroupModel()'s checkNotNull(medicine)
+    // throws.
+    //
+    // That transient failure must NOT permanently terminate the flow. The bug was
+    // a `.catch { emit(emptyList()) }` sitting INSIDE flatMapLatest: catch is
+    // terminal, so it completed the upstream Room observation and froze
+    // observeGroups() at emptyList() until the process (and thus databaseFlow)
+    // was rebuilt — i.e. an app restart.
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeGroups_recoversAfterTransientUnresolvedMedicineDuringRestore() = runTest {
+        val oldGroupUuid = UUID.fromString("dddddddd-0000-0000-0000-0000000000a1")
+        val oldItemUuid = UUID.fromString("eeeeeeee-0000-0000-0000-0000000000a2")
+        val oldMedicineUuid = UUID.fromString("ffffffff-0000-0000-0000-0000000000a3")
+        val newGroupUuid = UUID.fromString("dddddddd-0000-0000-0000-0000000000b1")
+        val newItemUuid = UUID.fromString("eeeeeeee-0000-0000-0000-0000000000b2")
+        val newMedicineUuid = UUID.fromString("ffffffff-0000-0000-0000-0000000000b3")
+
+        val medicineDao = mockk<MedicineDao>()
+        val groupsSource =
+            MutableStateFlow(listOf(testGroupWithItem(oldGroupUuid, oldItemUuid, oldMedicineUuid)))
+        val medicineChangeVersion = MutableStateFlow(0)
+        // The set of medicine UUIDs the (post-restore) medicines table can resolve.
+        var resolvableMedicineUuids = setOf(oldMedicineUuid.toString())
+
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { database.medicineDao() } returns medicineDao
+        every { medicationGroupDao.observeGroups() } returns groupsSource
+        every { medicineDao.observeMedicineChangeVersion() } returns medicineChangeVersion
+        coEvery { medicineDao.getByUuids(any()) } answers {
+            firstArg<List<String>>()
+                .filter { it in resolvableMedicineUuids }
+                .map { uuid ->
+                    testMedicineEntity(
+                        uuid = uuid,
+                        medicationKey = MedicationKey.ESTRADIOL,
+                        preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                    )
+                }
+        }
+
+        val freshRepository = MedicationGroupRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        val emissions = mutableListOf<List<com.mkx.hrttracker.model.medication.MedicationGroup>?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            freshRepository.observeGroups().collect { emissions += it }
+        }
+
+        advanceUntilIdle()
+        assertEquals(oldGroupUuid, emissions.last()?.singleOrNull()?.uuid)
+
+        // Restore commits: the medicines table is swapped to the NEW UUID set and
+        // its invalidation arrives FIRST, while the groups flow still holds the old
+        // group. combine() re-resolves -> getByUuids can't find the old UUID ->
+        // checkNotNull(medicine) throws.
+        resolvableMedicineUuids = setOf(newMedicineUuid.toString())
+        medicineChangeVersion.value += 1
+        advanceUntilIdle()
+
+        // The groups flow finally catches up with the restored group set.
+        groupsSource.value =
+            listOf(testGroupWithItem(newGroupUuid, newItemUuid, newMedicineUuid))
+        advanceUntilIdle()
+
+        // With the terminal catch, the flow died at the throw above and never
+        // re-emits, so this stays at the empty list -> assertion fails. After the
+        // fix the flow survives the transient failure and reflects the restore.
+        assertEquals(
+            "observeGroups() must recover after a transient unresolved-medicine failure during restore",
+            newGroupUuid,
+            emissions.last()?.singleOrNull()?.uuid,
         )
     }
 }

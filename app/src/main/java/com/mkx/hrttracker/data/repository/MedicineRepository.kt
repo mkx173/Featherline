@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.normalizeCustomMedicationName
 import com.mkx.hrttracker.util.ToastManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -50,7 +51,30 @@ class MedicineRepository @Inject internal constructor(
                     flowOf<List<Medicine>?>(null)
                 } else {
                     database.medicineDao().observeAllActive()
-                        .map { entities -> entities.map(MedicineEntity::toMedicineModel) }
+                        .map { entities ->
+                            // Map per emission inside runCatching: a single malformed
+                            // row (e.g. an unparseable enum or UUID introduced by a
+                            // restore) must degrade this one emission, not permanently
+                            // terminate the observation. A terminal `.catch` here sits
+                            // inside flatMapLatest, so it would freeze this Eagerly,
+                            // app-scoped flow — and the Medicines list — until the
+                            // database (app process) is rebuilt.
+                            runCatching { entities.map(MedicineEntity::toMedicineModel) }
+                                .getOrElse { error ->
+                                    // No suspension point inside the block today, so
+                                    // cancellation can't surface here — but rethrow it
+                                    // anyway so runCatching never silently swallows
+                                    // cancellation if a suspend call is added later.
+                                    if (error is CancellationException) throw error
+                                    emptyList()
+                                }
+                        }
+                        // Per-emission runCatching above recovers from a malformed
+                        // row; this terminal catch separately guards the Room flow
+                        // itself failing (DB corruption / I/O error). Without it an
+                        // upstream error would reach the Eagerly, app-scoped stateIn
+                        // collector and crash the process — appScope is a SupervisorJob
+                        // with no CoroutineExceptionHandler.
                         .catch { emit(emptyList()) }
                 }
             }

@@ -31,6 +31,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -695,6 +698,92 @@ class MedicineRepositoryTest {
         assertThrows(IllegalStateException::class.java) {
             entity.toMedicineModel()
         }
+    }
+
+    // Sibling of the "Plan screen doesn't update after restore" bug. activeMedicinesFlow
+    // is an Eagerly, app-scoped StateFlow built inside flatMapLatest(databaseFlow); a
+    // terminal `.catch` there would complete the upstream Room observation on the first
+    // failed mapping (e.g. a corrupt row from a restore) and freeze the Medicines list
+    // at emptyList() until the process — and thus databaseFlow — is rebuilt. The mapping
+    // must instead degrade a single emission and recover on the next valid one.
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeAllActive_recoversAfterTransientMalformedRow() = runTest {
+        val medicinesSource = MutableStateFlow(listOf(medicineEntity()))
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns medicinesSource
+
+        val freshRepository = MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        val emissions = mutableListOf<List<Medicine>?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            freshRepository.observeAllActiveOrNull().collect { emissions += it }
+        }
+
+        advanceUntilIdle()
+        assertEquals(1, emissions.last()?.size)
+
+        // A corrupt row (unparseable UUID) makes toMedicineModel throw for this emission.
+        medicinesSource.value = listOf(medicineEntity(uuid = "not-a-uuid"))
+        advanceUntilIdle()
+
+        // A subsequent valid emission must be reflected — proving the flow did not freeze.
+        val recoveredUuid = "aaaaaaaa-0000-0000-0000-000000000001"
+        medicinesSource.value = listOf(medicineEntity(uuid = recoveredUuid))
+        advanceUntilIdle()
+
+        assertEquals(
+            "observeAllActive() must recover after a transient malformed-row failure",
+            UUID.fromString(recoveredUuid),
+            emissions.last()?.singleOrNull()?.uuid,
+        )
+    }
+
+    // Companion to the malformed-row test above, guarding the OTHER failure surface:
+    // an error from the Room flow ITSELF (not the per-row mapping) — e.g. a corrupt
+    // database or disk I/O fault surfacing the query as an exception. The terminal
+    // `.catch` must degrade that to an empty list. Without it the exception reaches
+    // the Eagerly, app-scoped stateIn collector running in appScope (a SupervisorJob
+    // with no CoroutineExceptionHandler) and crashes the process instead of leaving a
+    // stale/empty screen.
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeAllActive_degradesToEmptyWhenRoomFlowErrors() = runTest {
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns flow {
+            emit(listOf(medicineEntity()))
+            throw IllegalStateException("simulated Room query failure")
+        }
+
+        val freshRepository = MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        val emissions = mutableListOf<List<Medicine>?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            freshRepository.observeAllActiveOrNull().collect { emissions += it }
+        }
+
+        advanceUntilIdle()
+
+        // The failing Room flow must surface as an empty list, not propagate out of
+        // the app-scoped collector (which would otherwise fail this test with the
+        // uncaught IllegalStateException).
+        assertEquals(emptyList<Medicine>(), emissions.last())
     }
 
     private fun medicineEntity(
