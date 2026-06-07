@@ -1,8 +1,11 @@
 package com.mkx.hrttracker.ui.theme
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
+import androidx.annotation.RequiresApi
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -13,26 +16,14 @@ import androidx.compose.ui.graphics.Color
 val DefaultSeedColor = Color(0xFF6476A5)
 
 /**
- * Single source of the Material 3 seed for both the app and the widget.
- * On API >= 31 with adaptive color on, mirror the launcher's Material You by seeding
- * from system_accent1_500. Otherwise fall back to [DefaultSeedColor].
+ * The live system light & dark schemes, read straight from the framework's dynamic-color
+ * resources — the exact same source AndroidX's dynamicLight/DarkColorScheme draw from. This
+ * mirrors the launcher's Material You faithfully (all three accent ramps + neutrals), rather
+ * than reconstructing the whole palette from a single seed.
  *
- * @param sdkInt injectable for testing; defaults to the runtime SDK level.
+ * API 31+ only; callers must gate on [Build.VERSION_CODES.S] and fall back to a
+ * [DefaultSeedColor]-seeded MaterialKolor scheme below that.
  */
-fun resolveSeedColor(
-    context: Context,
-    adaptiveEnabled: Boolean,
-    sdkInt: Int = Build.VERSION.SDK_INT,
-): Color {
-    val canUseSystemSeed = adaptiveEnabled && sdkInt >= Build.VERSION_CODES.S
-    return if (canUseSystemSeed) {
-        systemAccentSeed(context)
-    } else {
-        DefaultSeedColor
-    }
-}
-
-@SuppressLint("InlinedApi")
-private fun systemAccentSeed(context: Context): Color {
-    return Color(context.getColor(android.R.color.system_accent1_500))
-}
+@RequiresApi(Build.VERSION_CODES.S)
+fun systemColorSchemes(context: Context): Pair<ColorScheme, ColorScheme> =
+    dynamicLightColorScheme(context) to dynamicDarkColorScheme(context)

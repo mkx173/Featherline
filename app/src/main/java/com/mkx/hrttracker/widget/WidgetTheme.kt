@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.widget
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.glance.unit.ColorProvider
@@ -50,13 +51,16 @@ private fun colorProvider(light: Color, dark: Color, forcedDark: Boolean?): Colo
         null -> DayNightColorProvider(light, dark)
     }
 
+// Builds the widget's day/night ColorProvider scheme from explicit light & dark Material 3
+// schemes. The source is chosen upstream: the live system palette (mirrors AndroidX) on API
+// 31+ with adaptive color on, or a DefaultSeedColor MaterialKolor scheme otherwise. Widgets
+// never apply AMOLED, so there is no amoled handling here.
 internal fun widgetColorScheme(
-    seed: Color,
+    light: ColorScheme,
+    dark: ColorScheme,
     alpha: Float = 1.0f,
     forcedDark: Boolean? = null,
 ): WidgetColorScheme {
-    val light = dynamicColorScheme(seedColor = seed, isDark = false, specVersion = ColorSpec.SpecVersion.SPEC_2025)
-    val dark = dynamicColorScheme(seedColor = seed, isDark = true, specVersion = ColorSpec.SpecVersion.SPEC_2025)
     fun provider(lightColor: Color, darkColor: Color) = colorProvider(lightColor, darkColor, forcedDark)
     return WidgetColorScheme(
         primary = provider(light.primary, dark.primary),
@@ -80,6 +84,17 @@ internal fun widgetColorScheme(
         outline = provider(light.outline, dark.outline),
         outlineVariant = provider(light.outlineVariant, dark.outlineVariant),
     )
+}
+
+// MaterialKolor fallback: regenerate matching light & dark schemes from a single seed. Used
+// when adaptive color is off or below API 31, and by the preview/default surfaces below.
+internal fun seededWidgetColorSchemes(seed: Color): Pair<ColorScheme, ColorScheme> =
+    dynamicColorScheme(seedColor = seed, isDark = false, specVersion = ColorSpec.SpecVersion.SPEC_2025) to
+        dynamicColorScheme(seedColor = seed, isDark = true, specVersion = ColorSpec.SpecVersion.SPEC_2025)
+
+internal fun widgetColorScheme(seed: Color): WidgetColorScheme {
+    val (light, dark) = seededWidgetColorSchemes(seed)
+    return widgetColorScheme(light, dark)
 }
 
 internal val LocalWidgetColors = compositionLocalOf { widgetColorScheme(DefaultSeedColor) }

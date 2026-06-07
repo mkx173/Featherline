@@ -66,13 +66,13 @@ private data class StockChipPalette(
 private fun stockChipPalette(state: MedicineStockState): StockChipPalette? {
     return when (state) {
         MedicineStockState.OUT -> StockChipPalette(
-            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+            containerColor = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer,
             labelRes = R.string.stock_chip_out,
             iconRes = R.drawable.ic_production_quantity_limits,
         )
         MedicineStockState.IMMINENT -> StockChipPalette(
-            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+            containerColor = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer,
             labelRes = R.string.stock_chip_imminent,
             iconRes = R.drawable.ic_production_quantity_limits,
