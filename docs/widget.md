@@ -74,7 +74,9 @@ render an E2 estimate without re-simulating.
 Manual (off-schedule) log entries take a separate path
 (`toManualWidgetDoseRow`); they intentionally land with
 `groupUuid = null` and `scheduleTimeUuid = null`, which is the
-invariant that makes [group collapsing](#group-collapsing) safe.
+invariant that makes [group collapsing](#group-collapsing) safe. A manual
+row marks itself with an edit-square icon in the trailing area in place of
+a textual "manual" label.
 
 Trailing times are pre-formatted into the snapshot rather than stored
 as `LocalDateTime`, because Glance composables can't read the host

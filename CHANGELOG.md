@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.1.4] - 2026-06-09
+
 ### Added
 
 - The antiandrogen card now lists an ad-hoc (manual) dose as its own row after the planned doses, marked "manual", instead of replacing a planned dose's details.
@@ -15,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The antiandrogen card no longer treat a dose pre-logged for later today as the most recent dose.
 - When a group tracks the same antiandrogen at more than one dose, each dose now shows its own last dose, including doses logged on earlier days.
+- Restoring a backup now reliably refreshes the home screen instead of occasionally showing stale data until the app was restarted.
 
 ## [1.1.3] - 2026-06-08
 
@@ -157,7 +162,8 @@ First public release on Google Play.
 - Material 3 interface with dynamic color.
 - Fully on-device, encrypted local storage — no accounts, no telemetry, no network calls.
 
-[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.1.3...HEAD
+[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.1.4...HEAD
+[1.1.4]: https://github.com/mkx173/Featherline/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/mkx173/Featherline/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/mkx173/Featherline/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/mkx173/Featherline/compare/v1.1.0...v1.1.1
