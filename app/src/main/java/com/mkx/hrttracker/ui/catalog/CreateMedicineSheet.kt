@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
@@ -24,6 +25,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldLabelPosition
+import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -742,6 +744,7 @@ private fun NewMedicinePreparationForm(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun PreparationFormButtonGroup(
     options: List<MedicinePreparationForm>,
@@ -758,6 +761,7 @@ private fun PreparationFormButtonGroup(
             Icon(
                 painter = painterResource(medicinePreparationFormIconRes(form)),
                 contentDescription = null,
+                modifier = Modifier.size(ToggleButtonDefaults.IconSize)
             )
         },
         onOptionSelected = onOptionSelected,

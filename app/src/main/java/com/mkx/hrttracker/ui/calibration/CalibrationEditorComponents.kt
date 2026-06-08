@@ -59,6 +59,7 @@ import androidx.compose.ui.relocation.bringIntoView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -414,13 +415,14 @@ internal fun CalibrationAnalyteCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
+                val bookmarkIcon = ImageVector.vectorResource(R.drawable.ic_bookmark)
                 ConnectedButtonGroup(
                     options = allowedUnits,
                     selectedOption = unit,
                     optionLabel = { option -> calibrationUnitLabel(option) },
                     optionIcons = { option ->
                         if (option == originalUnit) {
-                            listOf(Icons.Rounded.Edit)
+                            listOf(bookmarkIcon)
                         } else {
                             emptyList()
                         }
