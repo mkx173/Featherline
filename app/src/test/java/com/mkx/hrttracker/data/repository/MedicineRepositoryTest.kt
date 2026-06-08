@@ -416,6 +416,36 @@ class MedicineRepositoryTest {
         assertEquals(Instant.ofEpochMilli(500), observed?.updatedAt)
     }
 
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeByUuid_recoversAfterTransientMalformedRow() = runTest {
+        val uuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000000")
+        val observedEntity = MutableStateFlow<MedicineEntity?>(
+            medicineEntity(uuid = uuid.toString())
+        )
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeByUuid(uuid.toString()) } returns observedEntity
+
+        val emissions = mutableListOf<Medicine?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeByUuid(uuid).collect { medicine -> emissions += medicine }
+        }
+        advanceUntilIdle()
+        assertEquals(uuid, emissions.last()?.uuid)
+
+        observedEntity.value = medicineEntity(uuid = "not-a-uuid")
+        advanceUntilIdle()
+
+        observedEntity.value = medicineEntity(uuid = uuid.toString()).copy(displayName = "Recovered")
+        advanceUntilIdle()
+
+        assertEquals(
+            "observeByUuid() must recover after a transient malformed-row failure",
+            "Recovered",
+            emissions.last()?.displayName,
+        )
+    }
+
     @Test
     fun setDisplayName_throwsWhenMedicineDoesNotExist() = runTest {
         val uuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000000")

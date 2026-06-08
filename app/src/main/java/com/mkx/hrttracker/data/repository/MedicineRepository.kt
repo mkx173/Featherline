@@ -130,7 +130,19 @@ class MedicineRepository @Inject internal constructor(
     fun observeByUuid(uuid: UUID): Flow<Medicine?> {
         return databaseHolder.databaseFlow.flatMapLatest { database ->
             database?.medicineDao()?.observeByUuid(uuid.toString())
-                ?.map { entity -> entity?.toMedicineModel() }
+                ?.map { entity ->
+                    try {
+                        entity?.toMedicineModel()
+                    } catch (error: Exception) {
+                        if (error is CancellationException) throw error
+                        null
+                    }
+                }
+                ?.catch { error ->
+                    if (error is CancellationException) throw error
+                    if (error !is Exception) throw error
+                    emit(null)
+                }
                 ?: flowOf(null)
         }
     }

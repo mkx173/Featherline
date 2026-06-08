@@ -8,6 +8,7 @@ import com.mkx.hrttracker.data.local.CustomBloodAnalyteEntity
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.medication.DoseInstruction
@@ -21,8 +22,12 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -272,6 +277,79 @@ class BloodTestRepositoryTest {
         assertEquals(panelUuid, panels.single().uuid)
         assertEquals(panelUuid, repository.getCachedPanel(panelUuid)?.uuid)
         assertEquals(panels, repository.getCachedPanels())
+    }
+
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observePanels_recoversAfterTransientMissingCustomAnalyteDuringRestore() = runTest {
+        val staleAnalyteUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val restoredAnalyteUuid = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val stalePanelUuid = UUID.fromString("33333333-3333-3333-3333-333333333333")
+        val restoredPanelUuid = UUID.fromString("44444444-4444-4444-4444-444444444444")
+        val panelsSource = MutableStateFlow(
+            listOf(
+                bloodTestPanelWithCustomResult(
+                    panelUuid = stalePanelUuid,
+                    customAnalyteUuid = staleAnalyteUuid,
+                    collectedAtEpochMillis = 1_000L,
+                )
+            )
+        )
+        var resolvableAnalyteUuid = staleAnalyteUuid
+        every { dao.observePanels() } returns panelsSource
+        coEvery { dao.getCustomAnalytesByIds(any()) } coAnswers {
+            firstArg<List<String>>()
+                .filter { uuid -> uuid == resolvableAnalyteUuid.toString() }
+                .map { uuid ->
+                    val parsedUuid = UUID.fromString(uuid)
+                    customAnalyte(
+                        uuid = parsedUuid,
+                        abbreviation = if (parsedUuid == staleAnalyteUuid) "Old" else "Restored",
+                        name = if (parsedUuid == staleAnalyteUuid) "Old" else "Restored",
+                        unitLabel = "ng/dL",
+                    )
+                }
+        }
+
+        val emissions = mutableListOf<List<BloodTestPanel>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observePanels().collect { panels -> emissions += panels }
+        }
+        advanceUntilIdle()
+
+        assertEquals(
+            BloodTestResultAnalyte.Custom(staleAnalyteUuid, "Old", "Old"),
+            emissions.last().single().results.single().analyte,
+        )
+
+        resolvableAnalyteUuid = restoredAnalyteUuid
+        panelsSource.value = listOf(
+            bloodTestPanelWithCustomResult(
+                panelUuid = stalePanelUuid,
+                customAnalyteUuid = staleAnalyteUuid,
+                collectedAtEpochMillis = 2_000L,
+            )
+        )
+        advanceUntilIdle()
+
+        panelsSource.value = listOf(
+            bloodTestPanelWithCustomResult(
+                panelUuid = restoredPanelUuid,
+                customAnalyteUuid = restoredAnalyteUuid,
+                collectedAtEpochMillis = 3_000L,
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals(
+            "observePanels() must recover after a restore emission references a missing custom analyte",
+            restoredPanelUuid,
+            emissions.last().singleOrNull()?.uuid,
+        )
+        assertEquals(
+            BloodTestResultAnalyte.Custom(restoredAnalyteUuid, "Restored", "Restored"),
+            emissions.last().single().results.single().analyte,
+        )
     }
 
     @Test
@@ -571,6 +649,39 @@ class BloodTestRepositoryTest {
                     value = 100.0,
                     unitSnapshot = "pg_ml",
                     canonicalValue = 100.0,
+                )
+            )
+        )
+    }
+
+    private fun bloodTestPanelWithCustomResult(
+        panelUuid: UUID,
+        customAnalyteUuid: UUID,
+        collectedAtEpochMillis: Long,
+    ): BloodTestPanelWithResultsEntity {
+        val resultUuid = UUID.nameUUIDFromBytes(panelUuid.toString().encodeToByteArray())
+        return BloodTestPanelWithResultsEntity(
+            panel = BloodTestPanelEntity(
+                uuid = panelUuid.toString(),
+                collectedAtInstantEpochMillis = collectedAtEpochMillis,
+                collectedAtTimeZoneId = "Asia/Tokyo",
+                notes = null,
+                timeSinceLastEstradiolDoseMillis = null,
+                timeSinceLastTestosteroneDoseMillis = null,
+                createdAtEpochMillis = collectedAtEpochMillis,
+                updatedAtEpochMillis = collectedAtEpochMillis,
+            ),
+            results = listOf(
+                BloodTestResultEntity(
+                    uuid = resultUuid.toString(),
+                    panelUuid = panelUuid.toString(),
+                    createdAtEpochMillis = collectedAtEpochMillis,
+                    displayOrder = 0,
+                    builtinAnalyteKey = null,
+                    customAnalyteUuid = customAnalyteUuid.toString(),
+                    value = 18.0,
+                    unitSnapshot = "ng/dL",
+                    canonicalValue = 18.0,
                 )
             )
         )
