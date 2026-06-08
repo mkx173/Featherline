@@ -25,6 +25,7 @@ import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.EntryPointAccessors
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -167,8 +168,10 @@ class QuickLogActionCallbackTest {
         mockkStatic(EntryPointAccessors::class)
         mockkStatic(Toast::class)
         mockkStatic("com.mkx.hrttracker.widget.HrtWidgetKt")
+        mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
         val context: Context = mockk()
         val appContext: Context = mockk()
+        val localizedContext: Context = mockk()
         val glanceId: GlanceId = mockk()
         val entryPoint: WidgetEntryPoint = mockk()
         val groupRepository: MedicationGroupRepository = mockk()
@@ -192,7 +195,8 @@ class QuickLogActionCallbackTest {
             ScheduledAtKey to scheduledAt.toString(),
         )
         every { context.applicationContext } returns appContext
-        every { appContext.getString(R.string.widget_quick_log_failed) } returns failureMessage
+        every { appContext.withAppLanguage() } returns localizedContext
+        every { localizedContext.getString(R.string.widget_quick_log_failed) } returns failureMessage
         every {
             EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
         } returns entryPoint
@@ -202,7 +206,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.settingsRepository() } returns settingsRepository
         every { entryPoint.reminderNotificationManager() } returns notificationManager
         every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
-        every { Toast.makeText(appContext, failureMessage, Toast.LENGTH_SHORT) } returns toast
+        every { Toast.makeText(localizedContext, failureMessage, Toast.LENGTH_SHORT) } returns toast
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } throws failure
@@ -218,7 +222,7 @@ class QuickLogActionCallbackTest {
             )
         }
         coVerify { updateAllHrtWidgets(appContext) }
-        verify { Toast.makeText(appContext, failureMessage, Toast.LENGTH_SHORT) }
+        verify { Toast.makeText(localizedContext, failureMessage, Toast.LENGTH_SHORT) }
         verify { toast.show() }
     }
 
