@@ -358,8 +358,8 @@ Six DAO interfaces, each backing the entities in its namesake area.
   active groups still reference the medicine. Stock support adds
   `updateStockFields` / `updateWarnAtDaysRemaining` (the targeted
   mutations behind recount, top-up, and threshold edits) plus
-  `observeAllActiveTracked` / `getAllActiveTrackedEntities` (the
-  tracking-enabled medicines that feed low-stock projection). Also
+  `getAllActiveTrackedEntities` (the tracking-enabled medicines that
+  feed low-stock projection). Also
   exposes `observeMedicineChangeVersion`, a `SELECT COUNT(*)` Flow used as a
   change-only signal: repositories that resolve medicines as a
   separate fetch off a group or log observation join on this so

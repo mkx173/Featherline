@@ -108,12 +108,21 @@ class MedicineRepository @Inject internal constructor(
         return activeMedicinesFlow.value?.firstOrNull { it.uuid == uuid }
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
+    /**
+     * Stock-tracked subset of the active medicines, derived from the same
+     * guarded, eagerly-cached [activeMedicinesFlow] (`trackingEnabled` mirrors
+     * `MedicineDao.getAllActiveTrackedEntities`'s `trackingEnabled = 1` filter).
+     * Deriving instead
+     * of opening a second Room query reuses the per-emission `runCatching` +
+     * terminal `.catch` above, so a transient malformed-row failure degrades one
+     * emission and recovers — a raw `.map(toMedicineModel)` here would instead
+     * throw upstream of the home stock combine and freeze the home screen until
+     * the app process is rebuilt. Maps the pre-first-emission `null` to an empty
+     * list so the home combine still fires immediately.
+     */
     fun observeAllActiveTracked(): Flow<List<Medicine>> {
-        return databaseHolder.databaseFlow.flatMapLatest { database ->
-            database?.medicineDao()?.observeAllActiveTracked()
-                ?.map { entities -> entities.map(MedicineEntity::toMedicineModel) }
-                ?: flowOf(emptyList())
+        return observeAllActiveOrNull().map { medicines ->
+            medicines.orEmpty().filter { medicine -> medicine.stock.trackingEnabled }
         }
     }
 
