@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
@@ -15,6 +16,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
@@ -50,11 +52,16 @@ fun HrtButton(
             contentPadding = resolvedContentPadding,
         ) {
             if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = iconContentDescription,
-                    modifier = iconModifier,
-                )
+                Box(
+                    modifier = Modifier.size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = iconContentDescription,
+                        modifier = iconModifier,
+                    )
+                }
                 Spacer(modifier = Modifier.size(iconSpacing))
             }
             LocalizedButtonLabelText(text = text)

@@ -224,7 +224,7 @@ private fun <T> ConnectedButtonGroupButton(
     ) {
         optionLeadingContent?.invoke()
         if (optionLeadingContent != null) {
-            Spacer(modifier = Modifier.size(ToggleButtonDefaults.IconSpacing))
+            Spacer(modifier = Modifier.size(6.dp))
         } else {
             optionIcons.forEach { icon ->
                 Icon(
@@ -232,7 +232,7 @@ private fun <T> ConnectedButtonGroupButton(
                     contentDescription = null,
                     modifier = Modifier.size(ToggleButtonDefaults.IconSize),
                 )
-                Spacer(modifier = Modifier.size(ToggleButtonDefaults.IconSpacing))
+                Spacer(modifier = Modifier.size(6.dp))
             }
         }
         LocalizedButtonLabelText(
