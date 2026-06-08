@@ -147,6 +147,7 @@ internal fun medicationStockSubcardModel(
     projection: MedicineStockProjection?,
     mutationPreviewDoseMagnitude: Double? = null,
     previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? = null,
+    locale: Locale = Locale.US,
 ): MedicationStockSubcardModel? {
     projection ?: return null
     val medicine = projection.medicine
@@ -161,6 +162,7 @@ internal fun medicationStockSubcardModel(
     val rows = stockSubcardRows(
         projection = projection,
         mutationPreview = preview,
+        locale = locale,
     )
     if (rows.isEmpty()) return null
 
@@ -199,11 +201,13 @@ internal fun MedicationStockSubcard(
     mutationPreviewDoseMagnitude: Double? = null,
     previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? = null,
 ) {
-    val model = remember(projection, mutationPreviewDoseMagnitude, previewPostMutationState) {
+    val appLocale = rememberAppLocale()
+    val model = remember(projection, mutationPreviewDoseMagnitude, previewPostMutationState, appLocale) {
         medicationStockSubcardModel(
             projection = projection,
             mutationPreviewDoseMagnitude = mutationPreviewDoseMagnitude,
             previewPostMutationState = previewPostMutationState,
+            locale = appLocale,
         )
     } ?: return
     val chipColors = stockSubcardChipColors(model.tone)
@@ -656,6 +660,7 @@ internal fun stockSubcardChipColors(
 private fun stockSubcardRows(
     projection: MedicineStockProjection,
     mutationPreview: StockSubcardMutationPreview?,
+    locale: Locale,
 ): List<MedicationStockSubcardRowModel> {
     val stock = projection.medicine.stock
     return when (val preparation = projection.medicine.preparation) {
@@ -669,8 +674,9 @@ private fun stockSubcardRows(
                     sealedCount = stock.unitsRemaining,
                     mutationPreviewOpenAmount = mutationPreview?.openContainerAmountAfter,
                     mutationPreviewSealedCount = mutationPreview?.unitsRemainingAfter,
+                    locale = locale,
                 )
-            } ?: stockPoolSubcardRow(stock, preparation, mutationPreview),
+            } ?: stockPoolSubcardRow(stock, preparation, mutationPreview, locale),
         )
 
         is MedicinePreparation.GelContainer -> listOf(
@@ -683,13 +689,14 @@ private fun stockSubcardRows(
                     sealedCount = stock.unitsRemaining,
                     mutationPreviewOpenAmount = mutationPreview?.openContainerAmountAfter,
                     mutationPreviewSealedCount = mutationPreview?.unitsRemainingAfter,
+                    locale = locale,
                 )
-            } ?: stockPoolSubcardRow(stock, preparation, mutationPreview),
+            } ?: stockPoolSubcardRow(stock, preparation, mutationPreview, locale),
         )
 
         is MedicinePreparation.PatchOff -> emptyList()
 
-        else -> listOf(stockPoolSubcardRow(stock, preparation, mutationPreview))
+        else -> listOf(stockPoolSubcardRow(stock, preparation, mutationPreview, locale))
     }
 }
 
@@ -701,11 +708,13 @@ private fun openContainerStockSubcardRow(
     sealedCount: Double?,
     mutationPreviewOpenAmount: Double?,
     mutationPreviewSealedCount: Double?,
+    locale: Locale,
 ): MedicationStockSubcardRowModel {
     val valueText = stockSubcardValueText(
         numerator = openAmount,
         denominator = capacity,
         mutationPreviewNumerator = mutationPreviewOpenAmount,
+        locale = locale,
     )
     val opensNewContainer = sealedCountDecreased(
         current = sealedCount,
@@ -725,6 +734,7 @@ private fun openContainerStockSubcardRow(
         sealedSupplement = stockSubcardSealedSupplement(
             sealedCount = sealedCount,
             previewSealedCount = if (opensNewContainer) mutationPreviewSealedCount else null,
+            locale = locale,
         ),
         opensNewContainer = opensNewContainer,
     )
@@ -751,11 +761,13 @@ private fun stockPoolSubcardRow(
     stock: MedicineStock,
     preparation: MedicinePreparation,
     mutationPreview: StockSubcardMutationPreview?,
+    locale: Locale,
 ): MedicationStockSubcardRowModel {
     val valueText = stockSubcardValueText(
         numerator = stock.unitsRemaining,
         denominator = stock.unitsLastTotal,
         mutationPreviewNumerator = mutationPreview?.unitsRemainingAfter,
+        locale = locale,
     )
     return MedicationStockSubcardRowModel(
         kind = MedicationStockSubcardRowKind.STOCK_POOL,
@@ -774,13 +786,14 @@ private fun stockPoolSubcardRow(
 private fun stockSubcardSealedSupplement(
     sealedCount: Double?,
     previewSealedCount: Double? = null,
+    locale: Locale,
 ): MedicationStockSubcardSealedSupplement? {
     val resolvedCount = sealedCount?.takeIf { it.isFinite() && it >= 0.0 } ?: return null
     return MedicationStockSubcardSealedSupplement(
-        countText = formatStockSubcardCount(resolvedCount),
+        countText = formatStockSubcardCount(resolvedCount, locale),
         previewCountText = previewSealedCount
             ?.takeIf { it.isFinite() && it >= 0.0 }
-            ?.let { formatStockSubcardCount(it) },
+            ?.let { formatStockSubcardCount(it, locale) },
     )
 }
 
@@ -843,13 +856,15 @@ private fun stockSubcardValueText(
     numerator: Double?,
     denominator: Double?,
     mutationPreviewNumerator: Double?,
+    locale: Locale,
 ): StockSubcardValueText {
     return if (mutationPreviewNumerator?.isFinite() == true) {
         StockSubcardValueText(
-            currentText = formatStockSubcardCount(numerator),
+            currentText = formatStockSubcardCount(numerator, locale),
             previewText = compactStockValueText(
                 numerator = mutationPreviewNumerator,
                 denominator = denominator,
+                locale = locale,
             ),
         )
     } else {
@@ -857,6 +872,7 @@ private fun stockSubcardValueText(
             currentText = compactStockValueText(
                 numerator = numerator,
                 denominator = denominator,
+                locale = locale,
             ),
             previewText = null,
         )
@@ -866,17 +882,18 @@ private fun stockSubcardValueText(
 internal fun compactStockValueText(
     numerator: Double?,
     denominator: Double?,
+    locale: Locale = Locale.US,
 ): String {
-    val numeratorText = formatStockSubcardCount(numerator)
+    val numeratorText = formatStockSubcardCount(numerator, locale)
     if (denominator == null || !denominator.isFinite() || denominator <= 0.0) {
         return numeratorText
     }
-    return "$numeratorText / ${formatStockSubcardCount(denominator)}"
+    return "$numeratorText / ${formatStockSubcardCount(denominator, locale)}"
 }
 
-private fun formatStockSubcardCount(value: Double?): String {
+private fun formatStockSubcardCount(value: Double?, locale: Locale): String {
     val resolved = value?.takeIf { it.isFinite() } ?: return "-"
-    return NumberFormat.getNumberInstance(Locale.getDefault()).apply {
+    return NumberFormat.getNumberInstance(locale).apply {
         isGroupingUsed = false
         minimumFractionDigits = 0
         maximumFractionDigits = 2

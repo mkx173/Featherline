@@ -58,6 +58,8 @@ import com.mkx.hrttracker.ui.components.stockUnitNounPluralForUnitRes
 import com.mkx.hrttracker.ui.components.stockRateUnitRes
 import com.mkx.hrttracker.ui.components.stockSubcardTone
 import com.mkx.hrttracker.ui.components.stockSubcardValueTextColor
+import com.mkx.hrttracker.util.rememberAppLocale
+import java.text.NumberFormat
 import java.util.Locale
 
 @Composable
@@ -68,6 +70,7 @@ fun StockSection(
     onDisableTracking: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val appLocale = rememberAppLocale()
     if (!projection.medicine.stock.trackingEnabled) {
         OptInCard(onClick = onOptInClick, modifier = modifier)
         return
@@ -93,7 +96,7 @@ fun StockSection(
                 dimensionResource(R.dimen.list_segment_gap),
             ),
         ) {
-            StockRows(projection = projection)
+            StockRows(projection = projection, locale = appLocale)
         }
     }
 }
@@ -160,7 +163,7 @@ private fun HeaderOverflowMenu(
 }
 
 @Composable
-private fun StockRows(projection: MedicineStockProjection) {
+private fun StockRows(projection: MedicineStockProjection, locale: Locale) {
     val preparation = projection.medicine.preparation
     val stock = projection.medicine.stock
 
@@ -177,6 +180,7 @@ private fun StockRows(projection: MedicineStockProjection) {
                         numerator = stock.openContainerAmount,
                         denominator = preparation.vialVolumeMl,
                         unitRes = R.string.stock_unit_ml,
+                        locale = locale,
                     ),
                     index = index++,
                     count = totalRows,
@@ -194,6 +198,7 @@ private fun StockRows(projection: MedicineStockProjection) {
                     numerator = stock.unitsRemaining,
                     denominator = stock.unitsLastTotal,
                     unitRes = R.string.stock_unit_vials,
+                    locale = locale,
                 ),
                 index = index++,
                 count = totalRows,
@@ -223,6 +228,7 @@ private fun StockRows(projection: MedicineStockProjection) {
                         numerator = stock.openContainerAmount,
                         denominator = preparation.containerWeightGrams,
                         unitRes = R.string.stock_unit_g,
+                        locale = locale,
                     ),
                     index = index++,
                     count = totalRows,
@@ -240,6 +246,7 @@ private fun StockRows(projection: MedicineStockProjection) {
                     numerator = stock.unitsRemaining,
                     denominator = stock.unitsLastTotal,
                     unitRes = R.string.stock_unit_containers,
+                    locale = locale,
                 ),
                 index = index++,
                 count = totalRows,
@@ -265,6 +272,7 @@ private fun StockRows(projection: MedicineStockProjection) {
                     numerator = stock.unitsRemaining,
                     denominator = stock.unitsLastTotal,
                     unitRes = stockInventoryUnitRes(preparation),
+                    locale = locale,
                 ),
                 index = 0,
                 count = 2,
@@ -564,6 +572,7 @@ private fun OptInCard(
 
 @Composable
 private fun rateLabel(projection: MedicineStockProjection): String? {
+    val locale = rememberAppLocale()
     val dosesPerDay = projection.dosesPerDayMagnitude
     if (dosesPerDay <= 0.0) return null
     val unitRes = stockRateUnitRes(projection.medicine.preparation) ?: return null
@@ -581,15 +590,15 @@ private fun rateLabel(projection: MedicineStockProjection): String? {
     }
     return stringResource(
         if (perDay) R.string.stock_rate_per_day else R.string.stock_rate_per_week,
-        formatRate(rateValue),
+        formatStockSectionRate(rateValue, locale),
         unit,
     )
 }
 
 internal fun stockUnitRes(preparation: MedicinePreparation): Int? = stockRateUnitRes(preparation)
 
-private fun formatRate(value: Double): String {
-    return trimTrailingZeros(String.format(Locale.getDefault(), "%.2f", value))
+internal fun formatStockSectionRate(value: Double, locale: Locale): String {
+    return stockSectionNumberFormat(locale).format(value)
 }
 
 private fun computeProgress(
@@ -602,29 +611,32 @@ private fun computeProgress(
     return (resolvedNumerator / resolvedDenominator).toFloat().coerceIn(0f, 1f)
 }
 
-private fun formatCount(value: Double?): String {
+private fun formatCount(value: Double?, locale: Locale): String {
     val resolved = value ?: return "-"
-    return trimTrailingZeros(String.format(Locale.getDefault(), "%.2f", resolved))
-}
-
-private fun trimTrailingZeros(text: String): String {
-    if (!text.contains('.')) return text
-    val trimmed = text.trimEnd('0').trimEnd('.')
-    return trimmed.ifEmpty { "0" }
+    return stockSectionNumberFormat(locale).format(resolved)
 }
 
 internal fun stockSectionCountText(
     numerator: Double?,
     denominator: Double?,
     @StringRes unitRes: Int?,
+    locale: Locale = Locale.US,
 ): StockSectionCountText {
-    val denominatorText = denominator?.let(::formatCount)
+    val denominatorText = denominator?.let { formatCount(it, locale) }
     return StockSectionCountText(
-        numeratorText = formatCount(numerator),
+        numeratorText = formatCount(numerator, locale),
         denominatorText = denominatorText,
         unitRes = unitRes,
         pluralCount = denominator ?: numerator,
     )
+}
+
+private fun stockSectionNumberFormat(locale: Locale): NumberFormat {
+    return NumberFormat.getNumberInstance(locale).apply {
+        isGroupingUsed = false
+        minimumFractionDigits = 0
+        maximumFractionDigits = 2
+    }
 }
 
 private fun poolIconRes(preparation: MedicinePreparation): Int = when (preparation) {

@@ -5,6 +5,7 @@ import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.util.currentAppLocale
 import java.text.NumberFormat
 
 @PluralsRes
@@ -48,7 +49,7 @@ internal fun stockInventoryCountText(
         pluralRes,
         stockCountPluralQuantity(count),
     )
-    val formattedCount = NumberFormat.getInstance().apply {
+    val formattedCount = NumberFormat.getNumberInstance(context.currentAppLocale()).apply {
         maximumFractionDigits = 2
     }.format(count)
     return context.getString(R.string.stock_row_count_with_unit, formattedCount, noun)

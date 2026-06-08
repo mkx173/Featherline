@@ -1,11 +1,20 @@
 package com.mkx.hrttracker.ui.components
 
+import android.content.Context
+import android.content.res.Configuration
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+import java.util.Locale
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class StockUnitResourcesTest {
 
     @Test
@@ -45,5 +54,27 @@ class StockUnitResourcesTest {
 
         assertNull(stockUnitNounPluralForUnitRes(R.string.stock_unit_ml))
         assertNull(stockUnitNounPluralForUnitRes(R.string.stock_unit_g))
+    }
+
+    @Test
+    fun stockInventoryCountTextUsesContextAppLocaleDecimalSeparator() {
+        val context = localizedContext(Locale.GERMANY)
+
+        assertEquals(
+            "1,5 tablets",
+            stockInventoryCountText(
+                context = context,
+                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                count = 1.5,
+            ),
+        )
+    }
+
+    private fun localizedContext(locale: Locale): Context {
+        val appContext = RuntimeEnvironment.getApplication().applicationContext
+        val configuration = Configuration(appContext.resources.configuration).apply {
+            setLocale(locale)
+        }
+        return appContext.createConfigurationContext(configuration)
     }
 }

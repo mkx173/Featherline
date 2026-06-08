@@ -13,6 +13,12 @@ import java.util.Locale
 
 class PlanScreenComponentsTest {
     @Test
+    fun stockPreviewNumberUsesProvidedLocaleWithoutFixedTrailingZeros() {
+        assertEquals("1,5", stockPreviewNumber(1.5, Locale.GERMANY))
+        assertEquals("1", stockPreviewNumber(1.0, Locale.GERMANY))
+    }
+
+    @Test
     fun selectedDayLoggedDayOffsetDays_returnsNullForSameDayLog() {
         assertNull(
             selectedDayLoggedDayOffsetDays(

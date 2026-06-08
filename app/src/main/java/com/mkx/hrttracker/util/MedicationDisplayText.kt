@@ -43,7 +43,7 @@ fun medicationRouteLabel(
 ): String = context.getString(applicationType.labelRes)
 
 fun medicinePreparationSummary(medicine: Medicine, context: Context): String {
-    val locale = Locale.getDefault()
+    val locale = appLanguageLocale()
     return when (val preparation = medicine.preparation) {
         is MedicinePreparation.Pill -> context.getString(
             R.string.medication_preparation_summary_pill,
@@ -105,7 +105,7 @@ fun doseInstructionText(
     if (medicine == null) {
         return null
     }
-    val locale = Locale.getDefault()
+    val locale = appLanguageLocale()
     if (count > 1) {
         return aggregateDoseInstructionText(
             context = context,
