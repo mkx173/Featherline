@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.medication.testMedicine
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -26,6 +27,15 @@ class MedicationDetailTextTest {
     private val context: Context = mockk()
     private val realContext: Context
         get() = RuntimeEnvironment.getApplication().applicationContext
+
+    @Before
+    fun stubContextResources() {
+        // doseInstructionText/medicinePreparationSummary resolve the locale via
+        // context.currentAppLocale(), which reads context.resources.configuration.
+        // The strict mock has no Resources, so back it with the real Robolectric
+        // resources (default locale) while getString stays per-test mocked.
+        every { context.resources } returns realContext.resources
+    }
 
     @Test
     fun buildExpandedDetailLines_belowCap_keepsAllLines() {

@@ -10,7 +10,6 @@ import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicine
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -322,15 +321,21 @@ class MedicationDisplayTextTest {
     }
 
     @Test
-    fun doseInstructionTextUsesAppLanguageDecimalSeparatorIndependentOfJvmDefault() {
+    fun doseInstructionTextUsesContextAppLocaleDecimalSeparatorIndependentOfJvmDefault() {
+        // Numbers must follow the locale of the context passed by the caller (the widget's
+        // settings-derived localized context), not the JVM default. A German context yields
+        // a comma separator even though the JVM default is US.
         Locale.setDefault(Locale.US)
-        mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
-        every { appLanguageLocale() } returns Locale.GERMANY
+        val germanContext = realContext.createConfigurationContext(
+            android.content.res.Configuration(realContext.resources.configuration).apply {
+                setLocale(Locale.GERMANY)
+            }
+        )
 
         assertEquals(
             "1/8 tablets · 1,25 mg",
             doseInstructionText(
-                context = realContext,
+                context = germanContext,
                 medicine = pill(),
                 doseInstruction = DoseInstruction.TabletFraction(1, 8),
                 count = 1,
