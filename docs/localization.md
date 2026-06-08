@@ -80,7 +80,7 @@ Add each new `app_language_*` label to every language's `strings.xml`. Use the n
 
 The app uses `SettingsRepository.setAppLanguageOption()` to switch language:
 
-- Calls `Locale.setDefault(locale)` so non-Compose helpers that read `Locale.getDefault()` format doses in the selected app language.
+- Calls `Locale.setDefault(locale)` so any non-Compose code still reading `Locale.getDefault()` formats in the selected app language.
 - Calls `AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(option.languageTag))`.
 - AppCompat auto-stores locales through `AppLocalesMetadataHolderService` in `AndroidManifest.xml`.
 
@@ -91,7 +91,7 @@ The app uses `SettingsRepository.setAppLanguageOption()` to switch language:
 Notifications and widgets have extra locale handling because they often run from singleton application contexts.
 
 - `ReminderNotificationManager.createNotificationChannel(languageTag)` resolves channel name/description through a locale-overridden context. `HrtTrackerApplication` re-registers the channel when `settingsState.appLanguageOption` changes.
-- Reminder notification titles/bodies come from string resources and plurals in `ReminderNotificationText.kt` and `ReminderNotificationManager.kt`.
+- Reminder notification titles, bodies, dose details, and actions are resolved through `context.withAppLanguage()` (a context pinned to the chosen app language) so they localize below API 33; the text comes from string resources and plurals in `ReminderNotificationText.kt` and `ReminderNotificationManager.kt`.
 - Low-stock toasts fired after notification "Log all" and widget quick-log come from string resources and plurals in `ReminderNotificationManager.kt` (the `showStock*Toast` helpers); the count variants use plurals, so translate the plural forms.
 - Stock UI strings — runway/"days remaining" labels, stock state labels, unit nouns (vials, containers, sachets, etc.), and the onboarding opt-in copy — live in `strings.xml` alongside the rest. Translate the new block and check the plural-bearing count strings.
 - `WidgetSnapshotRepository` creates a localized context from `settings.appLanguageOption.languageTag` before building snapshots. It also passes a locale-specific `localizedShortTimeFormatter`.
@@ -152,10 +152,10 @@ Known non-locale-sensitive time constants:
 
 ## Number, Unit, and Medical Text
 
-- Medication dose numbers use `Double.formatDose(locale)` in `model/medication/DoseFormatting.kt`, which swaps the decimal separator for the active locale.
+- Medication dose numbers use `Double.formatDose(locale)` and stock quantities/rates use `formatStockCount(value, locale)`, both in `model/medication/DoseFormatting.kt`, which swap the decimal separator for the active locale.
 - **Numeric input** is the inverse: European Decimal keyboards emit a comma (e.g. `1,5`), so each input site normalizes comma to dot via `.trim().replace(',', '.')` before `toDoubleOrNull()` (medicine strength/dose, open-container amount, weight/stock/calibration). New numeric fields must do the same or comma entries silently fail to parse.
 - Compose medication text passes `rememberAppLocale()`.
-- Non-Compose medication text uses `Locale.getDefault()` after `SettingsRepository` syncs it.
+- Non-Compose medication text (reminders, widget) resolves the locale from the caller's context via `Context.currentAppLocale()`, which follows the context pinned to the app language.
 - Blood-test unit labels in `BloodValueFormatters.kt` are scientific abbreviations such as `pg/mL` and `pmol/L`; these are currently not Android string resources.
 - Some calibration numeric values intentionally use invariant formatting (`Locale.US` or `Locale.ROOT`) for compact medical values. Review before changing, because these values are also used in chart labels and summaries.
 - Medication catalog labels, routes, categories, analyte names, weight units, and settings option labels are all string resources mapped from enum helpers. If a new enum is added while adding a language, add resource mappings in every locale.
@@ -167,7 +167,7 @@ The current runtime code is mostly resource-backed. Hard-coded text found during
 - Compose preview/sample literals, for example `"Today"`, `"Edit medication"`, `"Add entry"`, `"19:00"`, `"9:30 AM"`. These do not ship as normal runtime UI.
 - Animation/debug labels, log messages, storage keys, backup field names, notification tags, and DataStore keys. Do not translate these.
 - Symbolic UI text, for example `"."`, `"—"`, percentages, and static counters.
-- Runtime composition separators, especially `" · "`, `"/"`, `" - "`, and count suffix `"x"`. These are usually acceptable, but should be reviewed for grammar and readability in each new language.
+- Runtime composition separators, especially `" · "`, `"/"`, and `" - "`. These are usually acceptable, but should be reviewed for grammar and readability in each new language.
 
 If a hard-coded runtime phrase is found while adding a language, move it to `strings.xml` instead of adding another branch in UI code.
 
