@@ -52,30 +52,39 @@ class MedicineRepository @Inject internal constructor(
                 } else {
                     database.medicineDao().observeAllActive()
                         .map { entities ->
-                            // Map per emission inside runCatching: a single malformed
-                            // row (e.g. an unparseable enum or UUID introduced by a
-                            // restore) must degrade this one emission, not permanently
-                            // terminate the observation. A terminal `.catch` here sits
-                            // inside flatMapLatest, so it would freeze this Eagerly,
-                            // app-scoped flow — and the Medicines list — until the
-                            // database (app process) is rebuilt.
-                            runCatching { entities.map(MedicineEntity::toMedicineModel) }
-                                .getOrElse { error ->
-                                    // No suspension point inside the block today, so
-                                    // cancellation can't surface here — but rethrow it
-                                    // anyway so runCatching never silently swallows
-                                    // cancellation if a suspend call is added later.
+                            // Map per ROW so a single malformed row (e.g. an unparseable
+                            // enum or UUID introduced by a restore) drops only itself
+                            // instead of blanking the whole list. Blanking would also
+                            // blank the stock-tracked subset derived from this flow even
+                            // when the tracked rows are valid, since an unrelated untracked
+                            // row would poison every consumer. The flow still degrades only
+                            // this emission, never terminating: a terminal `.catch` inside
+                            // flatMapLatest would freeze this Eagerly, app-scoped flow —
+                            // and the Medicines list — until the app process is rebuilt.
+                            entities.mapNotNull { entity ->
+                                try {
+                                    entity.toMedicineModel()
+                                } catch (error: Exception) {
+                                    // No suspension point here today, so cancellation
+                                    // can't surface — but rethrow it anyway so a future
+                                    // suspend call is never silently swallowed. Drop only
+                                    // the offending row.
                                     if (error is CancellationException) throw error
-                                    emptyList()
+                                    null
                                 }
+                            }
                         }
-                        // Per-emission runCatching above recovers from a malformed
-                        // row; this terminal catch separately guards the Room flow
+                        // Per-row mapping above recovers from a malformed row; this
+                        // terminal catch separately guards the Room flow
                         // itself failing (DB corruption / I/O error). Without it an
                         // upstream error would reach the Eagerly, app-scoped stateIn
                         // collector and crash the process — appScope is a SupervisorJob
                         // with no CoroutineExceptionHandler.
-                        .catch { emit(emptyList()) }
+                        .catch { error ->
+                            if (error is CancellationException) throw error
+                            if (error !is Exception) throw error
+                            emit(emptyList())
+                        }
                 }
             }
             .stateIn(
@@ -108,12 +117,21 @@ class MedicineRepository @Inject internal constructor(
         return activeMedicinesFlow.value?.firstOrNull { it.uuid == uuid }
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
+    /**
+     * Stock-tracked subset of the active medicines, derived from the same
+     * guarded, eagerly-cached [activeMedicinesFlow] (`trackingEnabled` mirrors
+     * `MedicineDao.getAllActiveTrackedEntities`'s `trackingEnabled = 1` filter).
+     * Deriving instead of opening a second Room query reuses the per-row mapping
+     * + terminal `.catch` above: a malformed row drops only itself (so an
+     * unrelated untracked bad row can't blank these tracked rows), and a raw
+     * `.map(toMedicineModel)` here would instead throw upstream of the home stock
+     * combine and freeze the home screen until the app process is rebuilt. Maps
+     * the pre-first-emission `null` to an empty list so the home combine still
+     * fires immediately.
+     */
     fun observeAllActiveTracked(): Flow<List<Medicine>> {
-        return databaseHolder.databaseFlow.flatMapLatest { database ->
-            database?.medicineDao()?.observeAllActiveTracked()
-                ?.map { entities -> entities.map(MedicineEntity::toMedicineModel) }
-                ?: flowOf(emptyList())
+        return observeAllActiveOrNull().map { medicines ->
+            medicines.orEmpty().filter { medicine -> medicine.stock.trackingEnabled }
         }
     }
 
@@ -121,7 +139,19 @@ class MedicineRepository @Inject internal constructor(
     fun observeByUuid(uuid: UUID): Flow<Medicine?> {
         return databaseHolder.databaseFlow.flatMapLatest { database ->
             database?.medicineDao()?.observeByUuid(uuid.toString())
-                ?.map { entity -> entity?.toMedicineModel() }
+                ?.map { entity ->
+                    try {
+                        entity?.toMedicineModel()
+                    } catch (error: Exception) {
+                        if (error is CancellationException) throw error
+                        null
+                    }
+                }
+                ?.catch { error ->
+                    if (error is CancellationException) throw error
+                    if (error !is Exception) throw error
+                    emit(null)
+                }
                 ?: flowOf(null)
         }
     }

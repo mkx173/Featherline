@@ -24,11 +24,14 @@ import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.unmockkObject
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -416,6 +419,36 @@ class MedicineRepositoryTest {
         assertEquals(Instant.ofEpochMilli(500), observed?.updatedAt)
     }
 
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeByUuid_recoversAfterTransientMalformedRow() = runTest {
+        val uuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000000")
+        val observedEntity = MutableStateFlow<MedicineEntity?>(
+            medicineEntity(uuid = uuid.toString())
+        )
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeByUuid(uuid.toString()) } returns observedEntity
+
+        val emissions = mutableListOf<Medicine?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeByUuid(uuid).collect { medicine -> emissions += medicine }
+        }
+        advanceUntilIdle()
+        assertEquals(uuid, emissions.last()?.uuid)
+
+        observedEntity.value = medicineEntity(uuid = "not-a-uuid")
+        advanceUntilIdle()
+
+        observedEntity.value = medicineEntity(uuid = uuid.toString()).copy(displayName = "Recovered")
+        advanceUntilIdle()
+
+        assertEquals(
+            "observeByUuid() must recover after a transient malformed-row failure",
+            "Recovered",
+            emissions.last()?.displayName,
+        )
+    }
+
     @Test
     fun setDisplayName_throwsWhenMedicineDoesNotExist() = runTest {
         val uuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000000")
@@ -784,6 +817,185 @@ class MedicineRepositoryTest {
         // the app-scoped collector (which would otherwise fail this test with the
         // uncaught IllegalStateException).
         assertEquals(emptyList<Medicine>(), emissions.last())
+    }
+
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeAllActive_rethrowsNonExceptionRoomFlowErrors() = runTest {
+        val capturedError = CompletableDeferred<Throwable>()
+        val handler = CoroutineExceptionHandler { _, error ->
+            capturedError.complete(error)
+        }
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns flow {
+            throw AssertionError("simulated unrecoverable Room failure")
+        }
+
+        MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(
+                SupervisorJob() + UnconfinedTestDispatcher(testScheduler) + handler
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(
+            "simulated unrecoverable Room failure",
+            withTimeout(1_000) { capturedError.await() }.message,
+        )
+    }
+
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeAllActiveTracked_emitsOnlyTrackedMedicines() = runTest {
+        val tracked = medicineEntity(uuid = "aaaaaaaa-0000-0000-0000-000000000001")
+            .copy(trackingEnabled = true)
+        val untracked = medicineEntity(uuid = "aaaaaaaa-0000-0000-0000-000000000002")
+            .copy(trackingEnabled = false)
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns MutableStateFlow(listOf(tracked, untracked))
+
+        val freshRepository = MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        val result = async { freshRepository.observeAllActiveTracked().first { it.isNotEmpty() } }
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001")),
+            result.await().map { it.uuid },
+        )
+    }
+
+    // observeAllActiveTracked feeds the home screen's stock warnings as an UPSTREAM
+    // source of the home combine, so a raw .map(toMedicineModel) malformed-row throw
+    // there would bypass the combine's per-emission guard and freeze the home screen.
+    // Deriving it from the guarded activeMedicinesFlow inherits the recovery: a
+    // transient malformed row degrades one emission and the next valid one recovers.
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeAllActiveTracked_recoversAfterTransientMalformedRow() = runTest {
+        val medicinesSource = MutableStateFlow(
+            listOf(
+                medicineEntity(uuid = "aaaaaaaa-0000-0000-0000-000000000001")
+                    .copy(trackingEnabled = true)
+            )
+        )
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns medicinesSource
+
+        val freshRepository = MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        val emissions = mutableListOf<List<Medicine>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            freshRepository.observeAllActiveTracked().collect { emissions += it }
+        }
+
+        advanceUntilIdle()
+        assertEquals(1, emissions.last().size)
+
+        // A corrupt row (unparseable UUID) makes toMedicineModel throw for this emission.
+        medicinesSource.value = listOf(
+            medicineEntity(uuid = "not-a-uuid").copy(trackingEnabled = true)
+        )
+        advanceUntilIdle()
+
+        val recoveredUuid = "aaaaaaaa-0000-0000-0000-000000000009"
+        medicinesSource.value = listOf(
+            medicineEntity(uuid = recoveredUuid).copy(trackingEnabled = true)
+        )
+        advanceUntilIdle()
+
+        assertEquals(
+            "observeAllActiveTracked() must recover after a transient malformed-row failure",
+            UUID.fromString(recoveredUuid),
+            emissions.last().singleOrNull()?.uuid,
+        )
+    }
+
+    // observeAllActiveTracked derives from the all-active flow, so per-row mapping must
+    // keep a malformed UNTRACKED row from poisoning the valid tracked rows that feed
+    // Home's stock warnings. A whole-list map would blank stock warnings here.
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeAllActiveTracked_keepsTrackedRowsWhenAnUntrackedRowIsMalformed() = runTest {
+        val trackedUuid = "aaaaaaaa-0000-0000-0000-000000000001"
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns MutableStateFlow(
+            listOf(
+                medicineEntity(uuid = "not-a-uuid").copy(trackingEnabled = false),
+                medicineEntity(uuid = trackedUuid).copy(trackingEnabled = true),
+            )
+        )
+
+        val freshRepository = MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        val result = async { freshRepository.observeAllActiveTracked().first { it.isNotEmpty() } }
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(UUID.fromString(trackedUuid)),
+            result.await().map { it.uuid },
+        )
+    }
+
+    // The all-active flow itself must drop only the malformed row rather than blanking
+    // the whole Medicines list.
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeAllActive_dropsOnlyMalformedRow() = runTest {
+        val validUuid = "aaaaaaaa-0000-0000-0000-000000000001"
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns MutableStateFlow(
+            listOf(
+                medicineEntity(uuid = "not-a-uuid"),
+                medicineEntity(uuid = validUuid),
+            )
+        )
+
+        val freshRepository = MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        val result = async { freshRepository.observeAllActive().first { it.isNotEmpty() } }
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(UUID.fromString(validUuid)),
+            result.await().map { it.uuid },
+        )
     }
 
     private fun medicineEntity(

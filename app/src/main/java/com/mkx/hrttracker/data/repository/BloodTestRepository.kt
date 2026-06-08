@@ -16,7 +16,9 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodTestTrendPoint
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.model.medication.timeSinceEntryMillis
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.ZoneId
@@ -45,9 +47,17 @@ class BloodTestRepository @Inject constructor(
 
     fun observePanels(): Flow<List<BloodTestPanel>> {
         val dao = databaseHolder.get().bloodTestDao()
-        return dao.observePanels().map { panels ->
-            cachePanels(mapPanels(panels = panels, dao = dao))
-        }
+        return dao.observePanels()
+            .map { panels ->
+                recoverBloodTestObservation(defaultValue = cachedPanelFallback()) {
+                    cachePanels(mapPanels(panels = panels, dao = dao))
+                }
+            }
+            .catch { error ->
+                if (error is CancellationException) throw error
+                if (error !is Exception) throw error
+                emit(cachedPanelFallback())
+            }
     }
 
     suspend fun getPanel(uuid: UUID): BloodTestPanel? {
@@ -291,6 +301,22 @@ class BloodTestRepository @Inject constructor(
         cachedPanels = panels
         hasCachedPanelList = true
         return panels
+    }
+
+    private fun cachedPanelFallback(): List<BloodTestPanel> {
+        return cachedPanels.takeIf { hasCachedPanelList } ?: emptyList()
+    }
+
+    private suspend fun <T> recoverBloodTestObservation(
+        defaultValue: T,
+        block: suspend () -> T,
+    ): T {
+        return try {
+            block()
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            defaultValue
+        }
     }
 
     private fun cachePanel(panel: BloodTestPanel) {

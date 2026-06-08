@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
 import com.mkx.hrttracker.model.pk.projectionFutureDays
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -148,6 +149,7 @@ class HomeRepository @Inject constructor(
                 )
             }
             .catch { throwable ->
+                if (throwable is CancellationException) throw throwable
                 diagnosticsLogger.warning(TAG, "home_snapshot_inputs_failed", throwable)
             }
             .flowOn(Dispatchers.IO)
@@ -181,64 +183,69 @@ class HomeRepository @Inject constructor(
             stockInputsFlow,
             nowFlow,
         ) { inputs, snapshot, option, stockInputs, now ->
-            if (inputs.settings.homeE2ChartWindowOption != option) {
-                return@combine null
-            }
-            val (trackedMedicines, stockFulfillmentEntries) = stockInputs
-            val nowInstant = now.atZone(zoneId).toInstant()
-            val pkHorizon = date
-                .plusDays(option.projectionFutureDays())
-                .atStartOfDay()
-            val simulationEntries = buildEstradiolPkSimulationEntries(
-                realEntries = inputs.estradiolPkEntries,
-                activeGroups = inputs.activeGroups,
-                now = now,
-                horizon = pkHorizon,
-                zoneId = zoneId,
-            )
-            val pkProjectionRecord = snapshot
-                ?.takeIf {
-                    homeSnapshotRepository.isSnapshotUsable(
-                        snapshot = it,
+            recoverHomeEmission(defaultValue = null) {
+                if (inputs.settings.homeE2ChartWindowOption != option) {
+                    null
+                } else {
+                    val (trackedMedicines, stockFulfillmentEntries) = stockInputs
+                    val nowInstant = now.atZone(zoneId).toInstant()
+                    val pkHorizon = date
+                        .plusDays(option.projectionFutureDays())
+                        .atStartOfDay()
+                    val simulationEntries = buildEstradiolPkSimulationEntries(
+                        realEntries = inputs.estradiolPkEntries,
+                        activeGroups = inputs.activeGroups,
                         now = now,
+                        horizon = pkHorizon,
                         zoneId = zoneId,
-                        option = option,
+                    )
+                    val pkProjectionRecord = snapshot
+                        ?.takeIf {
+                            homeSnapshotRepository.isSnapshotUsable(
+                                snapshot = it,
+                                now = now,
+                                zoneId = zoneId,
+                                option = option,
+                            )
+                        }
+                        ?.pkProjection
+                    val stockWarnings = medicineStockRepository.projectAll(
+                        medicines = trackedMedicines,
+                        activeGroups = inputs.activeGroups,
+                        logEntries = stockFulfillmentEntries,
+                        now = nowInstant,
+                        zoneId = zoneId,
+                    ).stockWarningsOnly()
+                    HomeInputs(
+                        activeGroups = inputs.activeGroups,
+                        archivedGroups = inputs.archivedGroups,
+                        scheduleEntries = inputs.scheduleEntries,
+                        antiandrogenHistoryEntries = inputs.antiandrogenHistoryEntries,
+                        profile = inputs.profile,
+                        // The outer combine already pinned `option` to the raw flow's
+                        // latest value, but `inputs.settings` came from the inner
+                        // startup combine, which may briefly carry a stale option if
+                        // the option flow emits before the basicsFlow re-emits. Copy
+                        // the raw option in so consumers downstream cannot see the
+                        // outer flow's option disagree with HomeInputs.settings.
+                        settings = inputs.settings.copy(homeE2ChartWindowOption = option),
+                        pkProjection = homeSnapshotRepository.decodeProjection(pkProjectionRecord, now, zoneId),
+                        pkProjectionExpiresAt = pkProjectionRecord
+                            ?.let { Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis) },
+                        latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry
+                            ?: inputs.latestEstradiolEntry,
+                        estradiolPkEntries = simulationEntries.real,
+                        estradiolPkPlannedEntries = simulationEntries.planned,
+                        stockWarnings = stockWarnings,
+                        source = HomeInputSource.ROOM,
+                        now = now,
                     )
                 }
-                ?.pkProjection
-            val stockWarnings = medicineStockRepository.projectAll(
-                medicines = trackedMedicines,
-                activeGroups = inputs.activeGroups,
-                logEntries = stockFulfillmentEntries,
-                now = nowInstant,
-                zoneId = zoneId,
-            ).stockWarningsOnly()
-            HomeInputs(
-                activeGroups = inputs.activeGroups,
-                archivedGroups = inputs.archivedGroups,
-                scheduleEntries = inputs.scheduleEntries,
-                antiandrogenHistoryEntries = inputs.antiandrogenHistoryEntries,
-                profile = inputs.profile,
-                // The outer combine already pinned `option` to the raw flow's
-                // latest value, but `inputs.settings` came from the inner
-                // startup combine, which may briefly carry a stale option if
-                // the option flow emits before the basicsFlow re-emits. Copy
-                // the raw option in so consumers downstream cannot see the
-                // outer flow's option disagree with HomeInputs.settings.
-                settings = inputs.settings.copy(homeE2ChartWindowOption = option),
-                pkProjection = homeSnapshotRepository.decodeProjection(pkProjectionRecord, now, zoneId),
-                pkProjectionExpiresAt = pkProjectionRecord
-                    ?.let { Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis) },
-                latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry ?: inputs.latestEstradiolEntry,
-                estradiolPkEntries = simulationEntries.real,
-                estradiolPkPlannedEntries = simulationEntries.planned,
-                stockWarnings = stockWarnings,
-                source = HomeInputSource.ROOM,
-                now = now,
-            )
+            }
         }
             .mapNotNull { inputs -> inputs }
             .catch { throwable ->
+                if (throwable is CancellationException) throw throwable
                 diagnosticsLogger.warning(TAG, "home_room_inputs_failed", throwable)
                 // settingsRepository.settingsState is eager and may still hold
                 // the SEVEN_DAYS placeholder on cold start, so re-read the raw
@@ -248,7 +255,7 @@ class HomeRepository @Inject constructor(
                 val fallbackOption: HomeE2ChartWindowOption = try {
                     settingsRepository.homeE2ChartWindowOptionFlow.first()
                 } catch (innerThrowable: Throwable) {
-                    if (innerThrowable is kotlinx.coroutines.CancellationException) throw innerThrowable
+                    if (innerThrowable is CancellationException) throw innerThrowable
                     HomeE2ChartWindowOption.SEVEN_DAYS
                 }
                 val fallbackSettings = settingsRepository.settingsState.value
@@ -332,15 +339,19 @@ class HomeRepository @Inject constructor(
                         homeDao.observeActiveGroups(),
                         medicineChangeVersion,
                     ) { groups, _ ->
-                        val medicinesByUuid = database.resolveMedicinesForGroups(groups)
-                        groups.map { it.toMedicationGroupModel(medicinesByUuid) }
+                        recoverHomeEmission(defaultValue = emptyList()) {
+                            val medicinesByUuid = database.resolveMedicinesForGroups(groups)
+                            groups.map { it.toMedicationGroupModel(medicinesByUuid) }
+                        }
                     }
                     val archivedGroupsFlow = combine(
                         homeDao.observeArchivedGroups(),
                         medicineChangeVersion,
                     ) { groups, _ ->
-                        val medicinesByUuid = database.resolveMedicinesForGroups(groups)
-                        groups.map { it.toMedicationGroupModel(medicinesByUuid) }
+                        recoverHomeEmission(defaultValue = emptyList()) {
+                            val medicinesByUuid = database.resolveMedicinesForGroups(groups)
+                            groups.map { it.toMedicationGroupModel(medicinesByUuid) }
+                        }
                     }
                     // Pair active + archived groups in a nested combine so the
                     // outer combine stays at five distinctly-typed flows; Kotlin
@@ -363,8 +374,10 @@ class HomeRepository @Inject constructor(
                             ),
                             medicineChangeVersion,
                         ) { entries, _ ->
-                            val medicinesByUuid = database.resolveMedicinesForEntries(entries)
-                            entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
+                            recoverHomeEmission(defaultValue = emptyList()) {
+                                val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                                entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
+                            }
                         },
                         combine(
                             homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
@@ -372,11 +385,15 @@ class HomeRepository @Inject constructor(
                             ),
                             medicineChangeVersion,
                         ) { entries, _ ->
-                            val medicinesByUuid = database.resolveMedicinesForEntries(entries)
-                            entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
+                            recoverHomeEmission(defaultValue = emptyList()) {
+                                val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                                entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
+                            }
                         },
                         homeDao.observeProfile().map { profile ->
-                            profile?.toUserProfileModel() ?: UserProfile()
+                            recoverHomeEmission(defaultValue = UserProfile()) {
+                                profile?.toUserProfileModel() ?: UserProfile()
+                            }
                         },
                         settingsRepository.settingsState,
                     ) { (activeGroups, archivedGroups), scheduleEntries, antiandrogenHistoryEntries, profile, settingsState ->
@@ -404,8 +421,10 @@ class HomeRepository @Inject constructor(
                                 ),
                                 medicineChangeVersion,
                             ) { entries, _ ->
-                                val medicinesByUuid = database.resolveMedicinesForEntries(entries)
-                                entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
+                                recoverHomeEmission(defaultValue = emptyList()) {
+                                    val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                                    entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
+                                }
                             },
                             combine(
                                 homeDao.observeLatestEstradiolEntryOnOrBefore(
@@ -413,10 +432,12 @@ class HomeRepository @Inject constructor(
                                 ),
                                 medicineChangeVersion,
                             ) { entry, _ ->
-                                val medicinesByUuid = database.resolveMedicinesForEntries(
-                                    listOfNotNull(entry)
-                                )
-                                entry?.toMedicationLogEntryModel(medicinesByUuid)
+                                recoverHomeEmission(defaultValue = null) {
+                                    val medicinesByUuid = database.resolveMedicinesForEntries(
+                                        listOfNotNull(entry)
+                                    )
+                                    entry?.toMedicationLogEntryModel(medicinesByUuid)
+                                }
                             },
                         ) { basics, realPkEntries, latestEstradiolEntry ->
                             basics.copy(
@@ -429,6 +450,7 @@ class HomeRepository @Inject constructor(
                 }
             }
             .catch { throwable ->
+                if (throwable is CancellationException) throw throwable
                 diagnosticsLogger.warning(TAG, "home_startup_inputs_failed", throwable)
                 emit(
                     HomeStartupInputs(
@@ -461,6 +483,20 @@ class HomeRepository @Inject constructor(
         // HomeE2ChartWindowOption.projectionFutureDays() so the Room fallback
         // and the cached snapshot share the same prediction span.
         const val HOME_PK_FALLBACK_LOOKBACK_DAYS = 180L
+    }
+}
+
+private suspend fun <T> recoverHomeEmission(defaultValue: T, block: suspend () -> T): T {
+    return try {
+        block()
+    } catch (error: Exception) {
+        // During restore, Room can pair an old Home-table emission with an already
+        // changed medicine table. Drop only that inconsistent emission so the next
+        // Room invalidation can recover the home screen. Catch Exception (not
+        // Throwable) so Errors — and CancellationException — still propagate rather
+        // than being hidden as a fallback emission.
+        if (error is CancellationException) throw error
+        defaultValue
     }
 }
 
