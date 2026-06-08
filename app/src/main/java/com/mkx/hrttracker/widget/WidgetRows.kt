@@ -537,6 +537,38 @@ internal fun widgetRowHighlightIntent(context: Context, row: WidgetDoseRow): Int
     }
 }
 
+internal fun widgetDoseRowShowsManualTrailingIcon(
+    row: WidgetDoseRow,
+    hideMedicationDetails: Boolean,
+): Boolean {
+    return row.isManualRecord && row.trailingText != null
+}
+
+internal fun widgetDoseRowTrailingText(
+    row: WidgetDoseRow,
+    hideMedicationDetails: Boolean,
+): String? {
+    return when {
+        widgetDoseRowShowsManualTrailingIcon(row, hideMedicationDetails) -> null
+        hideMedicationDetails && row.isManualRecord -> null
+        else -> row.trailingText
+    }
+}
+
+@Composable
+internal fun WidgetManualTrailingIcon(
+    size: Dp,
+    modifier: GlanceModifier = GlanceModifier,
+) {
+    val colors = LocalWidgetColors.current
+    Image(
+        provider = ImageProvider(R.drawable.ic_edit_square),
+        contentDescription = LocalContext.current.getString(R.string.plan_entry_label_manual),
+        modifier = modifier.size(size),
+        colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
+    )
+}
+
 @Composable
 internal fun DoseRow(
     row: WidgetDoseRow,
@@ -611,7 +643,15 @@ internal fun DoseRow(
             )
         }
 
-        val showTrailingText = row.trailingText != null && !(hideMedicationDetails && row.isManualRecord)
+        val showManualTrailingIcon = widgetDoseRowShowsManualTrailingIcon(
+            row = row,
+            hideMedicationDetails = hideMedicationDetails,
+        )
+        val trailingText = widgetDoseRowTrailingText(
+            row = row,
+            hideMedicationDetails = hideMedicationDetails,
+        )
+        val showTrailingText = trailingText != null
 
         Spacer(GlanceModifier.width(8.dp))
 
@@ -627,13 +667,16 @@ internal fun DoseRow(
             // Only separate the archive icon from the trailing text when that text is shown.
             // The text node is structurally retained even when empty, so an unconditional spacer
             // here would double up with the pre-button spacer and over-pad an icon-only row.
-            Spacer(GlanceModifier.width((if (showTrailingText) 8 else 0).dp))
+            Spacer(GlanceModifier.width((if (showTrailingText || showManualTrailingIcon) 8 else 0).dp))
+        }
+        if (showManualTrailingIcon) {
+            WidgetManualTrailingIcon(size = (19f * scale).dp)
         }
         // Keep this node even when hidden. The synchronous GlanceRemoteViews path can reuse
         // layout IDs across updates, so toggling privacy must not change the RemoteViews tree
         // (a manual record's trailing label is hidden under hideMedicationDetails).
         Text(
-            text = row.trailingText?.takeIf { showTrailingText }.orEmpty(),
+            text = trailingText.orEmpty(),
             style = TextStyle(
                 color = colors.onSurface,
                 fontSize = ((if (showTrailingText) 16f else 1f) * scale).sp,
