@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _Nothing yet._
 
+## [1.1.3] - 2026-06-08
+
+### Changed
+
+- Multi-unit dose summaries now fold the count into the dose (e.g. "1.5 tablets · 15 mg") instead of showing a separate count multiplier like "2x".
+
+### Fixed
+
+- Stock and dose numbers now use the selected app language's number format (such as a decimal comma) consistently across the app, reminders, and the widget.
+- Reminder and widget dose details now appear in the chosen app language on older Android versions, instead of occasionally falling back to the system language.
+
 ## [1.1.2] - 2026-06-07
 
 ### Changed
