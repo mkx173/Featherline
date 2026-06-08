@@ -119,7 +119,7 @@ private fun <T> ConnectedButtonGroup(
     val horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
     val verticalArrangement = Arrangement.spacedBy(2.dp)
 
-    val localTextStyle = if (textStyle != null && !expandOptions) {
+    val localTextStyle = if (textStyle == null && !expandOptions) {
         MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp)
     } else {
         textStyle
