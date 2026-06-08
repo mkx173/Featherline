@@ -144,6 +144,30 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainE2Hero_includes_dose_logged_within_current_displayed_minute() {
+        // The home clock is minute-granular: a dose logged at 12:00:05 while the
+        // UI still says 12:00 must count as the last dose, not be hidden as
+        // "future" until the next tick.
+        val now = LocalDateTime.of(2026, 5, 31, 12, 0)
+        val doseTime = now.plusSeconds(5)
+
+        val hero = buildMainE2Hero(
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    medicine = defaultEstradiolMedicine,
+                    sourceGroupUuid = null,
+                    appliedAt = testInstant(doseTime),
+                )
+            ),
+            zoneId = testZoneId,
+            now = now,
+        )
+
+        assertEquals(doseTime, hero.lastDoseAt)
+    }
+
+    @Test
     fun buildMainE2Chart_converts_pk_chart_concentrations_to_display_unit() {
         val chart = buildMainE2Chart(
             trendResult = PkTrendResult(
@@ -830,6 +854,132 @@ class MainUiModelsTest {
         assertEquals(groupLinkedDoseTime, cards.single().lastDoseAt)
         assertEquals(doseInstruction, cards.single().lastDose?.doseInstruction)
         assertEquals(false, cards.single().isManualRow)
+    }
+
+    @Test
+    fun buildMainAntiandrogenCards_includes_logs_within_current_displayed_minute() {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000064"),
+            key = MedicationKey.CYPROTERONE_ACETATE,
+        )
+        val doseInstruction = DoseInstruction.TabletFraction(1, 4)
+        val group = MedicationGroup(
+            uuid = UUID.fromString("c3b6f0a1-8888-4aaa-9999-000000000008"),
+            name = "CPA",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(20, 0))
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("96f31e44-2059-4f89-a3f4-5477cbbce4b3"),
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+        val displayedNow = LocalDateTime.of(2026, 4, 18, 9, 0)
+        val groupLinkedDoseTime = displayedNow.plusSeconds(5)
+        val manualDoseTime = displayedNow.plusSeconds(6)
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(group),
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                    sourceGroupUuid = group.uuid,
+                    appliedAt = testInstant(groupLinkedDoseTime),
+                ),
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                    sourceGroupUuid = null,
+                    appliedAt = testInstant(manualDoseTime),
+                )
+            ),
+            now = displayedNow,
+            zoneId = testZoneId
+        )
+
+        assertEquals(2, cards.size)
+        assertEquals(groupLinkedDoseTime, cards[0].lastDoseAt)
+        assertEquals(false, cards[0].isManualRow)
+        assertEquals(manualDoseTime, cards[1].lastDoseAt)
+        assertEquals(true, cards[1].isManualRow)
+    }
+
+    @Test
+    fun buildMainAntiandrogenCards_keeps_manual_row_when_manual_log_ties_group_linked_minute() {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000065"),
+            key = MedicationKey.CYPROTERONE_ACETATE,
+        )
+        val doseInstruction = DoseInstruction.TabletFraction(1, 4)
+        val group = MedicationGroup(
+            uuid = UUID.fromString("c3b6f0a1-9999-4aaa-9999-000000000009"),
+            name = "CPA",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(20, 0))
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("96f31e44-2059-4f89-a3f4-5477cbbce4b3"),
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+        val loggedMinute = LocalDateTime.of(2026, 4, 18, 9, 0)
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(group),
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                    sourceGroupUuid = group.uuid,
+                    appliedAt = testInstant(loggedMinute),
+                ),
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                    sourceGroupUuid = null,
+                    appliedAt = testInstant(loggedMinute),
+                )
+            ),
+            now = loggedMinute,
+            zoneId = testZoneId
+        )
+
+        assertEquals(2, cards.size)
+        assertEquals(loggedMinute, cards[0].lastDoseAt)
+        assertEquals(false, cards[0].isManualRow)
+        assertEquals(loggedMinute, cards[1].lastDoseAt)
+        assertEquals(true, cards[1].isManualRow)
     }
 
     @Test

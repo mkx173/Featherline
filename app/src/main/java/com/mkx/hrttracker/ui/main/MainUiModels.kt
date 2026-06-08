@@ -32,6 +32,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -201,13 +202,19 @@ internal fun buildMainE2Hero(
     zoneId: ZoneId = ZoneId.systemDefault(),
     // `entries` includes the schedule window, which can carry a dose the user
     // pre-logged for later today. Such a dose has not been taken yet, so exclude
-    // anything after `now` from the "last dose" the hero reports. When `now` is
-    // null no upper bound is applied (used by previews/tests).
+    // anything after `now` from the "last dose" the hero reports. The cutoff is
+    // minute-aware: the home clock ticks per minute, so a dose logged within the
+    // currently displayed minute still counts rather than hiding until the next
+    // tick. When `now` is null no upper bound is applied (used by previews/tests).
     now: LocalDateTime? = null,
 ): MainE2HeroUiState {
+    val lastDoseCutoff = now?.let { mainHomeLatestDoseCutoff(now = it, zoneId = zoneId) }
     val lastEstradiolEntry = findLastEstradiolEntry(
-        entries = entries,
-        onOrBefore = now?.atZone(zoneId)?.toInstant(),
+        entries = if (lastDoseCutoff == null) {
+            entries
+        } else {
+            entries.filter { entry -> lastDoseCutoff.contains(entry.appliedAt) }
+        },
     )
     val concentrationUnit = trendResult?.concentrationUnit ?: PkConcentrationUnit.PG_PER_ML
 
@@ -495,10 +502,10 @@ internal fun buildMainAntiandrogenCards(
     // pre-logged for later today. Such a dose has not been taken yet, so exclude
     // anything after `now` from the last dose a card reports (mirrors the E2
     // hero's findLastEstradiolEntry bound).
-    val nowInstant = now.atZone(zoneId).toInstant()
+    val lastDoseCutoff = mainHomeLatestDoseCutoff(now = now, zoneId = zoneId)
     val antiandrogenEntriesAtOrBeforeNow = entries.filter { entry ->
         entry.category == MedicationCategory.ANTIANDROGEN &&
-            !entry.appliedAt.isAfter(nowInstant)
+            lastDoseCutoff.contains(entry.appliedAt)
     }
     return groups.sortedBy { it.createdAt }.flatMap { group ->
         group.medications
@@ -550,10 +557,7 @@ internal fun buildMainAntiandrogenCards(
                     }
                 if (
                     latestManual == null ||
-                    (
-                        latestGroupLinkedForName != null &&
-                            !latestManual.appliedAt.isAfter(latestGroupLinkedForName.appliedAt)
-                        )
+                    latestGroupLinkedForName?.appliedAt?.isAfter(latestManual.appliedAt) == true
                 ) {
                     planRows
                 } else {
@@ -573,6 +577,40 @@ internal fun buildMainAntiandrogenCards(
                     )
                 }
             }
+    }
+}
+
+private data class MainHomeLatestDoseCutoff(
+    val instant: Instant,
+    val inclusive: Boolean,
+) {
+    fun contains(appliedAt: Instant): Boolean {
+        return if (inclusive) {
+            !appliedAt.isAfter(instant)
+        } else {
+            appliedAt.isBefore(instant)
+        }
+    }
+}
+
+private fun mainHomeLatestDoseCutoff(
+    now: LocalDateTime,
+    zoneId: ZoneId,
+): MainHomeLatestDoseCutoff {
+    val minuteNow = now.truncatedTo(ChronoUnit.MINUTES)
+    return if (now == minuteNow) {
+        // The home clock is minute-granular. When Room emits a dose logged at
+        // 09:00:05 while the UI still says 09:00, treat it as part of the
+        // current displayed minute instead of hiding it until the next tick.
+        MainHomeLatestDoseCutoff(
+            instant = minuteNow.plusMinutes(1).atZone(zoneId).toInstant(),
+            inclusive = false,
+        )
+    } else {
+        MainHomeLatestDoseCutoff(
+            instant = now.atZone(zoneId).toInstant(),
+            inclusive = true,
+        )
     }
 }
 
