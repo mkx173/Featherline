@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -17,11 +18,10 @@ import org.junit.runner.RunWith
 /**
  * Pins the semantics of the latest-antiandrogen home snapshot query
  * (`HomeDao.getLatestAntiandrogenEntriesOnOrBefore`): the single latest
- * `ANTIANDROGEN` entry on or before the cutoff, per
- * `(applicationType, medicineUuid, sourceGroupUuid)` identity, with ties on
- * `appliedAtEpochMillis` broken by the greater `uuid`. This is the contract
- * the `ROW_NUMBER()` window query must keep — it must not change when the
- * query implementation is tuned.
+ * `ANTIANDROGEN` entry on or before the cutoff, per full medication signature,
+ * with ties on `appliedAtEpochMillis` broken by the greater `uuid`. This is the
+ * contract the `ROW_NUMBER()` window query must keep; it must not change when
+ * the query implementation is tuned.
  */
 @RunWith(AndroidJUnit4::class)
 class HomeDaoLatestAntiandrogenTest {
@@ -83,20 +83,92 @@ class HomeDaoLatestAntiandrogenTest {
             assertEquals(setOf("a-new", "b-new", "c-tie-2"), latest)
         }
 
+    @Test
+    fun latestAntiandrogen_returnsLatestPerFullDoseSignature() =
+        runBlocking {
+            val cutoff = 10_000L
+            database.medicationLogDao().insertEntries(
+                listOf(
+                    aaEntry(
+                        "quarter-old",
+                        appliedAt = 1_000,
+                        group = "group-1",
+                        tabletFractionNumerator = 1,
+                        tabletFractionDenominator = 4,
+                    ),
+                    aaEntry(
+                        "quarter-new",
+                        appliedAt = 4_000,
+                        group = "group-1",
+                        tabletFractionNumerator = 1,
+                        tabletFractionDenominator = 4,
+                    ),
+                    aaEntry(
+                        "third",
+                        appliedAt = 2_000,
+                        group = "group-1",
+                        tabletFractionNumerator = 1,
+                        tabletFractionDenominator = 3,
+                    ),
+                )
+            )
+
+            val latest = database.homeDao()
+                .getLatestAntiandrogenEntriesOnOrBefore(cutoff)
+                .map { it.uuid }
+                .toSet()
+
+            assertEquals(setOf("quarter-new", "third"), latest)
+        }
+
+    @Test
+    fun observeLatestAntiandrogen_returnsLatestPerFullDoseSignature() =
+        runBlocking {
+            val cutoff = 10_000L
+            database.medicationLogDao().insertEntries(
+                listOf(
+                    aaEntry(
+                        "quarter",
+                        appliedAt = 4_000,
+                        group = "group-1",
+                        tabletFractionNumerator = 1,
+                        tabletFractionDenominator = 4,
+                    ),
+                    aaEntry(
+                        "third",
+                        appliedAt = 2_000,
+                        group = "group-1",
+                        tabletFractionNumerator = 1,
+                        tabletFractionDenominator = 3,
+                    ),
+                )
+            )
+
+            val latest = database.homeDao()
+                .observeLatestAntiandrogenEntriesOnOrBefore(cutoff)
+                .first()
+                .map { it.uuid }
+                .toSet()
+
+            assertEquals(setOf("quarter", "third"), latest)
+        }
+
     private fun aaEntry(
         uuid: String,
         appliedAt: Long,
         group: String?,
         applicationType: String = MedicationApplicationType.ORAL.name,
         medicineUuid: String? = "m-aa",
+        tabletFractionNumerator: Int = 1,
+        tabletFractionDenominator: Int = 1,
     ): MedicationLogEntryEntity = MedicationLogEntryEntity(
         uuid = uuid,
         category = MedicationCategory.ANTIANDROGEN.name,
         medicineUuid = medicineUuid,
         applicationType = applicationType,
         doseInstructionKind = DoseInstructionKind.TABLET_FRACTION.name,
-        tabletFractionNumerator = 1,
-        tabletFractionDenominator = 1,
+        tabletFractionNumerator = tabletFractionNumerator,
+        tabletFractionDenominator = tabletFractionDenominator,
         doseVolumeMl = null,
         doseWeightGrams = null,
         equivalentE2Mg = null,

@@ -275,7 +275,13 @@ class MainViewModel @Inject constructor(
             stockWarnings = inputs.stockWarnings,
             lowStockSectionExpanded = lowStockSectionExpanded,
             e2Hero = buildMainE2Hero(
-                entries = listOfNotNull(inputs.latestEstradiolEntry),
+                // The single-row `latestEstradiolEntry` query is bounded at the
+                // frozen subscription `now`, so on its own it misses a dose the
+                // user logs later in the same session. Feed the schedule window
+                // (which carries today's logged doses) alongside it, mirroring
+                // the antiandrogen card; buildMainE2Hero filters to estradiol
+                // entries at or before the live `now` and picks the latest.
+                entries = homeEntries + listOfNotNull(inputs.latestEstradiolEntry),
                 trendResult = trendResult,
                 displayUnit = homeE2DisplayUnit,
                 zoneId = zoneId,

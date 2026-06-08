@@ -93,6 +93,10 @@ class HomeRepositoryTest {
         val now = LocalDateTime.of(2026, 5, 6, 10, 15)
         val zoneId = ZoneId.systemDefault()
         val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.NG_DL)
+        val latestEntryCutoffEpochMillis = now
+            .atZone(zoneId)
+            .toInstant()
+            .toEpochMilli()
         val scheduleEntry = logEntry(
             uuid = UUID.fromString("406807b7-260c-4c36-90bd-6f60696c7517"),
             scheduledFor = now.toLocalDate().atTime(8, 0),
@@ -125,14 +129,15 @@ class HomeRepositoryTest {
         } returns flowOf(listOf(scheduleEntry))
         every {
             homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
-                onOrBeforeEpochMillis = LocalDate.of(2026, 5, 7)
-                    .atStartOfDay(zoneId)
-                    .toInstant()
-                    .toEpochMilli() - 1L,
+                onOrBeforeEpochMillis = latestEntryCutoffEpochMillis,
             )
         } returns flowOf(listOf(antiandrogenHistoryEntry))
         every { homeDao.observeEstradiolPkEntries(any(), any()) } returns flowOf(emptyList())
-        every { homeDao.observeLatestEstradiolEntryOnOrBefore(any()) } returns flowOf(null)
+        every {
+            homeDao.observeLatestEstradiolEntryOnOrBefore(
+                onOrBeforeEpochMillis = latestEntryCutoffEpochMillis,
+            )
+        } returns flowOf(null)
         every { homeDao.observeProfile() } returns flowOf(
             UserProfileEntity(
                 weightKg = 64.0,
@@ -181,7 +186,10 @@ class HomeRepositoryTest {
             .atStartOfDay(providedZone)
             .toInstant()
             .toEpochMilli()
-        val endOfTodayInclusiveEpochMillis = manualEndEpochMillis - 1L
+        val latestEntryCutoffEpochMillis = now
+            .atZone(providedZone)
+            .toInstant()
+            .toEpochMilli()
         val pkStartEpochMillis = today
             .atStartOfDay()
             .minusDays(settings.homeE2ChartWindowOption.pastDays + 180L)
@@ -210,7 +218,7 @@ class HomeRepositoryTest {
         } returns flowOf(emptyList())
         every {
             homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
-                onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
+                onOrBeforeEpochMillis = latestEntryCutoffEpochMillis,
             )
         } returns flowOf(emptyList())
         every {
@@ -221,7 +229,7 @@ class HomeRepositoryTest {
         } returns flowOf(emptyList())
         every {
             homeDao.observeLatestEstradiolEntryOnOrBefore(
-                onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
+                onOrBeforeEpochMillis = latestEntryCutoffEpochMillis,
             )
         } returns flowOf(null)
         every { homeDao.observeProfile() } returns flowOf(null)

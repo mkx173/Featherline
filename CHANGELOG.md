@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- The antiandrogen card now lists an ad-hoc (manual) dose as its own row after the planned doses, marked "manual", instead of replacing a planned dose's details.
+
+### Fixed
+
+- The antiandrogen card no longer treat a dose pre-logged for later today as the most recent dose.
+- When a group tracks the same antiandrogen at more than one dose, each dose now shows its own last dose, including doses logged on earlier days.
 
 ## [1.1.3] - 2026-06-08
 

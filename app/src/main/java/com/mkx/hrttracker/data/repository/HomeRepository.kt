@@ -281,27 +281,26 @@ class HomeRepository @Inject constructor(
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        // Stable end bounds for the day so this flow doesn't re-subscribe per minute.
-        // MainViewModel re-subscribes only on date change; a per-minute `now` upper
-        // bound would otherwise hide entries the user logs later in the day.
-        //
-        // Two values, because the DAO predicates differ:
-        //   - `manualEndEpochMillis`        : start of tomorrow, used with `<` (exclusive)
-        //                                     by `observeScheduleEntries`.
-        //   - `endOfTodayInclusiveEpochMillis`: last ms of today, used with `<=`
-        //                                     (inclusive) by the `OnOrBefore` /
-        //                                     `<=`-bounded queries so an entry stamped
-        //                                     exactly at tomorrow 00:00 is NOT counted
-        //                                     as "today's latest".
-        //
-        // The PK simulator filters future-applied entries internally; the single-row
-        // "latest" queries (antiandrogen / estradiol) may surface a future-applied
-        // entry if the user pre-logs one earlier today — accepted as a rare edge.
+        // Stable end bound for the multi-row schedule window so this flow doesn't
+        // re-subscribe per minute. MainViewModel re-subscribes only on date change;
+        // a per-minute `now` upper bound would otherwise hide entries the user logs
+        // later in the day from that window. `manualEndEpochMillis` is the start of
+        // tomorrow, used with `<` (exclusive) by `observeScheduleEntries`.
         val manualEndEpochMillis = today.plusDays(1)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val endOfTodayInclusiveEpochMillis = manualEndEpochMillis - 1L
+        // The antiandrogen and estradiol "latest" lookups each return a single row
+        // (the most recent dose on or before the bound). Bound them at the current
+        // snapshot time, not end-of-today, so a dose pre-logged for later today
+        // doesn't become that single row and hide an earlier real dose. Doses the
+        // user logs later today still surface via the schedule window above; these
+        // lookups only provide the older-than-the-window fallback. This matches the
+        // snapshot path, which bounds the same lookups at generation time.
+        val latestEntryCutoffEpochMillis = now
+            .atZone(zoneId)
+            .toInstant()
+            .toEpochMilli()
 
         // PK lookback and horizon depend on the selected chart-window option;
         // flatMapLatest re-subscribes the Room PK query when the user toggles
@@ -369,7 +368,7 @@ class HomeRepository @Inject constructor(
                         },
                         combine(
                             homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
-                                onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
+                                onOrBeforeEpochMillis = latestEntryCutoffEpochMillis,
                             ),
                             medicineChangeVersion,
                         ) { entries, _ ->
@@ -410,7 +409,7 @@ class HomeRepository @Inject constructor(
                             },
                             combine(
                                 homeDao.observeLatestEstradiolEntryOnOrBefore(
-                                    onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
+                                    onOrBeforeEpochMillis = latestEntryCutoffEpochMillis,
                                 ),
                                 medicineChangeVersion,
                             ) { entry, _ ->

@@ -10,6 +10,8 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
 import com.mkx.hrttracker.model.medication.isArchived
@@ -30,6 +32,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -108,6 +111,8 @@ data class MainAntiandrogenCardUiState(
     val medication: MedicationGroupMedication,
     val lastDose: LastDoseDisplay? = null,
     val lastDoseAt: LocalDateTime? = null,
+    // True when this is a trailing manual (ad-hoc) row rather than a plan row.
+    val isManualRow: Boolean = false,
     val nextDoseAt: LocalDateTime? = null,
     val isNextDosePastDue: Boolean = false,
 )
@@ -195,16 +200,21 @@ internal fun buildMainE2Hero(
     trendResult: PkTrendResult? = null,
     displayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
     zoneId: ZoneId = ZoneId.systemDefault(),
-    // The Room "latest dose" query is bounded by end-of-today (a deliberately
-    // stable per-day bound), so it can surface a future-applied dose the user
-    // pre-logged earlier today. Such a dose has not been taken yet, so exclude
-    // anything after `now` from the "last dose" the hero reports. When `now` is
-    // null no upper bound is applied (used by previews/tests).
+    // `entries` includes the schedule window, which can carry a dose the user
+    // pre-logged for later today. Such a dose has not been taken yet, so exclude
+    // anything after `now` from the "last dose" the hero reports. The cutoff is
+    // minute-aware: the home clock ticks per minute, so a dose logged within the
+    // currently displayed minute still counts rather than hiding until the next
+    // tick. When `now` is null no upper bound is applied (used by previews/tests).
     now: LocalDateTime? = null,
 ): MainE2HeroUiState {
+    val lastDoseCutoff = now?.let { mainHomeLatestDoseCutoff(now = it, zoneId = zoneId) }
     val lastEstradiolEntry = findLastEstradiolEntry(
-        entries = entries,
-        onOrBefore = now?.atZone(zoneId)?.toInstant(),
+        entries = if (lastDoseCutoff == null) {
+            entries
+        } else {
+            entries.filter { entry -> lastDoseCutoff.contains(entry.appliedAt) }
+        },
     )
     val concentrationUnit = trendResult?.concentrationUnit ?: PkConcentrationUnit.PG_PER_ML
 
@@ -488,44 +498,119 @@ internal fun buildMainAntiandrogenCards(
     now: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault()
 ): List<MainAntiandrogenCardUiState> {
+    // `entries` includes the schedule window, which can carry a dose the user
+    // pre-logged for later today. Such a dose has not been taken yet, so exclude
+    // anything after `now` from the last dose a card reports (mirrors the E2
+    // hero's findLastEstradiolEntry bound).
+    val lastDoseCutoff = mainHomeLatestDoseCutoff(now = now, zoneId = zoneId)
+    val antiandrogenEntriesAtOrBeforeNow = entries.filter { entry ->
+        entry.category == MedicationCategory.ANTIANDROGEN &&
+            lastDoseCutoff.contains(entry.appliedAt)
+    }
     return groups.sortedBy { it.createdAt }.flatMap { group ->
         group.medications
             .filter { medication -> medication.category == MedicationCategory.ANTIANDROGEN }
-            .groupBy(MedicationSignature::fromGroupMedication)
-            .map { (_, medicationsForSignature) ->
-                val medication = medicationsForSignature.first().copy(
-                    count = medicationsForSignature.sumOf { it.count }
-                )
-                val nextDose = group.nextMainAntiandrogenDueSlot(
-                    medication = medication,
-                    entries = entries,
-                    now = now,
-                    zoneId = zoneId,
-                )
-                val lastMatchingEntry = entries
+            .groupBy { medication -> medication.medicine?.medicationNameKey().orEmpty() }
+            .flatMap { (nameKey, medicationsForName) ->
+                val latestManual = antiandrogenEntriesAtOrBeforeNow
                     .asSequence()
-                    .filter { entry ->
-                        entry.category == MedicationCategory.ANTIANDROGEN &&
-                            (entry.sourceGroupUuid == null || entry.sourceGroupUuid == group.uuid) &&
-                            entry.isSameMedicationTrackingIdentity(medication)
-                    }
+                    .filter { entry -> entry.matchesManualAntiandrogenName(nameKey) }
                     .maxByOrNull { entry -> entry.appliedAt }
+                val latestGroupLinkedForName = antiandrogenEntriesAtOrBeforeNow
+                    .asSequence()
+                    .filter { entry -> entry.matchesGroupLinkedAntiandrogenName(group, nameKey) }
+                    .maxByOrNull { entry -> entry.appliedAt }
+                val planRows = medicationsForName
+                    .groupBy(MedicationSignature::fromGroupMedication)
+                    .map { (_, medicationsForSignature) ->
+                        val medication = medicationsForSignature.first().copy(
+                            count = medicationsForSignature.sumOf { it.count }
+                        )
+                        val nextDose = group.nextMainAntiandrogenDueSlot(
+                            medication = medication,
+                            entries = entries,
+                            now = now,
+                            zoneId = zoneId,
+                        )
+                        val lastMatchingEntry = antiandrogenEntriesAtOrBeforeNow
+                            .asSequence()
+                            .filter { entry ->
+                                entry.matchesAntiandrogenPlanSignature(group, medication)
+                            }
+                            .maxByOrNull { entry -> entry.appliedAt }
 
-                MainAntiandrogenCardUiState(
-                    id = "${group.uuid}:${medication.uuid}",
-                    groupUuid = group.uuid,
-                    groupName = group.name,
-                    groupColorKey = group.colorKey,
-                    medication = medication,
-                    lastDose = lastMatchingEntry?.toLastDoseDisplay(),
-                    lastDoseAt = lastMatchingEntry
-                        ?.appliedAt
-                        ?.atZone(zoneId)
-                        ?.toLocalDateTime(),
-                    nextDoseAt = nextDose?.scheduledAt,
-                    isNextDosePastDue = nextDose?.isPastDue == true,
-                )
+                        MainAntiandrogenCardUiState(
+                            id = "${group.uuid}:${medication.uuid}",
+                            groupUuid = group.uuid,
+                            groupName = group.name,
+                            groupColorKey = group.colorKey,
+                            medication = medication,
+                            lastDose = lastMatchingEntry?.toLastDoseDisplay(),
+                            lastDoseAt = lastMatchingEntry
+                                ?.appliedAt
+                                ?.atZone(zoneId)
+                                ?.toLocalDateTime(),
+                            isManualRow = false,
+                            nextDoseAt = nextDose?.scheduledAt,
+                            isNextDosePastDue = nextDose?.isPastDue == true,
+                        )
+                    }
+                if (
+                    latestManual == null ||
+                    latestGroupLinkedForName?.appliedAt?.isAfter(latestManual.appliedAt) == true
+                ) {
+                    planRows
+                } else {
+                    planRows + MainAntiandrogenCardUiState(
+                        id = "${group.uuid}:$nameKey:manual",
+                        groupUuid = group.uuid,
+                        groupName = group.name,
+                        groupColorKey = group.colorKey,
+                        medication = medicationsForName.first(),
+                        lastDose = latestManual.toLastDoseDisplay(),
+                        lastDoseAt = latestManual.appliedAt
+                            .atZone(zoneId)
+                            .toLocalDateTime(),
+                        isManualRow = true,
+                        nextDoseAt = null,
+                        isNextDosePastDue = false,
+                    )
+                }
             }
+    }
+}
+
+private data class MainHomeLatestDoseCutoff(
+    val instant: Instant,
+    val inclusive: Boolean,
+) {
+    fun contains(appliedAt: Instant): Boolean {
+        return if (inclusive) {
+            !appliedAt.isAfter(instant)
+        } else {
+            appliedAt.isBefore(instant)
+        }
+    }
+}
+
+private fun mainHomeLatestDoseCutoff(
+    now: LocalDateTime,
+    zoneId: ZoneId,
+): MainHomeLatestDoseCutoff {
+    val minuteNow = now.truncatedTo(ChronoUnit.MINUTES)
+    return if (now == minuteNow) {
+        // The home clock is minute-granular. When Room emits a dose logged at
+        // 09:00:05 while the UI still says 09:00, treat it as part of the
+        // current displayed minute instead of hiding it until the next tick.
+        MainHomeLatestDoseCutoff(
+            instant = minuteNow.plusMinutes(1).atZone(zoneId).toInstant(),
+            inclusive = false,
+        )
+    } else {
+        MainHomeLatestDoseCutoff(
+            instant = now.atZone(zoneId).toInstant(),
+            inclusive = true,
+        )
     }
 }
 
@@ -872,14 +957,42 @@ internal fun buildMainPreviewRowsForDate(
         .toList()
 }
 
-// Two doses track the same medication when their medicine and route match.
-// Dose amount is intentionally excluded — a different amount of the same
-// medicine still belongs to the same tracking identity.
-private fun MedicationLogEntry.isSameMedicationTrackingIdentity(
+// Group-linked logs are matched strictly to a plan row by group and full
+// signature, keeping two dose types for the same medicine pinned to their own
+// last dose.
+private fun MedicationLogEntry.matchesAntiandrogenPlanSignature(
+    group: MedicationGroup,
     medication: MedicationGroupMedication,
 ): Boolean {
-    return medicineUuid == medication.medicineUuid &&
-        applicationType == medication.applicationType
+    return sourceGroupUuid == group.uuid &&
+        MedicationSignature.fromLogEntry(this) ==
+        MedicationSignature.fromGroupMedication(medication)
+}
+
+private fun MedicationLogEntry.matchesManualAntiandrogenName(nameKey: String): Boolean {
+    return sourceGroupUuid == null && matchesAntiandrogenName(nameKey)
+}
+
+private fun MedicationLogEntry.matchesGroupLinkedAntiandrogenName(
+    group: MedicationGroup,
+    nameKey: String,
+): Boolean {
+    return sourceGroupUuid == group.uuid && matchesAntiandrogenName(nameKey)
+}
+
+private fun MedicationLogEntry.matchesAntiandrogenName(nameKey: String): Boolean {
+    val logNameKey = medicine?.medicationNameKey()
+    return logNameKey != null && logNameKey == nameKey
+}
+
+// Name-level identity of a medicine, independent of its preparation. Catalog
+// medicines key on the catalog entry; custom medicines on their normalized name.
+private fun Medicine.medicationNameKey(): String {
+    return when (val selection = selection) {
+        is MedicineSelection.Catalog -> "C|${selection.medicationKey.name}"
+        is MedicineSelection.Custom -> "X|${selection.normalizedMedicationName}"
+        MedicineSelection.PatchOff -> "P|PATCH_OFF"
+    }
 }
 
 private fun MedicationLogEntry.toLastDoseDisplay(): LastDoseDisplay {
