@@ -363,8 +363,9 @@ class MainUiModelsTest {
 
     @Test
     fun buildMainAntiandrogenCards_returns_one_card_per_antiandrogen_with_real_last_and_next_values() {
-        // Shared medicine instances: the antiandrogen card matches a logged
-        // entry to its planned medication by medicineUuid.
+        // Shared medicine instances: the doses below are manual (ad-hoc) logs,
+        // which the antiandrogen card matches to a planned medication by
+        // medication name alone.
         val spiroMedicine = testMedicine(
             uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000010"),
             key = MedicationKey.SPIRONOLACTONE,
@@ -402,7 +403,8 @@ class MainUiModelsTest {
         val now = LocalDateTime.of(2026, 4, 18, 11, 0)
         val spiroLastDoseTime = LocalDateTime.of(2026, 4, 18, 8, 4)
         val cyproLastDoseTime = LocalDateTime.of(2026, 4, 17, 20, 2)
-        // The logged spiro dose differs from the planned one (half a tablet).
+        // The manual spiro dose differs from the planned one (half a tablet);
+        // a manual log still matches by name regardless of dose.
         val spiroActualDoseInstruction = DoseInstruction.TabletFraction(1, 2)
         val cyproDoseInstruction = DoseInstruction.TabletFraction(1, 4)
 
@@ -415,9 +417,8 @@ class MainUiModelsTest {
                     applicationType = MedicationApplicationType.ORAL,
                     doseInstruction = spiroActualDoseInstruction,
                     equivalentE2Mg = null,
-                    sourceGroupUuid = antiandrogenGroup.uuid,
+                    sourceGroupUuid = null,
                     appliedAt = testInstant(spiroLastDoseTime),
-                    scheduledFor = LocalDateTime.of(2026, 4, 18, 8, 0),
                     count = 2,
                 ),
                 testMedicationLogEntry(
@@ -426,9 +427,8 @@ class MainUiModelsTest {
                     applicationType = MedicationApplicationType.ORAL,
                     doseInstruction = cyproDoseInstruction,
                     equivalentE2Mg = null,
-                    sourceGroupUuid = antiandrogenGroup.uuid,
+                    sourceGroupUuid = null,
                     appliedAt = testInstant(cyproLastDoseTime),
-                    scheduledFor = LocalDateTime.of(2026, 4, 17, 20, 0)
                 )
             ),
             now = now,
@@ -460,6 +460,225 @@ class MainUiModelsTest {
             cards.map { it.nextDoseAt }
         )
         assertEquals(listOf(true, true), cards.map { it.isNextDosePastDue })
+    }
+
+    @Test
+    fun buildMainAntiandrogenCards_matches_manual_last_dose_by_medication_name_ignoring_preparation() {
+        // The slot is a 50mg CPA tablet; the user manually logged a 100mg CPA
+        // tablet (a different preparation, hence a different medicine UUID, and
+        // not linked to the group). A manual log is matched by medication name
+        // alone, so it must still surface as the card's last dose.
+        val cardMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000020"),
+            key = MedicationKey.CYPROTERONE_ACETATE,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 50.0),
+        )
+        val loggedMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000021"),
+            key = MedicationKey.CYPROTERONE_ACETATE,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 100.0),
+        )
+        val doseInstruction = DoseInstruction.TabletFraction(1, 4)
+        val group = MedicationGroup(
+            uuid = UUID.fromString("c3b6f0a1-1111-4aaa-9999-000000000001"),
+            name = "CPA",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(20, 0))
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("96f31e44-2059-4f89-a3f4-5477cbbce4b3"),
+                    medicine = cardMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+        val lastDoseTime = LocalDateTime.of(2026, 4, 18, 20, 3)
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(group),
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    medicine = loggedMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                    sourceGroupUuid = null,
+                    appliedAt = testInstant(lastDoseTime),
+                )
+            ),
+            now = LocalDateTime.of(2026, 4, 18, 21, 0),
+            zoneId = testZoneId
+        )
+
+        assertEquals(1, cards.size)
+        assertEquals(lastDoseTime, cards.single().lastDoseAt)
+        assertEquals(loggedMedicine, cards.single().lastDose?.medicine)
+    }
+
+    @Test
+    fun buildMainAntiandrogenCards_routes_group_linked_last_dose_to_card_matching_its_dose_type() {
+        // One group holds the same antiandrogen at two dose types (1/4 and 1/3
+        // of a tablet), producing two cards. Group-linked logs are matched by
+        // their full signature, so each card's last dose reflects the latest log
+        // of *its* dose type, not whichever log is newest overall.
+        val sharedMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000030"),
+            key = MedicationKey.CYPROTERONE_ACETATE,
+        )
+        val quarterDose = DoseInstruction.TabletFraction(1, 4)
+        val thirdDose = DoseInstruction.TabletFraction(1, 3)
+        val group = MedicationGroup(
+            uuid = UUID.fromString("c3b6f0a1-2222-4aaa-9999-000000000002"),
+            name = "CPA",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(20, 0))
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("96f31e44-2059-4f89-a3f4-5477cbbce4b3"),
+                    medicine = sharedMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = quarterDose,
+                ),
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("e1a7c6d6-6ef2-4c8b-9a56-3a4f4f1298ce"),
+                    medicine = sharedMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = thirdDose,
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+        val quarterDoseTime = LocalDateTime.of(2026, 4, 18, 8, 0)
+        val thirdDoseTime = LocalDateTime.of(2026, 4, 18, 9, 0)
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(group),
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    medicine = sharedMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = quarterDose,
+                    sourceGroupUuid = group.uuid,
+                    appliedAt = testInstant(quarterDoseTime),
+                ),
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    medicine = sharedMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = thirdDose,
+                    sourceGroupUuid = group.uuid,
+                    appliedAt = testInstant(thirdDoseTime),
+                )
+            ),
+            now = LocalDateTime.of(2026, 4, 18, 11, 0),
+            zoneId = testZoneId
+        )
+
+        assertEquals(2, cards.size)
+        assertEquals(
+            listOf(quarterDose, thirdDose),
+            cards.map { it.medication.doseInstruction }
+        )
+        assertEquals(
+            listOf(quarterDoseTime, thirdDoseTime),
+            cards.map { it.lastDoseAt }
+        )
+        assertEquals(
+            listOf(quarterDose, thirdDose),
+            cards.map { it.lastDose?.doseInstruction }
+        )
+    }
+
+    @Test
+    fun buildMainAntiandrogenCards_manual_dose_overrides_every_card_of_that_medication() {
+        // Same two-card setup (CPA at 1/4 and 1/3), but the latest dose is a
+        // single manual log of a third preparation (100mg) at yet another dose
+        // type. Because manual logs match by medication name alone, it surfaces
+        // as the last dose on BOTH CPA cards.
+        val cardMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000040"),
+            key = MedicationKey.CYPROTERONE_ACETATE,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 50.0),
+        )
+        val manualMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000041"),
+            key = MedicationKey.CYPROTERONE_ACETATE,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 100.0),
+        )
+        val quarterDose = DoseInstruction.TabletFraction(1, 4)
+        val thirdDose = DoseInstruction.TabletFraction(1, 3)
+        val group = MedicationGroup(
+            uuid = UUID.fromString("c3b6f0a1-3333-4aaa-9999-000000000003"),
+            name = "CPA",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(20, 0))
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("96f31e44-2059-4f89-a3f4-5477cbbce4b3"),
+                    medicine = cardMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = quarterDose,
+                ),
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("e1a7c6d6-6ef2-4c8b-9a56-3a4f4f1298ce"),
+                    medicine = cardMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = thirdDose,
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+        val manualDoseTime = LocalDateTime.of(2026, 4, 18, 10, 30)
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(group),
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    medicine = manualMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = thirdDose,
+                    sourceGroupUuid = null,
+                    appliedAt = testInstant(manualDoseTime),
+                )
+            ),
+            now = LocalDateTime.of(2026, 4, 18, 11, 0),
+            zoneId = testZoneId
+        )
+
+        assertEquals(2, cards.size)
+        assertEquals(
+            listOf(manualDoseTime, manualDoseTime),
+            cards.map { it.lastDoseAt }
+        )
+        assertEquals(
+            listOf(manualMedicine, manualMedicine),
+            cards.map { it.lastDose?.medicine }
+        )
     }
 
     @Test

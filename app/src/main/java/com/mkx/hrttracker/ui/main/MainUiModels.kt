@@ -10,6 +10,8 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
 import com.mkx.hrttracker.model.medication.isArchived
@@ -506,8 +508,7 @@ internal fun buildMainAntiandrogenCards(
                     .asSequence()
                     .filter { entry ->
                         entry.category == MedicationCategory.ANTIANDROGEN &&
-                            (entry.sourceGroupUuid == null || entry.sourceGroupUuid == group.uuid) &&
-                            entry.isSameMedicationTrackingIdentity(medication)
+                            entry.matchesAntiandrogenCard(group, medication)
                     }
                     .maxByOrNull { entry -> entry.appliedAt }
 
@@ -872,14 +873,38 @@ internal fun buildMainPreviewRowsForDate(
         .toList()
 }
 
-// Two doses track the same medication when their medicine and route match.
-// Dose amount is intentionally excluded — a different amount of the same
-// medicine still belongs to the same tracking identity.
-private fun MedicationLogEntry.isSameMedicationTrackingIdentity(
+// True when this logged dose should be attributed to the antiandrogen card for
+// [medication], which depends on how the dose was logged:
+//
+//   * A group-linked log (logged against a planned slot) is matched strictly: it
+//     must belong to this group and carry the exact same fully-qualified
+//     signature (preparation + dose + route) as the slot. This keeps two cards
+//     for the same medicine at different dose types (e.g. 1/4 vs 1/3 tablet)
+//     pinned to their own logs.
+//   * A manual (ad-hoc) log is matched by medication *name* alone, ignoring
+//     preparation and dose type, so a single manual CPA dose surfaces as the
+//     last dose on every CPA card.
+private fun MedicationLogEntry.matchesAntiandrogenCard(
+    group: MedicationGroup,
     medication: MedicationGroupMedication,
 ): Boolean {
-    return medicineUuid == medication.medicineUuid &&
-        applicationType == medication.applicationType
+    return if (sourceGroupUuid == null) {
+        medicine?.medicationNameKey() == medication.medicine?.medicationNameKey()
+    } else {
+        sourceGroupUuid == group.uuid &&
+            MedicationSignature.fromLogEntry(this) ==
+            MedicationSignature.fromGroupMedication(medication)
+    }
+}
+
+// Name-level identity of a medicine, independent of its preparation. Catalog
+// medicines key on the catalog entry; custom medicines on their normalized name.
+private fun Medicine.medicationNameKey(): String {
+    return when (val selection = selection) {
+        is MedicineSelection.Catalog -> "C|${selection.medicationKey.name}"
+        is MedicineSelection.Custom -> "X|${selection.normalizedMedicationName}"
+        MedicineSelection.PatchOff -> "P|PATCH_OFF"
+    }
 }
 
 private fun MedicationLogEntry.toLastDoseDisplay(): LastDoseDisplay {
