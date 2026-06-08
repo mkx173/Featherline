@@ -5,8 +5,8 @@
     <string name="tab_history">History</string>
     <string name="tab_settings">Settings</string>
     <string name="navigate_back">Navigate back</string>
-    <string name="add_entry">Add Entry</string>
-    <string name="edit_entry">Edit Entry</string>
+    <string name="add_entry">Add Record</string>
+    <string name="edit_entry">Edit Record</string>
     <string name="add_medication_group">Add Group</string>
     <string name="edit_medication_group">Edit Group</string>
     <string name="archived_medication_group">Archived Group</string>
@@ -100,7 +100,7 @@
     <string name="stock_nudge_added_toast">Added %1$s to stock</string>
     <string name="stock_nudge_disabled_toast">Tips disabled. Turn them back on from the medicine menu.</string>
     <string name="stock_nudge_menu_label">Stock tracking tips</string>
-    <string name="fab_add_entry">Add medication log entry</string>
+    <string name="fab_add_entry">Add medication log record</string>
     <string name="plan_empty_state">No medication groups yet.</string>
     <string name="plan_selected_day_records_empty">No records for this day.</string>
     <string name="plan_schedule_entry_logged">Logged</string>
@@ -133,28 +133,28 @@
     <string name="plan_batch_add_select_group_prompt">Please select a group first.</string>
     <string name="plan_batch_add_select_group_no_available_medicines">No stock changes in this range.</string>
     <string name="plan_batch_add_group_not_started">Please select a group with a start date in the past.</string>
-    <string name="plan_batch_add_no_entries">No entries can be added in this range.</string>
+    <string name="plan_batch_add_no_entries">No records can be added in this range.</string>
     <string name="plan_batch_add_no_new_entries">No new records to add</string>
     <string name="plan_batch_add_confirm_button">Add records</string>
     <string name="plan_batch_add_confirm_title">Add records?</string>
-    <string name="plan_batch_add_manual_before_start_note">Records before the plan start date will be saved as manual entries.</string>
+    <string name="plan_batch_add_manual_before_start_note">Records before the plan start date will be saved as manual records.</string>
     <string name="plan_batch_add_failure">Unable to add records.</string>
     <string name="plan_previous_week">Previous week</string>
     <string name="plan_next_week">Next week</string>
     <string name="plan_week_previous">Last week</string>
     <string name="plan_week_current">This week</string>
     <string name="plan_week_next">Next week</string>
-    <string name="history_empty_state">No entries yet.</string>
-    <string name="history_month_empty_state">No entries for this month.</string>
-    <string name="history_month_entries_title">%1$s entries</string>
+    <string name="history_empty_state">No records yet.</string>
+    <string name="history_month_empty_state">No records for this month.</string>
+    <string name="history_month_entries_title">%1$s records</string>
     <string name="history_selected_day_records_title">Records on %1$s</string>
-    <string name="history_selected_day_empty_state">No entries for this day.</string>
+    <string name="history_selected_day_empty_state">No records for this day.</string>
     <string name="history_clear_selection">Clear selection</string>
     <string name="history_cancel_selection">Cancel selection</string>
     <string name="history_select_all">Select all</string>
     <string name="history_reverse_selection">Reverse</string>
-    <string name="history_select_entry">Select entry</string>
-    <string name="history_entry_selected">Entry selected</string>
+    <string name="history_select_entry">Select record</string>
+    <string name="history_entry_selected">Record selected</string>
     <string name="history_previous_month">Previous month</string>
     <string name="history_current_month">Current month</string>
     <string name="history_next_month">Next month</string>
@@ -167,15 +167,15 @@
     <string name="history_summary_partial">Partial</string>
     <string name="history_summary_missed">Missed</string>
     <string name="history_legend_unplanned">Off plan</string>
-    <string name="delete_entries_fab">Delete selected entries</string>
-    <string name="delete_entry_title">Delete entry</string>
+    <string name="delete_entries_fab">Delete selected records</string>
+    <string name="delete_entry_title">Delete record</string>
     <plurals name="delete_entries_confirmation">
-        <item quantity="one">Delete %1$d selected entry?</item>
-        <item quantity="other">Delete %1$d selected entries?</item>
+        <item quantity="one">Delete %1$d selected record?</item>
+        <item quantity="other">Delete %1$d selected records?</item>
     </plurals>
     <string name="delete_entries_confirm">Delete</string>
-    <string name="save_entry_failure">Unable to save entry.</string>
-    <string name="delete_entry_failure">Unable to delete entry.</string>
+    <string name="save_entry_failure">Unable to save record.</string>
+    <string name="delete_entry_failure">Unable to delete record.</string>
     <string name="cross_timezone_saved_toast">Saved in %1$s</string>
     <string name="timezone_change_notice">Time zone changed from %1$s to %2$s. Plan times follow your local time.</string>
     <string name="timezone_change_notice_dismiss">Dismiss timezone change notice</string>
@@ -202,7 +202,7 @@
         <item quantity="one">%1$d selected</item>
         <item quantity="other">%1$d selected</item>
     </plurals>
-    <string name="delete_editing_entry_confirmation">Delete this entry?</string>
+    <string name="delete_editing_entry_confirmation">Delete this record?</string>
     <string name="field_medication_category">Category</string>
     <string name="field_medication_application">Application</string>
     <string name="field_medication">Medication</string>
@@ -272,8 +272,8 @@
     <string name="delete_medication_group_title">Delete group</string>
     <string name="delete_medication_group_confirmation">Delete this medication group? It has no related history records.</string>
     <plurals name="delete_medication_group_confirmation_with_related_records">
-        <item quantity="one">Delete this medication group? You can keep its %1$d related history record and convert it to a manual entry, or delete it too.</item>
-        <item quantity="other">Delete this medication group? You can keep its %1$d related history records and convert them to manual entries, or delete them too.</item>
+        <item quantity="one">Delete this medication group? You can keep its %1$d related history record and convert it to a manual record, or delete it too.</item>
+        <item quantity="other">Delete this medication group? You can keep its %1$d related history records and convert them to manual records, or delete them too.</item>
     </plurals>
     <string name="save_medication_group_failure">Unable to save group.</string>
     <string name="delete_medication_group_failure">Unable to delete group.</string>
@@ -536,19 +536,19 @@
     <string name="settings_calibration_custom_analyte_archive_title">Archive custom analyte</string>
     <string name="settings_calibration_custom_analyte_archive_message">Archive %1$s? Existing test results will be kept.</string>
     <string name="settings_calibration_custom_analyte_unit_locked_toast">Unit can\'t be changed once test results have been recorded for this analyte.</string>
-    <string name="settings_calibration_delete_all_entries">Delete all calibration entries</string>
-    <string name="settings_calibration_delete_all_entries_title">Delete all calibration entries</string>
-    <string name="settings_calibration_delete_all_entries_success">Deleted all calibration entries.</string>
-    <string name="settings_calibration_delete_all_entries_failure">Unable to delete calibration entries.</string>
-    <string name="settings_calibration_save_entry_failure">Unable to save calibration entry.</string>
-    <string name="settings_calibration_delete_entry_failure">Unable to delete calibration entry.</string>
+    <string name="settings_calibration_delete_all_entries">Delete all calibration records</string>
+    <string name="settings_calibration_delete_all_entries_title">Delete all calibration records</string>
+    <string name="settings_calibration_delete_all_entries_success">Deleted all calibration records.</string>
+    <string name="settings_calibration_delete_all_entries_failure">Unable to delete calibration records.</string>
+    <string name="settings_calibration_save_entry_failure">Unable to save calibration record.</string>
+    <string name="settings_calibration_delete_entry_failure">Unable to delete calibration record.</string>
     <plurals name="settings_calibration_delete_all_entries_message">
         <item quantity="one">Delete all %1$d calibration record? Custom analytes and default units will be kept.</item>
         <item quantity="other">Delete all %1$d calibration records? Custom analytes and default units will be kept.</item>
     </plurals>
     <plurals name="settings_calibration_extra_entries">
-        <item quantity="one">+%1$d entry</item>
-        <item quantity="other">+%1$d entries</item>
+        <item quantity="one">+%1$d record</item>
+        <item quantity="other">+%1$d records</item>
     </plurals>
     <plurals name="settings_calibration_total_count">
         <item quantity="one">%1$d total</item>
@@ -695,8 +695,8 @@
         <item quantity="other">...and %1$d more medications</item>
     </plurals>
     <plurals name="reminder_notification_entries_added">
-        <item quantity="one">Added %1$d entry.</item>
-        <item quantity="other">Added %1$d entries.</item>
+        <item quantity="one">Added %1$d record.</item>
+        <item quantity="other">Added %1$d records.</item>
     </plurals>
     <string name="reminder_notification_nothing_to_add">Already logged.</string>
     <string name="widget_quick_log_failed">Unable to quick-log dose.</string>
@@ -734,8 +734,8 @@
         <item quantity="other">Updates stock for %1$d medicines.</item>
     </plurals>
     <plurals name="history_summary_logged_entries">
-        <item quantity="one">entry logged</item>
-        <item quantity="other">entries logged</item>
+        <item quantity="one">record logged</item>
+        <item quantity="other">records logged</item>
     </plurals>
     <plurals name="group_schedule_weeks_unit">
         <item quantity="one">week</item>

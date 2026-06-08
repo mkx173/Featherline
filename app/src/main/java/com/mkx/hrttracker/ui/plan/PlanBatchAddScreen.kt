@@ -485,7 +485,7 @@ private fun PlanBatchAddRangeSelector(
                 }
                 // Latch the message while visible so the row keeps its text through
                 // the exit collapse (entryCount drops to 0 on deselect) instead of
-                // flashing "no entries" as it shrinks.
+                // flashing "no records" as it shrinks.
                 var latchedMessage by remember { mutableStateOf(liveMessage) }
                 if (rangeEnabled) {
                     latchedMessage = liveMessage

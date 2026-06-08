@@ -599,7 +599,7 @@ private const val MINUTES_PER_DAY = 24L * MINUTES_PER_HOUR
 // ---------------------------------------------------------------------------
 
 @Preview(
-    name = "Medication Log Entry Editor",
+    name = "Medication Log Record Editor",
     showBackground = true,
     widthDp = 420,
     heightDp = 720,
@@ -617,7 +617,7 @@ private fun MedicationLogEntryEditorSheetPreview() {
             preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
         )
         MedicationLogEntryEditorSheet(
-            title = "Add entry",
+            title = "Add record",
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             confirmButtonText = "Save",
             onDismissRequest = { },
