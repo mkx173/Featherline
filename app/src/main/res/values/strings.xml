@@ -445,8 +445,8 @@
     <string name="medication_application_injection">Injection</string>
     <string name="medication_application_gel">Gel</string>
     <string name="medication_gel_application_area_default">Default</string>
-    <string name="medication_application_patch_on">Apply patch</string>
-    <string name="medication_application_patch_off">Remove patch</string>
+    <string name="medication_application_patch_on">Patch</string>
+    <string name="medication_application_patch_off">Patch</string>
     <string name="medication_name_estradiol">Estradiol</string>
     <string name="medication_name_estradiol_valerate">Estradiol valerate</string>
     <string name="medication_name_estradiol_benzoate">Estradiol benzoate</string>

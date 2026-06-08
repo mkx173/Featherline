@@ -429,8 +429,8 @@
     <string name="medication_application_injection">注射</string>
     <string name="medication_application_gel">凝胶</string>
     <string name="medication_gel_application_area_default">默认</string>
-    <string name="medication_application_patch_on">贴上贴片</string>
-    <string name="medication_application_patch_off">移除贴片</string>
+    <string name="medication_application_patch_on">贴片</string>
+    <string name="medication_application_patch_off">贴片</string>
     <string name="medication_name_estradiol">雌二醇</string>
     <string name="medication_name_estradiol_valerate">戊酸雌二醇</string>
     <string name="medication_name_estradiol_benzoate">苯甲酸雌二醇</string>
