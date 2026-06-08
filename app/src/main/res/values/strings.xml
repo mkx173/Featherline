@@ -5,11 +5,11 @@
     <string name="tab_history">History</string>
     <string name="tab_settings">Settings</string>
     <string name="navigate_back">Navigate back</string>
-    <string name="add_entry">Add Record</string>
-    <string name="edit_entry">Edit Record</string>
-    <string name="add_medication_group">Add Group</string>
-    <string name="edit_medication_group">Edit Group</string>
-    <string name="archived_medication_group">Archived Group</string>
+    <string name="add_entry">Add record</string>
+    <string name="edit_entry">Edit record</string>
+    <string name="add_medication_group">Add group</string>
+    <string name="edit_medication_group">Edit group</string>
+    <string name="archived_medication_group">Archived group</string>
     <string name="main_today_title">Today</string>
     <string name="main_last_night_title">Last night</string>
     <string name="main_tomorrow_title">Tomorrow</string>
@@ -179,7 +179,7 @@
     <string name="cross_timezone_saved_toast">Saved in %1$s</string>
     <string name="timezone_change_notice">Time zone changed from %1$s to %2$s. Plan times follow your local time.</string>
     <string name="timezone_change_notice_dismiss">Dismiss timezone change notice</string>
-    <string name="schedule_fulfillment_warning_title">Won’t Count as Completed</string>
+    <string name="schedule_fulfillment_warning_title">Won’t count as completed</string>
     <string name="schedule_fulfillment_warning_message">The time you entered is far from the original scheduled time, so this record won’t count as completing this schedule.</string>
     <string name="history_delete_all_entries">Delete all records</string>
     <string name="history_delete_all_entries_title">Delete all records</string>
@@ -268,7 +268,7 @@
     <string name="group_schedule_since_summary">Since %1$s</string>
     <string name="field_date_of_application">Date of application</string>
     <string name="field_time_of_application">Time of application</string>
-    <string name="delete_medication_group">Delete Group</string>
+    <string name="delete_medication_group">Delete group</string>
     <string name="delete_medication_group_title">Delete group</string>
     <string name="delete_medication_group_confirmation">Delete this medication group? It has no related history records.</string>
     <plurals name="delete_medication_group_confirmation_with_related_records">
@@ -555,7 +555,7 @@
         <item quantity="other">%1$d total</item>
     </plurals>
     <string name="settings_calibration_under_development_message">Calibration is under development. You can still log blood test results.</string>
-    <string name="settings_calibration_target_ranges_title">WPATH SOC-8 Target range</string>
+    <string name="settings_calibration_target_ranges_title">WPATH SOC-8 target range</string>
     <string name="settings_calibration_target_range_line">%1$s: %2$s</string>
     <string name="settings_backup_restore">Backup &amp; restore</string>
     <string name="settings_backup_to_file">Backup to file</string>
