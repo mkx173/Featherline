@@ -24,16 +24,18 @@ fun medicineDisplayName(medicine: Medicine, context: Context): String {
     }
 }
 
-// Null `medicine` means PATCH_OFF — the entry is named by its application route.
+// Null `medicine` means PATCH_OFF — titled by the removal medicine string, NOT the
+// route label, which is the shortened "Patch" now shared with PATCH_ON.
 fun medicationEntryTitle(
     medicine: Medicine?,
     applicationType: MedicationApplicationType,
     context: Context,
 ): String {
-    return if (medicine != null) {
-        medicineDisplayName(medicine, context)
-    } else {
-        context.getString(applicationType.labelRes)
+    return when {
+        medicine != null -> medicineDisplayName(medicine, context)
+        applicationType == MedicationApplicationType.PATCH_OFF ->
+            context.getString(R.string.medicine_patch_off_name)
+        else -> context.getString(applicationType.labelRes)
     }
 }
 
@@ -95,7 +97,9 @@ fun medicinePreparationSummary(medicine: Medicine, context: Context): String {
             )
         }
 
-        is MedicinePreparation.PatchOff -> context.getString(R.string.medicine_patch_off_name)
+        // PatchOff has no preparation to summarize; show the route label ("Patch")
+        // so the card reads "Remove patch" (name) with "Patch" beneath, not the name twice.
+        is MedicinePreparation.PatchOff -> context.getString(R.string.medication_application_patch_off)
     }
 }
 

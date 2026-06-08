@@ -92,7 +92,9 @@ fun medicinePreparationSummary(medicine: Medicine): String {
         }
 
         // Singleton has no strength; the summary just names the action.
-        is MedicinePreparation.PatchOff -> stringResource(R.string.medicine_patch_off_name)
+        // PatchOff has no preparation to summarize; show the route label ("Patch")
+        // so the card reads "Remove patch" (name) with "Patch" beneath, not the name twice.
+        is MedicinePreparation.PatchOff -> stringResource(R.string.medication_application_patch_off)
     }
 }
 
@@ -382,10 +384,13 @@ fun medicationEntryTitle(
     medicine: Medicine?,
     applicationType: MedicationApplicationType,
 ): String {
-    return if (medicine != null) {
-        medicineDisplayName(medicine)
-    } else {
-        stringResource(applicationType.labelRes)
+    return when {
+        medicine != null -> medicineDisplayName(medicine)
+        // PATCH_OFF is titled by the removal string, not the route label (shortened
+        // "Patch", shared with PATCH_ON), so the "Remove" cue survives.
+        applicationType == MedicationApplicationType.PATCH_OFF ->
+            stringResource(R.string.medicine_patch_off_name)
+        else -> stringResource(applicationType.labelRes)
     }
 }
 

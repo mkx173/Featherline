@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.reminder
 
 import android.content.Context
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.util.doseInstructionText
 import com.mkx.hrttracker.util.medicationEntryTitle
@@ -21,8 +22,15 @@ fun medicationDetailLine(
         count = medication.count,
     )
 
-    // For PATCH_OFF the title falls back to the route name; drop the duplicate.
-    return listOfNotNull(groupName, name, appType.takeIf { it != name }, doseText)
+    // PATCH_OFF is titled by the removal string ("Remove patch"); its route label is
+    // the shortened "Patch", which adds nothing next to that title, so omit it.
+    // Otherwise drop the route label only when it duplicates the title.
+    val routeSegment = if (medication.applicationType == MedicationApplicationType.PATCH_OFF) {
+        null
+    } else {
+        appType.takeIf { it != name }
+    }
+    return listOfNotNull(groupName, name, routeSegment, doseText)
         .joinToString(separator = " · ")
 }
 
