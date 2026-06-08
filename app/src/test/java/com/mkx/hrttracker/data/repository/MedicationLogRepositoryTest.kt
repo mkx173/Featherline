@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
@@ -22,6 +23,7 @@ import io.mockk.slot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -483,6 +485,95 @@ class MedicationLogRepositoryTest {
             repository.getObservedLatestEstradiolEntryOnOrBefore(
                 Instant.parse("2026-04-30T00:00:00Z")
             ),
+        )
+    }
+
+    // Regression for the Home-screen freeze after a backup restore. Home's stock
+    // inputs subscribe to observeScheduledEntriesInWindow(), whose .map resolves
+    // medicines via a SEPARATE point-in-time read. A restore that commits between
+    // the log-window query and that getByUuids() read pairs a still-old entry list
+    // with the already-swapped medicines table, so toMedicationLogEntryModel()'s
+    // checkNotNull(medicine) throws. Because this flow is an UPSTREAM source of
+    // observeHomeRoomInputs' combine, that throw bypasses the combine's per-emission
+    // guard and would terminate Home's observation, freezing it until an app
+    // restart. The transient failure must degrade a single emission and recover.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun observeScheduledEntriesInWindow_recoversFromTransientRestoreMedicineMismatch() = runTest {
+        val oldMedicineUuid = "ffffffff-0000-0000-0000-0000000000a3"
+        val newMedicineUuid = "ffffffff-0000-0000-0000-0000000000b3"
+        val oldEntry = testMedicationLogEntryEntity(
+            uuid = "11111111-0000-0000-0000-0000000000a1",
+            appliedAt = Instant.parse("2026-05-06T08:00:00Z"),
+            medicineUuid = oldMedicineUuid,
+        )
+        val staleExtraEntry = testMedicationLogEntryEntity(
+            uuid = "11111111-0000-0000-0000-0000000000a2",
+            appliedAt = Instant.parse("2026-05-06T09:00:00Z"),
+            medicineUuid = oldMedicineUuid,
+        )
+        val newEntry = testMedicationLogEntryEntity(
+            uuid = "22222222-0000-0000-0000-0000000000b1",
+            appliedAt = Instant.parse("2026-05-06T08:00:00Z"),
+            medicineUuid = newMedicineUuid,
+        )
+        val entriesSource = MutableStateFlow(listOf(oldEntry))
+        var resolvableMedicineUuids = setOf(oldMedicineUuid)
+
+        every { databaseHolder.databaseFlow } returns MutableStateFlow<HrtTrackerDatabase?>(database)
+        every { database.medicationLogDao() } returns dao
+        every { database.medicineDao() } returns medicineDao
+        every { dao.observeScheduledEntriesInWindow(any(), any()) } returns entriesSource
+        coEvery { medicineDao.getByUuids(any()) } answers {
+            firstArg<List<String>>()
+                .filter { uuid -> uuid in resolvableMedicineUuids }
+                .map { uuid ->
+                    testMedicineEntity(
+                        uuid = uuid,
+                        medicationKey = MedicationKey.ESTRADIOL,
+                        preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                    )
+                }
+        }
+
+        val repository = MedicationLogRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(StandardTestDispatcher(testScheduler)),
+        )
+
+        val emissions = mutableListOf<List<MedicationLogEntry>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeScheduledEntriesInWindow(
+                scheduledStartIso = "2026-05-05T00:00",
+                scheduledEndIso = "2026-08-04T23:59:59",
+            ).collect { emissions += it }
+        }
+        advanceUntilIdle()
+        assertEquals(
+            listOf(oldEntry.uuid),
+            emissions.last().map { it.uuid.toString() },
+        )
+
+        // Restore commits between the window query and the medicine resolve: the
+        // medicines table now only resolves the NEW uuid, while a re-emitted window
+        // still references the OLD one -> checkNotNull throws.
+        resolvableMedicineUuids = setOf(newMedicineUuid)
+        entriesSource.value = listOf(oldEntry, staleExtraEntry)
+        advanceUntilIdle()
+
+        // The window query catches up with the restored entries.
+        entriesSource.value = listOf(newEntry)
+        advanceUntilIdle()
+
+        // Without the per-emission guard, the transient throw terminates the flow and
+        // it never reflects the restored entry; with it, the flow recovers.
+        assertEquals(
+            "observeScheduledEntriesInWindow() must recover after a transient " +
+                "unresolved-medicine failure during restore",
+            listOf(newEntry.uuid),
+            emissions.last().map { it.uuid.toString() },
         )
     }
 

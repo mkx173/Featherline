@@ -123,9 +123,28 @@ class MedicationLogRepository @Inject internal constructor(
                         scheduledEndIso = scheduledEndIso,
                     )
                     .map { entities ->
-                        val medicinesByUuid = it.resolveMedicinesForEntries(entities)
-                        entities.map { entity -> entity.toMedicationLogEntryModel(medicinesByUuid) }
+                        // Same restore race as entriesFlow: a backup restore swaps every
+                        // medicine UUID in one transaction, so this point-in-time
+                        // resolveMedicinesForEntries() can pair a still-stale entry list
+                        // with the already-mutated medicines table and
+                        // toMedicationLogEntryModel()'s checkNotNull(medicine) throws.
+                        // This flow feeds Home's stock inputs as an UPSTREAM source of
+                        // observeHomeRoomInputs' combine, so the throw bypasses that
+                        // combine's per-emission guard and would hit Home's terminal
+                        // `.catch`, completing the observation and freezing Home until an
+                        // app restart. Degrade the single stale emission here so the next,
+                        // consistent Room invalidation recovers.
+                        runCatching {
+                            val medicinesByUuid = it.resolveMedicinesForEntries(entities)
+                            entities.map { entity -> entity.toMedicationLogEntryModel(medicinesByUuid) }
+                        }.getOrElse { error ->
+                            if (error is CancellationException) throw error
+                            emptyList()
+                        }
                     }
+                    // Guards the Room flow itself failing (DB corruption / I/O); transform
+                    // throws are caught per-emission above and never reach here.
+                    .catch { emit(emptyList()) }
             } ?: flowOf(emptyList())
         }
     }

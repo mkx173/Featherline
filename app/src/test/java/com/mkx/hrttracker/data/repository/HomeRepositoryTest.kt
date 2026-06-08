@@ -290,6 +290,109 @@ class HomeRepositoryTest {
         assertTrue(inputs.estradiolPkPlannedEntries.isEmpty())
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun observeHomeStartupInputs_recoversFromTransientRestoreMedicineMismatch() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val zoneId = ZoneId.systemDefault()
+        val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.PG_ML)
+        val medicineVersion = MutableStateFlow(0)
+        val oldGroupUuid = UUID.fromString("dddddddd-0000-0000-0000-0000000000a1")
+        val oldItemUuid = UUID.fromString("eeeeeeee-0000-0000-0000-0000000000a2")
+        val oldMedicineUuid = UUID.fromString("ffffffff-0000-0000-0000-0000000000a3")
+        val newGroupUuid = UUID.fromString("dddddddd-0000-0000-0000-0000000000b1")
+        val newItemUuid = UUID.fromString("eeeeeeee-0000-0000-0000-0000000000b2")
+        val newMedicineUuid = UUID.fromString("ffffffff-0000-0000-0000-0000000000b3")
+        val groupsSource = MutableStateFlow(
+            listOf(
+                groupWithItems(
+                    groupUuid = oldGroupUuid.toString(),
+                    itemUuid = oldItemUuid.toString(),
+                    medicineUuid = oldMedicineUuid.toString(),
+                )
+            )
+        )
+        var resolvableMedicineUuids = setOf(oldMedicineUuid.toString())
+        val emittedInputs = mutableListOf<HomeStartupInputs>()
+        // observeHomeStartupInputs runs upstream on flowOn(Dispatchers.IO), which the
+        // TestCoroutineScheduler doesn't track, so advanceUntilIdle can't wait for its
+        // emissions. Await real emissions via CompletableDeferred (no wall-clock
+        // timeout; runTest's own timeout is the safety net) as the sibling flowOn(IO)
+        // home tests do.
+        val oldGroupObserved = CompletableDeferred<Unit>()
+        val staleFailureObserved = CompletableDeferred<Unit>()
+        val restoredGroupObserved = CompletableDeferred<Unit>()
+
+        every { databaseHolder.get() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        every { medicineDao.observeMedicineChangeVersion() } returns medicineVersion
+        coEvery { medicineDao.getByUuids(any()) } answers {
+            firstArg<List<String>>()
+                .filter { uuid -> uuid in resolvableMedicineUuids }
+                .map { uuid -> medicineEntity(uuid, MedicationKey.ESTRADIOL) }
+        }
+        every { homeDao.observeActiveGroups() } returns groupsSource
+        every { homeDao.observeScheduleEntries(any(), any(), any(), any()) } returns flowOf(emptyList())
+        every { homeDao.observeLatestAntiandrogenEntriesOnOrBefore(any()) } returns flowOf(emptyList())
+        every { homeDao.observeEstradiolPkEntries(any(), any()) } returns flowOf(emptyList())
+        every { homeDao.observeLatestEstradiolEntryOnOrBefore(any()) } returns flowOf(null)
+        every { homeDao.observeProfile() } returns flowOf(null)
+        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every { settingsRepository.homeE2ChartWindowOptionFlow } returns MutableStateFlow(settings.homeE2ChartWindowOption)
+
+        val repository = HomeRepository(
+            databaseHolder = databaseHolder,
+            settingsRepository = settingsRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
+        )
+        val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeHomeStartupInputs(now, zoneId).collect { inputs ->
+                emittedInputs += inputs
+                val groupIds = inputs.activeGroups.map { group -> group.uuid }
+                when {
+                    oldGroupUuid in groupIds -> oldGroupObserved.complete(Unit)
+                    newGroupUuid in groupIds -> restoredGroupObserved.complete(Unit)
+                    // The throw degrades activeGroups to empty (or, pre-fix, the terminal
+                    // catch emits the empty fallback before completing).
+                    else -> staleFailureObserved.complete(Unit)
+                }
+            }
+        }
+
+        oldGroupObserved.await()
+        assertEquals(oldGroupUuid, emittedInputs.last().activeGroups.singleOrNull()?.uuid)
+
+        // Restore commits: the medicines table is swapped to the NEW UUID set while
+        // observeActiveGroups still holds the old group, so the combine re-resolves,
+        // getByUuids can't find the old UUID, and toMedicationGroupModel()'s
+        // checkNotNull(medicine) throws. Await the degraded (empty-groups) emission so
+        // the transient failure is deterministically processed BEFORE the groups flow
+        // catches up — otherwise StateFlow conflation across flowOn(IO) could skip the
+        // stale pairing and the test would never exercise the freeze.
+        resolvableMedicineUuids = setOf(newMedicineUuid.toString())
+        medicineVersion.value = 1
+        staleFailureObserved.await()
+
+        // The groups flow catches up with the restored set. Without the per-emission
+        // guard the flow died at the throw above and never re-emits, so this await never
+        // completes and the test times out; with it the flow recovers and reflects the
+        // restore.
+        groupsSource.value = listOf(
+            groupWithItems(
+                groupUuid = newGroupUuid.toString(),
+                itemUuid = newItemUuid.toString(),
+                medicineUuid = newMedicineUuid.toString(),
+            )
+        )
+        restoredGroupObserved.await()
+        assertEquals(newGroupUuid, emittedInputs.last().activeGroups.singleOrNull()?.uuid)
+        collectJob.cancel()
+    }
+
     @Test
     fun observeHomeSnapshotInputs_readsFullSnapshotWithoutOpeningDatabase() = runTest {
         val now = LocalDateTime.of(2026, 5, 6, 10, 15)
@@ -1125,8 +1228,11 @@ class HomeRepositoryTest {
         collectJob.cancel()
     }
 
-    private fun groupWithItems(): MedicationGroupWithItemsEntity {
-        val groupUuid = UUID.fromString("44bff3cb-b4dd-4be4-9eda-442cf91185c1").toString()
+    private fun groupWithItems(
+        groupUuid: String = UUID.fromString("44bff3cb-b4dd-4be4-9eda-442cf91185c1").toString(),
+        itemUuid: String = UUID.fromString("79dfe41c-b684-4e48-858d-d47d369b5b13").toString(),
+        medicineUuid: String = ESTRADIOL_MEDICINE_UUID,
+    ): MedicationGroupWithItemsEntity {
         return MedicationGroupWithItemsEntity(
             group = MedicationGroupEntity(
                 uuid = groupUuid,
@@ -1140,11 +1246,11 @@ class HomeRepositoryTest {
             ),
             items = listOf(
                 MedicationGroupItemEntity(
-                    uuid = UUID.fromString("79dfe41c-b684-4e48-858d-d47d369b5b13").toString(),
+                    uuid = itemUuid,
                     groupUuid = groupUuid,
                     sortOrder = 0,
                     count = 1,
-                    medicineUuid = ESTRADIOL_MEDICINE_UUID,
+                    medicineUuid = medicineUuid,
                     applicationType = MedicationApplicationType.ORAL.name,
                     doseInstructionKind = DoseInstructionKind.TABLET_FRACTION.name,
                     tabletFractionNumerator = 1,
