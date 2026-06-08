@@ -22,6 +22,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.RunwayProjection
+import com.mkx.hrttracker.model.medication.formatStockCount
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.stockInventoryCountText
@@ -32,7 +33,6 @@ import com.mkx.hrttracker.ui.components.stockSubcardRunwayText
 import com.mkx.hrttracker.ui.components.stockSubcardTone
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
-import java.text.NumberFormat
 import java.time.LocalDate
 import java.util.Locale
 
@@ -143,9 +143,7 @@ private fun stockPreviewAmountText(
 }
 
 internal fun stockPreviewNumber(value: Double, locale: Locale): String {
-    return NumberFormat.getNumberInstance(locale).apply {
-        maximumFractionDigits = 2
-    }.format(value)
+    return formatStockCount(value, locale)
 }
 
 @Preview(

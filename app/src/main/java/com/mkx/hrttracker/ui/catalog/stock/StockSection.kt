@@ -44,6 +44,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.formatStockCount
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtSection
@@ -59,7 +60,6 @@ import com.mkx.hrttracker.ui.components.stockRateUnitRes
 import com.mkx.hrttracker.ui.components.stockSubcardTone
 import com.mkx.hrttracker.ui.components.stockSubcardValueTextColor
 import com.mkx.hrttracker.util.rememberAppLocale
-import java.text.NumberFormat
 import java.util.Locale
 
 @Composable
@@ -598,7 +598,7 @@ private fun rateLabel(projection: MedicineStockProjection): String? {
 internal fun stockUnitRes(preparation: MedicinePreparation): Int? = stockRateUnitRes(preparation)
 
 internal fun formatStockSectionRate(value: Double, locale: Locale): String {
-    return stockSectionNumberFormat(locale).format(value)
+    return formatStockCount(value, locale)
 }
 
 private fun computeProgress(
@@ -613,7 +613,7 @@ private fun computeProgress(
 
 private fun formatCount(value: Double?, locale: Locale): String {
     val resolved = value ?: return "-"
-    return stockSectionNumberFormat(locale).format(resolved)
+    return formatStockCount(resolved, locale)
 }
 
 internal fun stockSectionCountText(
@@ -629,14 +629,6 @@ internal fun stockSectionCountText(
         unitRes = unitRes,
         pluralCount = denominator ?: numerator,
     )
-}
-
-private fun stockSectionNumberFormat(locale: Locale): NumberFormat {
-    return NumberFormat.getNumberInstance(locale).apply {
-        isGroupingUsed = false
-        minimumFractionDigits = 0
-        maximumFractionDigits = 2
-    }
 }
 
 private fun poolIconRes(preparation: MedicinePreparation): Int = when (preparation) {

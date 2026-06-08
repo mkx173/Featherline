@@ -1,10 +1,9 @@
 package com.mkx.hrttracker.ui.medication
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
@@ -12,9 +11,7 @@ import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.formatDose
-import com.mkx.hrttracker.model.medication.formatPortion
-import com.mkx.hrttracker.model.medication.isWholeOne
-import com.mkx.hrttracker.model.medication.reduceTabletPortion
+import com.mkx.hrttracker.util.doseInstructionText
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.rememberAppLocale
 
@@ -98,275 +95,23 @@ fun medicinePreparationSummary(medicine: Medicine): String {
     }
 }
 
+// Compose wrapper over the single source of truth in MedicationDisplayText's
+// doseInstructionText. Both the in-app cards (here) and the widget/reminder (the
+// Context-based callers) must render identical dose summaries, so the branch
+// logic lives in one place; this only supplies the Composition's Context.
 @Composable
 fun doseInstructionSummary(
     medicine: Medicine,
     instruction: DoseInstruction,
     count: Int = 1,
     doseAmountDelta: Double? = null,
-): String? {
-    val appLocale = rememberAppLocale()
-    if (count > 1) {
-        return aggregateDoseInstructionSummary(
-            medicine = medicine,
-            instruction = instruction,
-            count = count,
-            doseAmountDelta = doseAmountDelta,
-            appLocale = appLocale,
-        )
-    }
-
-    // Render the actual administered amount (scheduled + delta) for measured
-    // forms; ampules keep WholeUnit and carry the delta on the mg line below.
-    val effectiveInstruction = DoseInstructionCalculator.effectiveDoseInstructionForDisplay(
-        preparation = medicine.preparation,
-        doseInstruction = instruction,
-        doseAmountDelta = doseAmountDelta,
-    )
-    val portion = when (effectiveInstruction) {
-        // A single whole tablet is implied by the active mg line; skip "1 tablet".
-        is DoseInstruction.TabletFraction -> if (effectiveInstruction.numerator == 1 && effectiveInstruction.denominator == 1) {
-            null
-        } else {
-            stringResource(
-                R.string.dose_instruction_summary_tablet_fraction,
-                formatTabletFraction(effectiveInstruction),
-            )
-        }
-        is DoseInstruction.VolumeMl -> stringResource(
-            R.string.dose_instruction_summary_volume_ml,
-            effectiveInstruction.valueMl.formatDose(appLocale),
-        )
-        is DoseInstruction.WeightGrams -> stringResource(
-            R.string.dose_instruction_summary_weight_grams,
-            effectiveInstruction.valueGrams.formatDose(appLocale),
-        )
-        // Gel sachets dose one whole packet at a time but the packet's gram weight
-        // is still useful context.
-        DoseInstruction.WholeUnit -> (medicine.preparation as? MedicinePreparation.GelSachet)?.let {
-            stringResource(
-                R.string.dose_instruction_summary_weight_grams,
-                it.sachetWeightGrams.formatDose(appLocale),
-            )
-        }
-        DoseInstruction.Noop -> null
-    }
-
-    val activeAmount = DoseInstructionCalculator.perUnitAmountMg(medicine, instruction, doseAmountDelta)
-        ?.let { perUnitMg ->
-            val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
-                medicine.displayDoseUnit
-            } else {
-                MedicineDisplayDoseUnit.MG
-            }
-            stringResource(
-                R.string.dose_instruction_summary_active_amount,
-                displayUnit.fromMg(perUnitMg).formatDose(appLocale),
-                stringResource(displayUnit.shortLabelRes()),
-            )
-        }
-
-    // Concentration-bearing preparations (multi-use vial, gel) show
-    // "concentration · portion" so the row identifies which preparation
-    // a log/slot refers to when one medicine has several preparations. The
-    // active mass is not surfaced for these forms; the portion already reflects
-    // the actual administered amount.
-    val concentration = concentrationSummary(medicine.preparation, appLocale)
-    if (concentration != null) {
-        return listOfNotNull(concentration, portion).joinToString(separator = " · ")
-    }
-
-    val active = DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(medicine, instruction)?.let { rate ->
-        stringResource(
-            R.string.dose_instruction_summary_patch_release_rate,
-            rate.formatDose(appLocale),
-        )
-    } ?: activeAmount
-
-    val parts = listOfNotNull(portion, active)
-    return parts.takeIf { it.isNotEmpty() }?.joinToString(separator = " · ")
-}
-
-@Composable
-fun doseInstructionSummary(
-    medicine: Medicine,
-    instruction: DoseInstruction,
-    doseAmountDelta: Double?,
-): String? = doseInstructionSummary(
+): String? = doseInstructionText(
+    context = LocalContext.current,
     medicine = medicine,
-    instruction = instruction,
-    count = 1,
+    doseInstruction = instruction,
+    count = count,
     doseAmountDelta = doseAmountDelta,
 )
-
-@Composable
-private fun aggregateDoseInstructionSummary(
-    medicine: Medicine,
-    instruction: DoseInstruction,
-    count: Int,
-    doseAmountDelta: Double?,
-    appLocale: java.util.Locale,
-): String? {
-    val effectiveInstruction = DoseInstructionCalculator.effectiveDoseInstructionForDisplay(
-        preparation = medicine.preparation,
-        doseInstruction = instruction,
-        doseAmountDelta = doseAmountDelta,
-    )
-    val concentration = concentrationSummary(medicine.preparation, appLocale)
-    if (concentration != null) {
-        return aggregateConcentrationDoseInstructionSummary(
-            preparation = medicine.preparation,
-            effectiveInstruction = effectiveInstruction,
-            count = count,
-            concentration = concentration,
-            appLocale = appLocale,
-        )
-    }
-
-    val portion = aggregateDosePortion(
-        preparation = medicine.preparation,
-        effectiveInstruction = effectiveInstruction,
-        count = count,
-        appLocale = appLocale,
-    )
-    val active = DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(medicine, instruction)
-        ?.let { rate ->
-            stringResource(
-                R.string.dose_instruction_summary_patch_release_rate,
-                (rate * count).formatDose(appLocale),
-            )
-        }
-        ?: aggregateActiveAmount(
-            medicine = medicine,
-            instruction = instruction,
-            count = count,
-            doseAmountDelta = doseAmountDelta,
-            appLocale = appLocale,
-        )
-
-    val parts = listOfNotNull(portion, active)
-    return parts.takeIf { it.isNotEmpty() }?.joinToString(separator = " · ")
-}
-
-@Composable
-private fun aggregateConcentrationDoseInstructionSummary(
-    preparation: MedicinePreparation,
-    effectiveInstruction: DoseInstruction,
-    count: Int,
-    concentration: String,
-    appLocale: java.util.Locale,
-): String? = when {
-    preparation is MedicinePreparation.GelSachet && effectiveInstruction == DoseInstruction.WholeUnit -> {
-        val sachets = doseCountNoun(R.plurals.stock_count_sachets, count)
-        val totalWeight = stringResource(
-            R.string.dose_instruction_summary_weight_grams,
-            (preparation.sachetWeightGrams * count).formatDose(appLocale),
-        )
-        listOf(sachets, concentration, totalWeight).joinToString(separator = " · ")
-    }
-    effectiveInstruction is DoseInstruction.VolumeMl -> {
-        val portion = stringResource(
-            R.string.dose_instruction_summary_volume_ml,
-            (effectiveInstruction.valueMl * count).formatDose(appLocale),
-        )
-        listOf(concentration, portion).joinToString(separator = " · ")
-    }
-    effectiveInstruction is DoseInstruction.WeightGrams -> {
-        val portion = stringResource(
-            R.string.dose_instruction_summary_weight_grams,
-            (effectiveInstruction.valueGrams * count).formatDose(appLocale),
-        )
-        listOf(concentration, portion).joinToString(separator = " · ")
-    }
-    effectiveInstruction == DoseInstruction.Noop -> null
-    else -> concentration
-}
-
-@Composable
-private fun aggregateDosePortion(
-    preparation: MedicinePreparation,
-    effectiveInstruction: DoseInstruction,
-    count: Int,
-    appLocale: java.util.Locale,
-): String? = when {
-    preparation is MedicinePreparation.Pill && effectiveInstruction is DoseInstruction.TabletFraction -> {
-        val foldedPortion = reduceTabletPortion(
-            numerator = effectiveInstruction.numerator,
-            denominator = effectiveInstruction.denominator,
-            count = count,
-        )
-        if (foldedPortion.isWholeOne()) {
-            null
-        } else {
-            stringResource(
-                R.string.dose_instruction_summary_tablet_fraction,
-                foldedPortion.formatPortion(appLocale),
-            )
-        }
-    }
-    preparation is MedicinePreparation.Capsule && effectiveInstruction == DoseInstruction.WholeUnit ->
-        doseCountNoun(R.plurals.stock_count_capsules, count)
-    preparation is MedicinePreparation.InjectionSingleUseVial && effectiveInstruction == DoseInstruction.WholeUnit ->
-        doseCountNoun(R.plurals.stock_count_vials, count)
-    preparation is MedicinePreparation.Patch && effectiveInstruction == DoseInstruction.WholeUnit ->
-        doseCountNoun(R.plurals.stock_count_patches, count)
-    effectiveInstruction == DoseInstruction.Noop -> null
-    else -> null
-}
-
-@Composable
-private fun aggregateActiveAmount(
-    medicine: Medicine,
-    instruction: DoseInstruction,
-    count: Int,
-    doseAmountDelta: Double?,
-    appLocale: java.util.Locale,
-): String? {
-    val totalMg = DoseInstructionCalculator.totalAmountMg(
-        perUnitAmountMg = DoseInstructionCalculator.perUnitAmountMg(medicine, instruction, doseAmountDelta),
-        count = count,
-    ) ?: return null
-    val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
-        medicine.displayDoseUnit
-    } else {
-        MedicineDisplayDoseUnit.MG
-    }
-    return stringResource(
-        R.string.dose_instruction_summary_active_amount,
-        displayUnit.fromMg(totalMg).formatDose(appLocale),
-        stringResource(displayUnit.shortLabelRes()),
-    )
-}
-
-@Composable
-private fun doseCountNoun(
-    pluralResId: Int,
-    count: Int,
-): String {
-    // Dose summaries intentionally reuse stock noun plurals; the localized nouns are identical.
-    val noun = pluralStringResource(pluralResId, count)
-    return "$count $noun"
-}
-
-@Composable
-private fun concentrationSummary(
-    preparation: MedicinePreparation,
-    locale: java.util.Locale,
-): String? = when (preparation) {
-    is MedicinePreparation.InjectionMultiUseVial -> stringResource(
-        R.string.dose_instruction_summary_concentration_mg_per_ml,
-        preparation.concentrationMgPerMl.formatDose(locale),
-    )
-    is MedicinePreparation.GelSachet -> stringResource(
-        R.string.dose_instruction_summary_concentration_percent,
-        preparation.concentrationPercent.formatDose(locale),
-    )
-    is MedicinePreparation.GelContainer -> stringResource(
-        R.string.dose_instruction_summary_concentration_percent,
-        preparation.concentrationPercent.formatDose(locale),
-    )
-    else -> null
-}
 
 internal fun formatTabletFraction(fraction: DoseInstruction.TabletFraction): String {
     return if (fraction.denominator == 1) {

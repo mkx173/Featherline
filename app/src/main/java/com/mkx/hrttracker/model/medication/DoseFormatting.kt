@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.model.medication
 
 import java.math.BigDecimal
+import java.math.BigInteger
 import java.math.MathContext
 import java.math.RoundingMode
 import java.text.DecimalFormatSymbols
@@ -26,7 +27,9 @@ fun reduceTabletPortion(numerator: Int, denominator: Int, count: Int): FoldedPor
 fun FoldedPortion.isWholeOne(): Boolean = numerator == denominator
 
 fun FoldedPortion.formatPortion(locale: Locale): String = when {
-    numerator == denominator -> "1"
+    // The reduced-form invariant (gcd == 1) makes numerator == denominator only
+    // satisfiable by 1/1, which the denominator == 1L branch already renders as
+    // "1"; callers also gate on isWholeOne() before formatting a whole portion.
     numerator < denominator -> "$numerator/$denominator"
     denominator == 1L -> numerator.toString()
     100L % denominator == 0L -> BigDecimal.valueOf(numerator)
@@ -52,6 +55,20 @@ fun Double.formatDose(locale: Locale): String {
     return normalized.formatWithLocaleDecimalSeparator(locale)
 }
 
+// Formats a stock quantity or rate for display: at most two decimals, HALF_UP,
+// trailing zeros trimmed, no digit grouping, with the locale's decimal separator.
+// Mirrors formatDose's rounding direction so the same value reads identically on
+// dose and stock surfaces, but omits formatDose's significant-figure fallback —
+// a negligible residual (e.g. float dust from stock math) reads as a clean "0"
+// rather than exposing "0.0001".
+fun formatStockCount(value: Double, locale: Locale): String {
+    val normalized = BigDecimal.valueOf(value)
+        .setScale(2, RoundingMode.HALF_UP)
+        .stripTrailingZeros()
+        .toPlainString()
+    return normalized.formatWithLocaleDecimalSeparator(locale)
+}
+
 private fun BigDecimal.formatNormalizedDecimal(locale: Locale): String {
     val normalized = stripTrailingZeros().toPlainString()
     return normalized.formatWithLocaleDecimalSeparator(locale)
@@ -66,8 +83,8 @@ private fun String.formatWithLocaleDecimalSeparator(locale: Locale): String {
     }
 }
 
-private tailrec fun longGcd(a: Long, b: Long): Long {
-    val positiveA = kotlin.math.abs(a)
-    val positiveB = kotlin.math.abs(b)
-    return if (positiveB == 0L) positiveA else longGcd(positiveB, positiveA % positiveB)
-}
+// BigInteger.gcd is sign-safe and overflow-free, unlike a hand-rolled Euclid
+// using abs() (which overflows on Long.MIN_VALUE). The denominator is always
+// positive, so the gcd never exceeds it and toLong() cannot overflow.
+private fun longGcd(a: Long, b: Long): Long =
+    BigInteger.valueOf(a).gcd(BigInteger.valueOf(b)).toLong()

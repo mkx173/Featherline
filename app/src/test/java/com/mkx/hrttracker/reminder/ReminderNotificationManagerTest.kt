@@ -17,6 +17,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.withAppLanguage
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -60,6 +61,11 @@ class ReminderNotificationManagerTest {
             true
         }
         every { context.resources } returns resources
+        // showDoseReminderNotification pins content to the app language via
+        // context.withAppLanguage(); that locale machinery is verified separately,
+        // so here it resolves to the same mock context.
+        mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
+        every { context.withAppLanguage() } returns context
         every { Toast.makeText(any(), any<String>(), Toast.LENGTH_SHORT) } returns toast
 
         // Builder fluent chain — all mutators return self so chaining is preserved

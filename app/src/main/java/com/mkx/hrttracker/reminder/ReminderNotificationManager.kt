@@ -28,6 +28,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.toStorageValue
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.medicineDisplayName
+import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -91,6 +92,12 @@ class ReminderNotificationManager @Inject constructor(
         }
         createNotificationChannel()
 
+        // Resolve every user-facing string and number through a context pinned to
+        // the chosen app language. The injected ApplicationContext stays on the
+        // system locale below API 33 (see Localization.withAppLanguage), so without
+        // this the title, body, and dose details would ignore the user's language.
+        val localizedContext = context.withAppLanguage()
+
         val notificationTag = bundle.notificationTag
         val contentIntent = PendingIntent.getActivity(
             context,
@@ -100,9 +107,9 @@ class ReminderNotificationManager @Inject constructor(
         )
         val isMerged = bundle.items.size > 1
         val notificationText = buildReminderNotificationText(bundle)
-        val title = context.getString(notificationText.titleRes)
-        val body = notificationText.body.resolve()
-        val logActionTitle = context.getString(
+        val title = localizedContext.getString(notificationText.titleRes)
+        val body = notificationText.body.resolve(localizedContext)
+        val logActionTitle = localizedContext.getString(
             if (isMerged) {
                 R.string.reminder_notification_action_log_all
             } else {
@@ -122,7 +129,7 @@ class ReminderNotificationManager @Inject constructor(
                     if (hideMedicationDetails) {
                         bundle.items.joinToString(separator = " · ") { it.groupName }
                     } else {
-                        buildExpandedNotificationBody(context, bundle.items)
+                        buildExpandedNotificationBody(localizedContext, bundle.items)
                     }
                 )
             )
@@ -130,7 +137,7 @@ class ReminderNotificationManager @Inject constructor(
                 if (canSnooze) {
                     addAction(
                         R.drawable.ic_snooze,
-                        context.getString(R.string.reminder_notification_action_remind_later),
+                        localizedContext.getString(R.string.reminder_notification_action_remind_later),
                         buildReminderActionPendingIntent(
                             action = ACTION_MEDICATION_REMINDER_REMIND_LATER,
                             bundle = bundle,
@@ -338,7 +345,7 @@ class ReminderNotificationManager @Inject constructor(
         )
     }
 
-    private fun ReminderNotificationBody.resolve(): String {
+    private fun ReminderNotificationBody.resolve(context: Context): String {
         return when (this) {
             is ReminderNotificationBody.GroupName -> groupName
             is ReminderNotificationBody.TwoGroups -> context.getString(

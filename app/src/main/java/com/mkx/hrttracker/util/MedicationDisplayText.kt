@@ -201,19 +201,6 @@ fun doseInstructionText(
     return parts.takeIf { it.isNotEmpty() }?.joinToString(separator = " · ")
 }
 
-fun doseInstructionText(
-    context: Context,
-    medicine: Medicine?,
-    doseInstruction: DoseInstruction,
-    doseAmountDelta: Double?,
-): String? = doseInstructionText(
-    context = context,
-    medicine = medicine,
-    doseInstruction = doseInstruction,
-    count = 1,
-    doseAmountDelta = doseAmountDelta,
-)
-
 private fun aggregateDoseInstructionText(
     context: Context,
     medicine: Medicine,
@@ -327,7 +314,6 @@ private fun aggregateDosePortionText(
         doseCountNoun(context, R.plurals.stock_count_vials, count)
     preparation is MedicinePreparation.Patch && effectiveInstruction == DoseInstruction.WholeUnit ->
         doseCountNoun(context, R.plurals.stock_count_patches, count)
-    effectiveInstruction == DoseInstruction.Noop -> null
     else -> null
 }
 

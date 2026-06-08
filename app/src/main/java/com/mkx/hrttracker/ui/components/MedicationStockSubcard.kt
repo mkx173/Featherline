@@ -59,9 +59,9 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.formatStockCount
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
-import java.text.NumberFormat
 import java.util.Locale
 
 internal enum class MedicationStockSubcardTone {
@@ -893,11 +893,7 @@ internal fun compactStockValueText(
 
 private fun formatStockSubcardCount(value: Double?, locale: Locale): String {
     val resolved = value?.takeIf { it.isFinite() } ?: return "-"
-    return NumberFormat.getNumberInstance(locale).apply {
-        isGroupingUsed = false
-        minimumFractionDigits = 0
-        maximumFractionDigits = 2
-    }.format(resolved)
+    return formatStockCount(resolved, locale)
 }
 
 private data class StockSubcardMutationPreview(

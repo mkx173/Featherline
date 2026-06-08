@@ -73,6 +73,7 @@ import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.formatStockCount
 import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
@@ -85,7 +86,6 @@ import com.mkx.hrttracker.ui.components.stockUnitNounPluralRes
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.math.BigDecimal
-import java.text.NumberFormat
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -685,13 +685,8 @@ private fun storedTotalUnits(projection: MedicineStockProjection): Double {
     }
 }
 
-internal fun formatAdjustStockCount(value: Double, locale: Locale): String {
-    return NumberFormat.getNumberInstance(locale).apply {
-        isGroupingUsed = false
-        minimumFractionDigits = 0
-        maximumFractionDigits = 2
-    }.format(value)
-}
+internal fun formatAdjustStockCount(value: Double, locale: Locale): String =
+    formatStockCount(value, locale)
 
 private val AdjustSheetTab.labelRes: Int
     get() = when (this) {

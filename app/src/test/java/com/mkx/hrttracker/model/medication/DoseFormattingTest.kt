@@ -35,6 +35,25 @@ class DoseFormattingTest {
     }
 
     @Test
+    fun format_stock_count_rounds_half_up_not_half_even() {
+        // Stock numbers must round the same direction as formatDose (HALF_UP), so the
+        // same value never shows a different last digit on a dose vs a stock surface.
+        // Plain NumberFormat would round these to even ("0.12" / "2.12").
+        assertEquals("0.13", formatStockCount(0.125, Locale.US))
+        assertEquals("2.13", formatStockCount(2.125, Locale.US))
+    }
+
+    @Test
+    fun format_stock_count_hides_negligible_residue_and_localizes() {
+        // A sub-0.005 residue (e.g. float dust from stock math) reads as a clean "0",
+        // unlike formatDose which would surface it via significant-figure fallback.
+        assertEquals("0", formatStockCount(0.001, Locale.US))
+        // Trailing zeros trimmed; locale decimal separator applied.
+        assertEquals("1,5", formatStockCount(1.5, Locale.GERMANY))
+        assertEquals("1", formatStockCount(1.0, Locale.GERMANY))
+    }
+
+    @Test
     fun reduce_tablet_portion_folds_count_and_formats_fraction_or_decimal() {
         assertFoldedPortion(1, 8, "1/8", reduceTabletPortion(1, 8, 1))
         assertFoldedPortion(1, 4, "1/4", reduceTabletPortion(1, 8, 2))
