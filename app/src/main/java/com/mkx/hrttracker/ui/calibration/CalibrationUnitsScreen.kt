@@ -327,9 +327,6 @@ private fun CalibrationUnitPreferenceItem(
                 onOptionSelected = onUnitChange,
                 layout = ConnectedButtonGroupLayout.ROW,
                 applyCjkTextOffset = false,
-                textStyle = MaterialTheme.typography.labelMedium.copy(
-                    fontSize = 13.sp
-                )
             )
         },
     )

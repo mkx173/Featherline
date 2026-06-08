@@ -261,6 +261,7 @@ internal fun DoseInstructionForm(
             }
         }
         if (availableRoutes.size >= 2) {
+            Spacer(modifier = Modifier.height(4.dp))
             MedicationEditorSectionLabel(stringResource(R.string.field_medication_application))
             TabletRouteRow(
                 availableRoutes = availableRoutes,

@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonColors
 import androidx.compose.material3.ToggleButtonDefaults
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 enum class ConnectedButtonGroupLayout {
     FLOW_ROW,
@@ -117,6 +119,12 @@ private fun <T> ConnectedButtonGroup(
     val horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
     val verticalArrangement = Arrangement.spacedBy(2.dp)
 
+    val localTextStyle = if (textStyle != null && !expandOptions) {
+        MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp)
+    } else {
+        textStyle
+    }
+
     when (layout) {
         ConnectedButtonGroupLayout.FLOW_ROW -> {
             FlowRow(
@@ -139,7 +147,7 @@ private fun <T> ConnectedButtonGroup(
                         enabled = enabled,
                         applyCjkTextOffset = applyCjkTextOffset,
                         colors = colors,
-                        textStyle = textStyle,
+                        textStyle = localTextStyle,
                     )
                 }
             }
@@ -176,7 +184,7 @@ private fun <T> ConnectedButtonGroup(
                         enabled = enabled,
                         applyCjkTextOffset = applyCjkTextOffset,
                         colors = colors,
-                        textStyle = textStyle,
+                        textStyle = localTextStyle,
                     )
                 }
             }
