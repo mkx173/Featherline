@@ -18,7 +18,7 @@ _Nothing yet._
 ### Fixed
 
 - Stock and dose numbers now use the selected app language's number format (such as a decimal comma) consistently across the app, reminders, and the widget.
-- Reminder and widget dose details now appear in the chosen app language on older Android versions, instead of occasionally falling back to the system language.
+- Reminder and widget text, including the toast shown after logging a dose, now appears in the chosen app language on older Android versions, instead of occasionally falling back to the system language.
 
 ## [1.1.2] - 2026-06-07
 
