@@ -2821,6 +2821,19 @@ private fun MainAntiandrogenMedicationSubCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+
+                if (card.lastDoseIsManual) {
+                    val manualLabel = stringResource(R.string.plan_entry_label_manual)
+                    Text(
+                        text = manualLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        modifier = Modifier.cjkTextOffset(manualLabel)
+                    )
+                }
             }
 
             Row(

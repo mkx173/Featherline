@@ -522,6 +522,7 @@ class MainUiModelsTest {
         assertEquals(1, cards.size)
         assertEquals(lastDoseTime, cards.single().lastDoseAt)
         assertEquals(loggedMedicine, cards.single().lastDose?.medicine)
+        assertEquals(true, cards.single().lastDoseIsManual)
     }
 
     @Test
@@ -604,6 +605,7 @@ class MainUiModelsTest {
             listOf(quarterDose, thirdDose),
             cards.map { it.lastDose?.doseInstruction }
         )
+        assertEquals(listOf(false, false), cards.map { it.lastDoseIsManual })
     }
 
     @Test
@@ -679,6 +681,7 @@ class MainUiModelsTest {
             listOf(manualMedicine, manualMedicine),
             cards.map { it.lastDose?.medicine }
         )
+        assertEquals(listOf(true, true), cards.map { it.lastDoseIsManual })
     }
 
     @Test

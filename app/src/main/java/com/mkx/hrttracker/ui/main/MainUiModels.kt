@@ -110,6 +110,9 @@ data class MainAntiandrogenCardUiState(
     val medication: MedicationGroupMedication,
     val lastDose: LastDoseDisplay? = null,
     val lastDoseAt: LocalDateTime? = null,
+    // True when the displayed last dose came from a manual (ad-hoc) log rather
+    // than one recorded against this group's schedule.
+    val lastDoseIsManual: Boolean = false,
     val nextDoseAt: LocalDateTime? = null,
     val isNextDosePastDue: Boolean = false,
 )
@@ -529,6 +532,8 @@ internal fun buildMainAntiandrogenCards(
                         ?.appliedAt
                         ?.atZone(zoneId)
                         ?.toLocalDateTime(),
+                    lastDoseIsManual = lastMatchingEntry != null &&
+                        lastMatchingEntry.sourceGroupUuid == null,
                     nextDoseAt = nextDose?.scheduledAt,
                     isNextDosePastDue = nextDose?.isPastDue == true,
                 )
