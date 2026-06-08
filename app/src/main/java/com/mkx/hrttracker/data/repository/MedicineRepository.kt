@@ -52,22 +52,27 @@ class MedicineRepository @Inject internal constructor(
                 } else {
                     database.medicineDao().observeAllActive()
                         .map { entities ->
-                            // Map per emission inside runCatching: a single malformed
-                            // row (e.g. an unparseable enum or UUID introduced by a
-                            // restore) must degrade this one emission, not permanently
-                            // terminate the observation. A terminal `.catch` here sits
-                            // inside flatMapLatest, so it would freeze this Eagerly,
-                            // app-scoped flow — and the Medicines list — until the
-                            // database (app process) is rebuilt.
-                            runCatching { entities.map(MedicineEntity::toMedicineModel) }
-                                .getOrElse { error ->
-                                    // No suspension point inside the block today, so
-                                    // cancellation can't surface here — but rethrow it
-                                    // anyway so runCatching never silently swallows
-                                    // cancellation if a suspend call is added later.
+                            // Map per ROW so a single malformed row (e.g. an unparseable
+                            // enum or UUID introduced by a restore) drops only itself
+                            // instead of blanking the whole list. Blanking would also
+                            // blank the stock-tracked subset derived from this flow even
+                            // when the tracked rows are valid, since an unrelated untracked
+                            // row would poison every consumer. The flow still degrades only
+                            // this emission, never terminating: a terminal `.catch` inside
+                            // flatMapLatest would freeze this Eagerly, app-scoped flow —
+                            // and the Medicines list — until the app process is rebuilt.
+                            entities.mapNotNull { entity ->
+                                try {
+                                    entity.toMedicineModel()
+                                } catch (error: Exception) {
+                                    // No suspension point here today, so cancellation
+                                    // can't surface — but rethrow it anyway so a future
+                                    // suspend call is never silently swallowed. Drop only
+                                    // the offending row.
                                     if (error is CancellationException) throw error
-                                    emptyList()
+                                    null
                                 }
+                            }
                         }
                         // Per-emission runCatching above recovers from a malformed
                         // row; this terminal catch separately guards the Room flow
@@ -112,13 +117,13 @@ class MedicineRepository @Inject internal constructor(
      * Stock-tracked subset of the active medicines, derived from the same
      * guarded, eagerly-cached [activeMedicinesFlow] (`trackingEnabled` mirrors
      * `MedicineDao.getAllActiveTrackedEntities`'s `trackingEnabled = 1` filter).
-     * Deriving instead
-     * of opening a second Room query reuses the per-emission `runCatching` +
-     * terminal `.catch` above, so a transient malformed-row failure degrades one
-     * emission and recovers — a raw `.map(toMedicineModel)` here would instead
-     * throw upstream of the home stock combine and freeze the home screen until
-     * the app process is rebuilt. Maps the pre-first-emission `null` to an empty
-     * list so the home combine still fires immediately.
+     * Deriving instead of opening a second Room query reuses the per-row mapping
+     * + terminal `.catch` above: a malformed row drops only itself (so an
+     * unrelated untracked bad row can't blank these tracked rows), and a raw
+     * `.map(toMedicineModel)` here would instead throw upstream of the home stock
+     * combine and freeze the home screen until the app process is rebuilt. Maps
+     * the pre-first-emission `null` to an empty list so the home combine still
+     * fires immediately.
      */
     fun observeAllActiveTracked(): Flow<List<Medicine>> {
         return observeAllActiveOrNull().map { medicines ->

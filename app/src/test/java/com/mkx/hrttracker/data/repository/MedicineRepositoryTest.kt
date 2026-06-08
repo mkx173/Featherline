@@ -899,6 +899,73 @@ class MedicineRepositoryTest {
         )
     }
 
+    // observeAllActiveTracked derives from the all-active flow, so per-row mapping must
+    // keep a malformed UNTRACKED row from poisoning the valid tracked rows that feed
+    // Home's stock warnings. A whole-list map would blank stock warnings here.
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeAllActiveTracked_keepsTrackedRowsWhenAnUntrackedRowIsMalformed() = runTest {
+        val trackedUuid = "aaaaaaaa-0000-0000-0000-000000000001"
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns MutableStateFlow(
+            listOf(
+                medicineEntity(uuid = "not-a-uuid").copy(trackingEnabled = false),
+                medicineEntity(uuid = trackedUuid).copy(trackingEnabled = true),
+            )
+        )
+
+        val freshRepository = MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        val result = async { freshRepository.observeAllActiveTracked().first { it.isNotEmpty() } }
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(UUID.fromString(trackedUuid)),
+            result.await().map { it.uuid },
+        )
+    }
+
+    // The all-active flow itself must drop only the malformed row rather than blanking
+    // the whole Medicines list.
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeAllActive_dropsOnlyMalformedRow() = runTest {
+        val validUuid = "aaaaaaaa-0000-0000-0000-000000000001"
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns MutableStateFlow(
+            listOf(
+                medicineEntity(uuid = "not-a-uuid"),
+                medicineEntity(uuid = validUuid),
+            )
+        )
+
+        val freshRepository = MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        val result = async { freshRepository.observeAllActive().first { it.isNotEmpty() } }
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(UUID.fromString(validUuid)),
+            result.await().map { it.uuid },
+        )
+    }
+
     private fun medicineEntity(
         uuid: String = "aaaaaaaa-0000-0000-0000-000000000000",
         archivedAtEpochMillis: Long? = null,
