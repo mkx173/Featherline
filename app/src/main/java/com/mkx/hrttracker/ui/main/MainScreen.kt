@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.MoreVert
@@ -38,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -205,8 +205,9 @@ fun MainScreen(
                 actions = {
                     IconButton(onClick = onAddEntryClick) {
                         Icon(
-                            imageVector = Icons.Rounded.Add,
+                            painter = painterResource(R.drawable.ic_edit_square_alt),
                             contentDescription = stringResource(R.string.fab_add_entry),
+                            modifier = Modifier.size(22.dp),
                         )
                     }
                     HomeMoreOptionsMenu(

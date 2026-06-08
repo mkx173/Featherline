@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.main
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.platform.app.InstrumentationRegistry
@@ -82,5 +83,25 @@ class MainContentSkeletonTest {
 
         composeRule.onNodeWithTag(MainE2ChartContentTestTag, useUnmergedTree = true).assertIsDisplayed()
         composeRule.onNodeWithTag(MainE2ChartSkeletonTestTag, useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun manualTodayRowUsesIconIndicatorInsteadOfTextLabel() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val manualLabel = context.getString(R.string.plan_entry_label_manual)
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                MainContent(
+                    uiState = buildMainContentPreviewUiState(),
+                    scrollState = rememberScrollState(),
+                    onQuickLogDoseClick = { },
+                    onEntryClick = { },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(manualLabel, useUnmergedTree = true).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(manualLabel, useUnmergedTree = true).assertExists()
     }
 }

@@ -2712,6 +2712,18 @@ private fun MainAntiandrogenCardHeader(
 }
 
 @Composable
+private fun MainManualRecordIcon(
+    modifier: Modifier = Modifier
+) {
+    Icon(
+        painter = painterResource(R.drawable.ic_edit_square),
+        contentDescription = stringResource(R.string.plan_entry_label_manual),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.size(17.dp)
+    )
+}
+
+@Composable
 private fun MainAntiandrogenMedicationSubCard(
     card: MainAntiandrogenCardUiState,
     index: Int,
@@ -2828,16 +2840,7 @@ private fun MainAntiandrogenMedicationSubCard(
                 }
 
                 if (card.isManualRow) {
-                    val manualLabel = stringResource(R.string.plan_entry_label_manual)
-                    Text(
-                        text = manualLabel,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Normal,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.End,
-                        maxLines = 1,
-                        modifier = Modifier.cjkTextOffset(manualLabel)
-                    )
+                    MainManualRecordIcon()
                 }
             }
 
@@ -3404,10 +3407,7 @@ private fun MainTodayTrailingContent(
         now = now
     )
     val textLabel = if (row.isManualRecord) {
-        MainTodayTrailingText(
-            text = stringResource(R.string.plan_entry_label_manual),
-            isDelta = true
-        )
+        null
     } else {
         when (loggedAt) {
             null -> when {
@@ -3450,7 +3450,7 @@ private fun MainTodayTrailingContent(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (row.isFromArchivedGroup || hasTextLabel) {
+        if (row.isFromArchivedGroup || row.isManualRecord || hasTextLabel) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -3462,6 +3462,9 @@ private fun MainTodayTrailingContent(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
+                }
+                if (row.isManualRecord) {
+                    MainManualRecordIcon()
                 }
                 if (textLabel != null && textLabel.text.isNotBlank()) {
                     Text(

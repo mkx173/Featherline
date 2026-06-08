@@ -2085,6 +2085,7 @@ private fun HistoryEntryCard(
         trailingContent = {
             val deviceZone = remember { ZoneId.systemDefault() }
             val crossZone = remember(entry) { isCrossZone(entry, deviceZone) }
+            val isManualEntry = entry.sourceGroupUuid == null
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -2099,12 +2100,20 @@ private fun HistoryEntryCard(
                         modifier = Modifier.size(18.dp)
                     )
                 }
+                if (isManualEntry) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_edit_square),
+                        contentDescription = stringResource(R.string.plan_entry_label_manual),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
                 if (crossZone) {
                     Icon(
                         imageVector = Icons.Rounded.Public,
                         contentDescription = stringResource(R.string.cross_timezone_entry_indicator),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(17.dp)
+                        modifier = Modifier.size(16.5.dp)
                     )
                 }
                 Text(
