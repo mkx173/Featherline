@@ -190,6 +190,29 @@ class ReminderNotificationManagerTest {
     }
 
     @Test
+    fun stockWarningToasts_resolveStringsThroughAppLanguageContext() {
+        // Regression: below API 33 the injected ApplicationContext stays on the system
+        // locale, so a post-log toast must resolve its text through context.withAppLanguage()
+        // rather than the plain context, or it shows in the system language even when the
+        // user picked a different app language.
+        val localizedContext: Context = mockk(relaxed = true)
+        val localizedResources: Resources = mockk(relaxed = true)
+        every { context.withAppLanguage() } returns localizedContext
+        every { localizedContext.resources } returns localizedResources
+        every {
+            localizedResources.getQuantityString(R.plurals.stock_toast_out_multiple, 2, 2)
+        } returns "Localized out"
+        // The plain (system-locale) context would resolve a different string.
+        every {
+            resources.getQuantityString(R.plurals.stock_toast_out_multiple, 2, 2)
+        } returns "System out"
+
+        notificationManager.showStockOutCountToast(2)
+
+        verify { Toast.makeText(localizedContext, "Localized out", Toast.LENGTH_SHORT) }
+    }
+
+    @Test
     fun reminderNotificationScheduledHighlightTargetStorageValues_returnsEveryBundleSlotWithoutMedicationUuid() {
         val firstSlot = MedicationReminderSlot(
             groupUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),

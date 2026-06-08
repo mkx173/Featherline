@@ -11,6 +11,7 @@ import com.mkx.hrttracker.reminder.MedicationReminderSlot
 import com.mkx.hrttracker.reminder.captureStockStatesForLog
 import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
 import com.mkx.hrttracker.reminder.showPostLogToast
+import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -147,10 +148,13 @@ class QuickLogActionCallback : ActionCallback {
     }
 
     private suspend fun showQuickLogFailureToast(context: Context) {
-        val message = context.getString(R.string.widget_quick_log_failed)
+        // Resolve through the app language; below API 33 the application context stays
+        // on the system locale, so the toast would otherwise ignore the chosen language.
+        val localized = context.withAppLanguage()
+        val message = localized.getString(R.string.widget_quick_log_failed)
         withContext(Dispatchers.Main) {
             Toast.makeText(
-                context,
+                localized,
                 message,
                 Toast.LENGTH_SHORT,
             ).show()

@@ -179,102 +179,102 @@ class ReminderNotificationManager @Inject constructor(
 
     fun showDoseReminderLoggedToast(entryCount: Int) {
         diagnosticsLogger.info(TAG, "reminder_notification_logged_toast entryCount=$entryCount")
-        showToast(
-            context.resources.getQuantityString(
+        showToast { localized ->
+            localized.resources.getQuantityString(
                 R.plurals.reminder_notification_entries_added,
                 entryCount,
                 entryCount,
             )
-        )
+        }
     }
 
     fun showStockOutToast(medicine: Medicine) {
         diagnosticsLogger.info(TAG, "reminder_notification_stock_out_toast medicine=${medicine.uuid}")
-        showToast(
-            context.getString(
+        showToast { localized ->
+            localized.getString(
                 R.string.stock_toast_out_single,
-                medicineDisplayName(medicine, context),
+                medicineDisplayName(medicine, localized),
             )
-        )
+        }
     }
 
     fun showStockOutCountToast(count: Int) {
         diagnosticsLogger.info(TAG, "reminder_notification_stock_out_count_toast count=$count")
-        showToast(
-            context.resources.getQuantityString(
+        showToast { localized ->
+            localized.resources.getQuantityString(
                 R.plurals.stock_toast_out_multiple,
                 count,
                 count,
             )
-        )
+        }
     }
 
     fun showStockImminentToast(medicine: Medicine) {
         diagnosticsLogger.info(TAG, "reminder_notification_stock_imminent_toast medicine=${medicine.uuid}")
-        showToast(
-            context.getString(
+        showToast { localized ->
+            localized.getString(
                 R.string.stock_toast_imminent_single,
-                medicineDisplayName(medicine, context),
+                medicineDisplayName(medicine, localized),
             )
-        )
+        }
     }
 
     fun showStockImminentCountToast(count: Int) {
         diagnosticsLogger.info(TAG, "reminder_notification_stock_imminent_count_toast count=$count")
-        showToast(
-            context.resources.getQuantityString(
+        showToast { localized ->
+            localized.resources.getQuantityString(
                 R.plurals.stock_toast_imminent_multiple,
                 count,
                 count,
             )
-        )
+        }
     }
 
     fun showStockUserLowToast(medicine: Medicine) {
         diagnosticsLogger.info(TAG, "reminder_notification_stock_user_low_toast medicine=${medicine.uuid}")
-        showToast(
-            context.getString(
+        showToast { localized ->
+            localized.getString(
                 R.string.stock_toast_user_low_single,
-                medicineDisplayName(medicine, context),
+                medicineDisplayName(medicine, localized),
             )
-        )
+        }
     }
 
     fun showStockUserLowCountToast(count: Int) {
         diagnosticsLogger.info(TAG, "reminder_notification_stock_user_low_count_toast count=$count")
-        showToast(
-            context.resources.getQuantityString(
+        showToast { localized ->
+            localized.resources.getQuantityString(
                 R.plurals.stock_toast_user_low_multiple,
                 count,
                 count,
             )
-        )
+        }
     }
 
     fun showStockManyAttentionToast(count: Int) {
         diagnosticsLogger.info(TAG, "reminder_notification_stock_many_attention_toast count=$count")
-        showToast(
-            context.resources.getQuantityString(
+        showToast { localized ->
+            localized.resources.getQuantityString(
                 R.plurals.stock_toast_many_attention,
                 count,
                 count,
             )
-        )
+        }
     }
 
     fun showDoseReminderNothingToAddToast() {
         diagnosticsLogger.info(TAG, "reminder_notification_nothing_to_add_toast")
-        showToast(context.getString(R.string.reminder_notification_nothing_to_add))
+        showToast { localized -> localized.getString(R.string.reminder_notification_nothing_to_add) }
     }
 
     fun showDoseReminderSnoozedToast(snoozeMinutes: Long) {
         diagnosticsLogger.info(TAG, "reminder_notification_snoozed_toast minutes=$snoozeMinutes")
-        showToast(
-            context.getString(
+        showToast { localized ->
+            localized.getString(
                 R.string.reminder_notification_snoozed,
                 snoozeMinutes,
             )
-        )
+        }
     }
 
     fun cancelDoseReminderNotification(notificationTag: String) {
@@ -363,9 +363,15 @@ class ReminderNotificationManager @Inject constructor(
         }
     }
 
-    private fun showToast(message: String) {
+    private fun showToast(message: (Context) -> String) {
+        // Resolve the toast string through a context pinned to the chosen app language.
+        // The injected ApplicationContext stays on the system locale below API 33 (see
+        // Localization.withAppLanguage), so resolving off it would show toasts in the
+        // system language even when the user picked a different app language.
+        val localizedContext = context.withAppLanguage()
+        val text = message(localizedContext)
         Handler(Looper.getMainLooper()).post {
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            Toast.makeText(localizedContext, text, Toast.LENGTH_SHORT).show()
         }
     }
 
