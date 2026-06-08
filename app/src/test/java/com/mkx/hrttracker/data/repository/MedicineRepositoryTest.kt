@@ -24,11 +24,14 @@ import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.unmockkObject
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -814,6 +817,35 @@ class MedicineRepositoryTest {
         // the app-scoped collector (which would otherwise fail this test with the
         // uncaught IllegalStateException).
         assertEquals(emptyList<Medicine>(), emissions.last())
+    }
+
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeAllActive_rethrowsNonExceptionRoomFlowErrors() = runTest {
+        val capturedError = CompletableDeferred<Throwable>()
+        val handler = CoroutineExceptionHandler { _, error ->
+            capturedError.complete(error)
+        }
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns flow {
+            throw AssertionError("simulated unrecoverable Room failure")
+        }
+
+        MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(
+                SupervisorJob() + UnconfinedTestDispatcher(testScheduler) + handler
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(
+            "simulated unrecoverable Room failure",
+            withTimeout(1_000) { capturedError.await() }.message,
+        )
     }
 
     @kotlinx.coroutines.ExperimentalCoroutinesApi

@@ -74,13 +74,17 @@ class MedicineRepository @Inject internal constructor(
                                 }
                             }
                         }
-                        // Per-emission runCatching above recovers from a malformed
-                        // row; this terminal catch separately guards the Room flow
+                        // Per-row mapping above recovers from a malformed row; this
+                        // terminal catch separately guards the Room flow
                         // itself failing (DB corruption / I/O error). Without it an
                         // upstream error would reach the Eagerly, app-scoped stateIn
                         // collector and crash the process — appScope is a SupervisorJob
                         // with no CoroutineExceptionHandler.
-                        .catch { emit(emptyList()) }
+                        .catch { error ->
+                            if (error is CancellationException) throw error
+                            if (error !is Exception) throw error
+                            emit(emptyList())
+                        }
                 }
             }
             .stateIn(
