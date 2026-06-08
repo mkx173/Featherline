@@ -143,8 +143,14 @@ class MedicationLogRepository @Inject internal constructor(
                         }
                     }
                     // Guards the Room flow itself failing (DB corruption / I/O); transform
-                    // throws are caught per-emission above and never reach here.
-                    .catch { emit(emptyList()) }
+                    // throws are caught per-emission above and never reach here. Rethrow
+                    // CancellationException and non-Exception Throwables (Errors) so only
+                    // genuine recoverable failures degrade to an empty list.
+                    .catch { error ->
+                        if (error is CancellationException) throw error
+                        if (error !is Exception) throw error
+                        emit(emptyList())
+                    }
             } ?: flowOf(emptyList())
         }
     }

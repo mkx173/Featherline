@@ -489,10 +489,12 @@ class HomeRepository @Inject constructor(
 private suspend fun <T> recoverHomeEmission(defaultValue: T, block: suspend () -> T): T {
     return try {
         block()
-    } catch (error: Throwable) {
+    } catch (error: Exception) {
         // During restore, Room can pair an old Home-table emission with an already
         // changed medicine table. Drop only that inconsistent emission so the next
-        // Room invalidation can recover the home screen.
+        // Room invalidation can recover the home screen. Catch Exception (not
+        // Throwable) so Errors — and CancellationException — still propagate rather
+        // than being hidden as a fallback emission.
         if (error is CancellationException) throw error
         defaultValue
     }
