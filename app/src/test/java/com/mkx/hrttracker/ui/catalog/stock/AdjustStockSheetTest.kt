@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.util.Locale
 
 class AdjustStockSheetTest {
 
@@ -41,6 +42,12 @@ class AdjustStockSheetTest {
         assertEquals("2.5", stepAdjustStockCountText("1.5", delta = 1, allowDecimal = true))
         assertEquals("0.5", stepAdjustStockCountText("1.5", delta = -1, allowDecimal = true))
         assertEquals("0", stepAdjustStockCountText("0.25", delta = -1, allowDecimal = true))
+    }
+
+    @Test
+    fun displayCountUsesProvidedLocaleWithoutFixedTrailingZeros() {
+        assertEquals("1,5", formatAdjustStockCount(1.5, Locale.GERMANY))
+        assertEquals("1", formatAdjustStockCount(1.0, Locale.GERMANY))
     }
 
     @Test

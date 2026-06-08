@@ -412,7 +412,6 @@
     <string name="dose_instruction_summary_concentration_mg_per_ml">%1$s mg/mL</string>
     <string name="dose_instruction_summary_concentration_percent">%1$s%%</string>
     <string name="dose_instruction_summary_patch_release_rate">%1$s μg/天</string>
-    <string name="medication_count_multiplicity">%1$dx</string>
     <string name="default_group_name_format">分组 %1$d</string>
     <string name="dark_mode_follow_system">跟随系统</string>
     <string name="dark_mode_always_off">始终关闭</string>
@@ -430,8 +429,8 @@
     <string name="medication_application_injection">注射</string>
     <string name="medication_application_gel">凝胶</string>
     <string name="medication_gel_application_area_default">默认</string>
-    <string name="medication_application_patch_on">贴上贴片</string>
-    <string name="medication_application_patch_off">移除贴片</string>
+    <string name="medication_application_patch_on">贴片</string>
+    <string name="medication_application_patch_off">贴片</string>
     <string name="medication_name_estradiol">雌二醇</string>
     <string name="medication_name_estradiol_valerate">戊酸雌二醇</string>
     <string name="medication_name_estradiol_benzoate">苯甲酸雌二醇</string>

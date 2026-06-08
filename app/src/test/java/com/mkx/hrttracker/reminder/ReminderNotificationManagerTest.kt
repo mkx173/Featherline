@@ -17,6 +17,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.withAppLanguage
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -60,6 +61,11 @@ class ReminderNotificationManagerTest {
             true
         }
         every { context.resources } returns resources
+        // showDoseReminderNotification pins content to the app language via
+        // context.withAppLanguage(); that locale machinery is verified separately,
+        // so here it resolves to the same mock context.
+        mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
+        every { context.withAppLanguage() } returns context
         every { Toast.makeText(any(), any<String>(), Toast.LENGTH_SHORT) } returns toast
 
         // Builder fluent chain — all mutators return self so chaining is preserved
@@ -181,6 +187,29 @@ class ReminderNotificationManagerTest {
         verify { Toast.makeText(context, "1 medicine almost out", Toast.LENGTH_SHORT) }
         verify { Toast.makeText(context, "1 medicine low on stock", Toast.LENGTH_SHORT) }
         verify(exactly = 3) { toast.show() }
+    }
+
+    @Test
+    fun stockWarningToasts_resolveStringsThroughAppLanguageContext() {
+        // Regression: below API 33 the injected ApplicationContext stays on the system
+        // locale, so a post-log toast must resolve its text through context.withAppLanguage()
+        // rather than the plain context, or it shows in the system language even when the
+        // user picked a different app language.
+        val localizedContext: Context = mockk(relaxed = true)
+        val localizedResources: Resources = mockk(relaxed = true)
+        every { context.withAppLanguage() } returns localizedContext
+        every { localizedContext.resources } returns localizedResources
+        every {
+            localizedResources.getQuantityString(R.plurals.stock_toast_out_multiple, 2, 2)
+        } returns "Localized out"
+        // The plain (system-locale) context would resolve a different string.
+        every {
+            resources.getQuantityString(R.plurals.stock_toast_out_multiple, 2, 2)
+        } returns "System out"
+
+        notificationManager.showStockOutCountToast(2)
+
+        verify { Toast.makeText(localizedContext, "Localized out", Toast.LENGTH_SHORT) }
     }
 
     @Test

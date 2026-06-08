@@ -73,6 +73,7 @@ import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
+import com.mkx.hrttracker.model.medication.formatStockCount
 import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
@@ -83,6 +84,7 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.stockCountPluralQuantity
 import com.mkx.hrttracker.ui.components.stockUnitNounPluralRes
 import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.util.rememberAppLocale
 import java.math.BigDecimal
 import java.util.Locale
 
@@ -99,6 +101,7 @@ fun AdjustStockSheet(
     onDismissRequest: () -> Unit,
     onCloseClick: (() -> Unit)? = null,
 ) {
+    val appLocale = rememberAppLocale()
     val effectiveInitialTab = if (receivedOnly) AdjustSheetTab.RECEIVED else initialTab
     var activeTab by remember(effectiveInitialTab) { mutableStateOf(effectiveInitialTab) }
     val isContainer = projection.medicine.preparation is MedicinePreparation.InjectionMultiUseVial ||
@@ -189,6 +192,7 @@ fun AdjustStockSheet(
                     AdjustSheetTab.RECOUNT -> RecountForm(
                         projection = projection,
                         isContainer = isContainer,
+                        locale = appLocale,
                         previewRunway = previewRunway,
                         onSubmit = onRecount,
                     )
@@ -196,6 +200,7 @@ fun AdjustStockSheet(
                     AdjustSheetTab.RECEIVED -> ReceivedForm(
                         projection = projection,
                         isContainer = isContainer,
+                        locale = appLocale,
                         previewRunway = previewRunway,
                         onSubmit = onReceived,
                     )
@@ -209,6 +214,7 @@ fun AdjustStockSheet(
 private fun RecountForm(
     projection: MedicineStockProjection,
     isContainer: Boolean,
+    locale: Locale,
     previewRunway: (MedicineStock) -> RunwayProjection?,
     onSubmit: (StockRecount) -> Unit,
 ) {
@@ -259,6 +265,7 @@ private fun RecountForm(
         AfterPreview(
             projection = projection,
             hypotheticalStock = previewStock,
+            locale = locale,
             previewRunway = previewRunway,
         )
         HrtButton(
@@ -279,6 +286,7 @@ private fun RecountForm(
 private fun ReceivedForm(
     projection: MedicineStockProjection,
     isContainer: Boolean,
+    locale: Locale,
     previewRunway: (MedicineStock) -> RunwayProjection?,
     onSubmit: (StockReceived) -> Unit,
 ) {
@@ -339,6 +347,7 @@ private fun ReceivedForm(
         AfterPreview(
             projection = projection,
             hypotheticalStock = previewStock,
+            locale = locale,
             previewRunway = previewRunway,
         )
         HrtButton(
@@ -359,6 +368,7 @@ private fun ReceivedForm(
 private fun AfterPreview(
     projection: MedicineStockProjection,
     hypotheticalStock: MedicineStock,
+    locale: Locale,
     previewRunway: (MedicineStock) -> RunwayProjection?,
 ) {
     val preparation = projection.medicine.preparation
@@ -371,7 +381,7 @@ private fun AfterPreview(
     } ?: adjustStockUnitLabel(preparation)
     val title = stringResource(
         R.string.stock_adjust_after,
-        formatCount(displayCount),
+        formatAdjustStockCount(displayCount, locale),
         unitLabel,
     )
     PreferenceSegmentedListItem(
@@ -675,12 +685,8 @@ private fun storedTotalUnits(projection: MedicineStockProjection): Double {
     }
 }
 
-private fun formatCount(value: Double): String {
-    val formatted = String.format(Locale.getDefault(), "%.2f", value)
-    if (!formatted.contains('.')) return formatted
-    val trimmed = formatted.trimEnd('0').trimEnd('.')
-    return trimmed.ifEmpty { "0" }
-}
+internal fun formatAdjustStockCount(value: Double, locale: Locale): String =
+    formatStockCount(value, locale)
 
 private val AdjustSheetTab.labelRes: Int
     get() = when (this) {
@@ -706,6 +712,7 @@ private fun formatEditableStockCount(value: Double, allowDecimal: Boolean): Stri
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 420)
 @Composable
 private fun AdjustStockSheetPillRecountPreview() {
+    val appLocale = rememberAppLocale()
     AdjustStockSheetPreviewContainer {
         RecountForm(
             projection = previewProjection(
@@ -722,6 +729,7 @@ private fun AdjustStockSheetPillRecountPreview() {
                 state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY,
             ),
             isContainer = false,
+            locale = appLocale,
             previewRunway = { null },
             onSubmit = {},
         )
@@ -731,6 +739,7 @@ private fun AdjustStockSheetPillRecountPreview() {
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 420)
 @Composable
 private fun AdjustStockSheetSingleUseVialReceivedPreview() {
+    val appLocale = rememberAppLocale()
     AdjustStockSheetPreviewContainer {
         ReceivedForm(
             projection = previewProjection(
@@ -749,6 +758,7 @@ private fun AdjustStockSheetSingleUseVialReceivedPreview() {
                 state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY,
             ),
             isContainer = false,
+            locale = appLocale,
             previewRunway = { null },
             onSubmit = {},
         )
@@ -758,6 +768,7 @@ private fun AdjustStockSheetSingleUseVialReceivedPreview() {
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 420)
 @Composable
 private fun AdjustStockSheetMultiUseVialReceivedPreview() {
+    val appLocale = rememberAppLocale()
     val preparation = MedicinePreparation.InjectionMultiUseVial(
         concentrationMgPerMl = 10.0,
         vialVolumeMl = 5.0,
@@ -779,6 +790,7 @@ private fun AdjustStockSheetMultiUseVialReceivedPreview() {
                 state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY,
             ),
             isContainer = true,
+            locale = appLocale,
             previewRunway = { null },
             onSubmit = {},
         )

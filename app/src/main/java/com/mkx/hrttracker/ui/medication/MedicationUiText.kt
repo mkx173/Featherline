@@ -1,9 +1,9 @@
 package com.mkx.hrttracker.ui.medication
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.formatDose
+import com.mkx.hrttracker.util.doseInstructionText
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.rememberAppLocale
 
@@ -88,107 +89,29 @@ fun medicinePreparationSummary(medicine: Medicine): String {
         }
 
         // Singleton has no strength; the summary just names the action.
-        is MedicinePreparation.PatchOff -> stringResource(R.string.medicine_patch_off_name)
+        // PatchOff has no preparation to summarize; show the route label ("Patch")
+        // so the card reads "Remove patch" (name) with "Patch" beneath, not the name twice.
+        is MedicinePreparation.PatchOff -> stringResource(R.string.medication_application_patch_off)
     }
 }
 
+// Compose wrapper over the single source of truth in MedicationDisplayText's
+// doseInstructionText. Both the in-app cards (here) and the widget/reminder (the
+// Context-based callers) must render identical dose summaries, so the branch
+// logic lives in one place; this only supplies the Composition's Context.
 @Composable
 fun doseInstructionSummary(
     medicine: Medicine,
     instruction: DoseInstruction,
+    count: Int = 1,
     doseAmountDelta: Double? = null,
-): String? {
-    val appLocale = rememberAppLocale()
-    // Render the actual administered amount (scheduled + delta) for measured
-    // forms; ampules keep WholeUnit and carry the delta on the mg line below.
-    val effectiveInstruction = DoseInstructionCalculator.effectiveDoseInstructionForDisplay(
-        preparation = medicine.preparation,
-        doseInstruction = instruction,
-        doseAmountDelta = doseAmountDelta,
-    )
-    val portion = when (effectiveInstruction) {
-        // A single whole tablet is implied by the active mg line; skip "1 tablet".
-        is DoseInstruction.TabletFraction -> if (effectiveInstruction.numerator == 1 && effectiveInstruction.denominator == 1) {
-            null
-        } else {
-            stringResource(
-                R.string.dose_instruction_summary_tablet_fraction,
-                formatTabletFraction(effectiveInstruction),
-            )
-        }
-        is DoseInstruction.VolumeMl -> stringResource(
-            R.string.dose_instruction_summary_volume_ml,
-            effectiveInstruction.valueMl.formatDose(appLocale),
-        )
-        is DoseInstruction.WeightGrams -> stringResource(
-            R.string.dose_instruction_summary_weight_grams,
-            effectiveInstruction.valueGrams.formatDose(appLocale),
-        )
-        // Gel sachets dose one whole packet at a time but the packet's gram weight
-        // is still useful context.
-        DoseInstruction.WholeUnit -> (medicine.preparation as? MedicinePreparation.GelSachet)?.let {
-            stringResource(
-                R.string.dose_instruction_summary_weight_grams,
-                it.sachetWeightGrams.formatDose(appLocale),
-            )
-        }
-        DoseInstruction.Noop -> null
-    }
-
-    val activeAmount = DoseInstructionCalculator.perUnitAmountMg(medicine, instruction, doseAmountDelta)
-        ?.let { perUnitMg ->
-            val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
-                medicine.displayDoseUnit
-            } else {
-                MedicineDisplayDoseUnit.MG
-            }
-            stringResource(
-                R.string.dose_instruction_summary_active_amount,
-                displayUnit.fromMg(perUnitMg).formatDose(appLocale),
-                stringResource(displayUnit.shortLabelRes()),
-            )
-        }
-
-    // Concentration-bearing preparations (multi-use vial, gel) show
-    // "concentration · portion" so the row identifies which preparation
-    // a log/slot refers to when one medicine has several preparations. The
-    // active mass is not surfaced for these forms; the portion already reflects
-    // the actual administered amount.
-    val concentration = concentrationSummary(medicine.preparation, appLocale)
-    if (concentration != null) {
-        return listOfNotNull(concentration, portion).joinToString(separator = " · ")
-    }
-
-    val active = DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(medicine, instruction)?.let { rate ->
-        stringResource(
-            R.string.dose_instruction_summary_patch_release_rate,
-            rate.formatDose(appLocale),
-        )
-    } ?: activeAmount
-
-    val parts = listOfNotNull(portion, active)
-    return parts.takeIf { it.isNotEmpty() }?.joinToString(separator = " · ")
-}
-
-@Composable
-private fun concentrationSummary(
-    preparation: MedicinePreparation,
-    locale: java.util.Locale,
-): String? = when (preparation) {
-    is MedicinePreparation.InjectionMultiUseVial -> stringResource(
-        R.string.dose_instruction_summary_concentration_mg_per_ml,
-        preparation.concentrationMgPerMl.formatDose(locale),
-    )
-    is MedicinePreparation.GelSachet -> stringResource(
-        R.string.dose_instruction_summary_concentration_percent,
-        preparation.concentrationPercent.formatDose(locale),
-    )
-    is MedicinePreparation.GelContainer -> stringResource(
-        R.string.dose_instruction_summary_concentration_percent,
-        preparation.concentrationPercent.formatDose(locale),
-    )
-    else -> null
-}
+): String? = doseInstructionText(
+    context = LocalContext.current,
+    medicine = medicine,
+    doseInstruction = instruction,
+    count = count,
+    doseAmountDelta = doseAmountDelta,
+)
 
 internal fun formatTabletFraction(fraction: DoseInstruction.TabletFraction): String {
     return if (fraction.denominator == 1) {
@@ -206,10 +129,13 @@ fun medicationEntryTitle(
     medicine: Medicine?,
     applicationType: MedicationApplicationType,
 ): String {
-    return if (medicine != null) {
-        medicineDisplayName(medicine)
-    } else {
-        stringResource(applicationType.labelRes)
+    return when {
+        medicine != null -> medicineDisplayName(medicine)
+        // PATCH_OFF is titled by the removal string, not the route label (shortened
+        // "Patch", shared with PATCH_ON), so the "Remove" cue survives.
+        applicationType == MedicationApplicationType.PATCH_OFF ->
+            stringResource(R.string.medicine_patch_off_name)
+        else -> stringResource(applicationType.labelRes)
     }
 }
 
@@ -229,22 +155,19 @@ fun medicationEntrySupportingText(
                 applicationType = applicationType,
             )
         }
-    val doseText = medicine?.let { doseInstructionSummary(it, doseInstruction, doseAmountDelta) }
+    val doseText = medicine?.let {
+        doseInstructionSummary(
+            medicine = it,
+            instruction = doseInstruction,
+            count = count,
+            doseAmountDelta = doseAmountDelta,
+        )
+    }
     return listOfNotNull(
         applicationTypeLabel,
-        medicationCountIndicatorText(count),
         doseText,
         extraSupportingText?.takeIf(String::isNotBlank),
     ).joinToString(separator = " · ")
-}
-
-@Composable
-fun medicationCountIndicatorText(count: Int): String? {
-    return if (count > 1) {
-        stringResource(R.string.medication_count_multiplicity, count)
-    } else {
-        null
-    }
 }
 
 internal fun shouldUseApplicationTypeAsMedicationEntryTitle(

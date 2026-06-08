@@ -12,12 +12,30 @@ import com.mkx.hrttracker.model.medication.testMedicine
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 import java.time.LocalDateTime
 import java.util.UUID
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class MedicationDetailTextTest {
     private val context: Context = mockk()
+    private val realContext: Context
+        get() = RuntimeEnvironment.getApplication().applicationContext
+
+    @Before
+    fun stubContextResources() {
+        // doseInstructionText/medicinePreparationSummary resolve the locale via
+        // context.currentAppLocale(), which reads context.resources.configuration.
+        // The strict mock has no Resources, so back it with the real Robolectric
+        // resources (default locale) while getString stays per-test mocked.
+        every { context.resources } returns realContext.resources
+    }
 
     @Test
     fun buildExpandedDetailLines_belowCap_keepsAllLines() {
@@ -121,18 +139,18 @@ class MedicationDetailTextTest {
     }
 
     @Test
-    fun medicationDetailLine_prependsCountWhenGreaterThanOne() {
+    fun medicationDetailLine_foldsCountIntoDoseSummaryWhenGreaterThanOne() {
         every {
             context.getString(R.string.medication_name_spironolactone)
         } returns "Spironolactone"
         every { context.getString(R.string.medication_application_oral) } returns "Oral"
         every { context.getString(R.string.unit_mg) } returns "mg"
         every {
-            context.getString(R.string.dose_instruction_summary_active_amount, "2", "mg")
-        } returns "2 mg"
+            context.getString(R.string.dose_instruction_summary_tablet_fraction, "2")
+        } returns "2 tablets"
         every {
-            context.getString(R.string.medication_count_multiplicity, 2)
-        } returns "2x"
+            context.getString(R.string.dose_instruction_summary_active_amount, "4", "mg")
+        } returns "4 mg"
 
         val medication = testMedicationGroupMedication(
             medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
@@ -143,8 +161,7 @@ class MedicationDetailTextTest {
 
         val result = medicationDetailLine(context, "Hormones", medication)
 
-        // Count is rendered separately; "1 tablet" portion remains suppressed regardless of count.
-        assertEquals("Hormones · Spironolactone · Oral · 2x · 2 mg", result)
+        assertEquals("Hormones · Spironolactone · Oral · 2 tablets · 4 mg", result)
     }
 
     @Test
@@ -171,11 +188,24 @@ class MedicationDetailTextTest {
     }
 
     @Test
-    fun medicationDetailLine_omitsDoseSegmentForPatchOff() {
-        every {
-            context.getString(R.string.medication_application_patch_off)
-        } returns "Patch off"
+    fun medicationDetailLine_capsuleCountShowsAggregateRealIntakeWithoutMultiplicityPrefix() {
+        val medication = testMedicationGroupMedication(
+            medicine = testCustomMedicine(
+                medicationName = "Progesterone",
+                preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 5.0),
+            ),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.WholeUnit,
+            count = 2,
+        )
 
+        val result = medicationDetailLine(realContext, "Progesterone", medication)
+
+        assertEquals("Progesterone · Progesterone · Oral · 2 capsules · 10 mg", result)
+    }
+
+    @Test
+    fun medicationDetailLine_omitsDoseSegmentForPatchOff() {
         // A PATCH_OFF slot carries no medicine — no dose segment is rendered.
         val medication = testMedicationGroupMedication(
             medicine = null,
@@ -184,9 +214,9 @@ class MedicationDetailTextTest {
             count = 1,
         )
 
-        val result = medicationDetailLine(context, "Estrogens", medication)
+        val result = medicationDetailLine(realContext, "Estrogens", medication)
 
         // Route falls back into the title for PATCH_OFF; don't duplicate the label.
-        assertEquals("Estrogens · Patch off", result)
+        assertEquals("Estrogens · Remove patch", result)
     }
 }

@@ -131,7 +131,6 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.doseInstructionSummary
-import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
@@ -2729,14 +2728,19 @@ private fun MainAntiandrogenMedicationSubCard(
         ?: card.medication.applicationType
     val displayedDoseInstruction = card.lastDose?.doseInstruction
         ?: card.medication.doseInstruction
+    val displayedCount = card.lastDose?.count ?: card.medication.count
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = card.groupColorKey)
     val medicationName = medicationEntryTitle(displayedMedicine, displayedApplicationType)
     val routeLabel = stringResource(displayedApplicationType.labelRes)
     val doseSummary = displayedMedicine?.let {
-        doseInstructionSummary(it, displayedDoseInstruction, card.lastDose?.doseAmountDelta)
+        doseInstructionSummary(
+            medicine = it,
+            instruction = displayedDoseInstruction,
+            count = displayedCount,
+            doseAmountDelta = card.lastDose?.doseAmountDelta,
+        )
     }
     val summaryText = listOfNotNull(
-        medicationCountIndicatorText(card.medication.count),
         doseSummary,
     ).joinToString(separator = " · ")
     val supportingText = listOfNotNull(
@@ -3132,11 +3136,15 @@ private fun MainTodayDoseRow(
     val headline = medicationEntryTitle(medication.medicine, medication.applicationType)
     val routeLabel = stringResource(medication.applicationType.labelRes)
     val doseText = medication.medicine?.let {
-        doseInstructionSummary(it, medication.doseInstruction, row.doseAmountDelta)
+        doseInstructionSummary(
+            medicine = it,
+            instruction = medication.doseInstruction,
+            count = row.medication.count,
+            doseAmountDelta = row.doseAmountDelta,
+        )
     }
     val supportingText = listOfNotNull(
         routeLabel,
-        medicationCountIndicatorText(row.medication.count),
         doseText,
     ).joinToString(separator = " · ")
     val entryEditorIds = mainTodayEntryEditorIds(row)
@@ -3283,10 +3291,15 @@ private fun MainUpcomingDoseRow(
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val headline = medicationEntryTitle(medication.medicine, medication.applicationType)
     val routeLabel = stringResource(medication.applicationType.labelRes)
-    val doseText = medication.medicine?.let { doseInstructionSummary(it, medication.doseInstruction) }
+    val doseText = medication.medicine?.let {
+        doseInstructionSummary(
+            medicine = it,
+            instruction = medication.doseInstruction,
+            count = row.medication.count,
+        )
+    }
     val supportingText = listOfNotNull(
         routeLabel,
-        medicationCountIndicatorText(row.medication.count),
         doseText,
     ).joinToString(separator = " · ")
     val timeLabel = row.scheduledAt.toLocalTime().format(timeFormatter)
@@ -4378,6 +4391,7 @@ private fun MedicationGroupMedication.toPreviewLastDose(): LastDoseDisplay {
         medicine = medicine,
         applicationType = applicationType,
         doseInstruction = doseInstruction,
+        count = count,
     )
 }
 

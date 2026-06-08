@@ -9,6 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Locale
 
 class StockSectionTest {
 
@@ -125,6 +126,24 @@ class StockSectionTest {
 
         assertEquals("1", countText.valueText)
         assertEquals(1.0, countText.pluralCount)
+    }
+
+    @Test
+    fun stockCountTextUsesProvidedLocaleWithoutFixedTrailingZeros() {
+        val countText = stockSectionCountText(
+            numerator = 1.5,
+            denominator = 10.0,
+            unitRes = R.string.stock_unit_tablets,
+            locale = Locale.GERMANY,
+        )
+
+        assertEquals("1,5 / 10", countText.valueText)
+    }
+
+    @Test
+    fun stockRateUsesProvidedLocaleWithoutFixedTrailingZeros() {
+        assertEquals("1,5", formatStockSectionRate(1.5, Locale.GERMANY))
+        assertEquals("1", formatStockSectionRate(1.0, Locale.GERMANY))
     }
 
     @Test

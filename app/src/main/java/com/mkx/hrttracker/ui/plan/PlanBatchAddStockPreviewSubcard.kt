@@ -22,6 +22,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.RunwayProjection
+import com.mkx.hrttracker.model.medication.formatStockCount
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.stockInventoryCountText
@@ -31,8 +32,9 @@ import com.mkx.hrttracker.ui.components.stockSubcardChipLabelRes
 import com.mkx.hrttracker.ui.components.stockSubcardRunwayText
 import com.mkx.hrttracker.ui.components.stockSubcardTone
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import java.text.NumberFormat
+import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
+import java.util.Locale
 
 /**
  * Compact stock preview shown under each medicine card on the batch-add screen,
@@ -57,8 +59,9 @@ internal fun PlanBatchAddStockPreviewSubcard(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val beforeText = stockPreviewAmountText(context, preparation, beforeStock)
-    val afterText = stockPreviewAmountText(context, preparation, afterStock)
+    val appLocale = rememberAppLocale()
+    val beforeText = stockPreviewAmountText(context, preparation, beforeStock, appLocale)
+    val afterText = stockPreviewAmountText(context, preparation, afterStock, appLocale)
     val statusLabel = stockSubcardChipLabelRes(stockState)?.let { stringResource(it) }
     val runwayModel = stockSubcardRunwayText(runway)
     val daysLabel = when {
@@ -116,10 +119,11 @@ private fun stockPreviewAmountText(
     context: Context,
     preparation: MedicinePreparation,
     stock: MedicineStock,
+    locale: Locale,
 ): String {
     val primaryCount = stock.unitsRemaining ?: 0.0
     val primaryText = stockInventoryCountText(context, preparation, primaryCount)
-        ?: stockPreviewNumber(primaryCount)
+        ?: stockPreviewNumber(primaryCount, locale)
 
     val isContainer = preparation.type.isContainerTopology()
     if (!isContainer) return primaryText
@@ -129,17 +133,17 @@ private fun stockPreviewAmountText(
     val openText = if (openUnitRes != null) {
         context.getString(
             R.string.stock_row_count_with_unit,
-            stockPreviewNumber(openAmount),
+            stockPreviewNumber(openAmount, locale),
             context.getString(openUnitRes),
         )
     } else {
-        stockPreviewNumber(openAmount)
+        stockPreviewNumber(openAmount, locale)
     }
     return "$primaryText + $openText"
 }
 
-private fun stockPreviewNumber(value: Double): String {
-    return NumberFormat.getInstance().apply { maximumFractionDigits = 2 }.format(value)
+internal fun stockPreviewNumber(value: Double, locale: Locale): String {
+    return formatStockCount(value, locale)
 }
 
 @Preview(

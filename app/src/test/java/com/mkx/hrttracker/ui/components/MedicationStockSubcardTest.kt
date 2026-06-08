@@ -649,33 +649,28 @@ class MedicationStockSubcardTest {
 
     @Test
     fun compactCountsUseLocalizedDecimalSeparatorWithoutTrailingZeros() {
-        val previousLocale = Locale.getDefault()
-        Locale.setDefault(Locale.GERMANY)
-        try {
-            val preparation = MedicinePreparation.InjectionMultiUseVial(
-                concentrationMgPerMl = 20.0,
-                vialVolumeMl = 5.0,
-            )
-            val model = medicationStockSubcardModel(
-                projection(
-                    preparation = preparation,
-                    stock = MedicineStock(
-                        trackingEnabled = true,
-                        unitsRemaining = 4.0,
-                        unitsLastTotal = 10.0,
-                        openContainerAmount = 1.25,
-                    ),
+        val preparation = MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = 20.0,
+            vialVolumeMl = 5.0,
+        )
+        val model = medicationStockSubcardModel(
+            projection(
+                preparation = preparation,
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 4.0,
+                    unitsLastTotal = 10.0,
+                    openContainerAmount = 1.25,
                 ),
-            )
+            ),
+            locale = Locale.GERMANY,
+        )
 
-            requireNotNull(model)
-            val row = model.rows.single()
-            assertEquals("1,25 / 5", row.valueText)
-            assertEquals(R.string.stock_unit_ml, row.valueUnitRes)
-            assertEquals("4", row.sealedSupplement?.countText)
-        } finally {
-            Locale.setDefault(previousLocale)
-        }
+        requireNotNull(model)
+        val row = model.rows.single()
+        assertEquals("1,25 / 5", row.valueText)
+        assertEquals(R.string.stock_unit_ml, row.valueUnitRes)
+        assertEquals("4", row.sealedSupplement?.countText)
     }
 
     @Test

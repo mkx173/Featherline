@@ -10,6 +10,9 @@ import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.formatDose
+import com.mkx.hrttracker.model.medication.formatPortion
+import com.mkx.hrttracker.model.medication.isWholeOne
+import com.mkx.hrttracker.model.medication.reduceTabletPortion
 import java.util.Locale
 
 fun medicineDisplayName(medicine: Medicine, context: Context): String {
@@ -21,16 +24,18 @@ fun medicineDisplayName(medicine: Medicine, context: Context): String {
     }
 }
 
-// Null `medicine` means PATCH_OFF — the entry is named by its application route.
+// Null `medicine` means PATCH_OFF — titled by the removal medicine string, NOT the
+// route label, which is the shortened "Patch" now shared with PATCH_ON.
 fun medicationEntryTitle(
     medicine: Medicine?,
     applicationType: MedicationApplicationType,
     context: Context,
 ): String {
-    return if (medicine != null) {
-        medicineDisplayName(medicine, context)
-    } else {
-        context.getString(applicationType.labelRes)
+    return when {
+        medicine != null -> medicineDisplayName(medicine, context)
+        applicationType == MedicationApplicationType.PATCH_OFF ->
+            context.getString(R.string.medicine_patch_off_name)
+        else -> context.getString(applicationType.labelRes)
     }
 }
 
@@ -40,7 +45,12 @@ fun medicationRouteLabel(
 ): String = context.getString(applicationType.labelRes)
 
 fun medicinePreparationSummary(medicine: Medicine, context: Context): String {
-    val locale = Locale.getDefault()
+    // Read the locale from the caller's context (the widget passes a settings-derived
+    // localized context; the reminder passes the app context). currentAppLocale() ties
+    // number formatting to the same context that resolves the strings — unlike
+    // appLanguageLocale(), which is unreadable in a freshly-spawned widget process below
+    // API 33 and would format numbers in the device locale while strings stay localized.
+    val locale = context.currentAppLocale()
     return when (val preparation = medicine.preparation) {
         is MedicinePreparation.Pill -> context.getString(
             R.string.medication_preparation_summary_pill,
@@ -87,7 +97,9 @@ fun medicinePreparationSummary(medicine: Medicine, context: Context): String {
             )
         }
 
-        is MedicinePreparation.PatchOff -> context.getString(R.string.medicine_patch_off_name)
+        // PatchOff has no preparation to summarize; show the route label ("Patch")
+        // so the card reads "Remove patch" (name) with "Patch" beneath, not the name twice.
+        is MedicinePreparation.PatchOff -> context.getString(R.string.medication_application_patch_off)
     }
 }
 
@@ -96,12 +108,27 @@ fun doseInstructionText(
     context: Context,
     medicine: Medicine?,
     doseInstruction: DoseInstruction,
+    count: Int = 1,
     doseAmountDelta: Double? = null,
 ): String? {
     if (medicine == null) {
         return null
     }
-    val locale = Locale.getDefault()
+    // Locale comes from the caller's context (see medicinePreparationSummary) so dose
+    // numbers match the locale that context resolves strings in — correct for the
+    // widget's settings-derived localized context even in a spawned process below API 33.
+    val locale = context.currentAppLocale()
+    if (count > 1) {
+        return aggregateDoseInstructionText(
+            context = context,
+            medicine = medicine,
+            doseInstruction = doseInstruction,
+            count = count,
+            doseAmountDelta = doseAmountDelta,
+            locale = locale,
+        )
+    }
+
     // Render the actual administered amount (scheduled + delta) for measured
     // forms; ampules keep WholeUnit and carry the delta on the mg line below.
     val effectiveInstruction = DoseInstructionCalculator.effectiveDoseInstructionForDisplay(
@@ -174,6 +201,156 @@ fun doseInstructionText(
     return parts.takeIf { it.isNotEmpty() }?.joinToString(separator = " · ")
 }
 
+private fun aggregateDoseInstructionText(
+    context: Context,
+    medicine: Medicine,
+    doseInstruction: DoseInstruction,
+    count: Int,
+    doseAmountDelta: Double?,
+    locale: Locale,
+): String? {
+    val effectiveInstruction = DoseInstructionCalculator.effectiveDoseInstructionForDisplay(
+        preparation = medicine.preparation,
+        doseInstruction = doseInstruction,
+        doseAmountDelta = doseAmountDelta,
+    )
+    concentrationSummary(context, locale, medicine.preparation)?.let { concentration ->
+        return aggregateConcentrationDoseInstructionText(
+            context = context,
+            preparation = medicine.preparation,
+            effectiveInstruction = effectiveInstruction,
+            count = count,
+            concentration = concentration,
+            locale = locale,
+        )
+    }
+
+    val portion = aggregateDosePortionText(
+        context = context,
+        preparation = medicine.preparation,
+        effectiveInstruction = effectiveInstruction,
+        count = count,
+        locale = locale,
+    )
+    val active = DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(medicine, doseInstruction)
+        ?.let { rate ->
+            context.getString(
+                R.string.dose_instruction_summary_patch_release_rate,
+                (rate * count).formatDose(locale),
+            )
+        }
+        ?: aggregateActiveAmountText(
+            context = context,
+            medicine = medicine,
+            doseInstruction = doseInstruction,
+            count = count,
+            doseAmountDelta = doseAmountDelta,
+            locale = locale,
+        )
+
+    val parts = listOfNotNull(portion, active)
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(separator = " · ")
+}
+
+private fun aggregateConcentrationDoseInstructionText(
+    context: Context,
+    preparation: MedicinePreparation,
+    effectiveInstruction: DoseInstruction,
+    count: Int,
+    concentration: String,
+    locale: Locale,
+): String? = when {
+    preparation is MedicinePreparation.GelSachet && effectiveInstruction == DoseInstruction.WholeUnit -> {
+        val sachets = doseCountNoun(context, R.plurals.stock_count_sachets, count)
+        val totalWeight = context.getString(
+            R.string.dose_instruction_summary_weight_grams,
+            (preparation.sachetWeightGrams * count).formatDose(locale),
+        )
+        listOf(sachets, concentration, totalWeight).joinToString(separator = " · ")
+    }
+    effectiveInstruction is DoseInstruction.VolumeMl -> {
+        val portion = context.getString(
+            R.string.dose_instruction_summary_volume_ml,
+            (effectiveInstruction.valueMl * count).formatDose(locale),
+        )
+        listOf(concentration, portion).joinToString(separator = " · ")
+    }
+    effectiveInstruction is DoseInstruction.WeightGrams -> {
+        val portion = context.getString(
+            R.string.dose_instruction_summary_weight_grams,
+            (effectiveInstruction.valueGrams * count).formatDose(locale),
+        )
+        listOf(concentration, portion).joinToString(separator = " · ")
+    }
+    effectiveInstruction == DoseInstruction.Noop -> null
+    else -> concentration
+}
+
+private fun aggregateDosePortionText(
+    context: Context,
+    preparation: MedicinePreparation,
+    effectiveInstruction: DoseInstruction,
+    count: Int,
+    locale: Locale,
+): String? = when {
+    preparation is MedicinePreparation.Pill && effectiveInstruction is DoseInstruction.TabletFraction -> {
+        val foldedPortion = reduceTabletPortion(
+            numerator = effectiveInstruction.numerator,
+            denominator = effectiveInstruction.denominator,
+            count = count,
+        )
+        if (foldedPortion.isWholeOne()) {
+            null
+        } else {
+            context.getString(
+                R.string.dose_instruction_summary_tablet_fraction,
+                foldedPortion.formatPortion(locale),
+            )
+        }
+    }
+    preparation is MedicinePreparation.Capsule && effectiveInstruction == DoseInstruction.WholeUnit ->
+        doseCountNoun(context, R.plurals.stock_count_capsules, count)
+    preparation is MedicinePreparation.InjectionSingleUseVial && effectiveInstruction == DoseInstruction.WholeUnit ->
+        doseCountNoun(context, R.plurals.stock_count_vials, count)
+    preparation is MedicinePreparation.Patch && effectiveInstruction == DoseInstruction.WholeUnit ->
+        doseCountNoun(context, R.plurals.stock_count_patches, count)
+    else -> null
+}
+
+private fun aggregateActiveAmountText(
+    context: Context,
+    medicine: Medicine,
+    doseInstruction: DoseInstruction,
+    count: Int,
+    doseAmountDelta: Double?,
+    locale: Locale,
+): String? {
+    val totalMg = DoseInstructionCalculator.totalAmountMg(
+        perUnitAmountMg = DoseInstructionCalculator.perUnitAmountMg(medicine, doseInstruction, doseAmountDelta),
+        count = count,
+    ) ?: return null
+    val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
+        medicine.displayDoseUnit
+    } else {
+        MedicineDisplayDoseUnit.MG
+    }
+    return context.getString(
+        R.string.dose_instruction_summary_active_amount,
+        displayUnit.fromMg(totalMg).formatDose(locale),
+        context.getString(displayUnit.shortLabelStringRes()),
+    )
+}
+
+private fun doseCountNoun(
+    context: Context,
+    pluralResId: Int,
+    count: Int,
+): String {
+    // Dose summaries intentionally reuse stock noun plurals; the localized nouns are identical.
+    val noun = context.resources.getQuantityString(pluralResId, count)
+    return "$count $noun"
+}
+
 private fun concentrationSummary(
     context: Context,
     locale: Locale,
@@ -192,17 +369,6 @@ private fun concentrationSummary(
         preparation.concentrationPercent.formatDose(locale),
     )
     else -> null
-}
-
-fun medicationCountIndicatorText(
-    context: Context,
-    count: Int,
-): String? {
-    return if (count > 1) {
-        context.getString(R.string.medication_count_multiplicity, count)
-    } else {
-        null
-    }
 }
 
 @androidx.annotation.StringRes

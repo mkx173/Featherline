@@ -66,7 +66,6 @@ import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.MedicationLogScheduleOffset
 import com.mkx.hrttracker.ui.medication.doseInstructionSummary
-import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.medication.medicationLogScheduleOffset
@@ -659,8 +658,13 @@ internal fun RegimenGroupCard(
             ) {
                 group.medications.forEach { medication ->
                     val doseSummary = listOfNotNull(
-                        medicationCountIndicatorText(medication.count),
-                        medication.medicine?.let { doseInstructionSummary(it, medication.doseInstruction) },
+                        medication.medicine?.let {
+                            doseInstructionSummary(
+                                medicine = it,
+                                instruction = medication.doseInstruction,
+                                count = medication.count,
+                            )
+                        },
                     ).joinToString(separator = " · ")
                     RegimenMedicationChip(
                         groupColorScheme = groupColorScheme,
@@ -903,11 +907,17 @@ private fun RegimenMedicationChip(
             contentDescription = applicationTypeLabel,
             modifier = Modifier.size(14.dp),
         )
-        // For PATCH_OFF (and any other null-medicine route) the title falls back
-        // to the route name, so the label would duplicate it — drop it then.
+        // PATCH_OFF is titled by the removal string ("Remove patch"); its route label
+        // is the shortened "Patch", which adds nothing next to that title, so omit it.
+        // Otherwise drop the route label only when it duplicates the title.
+        val routeLabelSegment = if (applicationType == MedicationApplicationType.PATCH_OFF) {
+            null
+        } else {
+            applicationTypeLabel.takeIf { it != medicationName }
+        }
         val medicationString = listOfNotNull(
             medicationName,
-            applicationTypeLabel.takeIf { it != medicationName },
+            routeLabelSegment,
             doseSummary.takeIf { it.isNotBlank() },
         ).joinToString(" · ")
         Text(

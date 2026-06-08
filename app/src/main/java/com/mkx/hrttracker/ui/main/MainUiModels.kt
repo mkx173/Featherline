@@ -57,6 +57,7 @@ data class LastDoseDisplay(
     val medicine: com.mkx.hrttracker.model.medication.Medicine?,
     val applicationType: com.mkx.hrttracker.model.medication.MedicationApplicationType,
     val doseInstruction: com.mkx.hrttracker.model.medication.DoseInstruction,
+    val count: Int = 1,
     val doseAmountDelta: Double? = null,
 )
 
@@ -884,6 +885,7 @@ private fun MedicationLogEntry.toLastDoseDisplay(): LastDoseDisplay {
         medicine = medicine,
         applicationType = applicationType,
         doseInstruction = doseInstruction,
+        count = count,
         doseAmountDelta = doseAmountDelta,
     )
 }
