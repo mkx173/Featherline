@@ -10,6 +10,9 @@ import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.formatDose
+import com.mkx.hrttracker.model.medication.formatPortion
+import com.mkx.hrttracker.model.medication.isWholeOne
+import com.mkx.hrttracker.model.medication.reduceTabletPortion
 import java.util.Locale
 
 fun medicineDisplayName(medicine: Medicine, context: Context): String {
@@ -96,12 +99,24 @@ fun doseInstructionText(
     context: Context,
     medicine: Medicine?,
     doseInstruction: DoseInstruction,
+    count: Int = 1,
     doseAmountDelta: Double? = null,
 ): String? {
     if (medicine == null) {
         return null
     }
     val locale = Locale.getDefault()
+    if (count > 1) {
+        return aggregateDoseInstructionText(
+            context = context,
+            medicine = medicine,
+            doseInstruction = doseInstruction,
+            count = count,
+            doseAmountDelta = doseAmountDelta,
+            locale = locale,
+        )
+    }
+
     // Render the actual administered amount (scheduled + delta) for measured
     // forms; ampules keep WholeUnit and carry the delta on the mg line below.
     val effectiveInstruction = DoseInstructionCalculator.effectiveDoseInstructionForDisplay(
@@ -172,6 +187,170 @@ fun doseInstructionText(
 
     val parts = listOfNotNull(portion, active)
     return parts.takeIf { it.isNotEmpty() }?.joinToString(separator = " · ")
+}
+
+fun doseInstructionText(
+    context: Context,
+    medicine: Medicine?,
+    doseInstruction: DoseInstruction,
+    doseAmountDelta: Double?,
+): String? = doseInstructionText(
+    context = context,
+    medicine = medicine,
+    doseInstruction = doseInstruction,
+    count = 1,
+    doseAmountDelta = doseAmountDelta,
+)
+
+private fun aggregateDoseInstructionText(
+    context: Context,
+    medicine: Medicine,
+    doseInstruction: DoseInstruction,
+    count: Int,
+    doseAmountDelta: Double?,
+    locale: Locale,
+): String? {
+    val effectiveInstruction = DoseInstructionCalculator.effectiveDoseInstructionForDisplay(
+        preparation = medicine.preparation,
+        doseInstruction = doseInstruction,
+        doseAmountDelta = doseAmountDelta,
+    )
+    concentrationSummary(context, locale, medicine.preparation)?.let { concentration ->
+        return aggregateConcentrationDoseInstructionText(
+            context = context,
+            preparation = medicine.preparation,
+            effectiveInstruction = effectiveInstruction,
+            count = count,
+            concentration = concentration,
+            locale = locale,
+        )
+    }
+
+    val portion = aggregateDosePortionText(
+        context = context,
+        preparation = medicine.preparation,
+        effectiveInstruction = effectiveInstruction,
+        count = count,
+        locale = locale,
+    )
+    val active = DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(medicine, doseInstruction)
+        ?.let { rate ->
+            context.getString(
+                R.string.dose_instruction_summary_patch_release_rate,
+                (rate * count).formatDose(locale),
+            )
+        }
+        ?: aggregateActiveAmountText(
+            context = context,
+            medicine = medicine,
+            doseInstruction = doseInstruction,
+            count = count,
+            doseAmountDelta = doseAmountDelta,
+            locale = locale,
+        )
+
+    val parts = listOfNotNull(portion, active)
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(separator = " · ")
+}
+
+private fun aggregateConcentrationDoseInstructionText(
+    context: Context,
+    preparation: MedicinePreparation,
+    effectiveInstruction: DoseInstruction,
+    count: Int,
+    concentration: String,
+    locale: Locale,
+): String? = when {
+    preparation is MedicinePreparation.GelSachet && effectiveInstruction == DoseInstruction.WholeUnit -> {
+        val sachets = doseCountNoun(context, R.plurals.stock_count_sachets, count)
+        val totalWeight = context.getString(
+            R.string.dose_instruction_summary_weight_grams,
+            (preparation.sachetWeightGrams * count).formatDose(locale),
+        )
+        listOf(sachets, concentration, totalWeight).joinToString(separator = " · ")
+    }
+    effectiveInstruction is DoseInstruction.VolumeMl -> {
+        val portion = context.getString(
+            R.string.dose_instruction_summary_volume_ml,
+            (effectiveInstruction.valueMl * count).formatDose(locale),
+        )
+        listOf(concentration, portion).joinToString(separator = " · ")
+    }
+    effectiveInstruction is DoseInstruction.WeightGrams -> {
+        val portion = context.getString(
+            R.string.dose_instruction_summary_weight_grams,
+            (effectiveInstruction.valueGrams * count).formatDose(locale),
+        )
+        listOf(concentration, portion).joinToString(separator = " · ")
+    }
+    effectiveInstruction == DoseInstruction.Noop -> null
+    else -> concentration
+}
+
+private fun aggregateDosePortionText(
+    context: Context,
+    preparation: MedicinePreparation,
+    effectiveInstruction: DoseInstruction,
+    count: Int,
+    locale: Locale,
+): String? = when {
+    preparation is MedicinePreparation.Pill && effectiveInstruction is DoseInstruction.TabletFraction -> {
+        val foldedPortion = reduceTabletPortion(
+            numerator = effectiveInstruction.numerator,
+            denominator = effectiveInstruction.denominator,
+            count = count,
+        )
+        if (foldedPortion.isWholeOne()) {
+            null
+        } else {
+            context.getString(
+                R.string.dose_instruction_summary_tablet_fraction,
+                foldedPortion.formatPortion(locale),
+            )
+        }
+    }
+    preparation is MedicinePreparation.Capsule && effectiveInstruction == DoseInstruction.WholeUnit ->
+        doseCountNoun(context, R.plurals.stock_count_capsules, count)
+    preparation is MedicinePreparation.InjectionSingleUseVial && effectiveInstruction == DoseInstruction.WholeUnit ->
+        doseCountNoun(context, R.plurals.stock_count_vials, count)
+    preparation is MedicinePreparation.Patch && effectiveInstruction == DoseInstruction.WholeUnit ->
+        doseCountNoun(context, R.plurals.stock_count_patches, count)
+    effectiveInstruction == DoseInstruction.Noop -> null
+    else -> null
+}
+
+private fun aggregateActiveAmountText(
+    context: Context,
+    medicine: Medicine,
+    doseInstruction: DoseInstruction,
+    count: Int,
+    doseAmountDelta: Double?,
+    locale: Locale,
+): String? {
+    val totalMg = DoseInstructionCalculator.totalAmountMg(
+        perUnitAmountMg = DoseInstructionCalculator.perUnitAmountMg(medicine, doseInstruction, doseAmountDelta),
+        count = count,
+    ) ?: return null
+    val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
+        medicine.displayDoseUnit
+    } else {
+        MedicineDisplayDoseUnit.MG
+    }
+    return context.getString(
+        R.string.dose_instruction_summary_active_amount,
+        displayUnit.fromMg(totalMg).formatDose(locale),
+        context.getString(displayUnit.shortLabelStringRes()),
+    )
+}
+
+private fun doseCountNoun(
+    context: Context,
+    pluralResId: Int,
+    count: Int,
+): String {
+    // Dose summaries intentionally reuse stock noun plurals; the localized nouns are identical.
+    val noun = context.resources.getQuantityString(pluralResId, count)
+    return "$count $noun"
 }
 
 private fun concentrationSummary(

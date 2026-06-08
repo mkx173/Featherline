@@ -30,6 +30,13 @@ class MedicationDisplayTextTest {
         ),
     )
 
+    private fun pill() = testMedicine(
+        key = MedicationKey.ESTRADIOL,
+        preparation = MedicinePreparation.Pill(
+            strengthMgPerTablet = 10.0,
+        ),
+    )
+
     @Test
     fun doseInstructionText_withDelta_showsActualDrawnVolume() {
         every {
@@ -90,5 +97,26 @@ class MedicationDisplayTextTest {
         // Ampules carry no portion; the mg line is the only display and reflects
         // the actual administered mass (5.0 + 0.2).
         assertEquals("5.2 mg", text)
+    }
+
+    @Test
+    fun doseInstructionText_zeroCount_usesLegacySingleCountSummary() {
+        // Single-arg getString resolves the unit short label (mg).
+        every { context.getString(any<Int>()) } returns "mg"
+        every {
+            context.getString(R.string.dose_instruction_summary_tablet_fraction, "1/2")
+        } returns "1/2 tablets"
+        every {
+            context.getString(R.string.dose_instruction_summary_active_amount, "5", "mg")
+        } returns "5 mg"
+
+        val text = doseInstructionText(
+            context = context,
+            medicine = pill(),
+            doseInstruction = DoseInstruction.TabletFraction(1, 2),
+            count = 0,
+        )
+
+        assertEquals("1/2 tablets · 5 mg", text)
     }
 }
