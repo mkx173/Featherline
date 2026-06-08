@@ -151,7 +151,7 @@ internal fun MedicationEditorContent(
     if (doseInstructionDraft != null &&
         requiresEditableDoseInstructionForm(activePreparationType)
     ) {
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         DoseInstructionForm(
             medicineDraft = medicineDraft,
             doseInstructionDraft = doseInstructionDraft,
@@ -261,7 +261,6 @@ internal fun DoseInstructionForm(
             }
         }
         if (availableRoutes.size >= 2) {
-            Spacer(modifier = Modifier.height(4.dp))
             MedicationEditorSectionLabel(stringResource(R.string.field_medication_application))
             TabletRouteRow(
                 availableRoutes = availableRoutes,
