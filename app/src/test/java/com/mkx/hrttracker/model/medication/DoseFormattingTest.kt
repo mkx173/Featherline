@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.model.medication
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Locale
 
@@ -31,5 +32,73 @@ class DoseFormattingTest {
     @Test
     fun format_dose_uses_locale_decimal_separator() {
         assertEquals("12,5", 12.5.formatDose(Locale.GERMANY))
+    }
+
+    @Test
+    fun reduce_tablet_portion_folds_count_and_formats_fraction_or_decimal() {
+        assertFoldedPortion(1, 8, "1/8", reduceTabletPortion(1, 8, 1))
+        assertFoldedPortion(1, 4, "1/4", reduceTabletPortion(1, 8, 2))
+        assertFoldedPortion(1, 4, "1/4", reduceTabletPortion(1, 4, 1))
+        assertFoldedPortion(1, 2, "1/2", reduceTabletPortion(1, 2, 1))
+        assertFoldedPortion(3, 2, "1.5", reduceTabletPortion(1, 2, 3))
+        assertFoldedPortion(1, 3, "1/3", reduceTabletPortion(1, 3, 1))
+        assertFoldedPortion(2, 3, "2/3", reduceTabletPortion(1, 3, 2))
+        assertFoldedPortion(3, 8, "3/8", reduceTabletPortion(3, 8, 1))
+        assertFoldedPortion(3, 4, "3/4", reduceTabletPortion(3, 4, 1))
+        assertFoldedPortion(5, 4, "1.25", reduceTabletPortion(1, 4, 5))
+        assertFoldedPortion(2, 1, "2", reduceTabletPortion(1, 1, 2))
+        assertFoldedPortion(3, 1, "3", reduceTabletPortion(1, 1, 3))
+        assertFoldedPortion(1, 1, "1", reduceTabletPortion(1, 2, 2))
+        assertTrue(reduceTabletPortion(1, 2, 2).isWholeOne())
+        assertFoldedPortion(4, 3, "4/3", reduceTabletPortion(1, 3, 4))
+        assertFoldedPortion(9, 8, "9/8", reduceTabletPortion(9, 8, 1))
+    }
+
+    @Test
+    fun reduce_tablet_portion_handles_arbitrary_denominators() {
+        assertFoldedPortion(1, 5, "1/5", reduceTabletPortion(1, 5, 1))
+        assertFoldedPortion(7, 5, "1.4", reduceTabletPortion(1, 5, 7))
+        assertFoldedPortion(1, 7, "1/7", reduceTabletPortion(1, 7, 1))
+        assertFoldedPortion(9, 7, "9/7", reduceTabletPortion(1, 7, 9))
+    }
+
+    @Test
+    fun reduce_tablet_portion_uses_long_math() {
+        val portion = reduceTabletPortion(Int.MAX_VALUE, 1, 1_000_000)
+
+        assertEquals(2_147_483_647_000_000L, portion.numerator)
+        assertEquals(1L, portion.denominator)
+    }
+
+    @Test
+    fun format_portion_formats_large_integer_exactly() {
+        assertEquals(
+            "4611686014132420609",
+            reduceTabletPortion(Int.MAX_VALUE, 1, Int.MAX_VALUE).formatPortion(Locale.US),
+        )
+    }
+
+    @Test
+    fun format_portion_formats_large_terminating_decimal_exactly() {
+        assertEquals(
+            "9223372032,25",
+            FoldedPortion(36_893_488_129L, 4L).formatPortion(Locale.GERMANY),
+        )
+    }
+
+    @Test
+    fun format_portion_uses_locale_decimal_separator() {
+        assertEquals("1,5", reduceTabletPortion(1, 2, 3).formatPortion(Locale.GERMANY))
+    }
+
+    private fun assertFoldedPortion(
+        numerator: Long,
+        denominator: Long,
+        formatted: String,
+        portion: FoldedPortion,
+    ) {
+        assertEquals(numerator, portion.numerator)
+        assertEquals(denominator, portion.denominator)
+        assertEquals(formatted, portion.formatPortion(Locale.US))
     }
 }
