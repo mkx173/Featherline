@@ -405,22 +405,19 @@ fun medicationEntrySupportingText(
                 applicationType = applicationType,
             )
         }
-    val doseText = medicine?.let { doseInstructionSummary(it, doseInstruction, doseAmountDelta) }
+    val doseText = medicine?.let {
+        doseInstructionSummary(
+            medicine = it,
+            instruction = doseInstruction,
+            count = count,
+            doseAmountDelta = doseAmountDelta,
+        )
+    }
     return listOfNotNull(
         applicationTypeLabel,
-        medicationCountIndicatorText(count),
         doseText,
         extraSupportingText?.takeIf(String::isNotBlank),
     ).joinToString(separator = " · ")
-}
-
-@Composable
-fun medicationCountIndicatorText(count: Int): String? {
-    return if (count > 1) {
-        stringResource(R.string.medication_count_multiplicity, count)
-    } else {
-        null
-    }
 }
 
 internal fun shouldUseApplicationTypeAsMedicationEntryTitle(

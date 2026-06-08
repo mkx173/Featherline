@@ -66,7 +66,6 @@ import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.MedicationLogScheduleOffset
 import com.mkx.hrttracker.ui.medication.doseInstructionSummary
-import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.medication.medicationLogScheduleOffset
@@ -659,8 +658,13 @@ internal fun RegimenGroupCard(
             ) {
                 group.medications.forEach { medication ->
                     val doseSummary = listOfNotNull(
-                        medicationCountIndicatorText(medication.count),
-                        medication.medicine?.let { doseInstructionSummary(it, medication.doseInstruction) },
+                        medication.medicine?.let {
+                            doseInstructionSummary(
+                                medicine = it,
+                                instruction = medication.doseInstruction,
+                                count = medication.count,
+                            )
+                        },
                     ).joinToString(separator = " · ")
                     RegimenMedicationChip(
                         groupColorScheme = groupColorScheme,

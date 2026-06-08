@@ -121,18 +121,18 @@ class MedicationDetailTextTest {
     }
 
     @Test
-    fun medicationDetailLine_prependsCountWhenGreaterThanOne() {
+    fun medicationDetailLine_foldsCountIntoDoseSummaryWhenGreaterThanOne() {
         every {
             context.getString(R.string.medication_name_spironolactone)
         } returns "Spironolactone"
         every { context.getString(R.string.medication_application_oral) } returns "Oral"
         every { context.getString(R.string.unit_mg) } returns "mg"
         every {
-            context.getString(R.string.dose_instruction_summary_active_amount, "2", "mg")
-        } returns "2 mg"
+            context.getString(R.string.dose_instruction_summary_tablet_fraction, "2")
+        } returns "2 tablets"
         every {
-            context.getString(R.string.medication_count_multiplicity, 2)
-        } returns "2x"
+            context.getString(R.string.dose_instruction_summary_active_amount, "4", "mg")
+        } returns "4 mg"
 
         val medication = testMedicationGroupMedication(
             medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
@@ -143,8 +143,7 @@ class MedicationDetailTextTest {
 
         val result = medicationDetailLine(context, "Hormones", medication)
 
-        // Count is rendered separately; "1 tablet" portion remains suppressed regardless of count.
-        assertEquals("Hormones · Spironolactone · Oral · 2x · 2 mg", result)
+        assertEquals("Hormones · Spironolactone · Oral · 2 tablets · 4 mg", result)
     }
 
     @Test

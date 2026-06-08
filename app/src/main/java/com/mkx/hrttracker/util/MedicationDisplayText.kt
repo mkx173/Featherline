@@ -373,17 +373,6 @@ private fun concentrationSummary(
     else -> null
 }
 
-fun medicationCountIndicatorText(
-    context: Context,
-    count: Int,
-): String? {
-    return if (count > 1) {
-        context.getString(R.string.medication_count_multiplicity, count)
-    } else {
-        null
-    }
-}
-
 @androidx.annotation.StringRes
 private fun MedicineDisplayDoseUnit.shortLabelStringRes(): Int = when (this) {
     MedicineDisplayDoseUnit.MG -> R.string.unit_mg

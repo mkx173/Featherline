@@ -428,7 +428,6 @@
     <string name="dose_instruction_summary_concentration_mg_per_ml">%1$s mg/mL</string>
     <string name="dose_instruction_summary_concentration_percent">%1$s%%</string>
     <string name="dose_instruction_summary_patch_release_rate">%1$s μg/day</string>
-    <string name="medication_count_multiplicity">%1$dx</string>
     <string name="default_group_name_format">Group %1$d</string>
     <string name="dark_mode_follow_system">Follow system</string>
     <string name="dark_mode_always_off">Always off</string>

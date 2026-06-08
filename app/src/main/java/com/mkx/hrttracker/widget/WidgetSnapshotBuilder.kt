@@ -14,7 +14,6 @@ import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.doseInstructionText
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
-import com.mkx.hrttracker.util.medicationCountIndicatorText
 import com.mkx.hrttracker.util.medicationEntryTitle
 import com.mkx.hrttracker.util.medicationRouteLabel
 import java.time.LocalDateTime
@@ -176,8 +175,13 @@ private fun MedicationLogEntry.toManualWidgetDoseRow(
         colorKey = colorKey,
         routeLabel = medicationRouteLabel(applicationType, context),
         doseText = listOfNotNull(
-            medicationCountIndicatorText(context, count),
-            doseInstructionText(context, medicine, doseInstruction, doseAmountDelta),
+            doseInstructionText(
+                context = context,
+                medicine = medicine,
+                doseInstruction = doseInstruction,
+                count = count,
+                doseAmountDelta = doseAmountDelta,
+            ),
         ).joinToString(separator = " · "),
         status = WidgetDoseStatus.DONE,
         scheduledAt = appliedAt.atZone(zoneId).toLocalDateTime(),
@@ -218,8 +222,13 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
         colorKey = groupColorKey,
         routeLabel = medicationRouteLabel(medication.applicationType, context),
         doseText = listOfNotNull(
-            medicationCountIndicatorText(context, medication.count),
-            doseInstructionText(context, medication.medicine, medication.doseInstruction, doseAmountDelta),
+            doseInstructionText(
+                context = context,
+                medicine = medication.medicine,
+                doseInstruction = medication.doseInstruction,
+                count = medication.count,
+                doseAmountDelta = doseAmountDelta,
+            ),
         ).joinToString(separator = " · "),
         status = status,
         scheduledAt = scheduledFor,
