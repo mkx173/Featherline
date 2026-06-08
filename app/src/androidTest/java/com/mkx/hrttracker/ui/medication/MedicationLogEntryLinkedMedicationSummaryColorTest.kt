@@ -51,6 +51,7 @@ class MedicationLogEntryLinkedMedicationSummaryColorTest {
                     countText = "1",
                     sourceGroupName = null,
                     sourceGroupColorKey = null,
+                    sourceGroupIsArchived = false,
                     sourceGroupScheduledForText = null,
                     sourceGroupScheduleOffsetText = null,
                     sourceGroupScheduleOffsetOutsideFulfillmentWindow = false,

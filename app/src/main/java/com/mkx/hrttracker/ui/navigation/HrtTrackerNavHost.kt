@@ -710,6 +710,7 @@ fun HrtTrackerNavHost(
                                         medicationCount = request.medicationCount,
                                         sourceGroupName = request.sourceGroupName,
                                         sourceGroupColorKey = request.sourceGroupColorKey,
+                                        sourceGroupIsArchived = request.sourceGroupIsArchived,
                                         sourceGroupPreviousScheduledFor = request.sourceGroupPreviousScheduledFor,
                                         sourceGroupNextScheduledFor = request.sourceGroupNextScheduledFor,
                                     )
@@ -1224,6 +1225,7 @@ private fun MainEditEntryRequest.toMedicationLogEntryEditSnapshot(): MedicationL
         entries = snapshotEntries,
         sourceGroupName = sourceGroupName,
         sourceGroupColorKey = sourceGroupColorKey,
+        sourceGroupIsArchived = sourceGroupIsArchived,
         sourceGroupPreviousScheduledFor = sourceGroupPreviousScheduledFor,
         sourceGroupNextScheduledFor = sourceGroupNextScheduledFor,
     )
@@ -1243,6 +1245,7 @@ private fun saveQuickLogRequest(request: MedicationLogEntryQuickLogRequest): Arr
         request.sourceGroupColorKey?.name,
         request.sourceGroupPreviousScheduledFor?.toString(),
         request.sourceGroupNextScheduledFor?.toString(),
+        request.sourceGroupIsArchived,
     )
 }
 
@@ -1261,6 +1264,7 @@ private fun restoreQuickLogRequest(saved: Any): MedicationLogEntryQuickLogReques
         sourceGroupColorKey = (list.getOrNull(8) as? String)?.let(::restoreMedicationGroupColorKey),
         sourceGroupPreviousScheduledFor = (list.getOrNull(9) as? String)?.let(LocalDateTime::parse),
         sourceGroupNextScheduledFor = (list.getOrNull(10) as? String)?.let(LocalDateTime::parse),
+        sourceGroupIsArchived = (list.getOrNull(11) as? Boolean) ?: false,
     )
 }
 
@@ -1275,6 +1279,7 @@ private fun saveEditSnapshot(snapshot: MedicationLogEntryEditSnapshot): ArrayLis
         snapshot.sourceGroupColorKey?.name,
         snapshot.sourceGroupPreviousScheduledFor?.toString(),
         snapshot.sourceGroupNextScheduledFor?.toString(),
+        snapshot.sourceGroupIsArchived,
     )
 }
 
@@ -1288,6 +1293,7 @@ private fun restoreEditSnapshot(saved: Any): MedicationLogEntryEditSnapshot {
         sourceGroupColorKey = (list.getOrNull(2) as? String)?.let(::restoreMedicationGroupColorKey),
         sourceGroupPreviousScheduledFor = (list.getOrNull(3) as? String)?.let(LocalDateTime::parse),
         sourceGroupNextScheduledFor = (list.getOrNull(4) as? String)?.let(LocalDateTime::parse),
+        sourceGroupIsArchived = (list.getOrNull(5) as? Boolean) ?: false,
     )
 }
 

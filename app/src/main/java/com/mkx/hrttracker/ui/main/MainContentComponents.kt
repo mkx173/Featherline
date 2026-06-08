@@ -3169,6 +3169,7 @@ private fun MainTodayDoseRow(
                     ),
                     sourceGroupName = row.groupName,
                     sourceGroupColorKey = row.groupColorKey,
+                    sourceGroupIsArchived = row.isFromArchivedGroup,
                     sourceGroupPreviousScheduledFor = row.sourceGroupPreviousScheduledFor,
                     sourceGroupNextScheduledFor = row.sourceGroupNextScheduledFor,
                 )
@@ -3864,6 +3865,7 @@ private fun MainTodayDoseRowUiState.toMainEditEntryRequest(
         snapshotEntries = snapshotEntries,
         sourceGroupName = groupName.takeIf { rowGroupUuid != null && it.isNotBlank() },
         sourceGroupColorKey = groupColorKey.takeIf { rowGroupUuid != null },
+        sourceGroupIsArchived = isFromArchivedGroup && rowGroupUuid != null,
         sourceGroupPreviousScheduledFor = sourceGroupPreviousScheduledFor
             .takeIf { rowGroupUuid != null },
         sourceGroupNextScheduledFor = sourceGroupNextScheduledFor

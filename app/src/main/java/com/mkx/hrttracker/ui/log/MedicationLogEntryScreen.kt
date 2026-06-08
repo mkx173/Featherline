@@ -78,6 +78,7 @@ fun MedicationLogEntryScreen(
                 medicationCount = quickLogRequest.medicationCount,
                 sourceGroupName = quickLogRequest.sourceGroupName,
                 sourceGroupColorKey = quickLogRequest.sourceGroupColorKey,
+                sourceGroupIsArchived = quickLogRequest.sourceGroupIsArchived,
                 sourceGroupPreviousScheduledFor = quickLogRequest.sourceGroupPreviousScheduledFor,
                 sourceGroupNextScheduledFor = quickLogRequest.sourceGroupNextScheduledFor,
             )
@@ -304,6 +305,7 @@ private fun MedicationLogEntryScreenBody(
         effectiveActualAmount = uiState.effectiveActualAmount,
         sourceGroupName = uiState.sourceGroupName,
         sourceGroupColorKey = uiState.sourceGroupColorKey,
+        sourceGroupIsArchived = uiState.sourceGroupIsArchived,
         sourceGroupScheduledFor = uiState.scheduledFor,
         sourceGroupScheduleOffsetOutsideFulfillmentWindow =
             sourceGroupScheduleOffsetOutsideFulfillmentWindow,

@@ -119,6 +119,7 @@ fun MedicationLogEntryEditorSheet(
     effectiveActualAmount: Double? = null,
     sourceGroupName: String? = null,
     sourceGroupColorKey: MedicationGroupColorKey? = null,
+    sourceGroupIsArchived: Boolean = false,
     sourceGroupScheduledFor: LocalDateTime? = null,
     sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean = false,
     countText: String,
@@ -191,6 +192,7 @@ fun MedicationLogEntryEditorSheet(
             countText = countText,
             sourceGroupName = sourceGroupName,
             sourceGroupColorKey = sourceGroupColorKey,
+            sourceGroupIsArchived = sourceGroupIsArchived,
             sourceGroupScheduledForText = sourceGroupScheduledForText,
             sourceGroupScheduleOffsetText = sourceGroupScheduleOffsetText,
             sourceGroupScheduleOffsetOutsideFulfillmentWindow =
@@ -254,6 +256,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
     countText: String,
     sourceGroupName: String?,
     sourceGroupColorKey: MedicationGroupColorKey?,
+    sourceGroupIsArchived: Boolean,
     sourceGroupScheduledForText: String?,
     sourceGroupScheduleOffsetText: String?,
     sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean,
@@ -269,6 +272,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
         MedicationEditorGroupInfoCard(
             groupName = checkNotNull(groupName),
             groupColorKey = sourceGroupColorKey,
+            isArchived = sourceGroupIsArchived,
             scheduledForText = checkNotNull(sourceGroupScheduledForText),
             scheduleOffsetText = sourceGroupScheduleOffsetText,
             showScheduleOffsetWarning = sourceGroupScheduleOffsetOutsideFulfillmentWindow,
@@ -433,6 +437,7 @@ private fun MedicationEditorGroupInfoCard(
     modifier: Modifier = Modifier,
     groupName: String,
     groupColorKey: MedicationGroupColorKey?,
+    isArchived: Boolean = false,
     scheduledForText: String,
     scheduleOffsetText: String? = null,
     showScheduleOffsetWarning: Boolean = false,
@@ -445,31 +450,45 @@ private fun MedicationEditorGroupInfoCard(
             count = 2,
             modifier = modifier,
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            trailingContent = scheduleOffsetText?.let { offsetText ->
+            trailingContent = if (isArchived || scheduleOffsetText != null) {
                 {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Text(
-                            text = offsetText,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.cjkTextOffset(offsetText),
-                        )
-                        if (showScheduleOffsetWarning) {
+                        if (isArchived) {
                             Icon(
-                                imageVector = Icons.Rounded.WarningAmber,
+                                painter = painterResource(R.drawable.ic_archive),
                                 contentDescription = stringResource(
-                                    R.string.medication_editor_schedule_offset_warning,
+                                    R.string.archived_group_record_indicator,
                                 ),
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp),
                             )
                         }
+                        if (scheduleOffsetText != null) {
+                            Text(
+                                text = scheduleOffsetText,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.cjkTextOffset(scheduleOffsetText),
+                            )
+                            if (showScheduleOffsetWarning) {
+                                Icon(
+                                    imageVector = Icons.Rounded.WarningAmber,
+                                    contentDescription = stringResource(
+                                        R.string.medication_editor_schedule_offset_warning,
+                                    ),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
                     }
                 }
+            } else {
+                null
             },
         ) {
             Row(

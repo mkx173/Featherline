@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.isCompatibleWith
 import com.mkx.hrttracker.model.medication.isWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
@@ -137,6 +138,7 @@ class MedicationLogEntryViewModel @Inject constructor(
         medicationCount: Int,
         sourceGroupName: String? = null,
         sourceGroupColorKey: MedicationGroupColorKey? = null,
+        sourceGroupIsArchived: Boolean = false,
         sourceGroupPreviousScheduledFor: LocalDateTime? = null,
         sourceGroupNextScheduledFor: LocalDateTime? = null,
     ) {
@@ -156,6 +158,7 @@ class MedicationLogEntryViewModel @Inject constructor(
             medicationCount = medicationCount,
             sourceGroupName = sourceGroupName,
             sourceGroupColorKey = sourceGroupColorKey,
+            sourceGroupIsArchived = sourceGroupIsArchived,
             sourceGroupPreviousScheduledFor = sourceGroupPreviousScheduledFor,
             sourceGroupNextScheduledFor = sourceGroupNextScheduledFor,
             appliedAt = LocalDateTime.now(),
@@ -197,6 +200,7 @@ class MedicationLogEntryViewModel @Inject constructor(
                     currentState.copy(
                         sourceGroupName = group.name,
                         sourceGroupColorKey = group.colorKey,
+                        sourceGroupIsArchived = group.isArchived(),
                         sourceGroupPreviousScheduledFor = group.previousScheduledForBefore(scheduledFor),
                         sourceGroupNextScheduledFor = group.nextScheduledForAfter(scheduledFor),
                         isLoading = false,
@@ -597,6 +601,7 @@ class MedicationLogEntryViewModel @Inject constructor(
                 sourceGroup = sourceGroup,
                 sourceGroupName = editSnapshot?.sourceGroupName,
                 sourceGroupColorKey = editSnapshot?.sourceGroupColorKey,
+                sourceGroupIsArchived = editSnapshot?.sourceGroupIsArchived ?: false,
                 sourceGroupPreviousScheduledFor = editSnapshot?.sourceGroupPreviousScheduledFor,
                 sourceGroupNextScheduledFor = editSnapshot?.sourceGroupNextScheduledFor,
             ) ?: editSnapshot
@@ -638,6 +643,7 @@ data class MedicationLogEntryUiState(
     val scheduleTimeUuid: UUID? = null,
     val sourceGroupName: String? = null,
     val sourceGroupColorKey: MedicationGroupColorKey? = null,
+    val sourceGroupIsArchived: Boolean = false,
     val scheduledFor: LocalDateTime? = null,
     val sourceGroupPreviousScheduledFor: LocalDateTime? = null,
     val sourceGroupNextScheduledFor: LocalDateTime? = null,
@@ -744,6 +750,7 @@ data class MedicationLogEntryQuickLogRequest(
     val medicationCount: Int,
     val sourceGroupName: String? = null,
     val sourceGroupColorKey: MedicationGroupColorKey? = null,
+    val sourceGroupIsArchived: Boolean = false,
     val sourceGroupPreviousScheduledFor: LocalDateTime? = null,
     val sourceGroupNextScheduledFor: LocalDateTime? = null,
 )
@@ -752,6 +759,7 @@ data class MedicationLogEntryEditSnapshot(
     val entries: List<MedicationLogEntry>,
     val sourceGroupName: String? = null,
     val sourceGroupColorKey: MedicationGroupColorKey? = null,
+    val sourceGroupIsArchived: Boolean = false,
     val sourceGroupPreviousScheduledFor: LocalDateTime? = null,
     val sourceGroupNextScheduledFor: LocalDateTime? = null,
 )
@@ -812,6 +820,7 @@ internal fun buildEditingUiState(
     sourceGroup: MedicationGroup? = null,
     sourceGroupName: String? = null,
     sourceGroupColorKey: MedicationGroupColorKey? = null,
+    sourceGroupIsArchived: Boolean = false,
     sourceGroupPreviousScheduledFor: LocalDateTime? = null,
     sourceGroupNextScheduledFor: LocalDateTime? = null,
 ): MedicationLogEntryUiState? {
@@ -835,6 +844,8 @@ internal fun buildEditingUiState(
             ?: sourceGroupName?.takeIf { hasMatchingSourceGroupSnapshot },
         sourceGroupColorKey = matchingSourceGroup?.colorKey
             ?: sourceGroupColorKey?.takeIf { hasMatchingSourceGroupSnapshot },
+        sourceGroupIsArchived = matchingSourceGroup?.isArchived()
+            ?: (hasMatchingSourceGroupSnapshot && sourceGroupIsArchived),
         scheduledFor = representativeEntry.scheduledFor,
         sourceGroupPreviousScheduledFor = representativeEntry.scheduledFor?.let { scheduledFor ->
             matchingSourceGroup?.previousScheduledForBefore(scheduledFor)
@@ -913,6 +924,7 @@ private fun MedicationLogEntryEditSnapshot.toEditingUiState(): MedicationLogEntr
         entries = entries,
         sourceGroupName = sourceGroupName,
         sourceGroupColorKey = sourceGroupColorKey,
+        sourceGroupIsArchived = sourceGroupIsArchived,
         sourceGroupPreviousScheduledFor = sourceGroupPreviousScheduledFor,
         sourceGroupNextScheduledFor = sourceGroupNextScheduledFor,
     )
@@ -929,6 +941,7 @@ internal fun buildQuickLogUiState(
     medicationCount: Int,
     sourceGroupName: String? = null,
     sourceGroupColorKey: MedicationGroupColorKey? = null,
+    sourceGroupIsArchived: Boolean = false,
     sourceGroupPreviousScheduledFor: LocalDateTime? = null,
     sourceGroupNextScheduledFor: LocalDateTime? = null,
     appliedAt: LocalDateTime,
@@ -949,6 +962,7 @@ internal fun buildQuickLogUiState(
         scheduleTimeUuid = scheduleTimeUuid,
         sourceGroupName = group?.name ?: sourceGroupName,
         sourceGroupColorKey = group?.colorKey ?: sourceGroupColorKey,
+        sourceGroupIsArchived = group?.isArchived() ?: sourceGroupIsArchived,
         scheduledFor = scheduledFor,
         sourceGroupPreviousScheduledFor = group?.previousScheduledForBefore(scheduledFor)
             ?: sourceGroupPreviousScheduledFor,

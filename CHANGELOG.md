@@ -11,6 +11,10 @@ _Nothing yet._
 
 ## [1.1.3] - 2026-06-08
 
+### Added
+
+- The medication log editor now shows an archive icon when logging or editing a dose from an archived group, matching the indicator on the home, plan, and history lists.
+
 ### Changed
 
 - Multi-unit dose summaries now fold the count into the dose (e.g. "1.5 tablets · 15 mg") instead of showing a separate count multiplier like "2x".

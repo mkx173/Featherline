@@ -175,6 +175,7 @@ data class MainQuickLogDoseRequest(
     val medicationCount: Int,
     val sourceGroupName: String,
     val sourceGroupColorKey: MedicationGroupColorKey?,
+    val sourceGroupIsArchived: Boolean,
     val sourceGroupPreviousScheduledFor: LocalDateTime?,
     val sourceGroupNextScheduledFor: LocalDateTime?,
 )
@@ -184,6 +185,7 @@ data class MainEditEntryRequest(
     val snapshotEntries: List<MedicationLogEntry> = emptyList(),
     val sourceGroupName: String? = null,
     val sourceGroupColorKey: MedicationGroupColorKey? = null,
+    val sourceGroupIsArchived: Boolean = false,
     val sourceGroupPreviousScheduledFor: LocalDateTime? = null,
     val sourceGroupNextScheduledFor: LocalDateTime? = null,
 )

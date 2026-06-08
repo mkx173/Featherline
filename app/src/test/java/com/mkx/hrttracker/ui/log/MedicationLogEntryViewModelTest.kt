@@ -234,6 +234,35 @@ class MedicationLogEntryViewModelTest {
         requireNotNull(uiState)
         assertEquals("Nightly estradiol", uiState.sourceGroupName)
         assertEquals(MedicationGroupColorKey.INDIGO, uiState.sourceGroupColorKey)
+        assertFalse(uiState.sourceGroupIsArchived)
+    }
+
+    @Test
+    fun buildEditingUiState_marks_sourceGroup_archived_from_live_group() {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val entry = testMedicationLogEntry(
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            equivalentE2Mg = 2.0,
+            sourceGroupUuid = groupId,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+            scheduledFor = scheduledFor
+        )
+        val archivedGroup = testMedicationGroup(
+            groupId = groupId,
+            name = "Nightly estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO,
+            archived = true,
+        )
+
+        val uiState = buildEditingUiState(
+            entries = listOf(entry),
+            sourceGroup = archivedGroup
+        )
+
+        requireNotNull(uiState)
+        assertTrue(uiState.sourceGroupIsArchived)
     }
 
     @Test
@@ -253,6 +282,9 @@ class MedicationLogEntryViewModelTest {
             entries = listOf(entry),
             sourceGroupName = "Snapshot estradiol",
             sourceGroupColorKey = MedicationGroupColorKey.PLUM,
+            // The archived indicator must survive a cache miss / failed group
+            // lookup, where only the row's snapshot metadata is available.
+            sourceGroupIsArchived = true,
             sourceGroupPreviousScheduledFor = scheduledFor.minusDays(1),
             sourceGroupNextScheduledFor = scheduledFor.plusDays(1),
         )
@@ -261,6 +293,7 @@ class MedicationLogEntryViewModelTest {
         assertEquals(groupId, uiState.sourceGroupUuid)
         assertEquals("Snapshot estradiol", uiState.sourceGroupName)
         assertEquals(MedicationGroupColorKey.PLUM, uiState.sourceGroupColorKey)
+        assertTrue(uiState.sourceGroupIsArchived)
         assertEquals(scheduledFor.minusDays(1), uiState.sourceGroupPreviousScheduledFor)
         assertEquals(scheduledFor.plusDays(1), uiState.sourceGroupNextScheduledFor)
     }
@@ -2276,6 +2309,7 @@ private fun testMedicationGroup(
     name: String,
     colorKey: MedicationGroupColorKey,
     times: List<LocalTime> = listOf(LocalTime.of(21, 0)),
+    archived: Boolean = false,
 ): MedicationGroup {
     return MedicationGroup(
         uuid = groupId,
@@ -2290,7 +2324,8 @@ private fun testMedicationGroup(
         ),
         medications = emptyList(),
         createdAt = testInstant(LocalDateTime.of(2026, 4, 1, 12, 0)),
-        updatedAt = testInstant(LocalDateTime.of(2026, 4, 22, 12, 0))
+        updatedAt = testInstant(LocalDateTime.of(2026, 4, 22, 12, 0)),
+        archivedAt = if (archived) testInstant(LocalDateTime.of(2026, 4, 23, 12, 0)) else null,
     )
 }
 
