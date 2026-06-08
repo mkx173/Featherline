@@ -77,9 +77,9 @@ class MedicinesScreenLayoutTest {
     }
 
     @Test
-    fun medicineManagerTitle_usesPickerTitleForManualLogMode() {
+    fun medicineManagerTitle_usesManualLogTitleForManualLogMode() {
         assertEquals(
-            R.string.medicine_picker_select_medicine,
+            R.string.medicine_manager_manual_log_title,
             medicineManagerTitle(MedicineManagerLaunchMode.ManualLog),
         )
     }

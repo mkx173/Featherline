@@ -136,7 +136,7 @@ internal fun medicineManagerTitle(
     return when (launchMode) {
         MedicineManagerLaunchMode.Manager,
         MedicineManagerLaunchMode.OnboardingStockOptIn -> R.string.medicines_title
-        MedicineManagerLaunchMode.ManualLog,
+        MedicineManagerLaunchMode.ManualLog -> R.string.medicine_manager_manual_log_title
         is MedicineManagerLaunchMode.GroupSlot -> R.string.medicine_picker_select_medicine
     }
 }
