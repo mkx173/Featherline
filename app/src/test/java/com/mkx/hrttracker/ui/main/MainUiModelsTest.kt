@@ -417,7 +417,8 @@ class MainUiModelsTest {
                     equivalentE2Mg = null,
                     sourceGroupUuid = antiandrogenGroup.uuid,
                     appliedAt = testInstant(spiroLastDoseTime),
-                    scheduledFor = LocalDateTime.of(2026, 4, 18, 8, 0)
+                    scheduledFor = LocalDateTime.of(2026, 4, 18, 8, 0),
+                    count = 2,
                 ),
                 testMedicationLogEntry(
                     uuid = UUID.randomUUID(),
@@ -446,6 +447,10 @@ class MainUiModelsTest {
         assertEquals(
             listOf(spiroActualDoseInstruction, cyproDoseInstruction),
             cards.map { it.lastDose?.doseInstruction }
+        )
+        assertEquals(
+            listOf(2, 1),
+            cards.map { it.lastDose?.count }
         )
         assertEquals(
             listOf(

@@ -13,11 +13,19 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 import java.time.LocalDateTime
 import java.util.UUID
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class MedicationDetailTextTest {
     private val context: Context = mockk()
+    private val realContext: Context
+        get() = RuntimeEnvironment.getApplication().applicationContext
 
     @Test
     fun buildExpandedDetailLines_belowCap_keepsAllLines() {
@@ -170,11 +178,24 @@ class MedicationDetailTextTest {
     }
 
     @Test
-    fun medicationDetailLine_omitsDoseSegmentForPatchOff() {
-        every {
-            context.getString(R.string.medication_application_patch_off)
-        } returns "Patch off"
+    fun medicationDetailLine_capsuleCountShowsAggregateRealIntakeWithoutMultiplicityPrefix() {
+        val medication = testMedicationGroupMedication(
+            medicine = testCustomMedicine(
+                medicationName = "Progesterone",
+                preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 5.0),
+            ),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.WholeUnit,
+            count = 2,
+        )
 
+        val result = medicationDetailLine(realContext, "Progesterone", medication)
+
+        assertEquals("Progesterone · Progesterone · Oral · 2 capsules · 10 mg", result)
+    }
+
+    @Test
+    fun medicationDetailLine_omitsDoseSegmentForPatchOff() {
         // A PATCH_OFF slot carries no medicine — no dose segment is rendered.
         val medication = testMedicationGroupMedication(
             medicine = null,
@@ -183,9 +204,9 @@ class MedicationDetailTextTest {
             count = 1,
         )
 
-        val result = medicationDetailLine(context, "Estrogens", medication)
+        val result = medicationDetailLine(realContext, "Estrogens", medication)
 
         // Route falls back into the title for PATCH_OFF; don't duplicate the label.
-        assertEquals("Estrogens · Patch off", result)
+        assertEquals("Estrogens · Remove patch", result)
     }
 }

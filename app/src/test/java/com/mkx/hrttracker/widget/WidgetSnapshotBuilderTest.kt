@@ -7,12 +7,15 @@ import com.mkx.hrttracker.data.repository.HomePkDenseSamplePolicyRecord
 import com.mkx.hrttracker.data.repository.HomePkProjectionDoseMarkerRecord
 import com.mkx.hrttracker.data.repository.HomePkProjectionRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
@@ -25,6 +28,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -32,8 +39,12 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class WidgetSnapshotBuilderTest {
     private val context: Context = mockk(relaxed = true)
+    private val realContext: Context
+        get() = RuntimeEnvironment.getApplication().applicationContext
     private val zoneId: ZoneId = ZoneId.systemDefault()
 
     @Test
@@ -81,6 +92,47 @@ class WidgetSnapshotBuilderTest {
         )
 
         assertEquals("zh-Hans", snapshot.appLanguageTag)
+    }
+
+    @Test
+    fun writesAggregateDoseTextToWidgetRows() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val group = MedicationGroup(
+            uuid = UUID.randomUUID(),
+            name = "Evening group",
+            colorKey = MedicationGroupColorKey.ROSE,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = now.toLocalDate(),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(20, 0)),
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    medicine = testCustomMedicine(
+                        medicationName = "Progesterone",
+                        preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 5.0),
+                    ),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.WholeUnit,
+                    count = 2,
+                )
+            ),
+            createdAt = Instant.parse("2026-05-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-05-01T00:00:00Z"),
+        )
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = realContext,
+            homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(group)),
+            settings = SettingsState(),
+            now = now,
+            zoneId = zoneId,
+        )
+
+        val row = snapshot.doseRows.first { row -> row.contextChip == null && !row.isManualRecord }
+        assertEquals("2 capsules · 10 mg", row.doseText)
     }
 
     @Test
