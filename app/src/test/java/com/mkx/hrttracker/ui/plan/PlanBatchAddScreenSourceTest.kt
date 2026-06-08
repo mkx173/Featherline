@@ -24,7 +24,7 @@ class PlanBatchAddScreenSourceTest {
         )
         assertTrue(
             confirmButton.contains(
-                "icon = ImageVector.vectorResource(R.drawable.ic_list_alt_add),"
+                "icon = ImageVector.vectorResource(R.drawable.ic_format_list_bulleted_add),"
             ),
         )
         assertFalse(confirmButton.contains("icon = Icons.Rounded.Add,"))

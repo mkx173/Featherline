@@ -212,6 +212,52 @@ class MainContentComponentsTest {
     }
 
     @Test
+    fun mainAntiandrogenInfoPills_addsManualRecordChipAfterLastDoseForManualRows() {
+        assertEquals(
+            listOf(
+                MainAntiandrogenInfoPillSpec(
+                    iconDrawableRes = R.drawable.ic_check_circle_heavy,
+                    text = "3h ago",
+                ),
+                MainAntiandrogenInfoPillSpec(
+                    iconDrawableRes = R.drawable.ic_edit_square_heavy,
+                    text = "Manual record",
+                ),
+            ),
+            mainAntiandrogenInfoPillSpecs(
+                hasPreviousRecord = true,
+                takenText = "3h ago",
+                dueText = "Tomorrow",
+                isManualRow = true,
+                manualRecordText = "Manual record",
+            )
+        )
+    }
+
+    @Test
+    fun mainAntiandrogenInfoPills_keepsNextDoseChipForScheduledRows() {
+        assertEquals(
+            listOf(
+                MainAntiandrogenInfoPillSpec(
+                    iconDrawableRes = R.drawable.ic_info_heavy,
+                    text = "No records",
+                ),
+                MainAntiandrogenInfoPillSpec(
+                    iconDrawableRes = R.drawable.ic_schedule_heavy,
+                    text = "Tomorrow",
+                ),
+            ),
+            mainAntiandrogenInfoPillSpecs(
+                hasPreviousRecord = false,
+                takenText = "No records",
+                dueText = "Tomorrow",
+                isManualRow = false,
+                manualRecordText = "Manual record",
+            )
+        )
+    }
+
+    @Test
     fun mainTodayCountLabel_omits_empty_count() {
         assertNull(
             mainTodayCountLabel(

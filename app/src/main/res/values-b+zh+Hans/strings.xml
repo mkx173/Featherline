@@ -105,6 +105,7 @@
     <string name="plan_schedule_entry_missed">已错过</string>
     <string name="plan_schedule_entry_planned">已计划</string>
     <string name="plan_entry_label_manual">手动</string>
+    <string name="manual_record_label">手动记录</string>
     <string name="plan_group_upcoming_title">即将到来</string>
     <string name="plan_group_upcoming_format">%1$s · %2$s</string>
     <string name="plan_group_upcoming_today">今天</string>

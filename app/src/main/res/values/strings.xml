@@ -111,6 +111,7 @@
     <string name="plan_schedule_entry_missed">Missed</string>
     <string name="plan_schedule_entry_planned">Planned</string>
     <string name="plan_entry_label_manual">Manual</string>
+    <string name="manual_record_label">Manual record</string>
     <string name="plan_group_upcoming_title">Upcoming</string>
     <string name="plan_group_upcoming_format">%1$s · %2$s</string>
     <string name="plan_group_upcoming_today">Today</string>

@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.main
 
 import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
@@ -2839,34 +2840,63 @@ private fun MainAntiandrogenMedicationSubCard(
                     )
                 }
 
-                if (card.isManualRow) {
-                    MainManualRecordIcon()
-                }
             }
 
+            val infoPills = mainAntiandrogenInfoPillSpecs(
+                hasPreviousRecord = hasPreviousRecord,
+                takenText = takenText,
+                dueText = dueText,
+                isManualRow = card.isManualRow,
+                manualRecordText = stringResource(R.string.manual_record_label),
+            )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                MainInfoPill(
-                    iconDrawableRes = if (hasPreviousRecord) {
-                        R.drawable.ic_check_circle_heavy
-                    } else {
-                        R.drawable.ic_info_heavy
-                    },
-                    text = takenText,
-                )
-
-                if (!card.isManualRow) {
+                infoPills.forEach { pill ->
                     MainInfoPill(
-                        iconDrawableRes = R.drawable.ic_schedule_heavy,
-                        text = dueText,
+                        iconDrawableRes = pill.iconDrawableRes,
+                        text = pill.text,
                     )
                 }
             }
         }
     }
+}
+
+internal data class MainAntiandrogenInfoPillSpec(
+    @param:DrawableRes val iconDrawableRes: Int?,
+    val text: String,
+)
+
+internal fun mainAntiandrogenInfoPillSpecs(
+    hasPreviousRecord: Boolean,
+    takenText: String,
+    dueText: String,
+    isManualRow: Boolean,
+    manualRecordText: String,
+): List<MainAntiandrogenInfoPillSpec> {
+    val lastDosePill = MainAntiandrogenInfoPillSpec(
+        iconDrawableRes = if (hasPreviousRecord) {
+            R.drawable.ic_check_circle_heavy
+        } else {
+            R.drawable.ic_info_heavy
+        },
+        text = takenText,
+    )
+    val secondaryPill = if (isManualRow) {
+        MainAntiandrogenInfoPillSpec(
+            iconDrawableRes = R.drawable.ic_edit_square_heavy,
+            text = manualRecordText,
+        )
+    } else {
+        MainAntiandrogenInfoPillSpec(
+            iconDrawableRes = R.drawable.ic_schedule_heavy,
+            text = dueText,
+        )
+    }
+    return listOf(lastDosePill, secondaryPill)
 }
 
 @Composable
