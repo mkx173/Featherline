@@ -9,12 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- The antiandrogen card now marks its last dose as "manual" when it came from an ad-hoc log, matching the indicator used in the today list.
+- The antiandrogen card now lists an ad-hoc (manual) dose as its own row after the planned doses, marked "manual", instead of replacing a planned dose's details.
 
 ### Fixed
 
 - The antiandrogen card and estradiol summary no longer treat a dose pre-logged for later today as the most recent dose.
-- The antiandrogen card now shows the correct last dose when a group tracks the same antiandrogen at more than one dose, and a manual dose counts even if it was a different tablet strength.
+- The estradiol summary now updates its last dose as soon as you log a dose later in the day, instead of waiting until the next day.
+- When a group tracks the same antiandrogen at more than one dose, each dose now shows its own last dose, including doses logged on earlier days.
 
 ## [1.1.3] - 2026-06-08
 

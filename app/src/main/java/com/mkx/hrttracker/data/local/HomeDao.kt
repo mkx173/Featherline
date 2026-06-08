@@ -101,7 +101,9 @@ interface HomeDao {
             gelApplicationArea, doseAmountDelta
         FROM (
             SELECT *, ROW_NUMBER() OVER (
-                PARTITION BY applicationType, medicineUuid, sourceGroupUuid
+                PARTITION BY applicationType, medicineUuid, sourceGroupUuid,
+                             doseInstructionKind, tabletFractionNumerator,
+                             tabletFractionDenominator, doseVolumeMl, doseWeightGrams
                 ORDER BY appliedAtEpochMillis DESC, uuid DESC
             ) AS rn
             FROM medication_log_entries
@@ -126,7 +128,9 @@ interface HomeDao {
             gelApplicationArea, doseAmountDelta
         FROM (
             SELECT *, ROW_NUMBER() OVER (
-                PARTITION BY applicationType, medicineUuid, sourceGroupUuid
+                PARTITION BY applicationType, medicineUuid, sourceGroupUuid,
+                             doseInstructionKind, tabletFractionNumerator,
+                             tabletFractionDenominator, doseVolumeMl, doseWeightGrams
                 ORDER BY appliedAtEpochMillis DESC, uuid DESC
             ) AS rn
             FROM medication_log_entries

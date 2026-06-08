@@ -110,9 +110,8 @@ data class MainAntiandrogenCardUiState(
     val medication: MedicationGroupMedication,
     val lastDose: LastDoseDisplay? = null,
     val lastDoseAt: LocalDateTime? = null,
-    // True when the displayed last dose came from a manual (ad-hoc) log rather
-    // than one recorded against this group's schedule.
-    val lastDoseIsManual: Boolean = false,
+    // True when this is a trailing manual (ad-hoc) row rather than a plan row.
+    val isManualRow: Boolean = false,
     val nextDoseAt: LocalDateTime? = null,
     val isNextDosePastDue: Boolean = false,
 )
@@ -497,45 +496,82 @@ internal fun buildMainAntiandrogenCards(
     // anything after `now` from the last dose a card reports (mirrors the E2
     // hero's findLastEstradiolEntry bound).
     val nowInstant = now.atZone(zoneId).toInstant()
+    val antiandrogenEntriesAtOrBeforeNow = entries.filter { entry ->
+        entry.category == MedicationCategory.ANTIANDROGEN &&
+            !entry.appliedAt.isAfter(nowInstant)
+    }
     return groups.sortedBy { it.createdAt }.flatMap { group ->
         group.medications
             .filter { medication -> medication.category == MedicationCategory.ANTIANDROGEN }
-            .groupBy(MedicationSignature::fromGroupMedication)
-            .map { (_, medicationsForSignature) ->
-                val medication = medicationsForSignature.first().copy(
-                    count = medicationsForSignature.sumOf { it.count }
-                )
-                val nextDose = group.nextMainAntiandrogenDueSlot(
-                    medication = medication,
-                    entries = entries,
-                    now = now,
-                    zoneId = zoneId,
-                )
-                val lastMatchingEntry = entries
+            .groupBy { medication -> medication.medicine?.medicationNameKey().orEmpty() }
+            .flatMap { (nameKey, medicationsForName) ->
+                val latestManual = antiandrogenEntriesAtOrBeforeNow
                     .asSequence()
-                    .filter { entry ->
-                        entry.category == MedicationCategory.ANTIANDROGEN &&
-                            !entry.appliedAt.isAfter(nowInstant) &&
-                            entry.matchesAntiandrogenCard(group, medication)
-                    }
+                    .filter { entry -> entry.matchesManualAntiandrogenName(nameKey) }
                     .maxByOrNull { entry -> entry.appliedAt }
+                val latestGroupLinkedForName = antiandrogenEntriesAtOrBeforeNow
+                    .asSequence()
+                    .filter { entry -> entry.matchesGroupLinkedAntiandrogenName(group, nameKey) }
+                    .maxByOrNull { entry -> entry.appliedAt }
+                val planRows = medicationsForName
+                    .groupBy(MedicationSignature::fromGroupMedication)
+                    .map { (_, medicationsForSignature) ->
+                        val medication = medicationsForSignature.first().copy(
+                            count = medicationsForSignature.sumOf { it.count }
+                        )
+                        val nextDose = group.nextMainAntiandrogenDueSlot(
+                            medication = medication,
+                            entries = entries,
+                            now = now,
+                            zoneId = zoneId,
+                        )
+                        val lastMatchingEntry = antiandrogenEntriesAtOrBeforeNow
+                            .asSequence()
+                            .filter { entry ->
+                                entry.matchesAntiandrogenPlanSignature(group, medication)
+                            }
+                            .maxByOrNull { entry -> entry.appliedAt }
 
-                MainAntiandrogenCardUiState(
-                    id = "${group.uuid}:${medication.uuid}",
-                    groupUuid = group.uuid,
-                    groupName = group.name,
-                    groupColorKey = group.colorKey,
-                    medication = medication,
-                    lastDose = lastMatchingEntry?.toLastDoseDisplay(),
-                    lastDoseAt = lastMatchingEntry
-                        ?.appliedAt
-                        ?.atZone(zoneId)
-                        ?.toLocalDateTime(),
-                    lastDoseIsManual = lastMatchingEntry != null &&
-                        lastMatchingEntry.sourceGroupUuid == null,
-                    nextDoseAt = nextDose?.scheduledAt,
-                    isNextDosePastDue = nextDose?.isPastDue == true,
-                )
+                        MainAntiandrogenCardUiState(
+                            id = "${group.uuid}:${medication.uuid}",
+                            groupUuid = group.uuid,
+                            groupName = group.name,
+                            groupColorKey = group.colorKey,
+                            medication = medication,
+                            lastDose = lastMatchingEntry?.toLastDoseDisplay(),
+                            lastDoseAt = lastMatchingEntry
+                                ?.appliedAt
+                                ?.atZone(zoneId)
+                                ?.toLocalDateTime(),
+                            isManualRow = false,
+                            nextDoseAt = nextDose?.scheduledAt,
+                            isNextDosePastDue = nextDose?.isPastDue == true,
+                        )
+                    }
+                if (
+                    latestManual == null ||
+                    (
+                        latestGroupLinkedForName != null &&
+                            !latestManual.appliedAt.isAfter(latestGroupLinkedForName.appliedAt)
+                        )
+                ) {
+                    planRows
+                } else {
+                    planRows + MainAntiandrogenCardUiState(
+                        id = "${group.uuid}:$nameKey:manual",
+                        groupUuid = group.uuid,
+                        groupName = group.name,
+                        groupColorKey = group.colorKey,
+                        medication = medicationsForName.first(),
+                        lastDose = latestManual.toLastDoseDisplay(),
+                        lastDoseAt = latestManual.appliedAt
+                            .atZone(zoneId)
+                            .toLocalDateTime(),
+                        isManualRow = true,
+                        nextDoseAt = null,
+                        isNextDosePastDue = false,
+                    )
+                }
             }
     }
 }
@@ -883,29 +919,32 @@ internal fun buildMainPreviewRowsForDate(
         .toList()
 }
 
-// True when this logged dose should be attributed to the antiandrogen card for
-// [medication], which depends on how the dose was logged:
-//
-//   * A group-linked log (logged against a planned slot) is matched strictly: it
-//     must belong to this group and carry the exact same fully-qualified
-//     signature (preparation + dose + route) as the slot. This keeps two cards
-//     for the same medicine at different dose types (e.g. 1/4 vs 1/3 tablet)
-//     pinned to their own logs.
-//   * A manual (ad-hoc) log is matched by medication *name* alone, ignoring
-//     preparation and dose type, so a single manual CPA dose surfaces as the
-//     last dose on every CPA card.
-private fun MedicationLogEntry.matchesAntiandrogenCard(
+// Group-linked logs are matched strictly to a plan row by group and full
+// signature, keeping two dose types for the same medicine pinned to their own
+// last dose.
+private fun MedicationLogEntry.matchesAntiandrogenPlanSignature(
     group: MedicationGroup,
     medication: MedicationGroupMedication,
 ): Boolean {
-    return if (sourceGroupUuid == null) {
-        val logNameKey = medicine?.medicationNameKey()
-        logNameKey != null && logNameKey == medication.medicine?.medicationNameKey()
-    } else {
-        sourceGroupUuid == group.uuid &&
-            MedicationSignature.fromLogEntry(this) ==
-            MedicationSignature.fromGroupMedication(medication)
-    }
+    return sourceGroupUuid == group.uuid &&
+        MedicationSignature.fromLogEntry(this) ==
+        MedicationSignature.fromGroupMedication(medication)
+}
+
+private fun MedicationLogEntry.matchesManualAntiandrogenName(nameKey: String): Boolean {
+    return sourceGroupUuid == null && matchesAntiandrogenName(nameKey)
+}
+
+private fun MedicationLogEntry.matchesGroupLinkedAntiandrogenName(
+    group: MedicationGroup,
+    nameKey: String,
+): Boolean {
+    return sourceGroupUuid == group.uuid && matchesAntiandrogenName(nameKey)
+}
+
+private fun MedicationLogEntry.matchesAntiandrogenName(nameKey: String): Boolean {
+    val logNameKey = medicine?.medicationNameKey()
+    return logNameKey != null && logNameKey == nameKey
 }
 
 // Name-level identity of a medicine, independent of its preparation. Catalog

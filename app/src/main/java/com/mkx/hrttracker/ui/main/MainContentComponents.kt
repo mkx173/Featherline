@@ -2729,7 +2729,12 @@ private fun MainAntiandrogenMedicationSubCard(
     val displayedDoseInstruction = card.lastDose?.doseInstruction
         ?: card.medication.doseInstruction
     val displayedCount = card.lastDose?.count ?: card.medication.count
-    val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = card.groupColorKey)
+    // A manual row is an ad-hoc dose, not part of the plan, so it drops the
+    // group color and uses the neutral "manual" scheme (the null colorKey),
+    // matching how manual records render elsewhere.
+    val groupColorScheme = rememberMedicationGroupColorScheme(
+        colorKey = if (card.isManualRow) null else card.groupColorKey
+    )
     val medicationName = medicationEntryTitle(displayedMedicine, displayedApplicationType)
     val routeLabel = stringResource(displayedApplicationType.labelRes)
     val doseSummary = displayedMedicine?.let {
@@ -2822,7 +2827,7 @@ private fun MainAntiandrogenMedicationSubCard(
                     )
                 }
 
-                if (card.lastDoseIsManual) {
+                if (card.isManualRow) {
                     val manualLabel = stringResource(R.string.plan_entry_label_manual)
                     Text(
                         text = manualLabel,
@@ -2850,10 +2855,12 @@ private fun MainAntiandrogenMedicationSubCard(
                     text = takenText,
                 )
 
-                MainInfoPill(
-                    iconDrawableRes = R.drawable.ic_schedule_heavy,
-                    text = dueText,
-                )
+                if (!card.isManualRow) {
+                    MainInfoPill(
+                        iconDrawableRes = R.drawable.ic_schedule_heavy,
+                        text = dueText,
+                    )
+                }
             }
         }
     }
