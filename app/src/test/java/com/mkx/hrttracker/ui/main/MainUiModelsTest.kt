@@ -682,6 +682,70 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainAntiandrogenCards_last_dose_excludes_future_logs() {
+        // A dose pre-logged for later today has not been taken yet, so the card's
+        // last dose must reflect the most recent dose at or before `now`, not the
+        // future one.
+        val medicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000050"),
+            key = MedicationKey.CYPROTERONE_ACETATE,
+        )
+        val doseInstruction = DoseInstruction.TabletFraction(1, 4)
+        val group = MedicationGroup(
+            uuid = UUID.fromString("c3b6f0a1-4444-4aaa-9999-000000000004"),
+            name = "CPA",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(20, 0))
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("96f31e44-2059-4f89-a3f4-5477cbbce4b3"),
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+        val now = LocalDateTime.of(2026, 4, 18, 11, 0)
+        val pastDoseTime = LocalDateTime.of(2026, 4, 18, 8, 0)
+        val futureDoseTime = LocalDateTime.of(2026, 4, 18, 20, 0)
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(group),
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                    sourceGroupUuid = null,
+                    appliedAt = testInstant(pastDoseTime),
+                ),
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                    sourceGroupUuid = null,
+                    appliedAt = testInstant(futureDoseTime),
+                )
+            ),
+            now = now,
+            zoneId = testZoneId
+        )
+
+        assertEquals(1, cards.size)
+        assertEquals(pastDoseTime, cards.single().lastDoseAt)
+    }
+
+    @Test
     fun buildMainAntiandrogenCards_skips_fulfilled_upcoming_due_slot() {
         val antiandrogenGroup = antiandrogenGroup(
             uuid = UUID.fromString("d4d0d2d5-3201-4bf1-84e0-64d95d37599d"),

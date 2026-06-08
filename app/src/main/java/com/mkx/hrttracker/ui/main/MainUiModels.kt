@@ -490,6 +490,11 @@ internal fun buildMainAntiandrogenCards(
     now: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault()
 ): List<MainAntiandrogenCardUiState> {
+    // The Room "latest dose" query is bounded by end-of-today, so it can surface
+    // a future-applied dose the user pre-logged earlier today. Such a dose has
+    // not been taken yet, so exclude anything after `now` from the last dose a
+    // card reports (mirrors the E2 hero's findLastEstradiolEntry bound).
+    val nowInstant = now.atZone(zoneId).toInstant()
     return groups.sortedBy { it.createdAt }.flatMap { group ->
         group.medications
             .filter { medication -> medication.category == MedicationCategory.ANTIANDROGEN }
@@ -508,6 +513,7 @@ internal fun buildMainAntiandrogenCards(
                     .asSequence()
                     .filter { entry ->
                         entry.category == MedicationCategory.ANTIANDROGEN &&
+                            !entry.appliedAt.isAfter(nowInstant) &&
                             entry.matchesAntiandrogenCard(group, medication)
                     }
                     .maxByOrNull { entry -> entry.appliedAt }
