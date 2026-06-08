@@ -200,9 +200,8 @@ internal fun buildMainE2Hero(
     trendResult: PkTrendResult? = null,
     displayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
     zoneId: ZoneId = ZoneId.systemDefault(),
-    // The Room "latest dose" query is bounded by end-of-today (a deliberately
-    // stable per-day bound), so it can surface a future-applied dose the user
-    // pre-logged earlier today. Such a dose has not been taken yet, so exclude
+    // `entries` includes the schedule window, which can carry a dose the user
+    // pre-logged for later today. Such a dose has not been taken yet, so exclude
     // anything after `now` from the "last dose" the hero reports. When `now` is
     // null no upper bound is applied (used by previews/tests).
     now: LocalDateTime? = null,
@@ -493,10 +492,10 @@ internal fun buildMainAntiandrogenCards(
     now: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault()
 ): List<MainAntiandrogenCardUiState> {
-    // The Room "latest dose" query is bounded by end-of-today, so it can surface
-    // a future-applied dose the user pre-logged earlier today. Such a dose has
-    // not been taken yet, so exclude anything after `now` from the last dose a
-    // card reports (mirrors the E2 hero's findLastEstradiolEntry bound).
+    // `entries` includes the schedule window, which can carry a dose the user
+    // pre-logged for later today. Such a dose has not been taken yet, so exclude
+    // anything after `now` from the last dose a card reports (mirrors the E2
+    // hero's findLastEstradiolEntry bound).
     val nowInstant = now.atZone(zoneId).toInstant()
     return groups.sortedBy { it.createdAt }.flatMap { group ->
         group.medications
@@ -900,7 +899,8 @@ private fun MedicationLogEntry.matchesAntiandrogenCard(
     medication: MedicationGroupMedication,
 ): Boolean {
     return if (sourceGroupUuid == null) {
-        medicine?.medicationNameKey() == medication.medicine?.medicationNameKey()
+        val logNameKey = medicine?.medicationNameKey()
+        logNameKey != null && logNameKey == medication.medicine?.medicationNameKey()
     } else {
         sourceGroupUuid == group.uuid &&
             MedicationSignature.fromLogEntry(this) ==

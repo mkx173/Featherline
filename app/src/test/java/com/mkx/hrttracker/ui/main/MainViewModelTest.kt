@@ -422,6 +422,63 @@ class MainViewModelTest {
     }
 
     @Test
+    fun e2HeroReflectsLaterTodayDoseLoggedAfterSubscription() = runTest {
+        // Regression: the single-row `latestEstradiolEntry` query is bounded at
+        // the frozen subscription `now`, so a dose the user logs later in the
+        // same session reaches the hero only through the schedule window. The
+        // hero must report that later dose, not the stale single-row entry.
+        val zoneId = ZoneId.systemDefault()
+        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val staleLatestTime = now.minusHours(6)
+        val laterTodayTime = now.minusHours(2)
+        val staleLatestEntry = MedicationLogEntry(
+            uuid = UUID.fromString("9b24ff3a-fc93-4fd1-8760-81a9ae8eae04"),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            equivalentE2Mg = 2.0,
+            sourceGroupUuid = null,
+            appliedAt = staleLatestTime.atZone(zoneId).toInstant(),
+            appliedAtTimeZoneId = zoneId.id,
+        )
+        val laterTodayEntry = MedicationLogEntry(
+            uuid = UUID.fromString("2c0d7a1e-9b44-4d52-bb0a-1f3e6c8a55aa"),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            equivalentE2Mg = 2.0,
+            sourceGroupUuid = null,
+            appliedAt = laterTodayTime.atZone(zoneId).toInstant(),
+            appliedAtTimeZoneId = zoneId.id,
+        )
+        val appTimeSource = FakeAppTimeSource(now)
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(
+                now = now,
+                source = HomeInputSource.ROOM,
+                trendResult = null,
+                latestEstradiolEntry = staleLatestEntry,
+                estradiolPkEntries = listOf(staleLatestEntry, laterTodayEntry),
+                scheduleEntries = listOf(laterTodayEntry),
+            )
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(laterTodayTime, viewModel.uiState.value.e2Hero.lastDoseAt)
+    }
+
+    @Test
     fun expiredProjectionFallsBackToRoomTrendAgainstLiveNow() = runTest {
         // Sanity: HomeInputs carries a non-null pkProjection (currentConcentration 100)
         // but pkProjectionExpiresAt is in the past relative to `now`. The
