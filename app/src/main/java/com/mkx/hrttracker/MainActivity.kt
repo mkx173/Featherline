@@ -52,7 +52,12 @@ import com.mkx.hrttracker.reminder.ReminderCapabilityReconciler
 import com.mkx.hrttracker.startup.StartupPreloader
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
+import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalCjkTextOffsetEnabled
+import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
+import com.mkx.hrttracker.ui.components.effectiveHazeBlurEnabled
+import com.mkx.hrttracker.ui.components.hazeSourceArea
+import com.mkx.hrttracker.ui.components.rememberChromeHazeState
 import com.mkx.hrttracker.ui.main.DoseRowHighlightKey
 import com.mkx.hrttracker.ui.main.MainViewModel
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterFadeEasing
@@ -169,6 +174,7 @@ class MainActivity : AppCompatActivity() {
             val settingsState by settingsRepository.settingsState.collectAsStateWithLifecycle()
 
             val isDarkTheme = settingsState.darkModeOption.resolveDarkTheme(isSystemInDarkTheme())
+            val appHazeBlurEnabled = effectiveHazeBlurEnabled(settingsState.hazeBlurEnabled)
 
             DisposableEffect(settingsState.hideScreenContentEnabled) {
                 applyHideScreenContent(enabled = settingsState.hideScreenContentEnabled)
@@ -215,6 +221,7 @@ class MainActivity : AppCompatActivity() {
                 // resolves by walking the context chain, so provide it explicitly.
                 LocalActivity provides this@MainActivity,
                 LocalCjkTextOffsetEnabled provides settingsState.cjkTextOffsetEnabled,
+                LocalHazeBlurEnabled provides appHazeBlurEnabled,
             ) {
                 HrtTrackerTheme(
                     darkTheme = isDarkTheme,
@@ -230,6 +237,7 @@ class MainActivity : AppCompatActivity() {
                     val density = LocalDensity.current
                     val layoutDirection = LocalLayoutDirection.current
                     val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
+                    val onboardingChromeHazeState = rememberChromeHazeState()
 
                     LaunchedEffect(
                         appLockUiState.isReady,
@@ -384,15 +392,30 @@ class MainActivity : AppCompatActivity() {
                                     ),
                                     label = "onboarding-overlay",
                                 ) {
-                                    OnboardingScreen(
-                                        onOpenPrivacyPolicy = {
-                                            context.startActivity(
-                                                Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri())
+                                    CompositionLocalProvider(
+                                        LocalChromeHazeState provides onboardingChromeHazeState
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .hazeSourceArea(onboardingChromeHazeState),
+                                        ) {
+                                            OnboardingScreen(
+                                                onOpenPrivacyPolicy = {
+                                                    context.startActivity(
+                                                        Intent(
+                                                            Intent.ACTION_VIEW,
+                                                            privacyPolicyUrl.toUri()
+                                                        )
+                                                    )
+                                                },
+                                                onCompleteEnabled =
+                                                    onboardingViewModel::completeWithRemindersEnabled,
+                                                onCompleteDeclined =
+                                                    onboardingViewModel::completeWithRemindersDeclined,
                                             )
-                                        },
-                                        onCompleteEnabled = onboardingViewModel::completeWithRemindersEnabled,
-                                        onCompleteDeclined = onboardingViewModel::completeWithRemindersDeclined,
-                                    )
+                                        }
+                                    }
                                 }
 
                                 BackHandler(enabled = contentLayers.showInWindowLockScreen) { }

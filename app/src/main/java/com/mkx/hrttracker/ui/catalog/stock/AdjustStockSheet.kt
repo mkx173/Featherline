@@ -77,9 +77,11 @@ import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.HazeBottomSheetSurface
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
+import com.mkx.hrttracker.ui.components.hazeBottomSheetContainerColor
 import com.mkx.hrttracker.ui.components.stockCountPluralQuantity
 import com.mkx.hrttracker.ui.components.stockUnitNounPluralRes
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -121,90 +123,95 @@ fun AdjustStockSheet(
         sheetState = sheetState,
         onDismissRequest = onDismissRequest,
         modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
+        containerColor = hazeBottomSheetContainerColor(),
+        dragHandle = null,
         contentWindowInsets = { WindowInsets.systemBars.only(WindowInsetsSides.Top) },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(
-                    start = dimensionResource(R.dimen.padding_large),
-                    end = dimensionResource(R.dimen.padding_large),
-                    bottom = dimensionResource(R.dimen.padding_large) + navigationBarBottomPadding,
-                ),
-        ) {
-            // On API 26 the ModalBottomSheet window auto-focuses the first text
-            // field, opening the IME on entry; a field's IME action then clears
-            // focus and the window re-grants it to that same field, so the
-            // keyboard won't dismiss. Parking focus on this non-text anchor —
-            // requested on entry, and reused for IME dismissal via
-            // LocalSheetDismissFocusRequester — avoids both.
-            val dismissFocusAnchor = remember { FocusRequester() }
-            LaunchedEffect(Unit) { dismissFocusAnchor.requestFocus() }
-            Spacer(
-                // Decorative dismiss anchor: focusable for the IME workaround
-                // but kept out of the a11y/traversal tree so TalkBack and
-                // keyboard navigation don't land on an empty stop.
+        HazeBottomSheetSurface {
+            Column(
                 modifier = Modifier
-                    .clearAndSetSemantics {}
-                    .focusRequester(dismissFocusAnchor)
-                    .focusable(),
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        start = dimensionResource(R.dimen.padding_large),
+                        end = dimensionResource(R.dimen.padding_large),
+                        bottom =
+                            dimensionResource(R.dimen.padding_large) + navigationBarBottomPadding,
+                    ),
             ) {
-                Text(
-                    text = stringResource(R.string.stock_adjust_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(bottom = 10.dp, top = 4.dp),
+                // On API 26 the ModalBottomSheet window auto-focuses the first text
+                // field, opening the IME on entry; a field's IME action then clears
+                // focus and the window re-grants it to that same field, so the
+                // keyboard won't dismiss. Parking focus on this non-text anchor —
+                // requested on entry, and reused for IME dismissal via
+                // LocalSheetDismissFocusRequester — avoids both.
+                val dismissFocusAnchor = remember { FocusRequester() }
+                LaunchedEffect(Unit) { dismissFocusAnchor.requestFocus() }
+                Spacer(
+                    // Decorative dismiss anchor: focusable for the IME workaround
+                    // but kept out of the a11y/traversal tree so TalkBack and
+                    // keyboard navigation don't land on an empty stop.
+                    modifier = Modifier
+                        .clearAndSetSemantics {}
+                        .focusRequester(dismissFocusAnchor)
+                        .focusable(),
                 )
-                HrtFilledTonalButton(
-                    text = stringResource(R.string.stock_cancel),
-                    onClick = resolvedOnCloseClick,
-                )
-            }
 
-            Spacer(Modifier.height(dimensionResource(R.dimen.padding_small)))
-
-            CompositionLocalProvider(
-                LocalMinimumInteractiveComponentSize provides Dp.Unspecified
-            ) {
-                ConnectedButtonGroup(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    options = AdjustSheetTab.entries,
-                    selectedOption = activeTab,
-                    optionLabel = { tab -> stringResource(tab.labelRes) },
-                    onOptionSelected = { tab -> activeTab = tab },
-                    enabled = !receivedOnly,
-                    layout = ConnectedButtonGroupLayout.ROW,
-                    expandOptions = true,
-                )
-            }
-
-            Spacer(Modifier.height(dimensionResource(R.dimen.padding_small)))
-
-            CompositionLocalProvider(
-                LocalSheetDismissFocusRequester provides dismissFocusAnchor,
-            ) {
-                when (activeTab) {
-                    AdjustSheetTab.RECOUNT -> RecountForm(
-                        projection = projection,
-                        isContainer = isContainer,
-                        locale = appLocale,
-                        previewRunway = previewRunway,
-                        onSubmit = onRecount,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.stock_adjust_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(bottom = 10.dp, top = 4.dp),
                     )
-
-                    AdjustSheetTab.RECEIVED -> ReceivedForm(
-                        projection = projection,
-                        isContainer = isContainer,
-                        locale = appLocale,
-                        previewRunway = previewRunway,
-                        onSubmit = onReceived,
+                    HrtFilledTonalButton(
+                        text = stringResource(R.string.stock_cancel),
+                        onClick = resolvedOnCloseClick,
                     )
+                }
+
+                Spacer(Modifier.height(dimensionResource(R.dimen.padding_small)))
+
+                CompositionLocalProvider(
+                    LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                ) {
+                    ConnectedButtonGroup(
+                        modifier = Modifier.fillMaxWidth(),
+                        options = AdjustSheetTab.entries,
+                        selectedOption = activeTab,
+                        optionLabel = { tab -> stringResource(tab.labelRes) },
+                        onOptionSelected = { tab -> activeTab = tab },
+                        enabled = !receivedOnly,
+                        layout = ConnectedButtonGroupLayout.ROW,
+                        expandOptions = true,
+                    )
+                }
+
+                Spacer(Modifier.height(dimensionResource(R.dimen.padding_small)))
+
+                CompositionLocalProvider(
+                    LocalSheetDismissFocusRequester provides dismissFocusAnchor,
+                ) {
+                    when (activeTab) {
+                        AdjustSheetTab.RECOUNT -> RecountForm(
+                            projection = projection,
+                            isContainer = isContainer,
+                            locale = appLocale,
+                            previewRunway = previewRunway,
+                            onSubmit = onRecount,
+                        )
+
+                        AdjustSheetTab.RECEIVED -> ReceivedForm(
+                            projection = projection,
+                            isContainer = isContainer,
+                            locale = appLocale,
+                            previewRunway = previewRunway,
+                            onSubmit = onReceived,
+                        )
+                    }
                 }
             }
         }

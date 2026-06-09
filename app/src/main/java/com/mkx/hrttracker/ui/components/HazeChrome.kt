@@ -3,6 +3,11 @@
 package com.mkx.hrttracker.ui.components
 
 import android.os.Build
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
@@ -14,6 +19,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import dev.chrisbanes.haze.HazeState
@@ -58,6 +64,48 @@ fun Modifier.hazeChrome(
         state = state,
         style = HazeMaterials.thin(),
     )
+}
+
+@Composable
+fun Modifier.hazeBottomSheet(
+    state: HazeState? = LocalChromeHazeState.current,
+): Modifier {
+    if (!LocalHazeBlurEnabled.current || state == null) return this
+
+    return hazeEffect(
+        state = state,
+        style = HazeMaterials.thin(),
+    ) {
+        forceInvalidateOnPreDraw = true
+    }
+}
+
+@Composable
+fun hazeBottomSheetContainerColor(
+    enabled: Boolean = LocalHazeBlurEnabled.current,
+): Color {
+    val defaultColor = BottomSheetDefaults.ContainerColor
+    if (!enabled) return defaultColor
+
+    return defaultColor.copy(alpha = 0f)
+}
+
+@Composable
+fun HazeBottomSheetSurface(
+    modifier: Modifier = Modifier,
+    dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .hazeBottomSheet()
+            .background(hazeBottomSheetContainerColor()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        dragHandle?.invoke()
+        content()
+    }
 }
 
 @Composable

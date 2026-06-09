@@ -236,6 +236,102 @@ class HazeChromeIntegrationTest {
     }
 
     @Test
+    fun bottom_sheets_use_haze_chrome_and_transparent_haze_container_colors() {
+        val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
+        require(uiDir.isDirectory) {
+            "Expected UI source directory at ${uiDir.absolutePath}; unit tests must run with " +
+                    "the app module as the working directory."
+        }
+
+        val offenders = uiDir.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { file -> BOTTOM_SHEET_CALL.containsMatchIn(file.readText()) }
+            .mapNotNull { file ->
+                val text = file.readText()
+                val missing = buildList {
+                    if (!text.contains("HazeBottomSheetSurface {")) {
+                        add("inner HazeBottomSheetSurface")
+                    }
+                    if (!text.contains("dragHandle = null")) {
+                        add("default drag handle disabled for inner Haze surface")
+                    }
+                    if (!text.contains("hazeBottomSheetContainerColor()")) {
+                        add("transparent Haze container color")
+                    }
+                }
+                if (missing.isEmpty()) {
+                    null
+                } else {
+                    "${file.relativeTo(uiDir)} missing ${missing.joinToString(" and ")}"
+                }
+            }
+            .toList()
+
+        assertTrue(
+            "Every ModalBottomSheet should render with Haze chrome:\n" +
+                    offenders.joinToString("\n"),
+            offenders.isEmpty(),
+        )
+    }
+
+    @Test
+    fun bottom_sheet_blur_follows_app_wide_haze_setting() {
+        val hazeChromeText =
+            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
+
+        assertTrue(
+            "Bottom sheet Haze should be provided by shared helpers so the same " +
+                    "LocalHazeBlurEnabled switch controls sheet blur and other chrome.",
+            hazeChromeText.contains("fun Modifier.hazeBottomSheet(") &&
+                    hazeChromeText.contains("fun HazeBottomSheetSurface(") &&
+                    hazeChromeText.contains("fun hazeBottomSheetContainerColor(") &&
+                    hazeChromeText.contains("LocalHazeBlurEnabled.current") &&
+                    hazeChromeText.contains("BottomSheetDefaults.ContainerColor") &&
+                    hazeChromeText.contains("copy(alpha = 0f)"),
+        )
+    }
+
+    @Test
+    fun onboarding_bottom_sheets_receive_app_wide_haze_setting_and_source() {
+        val mainActivityText =
+            File("src/main/java/com/mkx/hrttracker/MainActivity.kt").readText()
+
+        assertTrue(
+            "Onboarding is hosted outside HrtTrackerNavHost, so the app shell must " +
+                    "provide the same haze setting and a source layer for onboarding sheets.",
+            mainActivityText.contains(
+                "val appHazeBlurEnabled = effectiveHazeBlurEnabled(settingsState.hazeBlurEnabled)"
+            ) &&
+                    mainActivityText.contains("LocalHazeBlurEnabled provides appHazeBlurEnabled") &&
+                    mainActivityText.contains(
+                        "val onboardingChromeHazeState = rememberChromeHazeState()"
+                    ) &&
+                    mainActivityText.contains(
+                        "LocalChromeHazeState provides onboardingChromeHazeState"
+                    ) &&
+                    mainActivityText.contains(".hazeSourceArea(onboardingChromeHazeState)"),
+        )
+    }
+
+    @Test
+    fun log_entry_bottom_sheet_receives_navigation_haze_setting_and_source() {
+        val navHostText =
+            File("src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt").readText()
+
+        assertTrue(
+            "The log entry editor is hosted by HrtTrackerNavHost rather than a route. It must " +
+                    "stay inside the app-wide haze setting provider and receive the navigation " +
+                    "Haze state whose source wraps the routed home/plan/history content.",
+            navHostText.contains("LocalHazeBlurEnabled provides hazeBlurEnabled") &&
+                    navHostText.contains("navigationChromeHazeState = navigationChromeHazeState") &&
+                    navHostText.contains(
+                        "LocalChromeHazeState provides navigationChromeHazeState"
+                    ) &&
+                    navHostText.contains("MedicationLogEntryScreen("),
+        )
+    }
+
+    @Test
     fun haze_blur_is_controlled_by_app_wide_platform_gated_setting() {
         val hazeChromeText =
             File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
@@ -275,5 +371,6 @@ class HazeChromeIntegrationTest {
 
     private companion object {
         private val TOP_APP_BAR_CALL = Regex("""\b(?:CenterAlignedTopAppBar|TopAppBar)\(""")
+        private val BOTTOM_SHEET_CALL = Regex("""\bModalBottomSheet\(""")
     }
 }

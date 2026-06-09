@@ -66,6 +66,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.DatePickerModal
+import com.mkx.hrttracker.ui.components.HazeBottomSheetSurface
 import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
@@ -76,6 +77,7 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.hazeBottomSheetContainerColor
 import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
@@ -579,17 +581,21 @@ internal fun CalibrationAddAnalyteSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
+        containerColor = hazeBottomSheetContainerColor(),
+        dragHandle = null,
     ) {
-        CalibrationAddAnalyteSheetContent(
-            availableAnalytes = availableAnalytes,
-            onDismissRequest = {
-                hideBottomSheet(scope, sheetState, onDismissRequest)
-            },
-            onAnalyteClick = { option ->
-                onAnalyteClick(option)
-                hideBottomSheet(scope, sheetState, onDismissRequest)
-            },
-        )
+        HazeBottomSheetSurface {
+            CalibrationAddAnalyteSheetContent(
+                availableAnalytes = availableAnalytes,
+                onDismissRequest = {
+                    hideBottomSheet(scope, sheetState, onDismissRequest)
+                },
+                onAnalyteClick = { option ->
+                    onAnalyteClick(option)
+                    hideBottomSheet(scope, sheetState, onDismissRequest)
+                },
+            )
+        }
     }
 }
 

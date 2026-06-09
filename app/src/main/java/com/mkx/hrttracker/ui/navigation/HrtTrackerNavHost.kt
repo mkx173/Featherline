@@ -1177,21 +1177,24 @@ fun HrtTrackerNavHost(
                         onDismissRequest = stockNudgeViewModel::dismissOptInSheet,
                     )
                 }
+                medicationLogEntrySheetRequest?.let { request ->
+                    CompositionLocalProvider(
+                        LocalChromeHazeState provides navigationChromeHazeState
+                    ) {
+                        MedicationLogEntryScreen(
+                            entryIds = request.entryIds,
+                            quickLogRequest = request.quickLogRequest,
+                            editSnapshot = request.editSnapshot,
+                            onDismissRequest = { medicationLogEntrySheetRequest = null },
+                            onEntrySaved = { warning ->
+                                medicationLogEntrySheetRequest = null
+                                warning?.let(showPostLogStockWarning)
+                            },
+                        )
+                    }
+                }
             }
         }
-    }
-
-    medicationLogEntrySheetRequest?.let { request ->
-        MedicationLogEntryScreen(
-            entryIds = request.entryIds,
-            quickLogRequest = request.quickLogRequest,
-            editSnapshot = request.editSnapshot,
-            onDismissRequest = { medicationLogEntrySheetRequest = null },
-            onEntrySaved = { warning ->
-                medicationLogEntrySheetRequest = null
-                warning?.let(showPostLogStockWarning)
-            },
-        )
     }
 }
 

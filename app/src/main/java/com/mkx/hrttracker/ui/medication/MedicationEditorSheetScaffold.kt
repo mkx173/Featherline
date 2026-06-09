@@ -38,10 +38,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.components.HazeBottomSheetSurface
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
+import com.mkx.hrttracker.ui.components.hazeBottomSheetContainerColor
 
 /**
  * Non-text focus anchor for the current editor sheet, used to dismiss the IME.
@@ -84,107 +86,112 @@ internal fun MedicationEditorSheetScaffold(
         onDismissRequest = onDismissRequest,
         modifier = modifier.consumeWindowInsets(WindowInsets.navigationBars),
         sheetState = sheetState,
+        containerColor = hazeBottomSheetContainerColor(),
+        dragHandle = null,
         contentWindowInsets = { WindowInsets.systemBars.only(WindowInsetsSides.Top) },
     ) {
-        // On API 26 the ModalBottomSheet window forces focus onto the first
-        // focusable text field: it auto-opens the IME on entry, and when a
-        // field's IME action clears focus the window re-grants focus to that
-        // first field instead of dismissing. Parking focus on this non-text
-        // anchor absorbs both — requesting it on entry stops the auto-open, and
-        // field IME actions route here (via LocalSheetDismissFocusRequester) so
-        // dismissing keeps a focused target and never jumps back. Newer API
-        // levels don't reassign focus this way, so the anchor stays unfocused.
-        val dismissFocusAnchor = remember { FocusRequester() }
-        LaunchedEffect(Unit) { dismissFocusAnchor.requestFocus() }
+        HazeBottomSheetSurface {
+            // On API 26 the ModalBottomSheet window forces focus onto the first
+            // focusable text field: it auto-opens the IME on entry, and when a
+            // field's IME action clears focus the window re-grants focus to that
+            // first field instead of dismissing. Parking focus on this non-text
+            // anchor absorbs both — requesting it on entry stops the auto-open, and
+            // field IME actions route here (via LocalSheetDismissFocusRequester) so
+            // dismissing keeps a focused target and never jumps back. Newer API
+            // levels don't reassign focus this way, so the anchor stays unfocused.
+            val dismissFocusAnchor = remember { FocusRequester() }
+            LaunchedEffect(Unit) { dismissFocusAnchor.requestFocus() }
 
-        Column(
-            modifier = Modifier
-                .then(
-                    if (fillAvailableHeight) Modifier.fillMaxSize()
-                    else Modifier,
-                )
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(
-                    start = dimensionResource(R.dimen.padding_large),
-                    end = dimensionResource(R.dimen.padding_large),
-                    bottom = dimensionResource(R.dimen.padding_large) + navigationBarBottomPadding,
-                ),
-        ) {
-            val columnScope = this
-            Spacer(
-                // Decorative dismiss anchor: focusable for the IME workaround
-                // but kept out of the a11y/traversal tree so TalkBack and
-                // keyboard navigation don't land on an empty stop.
+            Column(
                 modifier = Modifier
-                    .clearAndSetSemantics {}
-                    .focusRequester(dismissFocusAnchor)
-                    .focusable(),
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                HrtFilledTonalButton(
-                    text = stringResource(R.string.cancel),
-                    onClick = onCloseClick,
-                    compact = true
-                )
-            }
-
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-
-            CompositionLocalProvider(LocalSheetDismissFocusRequester provides dismissFocusAnchor) {
-                with(columnScope) { content() }
-            }
-
-            if (disclaimerKinds.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                MedicalDisclaimerText(kinds = disclaimerKinds)
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Buttons stay visually enabled while a save is in flight; the
-            // click handlers no-op so a second tap can't fire a duplicate save
-            // / delete. The sheet dismissal lock keeps the buttons in view
-            // until ROOM finishes.
-            val hasDestructiveAction = destructiveButtonText != null && onDestructiveAction != null
-            if (hasDestructiveAction) {
-                val destructiveAction = checkNotNull(onDestructiveAction)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = dimensionResource(R.dimen.padding_xsmall)),
-                    horizontalArrangement = Arrangement.spacedBy(
-                        dimensionResource(R.dimen.padding_small),
-                    ),
-                ) {
-                    HrtFilledTonalButton(
-                        text = destructiveButtonText,
-                        onClick = { if (!isSaving) destructiveAction() },
-                        modifier = Modifier.weight(1f),
+                    .then(
+                        if (fillAvailableHeight) Modifier.fillMaxSize()
+                        else Modifier,
                     )
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        start = dimensionResource(R.dimen.padding_large),
+                        end = dimensionResource(R.dimen.padding_large),
+                        bottom = dimensionResource(R.dimen.padding_large) + navigationBarBottomPadding,
+                    ),
+            ) {
+                val columnScope = this
+                Spacer(
+                    // Decorative dismiss anchor: focusable for the IME workaround
+                    // but kept out of the a11y/traversal tree so TalkBack and
+                    // keyboard navigation don't land on an empty stop.
+                    modifier = Modifier
+                        .clearAndSetSemantics {}
+                        .focusRequester(dismissFocusAnchor)
+                        .focusable(),
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    HrtFilledTonalButton(
+                        text = stringResource(R.string.cancel),
+                        onClick = onCloseClick,
+                        compact = true
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+
+                CompositionLocalProvider(LocalSheetDismissFocusRequester provides dismissFocusAnchor) {
+                    with(columnScope) { content() }
+                }
+
+                if (disclaimerKinds.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                    MedicalDisclaimerText(kinds = disclaimerKinds)
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Buttons stay visually enabled while a save is in flight; the
+                // click handlers no-op so a second tap can't fire a duplicate save
+                // / delete. The sheet dismissal lock keeps the buttons in view
+                // until ROOM finishes.
+                val hasDestructiveAction =
+                    destructiveButtonText != null && onDestructiveAction != null
+                if (hasDestructiveAction) {
+                    val destructiveAction = checkNotNull(onDestructiveAction)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = dimensionResource(R.dimen.padding_xsmall)),
+                        horizontalArrangement = Arrangement.spacedBy(
+                            dimensionResource(R.dimen.padding_small),
+                        ),
+                    ) {
+                        HrtFilledTonalButton(
+                            text = destructiveButtonText,
+                            onClick = { if (!isSaving) destructiveAction() },
+                            modifier = Modifier.weight(1f),
+                        )
+                        HrtButton(
+                            text = confirmButtonText,
+                            onClick = { if (!isSaving) onConfirm() },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                } else {
                     HrtButton(
                         text = confirmButtonText,
                         onClick = { if (!isSaving) onConfirm() },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = dimensionResource(R.dimen.padding_xsmall)),
                     )
                 }
-            } else {
-                HrtButton(
-                    text = confirmButtonText,
-                    onClick = { if (!isSaving) onConfirm() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = dimensionResource(R.dimen.padding_xsmall)),
-                )
             }
         }
     }
