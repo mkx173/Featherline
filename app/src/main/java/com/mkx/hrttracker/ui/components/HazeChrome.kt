@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -64,7 +65,9 @@ fun Modifier.hazeChrome(
 
     return hazeEffect(
         state = state,
-        style = HazeMaterials.thin(),
+        style = HazeMaterials.thin(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
     )
 }
 
@@ -76,7 +79,9 @@ fun Modifier.hazeBottomSheet(
 
     return hazeEffect(
         state = state,
-        style = HazeMaterials.thin(),
+        style = HazeMaterials.regular(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
     ) {
         forceInvalidateOnPreDraw = true
     }
