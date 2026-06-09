@@ -614,15 +614,17 @@ fun HrtTrackerNavHost(
         if (isBottomBar) with(density) { navigationBarHeightPx.toDp() } else 0.dp
     val appContentBottomInset =
         if (isBottomBar) navigationBarHeight else rawNavigationBarBottomInset
-    val chromeHazeState = rememberChromeHazeState()
+    val topChromeHazeState = rememberChromeHazeState()
+    val navigationChromeHazeState = rememberChromeHazeState()
 
     CompositionLocalProvider(
         LocalAppContentBottomInset provides appContentBottomInset,
-        LocalChromeHazeState provides chromeHazeState,
+        LocalChromeHazeState provides topChromeHazeState,
     ) {
         EdgeToEdgeNavigationSuiteScaffold(
             modifier = modifier,
             navigationSuiteType = navigationSuiteType,
+            navigationChromeHazeState = navigationChromeHazeState,
             onNavigationBarSizeChanged = { navigationBarHeightPx = it },
             navigationSuiteItems = {
                 topLevelNavigationItems.forEach { navItem ->

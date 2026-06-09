@@ -50,8 +50,10 @@ class HazeChromeIntegrationTest {
             contentContainerFile.readText().contains("hazeSourceArea(LocalChromeHazeState.current)"),
         )
         assertTrue(
-            "The route-level scaffold must not wrap top app bars in a Haze source ancestor.",
-            !navigationScaffoldFile.readText().contains(".hazeSourceArea("),
+            "The route-level scaffold must not reuse the top-app-bar Haze source; top " +
+                    "chrome needs AppContentContainer's per-screen body source so it does " +
+                    "not become a child of the same Haze source it samples.",
+            !navigationScaffoldFile.readText().contains("hazeSourceArea(LocalChromeHazeState.current)"),
         )
 
         val offenders = uiDir.walkTopDown()
@@ -88,7 +90,10 @@ class HazeChromeIntegrationTest {
     fun bottom_navigation_bar_uses_haze_chrome_and_transparent_haze_colors() {
         val scaffoldFile =
             File("src/main/java/com/mkx/hrttracker/ui/navigation/EdgeToEdgeNavigationSuiteScaffold.kt")
+        val navHostFile =
+            File("src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt")
         val text = scaffoldFile.readText()
+        val navHostText = navHostFile.readText()
 
         assertTrue(
             "Bottom navigation scaffold should apply the Haze chrome modifier.",
@@ -97,6 +102,16 @@ class HazeChromeIntegrationTest {
         assertTrue(
             "Bottom navigation scaffold should make navigation containers transparent for Haze.",
             text.contains("hazeNavigationSuiteColors()"),
+        )
+        assertTrue(
+            "Bottom navigation chrome needs a stable route-level Haze source so page " +
+                    "transitions update the blur from the composed NavHost frame instead of " +
+                    "detaching and reattaching per-screen source layers.",
+            text.contains("navigationChromeHazeState: HazeState?") &&
+                    text.contains(".hazeSourceArea(navigationChromeHazeState)") &&
+                    text.contains(".hazeChrome(navigationChromeHazeState") &&
+                    navHostText.contains("val navigationChromeHazeState = rememberChromeHazeState()") &&
+                    navHostText.contains("navigationChromeHazeState = navigationChromeHazeState"),
         )
     }
 

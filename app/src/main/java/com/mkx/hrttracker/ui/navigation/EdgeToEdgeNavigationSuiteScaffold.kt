@@ -12,9 +12,10 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.util.fastFirst
-import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeNavigationSuiteColors
+import com.mkx.hrttracker.ui.components.hazeSourceArea
+import dev.chrisbanes.haze.HazeState
 
 private const val NavigationLayoutId = "navigation"
 private const val ContentLayoutId = "content"
@@ -41,17 +42,20 @@ private const val ContentLayoutId = "content"
  * @param onNavigationBarSizeChanged invoked with the navigation component's measured height in
  *   pixels. In the wide-rail layout this is the rail's (full-screen) height; callers gate on
  *   [navigationSuiteType] and ignore it there.
+ * @param navigationChromeHazeState stable Haze state used by bottom navigation chrome. The source
+ *   is attached above the routed content so navigation transitions are captured after NavHost has
+ *   composited outgoing and incoming destinations.
  */
 @Composable
 fun EdgeToEdgeNavigationSuiteScaffold(
     navigationSuiteType: NavigationSuiteType,
+    navigationChromeHazeState: HazeState?,
     onNavigationBarSizeChanged: (heightPx: Int) -> Unit,
     modifier: Modifier = Modifier,
     navigationSuiteItems: NavigationSuiteScope.() -> Unit,
     content: @Composable () -> Unit,
 ) {
     val isBottomBar = navigationSuiteType != NavigationSuiteType.WideNavigationRailCollapsed
-    val chromeHazeState = LocalChromeHazeState.current
     Surface(
         modifier = modifier,
         color = NavigationSuiteScaffoldDefaults.containerColor,
@@ -64,7 +68,7 @@ fun EdgeToEdgeNavigationSuiteScaffold(
                     .onSizeChanged { onNavigationBarSizeChanged(it.height) }
                     .let {
                         if (isBottomBar) {
-                            it.hazeChrome(chromeHazeState)
+                            it.hazeChrome(navigationChromeHazeState)
                         } else {
                             it
                         }
@@ -78,7 +82,16 @@ fun EdgeToEdgeNavigationSuiteScaffold(
                         content = navigationSuiteItems,
                     )
                 }
-                Box(Modifier.layoutId(ContentLayoutId)) { content() }
+                val contentModifier = Modifier
+                    .layoutId(ContentLayoutId)
+                    .let {
+                        if (isBottomBar) {
+                            it.hazeSourceArea(navigationChromeHazeState)
+                        } else {
+                            it
+                        }
+                    }
+                Box(contentModifier) { content() }
             },
         ) { measurables, constraints ->
             val looseConstraints = constraints.copy(minWidth = 0, minHeight = 0)
