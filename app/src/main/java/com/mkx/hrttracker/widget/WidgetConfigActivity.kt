@@ -1,11 +1,7 @@
 package com.mkx.hrttracker.widget
 
-import android.app.WallpaperColors
-import android.app.WallpaperManager
 import android.appwidget.AppWidgetManager
 import android.content.Intent
-import android.content.res.Configuration
-import android.content.res.Resources
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.SystemBarStyle

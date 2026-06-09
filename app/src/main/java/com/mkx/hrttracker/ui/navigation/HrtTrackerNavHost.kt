@@ -66,11 +66,11 @@ import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.reminder.PostLogStockWarning
-import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
 import com.mkx.hrttracker.ui.calibration.CalibrationScreen
 import com.mkx.hrttracker.ui.calibration.CalibrationUnitsScreen
+import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
 import com.mkx.hrttracker.ui.catalog.MedicineDetailScreen
 import com.mkx.hrttracker.ui.catalog.MedicineDetailViewModel
 import com.mkx.hrttracker.ui.catalog.MedicineManagerLaunchMode
@@ -94,9 +94,9 @@ import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanBatchAddScreen
 import com.mkx.hrttracker.ui.plan.PlanScreen
-import com.mkx.hrttracker.ui.settings.SettingsScreen
 import com.mkx.hrttracker.ui.postLogStockWarningDestination
 import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
+import com.mkx.hrttracker.ui.settings.SettingsScreen
 import com.mkx.hrttracker.util.medicineDisplayName
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

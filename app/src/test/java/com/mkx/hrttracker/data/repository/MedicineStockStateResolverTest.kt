@@ -1,7 +1,7 @@
 package com.mkx.hrttracker.data.repository
 
-import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.RunwayProjection
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate

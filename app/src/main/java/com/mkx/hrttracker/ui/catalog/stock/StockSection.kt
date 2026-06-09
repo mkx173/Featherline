@@ -39,11 +39,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.takeOrElse
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.formatStockCount
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
@@ -55,10 +55,10 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.components.stockCountPluralQuantity
 import com.mkx.hrttracker.ui.components.stockInventoryUnitRes
-import com.mkx.hrttracker.ui.components.stockUnitNounPluralForUnitRes
 import com.mkx.hrttracker.ui.components.stockRateUnitRes
 import com.mkx.hrttracker.ui.components.stockSubcardTone
 import com.mkx.hrttracker.ui.components.stockSubcardValueTextColor
+import com.mkx.hrttracker.ui.components.stockUnitNounPluralForUnitRes
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.util.Locale
 

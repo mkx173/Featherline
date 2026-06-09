@@ -1,8 +1,8 @@
 package com.mkx.hrttracker.ui.catalog.stock
 
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.RunwayProjection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

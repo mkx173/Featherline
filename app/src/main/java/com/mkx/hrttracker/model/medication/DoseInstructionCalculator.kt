@@ -1,12 +1,5 @@
 package com.mkx.hrttracker.model.medication
 
-import com.mkx.hrttracker.model.medication.DoseInstruction
-import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.Medicine
-import com.mkx.hrttracker.model.medication.MedicinePreparation
-import com.mkx.hrttracker.model.medication.MedicineSelection
-
 object DoseInstructionCalculator {
     internal const val MIN_EFFECTIVE_DOSE_EPSILON = 1e-6
 

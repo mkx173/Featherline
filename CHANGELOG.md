@@ -17,7 +17,7 @@ _Nothing yet._
 
 ### Fixed
 
-- The antiandrogen card no longer treat a dose pre-logged for later today as the most recent dose.
+- The antiandrogen card no longer treats a dose pre-logged for later today as the most recent dose.
 - When a group tracks the same antiandrogen at more than one dose, each dose now shows its own last dose, including doses logged on earlier days.
 - Restoring a backup now reliably refreshes the home screen, blood tests, low-stock warnings, and medicine details, instead of occasionally showing stale data until the app was restarted.
 

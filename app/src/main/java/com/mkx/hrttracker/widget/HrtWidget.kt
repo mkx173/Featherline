@@ -26,6 +26,7 @@ import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.GlanceRemoteViews
 import androidx.glance.appwidget.PreviewSizeMode
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.lazy.LazyColumn
@@ -63,7 +64,6 @@ import java.io.File
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
-import androidx.glance.appwidget.GlanceRemoteViews
 import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityFromIntent
 import androidx.glance.appwidget.updateAll as glanceUpdateAll
 import androidx.glance.preview.Preview as GlancePreview

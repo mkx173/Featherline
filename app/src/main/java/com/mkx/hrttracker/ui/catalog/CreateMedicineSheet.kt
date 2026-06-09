@@ -60,8 +60,8 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.medication.DoseAssistPresetRow
 import com.mkx.hrttracker.ui.medication.LocalSheetDismissFocusRequester
-import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicationEditorSectionLabel
+import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicationNumericField
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
@@ -75,8 +75,8 @@ import com.mkx.hrttracker.ui.medication.changeMedicationKey
 import com.mkx.hrttracker.ui.medication.changePreparationType
 import com.mkx.hrttracker.ui.medication.editorMedicationCategories
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
-import com.mkx.hrttracker.ui.medication.medicinePreparationFormIconRes
 import com.mkx.hrttracker.ui.medication.medicationEditorFieldLabelWithUnit
+import com.mkx.hrttracker.ui.medication.medicinePreparationFormIconRes
 import com.mkx.hrttracker.ui.medication.preparationTypeLabelRes
 import com.mkx.hrttracker.ui.medication.requiresCustomName
 import com.mkx.hrttracker.ui.medication.requiresPreparationTypeSelection

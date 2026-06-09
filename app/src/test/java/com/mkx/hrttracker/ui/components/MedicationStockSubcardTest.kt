@@ -2,11 +2,11 @@ package com.mkx.hrttracker.ui.components
 
 import androidx.compose.ui.graphics.Color
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.medication.testPatchOffMedicine
 import org.junit.Assert.assertEquals

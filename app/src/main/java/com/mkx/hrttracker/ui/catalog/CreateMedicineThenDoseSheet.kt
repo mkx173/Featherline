@@ -23,8 +23,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.reminder.PostLogStockWarning
-import com.mkx.hrttracker.ui.medication.ActualAmountRulerCard
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
+import com.mkx.hrttracker.ui.medication.ActualAmountRulerCard
 import com.mkx.hrttracker.ui.medication.DoseInstructionForm
 import com.mkx.hrttracker.ui.medication.MedicationCountTextField
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
