@@ -1981,6 +1981,7 @@ internal fun HistoryEntryGroupHeader(
                 },
                 modifier = Modifier
                     .alignByBaseline()
+                    .padding(end = 1 .dp)
                     .cjkTextOffset(weekdayDisplayLabel),
             )
         }

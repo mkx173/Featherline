@@ -3931,6 +3931,7 @@ private fun MainTodayTimeRangeHeader(
                             start.linkTo(labelRef.end, margin = 6.dp)
                             baseline.linkTo(labelRef.baseline)
                         }
+                        .padding(end = 1.dp)
                         .cjkTextOffset(appLocale)
                 )
             }
