@@ -63,8 +63,6 @@ import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
 import com.mkx.hrttracker.ui.navigation.sharedAxisXSlideDistancePx
 import com.mkx.hrttracker.ui.navigation.sharedAxisXSlideEasing
 import com.mkx.hrttracker.ui.navigation.sharedAxisXTransitionDurationMillis
-import com.mkx.hrttracker.ui.navigation.topLevelFadeThroughExitEasing
-import com.mkx.hrttracker.ui.navigation.topLevelTransitionDurationMillis
 import com.mkx.hrttracker.ui.onboarding.OnboardingScreen
 import com.mkx.hrttracker.ui.onboarding.OnboardingViewModel
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
@@ -403,8 +401,8 @@ class MainActivity : AppCompatActivity() {
                                     enter = EnterTransition.None,
                                     exit = fadeOut(
                                         animationSpec = tween(
-                                            durationMillis = topLevelTransitionDurationMillis,
-                                            easing = topLevelFadeThroughExitEasing,
+                                            durationMillis = sharedAxisXTransitionDurationMillis,
+                                            easing = sharedAxisXExitFadeEasing,
                                         )
                                     ),
                                     label = "lock-overlay",

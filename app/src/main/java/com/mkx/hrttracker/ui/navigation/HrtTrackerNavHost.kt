@@ -100,7 +100,6 @@ import com.mkx.hrttracker.ui.postLogStockWarningDestination
 import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 import com.mkx.hrttracker.util.medicineDisplayName
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
@@ -521,7 +520,6 @@ fun HrtTrackerNavHost(
 
     var lastHandledHomeDeepLinkSignal by rememberSaveable { mutableIntStateOf(0) }
     var pendingHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
-    var pendingHomeDeepLinkHighlightRequiresNavigation by rememberSaveable { mutableStateOf(false) }
     var readyHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
 
     LaunchedEffect(homeDeepLinkSignal, currentRoute) {
@@ -537,7 +535,6 @@ fun HrtTrackerNavHost(
             HomeDeepLinkNavigationAction.NONE -> {
                 if (hasUnhandledSignal) {
                     pendingHomeDeepLinkHighlightSignal = homeDeepLinkSignal
-                    pendingHomeDeepLinkHighlightRequiresNavigation = false
                 }
                 lastHandledHomeDeepLinkSignal = maxOf(
                     lastHandledHomeDeepLinkSignal,
@@ -548,7 +545,6 @@ fun HrtTrackerNavHost(
             HomeDeepLinkNavigationAction.NAVIGATE_HOME -> {
                 lastHandledHomeDeepLinkSignal = homeDeepLinkSignal
                 pendingHomeDeepLinkHighlightSignal = homeDeepLinkSignal
-                pendingHomeDeepLinkHighlightRequiresNavigation = true
                 navController.navigateToTopLevelScreen(
                     targetScreen = Screen.Main,
                     selectedBottomScreen = selectedBottomScreen,
@@ -559,7 +555,6 @@ fun HrtTrackerNavHost(
 
     LaunchedEffect(
         pendingHomeDeepLinkHighlightSignal,
-        pendingHomeDeepLinkHighlightRequiresNavigation,
         currentRoute,
         highlightEffectsEnabled,
     ) {
@@ -572,9 +567,6 @@ fun HrtTrackerNavHost(
             return@LaunchedEffect
         }
 
-        if (pendingHomeDeepLinkHighlightRequiresNavigation) {
-            delay(topLevelTransitionDurationMillis.toLong())
-        }
         withFrameNanos { }
         withFrameNanos { }
 
@@ -584,7 +576,6 @@ fun HrtTrackerNavHost(
                 pendingSignal,
             )
             pendingHomeDeepLinkHighlightSignal = 0
-            pendingHomeDeepLinkHighlightRequiresNavigation = false
         }
     }
 

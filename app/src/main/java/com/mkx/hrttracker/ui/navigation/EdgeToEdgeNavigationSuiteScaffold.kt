@@ -26,11 +26,8 @@ private const val ContentLayoutId = "content"
  * the space above the bar.
  *
  * The stock scaffold measures content at `height - navigationBarHeight` and stacks the bar below
- * it, so the content's bottom edge sits exactly at the bar's top. During the top-level fade-through
- * transition the incoming page scales in (see [topLevelEnterTransition]), lifting that bottom edge
- * upward and briefly revealing the scaffold's container color as a white strip above the bar.
- * Painting content full-height keeps the scaled page's bottom edge hidden beneath the bar, so no
- * strip appears.
+ * it, so the content's bottom edge sits exactly at the bar's top. Painting content full-height lets
+ * bottom-bar chrome float over the routed content instead.
  *
  * Body content must pad its scrollable region above the bar itself: the measured bar height is
  * reported through [onNavigationBarSizeChanged] so the caller can publish it via
