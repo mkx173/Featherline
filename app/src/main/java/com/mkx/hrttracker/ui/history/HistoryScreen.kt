@@ -119,6 +119,7 @@ import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
+import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -644,6 +645,10 @@ private fun HistoryScreenContent(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         floatingActionButton = {
             AnimatedVisibility(
+                // The page now paints edge-to-edge behind the bottom navigation bar, so the
+                // Scaffold-positioned FAB must clear it by the same inset the body content uses
+                // (the bar height in compact, the gesture inset beside the wide rail).
+                modifier = Modifier.padding(bottom = LocalAppContentBottomInset.current),
                 visible = uiState.isSelectionMode && isSelectionFabVisible,
                 enter = fadeIn() + scaleIn(),
                 exit = fadeOut() + scaleOut(),

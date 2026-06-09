@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarDuration
@@ -18,7 +19,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
@@ -598,20 +598,26 @@ fun HrtTrackerNavHost(
 
     val navigationSuiteType =
         NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfoV2())
-    val rawNavigationBarBottomInset = with(LocalDensity.current) {
+    val isBottomBar = navigationSuiteType != NavigationSuiteType.WideNavigationRailCollapsed
+    val rawNavigationBarBottomInset = with(density) {
         WindowInsets.navigationBars.getBottom(this).toDp()
     }
+    // The NavHost now paints edge-to-edge behind the bottom bar (see
+    // EdgeToEdgeNavigationSuiteScaffold), so the body must reserve the bar's full height as bottom
+    // padding — it was 0.dp when content sat above the bar. The bar reports its measured height
+    // here; in the wide-rail layout content sits beside the rail and only needs to clear the system
+    // gesture inset, as before.
+    var navigationBarHeightPx by remember { mutableIntStateOf(0) }
+    val navigationBarHeight =
+        if (isBottomBar) with(density) { navigationBarHeightPx.toDp() } else 0.dp
     val appContentBottomInset =
-        if (navigationSuiteType != NavigationSuiteType.WideNavigationRailCollapsed) {
-            0.dp
-        } else {
-            rawNavigationBarBottomInset
-        }
+        if (isBottomBar) navigationBarHeight else rawNavigationBarBottomInset
 
     CompositionLocalProvider(LocalAppContentBottomInset provides appContentBottomInset) {
-        NavigationSuiteScaffold(
+        EdgeToEdgeNavigationSuiteScaffold(
             modifier = modifier,
-            layoutType = navigationSuiteType,
+            navigationSuiteType = navigationSuiteType,
+            onNavigationBarSizeChanged = { navigationBarHeightPx = it },
             navigationSuiteItems = {
                 topLevelNavigationItems.forEach { navItem ->
                     item(
@@ -1108,7 +1114,11 @@ fun HrtTrackerNavHost(
                     hostState = snackbarHostState,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .imePadding(),
+                        .imePadding()
+                        // Content now extends behind the bottom bar, so lift the snackbar by the
+                        // bar's height to keep it riding above the bar (0.dp in the wide-rail
+                        // layout, where there is no bottom bar).
+                        .padding(bottom = navigationBarHeight),
                     snackbar = { snackbarData -> HrtSnackbar(snackbarData) },
                 )
                 optInTarget?.let { projection ->
