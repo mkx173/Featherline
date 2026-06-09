@@ -108,8 +108,11 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
-import com.mkx.hrttracker.ui.components.appContentPaddingValues
+import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
+import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
@@ -874,7 +877,7 @@ internal fun SettingsScreenContent(
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     scrollState.animateScrollTo(0)
-                },
+                }.hazeChrome(),
                 title = {
                     val title = stringResource(R.string.tab_settings)
                     Text(
@@ -882,15 +885,16 @@ internal fun SettingsScreenContent(
                         modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
+                colors = hazeTopAppBarColors(),
                 scrollBehavior = scrollBehavior
             )
         }
     ) { innerPadding ->
-        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+        AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
             Column(
                 modifier = Modifier
                     .verticalScroll(scrollState)
-                    .padding(appContentPaddingValues()),
+                    .padding(appContentPaddingValuesBehindTopAppBar(innerPadding)),
             ) {
                 HrtSection(
                     title = stringResource(R.string.settings_personalization),

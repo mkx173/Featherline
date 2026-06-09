@@ -78,8 +78,11 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import com.mkx.hrttracker.ui.components.appContentPaddingValues
+import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
+import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calibrationUnitLabel
@@ -183,7 +186,7 @@ private fun CalibrationUnitsScreenContent(
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     listState.animateScrollToItem(0)
-                },
+                }.hazeChrome(),
                 title = {
                     val title = stringResource(R.string.settings_calibration_settings)
                     Text(
@@ -191,9 +194,7 @@ private fun CalibrationUnitsScreenContent(
                         modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
+                colors = hazeTopAppBarColors(),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -206,7 +207,7 @@ private fun CalibrationUnitsScreenContent(
             )
         }
     ) { innerPadding ->
-        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+        AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
             if (uiState.isLoadingCustomAnalytes) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -219,7 +220,7 @@ private fun CalibrationUnitsScreenContent(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = appContentPaddingValues(),
+                contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
                 item(key = "builtin-section") {
                     HrtSection(

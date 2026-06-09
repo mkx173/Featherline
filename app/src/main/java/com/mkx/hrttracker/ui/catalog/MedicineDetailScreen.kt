@@ -98,8 +98,11 @@ import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import com.mkx.hrttracker.ui.components.appContentPaddingValues
+import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
+import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.LocalSheetDismissFocusRequester
@@ -337,7 +340,7 @@ private fun MedicineDetailScreenContent(
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     listState.animateScrollToItem(0)
-                },
+                }.hazeChrome(),
                 title = {
                     val title = stringResource(R.string.medicine_detail_title)
                     Text(
@@ -353,14 +356,12 @@ private fun MedicineDetailScreenContent(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+                colors = hazeTopAppBarColors(),
                 scrollBehavior = scrollBehavior,
             )
         },
     ) { innerPadding ->
-        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+        AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
             val medicine = uiState.medicine
             if (medicine == null) {
                 Box(
@@ -381,7 +382,7 @@ private fun MedicineDetailScreenContent(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = appContentPaddingValues(),
+                contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item(key = "medicine-header") {

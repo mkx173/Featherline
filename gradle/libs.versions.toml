@@ -6,6 +6,7 @@ coreSplashscreen = "1.2.0"
 datastorePreferences = "1.2.1"
 glanceAppwidget = "1.2.0-rc01"
 hilt = "2.59.2"
+haze = "1.7.2"
 ksp = "2.3.4"
 kotlin = "2.3.21"
 licenseReport = "3.1.2"
@@ -73,6 +74,8 @@ moshi = { module = "com.squareup.moshi:moshi", version.ref = "moshi" }
 moshi-kotlin-codegen = { module = "com.squareup.moshi:moshi-kotlin-codegen", version.ref = "moshi" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }
+haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
+haze-materials = { module = "dev.chrisbanes.haze:haze-materials", version.ref = "haze" }
 sqlcipher-android = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipherAndroid" }
 kizitonwose-calendar = { module = "com.kizitonwose.calendar:compose", version.ref = "kizitonwose-calendar"}
 vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }

@@ -12,6 +12,9 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.util.fastFirst
+import com.mkx.hrttracker.ui.components.LocalChromeHazeState
+import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.hazeNavigationSuiteColors
 
 private const val NavigationLayoutId = "navigation"
 private const val ContentLayoutId = "content"
@@ -48,6 +51,7 @@ fun EdgeToEdgeNavigationSuiteScaffold(
     content: @Composable () -> Unit,
 ) {
     val isBottomBar = navigationSuiteType != NavigationSuiteType.WideNavigationRailCollapsed
+    val chromeHazeState = LocalChromeHazeState.current
     Surface(
         modifier = modifier,
         color = NavigationSuiteScaffoldDefaults.containerColor,
@@ -55,13 +59,22 @@ fun EdgeToEdgeNavigationSuiteScaffold(
     ) {
         Layout(
             content = {
+                val navigationModifier = Modifier
+                    .layoutId(NavigationLayoutId)
+                    .onSizeChanged { onNavigationBarSizeChanged(it.height) }
+                    .let {
+                        if (isBottomBar) {
+                            it.hazeChrome(chromeHazeState)
+                        } else {
+                            it
+                        }
+                    }
                 Box(
-                    Modifier
-                        .layoutId(NavigationLayoutId)
-                        .onSizeChanged { onNavigationBarSizeChanged(it.height) }
+                    navigationModifier
                 ) {
                     NavigationSuite(
                         layoutType = navigationSuiteType,
+                        colors = hazeNavigationSuiteColors(),
                         content = navigationSuiteItems,
                     )
                 }

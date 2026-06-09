@@ -76,8 +76,11 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import com.mkx.hrttracker.ui.components.appContentPaddingValues
+import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
+import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRunWhenHidden
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -573,7 +576,7 @@ private fun MedicinesScreenContent(
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     listState.animateScrollToItem(0)
-                },
+                }.hazeChrome(),
                 title = {
                     val title = stringResource(titleRes)
                     Text(
@@ -589,9 +592,7 @@ private fun MedicinesScreenContent(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+                colors = hazeTopAppBarColors(),
                 actions = {
                     if (showStockNudgeMenu) {
                         Box {
@@ -624,7 +625,7 @@ private fun MedicinesScreenContent(
             )
         },
     ) { innerPadding ->
-        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+        AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
             if (uiState.isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -638,7 +639,7 @@ private fun MedicinesScreenContent(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = appContentPaddingValues(),
+                contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
                 if (showOnboardingBanner) {
                     item(key = "onboarding-stock-banner") {

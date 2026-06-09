@@ -80,8 +80,10 @@ import com.mkx.hrttracker.ui.catalog.nudge.StockTrackingNudgeViewModel
 import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
+import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.rememberChromeHazeState
 import com.mkx.hrttracker.ui.components.stockInventoryCountText
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.MedicationLogEntryEditSnapshot
@@ -612,8 +614,12 @@ fun HrtTrackerNavHost(
         if (isBottomBar) with(density) { navigationBarHeightPx.toDp() } else 0.dp
     val appContentBottomInset =
         if (isBottomBar) navigationBarHeight else rawNavigationBarBottomInset
+    val chromeHazeState = rememberChromeHazeState()
 
-    CompositionLocalProvider(LocalAppContentBottomInset provides appContentBottomInset) {
+    CompositionLocalProvider(
+        LocalAppContentBottomInset provides appContentBottomInset,
+        LocalChromeHazeState provides chromeHazeState,
+    ) {
         EdgeToEdgeNavigationSuiteScaffold(
             modifier = modifier,
             navigationSuiteType = navigationSuiteType,

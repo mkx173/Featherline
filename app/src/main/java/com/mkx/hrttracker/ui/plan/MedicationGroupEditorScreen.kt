@@ -123,8 +123,11 @@ import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
-import com.mkx.hrttracker.ui.components.appContentPaddingValues
+import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
+import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -1286,7 +1289,7 @@ private fun MedicationGroupEditorScreenContent(
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     listState.animateScrollToItem(0)
-                },
+                }.hazeChrome(),
                 title = {
                     val title = stringResource(
                         if (shouldUseArchivedPresentation) {
@@ -1302,9 +1305,7 @@ private fun MedicationGroupEditorScreenContent(
                         modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
+                colors = hazeTopAppBarColors(),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -1333,7 +1334,7 @@ private fun MedicationGroupEditorScreenContent(
             )
         }
     ) { innerPadding ->
-        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+        AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
             if (uiState.isLoadingGroupForEditing) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -1349,7 +1350,8 @@ private fun MedicationGroupEditorScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .imePadding(),
-                contentPadding = appContentPaddingValues(
+                contentPadding = appContentPaddingValuesBehindTopAppBar(
+                    innerPadding = innerPadding,
                     bottom = contentPadding + navigationBarBottomPadding,
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)

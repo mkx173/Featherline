@@ -118,8 +118,11 @@ import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import com.mkx.hrttracker.ui.components.appContentPaddingValues
+import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
+import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -681,7 +684,7 @@ private fun HistoryScreenContent(
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     listState.animateScrollToItem(0)
-                },
+                }.hazeChrome(),
                 title = {
                     FlipSlot(
                         flipped = uiState.isSelectionMode,
@@ -781,11 +784,12 @@ private fun HistoryScreenContent(
                         },
                     )
                 },
+                colors = hazeTopAppBarColors(),
                 scrollBehavior = scrollBehavior
             )
         }
     ) { innerPadding ->
-        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+        AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
             if (uiState.isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -799,7 +803,7 @@ private fun HistoryScreenContent(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = appContentPaddingValues(),
+                contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
             ) {
                 item(key = "history-header") {

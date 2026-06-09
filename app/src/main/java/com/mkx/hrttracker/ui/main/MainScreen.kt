@@ -49,7 +49,11 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.calibration.calibrationAllowedUnitsFor
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
+import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.util.calibrationUnitLabel
 import kotlinx.coroutines.delay
@@ -196,7 +200,7 @@ fun MainScreen(
             CenterAlignedTopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     scrollState.animateScrollTo(0)
-                },
+                }.hazeChrome(),
                 title = {
                     val title = stringResource(R.string.tab_main)
                     Text(
@@ -217,14 +221,16 @@ fun MainScreen(
                         onUnitSelected = viewModel::setHomeE2DisplayUnit,
                     )
                 },
+                colors = hazeTopAppBarColors(),
                 scrollBehavior = scrollBehavior
             )
         }
     ) { innerPadding ->
-        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+        AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
             MainContent(
                 uiState = uiState,
                 scrollState = scrollState,
+                contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
                 highlightRequest = highlightRequest,
                 highlightEffectsEnabled = highlightEffectsEnabled,
                 highlightFlashReady = highlightFlashReady,

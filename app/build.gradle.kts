@@ -205,6 +205,8 @@ dependencies {
     implementation(libs.moshi)
     implementation(libs.sqlcipher.android)
     implementation(libs.argon2kt)
+    implementation(libs.haze)
+    implementation(libs.haze.materials)
     ksp(libs.hilt.compiler)
     ksp(libs.androidx.room.compiler)
     ksp(libs.moshi.kotlin.codegen)

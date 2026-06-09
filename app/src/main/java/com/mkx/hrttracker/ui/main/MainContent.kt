@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -65,6 +66,7 @@ fun MainContent(
     onDismissTimeZoneChangeNotice: () -> Unit = { },
     onE2ChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
     onLowStockSectionExpandedChange: (Boolean) -> Unit = { },
+    contentPadding: PaddingValues? = null,
 ) {
     val appLocale = rememberAppLocale()
     val today = uiState.now.toLocalDate()
@@ -99,11 +101,12 @@ fun MainContent(
         }
     }
     CompositionLocalProvider(LocalBringIntoViewSpec provides highlightBringIntoViewSpec) {
+        val resolvedContentPadding = contentPadding ?: appContentPaddingValues()
         Column(
             modifier = modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(appContentPaddingValues()),
+                .padding(resolvedContentPadding),
         ) {
             uiState.timeZoneChangeNotice?.let { notice ->
                 MainTimeZoneChangeNoticeBanner(

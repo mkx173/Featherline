@@ -73,8 +73,11 @@ import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
-import com.mkx.hrttracker.ui.components.appContentPaddingValues
+import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
+import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -336,7 +339,7 @@ private fun CalibrationEditorScreenContent(
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     scrollState.animateScrollTo(0)
-                },
+                }.hazeChrome(),
                 title = {
                     val title = stringResource(
                         if (uiState.isEditing) {
@@ -350,9 +353,7 @@ private fun CalibrationEditorScreenContent(
                         modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
+                colors = hazeTopAppBarColors(),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -376,7 +377,7 @@ private fun CalibrationEditorScreenContent(
             )
         },
     ) { innerPadding ->
-        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+        AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
             if (uiState.isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -390,7 +391,7 @@ private fun CalibrationEditorScreenContent(
                         .fillMaxSize()
                         .imePadding()
                         .verticalScroll(scrollState)
-                        .padding(appContentPaddingValues()),
+                        .padding(appContentPaddingValuesBehindTopAppBar(innerPadding)),
                 ) {
                     val deviceZone = remember { ZoneId.systemDefault() }
                     val itemLocale = rememberAppLocale()

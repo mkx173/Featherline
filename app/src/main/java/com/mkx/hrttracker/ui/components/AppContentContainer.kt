@@ -3,7 +3,10 @@ package com.mkx.hrttracker.ui.components
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -11,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -71,6 +75,40 @@ fun appContentPaddingValues(
 }
 
 /**
+ * Lets the routed body viewport draw underneath a top app bar while keeping any horizontal and
+ * bottom scaffold insets applied to the frame.
+ */
+@Composable
+fun Modifier.paddingBehindTopAppBar(innerPadding: PaddingValues): Modifier {
+    val layoutDirection = LocalLayoutDirection.current
+    return padding(
+        start = innerPadding.calculateStartPadding(layoutDirection),
+        top = 0.dp,
+        end = innerPadding.calculateEndPadding(layoutDirection),
+        bottom = innerPadding.calculateBottomPadding(),
+    )
+}
+
+/**
+ * Scrollable content padding for screens whose viewport draws behind the top app bar. The top app
+ * bar inset is applied inside the scrollable content so list/items start below the bar at rest but
+ * can scroll underneath it, giving Haze real backdrop content to blur.
+ */
+@Composable
+fun appContentPaddingValuesBehindTopAppBar(
+    innerPadding: PaddingValues,
+    horizontal: Dp = dimensionResource(R.dimen.padding_medium),
+    top: Dp = dimensionResource(R.dimen.padding_medium),
+    bottom: Dp = dimensionResource(R.dimen.padding_medium),
+): PaddingValues {
+    return appContentPaddingValues(
+        horizontal = horizontal,
+        top = innerPadding.calculateTopPadding() + top,
+        bottom = bottom,
+    )
+}
+
+/**
  * Centers [content] horizontally inside a box capped at [AppContentMaxWidth]. Pass the
  * containing `Scaffold`'s `innerPadding` via the [modifier] parameter (e.g.
  * `modifier = Modifier.padding(innerPadding)`). The top app bar stays at the screen's
@@ -85,7 +123,9 @@ fun AppContentContainer(
     content: @Composable BoxScope.() -> Unit,
 ) {
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .hazeSourceArea(LocalChromeHazeState.current),
         contentAlignment = Alignment.TopCenter,
     ) {
         Box(
