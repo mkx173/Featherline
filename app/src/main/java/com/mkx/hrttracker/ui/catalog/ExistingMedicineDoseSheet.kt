@@ -138,11 +138,11 @@ fun ExistingMedicineDoseSheet(
         )
     }
     val allowsActualDoseDelta = isManualLogMode &&
-        manualLogAllowsActualDoseDelta(
-            preparationType = medicine.preparation.type,
-            applicationType = resolvedApplicationType,
-        ) &&
-        scheduledNativeAmount != null
+            manualLogAllowsActualDoseDelta(
+                preparationType = medicine.preparation.type,
+                applicationType = resolvedApplicationType,
+            ) &&
+            scheduledNativeAmount != null
     val effectiveActualAmount = scheduledNativeAmount?.let { scheduledAmount ->
         effectiveActualDoseAmount(
             scheduledAmount = scheduledAmount,
@@ -171,7 +171,12 @@ fun ExistingMedicineDoseSheet(
     }
     val previewPostMutationState: ((MedicineStock) -> MedicineStockState?) =
         remember(medicine.uuid, viewModel) {
-            { hypothetical: MedicineStock -> viewModel.previewStateFor(medicine.uuid, hypothetical) }
+            { hypothetical: MedicineStock ->
+                viewModel.previewStateFor(
+                    medicine.uuid,
+                    hypothetical
+                )
+            }
         }
     val displayedStockProjection = slotDraftStockProjectionForDisplay(
         mode = mode,
@@ -435,5 +440,5 @@ internal fun manualLogAllowsActualDoseDelta(
     // Single-use vials (ampules) have no amount field; the +/- mg delta is the
     // only way to record drawing slightly more or less than the nominal vial.
     return preparationType == MedicinePreparationType.INJECTION_SINGLE_USE_VIAL &&
-        applicationType == MedicationApplicationType.INJECTION
+            applicationType == MedicationApplicationType.INJECTION
 }

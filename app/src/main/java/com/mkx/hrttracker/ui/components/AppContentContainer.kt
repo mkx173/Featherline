@@ -98,7 +98,12 @@ fun AppContentContainer(
 }
 
 @Preview(name = "AppContentContainer - phone", widthDp = 420, heightDp = 600, showBackground = true)
-@Preview(name = "AppContentContainer - tablet", widthDp = 1024, heightDp = 600, showBackground = true)
+@Preview(
+    name = "AppContentContainer - tablet",
+    widthDp = 1024,
+    heightDp = 600,
+    showBackground = true
+)
 @Composable
 private fun AppContentContainerPreview() {
     HrtTrackerTheme(dynamicColor = false) {

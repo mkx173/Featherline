@@ -98,7 +98,10 @@ class WidgetConfigActivity : AppCompatActivity() {
                             onAppearanceChange = { scale, alpha, darkMode ->
                                 setResult(
                                     RESULT_OK,
-                                    Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId),
+                                    Intent().putExtra(
+                                        AppWidgetManager.EXTRA_APPWIDGET_ID,
+                                        appWidgetId
+                                    ),
                                 )
                                 appScope.launch {
                                     settingsRepository.setWidgetAppearance(scale, alpha, darkMode)

@@ -102,9 +102,10 @@ fun buildPlanDaySchedule(
                     val requiredCount = indexedMedicationsForSignature.sumOf { indexedMedication ->
                         indexedMedication.value.count
                     }
-                    val medicationSortOrder = indexedMedicationsForSignature.minOf { indexedMedication ->
-                        indexedMedication.index
-                    }
+                    val medicationSortOrder =
+                        indexedMedicationsForSignature.minOf { indexedMedication ->
+                            indexedMedication.index
+                        }
                     val matchingLogs = logsBySignature[signature].orEmpty()
                         .sortedBy(MedicationLogEntry::appliedAt)
                     val outsideWindowLogs = outsideWindowLogsBySignature[signature].orEmpty()
@@ -126,9 +127,24 @@ fun buildPlanDaySchedule(
                         fulfillingEntryUuids = matchingLogs.map { it.uuid },
                         doseAmountDelta = lastFulfillingEntry?.doseAmountDelta,
                         outsideScheduleWindowEntryUuids = outsideWindowLogs.map { it.uuid },
-                        loggedAt = lastFulfillingEntry?.let { appliedAtAsLocalDateTime(it, zoneId) },
-                        isLastFulfillingEntryCrossZone = lastFulfillingEntry?.let { isCrossZone(it, zoneId) } == true,
-                        outsideScheduleWindowLoggedAt = lastOutsideWindowEntry?.let { appliedAtAsLocalDateTime(it, zoneId) },
+                        loggedAt = lastFulfillingEntry?.let {
+                            appliedAtAsLocalDateTime(
+                                it,
+                                zoneId
+                            )
+                        },
+                        isLastFulfillingEntryCrossZone = lastFulfillingEntry?.let {
+                            isCrossZone(
+                                it,
+                                zoneId
+                            )
+                        } == true,
+                        outsideScheduleWindowLoggedAt = lastOutsideWindowEntry?.let {
+                            appliedAtAsLocalDateTime(
+                                it,
+                                zoneId
+                            )
+                        },
                         loggedCount = loggedCount,
                         isFulfilled = isFulfilled,
                         isDueSoon = !isFulfilled && isDueSoonSlot,
@@ -146,12 +162,12 @@ fun buildPlanDaySchedule(
     val unplannedEntries = entries
         .filter { entry ->
             entry.planCalendarDate(zoneId) == date &&
-                isPlanOffPlanEntry(
-                    entry = entry,
-                    scheduledGroups = scheduledGroups,
-                    date = date,
-                    zoneId = zoneId,
-                )
+                    isPlanOffPlanEntry(
+                        entry = entry,
+                        scheduledGroups = scheduledGroups,
+                        date = date,
+                        zoneId = zoneId,
+                    )
         }
         .sortedBy { it.appliedAt }
 

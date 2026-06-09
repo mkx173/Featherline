@@ -135,6 +135,7 @@ fun medicationEntryTitle(
         // "Patch", shared with PATCH_ON), so the "Remove" cue survives.
         applicationType == MedicationApplicationType.PATCH_OFF ->
             stringResource(R.string.medicine_patch_off_name)
+
         else -> stringResource(applicationType.labelRes)
     }
 }

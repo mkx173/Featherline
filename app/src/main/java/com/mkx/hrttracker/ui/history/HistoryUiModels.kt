@@ -78,7 +78,7 @@ internal fun canSelectHistoryCalendarDate(
     }
     val adjacentTargetMonth = targetMonth ?: return true
     return !adjacentTargetMonth.isBefore(calendarStartMonth) &&
-        !adjacentTargetMonth.isAfter(calendarEndMonth)
+            !adjacentTargetMonth.isAfter(calendarEndMonth)
 }
 
 internal fun resolveHistoryEffectiveSelectedDate(
@@ -122,7 +122,7 @@ internal fun shouldCommitPendingHistorySelection(
 ): Boolean {
     val pendingDate = pendingSelectedDate ?: return false
     return YearMonth.from(pendingDate) == settledDisplayedMonth &&
-        selectedDate != pendingDate
+            selectedDate != pendingDate
 }
 
 internal fun shouldClearPendingHistorySelection(
@@ -164,7 +164,7 @@ internal fun shouldAnimateHistoryCalendarReset(
     animationThresholdMonths: Long = historyCalendarResetAnimationThresholdMonths,
 ): Boolean {
     return kotlin.math.abs(ChronoUnit.MONTHS.between(navigationMonth, currentMonth)) <=
-        animationThresholdMonths
+            animationThresholdMonths
 }
 
 internal fun historyMonthPickerYearOptions(
@@ -303,6 +303,7 @@ internal fun buildHistoryMonthSummary(
                         missed++
                     }
                 }
+
                 PlanCalendarDayStatus.OFFPLAN,
                 PlanCalendarDayStatus.NONE -> Unit
             }
@@ -333,7 +334,7 @@ internal fun buildHistoryCalendarDayUiState(
         val entryDate = entry.planCalendarDate(zoneId)
         val appliedDate = entry.appliedAt.atZone(zoneId).toLocalDate()
         (!entryDate.isBefore(startDate) && !entryDate.isAfter(endDate)) ||
-            (!appliedDate.isBefore(startDate) && !appliedDate.isAfter(endDate))
+                (!appliedDate.isBefore(startDate) && !appliedDate.isAfter(endDate))
     }
     val planDayStates = buildPlanCalendarDayUiState(
         groups = groups,

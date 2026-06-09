@@ -283,73 +283,73 @@ private fun CalibrationScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValues(),
             ) {
-            item(key = "calibration-info") {
-                val hideReferenceRanges = uiState.settingsState.hideReferenceRanges
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(
-                        dimensionResource(R.dimen.list_segment_gap)
-                    )
-                ) {
-                    if (hideReferenceRanges) {
-                        CalibrationInfoCard(
-                            panelCount = uiState.panels.size,
-                            index = 0,
-                            count = 1,
+                item(key = "calibration-info") {
+                    val hideReferenceRanges = uiState.settingsState.hideReferenceRanges
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(
+                            dimensionResource(R.dimen.list_segment_gap)
                         )
-                    } else {
-                        CalibrationTargetRangeCard(settingsState = uiState.settingsState)
-                        CalibrationReferenceRangeDisclaimerCard()
-                        CalibrationInfoCard(panelCount = uiState.panels.size)
-                    }
-                }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            if (uiState.panels.isEmpty() && !uiState.isLoading) {
-                item(key = "calibration-empty") {
-                    SupportMessageListItem(
-                        text = stringResource(R.string.settings_calibration_empty_state),
-                        painter = painterResource(R.drawable.ic_info),
-                        modifier = modifier,
-                    )
-                }
-            } else {
-                monthGroups.forEachIndexed { index, monthGroup ->
-                    item(key = "month-${monthGroup.yearMonth}") {
-                        CalibrationMonthHeader(
-                            monthLabel = monthGroup.monthLabel,
-                            panelCount = monthGroup.panels.size,
-                        )
-                    }
-
-                    itemsIndexed(
-                        items = monthGroup.panels,
-                        key = { _, panel -> panel.uuid },
-                    ) { index, panel ->
-                        CalibrationPanelRow(
-                            panel = panel,
-                            settingsState = uiState.settingsState,
-                            dateTimeFormatters = panelDateTimeFormatters,
-                            index = index,
-                            count = monthGroup.panels.size,
-                            onClick = { onPanelClick(panel.uuid) },
-                        )
-                        if (index < monthGroup.panels.size - 1) {
-                            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-                        }
-                    }
-
-                    if (index < monthGroups.size - 1) {
-                        item {
-                            Spacer(modifier = Modifier.height(16.dp))
+                    ) {
+                        if (hideReferenceRanges) {
+                            CalibrationInfoCard(
+                                panelCount = uiState.panels.size,
+                                index = 0,
+                                count = 1,
+                            )
+                        } else {
+                            CalibrationTargetRangeCard(settingsState = uiState.settingsState)
+                            CalibrationReferenceRangeDisclaimerCard()
+                            CalibrationInfoCard(panelCount = uiState.panels.size)
                         }
                     }
                 }
+
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                if (uiState.panels.isEmpty() && !uiState.isLoading) {
+                    item(key = "calibration-empty") {
+                        SupportMessageListItem(
+                            text = stringResource(R.string.settings_calibration_empty_state),
+                            painter = painterResource(R.drawable.ic_info),
+                            modifier = modifier,
+                        )
+                    }
+                } else {
+                    monthGroups.forEachIndexed { index, monthGroup ->
+                        item(key = "month-${monthGroup.yearMonth}") {
+                            CalibrationMonthHeader(
+                                monthLabel = monthGroup.monthLabel,
+                                panelCount = monthGroup.panels.size,
+                            )
+                        }
+
+                        itemsIndexed(
+                            items = monthGroup.panels,
+                            key = { _, panel -> panel.uuid },
+                        ) { index, panel ->
+                            CalibrationPanelRow(
+                                panel = panel,
+                                settingsState = uiState.settingsState,
+                                dateTimeFormatters = panelDateTimeFormatters,
+                                index = index,
+                                count = monthGroup.panels.size,
+                                onClick = { onPanelClick(panel.uuid) },
+                            )
+                            if (index < monthGroup.panels.size - 1) {
+                                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+                            }
+                        }
+
+                        if (index < monthGroups.size - 1) {
+                            item {
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
+                        }
+                    }
+                }
             }
-        }
         }
     }
 
@@ -780,7 +780,9 @@ private fun CalibrationPanelResultAdditionalSummaryRow(
         modifier = modifier.padding(vertical = 6.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp, horizontal = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp, horizontal = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -820,9 +822,14 @@ private fun RowScope.CalibrationResultSummaryDisplayNameText(
     hideReferenceRanges: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val fullDisplayName = calibrationResultSummaryFullDisplayName(resultSummary, hideReferenceRanges)
-    val abbreviatedDisplayName = calibrationResultSummaryAbbreviatedDisplayName(resultSummary, hideReferenceRanges)
-    var availableWidthPx by remember(fullDisplayName, abbreviatedDisplayName) { mutableIntStateOf(0) }
+    val fullDisplayName =
+        calibrationResultSummaryFullDisplayName(resultSummary, hideReferenceRanges)
+    val abbreviatedDisplayName =
+        calibrationResultSummaryAbbreviatedDisplayName(resultSummary, hideReferenceRanges)
+    var availableWidthPx by remember(
+        fullDisplayName,
+        abbreviatedDisplayName
+    ) { mutableIntStateOf(0) }
     var useAbbreviation by remember(
         fullDisplayName,
         abbreviatedDisplayName,
@@ -869,12 +876,13 @@ private fun calibrationResultSummaryFullDisplayName(
     return when (resultSummary) {
         is CalibrationPanelResultSummary.Builtin -> {
             stringResource(calibrationAnalyteFullNameRes(resultSummary.analyteKey)) +
-                if (hideReferenceRanges) {
-                    ""
-                } else {
-                    calibrationResultSummaryRangeStatusSuffix(resultSummary.rangeStatus)
-                }
+                    if (hideReferenceRanges) {
+                        ""
+                    } else {
+                        calibrationResultSummaryRangeStatusSuffix(resultSummary.rangeStatus)
+                    }
         }
+
         is CalibrationPanelResultSummary.Custom -> resultSummary.name
     }
 }
@@ -886,12 +894,13 @@ private fun calibrationResultSummaryAbbreviatedDisplayName(
     return when (resultSummary) {
         is CalibrationPanelResultSummary.Builtin -> {
             calibrationAnalyteLabel(resultSummary.analyteKey) +
-                if (hideReferenceRanges) {
-                    ""
-                } else {
-                    calibrationResultSummaryRangeStatusSuffix(resultSummary.rangeStatus)
-                }
+                    if (hideReferenceRanges) {
+                        ""
+                    } else {
+                        calibrationResultSummaryRangeStatusSuffix(resultSummary.rangeStatus)
+                    }
         }
+
         is CalibrationPanelResultSummary.Custom -> {
             resultSummary.abbreviation.takeUnless { it == resultSummary.name }
         }
@@ -1118,6 +1127,7 @@ internal fun calibrationRangeStatusForCanonical(
             canonicalValue > target.high -> CalibrationRangeStatus.ABOVE
             else -> CalibrationRangeStatus.IN_RANGE
         }
+
         is CalibrationCanonicalTarget.UpperBound -> when {
             canonicalValue > target.high -> CalibrationRangeStatus.ABOVE
             else -> CalibrationRangeStatus.IN_RANGE
@@ -1180,13 +1190,32 @@ internal fun calibrationTargetLabel(
     return when (target) {
         is CalibrationCanonicalTarget.Range -> stringResource(
             R.string.settings_calibration_target_range,
-            formatCalibrationTargetValue(BloodTestCatalog.fromCanonical(analyteKey, target.low, unit)),
-            formatCalibrationTargetValue(BloodTestCatalog.fromCanonical(analyteKey, target.high, unit)),
+            formatCalibrationTargetValue(
+                BloodTestCatalog.fromCanonical(
+                    analyteKey,
+                    target.low,
+                    unit
+                )
+            ),
+            formatCalibrationTargetValue(
+                BloodTestCatalog.fromCanonical(
+                    analyteKey,
+                    target.high,
+                    unit
+                )
+            ),
             unitLabel,
         )
+
         is CalibrationCanonicalTarget.UpperBound -> stringResource(
             R.string.settings_calibration_target_upper,
-            formatCalibrationTargetValue(BloodTestCatalog.fromCanonical(analyteKey, target.high, unit)),
+            formatCalibrationTargetValue(
+                BloodTestCatalog.fromCanonical(
+                    analyteKey,
+                    target.high,
+                    unit
+                )
+            ),
             unitLabel,
         )
     }
@@ -1202,13 +1231,32 @@ private fun calibrationHistoryTargetValueLabel(
     return when (target) {
         is CalibrationCanonicalTarget.Range -> stringResource(
             R.string.settings_calibration_target_range_value,
-            formatCalibrationTargetValue(BloodTestCatalog.fromCanonical(analyteKey, target.low, unit)),
-            formatCalibrationTargetValue(BloodTestCatalog.fromCanonical(analyteKey, target.high, unit)),
+            formatCalibrationTargetValue(
+                BloodTestCatalog.fromCanonical(
+                    analyteKey,
+                    target.low,
+                    unit
+                )
+            ),
+            formatCalibrationTargetValue(
+                BloodTestCatalog.fromCanonical(
+                    analyteKey,
+                    target.high,
+                    unit
+                )
+            ),
             unitLabel,
         )
+
         is CalibrationCanonicalTarget.UpperBound -> stringResource(
             R.string.settings_calibration_target_upper_value,
-            formatCalibrationTargetValue(BloodTestCatalog.fromCanonical(analyteKey, target.high, unit)),
+            formatCalibrationTargetValue(
+                BloodTestCatalog.fromCanonical(
+                    analyteKey,
+                    target.high,
+                    unit
+                )
+            ),
             unitLabel,
         )
     }
@@ -1238,6 +1286,7 @@ internal fun calibrationRangeStatus(
             canonical > target.high -> CalibrationRangeStatus.ABOVE
             else -> CalibrationRangeStatus.IN_RANGE
         }
+
         is CalibrationCanonicalTarget.UpperBound -> when {
             canonical > target.high -> CalibrationRangeStatus.ABOVE
             else -> CalibrationRangeStatus.IN_RANGE

@@ -67,8 +67,10 @@ internal fun resolveNavigationMotionPattern(
     initialTopLevelParentRoute: String? = null,
     targetTopLevelParentRoute: String? = null,
 ): NavigationMotionPattern {
-    val normalizedInitialRoute = normalizeNavigationRoute(initialRoute) ?: return NavigationMotionPattern.NONE
-    val normalizedTargetRoute = normalizeNavigationRoute(targetRoute) ?: return NavigationMotionPattern.NONE
+    val normalizedInitialRoute =
+        normalizeNavigationRoute(initialRoute) ?: return NavigationMotionPattern.NONE
+    val normalizedTargetRoute =
+        normalizeNavigationRoute(targetRoute) ?: return NavigationMotionPattern.NONE
     if (normalizedInitialRoute == normalizedTargetRoute) {
         return NavigationMotionPattern.NONE
     }
@@ -114,6 +116,7 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostEnterTr
             layoutDirection = layoutDirection,
             forward = true,
         )
+
         else -> EnterTransition.None
     }
 }
@@ -137,6 +140,7 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostExitTra
             layoutDirection = layoutDirection,
             forward = true,
         )
+
         else -> ExitTransition.None
     }
 }
@@ -160,6 +164,7 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostPopEnte
             layoutDirection = layoutDirection,
             forward = false,
         )
+
         else -> EnterTransition.None
     }
 }
@@ -183,6 +188,7 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostPopExit
             layoutDirection = layoutDirection,
             forward = false,
         )
+
         else -> ExitTransition.None
     }
 }
@@ -196,7 +202,7 @@ internal fun normalizeNavigationRoute(route: String?): String? {
 internal fun fadeThroughAppearingAlphaProgress(progress: Float): Float {
     val coercedProgress = progress.coerceIn(0f, 1f)
     return ((coercedProgress - navigationFadeThroughProgressThreshold) /
-        (1f - navigationFadeThroughProgressThreshold)).coerceIn(0f, 1f)
+            (1f - navigationFadeThroughProgressThreshold)).coerceIn(0f, 1f)
 }
 
 internal fun fadeThroughDisappearingAlphaProgress(progress: Float): Float {

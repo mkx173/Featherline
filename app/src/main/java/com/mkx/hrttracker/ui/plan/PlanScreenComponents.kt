@@ -173,7 +173,7 @@ internal fun SelectedDaySection(
                                 itemCount = rows.size,
                                 timeFormatter = timeFormatter,
                                 isFromArchivedGroup = row.entry.sourceGroupUuid != null &&
-                                    row.entry.sourceGroupUuid in archivedGroupUuids,
+                                        row.entry.sourceGroupUuid in archivedGroupUuids,
                                 onClick = { onUnplannedClick(row.entry) }
                             )
                         }
@@ -298,6 +298,7 @@ private fun SelectedDayRow(
         } else {
             row.entry.scheduledTime.format(timeFormatter)
         }
+
         is SelectedDayRowModel.Unplanned -> formatEntryWallTime(row.entry, timeFormatter)
     }
     val isCrossZoneRow = when (row) {
@@ -334,7 +335,10 @@ private fun SelectedDayRow(
                     Text(
                         text = titleText,
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset("$titleText$timeLabel"),
+                        modifier = Modifier
+                            .weight(1f)
+                            .alignByBaseline()
+                            .cjkTextOffset("$titleText$timeLabel"),
                         fontWeight = FontWeight.Normal,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -346,7 +350,9 @@ private fun SelectedDayRow(
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.End,
                         maxLines = 1,
-                        modifier = Modifier.alignByBaseline().cjkTextOffset("$titleText$timeLabel")
+                        modifier = Modifier
+                            .alignByBaseline()
+                            .cjkTextOffset("$titleText$timeLabel")
                     )
                 }
                 Row(
@@ -358,7 +364,10 @@ private fun SelectedDayRow(
                         text = supportingText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(supportingText),
+                        modifier = Modifier
+                            .weight(1f)
+                            .alignByBaseline()
+                            .cjkTextOffset(supportingText),
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -390,7 +399,9 @@ private fun SelectedDayRow(
                             color = labelColor,
                             textAlign = TextAlign.End,
                             maxLines = 1,
-                            modifier = Modifier.alignByBaseline().cjkTextOffset(labelDisplayText)
+                            modifier = Modifier
+                                .alignByBaseline()
+                                .cjkTextOffset(labelDisplayText)
                         )
                     }
                 }
@@ -554,7 +565,9 @@ internal fun RegimenGroupCard(
                             text = groupScheduleSummary,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f).cjkTextOffset(groupScheduleSummary),
+                            modifier = Modifier
+                                .weight(1f)
+                                .cjkTextOffset(groupScheduleSummary),
                             softWrap = true
                         )
                     }
@@ -749,7 +762,9 @@ private fun RegimenGroupCardMetadataRow(
             text = metadata.text,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f).cjkTextOffset(metadata.text),
+            modifier = Modifier
+                .weight(1f)
+                .cjkTextOffset(metadata.text),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -795,8 +810,8 @@ private fun SelectedDayMedicationIconSurface(
     val showDueBadge = state == SelectedDayRowState.DUE
     val showPastDueBadge = state == SelectedDayRowState.PAST_DUE && !showUnreadLoggedBadge
     val useOutlinedIcon = state == SelectedDayRowState.PAST_DUE ||
-        state == SelectedDayRowState.MISSED ||
-        showUnreadLoggedBadge
+            state == SelectedDayRowState.MISSED ||
+            showUnreadLoggedBadge
 
     Box(
         modifier = Modifier.size(36.dp),
@@ -923,7 +938,9 @@ private fun RegimenMedicationChip(
             text = medicationString,
             style = MaterialTheme.typography.labelMedium,
             color = groupColorScheme.onPrimaryFixed,
-            modifier = Modifier.padding(end = 2.dp).cjkTextOffset(medicationString)
+            modifier = Modifier
+                .padding(end = 2.dp)
+                .cjkTextOffset(medicationString)
         )
     }
 }
@@ -962,6 +979,7 @@ private fun UpcomingOccurrenceChip(
 
 private sealed interface SelectedDayRowModel {
     val sortTime: LocalTime
+
     // PATCH_OFF rows carry no medicine; null medicine suppresses the dose line.
     val medicine: com.mkx.hrttracker.model.medication.Medicine?
     val doseInstruction: com.mkx.hrttracker.model.medication.DoseInstruction

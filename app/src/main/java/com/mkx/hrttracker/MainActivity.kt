@@ -150,15 +150,15 @@ class MainActivity : AppCompatActivity() {
         diagnosticsLogger.info(
             TAG,
             "main_activity_on_create_after_super " +
-                "savedInstanceState=${savedInstanceState != null} startupTimingEnabled=$startupTimingEnabled"
+                    "savedInstanceState=${savedInstanceState != null} startupTimingEnabled=$startupTimingEnabled"
         )
         splashScreen.setKeepOnScreenCondition {
             val appLockState = appLockViewModel.uiState.value
             val onboardingState = onboardingViewModel.uiState.value
             val shouldWaitForHomeShell = appLockState.isReady && !appLockState.shouldShowLockScreen
             !appLockState.isReady ||
-                !onboardingState.isLoaded ||
-                (shouldWaitForHomeShell && !mainViewModel.uiState.value.splashReady)
+                    !onboardingState.isLoaded ||
+                    (shouldWaitForHomeShell && !mainViewModel.uiState.value.splashReady)
         }
         diagnosticsLogger.info(TAG, "main_activity_splash_condition_installed")
         settingsRepository.refreshAppLanguageOption()
@@ -218,204 +218,207 @@ class MainActivity : AppCompatActivity() {
                 LocalActivity provides this@MainActivity,
                 LocalCjkTextOffsetEnabled provides settingsState.cjkTextOffsetEnabled,
             ) {
-            HrtTrackerTheme(
-                darkTheme = isDarkTheme,
-                dynamicColor = settingsState.adaptiveColorEnabled,
-                amoled = settingsState.pureBlackEnabled,
-            ) {
-                val navController = rememberNavController()
-                val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
-                val mainUiState by mainViewModel.uiState.collectAsStateWithLifecycle()
-                val onboardingUiState by onboardingViewModel.uiState.collectAsStateWithLifecycle()
-                val homeDeepLinkSignal by mainViewModel.homeDeepLinkSignal.collectAsStateWithLifecycle()
-                val context = LocalContext.current
-                val density = LocalDensity.current
-                val layoutDirection = LocalLayoutDirection.current
-                val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
-
-                LaunchedEffect(
-                    appLockUiState.isReady,
-                    mainUiState.homeDataReady,
-                    mainUiState.homeSource,
+                HrtTrackerTheme(
+                    darkTheme = isDarkTheme,
+                    dynamicColor = settingsState.adaptiveColorEnabled,
+                    amoled = settingsState.pureBlackEnabled,
                 ) {
-                    if (!appLockUiState.isReady || !mainUiState.homeDataReady) {
-                        return@LaunchedEffect
-                    }
-                    // Use the real wall clock rather than `mainUiState.now`,
-                    // which is truncated to the minute (the UI tick clock).
-                    // Scheduling exact alarms with a truncated now can place a
-                    // trigger up to 59s in the past, which AlarmManager fires
-                    // immediately -> a just-fired reminder/snooze re-fires when
-                    // the app is reopened within the same minute.
-                    val rescheduleNow = LocalDateTime.now()
-                    when (mainUiState.homeSource) {
-                        HomeInputSource.SNAPSHOT -> {
-                            diagnosticsLogger.info(
-                                TAG,
-                                "main_activity_home_data_ready source=snapshot now=$rescheduleNow"
-                            )
-                            startupPreloaderProvider.get()
-                                .startReminderRescheduleFromSnapshot(rescheduleNow)
-                        }
-                        HomeInputSource.ROOM -> {
-                            diagnosticsLogger.info(
-                                TAG,
-                                "main_activity_home_data_ready source=room now=$rescheduleNow"
-                            )
-                            startupPreloaderProvider.get()
-                                .startReminderRescheduleFromWarmDatabase(rescheduleNow)
-                        }
-                        null -> Unit
-                    }
-                }
+                    val navController = rememberNavController()
+                    val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
+                    val mainUiState by mainViewModel.uiState.collectAsStateWithLifecycle()
+                    val onboardingUiState by onboardingViewModel.uiState.collectAsStateWithLifecycle()
+                    val homeDeepLinkSignal by mainViewModel.homeDeepLinkSignal.collectAsStateWithLifecycle()
+                    val context = LocalContext.current
+                    val density = LocalDensity.current
+                    val layoutDirection = LocalLayoutDirection.current
+                    val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
 
-                LaunchedEffect(
-                    appLockUiState.isReady,
-                    appLockUiState.shouldShowLockScreen,
-                    mainUiState.homeDataReady,
-                ) {
-                    if (
-                        appLockUiState.isReady &&
-                        !appLockUiState.shouldShowLockScreen &&
-                        mainUiState.homeDataReady
+                    LaunchedEffect(
+                        appLockUiState.isReady,
+                        mainUiState.homeDataReady,
+                        mainUiState.homeSource,
                     ) {
-                        withFrameNanos { }
-                        diagnosticsLogger.info(TAG, "main_activity_first_home_frame_ready")
-                        startupPreloaderProvider.get().startAfterFirstHomeFrame()
+                        if (!appLockUiState.isReady || !mainUiState.homeDataReady) {
+                            return@LaunchedEffect
+                        }
+                        // Use the real wall clock rather than `mainUiState.now`,
+                        // which is truncated to the minute (the UI tick clock).
+                        // Scheduling exact alarms with a truncated now can place a
+                        // trigger up to 59s in the past, which AlarmManager fires
+                        // immediately -> a just-fired reminder/snooze re-fires when
+                        // the app is reopened within the same minute.
+                        val rescheduleNow = LocalDateTime.now()
+                        when (mainUiState.homeSource) {
+                            HomeInputSource.SNAPSHOT -> {
+                                diagnosticsLogger.info(
+                                    TAG,
+                                    "main_activity_home_data_ready source=snapshot now=$rescheduleNow"
+                                )
+                                startupPreloaderProvider.get()
+                                    .startReminderRescheduleFromSnapshot(rescheduleNow)
+                            }
+
+                            HomeInputSource.ROOM -> {
+                                diagnosticsLogger.info(
+                                    TAG,
+                                    "main_activity_home_data_ready source=room now=$rescheduleNow"
+                                )
+                                startupPreloaderProvider.get()
+                                    .startReminderRescheduleFromWarmDatabase(rescheduleNow)
+                            }
+
+                            null -> Unit
+                        }
                     }
-                }
 
-                AppAuthenticationPromptEffect(
-                    request = appLockUiState.pendingPrompt,
-                    onAuthenticated = appLockViewModel::onAuthenticationSucceeded,
-                    onError = appLockViewModel::onAuthenticationError
-                )
-
-                val homeShellReady = mainUiState.splashReady && onboardingUiState.isLoaded
-                val contentLayers = appLockContentLayers(
-                    appLockReady = appLockUiState.isReady,
-                    shouldShowLockScreen = appLockUiState.shouldShowLockScreen,
-                    homeShellReady = homeShellReady,
-                )
-                when {
-                    contentLayers.showInWindowLockScreen && !contentLayers.showHomeShell -> {
-                        BackHandler(enabled = true) { }
-                        AppLockScreen(
-                            errorMessageRes = appLockUiState.errorMessageRes,
-                            onUnlockClick = appLockViewModel::requestUnlock
-                        )
-                    }
-                    !contentLayers.showHomeShell -> Unit
-                    else -> {
-                        val hiddenHomeOffsetPx = sharedAxisXEnterOffset(
-                            slideDistancePx = sharedAxisXSlideDistancePx(density),
-                            forward = true,
-                            layoutDirection = layoutDirection,
-                        )
-                        val homeOffsetX by animateIntAsState(
-                            targetValue = if (onboardingUiState.shouldShowOnboarding) {
-                                hiddenHomeOffsetPx
-                            } else {
-                                0
-                            },
-                            animationSpec = tween(
-                                durationMillis = sharedAxisXTransitionDurationMillis,
-                                easing = sharedAxisXSlideEasing,
-                            ),
-                            label = "home-offset-x",
-                        )
-                        val homeAlpha by animateFloatAsState(
-                            targetValue = if (onboardingUiState.shouldShowOnboarding) 0f else 1f,
-                            animationSpec = tween(
-                                durationMillis = sharedAxisXTransitionDurationMillis,
-                                easing = if (onboardingUiState.shouldShowOnboarding) {
-                                    sharedAxisXExitFadeEasing
-                                } else {
-                                    sharedAxisXEnterFadeEasing
-                                },
-                            ),
-                            label = "home-alpha",
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surface)
+                    LaunchedEffect(
+                        appLockUiState.isReady,
+                        appLockUiState.shouldShowLockScreen,
+                        mainUiState.homeDataReady,
+                    ) {
+                        if (
+                            appLockUiState.isReady &&
+                            !appLockUiState.shouldShowLockScreen &&
+                            mainUiState.homeDataReady
                         ) {
+                            withFrameNanos { }
+                            diagnosticsLogger.info(TAG, "main_activity_first_home_frame_ready")
+                            startupPreloaderProvider.get().startAfterFirstHomeFrame()
+                        }
+                    }
+
+                    AppAuthenticationPromptEffect(
+                        request = appLockUiState.pendingPrompt,
+                        onAuthenticated = appLockViewModel::onAuthenticationSucceeded,
+                        onError = appLockViewModel::onAuthenticationError
+                    )
+
+                    val homeShellReady = mainUiState.splashReady && onboardingUiState.isLoaded
+                    val contentLayers = appLockContentLayers(
+                        appLockReady = appLockUiState.isReady,
+                        shouldShowLockScreen = appLockUiState.shouldShowLockScreen,
+                        homeShellReady = homeShellReady,
+                    )
+                    when {
+                        contentLayers.showInWindowLockScreen && !contentLayers.showHomeShell -> {
+                            BackHandler(enabled = true) { }
+                            AppLockScreen(
+                                errorMessageRes = appLockUiState.errorMessageRes,
+                                onUnlockClick = appLockViewModel::requestUnlock
+                            )
+                        }
+
+                        !contentLayers.showHomeShell -> Unit
+                        else -> {
+                            val hiddenHomeOffsetPx = sharedAxisXEnterOffset(
+                                slideDistancePx = sharedAxisXSlideDistancePx(density),
+                                forward = true,
+                                layoutDirection = layoutDirection,
+                            )
+                            val homeOffsetX by animateIntAsState(
+                                targetValue = if (onboardingUiState.shouldShowOnboarding) {
+                                    hiddenHomeOffsetPx
+                                } else {
+                                    0
+                                },
+                                animationSpec = tween(
+                                    durationMillis = sharedAxisXTransitionDurationMillis,
+                                    easing = sharedAxisXSlideEasing,
+                                ),
+                                label = "home-offset-x",
+                            )
+                            val homeAlpha by animateFloatAsState(
+                                targetValue = if (onboardingUiState.shouldShowOnboarding) 0f else 1f,
+                                animationSpec = tween(
+                                    durationMillis = sharedAxisXTransitionDurationMillis,
+                                    easing = if (onboardingUiState.shouldShowOnboarding) {
+                                        sharedAxisXExitFadeEasing
+                                    } else {
+                                        sharedAxisXEnterFadeEasing
+                                    },
+                                ),
+                                label = "home-alpha",
+                            )
+
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .graphicsLayer {
-                                        translationX = homeOffsetX.toFloat()
-                                        alpha = homeAlpha
-                                    }
-                                    .then(
-                                        if (contentLayers.showInWindowLockScreen) {
-                                            Modifier.clearAndSetSemantics { }
-                                        } else {
-                                            Modifier
+                                    .background(MaterialTheme.colorScheme.surface)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .graphicsLayer {
+                                            translationX = homeOffsetX.toFloat()
+                                            alpha = homeAlpha
                                         }
-                                    )
-                            ) {
-                                val highlightEffectsEnabled =
-                                    !contentLayers.showInWindowLockScreen &&
-                                        !onboardingUiState.shouldShowOnboarding
-                                HrtTrackerApp(
-                                    navController = navController,
-                                    homeDeepLinkSignal = homeDeepLinkSignal,
-                                    highlightEffectsEnabled = highlightEffectsEnabled,
-                                )
-                            }
-
-                            AnimatedVisibility(
-                                visible = onboardingUiState.shouldShowOnboarding,
-                                modifier = Modifier.fillMaxSize(),
-                                enter = sharedAxisXEnterTransition(
-                                    density = density,
-                                    layoutDirection = layoutDirection,
-                                    forward = false,
-                                ),
-                                exit = sharedAxisXExitTransition(
-                                    density = density,
-                                    layoutDirection = layoutDirection,
-                                    forward = true,
-                                ),
-                                label = "onboarding-overlay",
-                            ) {
-                                OnboardingScreen(
-                                    onOpenPrivacyPolicy = {
-                                        context.startActivity(
-                                            Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri())
+                                        .then(
+                                            if (contentLayers.showInWindowLockScreen) {
+                                                Modifier.clearAndSetSemantics { }
+                                            } else {
+                                                Modifier
+                                            }
                                         )
-                                    },
-                                    onCompleteEnabled = onboardingViewModel::completeWithRemindersEnabled,
-                                    onCompleteDeclined = onboardingViewModel::completeWithRemindersDeclined,
-                                )
-                            }
-
-                            BackHandler(enabled = contentLayers.showInWindowLockScreen) { }
-                            AnimatedVisibility(
-                                visible = contentLayers.showInWindowLockScreen,
-                                modifier = Modifier.fillMaxSize(),
-                                enter = EnterTransition.None,
-                                exit = fadeOut(
-                                    animationSpec = tween(
-                                        durationMillis = topLevelTransitionDurationMillis,
-                                        easing = topLevelFadeThroughExitEasing,
+                                ) {
+                                    val highlightEffectsEnabled =
+                                        !contentLayers.showInWindowLockScreen &&
+                                                !onboardingUiState.shouldShowOnboarding
+                                    HrtTrackerApp(
+                                        navController = navController,
+                                        homeDeepLinkSignal = homeDeepLinkSignal,
+                                        highlightEffectsEnabled = highlightEffectsEnabled,
                                     )
-                                ),
-                                label = "lock-overlay",
-                            ) {
-                                AppLockScreen(
-                                    errorMessageRes = appLockUiState.errorMessageRes,
-                                    onUnlockClick = appLockViewModel::requestUnlock,
+                                }
+
+                                AnimatedVisibility(
+                                    visible = onboardingUiState.shouldShowOnboarding,
                                     modifier = Modifier.fillMaxSize(),
-                                )
+                                    enter = sharedAxisXEnterTransition(
+                                        density = density,
+                                        layoutDirection = layoutDirection,
+                                        forward = false,
+                                    ),
+                                    exit = sharedAxisXExitTransition(
+                                        density = density,
+                                        layoutDirection = layoutDirection,
+                                        forward = true,
+                                    ),
+                                    label = "onboarding-overlay",
+                                ) {
+                                    OnboardingScreen(
+                                        onOpenPrivacyPolicy = {
+                                            context.startActivity(
+                                                Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri())
+                                            )
+                                        },
+                                        onCompleteEnabled = onboardingViewModel::completeWithRemindersEnabled,
+                                        onCompleteDeclined = onboardingViewModel::completeWithRemindersDeclined,
+                                    )
+                                }
+
+                                BackHandler(enabled = contentLayers.showInWindowLockScreen) { }
+                                AnimatedVisibility(
+                                    visible = contentLayers.showInWindowLockScreen,
+                                    modifier = Modifier.fillMaxSize(),
+                                    enter = EnterTransition.None,
+                                    exit = fadeOut(
+                                        animationSpec = tween(
+                                            durationMillis = topLevelTransitionDurationMillis,
+                                            easing = topLevelFadeThroughExitEasing,
+                                        )
+                                    ),
+                                    label = "lock-overlay",
+                                ) {
+                                    AppLockScreen(
+                                        errorMessageRes = appLockUiState.errorMessageRes,
+                                        onUnlockClick = appLockViewModel::requestUnlock,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
             }
         }
     }
@@ -432,7 +435,10 @@ class MainActivity : AppCompatActivity() {
             diagnosticsLogger.info(TAG, "main_activity_on_stop backgrounding=true")
             appLockViewModel.onBackgrounded()
         } else {
-            diagnosticsLogger.info(TAG, "main_activity_on_stop backgrounding=false reason=configuration_change")
+            diagnosticsLogger.info(
+                TAG,
+                "main_activity_on_stop backgrounding=false reason=configuration_change"
+            )
         }
         super.onStop()
     }
@@ -482,7 +488,7 @@ class MainActivity : AppCompatActivity() {
     private fun resolveSystemBarsDarkAppearance(resources: Resources): Boolean {
         val systemInDarkTheme =
             (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-                Configuration.UI_MODE_NIGHT_YES
+                    Configuration.UI_MODE_NIGHT_YES
         return settingsRepository.settingsState.value.darkModeOption
             .resolveDarkTheme(systemInDarkTheme)
     }
@@ -536,9 +542,11 @@ class MainActivity : AppCompatActivity() {
                 val entryUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_ENTRY_UUID) ?: return emptyList()
                 DoseRowHighlightKey.Manual(entryUuid)
             }
+
             HIGHLIGHT_KIND_SCHEDULED -> {
                 val groupUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_GROUP_UUID) ?: return emptyList()
-                val scheduledAt = intent.localDateTimeExtra(EXTRA_HIGHLIGHT_SCHEDULED_AT) ?: return emptyList()
+                val scheduledAt =
+                    intent.localDateTimeExtra(EXTRA_HIGHLIGHT_SCHEDULED_AT) ?: return emptyList()
                 DoseRowHighlightKey.Scheduled(
                     groupUuid = groupUuid,
                     scheduleTimeUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_SCHEDULE_TIME_UUID),
@@ -546,6 +554,7 @@ class MainActivity : AppCompatActivity() {
                     medicationUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_MEDICATION_UUID),
                 )
             }
+
             else -> return emptyList()
         }
         return listOf(key)

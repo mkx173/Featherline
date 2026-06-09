@@ -40,7 +40,10 @@ class MedicinesScreenLayoutTest {
     fun medicineManagerLaunchMode_resolvesGroupSlotForOtherResultKey() {
         assertEquals(
             MedicineManagerLaunchMode.GroupSlot("group-slot-1"),
-            medicineManagerLaunchMode(slotResultKey = "group-slot-1", manualLogResultKey = "manual"),
+            medicineManagerLaunchMode(
+                slotResultKey = "group-slot-1",
+                manualLogResultKey = "manual"
+            ),
         )
     }
 

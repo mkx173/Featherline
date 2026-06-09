@@ -29,7 +29,10 @@ class BackupCryptoTest {
             password = charArrayOf(),
         )
 
-        assertTrue(encryptedBytes.copyOfRange(0, BackupCrypto.MAGIC_BYTES.size).contentEquals(BackupCrypto.MAGIC_BYTES))
+        assertTrue(
+            encryptedBytes.copyOfRange(0, BackupCrypto.MAGIC_BYTES.size)
+                .contentEquals(BackupCrypto.MAGIC_BYTES)
+        )
         assertEquals(
             BackupCrypto.CURRENT_BACKUP_CONTAINER_VERSION.toByte(),
             encryptedBytes[BackupCrypto.MAGIC_BYTES.size],
@@ -81,7 +84,10 @@ class BackupCryptoTest {
             "Expected gzip v3 container (${v3EncryptedBytes.size} bytes) to be smaller than v2 (${v2EncryptedBytes.size} bytes).",
             v3EncryptedBytes.size < v2EncryptedBytes.size / 2,
         )
-        assertEquals(repeatedJson, backupCrypto.decrypt(v3EncryptedBytes, password).toString(Charsets.UTF_8))
+        assertEquals(
+            repeatedJson,
+            backupCrypto.decrypt(v3EncryptedBytes, password).toString(Charsets.UTF_8)
+        )
     }
 
     @Test

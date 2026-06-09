@@ -156,14 +156,17 @@ fun MedicineDetailScreen(
                 viewModel.clearArchiveResult()
                 onNavigateBack()
             }
+
             MedicineArchiveResult.FAILURE_REFERENCED_BY_ACTIVE_GROUP -> {
                 Toast.makeText(context, archiveBlockedMessage, Toast.LENGTH_SHORT).show()
                 viewModel.clearArchiveResult()
             }
+
             MedicineArchiveResult.FAILURE_OTHER -> {
                 Toast.makeText(context, archiveFailureMessage, Toast.LENGTH_SHORT).show()
                 viewModel.clearArchiveResult()
             }
+
             null -> Unit
         }
     }
@@ -179,7 +182,7 @@ fun MedicineDetailScreen(
             // flow shares this result type.
             MedicineStockMutationResult.SUCCESS,
             null,
-            -> Unit
+                -> Unit
         }
     }
 
@@ -908,7 +911,7 @@ private fun MedicineEditSheet(
             draft = draft,
             onDraftChange = { draft = it },
             showsUnitPicker = isCustom &&
-                draft.preparationType.hasRawMassDoseField(draft.patchSpecKind),
+                    draft.preparationType.hasRawMassDoseField(draft.patchSpecKind),
             enabled = !isLocked,
             focusRequesters = focusRequesters,
             editFields = editFields,
@@ -1040,7 +1043,10 @@ private fun PreparationEditorFields(
                 Column {
                     NumericInputField(
                         value = draft.singleUseVialStrengthMg,
-                        label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
+                        label = fieldLabelWithUnit(
+                            R.string.field_single_use_vial_strength_mg,
+                            rawMassUnit
+                        ),
                         suffix = stringResource(rawMassUnit),
                         leadingIconRes = R.drawable.ic_vaccines,
                         enabled = enabled,
@@ -1063,13 +1069,19 @@ private fun PreparationEditorFields(
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
                 NumericInputField(
                     value = draft.concentrationMgPerMl,
-                    label = fieldLabelWithUnit(R.string.field_concentration_mg_per_ml, R.string.unit_mg_per_ml),
+                    label = fieldLabelWithUnit(
+                        R.string.field_concentration_mg_per_ml,
+                        R.string.unit_mg_per_ml
+                    ),
                     suffix = stringResource(R.string.unit_mg_per_ml),
                     leadingIconRes = R.drawable.ic_humidity_percentage,
                     enabled = enabled,
                     onValueChange = { onDraftChange(draft.copy(concentrationMgPerMl = it)) },
                     focusRequester = focusRequesters.getValue(CreateMedicineField.CONCENTRATION_MG_PER_ML),
-                    imeAction = imeActionFor(editFields, CreateMedicineField.CONCENTRATION_MG_PER_ML),
+                    imeAction = imeActionFor(
+                        editFields,
+                        CreateMedicineField.CONCENTRATION_MG_PER_ML
+                    ),
                     onImeNext = onImeNextFor(CreateMedicineField.CONCENTRATION_MG_PER_ML),
                 )
                 NumericInputField(
@@ -1088,7 +1100,10 @@ private fun PreparationEditorFields(
             MedicinePreparationType.GEL_SACHET -> {
                 NumericInputField(
                     value = draft.gelConcentrationPercent,
-                    label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
+                    label = fieldLabelWithUnit(
+                        R.string.field_gel_concentration_percent,
+                        R.string.unit_percent
+                    ),
                     suffix = stringResource(R.string.unit_percent),
                     leadingIconRes = R.drawable.ic_humidity_percentage,
                     enabled = enabled,
@@ -1099,7 +1114,10 @@ private fun PreparationEditorFields(
                 )
                 NumericInputField(
                     value = draft.sachetWeightGrams,
-                    label = fieldLabelWithUnit(R.string.field_sachet_weight_grams, R.string.unit_grams),
+                    label = fieldLabelWithUnit(
+                        R.string.field_sachet_weight_grams,
+                        R.string.unit_grams
+                    ),
                     suffix = stringResource(R.string.unit_grams),
                     leadingIconRes = R.drawable.ic_weight,
                     enabled = enabled,
@@ -1113,7 +1131,10 @@ private fun PreparationEditorFields(
             MedicinePreparationType.GEL_CONTAINER -> {
                 NumericInputField(
                     value = draft.gelConcentrationPercent,
-                    label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
+                    label = fieldLabelWithUnit(
+                        R.string.field_gel_concentration_percent,
+                        R.string.unit_percent
+                    ),
                     suffix = stringResource(R.string.unit_percent),
                     leadingIconRes = R.drawable.ic_humidity_percentage,
                     enabled = enabled,
@@ -1124,7 +1145,10 @@ private fun PreparationEditorFields(
                 )
                 NumericInputField(
                     value = draft.containerWeightGrams,
-                    label = fieldLabelWithUnit(R.string.field_container_weight_grams, R.string.unit_grams),
+                    label = fieldLabelWithUnit(
+                        R.string.field_container_weight_grams,
+                        R.string.unit_grams
+                    ),
                     suffix = stringResource(R.string.unit_grams),
                     leadingIconRes = R.drawable.ic_weight,
                     enabled = enabled,
@@ -1163,7 +1187,10 @@ private fun PreparationEditorFields(
                         Column {
                             NumericInputField(
                                 value = draft.patchTotalMg,
-                                label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
+                                label = fieldLabelWithUnit(
+                                    R.string.field_patch_total_dosage_mg,
+                                    rawMassUnit
+                                ),
                                 suffix = stringResource(rawMassUnit),
                                 leadingIconRes = R.drawable.ic_chronic,
                                 enabled = enabled,
@@ -1171,7 +1198,10 @@ private fun PreparationEditorFields(
                                     onDraftChange(draft.copy(patchTotalMg = it))
                                 },
                                 focusRequester = focusRequesters.getValue(CreateMedicineField.PATCH_TOTAL_MG),
-                                imeAction = imeActionFor(editFields, CreateMedicineField.PATCH_TOTAL_MG),
+                                imeAction = imeActionFor(
+                                    editFields,
+                                    CreateMedicineField.PATCH_TOTAL_MG
+                                ),
                                 onImeNext = onImeNextFor(CreateMedicineField.PATCH_TOTAL_MG),
                             )
                             PreparationDoseUnitPicker(
@@ -1187,7 +1217,10 @@ private fun PreparationEditorFields(
 
                     PatchSpecKind.RELEASE_RATE -> NumericInputField(
                         value = draft.patchReleaseRateMcgPerDay,
-                        label = fieldLabelWithUnit(R.string.field_patch_release_rate, R.string.unit_mcg_day),
+                        label = fieldLabelWithUnit(
+                            R.string.field_patch_release_rate,
+                            R.string.unit_mcg_day
+                        ),
                         suffix = stringResource(R.string.unit_mcg_day),
                         leadingIconRes = R.drawable.ic_speed,
                         enabled = enabled,
@@ -1195,7 +1228,10 @@ private fun PreparationEditorFields(
                             onDraftChange(draft.copy(patchReleaseRateMcgPerDay = it))
                         },
                         focusRequester = focusRequesters.getValue(CreateMedicineField.PATCH_RELEASE_RATE),
-                        imeAction = imeActionFor(editFields, CreateMedicineField.PATCH_RELEASE_RATE),
+                        imeAction = imeActionFor(
+                            editFields,
+                            CreateMedicineField.PATCH_RELEASE_RATE
+                        ),
                         onImeNext = onImeNextFor(CreateMedicineField.PATCH_RELEASE_RATE),
                     )
                 }
@@ -1218,24 +1254,30 @@ private fun preparationEditFields(
 ): List<CreateMedicineField> = when (draft.preparationType) {
     MedicinePreparationType.PILL,
     MedicinePreparationType.CAPSULE -> listOf(CreateMedicineField.PILL_STRENGTH)
+
     MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
         listOf(CreateMedicineField.VIAL_STRENGTH)
+
     MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> listOf(
         CreateMedicineField.CONCENTRATION_MG_PER_ML,
         CreateMedicineField.VIAL_VOLUME_ML,
     )
+
     MedicinePreparationType.GEL_SACHET -> listOf(
         CreateMedicineField.GEL_PERCENT,
         CreateMedicineField.SACHET_WEIGHT,
     )
+
     MedicinePreparationType.GEL_CONTAINER -> listOf(
         CreateMedicineField.GEL_PERCENT,
         CreateMedicineField.CONTAINER_WEIGHT,
     )
+
     MedicinePreparationType.PATCH -> when (draft.patchSpecKind) {
         PatchSpecKind.TOTAL_MG -> listOf(CreateMedicineField.PATCH_TOTAL_MG)
         PatchSpecKind.RELEASE_RATE -> listOf(CreateMedicineField.PATCH_RELEASE_RATE)
     }
+
     MedicinePreparationType.PATCH_OFF -> emptyList()
 }
 
@@ -1345,8 +1387,10 @@ private fun inferApplicationType(medicine: Medicine): MedicationApplicationType 
         is MedicinePreparation.Capsule -> MedicationApplicationType.ORAL
         is MedicinePreparation.InjectionSingleUseVial,
         is MedicinePreparation.InjectionMultiUseVial -> MedicationApplicationType.INJECTION
+
         is MedicinePreparation.GelSachet,
         is MedicinePreparation.GelContainer -> MedicationApplicationType.GEL
+
         is MedicinePreparation.Patch -> MedicationApplicationType.PATCH_ON
         // Singleton row in the manager renders the patch-off icon.
         is MedicinePreparation.PatchOff -> MedicationApplicationType.PATCH_OFF

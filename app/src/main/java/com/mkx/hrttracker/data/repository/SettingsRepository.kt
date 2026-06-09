@@ -111,12 +111,12 @@ class SettingsRepository @Inject constructor(
     private val storedPreferences: Flow<Preferences> = flow {
         emitAll(activeDataStore().data)
     }.catch { cause ->
-            if (cause is IOException) {
-                emit(emptyPreferences())
-            } else {
-                throw cause
-            }
+        if (cause is IOException) {
+            emit(emptyPreferences())
+        } else {
+            throw cause
         }
+    }
 
     val onboardingCompleted: Flow<Boolean> = storedPreferences
         .map { it[onboardingCompletedKey] ?: false }
@@ -447,7 +447,8 @@ class SettingsRepository @Inject constructor(
             calibrationDefaultUnitKeys.values.forEach(preferences::remove)
             calibrationDefaultUnits.forEach { choice ->
                 if (choice.unit != BloodTestCatalog.canonicalUnitFor(choice.analyte)) {
-                    preferences[calibrationDefaultUnitKeys.getValue(choice.analyte)] = choice.unit.storageValue
+                    preferences[calibrationDefaultUnitKeys.getValue(choice.analyte)] =
+                        choice.unit.storageValue
                 }
             }
             if (homeE2DisplayUnit.unit == BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2)) {
@@ -528,7 +529,10 @@ class SettingsRepository @Inject constructor(
             lastSeenTimeZoneId = preferences[lastSeenTimeZoneIdKey],
             hideMedicationDetails = preferences[hideMedicationDetailsKey] ?: false,
             widgetContentScale = preferences[widgetContentScaleKey] ?: 1.0f,
-            widgetBackgroundAlpha = (preferences[widgetBackgroundAlphaKey] ?: 1.0f).coerceIn(0.5f, 1.0f),
+            widgetBackgroundAlpha = (preferences[widgetBackgroundAlphaKey] ?: 1.0f).coerceIn(
+                0.5f,
+                1.0f
+            ),
             widgetDarkModeOption = DarkModeOption.fromStorageValue(preferences[widgetDarkModeKey]),
             groupNameCounter = preferences[groupNameCounterKey] ?: 0,
             firstDayOfWeekOption = FirstDayOfWeekOption.fromStorageValue(preferences[firstDayOfWeekKey]),
@@ -573,8 +577,8 @@ class SettingsRepository @Inject constructor(
 
     private fun MedicineStockState.isHomeLowStockWarningState(): Boolean {
         return this == MedicineStockState.USER_LOW ||
-            this == MedicineStockState.IMMINENT ||
-            this == MedicineStockState.OUT
+                this == MedicineStockState.IMMINENT ||
+                this == MedicineStockState.OUT
     }
 
     private fun resolveHomeE2DisplayUnit(storedValue: String?): AllowedAnalyteUnit {

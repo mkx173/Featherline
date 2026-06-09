@@ -25,6 +25,7 @@ class MedicationReminderPlannerTest {
     // always mismatch and the test would never exercise the "skip fulfilled"
     // or "scan further" branches.
     private val estradiolMedicineUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
+
     @Test
     fun buildNextMedicationReminderPlans_returns_next_plan_for_enabled_groups() {
         val firstGroup = medicationGroup(

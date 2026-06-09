@@ -372,34 +372,41 @@ class BackupExportService @Inject constructor(
                 preparationType = type.name,
                 strengthMgPerTablet = strengthMgPerTablet,
             )
+
             is MedicinePreparation.Capsule -> BackupMedicineStorageFields(
                 preparationType = type.name,
                 strengthMgPerTablet = strengthMgPerCapsule,
             )
+
             is MedicinePreparation.InjectionSingleUseVial -> BackupMedicineStorageFields(
                 preparationType = type.name,
                 strengthMgPerVial = strengthMgPerVial,
             )
+
             is MedicinePreparation.InjectionMultiUseVial -> BackupMedicineStorageFields(
                 preparationType = type.name,
                 concentrationMgPerMl = concentrationMgPerMl,
                 vialVolumeMl = vialVolumeMl,
             )
+
             is MedicinePreparation.GelSachet -> BackupMedicineStorageFields(
                 preparationType = type.name,
                 concentrationPercent = concentrationPercent,
                 sachetWeightGrams = sachetWeightGrams,
             )
+
             is MedicinePreparation.GelContainer -> BackupMedicineStorageFields(
                 preparationType = type.name,
                 concentrationPercent = concentrationPercent,
                 containerWeightGrams = containerWeightGrams,
             )
+
             is MedicinePreparation.Patch -> when (val currentSpecification = specification) {
                 is MedicinePreparation.PatchSpecification.TotalMg -> BackupMedicineStorageFields(
                     preparationType = type.name,
                     patchTotalMg = currentSpecification.valueMg,
                 )
+
                 is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay -> BackupMedicineStorageFields(
                     preparationType = type.name,
                     patchReleaseRateMcgPerDay = currentSpecification.valueMcgPerDay,

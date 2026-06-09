@@ -285,7 +285,7 @@ class MedicineDetailViewModel @Inject constructor(
             if (_uiState.value.pendingEnableTracking) {
                 val medicine = _uiState.value.stockProjection?.medicine
                 val initialUnitsRemaining = (medicine?.stock?.unitsRemaining ?: 0.0) +
-                    received.unitsReceived
+                        received.unitsReceived
                 // The stock mutator owns container topology details, including
                 // auto-opening the first received container when no open amount
                 // exists. The sheet passes the counted total and leaves the open
@@ -407,6 +407,7 @@ class MedicineDetailViewModel @Inject constructor(
                     is MedicineLockedException -> MedicineDetailSaveResult.FAILURE_LOCKED
                     is MedicineIdentityCollisionException ->
                         MedicineDetailSaveResult.FAILURE_IDENTITY_COLLISION
+
                     else -> MedicineDetailSaveResult.FAILURE_OTHER
                 }
                 return@launch
@@ -436,6 +437,7 @@ class MedicineDetailViewModel @Inject constructor(
                 is MedicineLockedException -> MedicineDetailSaveResult.FAILURE_LOCKED
                 is MedicineIdentityCollisionException ->
                     MedicineDetailSaveResult.FAILURE_IDENTITY_COLLISION
+
                 else -> MedicineDetailSaveResult.FAILURE_OTHER
             }
         }
@@ -458,6 +460,7 @@ class MedicineDetailViewModel @Inject constructor(
                     archiveResultFlow.value = when (error) {
                         is MedicineReferencedByActiveGroupException ->
                             MedicineArchiveResult.FAILURE_REFERENCED_BY_ACTIVE_GROUP
+
                         else -> MedicineArchiveResult.FAILURE_OTHER
                     }
                 }

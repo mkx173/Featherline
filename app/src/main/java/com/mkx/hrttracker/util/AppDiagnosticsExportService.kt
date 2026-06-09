@@ -36,9 +36,10 @@ open class AppDiagnosticsExportService @Inject constructor(
                 appDiagnosticsText = logStore.readText(),
                 logcatCapture = logcatReader.readCurrentProcessLogs(maxChars = MAX_LOGCAT_CHARS),
             )
-            val outputStream = checkNotNull(context.contentResolver.openOutputStream(destinationUri)) {
-                "Unable to open diagnostics export destination."
-            }
+            val outputStream =
+                checkNotNull(context.contentResolver.openOutputStream(destinationUri)) {
+                    "Unable to open diagnostics export destination."
+                }
             outputStream.use { stream ->
                 stream.write(exportText.toByteArray(Charsets.UTF_8))
             }
@@ -120,7 +121,8 @@ open class AppDiagnosticsLogcatReader @Inject constructor() {
             if (exitCode != 0) {
                 AppDiagnosticsLogcatCapture(
                     text = "",
-                    unavailableReason = output.lineSequence().firstOrNull()?.takeIf(String::isNotBlank)
+                    unavailableReason = output.lineSequence().firstOrNull()
+                        ?.takeIf(String::isNotBlank)
                         ?: "logcat exited with code $exitCode",
                 )
             } else {

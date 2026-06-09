@@ -166,12 +166,13 @@ fun SettingsScreen(
     val isBackupRestoreInProgress = uiState.isBackupRestoreInProgress
     val pendingRestoreRequest = uiState.pendingRestoreRequest
     val pendingPreparedBackupExportState = uiState.pendingPreparedBackupExport
-    val pendingPreparedBackupExport = pendingPreparedBackupExportState?.let { preparedBackupExport ->
+    val pendingPreparedBackupExport =
+        pendingPreparedBackupExportState?.let { preparedBackupExport ->
             viewModel.restorePreparedBackupExport(
                 displayName = preparedBackupExport.displayName,
                 tempFilePath = preparedBackupExport.tempFilePath,
             )
-    }
+        }
     val isBackupFlowPending = pendingPreparedBackupExport != null
     val reminderNotificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
@@ -197,6 +198,7 @@ fun SettingsScreen(
                 is BackupRestoreEvent.Failure -> when (event.error) {
                     is IncompatibleBackupFileException,
                     is IllegalArgumentException -> R.string.settings_backup_restore_incompatible_file
+
                     else -> R.string.settings_backup_restore_failed
                 }
             }
@@ -241,7 +243,8 @@ fun SettingsScreen(
             viewModel.consumeSettingsMutationEvent()
         }
     }
-    val diagnosticsExportSuccessMessage = stringResource(R.string.settings_diagnostics_export_success)
+    val diagnosticsExportSuccessMessage =
+        stringResource(R.string.settings_diagnostics_export_success)
     val diagnosticsExportFailedMessage = stringResource(R.string.settings_diagnostics_export_failed)
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -459,7 +462,8 @@ fun SettingsScreen(
         }
     }
 
-    val isBackupActionBlocked = isBackupExportInProgress || isBackupRestoreInProgress || isBackupFlowPending
+    val isBackupActionBlocked =
+        isBackupExportInProgress || isBackupRestoreInProgress || isBackupFlowPending
 
     SettingsScreenContent(
         uiState = uiState,
@@ -613,8 +617,26 @@ internal fun WidgetAppearanceDialog(
     onAppearanceChange: (Float, Float, DarkModeOption) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var localContentScale by remember { mutableStateOf(snapToWholePercent(contentScale.coerceIn(0.5f, 1.5f))) }
-    var localBackgroundAlpha by remember { mutableStateOf(snapToWholePercent(backgroundAlpha.coerceIn(0.5f, 1f))) }
+    var localContentScale by remember {
+        mutableStateOf(
+            snapToWholePercent(
+                contentScale.coerceIn(
+                    0.5f,
+                    1.5f
+                )
+            )
+        )
+    }
+    var localBackgroundAlpha by remember {
+        mutableStateOf(
+            snapToWholePercent(
+                backgroundAlpha.coerceIn(
+                    0.5f,
+                    1f
+                )
+            )
+        )
+    }
     var localDarkModeOption by remember { mutableStateOf(darkModeOption) }
     var isDarkModeMenuExpanded by remember { mutableStateOf(false) }
     AlertDialog(
@@ -687,7 +709,8 @@ internal fun WidgetAppearanceDialog(
                                 .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            val widgetDarkModeLabelText = stringResource(localDarkModeOption.labelRes)
+                            val widgetDarkModeLabelText =
+                                stringResource(localDarkModeOption.labelRes)
                             Text(
                                 text = widgetDarkModeLabelText,
                                 style = MaterialTheme.typography.bodyMedium,
@@ -825,6 +848,7 @@ internal fun SettingsScreenContent(
         pendingExternalUrl = url
         pendingExternalLinkTitleRes = titleRes
     }
+
     val scrollState = rememberScrollState()
     val weightSummary = formatWeightSummary(uiState.userProfile)
     val appLanguageOption = AppLanguageOption.fromLocale(rememberAppLocale())
@@ -1522,13 +1546,23 @@ internal fun SettingsScreenContent(
                                     firstVersionTapAt = 0L
                                     lastCopiedToast?.cancel()
                                     lastCopiedToast = null
-                                    Toast.makeText(context, easterEggMessage, Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, easterEggMessage, Toast.LENGTH_SHORT)
+                                        .show()
                                 } else if (now - lastAppInfoCopiedAt >= VERSION_COPY_THROTTLE_MS) {
                                     context.getSystemService(ClipboardManager::class.java)
-                                        ?.setPrimaryClip(ClipData.newPlainText(appName, appInfoCopyText))
+                                        ?.setPrimaryClip(
+                                            ClipData.newPlainText(
+                                                appName,
+                                                appInfoCopyText
+                                            )
+                                        )
                                     lastAppInfoCopiedAt = now
                                     lastCopiedToast?.cancel()
-                                    lastCopiedToast = Toast.makeText(context, copyAppInfoMessage, Toast.LENGTH_SHORT)
+                                    lastCopiedToast = Toast.makeText(
+                                        context,
+                                        copyAppInfoMessage,
+                                        Toast.LENGTH_SHORT
+                                    )
                                         .also { it.show() }
                                 }
                             },
@@ -1590,7 +1624,12 @@ internal fun SettingsScreenContent(
                     onClick = {
                         when {
                             externalUrl != null -> {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, externalUrl.toUri()))
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        externalUrl.toUri()
+                                    )
+                                )
                             }
 
                             showFeedbackEmailDialog -> {

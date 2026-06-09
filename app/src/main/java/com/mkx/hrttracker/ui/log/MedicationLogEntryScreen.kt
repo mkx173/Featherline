@@ -82,6 +82,7 @@ fun MedicationLogEntryScreen(
                 sourceGroupPreviousScheduledFor = quickLogRequest.sourceGroupPreviousScheduledFor,
                 sourceGroupNextScheduledFor = quickLogRequest.sourceGroupNextScheduledFor,
             )
+
             else -> viewModel.initialize(
                 entryIds = entryIds,
                 editSnapshot = editSnapshot,

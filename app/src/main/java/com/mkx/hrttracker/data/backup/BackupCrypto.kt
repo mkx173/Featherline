@@ -134,6 +134,7 @@ class BackupCrypto internal constructor(
                             parsedContainer.uncompressedLengthBytes
                         ),
                     )
+
                     else -> error("Unexpected backup compression: ${parsedContainer.compressionType}.")
                 }
             } finally {

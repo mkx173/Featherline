@@ -28,14 +28,17 @@ data class MedicineSlotResult(
                 putInt(KEY_TABLET_NUMERATOR, instruction.numerator)
                 putInt(KEY_TABLET_DENOMINATOR, instruction.denominator)
             }
+
             is DoseInstruction.VolumeMl -> {
                 putString(KEY_DOSE_KIND, DOSE_KIND_VOLUME_ML)
                 putDouble(KEY_VOLUME_ML, instruction.valueMl)
             }
+
             is DoseInstruction.WeightGrams -> {
                 putString(KEY_DOSE_KIND, DOSE_KIND_WEIGHT_GRAMS)
                 putDouble(KEY_WEIGHT_GRAMS, instruction.valueGrams)
             }
+
             DoseInstruction.WholeUnit -> putString(KEY_DOSE_KIND, DOSE_KIND_WHOLE_UNIT)
             DoseInstruction.Noop -> putString(KEY_DOSE_KIND, DOSE_KIND_NOOP)
         }
@@ -57,12 +60,15 @@ data class MedicineSlotResult(
                     numerator = bundle.getInt(KEY_TABLET_NUMERATOR),
                     denominator = bundle.getInt(KEY_TABLET_DENOMINATOR),
                 )
+
                 DOSE_KIND_VOLUME_ML -> DoseInstruction.VolumeMl(
                     valueMl = bundle.getDouble(KEY_VOLUME_ML),
                 )
+
                 DOSE_KIND_WEIGHT_GRAMS -> DoseInstruction.WeightGrams(
                     valueGrams = bundle.getDouble(KEY_WEIGHT_GRAMS),
                 )
+
                 DOSE_KIND_WHOLE_UNIT -> DoseInstruction.WholeUnit
                 DOSE_KIND_NOOP -> DoseInstruction.Noop
                 else -> return null

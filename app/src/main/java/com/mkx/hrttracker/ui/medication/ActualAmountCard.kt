@@ -236,8 +236,8 @@ internal fun ActualAmountRulerCard(
     // button stays visually enabled during an in-flight save (the onClick is
     // guarded instead), so it doesn't grey-flicker while saving.
     val resetEnabled = !programmaticScrollInProgress &&
-        (listState.isScrollInProgress ||
-            abs(liveDelta) >= DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON)
+            (listState.isScrollInProgress ||
+                    abs(liveDelta) >= DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON)
     val resetContentDescription = stringResource(R.string.medication_log_actual_amount_reset)
 
     EditorSegmentedListItem(
@@ -247,7 +247,9 @@ internal fun ActualAmountRulerCard(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // Header: label + signed delta on the left; reset then the live
@@ -308,7 +310,9 @@ internal fun ActualAmountRulerCard(
                                     }
                                 }
                             },
-                            modifier = Modifier.size(36.dp).offset(x = 4.dp),
+                            modifier = Modifier
+                                .size(36.dp)
+                                .offset(x = 4.dp),
                             colors = IconButtonDefaults.iconButtonColors(
                                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -370,7 +374,9 @@ internal fun ActualAmountRulerCard(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
                                 Box(
-                                    modifier = Modifier.height(tickAreaHeight).fillMaxWidth(),
+                                    modifier = Modifier
+                                        .height(tickAreaHeight)
+                                        .fillMaxWidth(),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Box(
@@ -486,7 +492,9 @@ internal fun ActualAmountReadOnlyCard(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -498,7 +506,7 @@ internal fun ActualAmountReadOnlyCard(
                 )
                 Text(
                     text = "${formatActualAmount(scheduledDoseAmount)} $unitText " +
-                        "(${formatSignedActualAmountDelta(doseAmountDelta)} $unitText)",
+                            "(${formatSignedActualAmountDelta(doseAmountDelta)} $unitText)",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -547,7 +555,7 @@ private fun formatActualAmount(value: Double): String {
 
 private fun actualAmountDeltasEquivalent(first: Double?, second: Double?): Boolean {
     return abs((first ?: 0.0) - (second ?: 0.0)) <
-        DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON
+            DoseInstructionCalculator.MIN_EFFECTIVE_DOSE_EPSILON
 }
 
 internal fun actualAmountRulerOverscrollScale(
@@ -574,9 +582,9 @@ private class ActualAmountRulerOverscrollEffect(
 
         if (source == UserInput && unconsumedX != 0f) {
             overscrollPx.floatValue = (
-                overscrollPx.floatValue +
-                    unconsumedX * ACTUAL_AMOUNT_RULER_OVERSCROLL_PULL_DAMPING
-                ).coerceIn(-maxOverscrollPx, maxOverscrollPx)
+                    overscrollPx.floatValue +
+                            unconsumedX * ACTUAL_AMOUNT_RULER_OVERSCROLL_PULL_DAMPING
+                    ).coerceIn(-maxOverscrollPx, maxOverscrollPx)
             return consumed + Offset(x = unconsumedX, y = 0f)
         }
 

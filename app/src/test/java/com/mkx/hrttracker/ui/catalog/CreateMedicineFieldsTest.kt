@@ -69,7 +69,7 @@ class CreateMedicineFieldsTest {
 
         assertTrue(
             fields.contains(CreateMedicineField.PATCH_RELEASE_RATE) &&
-                !fields.contains(CreateMedicineField.PATCH_TOTAL_MG)
+                    !fields.contains(CreateMedicineField.PATCH_TOTAL_MG)
         )
     }
 

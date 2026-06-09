@@ -401,6 +401,7 @@ fun OnboardingScreen(
                                 animationPlayed = startAnimationPlayed,
                                 onAnimationPlayed = { startAnimationPlayed = true },
                             )
+
                             1 -> DisclaimerStep(
                                 accepted = accepted,
                                 onAcceptedChange = { accepted = it },
@@ -408,6 +409,7 @@ fun OnboardingScreen(
                                 onReadToBottom = { disclaimerReadToBottom = true },
                                 onOpenPrivacyPolicy = onOpenPrivacyPolicy,
                             )
+
                             2 -> NotificationsStep(
                                 notificationsGranted = notificationsGranted,
                                 exactAlarmGranted = exactAlarmGranted,
@@ -455,11 +457,17 @@ fun OnboardingScreen(
                                                 notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                             }
                                         }
+
                                         OnboardingNotificationPermissionAction.OPEN_NOTIFICATION_SETTINGS -> {
-                                            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                            val intent =
+                                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                                    .putExtra(
+                                                        Settings.EXTRA_APP_PACKAGE,
+                                                        context.packageName
+                                                    )
                                             context.startActivity(intent)
                                         }
+
                                         OnboardingNotificationPermissionAction.SHOW_UNAVAILABLE_TOAST -> {
                                             Toast.makeText(
                                                 context,
@@ -479,6 +487,7 @@ fun OnboardingScreen(
                                     }
                                 },
                             )
+
                             3 -> UsefulInfoStep(
                                 profile = uiState.userProfile,
                                 activeGroupCount = uiState.activeGroupCount,
@@ -873,7 +882,12 @@ private fun AppIconHero(
         ) {
             val scale = (size.minDimension / FEATHER_VIEWPORT) * FEATHER_ICON_SCALE
             val segment = android.graphics.Path()
-            pathMeasure.getSegment((1f - drawProgress.value) * pathLength, pathLength, segment, true)
+            pathMeasure.getSegment(
+                (1f - drawProgress.value) * pathLength,
+                pathLength,
+                segment,
+                true
+            )
             withTransform({
                 translate(size.width / 2f, size.height / 2f)
                 scale(scale, scale, pivot = Offset.Zero)
@@ -897,13 +911,17 @@ private fun AppIconHero(
                 painter = painterResource(R.mipmap.ic_launcher_background),
                 contentDescription = null,
                 contentScale = ContentScale.FillBounds,
-                modifier = Modifier.fillMaxSize().scale(FEATHER_ICON_SCALE)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .scale(FEATHER_ICON_SCALE)
             )
 
             Image(
                 painter = painterResource(R.drawable.ic_launcher_foreground),
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize().scale(FEATHER_ICON_SCALE)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .scale(FEATHER_ICON_SCALE)
             )
         }
     }
@@ -1128,7 +1146,9 @@ private fun AcceptanceCheckbox(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = textColor,
-            modifier = Modifier.padding(start = 8.dp).cjkTextOffset(label),
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .cjkTextOffset(label),
         )
     }
 }
@@ -1164,10 +1184,13 @@ private fun NotificationsStep(
                 when {
                     showNotificationPermissionCard && showExactAlarmCard ->
                         R.string.onboarding_notifications_subtitle
+
                     showNotificationPermissionCard ->
                         R.string.onboarding_notifications_permission_subtitle
+
                     showExactAlarmCard ->
                         R.string.onboarding_notifications_master_alarm_subtitle
+
                     else ->
                         R.string.onboarding_notifications_master_subtitle
                 }
@@ -1327,7 +1350,9 @@ private fun PermissionCard(
                         text = title,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.alignByBaseline().cjkTextOffset(title)
+                        modifier = Modifier
+                            .alignByBaseline()
+                            .cjkTextOffset(title)
                     )
                     if (optional) {
                         Spacer(modifier = Modifier.width(8.dp))
@@ -1335,7 +1360,9 @@ private fun PermissionCard(
                             text = stringResource(R.string.onboarding_notifications_optional),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.alignByBaseline().cjkTextOffset(stringResource(R.string.onboarding_notifications_optional))
+                            modifier = Modifier
+                                .alignByBaseline()
+                                .cjkTextOffset(stringResource(R.string.onboarding_notifications_optional))
                         )
                     }
                 }

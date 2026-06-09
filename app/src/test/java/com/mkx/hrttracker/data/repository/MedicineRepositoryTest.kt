@@ -70,7 +70,7 @@ class MedicineRepositoryTest {
         every { ToastManager.showMessage(any()) } just Runs
 
         every { context.getString(R.string.medicine_already_exists) } returns
-            duplicateMedicineMessage
+                duplicateMedicineMessage
         every { databaseHolder.databaseFlow } returns MutableStateFlow(null)
         every { databaseHolder.get() } returns database
         every { database.medicineDao() } returns dao
@@ -439,7 +439,8 @@ class MedicineRepositoryTest {
         observedEntity.value = medicineEntity(uuid = "not-a-uuid")
         advanceUntilIdle()
 
-        observedEntity.value = medicineEntity(uuid = uuid.toString()).copy(displayName = "Recovered")
+        observedEntity.value =
+            medicineEntity(uuid = uuid.toString()).copy(displayName = "Recovered")
         advanceUntilIdle()
 
         assertEquals(

@@ -7,7 +7,10 @@ class MedicationGroupColorKeyTest {
     @Test
     fun fromStorageValue_falls_back_to_rose_for_unknown_values() {
         assertEquals(MedicationGroupColorKey.ROSE, MedicationGroupColorKey.fromStorageValue(null))
-        assertEquals(MedicationGroupColorKey.ROSE, MedicationGroupColorKey.fromStorageValue("UNKNOWN"))
+        assertEquals(
+            MedicationGroupColorKey.ROSE,
+            MedicationGroupColorKey.fromStorageValue("UNKNOWN")
+        )
     }
 
     @Test

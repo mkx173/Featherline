@@ -201,7 +201,9 @@ class MedicationLogEntryViewModel @Inject constructor(
                         sourceGroupName = group.name,
                         sourceGroupColorKey = group.colorKey,
                         sourceGroupIsArchived = group.isArchived(),
-                        sourceGroupPreviousScheduledFor = group.previousScheduledForBefore(scheduledFor),
+                        sourceGroupPreviousScheduledFor = group.previousScheduledForBefore(
+                            scheduledFor
+                        ),
                         sourceGroupNextScheduledFor = group.nextScheduledForAfter(scheduledFor),
                         isLoading = false,
                     )
@@ -295,7 +297,10 @@ class MedicationLogEntryViewModel @Inject constructor(
             return
         }
 
-        if (!skipFulfillmentWarning && currentState.shouldWarnScheduleWillNotBeFulfilled(appliedAtLocal)) {
+        if (!skipFulfillmentWarning && currentState.shouldWarnScheduleWillNotBeFulfilled(
+                appliedAtLocal
+            )
+        ) {
             _uiState.update {
                 it.copy(
                     errorMessageRes = null,
@@ -370,14 +375,15 @@ class MedicationLogEntryViewModel @Inject constructor(
             }
             // Snapshot stock before the deduction so a new-insert warning only
             // fires when this log worsens the medicine's tier (edits never warn).
-            val beforeStockStates = if (request.editingEntryUuids.isEmpty() && medicineUuid != null) {
-                captureStockStatesForLog(
-                    medicineStockRepository = medicineStockRepository,
-                    now = Instant.now(),
-                )
-            } else {
-                emptyMap()
-            }
+            val beforeStockStates =
+                if (request.editingEntryUuids.isEmpty() && medicineUuid != null) {
+                    captureStockStatesForLog(
+                        medicineStockRepository = medicineStockRepository,
+                        now = Instant.now(),
+                    )
+                } else {
+                    emptyMap()
+                }
             val saveResult = runCatching {
                 // On edit the repository ignores medicine identity (locked); on a
                 // new log the routed picker already resolved a Medicine UUID.
@@ -607,7 +613,7 @@ class MedicationLogEntryViewModel @Inject constructor(
             ) ?: editSnapshot
                 ?.toEditingUiState()
                 ?.copy(isLoading = false)
-                ?: MedicationLogEntryUiState()
+                    ?: MedicationLogEntryUiState()
             _uiState.value = _uiState.value.withSelectedStockProjection()
         }
     }
@@ -688,17 +694,17 @@ data class MedicationLogEntryUiState(
     // New logs of measured forms get the interactive stepper.
     val allowsActualDoseDelta: Boolean
         get() = !isEditing &&
-            isActualDoseDeltaCapableForm &&
-            scheduledNativeAmount != null
+                isActualDoseDeltaCapableForm &&
+                scheduledNativeAmount != null
 
     // Reopening a logged measured dose that was adjusted shows the planned
     // amount and its delta read-only (the delta is frozen at log time and is
     // not re-editable). Only single-entry edits carry a delta into state.
     val showActualDoseDeltaReadOnly: Boolean
         get() = isEditing &&
-            (doseAmountDelta ?: 0.0) != 0.0 &&
-            isActualDoseDeltaCapableForm &&
-            scheduledNativeAmount != null
+                (doseAmountDelta ?: 0.0) != 0.0 &&
+                isActualDoseDeltaCapableForm &&
+                scheduledNativeAmount != null
 
     val effectiveActualAmount: Double?
         get() {
@@ -720,10 +726,13 @@ data class MedicationLogEntryUiState(
                     } else {
                         null
                     }
+
                 is MedicinePreparation.InjectionMultiUseVial ->
                     (instruction as? DoseInstruction.VolumeMl)?.valueMl
+
                 is MedicinePreparation.GelContainer ->
                     (instruction as? DoseInstruction.WeightGrams)?.valueGrams
+
                 else -> null
             }
         }
@@ -796,9 +805,9 @@ enum class DeleteEntryResult {
 
 internal fun isMedicationLogEntryBusy(uiState: MedicationLogEntryUiState): Boolean {
     return uiState.isLoading ||
-        uiState.isSaving ||
-        uiState.isDeleting ||
-        uiState.isSaved
+            uiState.isSaving ||
+            uiState.isDeleting ||
+            uiState.isSaved
 }
 
 internal fun normalizeEditingEntryIds(entryIds: Collection<String>): List<String> {
@@ -811,9 +820,9 @@ internal fun isActualDoseDeltaForm(
     preparationType: MedicinePreparationType?,
     applicationType: MedicationApplicationType,
 ): Boolean = applicationType.isCompatibleWith(preparationType) &&
-    (preparationType == MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ||
-        preparationType == MedicinePreparationType.INJECTION_MULTI_USE_VIAL ||
-        preparationType == MedicinePreparationType.GEL_CONTAINER)
+        (preparationType == MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ||
+                preparationType == MedicinePreparationType.INJECTION_MULTI_USE_VIAL ||
+                preparationType == MedicinePreparationType.GEL_CONTAINER)
 
 internal fun buildEditingUiState(
     entries: List<MedicationLogEntry>,
@@ -831,7 +840,7 @@ internal fun buildEditingUiState(
         group.uuid == representativeEntry.sourceGroupUuid
     }
     val hasMatchingSourceGroupSnapshot = representativeEntry.sourceGroupUuid != null &&
-        !sourceGroupName.isNullOrBlank()
+            !sourceGroupName.isNullOrBlank()
 
     return MedicationLogEntryUiState(
         editingEntryIds = editableEntries.map { entry -> entry.uuid.toString() },
@@ -1001,13 +1010,13 @@ internal fun canBulkEditTogether(entries: List<MedicationLogEntry>): Boolean {
     val firstEntry = entries.first()
     return entries.all { entry ->
         entry.medicineUuid == firstEntry.medicineUuid &&
-            entry.applicationType == firstEntry.applicationType &&
-            entry.doseInstruction == firstEntry.doseInstruction &&
-            entry.sourceGroupUuid == firstEntry.sourceGroupUuid &&
-            entry.scheduleTimeUuid == firstEntry.scheduleTimeUuid &&
-            entry.appliedAt == firstEntry.appliedAt &&
-            entry.scheduledFor == firstEntry.scheduledFor &&
-            entry.count == firstEntry.count
+                entry.applicationType == firstEntry.applicationType &&
+                entry.doseInstruction == firstEntry.doseInstruction &&
+                entry.sourceGroupUuid == firstEntry.sourceGroupUuid &&
+                entry.scheduleTimeUuid == firstEntry.scheduleTimeUuid &&
+                entry.appliedAt == firstEntry.appliedAt &&
+                entry.scheduledFor == firstEntry.scheduledFor &&
+                entry.count == firstEntry.count
     }
 }
 

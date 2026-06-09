@@ -27,7 +27,8 @@ fun HrtTrackerTheme(
         // Unremembered on purpose so a wallpaper/accent change flows through on recomposition;
         // only the active mode is built, not both.
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val base = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            val base =
+                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
             if (darkTheme && amoled) base.amoled() else base
         }
 

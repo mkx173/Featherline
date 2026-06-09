@@ -17,16 +17,22 @@ class AppLockSecurityManager @Inject constructor(
             BiometricManager.BIOMETRIC_SUCCESS -> null
             BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
                 R.string.screen_lock_auth_unavailable_no_hardware
+
             BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
                 R.string.screen_lock_auth_unavailable_hw
+
             BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
                 R.string.screen_lock_auth_unavailable_none_enrolled
+
             BiometricManager.BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED ->
                 R.string.screen_lock_auth_unavailable_security_update
+
             BiometricManager.BIOMETRIC_ERROR_UNSUPPORTED ->
                 R.string.screen_lock_auth_unavailable_generic
+
             BiometricManager.BIOMETRIC_STATUS_UNKNOWN ->
                 R.string.screen_lock_auth_unavailable_generic
+
             else -> R.string.screen_lock_auth_unavailable_generic
         }
     }
@@ -36,14 +42,18 @@ class AppLockSecurityManager @Inject constructor(
             BiometricPrompt.ERROR_NEGATIVE_BUTTON,
             BiometricPrompt.ERROR_USER_CANCELED,
             BiometricPrompt.ERROR_CANCELED -> null
+
             BiometricPrompt.ERROR_HW_UNAVAILABLE ->
                 R.string.screen_lock_auth_unavailable_hw
+
             BiometricPrompt.ERROR_NO_BIOMETRICS,
             BiometricPrompt.ERROR_NO_DEVICE_CREDENTIAL ->
                 R.string.screen_lock_auth_unavailable_none_enrolled
+
             BiometricPrompt.ERROR_LOCKOUT,
             BiometricPrompt.ERROR_LOCKOUT_PERMANENT ->
                 R.string.screen_lock_auth_locked_out
+
             else -> R.string.screen_lock_auth_failed
         }
     }
@@ -51,6 +61,6 @@ class AppLockSecurityManager @Inject constructor(
     companion object {
         const val ALLOWED_AUTHENTICATORS: Int =
             BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                    BiometricManager.Authenticators.DEVICE_CREDENTIAL
     }
 }

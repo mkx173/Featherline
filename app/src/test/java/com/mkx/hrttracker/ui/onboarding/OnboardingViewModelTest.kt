@@ -81,16 +81,17 @@ class OnboardingViewModelTest {
     }
 
     @Test
-    fun setRemindersEnabledDuringOnboarding_enablesMasterSwitchWithoutCompletingOnboarding() = runTest {
-        val viewModel = createViewModel()
+    fun setRemindersEnabledDuringOnboarding_enablesMasterSwitchWithoutCompletingOnboarding() =
+        runTest {
+            val viewModel = createViewModel()
 
-        viewModel.setRemindersEnabledDuringOnboarding(true)
-        advanceUntilIdle()
+            viewModel.setRemindersEnabledDuringOnboarding(true)
+            advanceUntilIdle()
 
-        coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(true) }
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
-        coVerify(exactly = 0) { settingsRepository.setOnboardingCompleted(any()) }
-    }
+            coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(true) }
+            coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+            coVerify(exactly = 0) { settingsRepository.setOnboardingCompleted(any()) }
+        }
 
     @Test
     fun setRemindersEnabledDuringOnboarding_disablesMasterSwitchWithoutRescheduling() = runTest {

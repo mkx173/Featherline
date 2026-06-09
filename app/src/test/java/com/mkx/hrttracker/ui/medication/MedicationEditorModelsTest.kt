@@ -99,7 +99,10 @@ class MedicationEditorModelsTest {
 
         assertEquals(MedicinePreparationForm.INJECTION, draft.form)
         assertEquals(MedicationApplicationType.INJECTION, draft.catalogFilterApplicationType)
-        assertEquals(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL, draft.inferredOrSelectedPreparationType())
+        assertEquals(
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+            draft.inferredOrSelectedPreparationType()
+        )
     }
 
     @Test

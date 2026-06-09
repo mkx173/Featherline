@@ -66,7 +66,8 @@ class WidgetSnapshotBuilderTest {
             zoneId = zoneId,
         )
 
-        val todayRow = snapshot.doseRows.first { row -> row.contextChip == null && !row.isManualRecord }
+        val todayRow =
+            snapshot.doseRows.first { row -> row.contextChip == null && !row.isManualRecord }
         assertEquals("Bicalutamide", todayRow.medicationName)
         // Pill at count=1 with TabletFraction(1, 1): "1 tablet" portion suppressed; only active mg shown.
         assertEquals("2 mg", todayRow.doseText)
@@ -170,7 +171,11 @@ class WidgetSnapshotBuilderTest {
             timeH = listOf(0.0, 1.0),
             concentrations = listOf(100.0, 90.0),
             doseMarkers = listOf(
-                HomePkProjectionDoseMarkerRecord(timeH = 0.5, concentration = 95.0, isPlanned = false)
+                HomePkProjectionDoseMarkerRecord(
+                    timeH = 0.5,
+                    concentration = 95.0,
+                    isPlanned = false
+                )
             ),
             latestEstradiolEntry = null,
             chartWindowHours = 168,

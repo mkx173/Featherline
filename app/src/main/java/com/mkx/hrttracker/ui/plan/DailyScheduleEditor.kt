@@ -63,8 +63,8 @@ internal fun DailyScheduleEditor(
     shapeLocked: Boolean = false,
 ) {
     val totalCount = 3 +
-        (if (previewOccurrences.isNotEmpty()) 1 else 0) +
-        (if (pastScheduleSelectorState != null) 1 else 0)
+            (if (previewOccurrences.isNotEmpty()) 1 else 0) +
+            (if (pastScheduleSelectorState != null) 1 else 0)
     var itemIndex = 0
     Column {
         EditorFieldRow(

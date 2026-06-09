@@ -79,6 +79,7 @@ class MedicineStockRepository @Inject constructor(
                         isLive = true,
                     )
                 }
+
                 snapshot != null -> {
                     ProjectionsCache(
                         projections = projectAll(
@@ -94,6 +95,7 @@ class MedicineStockRepository @Inject constructor(
                         isLive = false,
                     )
                 }
+
                 else -> null
             }
         }
@@ -248,8 +250,9 @@ class MedicineStockRepository @Inject constructor(
         val units = medicine.stock.unitsRemaining ?: 0.0
         return when (medicine.preparation.type) {
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
-                val volumePerVial = (medicine.preparation as? MedicinePreparation.InjectionMultiUseVial)
-                    ?.vialVolumeMl ?: 0.0
+                val volumePerVial =
+                    (medicine.preparation as? MedicinePreparation.InjectionMultiUseVial)
+                        ?.vialVolumeMl ?: 0.0
                 (medicine.stock.openContainerAmount ?: 0.0) + units * volumePerVial
             }
 
@@ -330,8 +333,8 @@ class MedicineStockRepository @Inject constructor(
         return logEntries.filter { entry ->
             val scheduledFor = entry.scheduledFor ?: return@filter false
             entry.sourceGroupUuid != null &&
-                !scheduledFor.isBefore(start) &&
-                !scheduledFor.isAfter(end)
+                    !scheduledFor.isBefore(start) &&
+                    !scheduledFor.isAfter(end)
         }
     }
 

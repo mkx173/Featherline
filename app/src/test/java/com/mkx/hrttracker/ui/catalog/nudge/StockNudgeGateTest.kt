@@ -69,12 +69,13 @@ class StockNudgeGateTest {
     }
 
     @Test
-    fun `fourth X dismissal after auto-disable does not report just disabled`() = runTest(testDispatcher) {
-        repeat(3) { gate.onDismissedViaX() }
+    fun `fourth X dismissal after auto-disable does not report just disabled`() =
+        runTest(testDispatcher) {
+            repeat(3) { gate.onDismissedViaX() }
 
-        assertEquals(false, gate.onDismissedViaX())
-        assertEquals(false, settings.stockNudgeEnabledFlow.first())
-    }
+            assertEquals(false, gate.onDismissedViaX())
+            assertEquals(false, settings.stockNudgeEnabledFlow.first())
+        }
 
     @Test
     fun `voluntarily re-enabling keeps the nudge on for good`() = runTest(testDispatcher) {

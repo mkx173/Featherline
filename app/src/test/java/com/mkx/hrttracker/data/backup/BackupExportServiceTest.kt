@@ -570,7 +570,10 @@ class BackupExportServiceTest {
         )
 
         assertTrue(encryptedBytes.isNotEmpty())
-        assertTrue(encryptedBytes.copyOfRange(0, BackupCrypto.MAGIC_BYTES.size).contentEquals(BackupCrypto.MAGIC_BYTES))
+        assertTrue(
+            encryptedBytes.copyOfRange(0, BackupCrypto.MAGIC_BYTES.size)
+                .contentEquals(BackupCrypto.MAGIC_BYTES)
+        )
         assertTrue(!encryptedBytes.toString(Charsets.UTF_8).contains("\"packageName\""))
         assertNotNull(BackupSnapshotJsonCodec.decode(decryptedJson))
     }

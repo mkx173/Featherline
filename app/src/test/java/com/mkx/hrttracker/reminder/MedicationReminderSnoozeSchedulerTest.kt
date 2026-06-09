@@ -108,29 +108,30 @@ class MedicationReminderSnoozeSchedulerTest {
     }
 
     @Test
-    fun snoozeSlots_fallsBackToInexactAlarmWhenExactAlarmAccessIsRevokedDuringScheduling() = runTest {
-        every {
-            alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
-        } throws SecurityException("revoked")
-        val slot = snoozeRecord(
-            groupUuid = UUID.fromString("9de5ac6c-e704-4487-b22e-6ea726c84042"),
-            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
-            snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 15),
-        ).slot
-        coEvery { snoozeStore.getSnoozeRecords() } returns emptyList()
+    fun snoozeSlots_fallsBackToInexactAlarmWhenExactAlarmAccessIsRevokedDuringScheduling() =
+        runTest {
+            every {
+                alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+            } throws SecurityException("revoked")
+            val slot = snoozeRecord(
+                groupUuid = UUID.fromString("9de5ac6c-e704-4487-b22e-6ea726c84042"),
+                scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+                snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 15),
+            ).slot
+            coEvery { snoozeStore.getSnoozeRecords() } returns emptyList()
 
-        scheduler.snoozeSlots(
-            slots = listOf(slot),
-            now = LocalDateTime.of(2026, 4, 20, 9, 0),
-        )
+            scheduler.snoozeSlots(
+                slots = listOf(slot),
+                now = LocalDateTime.of(2026, 4, 20, 9, 0),
+            )
 
-        verify(exactly = 1) {
-            alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+            verify(exactly = 1) {
+                alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+            }
+            verify(exactly = 1) {
+                alarmManager.setAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+            }
         }
-        verify(exactly = 1) {
-            alarmManager.setAndAllowWhileIdle(any(), any(), any<PendingIntent>())
-        }
-    }
 
     @Test
     fun rescheduleAll_dropsExpiredRecordsAndDoesNotScheduleAlarmForThem() = runTest {

@@ -25,7 +25,10 @@ class BackupSnapshotJsonCodecTest {
 
     @Test
     fun peekSnapshotVersion_returnsZeroWhenFieldAbsent() {
-        assertEquals(0, BackupSnapshotJsonCodec.peekSnapshotVersion("""{"exportedAtEpochMillis":0}"""))
+        assertEquals(
+            0,
+            BackupSnapshotJsonCodec.peekSnapshotVersion("""{"exportedAtEpochMillis":0}""")
+        )
     }
 
     @Test

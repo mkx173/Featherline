@@ -430,7 +430,9 @@ class MedicationLogEntryViewModelTest {
         assertFalse(MedicationLogEntryUiState().canDelete)
         assertTrue(
             MedicationLogEntryUiState(
-                editingEntryIds = listOf(UUID.fromString("3885b7c7-45db-44ae-b512-429145f3bc6f").toString())
+                editingEntryIds = listOf(
+                    UUID.fromString("3885b7c7-45db-44ae-b512-429145f3bc6f").toString()
+                )
             ).canDelete
         )
     }
@@ -484,7 +486,10 @@ class MedicationLogEntryViewModelTest {
             appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15),
         )
 
-        assertEquals(MedicinePreparationType.PATCH_OFF, uiState.doseInstructionDraft.preparationType)
+        assertEquals(
+            MedicinePreparationType.PATCH_OFF,
+            uiState.doseInstructionDraft.preparationType
+        )
     }
 
     @Test
@@ -506,7 +511,11 @@ class MedicationLogEntryViewModelTest {
         )
 
         assertTrue(uiState.allowsActualDoseDelta)
-        assertEquals(0.2, uiState.effectiveActualAmount ?: error("Missing effective actual amount"), 0.0)
+        assertEquals(
+            0.2,
+            uiState.effectiveActualAmount ?: error("Missing effective actual amount"),
+            0.0
+        )
     }
 
     @Test
@@ -529,7 +538,11 @@ class MedicationLogEntryViewModelTest {
 
         requireNotNull(uiState)
         assertFalse(uiState.allowsActualDoseDelta)
-        assertEquals(1.0, uiState.effectiveActualAmount ?: error("Missing effective actual amount"), 0.0)
+        assertEquals(
+            1.0,
+            uiState.effectiveActualAmount ?: error("Missing effective actual amount"),
+            0.0
+        )
     }
 
     @Test
@@ -1378,71 +1391,72 @@ class MedicationLogEntryViewModelTest {
     }
 
     @Test
-    fun saveEntry_afterSuccessfulSaveSetsPostLogStockWarningWhenLoggedMedicineBecomesUserLow() = runTest {
-        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
-        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
-        val group = testMedicationGroup(
-            groupId = groupId,
-            name = "Nightly estradiol",
-            colorKey = MedicationGroupColorKey.INDIGO
-        )
-        val medicine = estradiolMedicine
-        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
-        every { medicationGroupRepository.getCachedGroup(groupId) } returns group
-        coEvery {
-            medicationLogRepository.saveEntry(
-                uuid = null,
-                medicineUuid = medicine.uuid,
+    fun saveEntry_afterSuccessfulSaveSetsPostLogStockWarningWhenLoggedMedicineBecomesUserLow() =
+        runTest {
+            val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+            val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+            val group = testMedicationGroup(
+                groupId = groupId,
+                name = "Nightly estradiol",
+                colorKey = MedicationGroupColorKey.INDIGO
+            )
+            val medicine = estradiolMedicine
+            val doseInstruction = DoseInstruction.TabletFraction(1, 1)
+            every { medicationGroupRepository.getCachedGroup(groupId) } returns group
+            coEvery {
+                medicationLogRepository.saveEntry(
+                    uuid = null,
+                    medicineUuid = medicine.uuid,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                    sourceGroupUuid = groupId,
+                    appliedAt = any(),
+                    scheduledFor = scheduledFor,
+                    count = 1,
+                )
+            } returns Unit
+            // Was healthy before this log (empty baseline); the post-log drop to
+            // USER_LOW is what should surface the warning.
+            coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+                emptyList(),
+                listOf(
+                    stockProjection(
+                        medicine = medicine,
+                        state = MedicineStockState.USER_LOW,
+                    )
+                ),
+            )
+            coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+            val viewModel = MedicationLogEntryViewModel(
+                medicationLogRepository = medicationLogRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicationReminderScheduler = medicationReminderScheduler,
+                medicineStockRepository = medicineStockRepository,
+            )
+            viewModel.initializeQuickLog(
+                groupId = groupId,
+                scheduledFor = scheduledFor,
+                medicine = medicine,
                 applicationType = MedicationApplicationType.ORAL,
                 doseInstruction = doseInstruction,
-                sourceGroupUuid = groupId,
-                appliedAt = any(),
-                scheduledFor = scheduledFor,
-                count = 1,
+                medicationCount = 1
             )
-        } returns Unit
-        // Was healthy before this log (empty baseline); the post-log drop to
-        // USER_LOW is what should surface the warning.
-        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
-            emptyList(),
-            listOf(
-                stockProjection(
-                    medicine = medicine,
-                    state = MedicineStockState.USER_LOW,
-                )
-            ),
-        )
-        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+            advanceUntilIdle()
+            viewModel.updateAppliedDate(scheduledFor.toLocalDate())
+            viewModel.updateAppliedTime(scheduledFor.toLocalTime().plusMinutes(15))
 
-        val viewModel = MedicationLogEntryViewModel(
-            medicationLogRepository = medicationLogRepository,
-            medicationGroupRepository = medicationGroupRepository,
-            medicationReminderScheduler = medicationReminderScheduler,
-            medicineStockRepository = medicineStockRepository,
-        )
-        viewModel.initializeQuickLog(
-            groupId = groupId,
-            scheduledFor = scheduledFor,
-            medicine = medicine,
-            applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = doseInstruction,
-            medicationCount = 1
-        )
-        advanceUntilIdle()
-        viewModel.updateAppliedDate(scheduledFor.toLocalDate())
-        viewModel.updateAppliedTime(scheduledFor.toLocalTime().plusMinutes(15))
+            viewModel.saveEntry()
+            advanceUntilIdle()
 
-        viewModel.saveEntry()
-        advanceUntilIdle()
+            assertEquals(
+                PostLogStockWarning.Single(medicine, MedicineStockState.USER_LOW),
+                viewModel.uiState.value.postLogStockWarning,
+            )
 
-        assertEquals(
-            PostLogStockWarning.Single(medicine, MedicineStockState.USER_LOW),
-            viewModel.uiState.value.postLogStockWarning,
-        )
-
-        viewModel.consumePostLogStockWarning()
-        assertNull(viewModel.uiState.value.postLogStockWarning)
-    }
+            viewModel.consumePostLogStockWarning()
+            assertNull(viewModel.uiState.value.postLogStockWarning)
+        }
 
     @Test
     fun saveEntry_afterHealthySaveLeavesPostLogStockWarningNull() = runTest {
@@ -1569,7 +1583,14 @@ class MedicationLogEntryViewModelTest {
                 appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
             ),
         )
-        coEvery { medicationLogRepository.getEntries(listOf(firstEntryId, secondEntryId)) } returns entries
+        coEvery {
+            medicationLogRepository.getEntries(
+                listOf(
+                    firstEntryId,
+                    secondEntryId
+                )
+            )
+        } returns entries
         coEvery {
             medicationLogRepository.saveEntries(
                 uuids = listOf(firstEntryId, secondEntryId),
@@ -1895,77 +1916,78 @@ class MedicationLogEntryViewModelTest {
     }
 
     @Test
-    fun saveEntryAfterFulfillmentWarning_forFarEditedGroupEntry_keepsScheduledGroupEntry() = runTest {
-        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
-        val entryId = UUID.fromString("73ef6a29-2149-4f13-8b2c-7f4baf23e3a6")
-        val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
-        val medicine = estradiolMedicine
-        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
-        val entry = testMedicationLogEntry(
-            uuid = entryId,
-            medicine = medicine,
-            applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = doseInstruction,
-            equivalentE2Mg = 2.0,
-            sourceGroupUuid = groupId,
-            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 9, 15)),
-            scheduledFor = scheduledFor
-        )
-        val group = testMedicationGroup(
-            groupId = groupId,
-            name = "Morning estradiol",
-            colorKey = MedicationGroupColorKey.INDIGO,
-            times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0))
-        )
-        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(entry)
-        coEvery { medicationGroupRepository.getGroup(groupId) } returns group
-        coEvery {
-            medicationLogRepository.saveEntry(
+    fun saveEntryAfterFulfillmentWarning_forFarEditedGroupEntry_keepsScheduledGroupEntry() =
+        runTest {
+            val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+            val entryId = UUID.fromString("73ef6a29-2149-4f13-8b2c-7f4baf23e3a6")
+            val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
+            val medicine = estradiolMedicine
+            val doseInstruction = DoseInstruction.TabletFraction(1, 1)
+            val entry = testMedicationLogEntry(
                 uuid = entryId,
-                medicineUuid = medicine.uuid,
+                medicine = medicine,
                 applicationType = MedicationApplicationType.ORAL,
                 doseInstruction = doseInstruction,
+                equivalentE2Mg = 2.0,
                 sourceGroupUuid = groupId,
-                scheduleTimeUuid = null,
-                appliedAt = any(),
-                scheduledFor = scheduledFor,
-                count = 1,
+                appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 9, 15)),
+                scheduledFor = scheduledFor
             )
-        } returns Unit
-        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
-
-        val viewModel = MedicationLogEntryViewModel(
-            medicationLogRepository = medicationLogRepository,
-            medicationGroupRepository = medicationGroupRepository,
-            medicationReminderScheduler = medicationReminderScheduler,
-            medicineStockRepository = medicineStockRepository,
-        )
-        viewModel.initialize(listOf(entryId.toString()))
-        advanceUntilIdle()
-        viewModel.updateAppliedDate(LocalDate.of(2026, 4, 22))
-        viewModel.updateAppliedTime(LocalTime.of(10, 30))
-
-        viewModel.saveEntry()
-        assertTrue(viewModel.uiState.value.isScheduleFulfillmentWarningVisible)
-        viewModel.saveEntryAfterFulfillmentWarning()
-        advanceUntilIdle()
-
-        assertTrue(viewModel.uiState.value.isSaved)
-        coVerify(exactly = 1) {
-            medicationLogRepository.saveEntry(
-                uuid = entryId,
-                medicineUuid = medicine.uuid,
-                applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = doseInstruction,
-                sourceGroupUuid = groupId,
-                scheduleTimeUuid = null,
-                appliedAt = any(),
-                scheduledFor = scheduledFor,
-                count = 1,
+            val group = testMedicationGroup(
+                groupId = groupId,
+                name = "Morning estradiol",
+                colorKey = MedicationGroupColorKey.INDIGO,
+                times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0))
             )
+            coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(entry)
+            coEvery { medicationGroupRepository.getGroup(groupId) } returns group
+            coEvery {
+                medicationLogRepository.saveEntry(
+                    uuid = entryId,
+                    medicineUuid = medicine.uuid,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                    sourceGroupUuid = groupId,
+                    scheduleTimeUuid = null,
+                    appliedAt = any(),
+                    scheduledFor = scheduledFor,
+                    count = 1,
+                )
+            } returns Unit
+            coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+            val viewModel = MedicationLogEntryViewModel(
+                medicationLogRepository = medicationLogRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicationReminderScheduler = medicationReminderScheduler,
+                medicineStockRepository = medicineStockRepository,
+            )
+            viewModel.initialize(listOf(entryId.toString()))
+            advanceUntilIdle()
+            viewModel.updateAppliedDate(LocalDate.of(2026, 4, 22))
+            viewModel.updateAppliedTime(LocalTime.of(10, 30))
+
+            viewModel.saveEntry()
+            assertTrue(viewModel.uiState.value.isScheduleFulfillmentWarningVisible)
+            viewModel.saveEntryAfterFulfillmentWarning()
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.isSaved)
+            coVerify(exactly = 1) {
+                medicationLogRepository.saveEntry(
+                    uuid = entryId,
+                    medicineUuid = medicine.uuid,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = doseInstruction,
+                    sourceGroupUuid = groupId,
+                    scheduleTimeUuid = null,
+                    appliedAt = any(),
+                    scheduledFor = scheduledFor,
+                    count = 1,
+                )
+            }
+            coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
         }
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
-    }
 
     @Test
     fun saveEntry_whenRepositoryFails_updatesUiStateWithFailureResult() = runTest {
@@ -2185,52 +2207,57 @@ class MedicationLogEntryViewModelTest {
     }
 
     @Test
-    fun saveEntry_emits_cross_zone_toast_payload_when_zone_differs_from_device() = runTest(dispatcher) {
-        val entryId = UUID.randomUUID()
-        // Use UTC-5/UTC-4 (New York) — guaranteed to differ from any Asia/Pacific device zone.
-        val newYork = ZoneId.of("America/New_York")
-        val originalInstant = LocalDateTime.of(2026, 4, 15, 9, 0).atZone(newYork).toInstant()
-        val existingEntry = testMedicationLogEntry(
-            uuid = entryId,
-            medicine = estradiolMedicine,
-            applicationType = MedicationApplicationType.ORAL,
-            sourceGroupUuid = null,
-            appliedAt = originalInstant,
-            appliedAtTimeZoneId = "America/New_York"
-        )
-        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(existingEntry)
-        every { medicationGroupRepository.getCachedGroup(any()) } returns null
-        coEvery { medicationLogRepository.saveEntry(
-            uuid = any(), medicineUuid = any(),
- applicationType = any(),
- doseInstruction = any(), sourceGroupUuid = any(),
-            scheduleTimeUuid = any(), appliedAt = any(), scheduledFor = any(),
-            count = any(), appliedAtTimeZoneId = any()
-        ) } returns Unit
-        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+    fun saveEntry_emits_cross_zone_toast_payload_when_zone_differs_from_device() =
+        runTest(dispatcher) {
+            val entryId = UUID.randomUUID()
+            // Use UTC-5/UTC-4 (New York) — guaranteed to differ from any Asia/Pacific device zone.
+            val newYork = ZoneId.of("America/New_York")
+            val originalInstant = LocalDateTime.of(2026, 4, 15, 9, 0).atZone(newYork).toInstant()
+            val existingEntry = testMedicationLogEntry(
+                uuid = entryId,
+                medicine = estradiolMedicine,
+                applicationType = MedicationApplicationType.ORAL,
+                sourceGroupUuid = null,
+                appliedAt = originalInstant,
+                appliedAtTimeZoneId = "America/New_York"
+            )
+            coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(
+                existingEntry
+            )
+            every { medicationGroupRepository.getCachedGroup(any()) } returns null
+            coEvery {
+                medicationLogRepository.saveEntry(
+                    uuid = any(), medicineUuid = any(),
+                    applicationType = any(),
+                    doseInstruction = any(), sourceGroupUuid = any(),
+                    scheduleTimeUuid = any(), appliedAt = any(), scheduledFor = any(),
+                    count = any(), appliedAtTimeZoneId = any()
+                )
+            } returns Unit
+            coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
-        val viewModel = MedicationLogEntryViewModel(
-            medicationLogRepository = medicationLogRepository,
-            medicationGroupRepository = medicationGroupRepository,
-            medicineStockRepository = medicineStockRepository,
-            medicationReminderScheduler = medicationReminderScheduler,
-        )
-        viewModel.initialize(listOf(entryId.toString()))
-        advanceUntilIdle()
+            val viewModel = MedicationLogEntryViewModel(
+                medicationLogRepository = medicationLogRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicineStockRepository = medicineStockRepository,
+                medicationReminderScheduler = medicationReminderScheduler,
+            )
+            viewModel.initialize(listOf(entryId.toString()))
+            advanceUntilIdle()
 
-        viewModel.saveEntry()
-        advanceUntilIdle()
+            viewModel.saveEntry()
+            advanceUntilIdle()
 
-        val payload = viewModel.uiState.value.savedCrossZoneZoneText
-        // Long name varies subtly across runtimes; assert we got SOMETHING and it's
-        // not the bare IANA id.
-        assertNotNull(payload)
-        assertFalse(payload == "America/New_York")
+            val payload = viewModel.uiState.value.savedCrossZoneZoneText
+            // Long name varies subtly across runtimes; assert we got SOMETHING and it's
+            // not the bare IANA id.
+            assertNotNull(payload)
+            assertFalse(payload == "America/New_York")
 
-        // After consume, the field clears.
-        viewModel.consumeCrossZoneToast()
-        assertNull(viewModel.uiState.value.savedCrossZoneZoneText)
-    }
+            // After consume, the field clears.
+            viewModel.consumeCrossZoneToast()
+            assertNull(viewModel.uiState.value.savedCrossZoneZoneText)
+        }
 
     @Test
     fun saveEntry_does_not_emit_cross_zone_toast_payload_for_same_zone() = runTest(dispatcher) {
@@ -2247,13 +2274,15 @@ class MedicationLogEntryViewModelTest {
         )
         coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(existingEntry)
         every { medicationGroupRepository.getCachedGroup(any()) } returns null
-        coEvery { medicationLogRepository.saveEntry(
-            uuid = any(), medicineUuid = any(),
- applicationType = any(),
- doseInstruction = any(), sourceGroupUuid = any(),
-            scheduleTimeUuid = any(), appliedAt = any(), scheduledFor = any(),
-            count = any(), appliedAtTimeZoneId = any()
-        ) } returns Unit
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = any(), medicineUuid = any(),
+                applicationType = any(),
+                doseInstruction = any(), sourceGroupUuid = any(),
+                scheduleTimeUuid = any(), appliedAt = any(), scheduledFor = any(),
+                count = any(), appliedAtTimeZoneId = any()
+            )
+        } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
         val viewModel = MedicationLogEntryViewModel(

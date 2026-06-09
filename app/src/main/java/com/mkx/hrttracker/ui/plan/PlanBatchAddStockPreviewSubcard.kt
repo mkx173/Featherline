@@ -68,6 +68,7 @@ internal fun PlanBatchAddStockPreviewSubcard(
         runwayModel == null -> null
         runwayModel.pluralResId != null && runwayModel.intArg != null ->
             pluralStringResource(runwayModel.pluralResId, runwayModel.intArg, runwayModel.intArg)
+
         runwayModel.resId != null -> stringResource(runwayModel.resId)
         else -> null
     }
@@ -172,7 +173,10 @@ private fun PlanBatchAddStockPreviewSubcardPreview() {
                     unitsLastTotal = 10.0,
                 ),
                 stockState = MedicineStockState.HEALTHY,
-                runway = RunwayProjection.Days(days = 30, lastFulfillable = LocalDate.of(2026, 5, 1)),
+                runway = RunwayProjection.Days(
+                    days = 30,
+                    lastFulfillable = LocalDate.of(2026, 5, 1)
+                ),
             )
             // Multi-use vial: open amount + sealed vials; the batch cracks a vial.
             PlanBatchAddStockPreviewSubcard(
@@ -193,7 +197,10 @@ private fun PlanBatchAddStockPreviewSubcardPreview() {
                     openContainerAmount = 0.75,
                 ),
                 stockState = MedicineStockState.USER_LOW,
-                runway = RunwayProjection.Days(days = 6, lastFulfillable = LocalDate.of(2026, 4, 16)),
+                runway = RunwayProjection.Days(
+                    days = 6,
+                    lastFulfillable = LocalDate.of(2026, 4, 16)
+                ),
             )
             // Gel container: open grams + sealed containers.
             PlanBatchAddStockPreviewSubcard(
@@ -214,7 +221,10 @@ private fun PlanBatchAddStockPreviewSubcardPreview() {
                     openContainerAmount = 20.0,
                 ),
                 stockState = MedicineStockState.OUT,
-                runway = RunwayProjection.Days(days = 0, lastFulfillable = LocalDate.of(2026, 4, 10)),
+                runway = RunwayProjection.Days(
+                    days = 0,
+                    lastFulfillable = LocalDate.of(2026, 4, 10)
+                ),
             )
         }
     }

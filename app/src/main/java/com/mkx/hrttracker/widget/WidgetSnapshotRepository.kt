@@ -32,7 +32,10 @@ class WidgetSnapshotRepository @Inject constructor(
         // home-snapshot observer can fan out to the widget.
         val homeSnapshot = homeSnapshotRepository.readUsableHomeSnapshot(now = now)
         if (homeSnapshot == null) {
-            diagnosticsLogger.info(TAG, "widget_snapshot_refresh_skipped reason=no_home_snapshot now=$now")
+            diagnosticsLogger.info(
+                TAG,
+                "widget_snapshot_refresh_skipped reason=no_home_snapshot now=$now"
+            )
             clearWidgetSnapshot()
             return
         }
@@ -66,7 +69,7 @@ class WidgetSnapshotRepository @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "widget_snapshot_refreshed rows=${widgetSnapshot.doseRows.size} " +
-                "done=${widgetSnapshot.doneCount} total=${widgetSnapshot.totalCount}",
+                    "done=${widgetSnapshot.doneCount} total=${widgetSnapshot.totalCount}",
         )
     }
 

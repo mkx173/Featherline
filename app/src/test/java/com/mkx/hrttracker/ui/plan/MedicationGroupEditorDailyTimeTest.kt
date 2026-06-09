@@ -128,11 +128,11 @@ class MedicationGroupEditorDailyTimeTest {
     fun next_default_date_time_rounds_forward_to_next_half_hour() {
         val cases = listOf(
             LocalDateTime.of(2026, 4, 25, 14, 39) to
-                LocalDateTime.of(2026, 4, 25, 15, 0),
+                    LocalDateTime.of(2026, 4, 25, 15, 0),
             LocalDateTime.of(2026, 4, 25, 15, 1) to
-                LocalDateTime.of(2026, 4, 25, 15, 30),
+                    LocalDateTime.of(2026, 4, 25, 15, 30),
             LocalDateTime.of(2026, 4, 25, 23, 31) to
-                LocalDateTime.of(2026, 4, 26, 0, 0),
+                    LocalDateTime.of(2026, 4, 26, 0, 0),
         )
 
         cases.forEach { (currentDateTime, expectedDefaultDateTime) ->

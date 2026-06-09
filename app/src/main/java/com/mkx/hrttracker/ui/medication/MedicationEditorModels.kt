@@ -119,7 +119,7 @@ fun MedicinePickerUiState.supportsCatalogSelection(): Boolean {
 
 fun MedicinePickerUiState.supportsCustomName(): Boolean {
     return category == MedicationCategory.CUSTOM ||
-        catalogEntries().all { it.medicationKey == null }
+            catalogEntries().all { it.medicationKey == null }
 }
 
 fun MedicinePickerUiState.requiresCustomName(): Boolean {
@@ -282,20 +282,25 @@ fun applicationTypesCompatibleWithPreparation(
             MedicationApplicationType.ORAL,
             MedicationApplicationType.SUBLINGUAL,
         )
+
         MedicinePreparationType.CAPSULE -> listOf(
             MedicationApplicationType.ORAL,
         )
+
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> listOf(
             MedicationApplicationType.INJECTION,
         )
+
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.GEL_CONTAINER -> listOf(
             MedicationApplicationType.GEL,
         )
+
         MedicinePreparationType.PATCH -> listOf(
             MedicationApplicationType.PATCH_ON,
         )
+
         MedicinePreparationType.PATCH_OFF -> listOf(
             MedicationApplicationType.PATCH_OFF,
         )
@@ -333,7 +338,7 @@ internal fun ambiguousPreparationTypes(
 
 fun MedicinePickerUiState.requiresPreparationTypeSelection(): Boolean {
     return inferredPreparationType(form) == null &&
-        ambiguousPreparationTypes(form).isNotEmpty()
+            ambiguousPreparationTypes(form).isNotEmpty()
 }
 
 fun MedicinePickerUiState.inferredOrSelectedPreparationType(): MedicinePreparationType? {
@@ -472,9 +477,9 @@ fun MedicationApplicationType.supportsMedicationCountEditor(
         MedicationApplicationType.ORAL,
         MedicationApplicationType.SUBLINGUAL,
         MedicationApplicationType.PATCH_ON,
-        // Injection route with an as-yet-unresolved preparation; both concrete
-        // injection preparations above hide the count editor, so this only
-        // affects transient drafts before a preparation is inferred.
+            // Injection route with an as-yet-unresolved preparation; both concrete
+            // injection preparations above hide the count editor, so this only
+            // affects transient drafts before a preparation is inferred.
         MedicationApplicationType.INJECTION -> true
 
         MedicationApplicationType.GEL,
@@ -788,7 +793,7 @@ fun MedicinePreparationType.hasRawMassDoseField(patchSpecKind: PatchSpecKind): B
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.GEL_CONTAINER,
-        // The singleton has no numeric fields, raw-mass or otherwise.
+            // The singleton has no numeric fields, raw-mass or otherwise.
         MedicinePreparationType.PATCH_OFF -> false
     }
 }
@@ -824,7 +829,7 @@ internal fun requiresEditableDoseInstructionForm(
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH,
-        // PATCH_OFF emits a Noop dose with no editable form.
+            // PATCH_OFF emits a Noop dose with no editable form.
         MedicinePreparationType.PATCH_OFF -> false
     }
 }
@@ -1024,7 +1029,7 @@ fun DoseInstructionDraftUiState.toDoseInstruction(): DoseInstruction {
 internal fun DoseInstructionDraftUiState.selectedTabletFractionOption(): TabletFractionOption {
     return TabletFractionOption.entries.firstOrNull { option ->
         option.numerator == tabletFractionNumerator &&
-            option.denominator == tabletFractionDenominator
+                option.denominator == tabletFractionDenominator
     } ?: TabletFractionOption.WHOLE
 }
 
@@ -1209,13 +1214,22 @@ private fun MedicinePickerUiState.withPreparationFields(
 ): MedicinePickerUiState {
     return when (preparation) {
         is MedicinePreparation.Pill ->
-            copy(pillStrengthMg = displayDoseUnit.fromMg(preparation.strengthMgPerTablet).toInputString())
+            copy(
+                pillStrengthMg = displayDoseUnit.fromMg(preparation.strengthMgPerTablet)
+                    .toInputString()
+            )
 
         is MedicinePreparation.Capsule ->
-            copy(pillStrengthMg = displayDoseUnit.fromMg(preparation.strengthMgPerCapsule).toInputString())
+            copy(
+                pillStrengthMg = displayDoseUnit.fromMg(preparation.strengthMgPerCapsule)
+                    .toInputString()
+            )
 
         is MedicinePreparation.InjectionSingleUseVial ->
-            copy(singleUseVialStrengthMg = displayDoseUnit.fromMg(preparation.strengthMgPerVial).toInputString())
+            copy(
+                singleUseVialStrengthMg = displayDoseUnit.fromMg(preparation.strengthMgPerVial)
+                    .toInputString()
+            )
 
         is MedicinePreparation.InjectionMultiUseVial -> copy(
             concentrationMgPerMl = preparation.concentrationMgPerMl.toInputString(),

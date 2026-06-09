@@ -137,7 +137,11 @@ class HomeRepository @Inject constructor(
                     // option flow on cold start; copy the raw value in so projection
                     // consumers downstream see the same option the validator approved.
                     settings = settingsState.copy(homeE2ChartWindowOption = option),
-                    pkProjection = homeSnapshotRepository.decodeProjection(pkProjectionRecord, now, zoneId),
+                    pkProjection = homeSnapshotRepository.decodeProjection(
+                        pkProjectionRecord,
+                        now,
+                        zoneId
+                    ),
                     pkProjectionExpiresAt = pkProjectionRecord
                         ?.let { Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis) },
                     latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry,
@@ -229,7 +233,11 @@ class HomeRepository @Inject constructor(
                         // the raw option in so consumers downstream cannot see the
                         // outer flow's option disagree with HomeInputs.settings.
                         settings = inputs.settings.copy(homeE2ChartWindowOption = option),
-                        pkProjection = homeSnapshotRepository.decodeProjection(pkProjectionRecord, now, zoneId),
+                        pkProjection = homeSnapshotRepository.decodeProjection(
+                            pkProjectionRecord,
+                            now,
+                            zoneId
+                        ),
                         pkProjectionExpiresAt = pkProjectionRecord
                             ?.let { Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis) },
                         latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry
@@ -283,7 +291,8 @@ class HomeRepository @Inject constructor(
     fun observeHomeStartupInputs(now: LocalDateTime, zoneId: ZoneId): Flow<HomeStartupInputs> {
         val today = now.toLocalDate()
         val scheduledStartIso = today.minusDays(1).atStartOfDay().toString()
-        val scheduledEndIso = today.plusDays(HOME_SCHEDULE_LOOKAHEAD_DAYS).atTime(23, 59, 59).toString()
+        val scheduledEndIso =
+            today.plusDays(HOME_SCHEDULE_LOOKAHEAD_DAYS).atTime(23, 59, 59).toString()
         val manualStartEpochMillis = today.minusDays(1)
             .atStartOfDay(zoneId)
             .toInstant()
@@ -422,7 +431,8 @@ class HomeRepository @Inject constructor(
                                 medicineChangeVersion,
                             ) { entries, _ ->
                                 recoverHomeEmission(defaultValue = emptyList()) {
-                                    val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                                    val medicinesByUuid =
+                                        database.resolveMedicinesForEntries(entries)
                                     entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
                                 }
                             },
@@ -478,6 +488,7 @@ class HomeRepository @Inject constructor(
     private companion object {
         const val TAG = "HomeRepository"
         const val HOME_SCHEDULE_LOOKAHEAD_DAYS = 90L
+
         // 180 d is enough back-history for steady-state PK regardless of the
         // selected chart window. The forward horizon is owned by
         // HomeE2ChartWindowOption.projectionFutureDays() so the Room fallback
@@ -503,8 +514,8 @@ private suspend fun <T> recoverHomeEmission(defaultValue: T, block: suspend () -
 private fun List<MedicineStockProjection>.stockWarningsOnly(): List<MedicineStockProjection> {
     return filter { projection ->
         projection.state == MedicineStockState.OUT ||
-            projection.state == MedicineStockState.IMMINENT ||
-            projection.state == MedicineStockState.USER_LOW
+                projection.state == MedicineStockState.IMMINENT ||
+                projection.state == MedicineStockState.USER_LOW
     }
 }
 

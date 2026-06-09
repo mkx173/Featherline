@@ -188,15 +188,18 @@ private val PreviewPatchGroupUuid = UUID.fromString("4d6ac2b0-1185-4718-91d7-e74
 private val PreviewAntiandrogenGroupUuid = UUID.fromString("f5b5ef28-7364-47b4-9d92-2527e9b7b753")
 private val PreviewMorningScheduleUuid = UUID.fromString("f4ea56fc-0856-485e-9af2-d1bc7caa341c")
 private val PreviewPatchScheduleUuid = UUID.fromString("99cc2da0-e3ea-4bbd-a3ce-d6532b73f474")
-private val PreviewAntiandrogenScheduleUuid = UUID.fromString("35bbf5a3-7ee0-4c93-b8cf-54292964a3d7")
+private val PreviewAntiandrogenScheduleUuid =
+    UUID.fromString("35bbf5a3-7ee0-4c93-b8cf-54292964a3d7")
 private const val MainScheduleGraceMinutes = 60L
 private val MainScheduleGracePeriod = Duration.ofMinutes(MainScheduleGraceMinutes)
 private const val MainE2ChartInitialAnimationMillis = 500
 private const val MainE2ChartAnimationSettleDelayMillis = 50L
+
 // Process-scoped so the chart's initial fade-in plays exactly once per
 // app launch, not on every re-composition (tab switch, scroll re-entry,
 // etc.) that would otherwise re-arm a rememberSaveable flag.
 private var mainE2ChartInitialAnimationConsumed = false
+
 // SEVEN_DAYS keeps the original fixed 48 h floor — 2 d on a phone-width
 // chart, derived empirically from the 0.1 h sampler. THIRTY_DAYS instead
 // derives its floor from the measured plot width and budget grid: the
@@ -311,6 +314,7 @@ internal fun mainDoseRowHighlightScrollTargetKey(
 }
 
 private const val MainE2ChartMinimapRangeEpsilonHours = 1e-3
+
 // Sentinel coordinates for an empty dose-marker series. The x is placed just
 // outside the chart's x range (which starts at 0). The y is a large negative
 // value so the circle center is far below the chart canvas — necessary because
@@ -527,7 +531,9 @@ internal fun MainE2HeroCard(
     val heroContentColor = colorScheme.primary
     val heroSupportingColor = colorScheme.onSurfaceVariant
 
-    Box(modifier = modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge)) {
+    Box(modifier = modifier
+        .fillMaxWidth()
+        .clip(MaterialTheme.shapes.extraLarge)) {
         Surface(
             modifier = modifier,
             shape = MaterialTheme.shapes.extraLarge,
@@ -539,7 +545,9 @@ internal fun MainE2HeroCard(
                     .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
@@ -732,7 +740,13 @@ private fun MainE2RangeStatusPill(
         modifier = modifier,
         size = HrtPillSize.XSmall,
         fontWeight = FontWeight.SemiBold,
-        icon = { Icon(painterResource(iconDrawableRes), contentDescription = null, modifier = iconModifier) },
+        icon = {
+            Icon(
+                painterResource(iconDrawableRes),
+                contentDescription = null,
+                modifier = iconModifier
+            )
+        },
     )
 }
 
@@ -939,7 +953,12 @@ internal fun MainE2ChartCard(
             )
             val date = chartDateFormatter(dateTime.toLocalDate())
             val time = dateTime.format(chartTimeFormatter)
-            "$date $time\n${formatMainE2ConcentrationValue(concentration.toDouble(), displayUnit)} $unit"
+            "$date $time\n${
+                formatMainE2ConcentrationValue(
+                    concentration.toDouble(),
+                    displayUnit
+                )
+            } $unit"
         } else {
             null
         }
@@ -974,6 +993,7 @@ internal fun MainE2ChartCard(
             when (spec.chartWindowOption) {
                 HomeE2ChartWindowOption.SEVEN_DAYS ->
                     date.dayOfWeek.getDisplayName(TextStyle.NARROW, appLocale)
+
                 HomeE2ChartWindowOption.THIRTY_DAYS ->
                     date.format(MainE2ChartAxisDateFormatter)
             }
@@ -994,6 +1014,7 @@ internal fun MainE2ChartCard(
                     ?.toDouble()
                     ?: maxX
             }
+
             override fun getMinY(minY: Double, maxY: Double, extraStore: ExtraStore): Double = 0.0
             override fun getMaxY(minY: Double, maxY: Double, extraStore: ExtraStore): Double =
                 yAxisSpec.maxY
@@ -1089,11 +1110,19 @@ internal fun MainE2ChartCard(
                 if (hasAnyMarker) {
                     series(
                         x = doseMarkerLoggedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
-                        y = doseMarkerLoggedConcentrations.ifEmpty { listOf(OffAxisDoseMarkerSentinelConcentration) },
+                        y = doseMarkerLoggedConcentrations.ifEmpty {
+                            listOf(
+                                OffAxisDoseMarkerSentinelConcentration
+                            )
+                        },
                     )
                     series(
                         x = doseMarkerPlannedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
-                        y = doseMarkerPlannedConcentrations.ifEmpty { listOf(OffAxisDoseMarkerSentinelConcentration) },
+                        y = doseMarkerPlannedConcentrations.ifEmpty {
+                            listOf(
+                                OffAxisDoseMarkerSentinelConcentration
+                            )
+                        },
                     )
                 }
             }
@@ -1117,7 +1146,9 @@ internal fun MainE2ChartCard(
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).padding(bottom = 6.dp)
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(bottom = 6.dp)
         ) {
 
             MainE2ChartCardHeader(
@@ -1262,7 +1293,11 @@ internal fun MainE2ChartCard(
                                         lineProvider =
                                             LineCartesianLayer.LineProvider.series(
                                                 LineCartesianLayer.rememberLine(
-                                                    fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
+                                                    fill = LineCartesianLayer.LineFill.single(
+                                                        Fill(
+                                                            lineColor
+                                                        )
+                                                    ),
                                                     areaFill = observedAreaFill,
                                                     interpolator = LineCartesianLayer.Interpolator.catmullRom(),
                                                 ),
@@ -1273,19 +1308,43 @@ internal fun MainE2ChartCard(
                                                     interpolator = LineCartesianLayer.Interpolator.catmullRom(),
                                                 ),
                                                 LineCartesianLayer.rememberLine(
-                                                    fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
-                                                    stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
-                                                    pointProvider = LineCartesianLayer.PointProvider.single(currentTimePoint),
+                                                    fill = LineCartesianLayer.LineFill.single(
+                                                        Fill(
+                                                            Color.Transparent
+                                                        )
+                                                    ),
+                                                    stroke = LineCartesianLayer.LineStroke.Continuous(
+                                                        thickness = 0.dp
+                                                    ),
+                                                    pointProvider = LineCartesianLayer.PointProvider.single(
+                                                        currentTimePoint
+                                                    ),
                                                 ),
                                                 LineCartesianLayer.rememberLine(
-                                                    fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
-                                                    stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
-                                                    pointProvider = LineCartesianLayer.PointProvider.single(doseMarkerPoint),
+                                                    fill = LineCartesianLayer.LineFill.single(
+                                                        Fill(
+                                                            Color.Transparent
+                                                        )
+                                                    ),
+                                                    stroke = LineCartesianLayer.LineStroke.Continuous(
+                                                        thickness = 0.dp
+                                                    ),
+                                                    pointProvider = LineCartesianLayer.PointProvider.single(
+                                                        doseMarkerPoint
+                                                    ),
                                                 ),
                                                 LineCartesianLayer.rememberLine(
-                                                    fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
-                                                    stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
-                                                    pointProvider = LineCartesianLayer.PointProvider.single(plannedDoseMarkerPoint),
+                                                    fill = LineCartesianLayer.LineFill.single(
+                                                        Fill(
+                                                            Color.Transparent
+                                                        )
+                                                    ),
+                                                    stroke = LineCartesianLayer.LineStroke.Continuous(
+                                                        thickness = 0.dp
+                                                    ),
+                                                    pointProvider = LineCartesianLayer.PointProvider.single(
+                                                        plannedDoseMarkerPoint
+                                                    ),
                                                 ),
                                             ),
                                         rangeProvider = rangeProvider,
@@ -1342,7 +1401,8 @@ internal fun MainE2ChartCard(
                                     .offset {
                                         val labelWidth = markerLabelSize.value.width
                                         val labelHeight = markerLabelSize.value.height
-                                        val maxXOffset = (chartSize.value.width - labelWidth).coerceAtLeast(0)
+                                        val maxXOffset =
+                                            (chartSize.value.width - labelWidth).coerceAtLeast(0)
                                         IntOffset(
                                             x = (markerCanvasX.roundToInt() - labelWidth / 2)
                                                 .coerceIn(0, maxXOffset),
@@ -1724,12 +1784,14 @@ private fun MainE2ChartMinimap(
                                     if (maxScroll <= 0f) return 0f to plotWidth
                                     val visibleRange = coordinateMapper.rawVisibleXRange()
                                         ?: MainE2ChartVisibleXRange(0.0, fullHours)
-                                    val visibleSpan = (visibleRange.endInclusive - visibleRange.start)
-                                        .coerceIn(0.0, fullHours)
+                                    val visibleSpan =
+                                        (visibleRange.endInclusive - visibleRange.start)
+                                            .coerceIn(0.0, fullHours)
                                     val viewportWidth = (visibleSpan / fullHours).toFloat()
                                         .times(plotWidth)
                                         .coerceIn(0f, plotWidth)
-                                    val scrollablePlotWidth = (plotWidth - viewportWidth).coerceAtLeast(0f)
+                                    val scrollablePlotWidth =
+                                        (plotWidth - viewportWidth).coerceAtLeast(0f)
                                     val viewportLeft = (scrollState.value / maxScroll)
                                         .coerceIn(0f, 1f) * scrollablePlotWidth
                                     return viewportLeft to viewportWidth
@@ -1743,7 +1805,10 @@ private fun MainE2ChartMinimap(
                                         (plotWidth - dragViewportWidthPx).coerceAtLeast(0f)
                                     if (scrollablePlotWidth <= 0f) return 0f
                                     val pointerPlotX =
-                                        (pointerX - minimapHorizontalInsetPx).coerceIn(0f, plotWidth)
+                                        (pointerX - minimapHorizontalInsetPx).coerceIn(
+                                            0f,
+                                            plotWidth
+                                        )
                                     return ((pointerPlotX - dragPointerOffsetFromViewportStartPx) /
                                             scrollablePlotWidth).coerceIn(0f, 1f)
                                 }
@@ -1805,12 +1870,16 @@ private fun MainE2ChartMinimap(
 
                                 fun xToCanvas(xHours: Double): Float {
                                     return horizontalInset +
-                                            (xHours.coerceIn(0.0, fullHours) / fullHours).toFloat() * plotWidth
+                                            (xHours.coerceIn(
+                                                0.0,
+                                                fullHours
+                                            ) / fullHours).toFloat() * plotWidth
                                 }
 
                                 fun yToCanvas(value: Float): Float {
                                     return plotBottom -
-                                            (value.toDouble().coerceIn(0.0, yMax) / yMax).toFloat() * plotHeight
+                                            (value.toDouble()
+                                                .coerceIn(0.0, yMax) / yMax).toFloat() * plotHeight
                                 }
 
                                 val finitePoints = pointXHours
@@ -1824,11 +1893,13 @@ private fun MainE2ChartMinimap(
                                         seriesPath = null
                                         singlePointCenter = null
                                     }
+
                                     finitePoints.size == 1 -> {
                                         val (x, y) = finitePoints.first()
                                         seriesPath = null
                                         singlePointCenter = Offset(xToCanvas(x), yToCanvas(y))
                                     }
+
                                     else -> {
                                         seriesPath = Path().apply {
                                             finitePoints.forEachIndexed { index, (x, y) ->
@@ -1870,9 +1941,11 @@ private fun MainE2ChartMinimap(
 
                                     val rawVisibleRange = coordinateMapper.rawVisibleXRange()
                                         ?: MainE2ChartVisibleXRange(0.0, fullHours)
-                                    val visibleSpan = (rawVisibleRange.endInclusive - rawVisibleRange.start)
-                                        .coerceIn(0.0, fullHours)
-                                    val rawViewportWidth = (visibleSpan / fullHours).toFloat() * plotWidth
+                                    val visibleSpan =
+                                        (rawVisibleRange.endInclusive - rawVisibleRange.start)
+                                            .coerceIn(0.0, fullHours)
+                                    val rawViewportWidth =
+                                        (visibleSpan / fullHours).toFloat() * plotWidth
                                     val viewportWidth = if (scrollState.maxValue <= 0f) {
                                         plotWidth
                                     } else if (rawViewportWidth < minViewportWidth) {
@@ -1880,12 +1953,16 @@ private fun MainE2ChartMinimap(
                                     } else {
                                         rawViewportWidth
                                     }
-                                    val scrollablePlotWidth = (plotWidth - viewportWidth).coerceAtLeast(0f)
+                                    val scrollablePlotWidth =
+                                        (plotWidth - viewportWidth).coerceAtLeast(0f)
                                     val viewportLeft = if (scrollState.maxValue <= 0f) {
                                         horizontalInset
                                     } else {
                                         horizontalInset +
-                                                (scrollValue / scrollState.maxValue).coerceIn(0f, 1f) *
+                                                (scrollValue / scrollState.maxValue).coerceIn(
+                                                    0f,
+                                                    1f
+                                                ) *
                                                 scrollablePlotWidth
                                     }
 
@@ -1925,8 +2002,12 @@ private fun MainE2ChartMinimap(
                                                 y = plotTop + viewportStrokeInset,
                                             ),
                                             size = Size(
-                                                width = (viewportWidth - viewportStrokeWidth).coerceAtLeast(0f),
-                                                height = (plotHeight - viewportStrokeWidth).coerceAtLeast(0f),
+                                                width = (viewportWidth - viewportStrokeWidth).coerceAtLeast(
+                                                    0f
+                                                ),
+                                                height = (plotHeight - viewportStrokeWidth).coerceAtLeast(
+                                                    0f
+                                                ),
                                             ),
                                             cornerRadius = viewportStrokeCornerRadius,
                                             style = Stroke(width = viewportStrokeWidth),
@@ -2093,6 +2174,7 @@ private class ExtraStoreAwareHorizontalAxisItemPlacer : HorizontalAxis.ItemPlace
             HomeE2ChartWindowOption.SEVEN_DAYS -> noonTicksFor(spec).filter { value ->
                 value >= visibleXRange.start && value <= visibleXRange.endInclusive
             }
+
             HomeE2ChartWindowOption.THIRTY_DAYS -> {
                 val visibleHours = visibleXRange.endInclusive - visibleXRange.start
                 mainE2ChartAxisLabelTickHours(
@@ -2555,7 +2637,7 @@ private class VerticalLineDecoration(
 }
 
 @Composable
-    private fun MainE2ChartCardHeader(
+private fun MainE2ChartCardHeader(
     modifier: Modifier = Modifier,
     targetRangeLow: Double,
     targetRangeHigh: Double,
@@ -2651,7 +2733,9 @@ internal fun MainAntiandrogenCard(
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).padding(bottom = 6.dp)
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(bottom = 6.dp)
         ) {
             MainAntiandrogenCardHeader(
                 modifier = Modifier.padding(vertical = 6.dp)
@@ -2844,7 +2928,9 @@ private fun MainAntiandrogenMedicationSubCard(
                 manualRecordText = stringResource(R.string.manual_record_label),
             )
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -3048,7 +3134,8 @@ internal fun MainLastNightSection(
         ) {
             section.rows.forEachIndexed { index, row ->
                 val rowKey = mainTodayDoseRowCompositionKey(row)
-                val matchesHighlight = highlightRequest?.matches(row) == true && highlightEffectsEnabled
+                val matchesHighlight =
+                    highlightRequest?.matches(row) == true && highlightEffectsEnabled
                 key(rowKey) {
                     MainTodayDoseRow(
                         row = row,
@@ -3106,7 +3193,8 @@ internal fun MainUpcomingSection(
             ) {
                 section.rows.forEachIndexed { index, row ->
                     val rowKey = mainUpcomingDoseRowCompositionKey(row)
-                    val matchesHighlight = highlightRequest?.matches(row) == true && highlightEffectsEnabled
+                    val matchesHighlight =
+                        highlightRequest?.matches(row) == true && highlightEffectsEnabled
                     key(rowKey) {
                         MainUpcomingDoseRow(
                             row = row,
@@ -3250,7 +3338,9 @@ private fun MainTodayDoseRow(
             count = itemCount,
             onClick = onStatusClick,
             containerColor = containerColor,
-            modifier = modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester),
+            modifier = modifier
+                .fillMaxWidth()
+                .bringIntoViewRequester(bringIntoViewRequester),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -3274,7 +3364,10 @@ private fun MainTodayDoseRow(
                         Text(
                             text = headline,
                             style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(headline),
+                            modifier = Modifier
+                                .weight(1f)
+                                .alignByBaseline()
+                                .cjkTextOffset(headline),
                             fontWeight = FontWeight.Normal,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
@@ -3291,7 +3384,10 @@ private fun MainTodayDoseRow(
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Normal,
-                            modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(supportingText),
+                            modifier = Modifier
+                                .weight(1f)
+                                .alignByBaseline()
+                                .cjkTextOffset(supportingText),
                         )
                     }
                 }
@@ -3365,7 +3461,9 @@ private fun MainUpcomingDoseRow(
             count = itemCount,
             onClick = null,
             containerColor = containerColor,
-            modifier = modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester),
+            modifier = modifier
+                .fillMaxWidth()
+                .bringIntoViewRequester(bringIntoViewRequester),
             trailingContent = {
                 Text(
                     text = timeLabel,
@@ -3693,7 +3791,9 @@ private fun MainSectionHeader(
     emphasize: Boolean = false,
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp, top = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -3709,7 +3809,9 @@ private fun MainSectionHeader(
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
-            modifier = Modifier.alignByBaseline().cjkTextOffset(title),
+            modifier = Modifier
+                .alignByBaseline()
+                .cjkTextOffset(title),
             maxLines = 1,
         )
         if (!summary.isNullOrEmpty()) {
@@ -3725,7 +3827,9 @@ private fun MainSectionHeader(
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
-                modifier = Modifier.alignByBaseline().cjkTextOffset(summary),
+                modifier = Modifier
+                    .alignByBaseline()
+                    .cjkTextOffset(summary),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.End
@@ -4399,7 +4503,10 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
                     groupName = "Morning estradiol",
                     groupColorKey = MedicationGroupColorKey.ROSE,
                     scheduleTimeUuid = PreviewMorningScheduleUuid,
-                    scheduledAt = LocalDateTime.of(now.toLocalDate().plusDays(1), LocalTime.of(8, 0)),
+                    scheduledAt = LocalDateTime.of(
+                        now.toLocalDate().plusDays(1),
+                        LocalTime.of(8, 0)
+                    ),
                     medication = estradiolTablet
                 ),
                 MainUpcomingDoseRowUiState(
@@ -4407,7 +4514,10 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
                     groupName = "Antiandrogen",
                     groupColorKey = MedicationGroupColorKey.INDIGO,
                     scheduleTimeUuid = PreviewAntiandrogenScheduleUuid,
-                    scheduledAt = LocalDateTime.of(now.toLocalDate().plusDays(1), LocalTime.of(22, 0)),
+                    scheduledAt = LocalDateTime.of(
+                        now.toLocalDate().plusDays(1),
+                        LocalTime.of(22, 0)
+                    ),
                     medication = spironolactone
                 ),
             )
@@ -4423,7 +4533,11 @@ private fun previewMedication(
 ): MedicationGroupMedication {
     val medicine = previewMedicineFor(key)
     val doseInstruction = when (medicine.preparation) {
-        is com.mkx.hrttracker.model.medication.MedicinePreparation.Pill -> DoseInstruction.TabletFraction(1, 1)
+        is com.mkx.hrttracker.model.medication.MedicinePreparation.Pill -> DoseInstruction.TabletFraction(
+            1,
+            1
+        )
+
         is com.mkx.hrttracker.model.medication.MedicinePreparation.Patch -> DoseInstruction.WholeUnit
         else -> DoseInstruction.WholeUnit
     }
@@ -4457,6 +4571,7 @@ private fun previewMedicineFor(
                 )
             )
         }
+
         else -> {
             com.mkx.hrttracker.model.medication.MedicinePreparation.Pill(
                 strengthMgPerTablet = 2.0,

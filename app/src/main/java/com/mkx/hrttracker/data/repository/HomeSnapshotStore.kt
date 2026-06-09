@@ -261,10 +261,18 @@ internal object HomeSnapshotCodec {
             stream.writeList(record.activeGroups) { group -> writeMedicationGroup(group) }
             stream.writeList(record.archivedGroups) { group -> writeMedicationGroup(group) }
             stream.writeList(record.scheduleEntries) { entry -> writeMedicationLogEntry(entry) }
-            stream.writeList(record.antiandrogenHistoryEntries) { entry -> writeMedicationLogEntry(entry) }
+            stream.writeList(record.antiandrogenHistoryEntries) { entry ->
+                writeMedicationLogEntry(
+                    entry
+                )
+            }
             stream.writeUserProfile(record.userProfile)
             stream.writeList(record.stockMedicines) { medicine -> writeMedicine(medicine) }
-            stream.writeList(record.stockFulfillmentEntries) { entry -> writeMedicationLogEntry(entry) }
+            stream.writeList(record.stockFulfillmentEntries) { entry ->
+                writeMedicationLogEntry(
+                    entry
+                )
+            }
             stream.writePooledMedicationLogEntries(record.pkEntries)
         }
         return output.toByteArray()
@@ -323,6 +331,7 @@ internal object HomeSnapshotCodec {
                 writeByte(POLICY_DISCRIMINATOR_INTERVAL)
                 writeDouble(policy.hours)
             }
+
             is HomePkDenseSamplePolicyRecord.Budget -> {
                 writeByte(POLICY_DISCRIMINATOR_BUDGET)
                 writeInt(policy.segmentCount)
@@ -475,7 +484,8 @@ internal object HomeSnapshotCodec {
     // the same medicine, so inlining each one would roughly double the cost.
     private fun DataOutputStream.writePooledMedicationLogEntries(entries: List<MedicationLogEntry>) {
         val medicinePool = entries.mapNotNull { entry -> entry.medicine }.distinctBy { it.uuid }
-        val indexByUuid = medicinePool.withIndex().associate { (index, medicine) -> medicine.uuid to index }
+        val indexByUuid =
+            medicinePool.withIndex().associate { (index, medicine) -> medicine.uuid to index }
         writeList(medicinePool) { medicine -> writeMedicine(medicine) }
         writeList(entries) { entry ->
             writeString(entry.uuid.toString())
@@ -580,8 +590,10 @@ internal object HomeSnapshotCodec {
         val expectedIdentityKey = when (selection) {
             is MedicineSelection.Catalog ->
                 MedicineIdentityKey.catalog(selection.medicationKey, preparation)
+
             is MedicineSelection.Custom ->
                 MedicineIdentityKey.custom(selection.medicationName, preparation)
+
             is MedicineSelection.PatchOff -> MedicineIdentityKey.patchOff()
         }
         check(storedIdentityKey == expectedIdentityKey) {
@@ -664,19 +676,23 @@ internal object HomeSnapshotCodec {
                 writeDouble(preparation.concentrationMgPerMl)
                 writeDouble(preparation.vialVolumeMl)
             }
+
             is MedicinePreparation.GelSachet -> {
                 writeDouble(preparation.concentrationPercent)
                 writeDouble(preparation.sachetWeightGrams)
             }
+
             is MedicinePreparation.GelContainer -> {
                 writeDouble(preparation.concentrationPercent)
                 writeDouble(preparation.containerWeightGrams)
             }
+
             is MedicinePreparation.Patch -> when (val specification = preparation.specification) {
                 is MedicinePreparation.PatchSpecification.TotalMg -> {
                     writeByte(PATCH_SPECIFICATION_TOTAL_MG)
                     writeDouble(specification.valueMg)
                 }
+
                 is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay -> {
                     writeByte(PATCH_SPECIFICATION_RELEASE_RATE)
                     writeDouble(specification.valueMcgPerDay)
@@ -692,32 +708,40 @@ internal object HomeSnapshotCodec {
             MedicinePreparationType.PILL -> MedicinePreparation.Pill(
                 strengthMgPerTablet = readDouble()
             )
+
             MedicinePreparationType.CAPSULE -> MedicinePreparation.Capsule(
                 strengthMgPerCapsule = readDouble()
             )
+
             MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> MedicinePreparation.InjectionSingleUseVial(
                 strengthMgPerVial = readDouble()
             )
+
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicinePreparation.InjectionMultiUseVial(
                 concentrationMgPerMl = readDouble(),
                 vialVolumeMl = readDouble(),
             )
+
             MedicinePreparationType.GEL_SACHET -> MedicinePreparation.GelSachet(
                 concentrationPercent = readDouble(),
                 sachetWeightGrams = readDouble(),
             )
+
             MedicinePreparationType.GEL_CONTAINER -> MedicinePreparation.GelContainer(
                 concentrationPercent = readDouble(),
                 containerWeightGrams = readDouble(),
             )
+
             MedicinePreparationType.PATCH -> MedicinePreparation.Patch(
                 specification = when (val discriminator = readByte().toInt()) {
                     PATCH_SPECIFICATION_TOTAL_MG ->
                         MedicinePreparation.PatchSpecification.TotalMg(valueMg = readDouble())
+
                     PATCH_SPECIFICATION_RELEASE_RATE ->
                         MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
                             valueMcgPerDay = readDouble()
                         )
+
                     else -> error("Unknown patch specification discriminator: $discriminator")
                 }
             )
@@ -733,6 +757,7 @@ internal object HomeSnapshotCodec {
                 writeInt(instruction.numerator)
                 writeInt(instruction.denominator)
             }
+
             DoseInstruction.WholeUnit -> Unit
             is DoseInstruction.VolumeMl -> writeDouble(instruction.valueMl)
             is DoseInstruction.WeightGrams -> writeDouble(instruction.valueGrams)
@@ -746,6 +771,7 @@ internal object HomeSnapshotCodec {
                 numerator = readInt(),
                 denominator = readInt(),
             )
+
             DoseInstructionKind.WHOLE_UNIT -> DoseInstruction.WholeUnit
             DoseInstructionKind.VOLUME_ML -> DoseInstruction.VolumeMl(valueMl = readDouble())
             DoseInstructionKind.WEIGHT_GRAMS -> DoseInstruction.WeightGrams(valueGrams = readDouble())
@@ -915,6 +941,7 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 }
 
 private const val TAG = "HomeSnapshotStore"
+
 // v15 carries MedicineStock inside cached Medicine values; older caches are
 // rejected by codec-version mismatch so tracked stock is never defaulted away.
 // v17 appends the deduped pkEntries pool so the snapshot path can re-simulate
@@ -926,6 +953,7 @@ private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0
 private const val PATCH_SPECIFICATION_RELEASE_RATE = 1
+
 // Reserved sentinel string in the medicationKey slot for a PATCH_OFF row in
 // the snapshot codec. Distinct from every MedicationKey.name.
 private const val PATCH_OFF_SELECTION_MARKER = "__PATCH_OFF__"

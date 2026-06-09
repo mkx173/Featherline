@@ -164,17 +164,27 @@ class BackupRestoreValidationTest {
             ),
         )
 
-        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+        val validatedSnapshot =
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
 
         assertEquals(DarkModeOption.DARK, validatedSnapshot.settings.darkModeOption)
-        assertEquals(AppLockGracePeriodOption.FIVE_MINUTES, validatedSnapshot.settings.appLockGracePeriodOption)
-        assertEquals(AppLanguageOption.SIMPLIFIED_CHINESE, validatedSnapshot.settings.appLanguageOption)
+        assertEquals(
+            AppLockGracePeriodOption.FIVE_MINUTES,
+            validatedSnapshot.settings.appLockGracePeriodOption
+        )
+        assertEquals(
+            AppLanguageOption.SIMPLIFIED_CHINESE,
+            validatedSnapshot.settings.appLanguageOption
+        )
         assertEquals(true, validatedSnapshot.settings.cjkTextOffsetEnabled)
         assertEquals(
             AllowedAnalyteUnit.of(BloodAnalyteKey.E2, BloodUnitKey.NG_DL),
             validatedSnapshot.settings.homeE2DisplayUnit,
         )
-        assertEquals(HomeE2ChartWindowOption.THIRTY_DAYS, validatedSnapshot.settings.homeE2ChartWindowOption)
+        assertEquals(
+            HomeE2ChartWindowOption.THIRTY_DAYS,
+            validatedSnapshot.settings.homeE2ChartWindowOption
+        )
 
         checkNotNull(validatedSnapshot.userProfile)
         assertEquals(52.16312255, validatedSnapshot.userProfile.weightKg!!, 1e-9)
@@ -257,7 +267,8 @@ class BackupRestoreValidationTest {
             bloodTestPanels = emptyList(),
         )
 
-        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+        val validatedSnapshot =
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
 
         assertEquals(false, validatedSnapshot.settings.cjkTextOffsetEnabled)
     }
@@ -473,7 +484,8 @@ class BackupRestoreValidationTest {
             bloodTestPanels = emptyList(),
         )
 
-        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+        val validatedSnapshot =
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
 
         val restoredItem = validatedSnapshot.medicationGroupItems.single()
         assertEquals("TABLET_FRACTION", restoredItem.doseInstructionKind)
@@ -559,7 +571,8 @@ class BackupRestoreValidationTest {
             logUuid = logUuid,
         )
 
-        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+        val validatedSnapshot =
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
 
         val restoredItem = validatedSnapshot.medicationGroupItems.single()
         assertEquals(null, restoredItem.medicineUuid)

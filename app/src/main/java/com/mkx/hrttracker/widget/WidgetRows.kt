@@ -528,7 +528,8 @@ internal fun widgetRowHighlightIntent(context: Context, row: WidgetDoseRow): Int
     ).joinToString(":")
     return Intent(context, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        data = "hrttracker://widget-row-highlight/scheduled/${android.net.Uri.encode(stableKey)}".toUri()
+        data =
+            "hrttracker://widget-row-highlight/scheduled/${android.net.Uri.encode(stableKey)}".toUri()
         putExtra(EXTRA_HIGHLIGHT_KIND, HIGHLIGHT_KIND_SCHEDULED)
         putExtra(EXTRA_HIGHLIGHT_GROUP_UUID, groupUuid)
         row.scheduleTimeUuid?.let { putExtra(EXTRA_HIGHLIGHT_SCHEDULE_TIME_UUID, it) }

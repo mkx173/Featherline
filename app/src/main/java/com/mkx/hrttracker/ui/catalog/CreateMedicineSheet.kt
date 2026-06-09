@@ -190,7 +190,10 @@ internal fun CreateMedicineForm(
     }
     val editableFields = editableFields(medicineDraft)
 
-    MedicationEditorSectionLabel(stringResource(R.string.field_medication_category), topPadding = false)
+    MedicationEditorSectionLabel(
+        stringResource(R.string.field_medication_category),
+        topPadding = false
+    )
     ConnectedButtonGroup(
         options = editorMedicationCategories(),
         selectedOption = medicineDraft.category,
@@ -438,7 +441,8 @@ private fun NewMedicinePreparationForm(
     when (medicineDraft.inferredOrSelectedPreparationType() ?: return) {
         MedicinePreparationType.PILL,
         MedicinePreparationType.CAPSULE -> {
-            val isCapsule = medicineDraft.inferredOrSelectedPreparationType() == MedicinePreparationType.CAPSULE
+            val isCapsule =
+                medicineDraft.inferredOrSelectedPreparationType() == MedicinePreparationType.CAPSULE
             val strengthErrorRes = if (isCapsule) {
                 R.string.validation_capsule_strength_required
             } else {
@@ -447,7 +451,10 @@ private fun NewMedicinePreparationForm(
             MedicationNumericField(
                 value = medicineDraft.pillStrengthMg,
                 label = if (isCapsule) {
-                    medicationEditorFieldLabelWithUnit(R.string.field_capsule_strength_mg, rawMassUnit)
+                    medicationEditorFieldLabelWithUnit(
+                        R.string.field_capsule_strength_mg,
+                        rawMassUnit
+                    )
                 } else {
                     medicationEditorFieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit)
                 },
@@ -480,7 +487,10 @@ private fun NewMedicinePreparationForm(
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> {
             MedicationNumericField(
                 value = medicineDraft.singleUseVialStrengthMg,
-                label = medicationEditorFieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
+                label = medicationEditorFieldLabelWithUnit(
+                    R.string.field_single_use_vial_strength_mg,
+                    rawMassUnit
+                ),
                 suffix = stringResource(rawMassUnit),
                 leadingIconRes = R.drawable.ic_vaccines,
                 readOnly = readOnly,
@@ -510,7 +520,10 @@ private fun NewMedicinePreparationForm(
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
             MedicationNumericField(
                 value = medicineDraft.concentrationMgPerMl,
-                label = medicationEditorFieldLabelWithUnit(R.string.field_concentration_mg_per_ml, R.string.unit_mg_per_ml),
+                label = medicationEditorFieldLabelWithUnit(
+                    R.string.field_concentration_mg_per_ml,
+                    R.string.unit_mg_per_ml
+                ),
                 suffix = stringResource(R.string.unit_mg_per_ml),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
                 readOnly = readOnly,
@@ -534,7 +547,10 @@ private fun NewMedicinePreparationForm(
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             MedicationNumericField(
                 value = medicineDraft.vialVolumeMl,
-                label = medicationEditorFieldLabelWithUnit(R.string.field_vial_volume_ml, R.string.unit_ml),
+                label = medicationEditorFieldLabelWithUnit(
+                    R.string.field_vial_volume_ml,
+                    R.string.unit_ml
+                ),
                 suffix = stringResource(R.string.unit_ml),
                 leadingIconRes = R.drawable.ic_fluid,
                 readOnly = readOnly,
@@ -560,7 +576,10 @@ private fun NewMedicinePreparationForm(
         MedicinePreparationType.GEL_SACHET -> {
             MedicationNumericField(
                 value = medicineDraft.gelConcentrationPercent,
-                label = medicationEditorFieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
+                label = medicationEditorFieldLabelWithUnit(
+                    R.string.field_gel_concentration_percent,
+                    R.string.unit_percent
+                ),
                 suffix = stringResource(R.string.unit_percent),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
                 readOnly = readOnly,
@@ -584,7 +603,10 @@ private fun NewMedicinePreparationForm(
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             MedicationNumericField(
                 value = medicineDraft.sachetWeightGrams,
-                label = medicationEditorFieldLabelWithUnit(R.string.field_sachet_weight_grams, R.string.unit_grams),
+                label = medicationEditorFieldLabelWithUnit(
+                    R.string.field_sachet_weight_grams,
+                    R.string.unit_grams
+                ),
                 suffix = stringResource(R.string.unit_grams),
                 leadingIconRes = R.drawable.ic_weight,
                 readOnly = readOnly,
@@ -610,7 +632,10 @@ private fun NewMedicinePreparationForm(
         MedicinePreparationType.GEL_CONTAINER -> {
             MedicationNumericField(
                 value = medicineDraft.gelConcentrationPercent,
-                label = medicationEditorFieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
+                label = medicationEditorFieldLabelWithUnit(
+                    R.string.field_gel_concentration_percent,
+                    R.string.unit_percent
+                ),
                 suffix = stringResource(R.string.unit_percent),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
                 readOnly = readOnly,
@@ -634,7 +659,10 @@ private fun NewMedicinePreparationForm(
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             MedicationNumericField(
                 value = medicineDraft.containerWeightGrams,
-                label = medicationEditorFieldLabelWithUnit(R.string.field_container_weight_grams, R.string.unit_grams),
+                label = medicationEditorFieldLabelWithUnit(
+                    R.string.field_container_weight_grams,
+                    R.string.unit_grams
+                ),
                 suffix = stringResource(R.string.unit_grams),
                 leadingIconRes = R.drawable.ic_weight,
                 readOnly = readOnly,
@@ -679,7 +707,10 @@ private fun NewMedicinePreparationForm(
                 PatchSpecKind.TOTAL_MG -> {
                     MedicationNumericField(
                         value = medicineDraft.patchTotalMg,
-                        label = medicationEditorFieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
+                        label = medicationEditorFieldLabelWithUnit(
+                            R.string.field_patch_total_dosage_mg,
+                            rawMassUnit
+                        ),
                         suffix = stringResource(rawMassUnit),
                         leadingIconRes = R.drawable.ic_chronic,
                         readOnly = readOnly,
@@ -861,20 +892,25 @@ internal fun editableFields(draft: MedicinePickerUiState): List<CreateMedicineFi
     when (draft.inferredOrSelectedPreparationType()) {
         MedicinePreparationType.PILL,
         MedicinePreparationType.CAPSULE -> fields += CreateMedicineField.PILL_STRENGTH
+
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
             fields += CreateMedicineField.VIAL_STRENGTH
+
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
             fields += CreateMedicineField.CONCENTRATION_MG_PER_ML
             fields += CreateMedicineField.VIAL_VOLUME_ML
         }
+
         MedicinePreparationType.GEL_SACHET -> {
             fields += CreateMedicineField.GEL_PERCENT
             fields += CreateMedicineField.SACHET_WEIGHT
         }
+
         MedicinePreparationType.GEL_CONTAINER -> {
             fields += CreateMedicineField.GEL_PERCENT
             fields += CreateMedicineField.CONTAINER_WEIGHT
         }
+
         MedicinePreparationType.PATCH -> when (draft.patchSpecKind) {
             PatchSpecKind.TOTAL_MG -> fields += CreateMedicineField.PATCH_TOTAL_MG
             PatchSpecKind.RELEASE_RATE -> fields += CreateMedicineField.PATCH_RELEASE_RATE
@@ -891,23 +927,28 @@ internal fun createMedicineRequiredFields(draft: MedicinePickerUiState): List<Cr
     return when (draft.inferredOrSelectedPreparationType()) {
         MedicinePreparationType.PILL,
         MedicinePreparationType.CAPSULE -> listOf(CreateMedicineField.PILL_STRENGTH)
+
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> listOf(CreateMedicineField.VIAL_STRENGTH)
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> listOf(
             CreateMedicineField.CONCENTRATION_MG_PER_ML,
             CreateMedicineField.VIAL_VOLUME_ML,
         )
+
         MedicinePreparationType.GEL_SACHET -> listOf(
             CreateMedicineField.GEL_PERCENT,
             CreateMedicineField.SACHET_WEIGHT,
         )
+
         MedicinePreparationType.GEL_CONTAINER -> listOf(
             CreateMedicineField.GEL_PERCENT,
             CreateMedicineField.CONTAINER_WEIGHT,
         )
+
         MedicinePreparationType.PATCH -> when (draft.patchSpecKind) {
             PatchSpecKind.TOTAL_MG -> listOf(CreateMedicineField.PATCH_TOTAL_MG)
             PatchSpecKind.RELEASE_RATE -> listOf(CreateMedicineField.PATCH_RELEASE_RATE)
         }
+
         MedicinePreparationType.PATCH_OFF,
         null -> emptyList()
     }

@@ -40,6 +40,7 @@ fun OpenContainerEditDialog(
     val titleRes = when (preparation) {
         is MedicinePreparation.InjectionMultiUseVial ->
             R.string.stock_current_edit_dialog_title_vial
+
         else -> R.string.stock_current_edit_dialog_title_container
     }
 

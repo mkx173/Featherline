@@ -277,7 +277,9 @@ private fun CalibrationUnitsScreenContent(
                     HrtButton(
                         text = stringResource(R.string.add),
                         onClick = { openCustomAnalyteDialog(customAnalyteId = null) },
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
                         icon = Icons.Rounded.Add,
                         iconModifier = Modifier.size(
                             ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
@@ -607,7 +609,9 @@ private fun CalibrationCustomAnalyteDialog(
                     }
                 }
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     customAnalyte?.let { existingAnalyte ->

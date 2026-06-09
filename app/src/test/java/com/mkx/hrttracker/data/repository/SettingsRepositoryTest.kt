@@ -65,51 +65,54 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `homeE2DisplayUnitFlow emits updated value after setHomeE2DisplayUnit`() = runTest(testDispatcher) {
-        val initial: AllowedAnalyteUnit = settingsRepository.homeE2DisplayUnitFlow.first()
-        val alternate = BloodTestCatalog.definitionFor(BloodAnalyteKey.E2)
-            .allowedUnits
-            .first { it != initial.unit }
-            .let { unit -> AllowedAnalyteUnit.of(BloodAnalyteKey.E2, unit) }
+    fun `homeE2DisplayUnitFlow emits updated value after setHomeE2DisplayUnit`() =
+        runTest(testDispatcher) {
+            val initial: AllowedAnalyteUnit = settingsRepository.homeE2DisplayUnitFlow.first()
+            val alternate = BloodTestCatalog.definitionFor(BloodAnalyteKey.E2)
+                .allowedUnits
+                .first { it != initial.unit }
+                .let { unit -> AllowedAnalyteUnit.of(BloodAnalyteKey.E2, unit) }
 
-        assertNotEquals(initial, alternate)
+            assertNotEquals(initial, alternate)
 
-        settingsRepository.setHomeE2DisplayUnit(alternate)
-        val updated = settingsRepository.homeE2DisplayUnitFlow.first()
+            settingsRepository.setHomeE2DisplayUnit(alternate)
+            val updated = settingsRepository.homeE2DisplayUnitFlow.first()
 
-        assertEquals(alternate, updated)
-    }
-
-    @Test
-    fun `homeE2DisplayUnitFlow emits canonical unit when no preference is stored`() = runTest(testDispatcher) {
-        val initial: AllowedAnalyteUnit = settingsRepository.homeE2DisplayUnitFlow.first()
-        val canonical = AllowedAnalyteUnit.of(
-            BloodAnalyteKey.E2,
-            BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
-        )
-
-        assertEquals(canonical, initial)
-    }
+            assertEquals(alternate, updated)
+        }
 
     @Test
-    fun `firstDayOfWeekOption persists chosen value and round-trips back to FOLLOW_SYSTEM`() = runTest(testDispatcher) {
-        assertEquals(
-            FirstDayOfWeekOption.FOLLOW_SYSTEM,
-            settingsRepository.getCurrentSettings().firstDayOfWeekOption,
-        )
+    fun `homeE2DisplayUnitFlow emits canonical unit when no preference is stored`() =
+        runTest(testDispatcher) {
+            val initial: AllowedAnalyteUnit = settingsRepository.homeE2DisplayUnitFlow.first()
+            val canonical = AllowedAnalyteUnit.of(
+                BloodAnalyteKey.E2,
+                BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+            )
 
-        settingsRepository.setFirstDayOfWeekOption(FirstDayOfWeekOption.SUNDAY)
-        assertEquals(
-            FirstDayOfWeekOption.SUNDAY,
-            settingsRepository.getCurrentSettings().firstDayOfWeekOption,
-        )
+            assertEquals(canonical, initial)
+        }
 
-        settingsRepository.setFirstDayOfWeekOption(FirstDayOfWeekOption.FOLLOW_SYSTEM)
-        assertEquals(
-            FirstDayOfWeekOption.FOLLOW_SYSTEM,
-            settingsRepository.getCurrentSettings().firstDayOfWeekOption,
-        )
-    }
+    @Test
+    fun `firstDayOfWeekOption persists chosen value and round-trips back to FOLLOW_SYSTEM`() =
+        runTest(testDispatcher) {
+            assertEquals(
+                FirstDayOfWeekOption.FOLLOW_SYSTEM,
+                settingsRepository.getCurrentSettings().firstDayOfWeekOption,
+            )
+
+            settingsRepository.setFirstDayOfWeekOption(FirstDayOfWeekOption.SUNDAY)
+            assertEquals(
+                FirstDayOfWeekOption.SUNDAY,
+                settingsRepository.getCurrentSettings().firstDayOfWeekOption,
+            )
+
+            settingsRepository.setFirstDayOfWeekOption(FirstDayOfWeekOption.FOLLOW_SYSTEM)
+            assertEquals(
+                FirstDayOfWeekOption.FOLLOW_SYSTEM,
+                settingsRepository.getCurrentSettings().firstDayOfWeekOption,
+            )
+        }
 
     @Test
     fun `pure black setting persists and defaults off`() = runTest(testDispatcher) {
@@ -160,13 +163,14 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `recordStockNudgeDismissal disables and reports only at the dismiss limit`() = runTest(testDispatcher) {
-        assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
-        assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
-        // The threshold dismissal disables the nudge atomically in the same edit.
-        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
-        assertEquals(false, settingsRepository.stockNudgeEnabledFlow.first())
-    }
+    fun `recordStockNudgeDismissal disables and reports only at the dismiss limit`() =
+        runTest(testDispatcher) {
+            assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
+            assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
+            // The threshold dismissal disables the nudge atomically in the same edit.
+            assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 3))
+            assertEquals(false, settingsRepository.stockNudgeEnabledFlow.first())
+        }
 
     @Test
     fun `stockNudgeUserEnabledFlow defaults to false`() = runTest(testDispatcher) {
@@ -174,23 +178,25 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `setStockNudgeEnabled true marks the nudge as voluntarily enabled`() = runTest(testDispatcher) {
-        settingsRepository.setStockNudgeEnabled(true)
-        assertEquals(true, settingsRepository.stockNudgeUserEnabledFlow.first())
-    }
+    fun `setStockNudgeEnabled true marks the nudge as voluntarily enabled`() =
+        runTest(testDispatcher) {
+            settingsRepository.setStockNudgeEnabled(true)
+            assertEquals(true, settingsRepository.stockNudgeUserEnabledFlow.first())
+        }
 
     @Test
-    fun `voluntary enable suppresses auto-disable no matter how many dismissals`() = runTest(testDispatcher) {
-        // Once the user opts in via the menu toggle, the dismiss-threshold policy
-        // is off for good: dismissals never report a disable and the flag stays on,
-        // even past what would otherwise be the limit.
-        settingsRepository.setStockNudgeEnabled(true)
+    fun `voluntary enable suppresses auto-disable no matter how many dismissals`() =
+        runTest(testDispatcher) {
+            // Once the user opts in via the menu toggle, the dismiss-threshold policy
+            // is off for good: dismissals never report a disable and the flag stays on,
+            // even past what would otherwise be the limit.
+            settingsRepository.setStockNudgeEnabled(true)
 
-        repeat(5) {
-            assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+            repeat(5) {
+                assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+            }
+            assertEquals(true, settingsRepository.stockNudgeEnabledFlow.first())
         }
-        assertEquals(true, settingsRepository.stockNudgeEnabledFlow.first())
-    }
 
     @Test
     fun `setStockNudgeEnabled false leaves dismiss count alone`() = runTest(testDispatcher) {
@@ -202,199 +208,218 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `restoreSettings with stock nudge disabled persists false and clears dismiss count`() = runTest(testDispatcher) {
-        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
-        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+    fun `restoreSettings with stock nudge disabled persists false and clears dismiss count`() =
+        runTest(testDispatcher) {
+            settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+            settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
 
-        restoreSettingsWithStockNudgeEnabled(false)
+            restoreSettingsWithStockNudgeEnabled(false)
 
-        assertEquals(false, settingsRepository.stockNudgeEnabledFlow.first())
-        // Count cleared by restore: the first dismissal hits a limit of 1.
-        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
-    }
-
-    @Test
-    fun `restoreSettings carries the voluntarily-enabled flag and suppresses auto-disable`() = runTest(testDispatcher) {
-        restoreSettingsWithStockNudgeEnabled(enabled = true, userEnabled = true)
-
-        assertEquals(true, settingsRepository.stockNudgeUserEnabledFlow.first())
-        // A restored voluntary opt-in keeps auto-disable off across devices.
-        assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
-    }
+            assertEquals(false, settingsRepository.stockNudgeEnabledFlow.first())
+            // Count cleared by restore: the first dismissal hits a limit of 1.
+            assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+        }
 
     @Test
-    fun `restoreSettings without the voluntarily-enabled flag leaves auto-disable armed`() = runTest(testDispatcher) {
-        // Backups predating the flag (or where the user never opted in) restore as
-        // not-voluntary, so the threshold policy still applies.
-        restoreSettingsWithStockNudgeEnabled(enabled = true, userEnabled = false)
+    fun `restoreSettings carries the voluntarily-enabled flag and suppresses auto-disable`() =
+        runTest(testDispatcher) {
+            restoreSettingsWithStockNudgeEnabled(enabled = true, userEnabled = true)
 
-        assertEquals(false, settingsRepository.stockNudgeUserEnabledFlow.first())
-        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
-    }
-
-    @Test
-    fun `restoreSettings omitting stock nudge flag defaults true and clears dismiss count`() = runTest(testDispatcher) {
-        settingsRepository.setStockNudgeEnabled(false)
-        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
-        settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
-
-        restoreSettingsOmittingStockNudgeEnabled()
-
-        assertEquals(true, settingsRepository.stockNudgeEnabledFlow.first())
-        // Count cleared by restore: the first dismissal hits a limit of 1.
-        assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
-    }
+            assertEquals(true, settingsRepository.stockNudgeUserEnabledFlow.first())
+            // A restored voluntary opt-in keeps auto-disable off across devices.
+            assertEquals(false, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+        }
 
     @Test
-    fun `homeE2DisplayUnitFlow emits canonical unit after setting canonical unit`() = runTest(testDispatcher) {
-        val nonCanonical = BloodTestCatalog.definitionFor(BloodAnalyteKey.E2)
-            .allowedUnits
-            .first { it != BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2) }
-            .let { unit -> AllowedAnalyteUnit.of(BloodAnalyteKey.E2, unit) }
-        settingsRepository.setHomeE2DisplayUnit(nonCanonical)
+    fun `restoreSettings without the voluntarily-enabled flag leaves auto-disable armed`() =
+        runTest(testDispatcher) {
+            // Backups predating the flag (or where the user never opted in) restore as
+            // not-voluntary, so the threshold policy still applies.
+            restoreSettingsWithStockNudgeEnabled(enabled = true, userEnabled = false)
 
-        val canonical = AllowedAnalyteUnit.of(
-            BloodAnalyteKey.E2,
-            BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
-        )
-        settingsRepository.setHomeE2DisplayUnit(canonical)
-        val updated = settingsRepository.homeE2DisplayUnitFlow.first()
+            assertEquals(false, settingsRepository.stockNudgeUserEnabledFlow.first())
+            assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+        }
 
-        assertEquals(canonical, updated)
-    }
+    @Test
+    fun `restoreSettings omitting stock nudge flag defaults true and clears dismiss count`() =
+        runTest(testDispatcher) {
+            settingsRepository.setStockNudgeEnabled(false)
+            settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+            settingsRepository.recordStockNudgeDismissal(dismissLimit = 99)
+
+            restoreSettingsOmittingStockNudgeEnabled()
+
+            assertEquals(true, settingsRepository.stockNudgeEnabledFlow.first())
+            // Count cleared by restore: the first dismissal hits a limit of 1.
+            assertEquals(true, settingsRepository.recordStockNudgeDismissal(dismissLimit = 1))
+        }
+
+    @Test
+    fun `homeE2DisplayUnitFlow emits canonical unit after setting canonical unit`() =
+        runTest(testDispatcher) {
+            val nonCanonical = BloodTestCatalog.definitionFor(BloodAnalyteKey.E2)
+                .allowedUnits
+                .first { it != BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2) }
+                .let { unit -> AllowedAnalyteUnit.of(BloodAnalyteKey.E2, unit) }
+            settingsRepository.setHomeE2DisplayUnit(nonCanonical)
+
+            val canonical = AllowedAnalyteUnit.of(
+                BloodAnalyteKey.E2,
+                BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+            )
+            settingsRepository.setHomeE2DisplayUnit(canonical)
+            val updated = settingsRepository.homeE2DisplayUnitFlow.first()
+
+            assertEquals(canonical, updated)
+        }
 
     @Test
     fun `homeLowStockAcknowledgedWarningStatesFlow defaults to empty`() = runTest(testDispatcher) {
-        assertEquals(emptyMap<String, MedicineStockState>(), settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first())
-    }
-
-    @Test
-    fun `home low stock acknowledged warning states persist and round trip`() = runTest(testDispatcher) {
-        val firstUuid = "11111111-1111-1111-1111-111111111111"
-        val secondUuid = "22222222-2222-2222-2222-222222222222"
-
-        settingsRepository.setHomeLowStockSectionFoldState(
-            expanded = false,
-            acknowledgedWarningStates = mapOf(
-                firstUuid to MedicineStockState.USER_LOW,
-                secondUuid to MedicineStockState.OUT,
-            ),
-        )
-
-        assertEquals(false, settingsRepository.homeLowStockSectionExpandedFlow.first())
         assertEquals(
-            mapOf(
-                firstUuid to MedicineStockState.USER_LOW,
-                secondUuid to MedicineStockState.OUT,
-            ),
-            settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first(),
+            emptyMap<String, MedicineStockState>(),
+            settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first()
         )
     }
 
     @Test
-    fun `home low stock acknowledged warning states overwrite prior value`() = runTest(testDispatcher) {
-        val firstUuid = "11111111-1111-1111-1111-111111111111"
-        val secondUuid = "22222222-2222-2222-2222-222222222222"
+    fun `home low stock acknowledged warning states persist and round trip`() =
+        runTest(testDispatcher) {
+            val firstUuid = "11111111-1111-1111-1111-111111111111"
+            val secondUuid = "22222222-2222-2222-2222-222222222222"
 
-        settingsRepository.setHomeLowStockSectionFoldState(
-            expanded = false,
-            acknowledgedWarningStates = mapOf(firstUuid to MedicineStockState.USER_LOW),
-        )
-        settingsRepository.setHomeLowStockSectionFoldState(
-            expanded = false,
-            acknowledgedWarningStates = mapOf(secondUuid to MedicineStockState.IMMINENT),
-        )
+            settingsRepository.setHomeLowStockSectionFoldState(
+                expanded = false,
+                acknowledgedWarningStates = mapOf(
+                    firstUuid to MedicineStockState.USER_LOW,
+                    secondUuid to MedicineStockState.OUT,
+                ),
+            )
 
-        assertEquals(
-            mapOf(secondUuid to MedicineStockState.IMMINENT),
-            settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first(),
-        )
-    }
-
-    @Test
-    fun `clearing home low stock acknowledged warning states removes preference`() = runTest(testDispatcher) {
-        val key = stringSetPreferencesKey("home_low_stock_acknowledged_warning_states")
-        val uuid = "11111111-1111-1111-1111-111111111111"
-        settingsRepository.setHomeLowStockSectionFoldState(
-            expanded = false,
-            acknowledgedWarningStates = mapOf(uuid to MedicineStockState.OUT),
-        )
-
-        settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
-
-        assertNull(dataStore.data.first()[key])
-        assertEquals(emptyMap<String, MedicineStockState>(), settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first())
-    }
-
-    @Test
-    fun `home low stock acknowledged warning state decoding ignores malformed entries`() = runTest(testDispatcher) {
-        val key = stringSetPreferencesKey("home_low_stock_acknowledged_warning_states")
-        val validUuid = "11111111-1111-1111-1111-111111111111"
-        dataStore.edit { preferences ->
-            preferences[key] = setOf(
-                "$validUuid|OUT",
-                "not-a-uuid|USER_LOW",
-                "22222222-2222-2222-2222-222222222222|HEALTHY",
-                "33333333-3333-3333-3333-333333333333|NO_RUNWAY",
-                "44444444-4444-4444-4444-444444444444|BOGUS",
-                "55555555-5555-5555-5555-555555555555",
+            assertEquals(false, settingsRepository.homeLowStockSectionExpandedFlow.first())
+            assertEquals(
+                mapOf(
+                    firstUuid to MedicineStockState.USER_LOW,
+                    secondUuid to MedicineStockState.OUT,
+                ),
+                settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first(),
             )
         }
 
-        assertEquals(
-            mapOf(validUuid to MedicineStockState.OUT),
-            settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first(),
-        )
-    }
+    @Test
+    fun `home low stock acknowledged warning states overwrite prior value`() =
+        runTest(testDispatcher) {
+            val firstUuid = "11111111-1111-1111-1111-111111111111"
+            val secondUuid = "22222222-2222-2222-2222-222222222222"
+
+            settingsRepository.setHomeLowStockSectionFoldState(
+                expanded = false,
+                acknowledgedWarningStates = mapOf(firstUuid to MedicineStockState.USER_LOW),
+            )
+            settingsRepository.setHomeLowStockSectionFoldState(
+                expanded = false,
+                acknowledgedWarningStates = mapOf(secondUuid to MedicineStockState.IMMINENT),
+            )
+
+            assertEquals(
+                mapOf(secondUuid to MedicineStockState.IMMINENT),
+                settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first(),
+            )
+        }
 
     @Test
-    fun `home low stock fold state updates expanded and acknowledged states atomically`() = runTest(testDispatcher) {
-        val uuid = "11111111-1111-1111-1111-111111111111"
-        val foldStateFlow: Flow<Pair<Boolean, Map<String, MedicineStockState>>> = combine(
-            settingsRepository.homeLowStockSectionExpandedFlow,
-            settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
-        ) { expanded: Boolean, states: Map<String, MedicineStockState> -> expanded to states }
+    fun `clearing home low stock acknowledged warning states removes preference`() =
+        runTest(testDispatcher) {
+            val key = stringSetPreferencesKey("home_low_stock_acknowledged_warning_states")
+            val uuid = "11111111-1111-1111-1111-111111111111"
+            settingsRepository.setHomeLowStockSectionFoldState(
+                expanded = false,
+                acknowledgedWarningStates = mapOf(uuid to MedicineStockState.OUT),
+            )
 
-        val collapseObserved = mutableListOf<Pair<Boolean, Map<String, MedicineStockState>>>()
-        val collapseJob = launch {
-            foldStateFlow
-                .drop(1)
-                .take(1)
-                .toList(collapseObserved)
+            settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+
+            assertNull(dataStore.data.first()[key])
+            assertEquals(
+                emptyMap<String, MedicineStockState>(),
+                settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first()
+            )
         }
-        settingsRepository.setHomeLowStockSectionFoldState(
-            expanded = false,
-            acknowledgedWarningStates = mapOf(uuid to MedicineStockState.IMMINENT),
-        )
-        collapseJob.join()
 
-        assertEquals(
-            listOf(false to mapOf(uuid to MedicineStockState.IMMINENT)),
-            collapseObserved,
-        )
-        assertEquals(false, settingsRepository.homeLowStockSectionExpandedFlow.first())
-        assertEquals(
-            mapOf(uuid to MedicineStockState.IMMINENT),
-            settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first(),
-        )
+    @Test
+    fun `home low stock acknowledged warning state decoding ignores malformed entries`() =
+        runTest(testDispatcher) {
+            val key = stringSetPreferencesKey("home_low_stock_acknowledged_warning_states")
+            val validUuid = "11111111-1111-1111-1111-111111111111"
+            dataStore.edit { preferences ->
+                preferences[key] = setOf(
+                    "$validUuid|OUT",
+                    "not-a-uuid|USER_LOW",
+                    "22222222-2222-2222-2222-222222222222|HEALTHY",
+                    "33333333-3333-3333-3333-333333333333|NO_RUNWAY",
+                    "44444444-4444-4444-4444-444444444444|BOGUS",
+                    "55555555-5555-5555-5555-555555555555",
+                )
+            }
 
-        val expandObserved = mutableListOf<Pair<Boolean, Map<String, MedicineStockState>>>()
-        val expandJob = launch {
-            foldStateFlow
-                .drop(1)
-                .take(1)
-                .toList(expandObserved)
+            assertEquals(
+                mapOf(validUuid to MedicineStockState.OUT),
+                settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first(),
+            )
         }
-        settingsRepository.setHomeLowStockSectionFoldState(expanded = true)
-        expandJob.join()
 
-        assertEquals(
-            listOf(true to emptyMap<String, MedicineStockState>()),
-            expandObserved,
-        )
-        assertEquals(true, settingsRepository.homeLowStockSectionExpandedFlow.first())
-        assertEquals(emptyMap<String, MedicineStockState>(), settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first())
-    }
+    @Test
+    fun `home low stock fold state updates expanded and acknowledged states atomically`() =
+        runTest(testDispatcher) {
+            val uuid = "11111111-1111-1111-1111-111111111111"
+            val foldStateFlow: Flow<Pair<Boolean, Map<String, MedicineStockState>>> = combine(
+                settingsRepository.homeLowStockSectionExpandedFlow,
+                settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
+            ) { expanded: Boolean, states: Map<String, MedicineStockState> -> expanded to states }
+
+            val collapseObserved = mutableListOf<Pair<Boolean, Map<String, MedicineStockState>>>()
+            val collapseJob = launch {
+                foldStateFlow
+                    .drop(1)
+                    .take(1)
+                    .toList(collapseObserved)
+            }
+            settingsRepository.setHomeLowStockSectionFoldState(
+                expanded = false,
+                acknowledgedWarningStates = mapOf(uuid to MedicineStockState.IMMINENT),
+            )
+            collapseJob.join()
+
+            assertEquals(
+                listOf(false to mapOf(uuid to MedicineStockState.IMMINENT)),
+                collapseObserved,
+            )
+            assertEquals(false, settingsRepository.homeLowStockSectionExpandedFlow.first())
+            assertEquals(
+                mapOf(uuid to MedicineStockState.IMMINENT),
+                settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first(),
+            )
+
+            val expandObserved = mutableListOf<Pair<Boolean, Map<String, MedicineStockState>>>()
+            val expandJob = launch {
+                foldStateFlow
+                    .drop(1)
+                    .take(1)
+                    .toList(expandObserved)
+            }
+            settingsRepository.setHomeLowStockSectionFoldState(expanded = true)
+            expandJob.join()
+
+            assertEquals(
+                listOf(true to emptyMap<String, MedicineStockState>()),
+                expandObserved,
+            )
+            assertEquals(true, settingsRepository.homeLowStockSectionExpandedFlow.first())
+            assertEquals(
+                emptyMap<String, MedicineStockState>(),
+                settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first()
+            )
+        }
 
     @Test
     fun `restoreSettings clears low stock acknowledged warning states`() = runTest(testDispatcher) {
@@ -423,7 +448,10 @@ class SettingsRepositoryTest {
             homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
         )
 
-        assertEquals(emptyMap<String, MedicineStockState>(), settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first())
+        assertEquals(
+            emptyMap<String, MedicineStockState>(),
+            settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first()
+        )
     }
 
     private suspend fun restoreSettingsWithStockNudgeEnabled(

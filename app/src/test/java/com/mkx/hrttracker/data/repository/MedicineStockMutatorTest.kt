@@ -178,7 +178,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_pool_simpleDecrement() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockUnitsRemaining = 30.0)
+                pillRow(stockUnitsRemaining = 30.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -204,7 +204,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_pool_clampAtZero_keepsStockAtZero() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockUnitsRemaining = 0.0)
+                pillRow(stockUnitsRemaining = 0.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -230,7 +230,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_pool_nullRemaining_treatsAsEmptyStock() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockUnitsRemaining = null)
+                pillRow(stockUnitsRemaining = null)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -256,7 +256,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_pool_partialClamp_clampsRemainingAtZero() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockUnitsRemaining = 0.5)
+                pillRow(stockUnitsRemaining = 0.5)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -282,7 +282,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_trackingDisabled_doesNotWrite() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(trackingEnabled = false)
+                pillRow(trackingEnabled = false)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -315,7 +315,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_patchOff_doesNotWrite() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow().copy(preparationType = "PATCH_OFF", trackingEnabled = true)
+                pillRow().copy(preparationType = "PATCH_OFF", trackingEnabled = true)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -332,7 +332,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_containerMissingCapacity_doesNotWrite() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.5).copy(vialVolumeMl = null)
+                vialRow(sealed = 2.0, open = 0.5).copy(vialVolumeMl = null)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -349,7 +349,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_containerInvalidCapacity_doesNotWrite() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.5).copy(vialVolumeMl = 0.0)
+                vialRow(sealed = 2.0, open = 0.5).copy(vialVolumeMl = 0.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -366,7 +366,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_container_case1_simpleDecrement() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
+                vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -392,7 +392,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_container_exactDrainPromotesNextContainerInSameWrite() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.25, vialVolume = 1.0)
+                vialRow(sealed = 2.0, open = 0.25, vialVolume = 1.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -423,7 +423,7 @@ class MedicineStockMutatorTest {
         // re-basing to full. Guards against extending the crack decrement into the
         // consumption path.
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.25, vialVolume = 1.0, lastTotal = 5.0)
+                vialRow(sealed = 2.0, open = 0.25, vialVolume = 1.0, lastTotal = 5.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -449,7 +449,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_container_exactDrainWithNoSealedStaysOut() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 0.0, open = 0.25, vialVolume = 1.0)
+                vialRow(sealed = 0.0, open = 0.25, vialVolume = 1.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -475,7 +475,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_container_openLessThanDoseCarriesDregIntoFreshUnit() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 1.0, open = 0.1, vialVolume = 10.0)
+                vialRow(sealed = 1.0, open = 0.1, vialVolume = 10.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -529,7 +529,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_container_case2_autoPromote_partialResidueCarried() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.2, vialVolume = 1.0)
+                vialRow(sealed = 2.0, open = 0.2, vialVolume = 1.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -557,7 +557,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_container_case2_doseExceedsContainerSize() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
+                vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -581,39 +581,40 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun resolveDeduction_container_case2_doseExceedsOpenPlusOneContainer_drainsAcrossUnitsConservingVolume() = runTest {
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.2, vialVolume = 1.0)
+    fun resolveDeduction_container_case2_doseExceedsOpenPlusOneContainer_drainsAcrossUnitsConservingVolume() =
+        runTest {
+            coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
+                    vialRow(sealed = 2.0, open = 0.2, vialVolume = 1.0)
 
-        mutator.resolveDeductionForInsert(
-            database = database,
-            medicineUuid = medicineUuid,
-            requestedDose = 1.5,
-            now = fixedNow,
-        )
-
-        // The 1.5 dose exceeds open (0.2) plus one full vial; the total round-trip
-        // drains across both sealed units conserving volume: 2.2 - 1.5 = 0.7 left
-        // as a fresh open vial. The old single-crack path lost the 0.3 excess and
-        // left a stale full vial (open 1.0, sealed 0).
-        coVerify {
-            medicineDao.updateStockFields(
-                uuid = medicineUuid.toString(),
-                trackingEnabled = true,
-                stockUnitsRemaining = 0.0,
-                stockUnitsLastTotal = null,
-                openContainerAmount = match { amount -> abs(amount - 0.7) < 1e-9 },
-                warnAtDaysRemaining = 14,
-                stockGeneration = 1L,
-                updatedAtEpochMillis = fixedNow.toEpochMilli(),
+            mutator.resolveDeductionForInsert(
+                database = database,
+                medicineUuid = medicineUuid,
+                requestedDose = 1.5,
+                now = fixedNow,
             )
+
+            // The 1.5 dose exceeds open (0.2) plus one full vial; the total round-trip
+            // drains across both sealed units conserving volume: 2.2 - 1.5 = 0.7 left
+            // as a fresh open vial. The old single-crack path lost the 0.3 excess and
+            // left a stale full vial (open 1.0, sealed 0).
+            coVerify {
+                medicineDao.updateStockFields(
+                    uuid = medicineUuid.toString(),
+                    trackingEnabled = true,
+                    stockUnitsRemaining = 0.0,
+                    stockUnitsLastTotal = null,
+                    openContainerAmount = match { amount -> abs(amount - 0.7) < 1e-9 },
+                    warnAtDaysRemaining = 14,
+                    stockGeneration = 1L,
+                    updatedAtEpochMillis = fixedNow.toEpochMilli(),
+                )
+            }
         }
-    }
 
     @Test
     fun resolveDeduction_container_case1_treatsTinyFloatingResidueAsSufficientOpen() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.09999999999999998, vialVolume = 1.0)
+                vialRow(sealed = 2.0, open = 0.09999999999999998, vialVolume = 1.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -639,7 +640,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_container_case2_gelContainerUsesContainerWeight() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            gelContainerRow(sealed = 1.0, open = 20.0, containerWeight = 80.0)
+                gelContainerRow(sealed = 1.0, open = 20.0, containerWeight = 80.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -667,7 +668,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_container_tinyDoseWithNoStockLeavesOpenAtZero() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 0.0, open = 0.0, vialVolume = 1.0)
+                vialRow(sealed = 0.0, open = 0.0, vialVolume = 1.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -693,7 +694,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_container_case3_outOfStock_consumesRemainingOpen() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 0.0, open = 0.3, vialVolume = 1.0)
+                vialRow(sealed = 0.0, open = 0.3, vialVolume = 1.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -719,7 +720,7 @@ class MedicineStockMutatorTest {
     @Test
     fun resolveDeduction_container_case3_emptyOpenAndZeroSealed_keepsOpenAtZero() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 0.0, open = 0.0, vialVolume = 1.0)
+                vialRow(sealed = 0.0, open = 0.0, vialVolume = 1.0)
 
         mutator.resolveDeductionForInsert(
             database = database,
@@ -745,7 +746,7 @@ class MedicineStockMutatorTest {
     @Test
     fun clearOnArchive_resetsAllFieldsAndBumpsGeneration() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockGeneration = 7L)
+                pillRow(stockGeneration = 7L)
 
         mutator.clearStockOnArchive(database, medicineUuid, fixedNow)
 
@@ -766,7 +767,7 @@ class MedicineStockMutatorTest {
     @Test
     fun clearOnPreparationEdit_preservesWarnAtDaysRemaining() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockGeneration = 3L, warnAtDaysRemaining = 21)
+                pillRow(stockGeneration = 3L, warnAtDaysRemaining = 21)
 
         mutator.clearStockOnPreparationEdit(database, medicineUuid, fixedNow)
 
@@ -798,12 +799,12 @@ class MedicineStockMutatorTest {
     @Test
     fun enableTracking_writesInitialValuesAndBumpsGeneration() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(
-                trackingEnabled = false,
-                stockUnitsRemaining = null,
-                stockUnitsLastTotal = null,
-                stockGeneration = 0L,
-            )
+                pillRow(
+                    trackingEnabled = false,
+                    stockUnitsRemaining = null,
+                    stockUnitsLastTotal = null,
+                    stockGeneration = 0L,
+                )
 
         mutator.enableTracking(
             database = database,
@@ -831,7 +832,7 @@ class MedicineStockMutatorTest {
     @Test
     fun enableTracking_preservesWarnAtDaysRemainingFromExistingRow() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(trackingEnabled = false, warnAtDaysRemaining = 21, stockGeneration = 2L)
+                pillRow(trackingEnabled = false, warnAtDaysRemaining = 21, stockGeneration = 2L)
 
         mutator.enableTracking(
             database = database,
@@ -859,12 +860,12 @@ class MedicineStockMutatorTest {
     @Test
     fun enableTracking_writesInitialOpenContainerAmount() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(
-                trackingEnabled = false,
-                sealed = null,
-                open = null,
-                stockGeneration = 4L,
-            )
+                vialRow(
+                    trackingEnabled = false,
+                    sealed = null,
+                    open = null,
+                    stockGeneration = 4L,
+                )
 
         mutator.enableTracking(
             database = database,
@@ -892,13 +893,13 @@ class MedicineStockMutatorTest {
     @Test
     fun enableTracking_containerWithoutOpenPromotesFirstContainer() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(
-                trackingEnabled = false,
-                sealed = null,
-                open = null,
-                vialVolume = 5.0,
-                stockGeneration = 4L,
-            )
+                vialRow(
+                    trackingEnabled = false,
+                    sealed = null,
+                    open = null,
+                    vialVolume = 5.0,
+                    stockGeneration = 4L,
+                )
 
         mutator.enableTracking(
             database = database,
@@ -926,13 +927,13 @@ class MedicineStockMutatorTest {
     @Test
     fun disableTracking_clearsPoolStockAndBumpsGeneration() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(
-                trackingEnabled = true,
-                stockUnitsRemaining = 25.0,
-                stockUnitsLastTotal = 30.0,
-                warnAtDaysRemaining = 21,
-                stockGeneration = 5L,
-            )
+                pillRow(
+                    trackingEnabled = true,
+                    stockUnitsRemaining = 25.0,
+                    stockUnitsLastTotal = 30.0,
+                    warnAtDaysRemaining = 21,
+                    stockGeneration = 5L,
+                )
 
         mutator.disableTracking(database, medicineUuid, fixedNow)
 
@@ -953,13 +954,13 @@ class MedicineStockMutatorTest {
     @Test
     fun disableTracking_clearsOpenContainerStockAndBumpsGeneration() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(
-                trackingEnabled = true,
-                sealed = 2.0,
-                open = 0.4,
-                warnAtDaysRemaining = 21,
-                stockGeneration = 5L,
-            )
+                vialRow(
+                    trackingEnabled = true,
+                    sealed = 2.0,
+                    open = 0.4,
+                    warnAtDaysRemaining = 21,
+                    stockGeneration = 5L,
+                )
 
         mutator.disableTracking(database, medicineUuid, fixedNow)
 
@@ -980,7 +981,7 @@ class MedicineStockMutatorTest {
     @Test
     fun recount_pool_snapsLastTotalToCurrentAndBumpsGeneration() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockUnitsRemaining = 5.0, stockUnitsLastTotal = 30.0, stockGeneration = 1L)
+                pillRow(stockUnitsRemaining = 5.0, stockUnitsLastTotal = 30.0, stockGeneration = 1L)
 
         mutator.applyRecount(
             database = database,
@@ -1006,7 +1007,7 @@ class MedicineStockMutatorTest {
     @Test
     fun recount_container_snapsSealedLastTotalAndPreservesOpen() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
+                vialRow(sealed = 2.0, open = 0.5, vialVolume = 1.0)
 
         mutator.applyRecount(
             database = database,
@@ -1040,7 +1041,7 @@ class MedicineStockMutatorTest {
         // raw empty open makes promote crack one of the just-counted containers,
         // persisting one fewer than entered (and one fewer than the preview shows).
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.0, vialVolume = 1.0)
+                vialRow(sealed = 2.0, open = 0.0, vialVolume = 1.0)
 
         mutator.applyRecount(
             database = database,
@@ -1071,7 +1072,7 @@ class MedicineStockMutatorTest {
         // open to preserve, so the entered count yields (count-1) reserve + one
         // open, and the denominator follows the baseline crack.
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 0.0, open = null, vialVolume = 1.0)
+                vialRow(sealed = 0.0, open = null, vialVolume = 1.0)
 
         mutator.applyRecount(
             database = database,
@@ -1113,7 +1114,7 @@ class MedicineStockMutatorTest {
     @Test
     fun received_pool_addsToRemainingAndResetsLastTotalToCurrentAfter() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            pillRow(stockUnitsRemaining = 5.0, stockUnitsLastTotal = 30.0, stockGeneration = 4L)
+                pillRow(stockUnitsRemaining = 5.0, stockUnitsLastTotal = 30.0, stockGeneration = 4L)
 
         mutator.applyReceived(
             database = database,
@@ -1139,7 +1140,7 @@ class MedicineStockMutatorTest {
     @Test
     fun received_container_addsToSealedAndPreservesOpen() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 1.0, open = 0.4, vialVolume = 1.0, stockGeneration = 3L)
+                vialRow(sealed = 1.0, open = 0.4, vialVolume = 1.0, stockGeneration = 3L)
 
         mutator.applyReceived(
             database = database,
@@ -1165,7 +1166,7 @@ class MedicineStockMutatorTest {
     @Test
     fun received_container_promotesFirstContainerWhenNoOpenExists() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = null, vialVolume = 1.0)
+                vialRow(sealed = 2.0, open = null, vialVolume = 1.0)
 
         mutator.applyReceived(
             database = database,
@@ -1191,7 +1192,7 @@ class MedicineStockMutatorTest {
     @Test
     fun received_container_emptyOpenPromotesAfterAddingSealedStock() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.0, vialVolume = 1.0)
+                vialRow(sealed = 2.0, open = 0.0, vialVolume = 1.0)
 
         mutator.applyReceived(
             database = database,
@@ -1233,7 +1234,7 @@ class MedicineStockMutatorTest {
     @Test
     fun setOpenContainerAmount_clampsToContainerSizeAndPreservesEverythingElse() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 4.0, open = 0.3, vialVolume = 1.0, stockGeneration = 7L)
+                vialRow(sealed = 4.0, open = 0.3, vialVolume = 1.0, stockGeneration = 7L)
 
         mutator.applySetOpenContainerAmount(
             database = database,
@@ -1259,7 +1260,7 @@ class MedicineStockMutatorTest {
     @Test
     fun setOpenContainerAmount_clampsNegativeToZero() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.4, vialVolume = 1.0)
+                vialRow(sealed = 2.0, open = 0.4, vialVolume = 1.0)
 
         mutator.applySetOpenContainerAmount(
             database = database,
@@ -1285,7 +1286,7 @@ class MedicineStockMutatorTest {
     @Test
     fun setOpenContainerAmount_zeroWithSealedPromotesNextContainer() = runTest {
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.4, vialVolume = 1.0)
+                vialRow(sealed = 2.0, open = 0.4, vialVolume = 1.0)
 
         mutator.applySetOpenContainerAmount(
             database = database,
@@ -1309,37 +1310,38 @@ class MedicineStockMutatorTest {
     }
 
     @Test
-    fun setOpenContainerAmount_positiveAmountOnLegacyEmptyOpenCracksSealedWithoutInflatingTotal() = runTest {
-        // Legacy/imported row: empty open with sealed stock. The read layer shows
-        // it already cracked (2 sealed + a full open), so the edit dialog hands us
-        // an absolute open amount relative to that healed view. The setter must
-        // canonicalize the raw row first; otherwise the still-raw sealed count (3)
-        // is left untouched and double-counts a container, inflating total stock.
-        coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 3.0, open = null, vialVolume = 10.0, lastTotal = 3.0)
+    fun setOpenContainerAmount_positiveAmountOnLegacyEmptyOpenCracksSealedWithoutInflatingTotal() =
+        runTest {
+            // Legacy/imported row: empty open with sealed stock. The read layer shows
+            // it already cracked (2 sealed + a full open), so the edit dialog hands us
+            // an absolute open amount relative to that healed view. The setter must
+            // canonicalize the raw row first; otherwise the still-raw sealed count (3)
+            // is left untouched and double-counts a container, inflating total stock.
+            coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
+                    vialRow(sealed = 3.0, open = null, vialVolume = 10.0, lastTotal = 3.0)
 
-        mutator.applySetOpenContainerAmount(
-            database = database,
-            medicineUuid = medicineUuid,
-            amount = 5.0,
-            now = fixedNow,
-        )
-
-        // Cracked: 3 sealed -> 2 sealed + the edited 5 mL open (total 25, not 35),
-        // and the gauge denominator drops with it to stay consistent with reads.
-        coVerify {
-            medicineDao.updateStockFields(
-                uuid = medicineUuid.toString(),
-                trackingEnabled = true,
-                stockUnitsRemaining = 2.0,
-                stockUnitsLastTotal = 2.0,
-                openContainerAmount = 5.0,
-                warnAtDaysRemaining = 14,
-                stockGeneration = 1L,
-                updatedAtEpochMillis = fixedNow.toEpochMilli(),
+            mutator.applySetOpenContainerAmount(
+                database = database,
+                medicineUuid = medicineUuid,
+                amount = 5.0,
+                now = fixedNow,
             )
+
+            // Cracked: 3 sealed -> 2 sealed + the edited 5 mL open (total 25, not 35),
+            // and the gauge denominator drops with it to stay consistent with reads.
+            coVerify {
+                medicineDao.updateStockFields(
+                    uuid = medicineUuid.toString(),
+                    trackingEnabled = true,
+                    stockUnitsRemaining = 2.0,
+                    stockUnitsLastTotal = 2.0,
+                    openContainerAmount = 5.0,
+                    warnAtDaysRemaining = 14,
+                    stockGeneration = 1L,
+                    updatedAtEpochMillis = fixedNow.toEpochMilli(),
+                )
+            }
         }
-    }
 
     @Test
     fun setOpenContainerAmount_zeroOnNonLegacyRowKeepsDenominatorFixed() = runTest {
@@ -1348,7 +1350,7 @@ class MedicineStockMutatorTest {
         // a new baseline. unitsLastTotal stays at the recount baseline (5), so the
         // gauge reads 1/5, not 1/1. Guards the consumption-vs-baseline distinction.
         coEvery { medicineDao.getByUuid(medicineUuid.toString()) } returns
-            vialRow(sealed = 2.0, open = 0.4, vialVolume = 1.0, lastTotal = 5.0)
+                vialRow(sealed = 2.0, open = 0.4, vialVolume = 1.0, lastTotal = 5.0)
 
         mutator.applySetOpenContainerAmount(
             database = database,

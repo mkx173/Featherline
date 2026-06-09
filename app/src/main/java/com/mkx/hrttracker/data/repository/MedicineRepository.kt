@@ -454,9 +454,9 @@ class MedicineRepository @Inject internal constructor(
                 // through fromStorageValue so a malformed legacy row writes
                 // back as MG rather than re-persisting garbage.
                 val resolvedDisplayDoseUnit = (
-                    displayDoseUnit
-                        ?: MedicineDisplayDoseUnit.fromStorageValue(existing.displayDoseUnit)
-                ).name
+                        displayDoseUnit
+                            ?: MedicineDisplayDoseUnit.fromStorageValue(existing.displayDoseUnit)
+                        ).name
                 dao.updatePreparationFields(
                     uuid = uuid.toString(),
                     preparationType = storageFields.preparationType,

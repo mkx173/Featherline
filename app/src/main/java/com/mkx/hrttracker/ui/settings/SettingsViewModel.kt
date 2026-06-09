@@ -51,6 +51,7 @@ class SettingsViewModel @Inject constructor(
     private val diagnosticsExportService: AppDiagnosticsExportService,
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
+
     // Tracks the intent of pendingPrompt so the success handler knows whether the
     // user authenticated to enable or to disable screen-lock protection.
     private var pendingScreenLockIntent: ScreenLockPromptIntent? = null
@@ -68,6 +69,7 @@ class SettingsViewModel @Inject constructor(
         replay = 1,
         extraBufferCapacity = 4,
     )
+
     // Replay the most recent result so the UI still sees it after a config
     // change recreates the collector. The restore itself sets the app locale,
     // which triggers an activity recreate; without replay the success/failure
@@ -314,6 +316,7 @@ class SettingsViewModel @Inject constructor(
                     settingsRepository.setScreenLockProtectionEnabled(true)
                     settingsRepository.setHideScreenContentEnabled(true)
                 }
+
                 ScreenLockPromptIntent.DISABLE -> {
                     settingsRepository.setScreenLockProtectionEnabled(false)
                 }

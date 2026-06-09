@@ -483,7 +483,7 @@ data class NewMedicineSlotUiState(
                 doseInstructionDraft = doseInstructionDraft,
             )
             return applicationType == preparationType.requiredActualDoseApplicationType &&
-                scheduledNativeAmount != null
+                    scheduledNativeAmount != null
         }
 
     val effectiveActualAmount: Double?
@@ -527,6 +527,7 @@ private val MedicinePreparationType.requiredActualDoseApplicationType: Medicatio
     get() = when (this) {
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicationApplicationType.INJECTION
+
         MedicinePreparationType.GEL_CONTAINER -> MedicationApplicationType.GEL
         else -> null
     }

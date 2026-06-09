@@ -85,7 +85,8 @@ class PlanBatchAddViewModel @Inject constructor(
         currentDateTime,
     ) { groupsOrNull, entriesOrNull, settingsState, selectionWithProjections, now ->
         val (selection, projections) = selectionWithProjections
-        val groups = sortPlanMedicationGroups(groupsOrNull.orEmpty().filter(MedicationGroup::isActive))
+        val groups =
+            sortPlanMedicationGroups(groupsOrNull.orEmpty().filter(MedicationGroup::isActive))
         val entries = entriesOrNull.orEmpty()
         val selectedGroup = selection.selectedGroupUuid?.let { groupUuid ->
             groups.firstOrNull { group -> group.uuid == groupUuid }
@@ -95,13 +96,13 @@ class PlanBatchAddViewModel @Inject constructor(
         // backfill, and defaulting startDate to `since` would invert the range
         // (start after end). Flag it so the UI shows a prompt instead.
         val selectedGroupStartsInFuture = selectedGroup != null &&
-            selectedGroup.schedule.since.isAfter(today)
+                selectedGroup.schedule.since.isAfter(today)
         val selectedGroupHasTrackedMedicine = selectedGroup != null && run {
             val groupMedicineUuids = selectedGroup.medications
                 .mapNotNullTo(mutableSetOf()) { medication -> medication.medicine?.uuid }
             projections.any { projection ->
                 projection.medicine.uuid in groupMedicineUuids &&
-                    projection.medicine.stock.trackingEnabled
+                        projection.medicine.stock.trackingEnabled
             }
         }
         val startDate = selection.startDate ?: selectedGroup?.schedule?.since ?: today
@@ -288,7 +289,8 @@ class PlanBatchAddViewModel @Inject constructor(
         val currentUiState = uiState.value
         val entriesToSave = currentUiState.entriesToAdd
         val shouldDeductStock = currentUiState.deductStock
-        val affectedMedicineUuids = entriesToSave.mapNotNull(MedicationLogEntryInput::medicineUuid).toSet()
+        val affectedMedicineUuids =
+            entriesToSave.mapNotNull(MedicationLogEntryInput::medicineUuid).toSet()
         if (entriesToSave.isEmpty() || selectionState.value.isSaving) {
             return
         }
@@ -327,20 +329,21 @@ class PlanBatchAddViewModel @Inject constructor(
                 onFailure = { PlanBatchAddSaveResult.FAILURE },
             )
             val isSaved = saveResult == null
-            val postLogStockWarning = if (isSaved && shouldDeductStock && affectedMedicineUuids.isNotEmpty()) {
-                runCatching {
-                    resolvePostLogStockWarning(
-                        projections = medicineStockRepository.projectAllOnce(now = Instant.now()),
-                        affectedMedicineUuids = affectedMedicineUuids,
-                        beforeStatesByUuid = beforeStockStates,
-                    )
-                }.getOrElse { failure ->
-                    if (failure is CancellationException) throw failure
+            val postLogStockWarning =
+                if (isSaved && shouldDeductStock && affectedMedicineUuids.isNotEmpty()) {
+                    runCatching {
+                        resolvePostLogStockWarning(
+                            projections = medicineStockRepository.projectAllOnce(now = Instant.now()),
+                            affectedMedicineUuids = affectedMedicineUuids,
+                            beforeStatesByUuid = beforeStockStates,
+                        )
+                    }.getOrElse { failure ->
+                        if (failure is CancellationException) throw failure
+                        null
+                    }
+                } else {
                     null
                 }
-            } else {
-                null
-            }
             if (isSaved) {
                 runCatching { medicationReminderScheduler.rescheduleAll() }
             }
@@ -471,7 +474,8 @@ internal fun buildPlanBatchAddStockPreviewItems(
 ): List<PlanBatchAddStockPreviewItem> {
     if (entriesToAdd.isEmpty() || stockProjections.isEmpty()) return emptyList()
 
-    val projectionsByMedicineUuid = stockProjections.associateBy { projection -> projection.medicine.uuid }
+    val projectionsByMedicineUuid =
+        stockProjections.associateBy { projection -> projection.medicine.uuid }
     val afterStockByMedicineUuid = linkedMapOf<UUID, MedicineStock>()
     // One card per affected tracked medicine. The first contributing entry is the
     // representative shown on the card; the stock subcard reflects the cumulative

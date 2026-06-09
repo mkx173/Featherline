@@ -167,7 +167,21 @@ class MedicineSlotDraftViewModelTest {
         val appliedDate = LocalDate.of(2026, 5, 18)
         val appliedTime = LocalTime.of(22, 45)
         val zoneId = ZoneId.of("Asia/Tokyo")
-        coEvery { medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery {
+            medicationLogRepository.saveEntry(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
+        } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
         val viewModel = MedicineSlotDraftViewModel(
             medicationLogRepository = medicationLogRepository,
@@ -197,7 +211,19 @@ class MedicineSlotDraftViewModelTest {
     fun saveManualLog_whenCancelledClearsSavingState() = runTest {
         val medicineUuid = UUID.fromString("7f3c6db0-6589-48fb-929d-84d7e0c3f034")
         coEvery {
-            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            medicationLogRepository.saveEntry(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
         } throws CancellationException("cancelled")
         val viewModel = MedicineSlotDraftViewModel(
             medicationLogRepository = medicationLogRepository,

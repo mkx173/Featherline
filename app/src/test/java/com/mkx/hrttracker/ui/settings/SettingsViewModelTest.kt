@@ -73,7 +73,7 @@ class SettingsViewModelTest {
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
         coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
         every { diagnosticsExportService.buildExportFileName(any(), any()) } returns
-            "hrttracker-diagnostics-2026-05-07_12-04-05.txt"
+                "hrttracker-diagnostics-2026-05-07_12-04-05.txt"
     }
 
     @After

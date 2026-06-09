@@ -73,7 +73,10 @@ class StartupPreloaderTest {
         ).startAfterFirstHomeFrame()
 
         coVerify(timeout = 1_000, exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
-        coVerify(timeout = 1_000, exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(any()) }
+        coVerify(
+            timeout = 1_000,
+            exactly = 1
+        ) { medicationReminderSnoozeScheduler.rescheduleAll(any()) }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -106,55 +109,65 @@ class StartupPreloaderTest {
         ).startReminderRescheduleFromSnapshot(now = now)
         advanceUntilIdle()
 
-        coVerify(timeout = 1_000, exactly = 1) { homeSnapshotRepository.readUsableHomeSnapshot(now = now) }
+        coVerify(
+            timeout = 1_000,
+            exactly = 1
+        ) { homeSnapshotRepository.readUsableHomeSnapshot(now = now) }
         coVerify(timeout = 1_000, exactly = 1) {
             medicationReminderScheduler.rescheduleFromHomeSnapshot(
                 snapshot = snapshot,
                 now = now,
             )
         }
-        coVerify(timeout = 1_000, exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
+        coVerify(
+            timeout = 1_000,
+            exactly = 1
+        ) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
         verify(exactly = 0) { databaseHolder.get() }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun startReminderRescheduleFromSnapshot_reschedulesSnoozesWhenNoUsableSnapshotExists() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
-        coEvery { homeSnapshotRepository.readUsableHomeSnapshot(now = now) } returns null
-        coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
+    fun startReminderRescheduleFromSnapshot_reschedulesSnoozesWhenNoUsableSnapshotExists() =
+        runTest {
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+            coEvery { homeSnapshotRepository.readUsableHomeSnapshot(now = now) } returns null
+            coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
 
-        StartupPreloader(
-            appScope = CoroutineScope(dispatcher),
-            databaseHolder = databaseHolder,
-            homeSnapshotRepository = homeSnapshotRepository,
-            medicationGroupRepository = medicationGroupRepository,
-            medicationLogRepository = medicationLogRepository,
-            medicineRepository = medicineRepository,
-            userProfileRepository = userProfileRepository,
-            settingsRepository = settingsRepository,
-            medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
-            diagnosticsLogger = diagnosticsLogger,
-        ).startReminderRescheduleFromSnapshot(now = now)
-        advanceUntilIdle()
+            StartupPreloader(
+                appScope = CoroutineScope(dispatcher),
+                databaseHolder = databaseHolder,
+                homeSnapshotRepository = homeSnapshotRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicationLogRepository = medicationLogRepository,
+                medicineRepository = medicineRepository,
+                userProfileRepository = userProfileRepository,
+                settingsRepository = settingsRepository,
+                medicationReminderScheduler = medicationReminderScheduler,
+                medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+                diagnosticsLogger = diagnosticsLogger,
+            ).startReminderRescheduleFromSnapshot(now = now)
+            advanceUntilIdle()
 
-        coVerify(timeout = 1_000, exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
-        coVerify(timeout = 1_000, exactly = 0) {
-            medicationReminderScheduler.rescheduleFromHomeSnapshot(any(), any())
+            coVerify(
+                timeout = 1_000,
+                exactly = 1
+            ) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
+            coVerify(timeout = 1_000, exactly = 0) {
+                medicationReminderScheduler.rescheduleFromHomeSnapshot(any(), any())
+            }
+            verify(exactly = 0) { databaseHolder.get() }
+            verify {
+                diagnosticsLogger.info(
+                    "StartupPreloader",
+                    match { message ->
+                        "snapshot_reminder_reschedule_no_usable_snapshot" in message &&
+                                "now=2026-05-06T10:15" in message
+                    }
+                )
+            }
         }
-        verify(exactly = 0) { databaseHolder.get() }
-        verify {
-            diagnosticsLogger.info(
-                "StartupPreloader",
-                match { message ->
-                    "snapshot_reminder_reschedule_no_usable_snapshot" in message &&
-                        "now=2026-05-06T10:15" in message
-                }
-            )
-        }
-    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
@@ -179,8 +192,14 @@ class StartupPreloaderTest {
         ).startReminderRescheduleFromWarmDatabase(now = now)
         advanceUntilIdle()
 
-        coVerify(timeout = 1_000, exactly = 1) { medicationReminderScheduler.rescheduleAll(now = now) }
-        coVerify(timeout = 1_000, exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
+        coVerify(
+            timeout = 1_000,
+            exactly = 1
+        ) { medicationReminderScheduler.rescheduleAll(now = now) }
+        coVerify(
+            timeout = 1_000,
+            exactly = 1
+        ) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
         verify(exactly = 0) { databaseHolder.get() }
         coVerify(exactly = 0) { medicationGroupRepository.getGroups() }
         coVerify(exactly = 0) { medicationLogRepository.getEntries() }
@@ -190,30 +209,37 @@ class StartupPreloaderTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun startReminderRescheduleFromWarmDatabase_reschedulesSnoozesWhenRoomReminderRescheduleFails() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
-        coEvery { medicationReminderScheduler.rescheduleAll(now = now) } throws
-            RuntimeException("Room unavailable")
-        coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
+    fun startReminderRescheduleFromWarmDatabase_reschedulesSnoozesWhenRoomReminderRescheduleFails() =
+        runTest {
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+            coEvery { medicationReminderScheduler.rescheduleAll(now = now) } throws
+                    RuntimeException("Room unavailable")
+            coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
 
-        StartupPreloader(
-            appScope = CoroutineScope(dispatcher),
-            databaseHolder = databaseHolder,
-            homeSnapshotRepository = homeSnapshotRepository,
-            medicationGroupRepository = medicationGroupRepository,
-            medicationLogRepository = medicationLogRepository,
-            medicineRepository = medicineRepository,
-            userProfileRepository = userProfileRepository,
-            settingsRepository = settingsRepository,
-            medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
-            diagnosticsLogger = diagnosticsLogger,
-        ).startReminderRescheduleFromWarmDatabase(now = now)
-        advanceUntilIdle()
+            StartupPreloader(
+                appScope = CoroutineScope(dispatcher),
+                databaseHolder = databaseHolder,
+                homeSnapshotRepository = homeSnapshotRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicationLogRepository = medicationLogRepository,
+                medicineRepository = medicineRepository,
+                userProfileRepository = userProfileRepository,
+                settingsRepository = settingsRepository,
+                medicationReminderScheduler = medicationReminderScheduler,
+                medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+                diagnosticsLogger = diagnosticsLogger,
+            ).startReminderRescheduleFromWarmDatabase(now = now)
+            advanceUntilIdle()
 
-        coVerify(timeout = 1_000, exactly = 1) { medicationReminderScheduler.rescheduleAll(now = now) }
-        coVerify(timeout = 1_000, exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
-        verify(exactly = 0) { databaseHolder.get() }
-    }
+            coVerify(
+                timeout = 1_000,
+                exactly = 1
+            ) { medicationReminderScheduler.rescheduleAll(now = now) }
+            coVerify(
+                timeout = 1_000,
+                exactly = 1
+            ) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
+            verify(exactly = 0) { databaseHolder.get() }
+        }
 }

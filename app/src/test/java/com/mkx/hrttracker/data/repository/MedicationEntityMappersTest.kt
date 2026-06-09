@@ -30,7 +30,10 @@ class MedicationEntityMappersTest {
 
         assertEquals(MedicinePreparationType.CAPSULE.name, entity.preparationType)
         assertEquals(100.0, entity.strengthMgPerTablet!!, 1e-9)
-        assertEquals(MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0), restored.preparation)
+        assertEquals(
+            MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+            restored.preparation
+        )
     }
 
     @Test
@@ -216,7 +219,10 @@ class MedicationEntityMappersTest {
         assertEquals(0.1, model.doseAmountDelta)
     }
 
-    private fun groupItemEntity(index: Int, doseInstruction: DoseInstruction): MedicationGroupItemEntity {
+    private fun groupItemEntity(
+        index: Int,
+        doseInstruction: DoseInstruction
+    ): MedicationGroupItemEntity {
         return MedicationGroupItemEntity(
             uuid = "aaaaaaaa-0000-0000-0000-00000000000$index",
             groupUuid = "bbbbbbbb-0000-0000-0000-000000000000",

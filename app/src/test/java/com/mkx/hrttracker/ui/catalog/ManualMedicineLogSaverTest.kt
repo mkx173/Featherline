@@ -132,8 +132,22 @@ class ManualMedicineLogSaverTest {
 
     @Test
     fun saveManualMedicineLog_failureReturnsFailureAndDoesNotReschedule() = runTest {
-        coEvery { medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } throws
-            IllegalStateException("save failed")
+        coEvery {
+            medicationLogRepository.saveEntry(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
+        } throws
+                IllegalStateException("save failed")
 
         val result = saveManualMedicineLog(
             medicationLogRepository = medicationLogRepository,
@@ -224,7 +238,21 @@ class ManualMedicineLogSaverTest {
 
     @Test
     fun saveManualMedicineLog_schedulerFailureStillReturnsSuccess() = runTest {
-        coEvery { medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery {
+            medicationLogRepository.saveEntry(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
+        } returns Unit
         coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } throws IllegalStateException("scheduler failed")
 
@@ -246,8 +274,22 @@ class ManualMedicineLogSaverTest {
 
     @Test
     fun saveManualMedicineLog_saveCancellationIsRethrownAndDoesNotReschedule() = runTest {
-        coEvery { medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } throws
-            CancellationException("save cancelled")
+        coEvery {
+            medicationLogRepository.saveEntry(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
+        } throws
+                CancellationException("save cancelled")
 
         try {
             saveManualMedicineLog(

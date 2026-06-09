@@ -67,6 +67,7 @@ private fun hrtPillTokens(size: HrtPillSize): HrtPillTokens {
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             cjkTextOffsetAmount = (-0.5).dp
         )
+
         HrtPillSize.Small -> HrtPillTokens(
             textStyle = typography.labelSmall,
             iconSize = 12.dp,
@@ -74,6 +75,7 @@ private fun hrtPillTokens(size: HrtPillSize): HrtPillTokens {
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             cjkTextOffsetAmount = (-0.5).dp
         )
+
         HrtPillSize.Medium -> HrtPillTokens(
             textStyle = typography.labelMedium,
             iconSize = 14.dp,

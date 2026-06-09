@@ -68,7 +68,7 @@ internal fun isEntryForPlanSlot(
     }
     return if (slot.scheduleTimeUuid != null && entry.scheduleTimeUuid != null) {
         entry.scheduleTimeUuid == slot.scheduleTimeUuid &&
-            scheduledFor.toLocalDate() == slot.scheduledFor.toLocalDate()
+                scheduledFor.toLocalDate() == slot.scheduledFor.toLocalDate()
     } else {
         scheduledFor == slot.scheduledFor
     }
@@ -85,7 +85,10 @@ internal fun isEntryWithinScheduleFulfillmentWindow(
     return isWithinScheduleFulfillmentWindow(
         scheduledFor = scheduledFor,
         appliedAt = appliedAt,
-        previousScheduledFor = group.previousScheduledForBefore(scheduledFor, zoneId = appliedAtZoneId),
+        previousScheduledFor = group.previousScheduledForBefore(
+            scheduledFor,
+            zoneId = appliedAtZoneId
+        ),
         nextScheduledFor = group.nextScheduledForAfter(scheduledFor, zoneId = appliedAtZoneId)
     )
 }

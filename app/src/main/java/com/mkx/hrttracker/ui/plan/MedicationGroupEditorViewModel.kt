@@ -86,11 +86,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val appTimeSource: AppTimeSource
 ) : ViewModel() {
     private val savedStateHandle: SavedStateHandle = savedStateHandle
+
     // Set while duplicating an archived group (an unsaved new-group draft). Persisted so
     // process death can re-derive the duplicate from its source rather than falling back
     // to the archived original named by the launch route arg.
     private val restoredDuplicateSourceGroupId =
         savedStateHandle.get<String>(DUPLICATE_SOURCE_GROUP_ID_KEY)
+
     // The launch route argument names the group the editor was opened for. After an
     // archive-and-recreate the edited group becomes the new copy while the route arg
     // still points at the now-archived original, so prefer the mirrored edited id
@@ -109,9 +111,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
     private val editingGroupId = editingGroupUuid?.toString()
     private val pendingGroupUuid = editingGroupUuid ?: UUID.randomUUID()
-    private val cachedEditingGroup = editingGroupUuid?.let(medicationGroupRepository::getCachedGroup)
+    private val cachedEditingGroup =
+        editingGroupUuid?.let(medicationGroupRepository::getCachedGroup)
     private val defaultScheduleDateTime =
         nextMedicationGroupEditorDefaultDateTime(appTimeSource.currentMinute.value)
+
     // Persisted across process death: lineage tag set by archive-and-recreate.
     // Losing this drops the recreate-from-old surface for the new group, so we
     // back this single field with SavedStateHandle even though the rest of the
@@ -144,11 +148,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     duplicateSourceGroupId = restoredDuplicateSourceGroupId,
                     isLoadingGroupForEditing = true,
                 )
+
                 restoredPendingReplacementGroupId != null -> baseState.copy(
                     pendingReplacementGroupId = restoredPendingReplacementGroupId,
                     recreatedFromGroupId = baseState.recreatedFromGroupId
                         ?: restoredPendingReplacementGroupId,
                 )
+
                 else -> baseState
             }
         }
@@ -279,7 +285,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     _uiState.update {
                         val shouldLockRecreatedStartDate =
                             it.recreatedFromGroupId != null &&
-                                (it.isArchived || counts.relatedEntryCount > 0)
+                                    (it.isArchived || counts.relatedEntryCount > 0)
                         val archiveDateWindow = resolveArchiveDateWindow(
                             scheduleSince = it.originalSinceDate,
                             latestRecordedDoseDate = counts.latestRecordedDoseDate,
@@ -683,7 +689,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
         if (currentState.areMedicationsLocked) return
         if (currentState.medications.any { it.localId == localId }) return
 
-        val activeMedicine = currentState.activeMedicines.firstOrNull { it.uuid == slot.medicineUuid }
+        val activeMedicine =
+            currentState.activeMedicines.firstOrNull { it.uuid == slot.medicineUuid }
         if (activeMedicine != null) {
             applyCompletedMedicationSlot(localId, activeMedicine, slot)
             return
@@ -807,7 +814,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
             val updatedDoseDraft = if (previousPreparationType == medicine.preparation.type) {
                 medication.doseInstructionDraft.copy(preparationType = medicine.preparation.type)
             } else {
-                updatedDraft.toDoseInstructionDraft().copy(preparationType = medicine.preparation.type)
+                updatedDraft.toDoseInstructionDraft()
+                    .copy(preparationType = medicine.preparation.type)
             }
             medication.copy(
                 resolvedMedicine = medicine,
@@ -821,7 +829,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         medication: MedicationGroupMedicationEditorUiState,
     ): Boolean {
         return !areMedicationsLocked &&
-            medications.none { existingMedication -> existingMedication.localId == medication.localId }
+                medications.none { existingMedication -> existingMedication.localId == medication.localId }
     }
 
     fun saveEditingMedication() {
@@ -928,7 +936,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun saveGroup(
         onCreatePastScheduledSlotRecordsCompleted:
-            ((CreatePastScheduledSlotRecordsSaveState) -> Unit)? = null,
+        ((CreatePastScheduledSlotRecordsSaveState) -> Unit)? = null,
     ) {
         val currentState = _uiState.value
         if (
@@ -960,11 +968,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
         val recordGenerationNow = currentMinute.value
         val saveNow = appTimeSource.now()
         val shouldCreatePastRecords = currentState.canCreatePastScheduledSlotRecords &&
-            currentState.createPastScheduledSlotRecords &&
-            hasPastScheduleOptionWindow(
-                uiState = currentState,
-                referenceTime = recordGenerationNow,
-            )
+                currentState.createPastScheduledSlotRecords &&
+                hasPastScheduleOptionWindow(
+                    uiState = currentState,
+                    referenceTime = recordGenerationNow,
+                )
 
         viewModelScope.launch {
             _uiState.update {
@@ -1003,6 +1011,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                             times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
                             timeSlots = scheduleTimeInputs,
                         )
+
                         MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
                             type = MedicationGroupScheduleType.DAILY,
                             interval = parsedDailyInterval,
@@ -1259,6 +1268,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     when (cause) {
                         is CurrentOrFuturePlannedSlotsBlockArchiveException ->
                             ArchiveMedicationGroupResult.BLOCKED_BY_FUTURE_PLANNED_SLOTS
+
                         else -> ArchiveMedicationGroupResult.FAILURE
                     }
                 },
@@ -1363,6 +1373,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     when (cause) {
                         is CurrentOrFuturePlannedSlotsBlockArchiveException ->
                             ArchiveAndRecreateMedicationGroupResult.BLOCKED_BY_FUTURE_PLANNED_SLOTS
+
                         else -> ArchiveAndRecreateMedicationGroupResult.FAILURE
                     }
                 },
@@ -1447,6 +1458,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
                 timeSlots = scheduleTimeInputs,
             )
+
             MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
                 type = MedicationGroupScheduleType.DAILY,
                 interval = parsedDailyInterval,
@@ -1749,9 +1761,10 @@ private fun MedicationGroup.toEditorState(
             setOf(LocalDate.now().dayOfWeek)
         },
         hasUserCustomizedWeeklyDays = schedule.type == MedicationGroupScheduleType.WEEKLY &&
-            schedule.weeklyDaysOfWeek.isNotEmpty(),
+                schedule.weeklyDaysOfWeek.isNotEmpty(),
         weeklyTimeLocalId = if (schedule.type == MedicationGroupScheduleType.WEEKLY) {
-            normalizedScheduleTimeSlots.firstOrNull()?.uuid?.toString() ?: UUID.randomUUID().toString()
+            normalizedScheduleTimeSlots.firstOrNull()?.uuid?.toString() ?: UUID.randomUUID()
+                .toString()
         } else {
             UUID.randomUUID().toString()
         },
@@ -1777,7 +1790,7 @@ private fun MedicationGroup.toEditorState(
         hasResolvedNotificationDefault = true,
         includePastScheduledSlots = includePastScheduledSlots,
         isScheduleStartDateLocked = recreatedFromGroupUuid != null &&
-            (archivedAt != null || relatedEntryCount > 0),
+                (archivedAt != null || relatedEntryCount > 0),
         recreatedFromGroupId = recreatedFromGroupUuid?.toString(),
         groupColorKey = colorKey,
         hasAssignedGroupColor = true,
@@ -1940,7 +1953,7 @@ internal fun editorStateWithUpdatedScheduleType(
     scheduleType: MedicationGroupScheduleType,
 ): MedicationGroupEditorUiState {
     val isEnteringWeekly = scheduleType == MedicationGroupScheduleType.WEEKLY &&
-        uiState.scheduleType != MedicationGroupScheduleType.WEEKLY
+            uiState.scheduleType != MedicationGroupScheduleType.WEEKLY
     val withType = uiState.copy(scheduleType = scheduleType)
     return if (isEnteringWeekly && !uiState.hasUserCustomizedWeeklyDays) {
         editorStateWithResetWeeklyDaysOfWeek(withType)
@@ -1968,10 +1981,10 @@ internal fun editorStateWithUpdatedSinceDate(
         uiState.isScheduleStartDateLocked ||
         uiState.sinceDate == date ||
         (
-            uiState.recreatedFromGroupId != null &&
-                minimumRecreatedStartDate != null &&
-                date.isBefore(minimumRecreatedStartDate)
-        )
+                uiState.recreatedFromGroupId != null &&
+                        minimumRecreatedStartDate != null &&
+                        date.isBefore(minimumRecreatedStartDate)
+                )
     ) {
         return uiState
     }
@@ -1987,12 +2000,12 @@ internal fun hasSaveableMedicationGroupContent(
     uiState: MedicationGroupEditorUiState
 ): Boolean {
     val hasGroupName = uiState.groupName.trim().isNotEmpty() ||
-        (!uiState.isEditing && uiState.defaultGroupName.trim().isNotEmpty())
+            (!uiState.isEditing && uiState.defaultGroupName.trim().isNotEmpty())
     val hasWeeklyDays = uiState.scheduleType != MedicationGroupScheduleType.WEEKLY ||
-        uiState.weeklyDaysOfWeek.isNotEmpty()
+            uiState.weeklyDaysOfWeek.isNotEmpty()
     return hasGroupName &&
-        uiState.medications.isNotEmpty() &&
-        hasWeeklyDays
+            uiState.medications.isNotEmpty() &&
+            hasWeeklyDays
 }
 
 internal fun removeMedicationItem(
@@ -2095,9 +2108,11 @@ internal fun MedicationGroupMedicationItemUiState.duplicateKey(): String {
     } else {
         val draft = medicineDraft
         if (draft.requiresCustomName()) {
-            "X:${com.mkx.hrttracker.model.medication.normalizeCustomMedicationName(
-                draft.customMedicationName,
-            )}:${draft.inferredOrSelectedPreparationType()}"
+            "X:${
+                com.mkx.hrttracker.model.medication.normalizeCustomMedicationName(
+                    draft.customMedicationName,
+                )
+            }:${draft.inferredOrSelectedPreparationType()}"
         } else {
             "C:${draft.medicationKey}:${draft.inferredOrSelectedPreparationType()}"
         }
@@ -2114,7 +2129,7 @@ internal fun upsertMedication(
     val savedKey = savedMedication.duplicateKey()
     val duplicateMedication = medications.firstOrNull { medication ->
         medication.localId != savedMedication.localId &&
-            medication.duplicateKey() == savedKey
+                medication.duplicateKey() == savedKey
     }
 
     if (duplicateMedication != null) {
@@ -2252,19 +2267,19 @@ data class MedicationGroupEditorUiState(
 
     val canEditBackfillOption: Boolean
         get() = !isArchived &&
-            pendingReplacementGroupId == null &&
-            (
-                !isEditing ||
-                    (
-                        recreatedFromGroupId == null &&
-                            relatedEntryCount == 0 &&
-                            plannedEntryCount == 0
-                    )
-            )
+                pendingReplacementGroupId == null &&
+                (
+                        !isEditing ||
+                                (
+                                        recreatedFromGroupId == null &&
+                                                relatedEntryCount == 0 &&
+                                                plannedEntryCount == 0
+                                        )
+                        )
 
     val canCreatePastScheduledSlotRecords: Boolean
         get() = includePastScheduledSlots &&
-            canEditBackfillOption
+                canEditBackfillOption
 }
 
 data class ArchiveDateWindowUiState(
@@ -2295,14 +2310,14 @@ internal fun shouldFreezeMedicationGroupEditorRecordPresentation(
     uiState: MedicationGroupEditorUiState,
 ): Boolean {
     return uiState.isSaving ||
-        uiState.isSaved ||
-        uiState.isFinishingAfterSave ||
-        uiState.isDeleting ||
-        uiState.isDeleted ||
-        uiState.isFinishingAfterDeleteOrArchive ||
-        uiState.isArchiving ||
-        uiState.isRecreatingAfterArchive ||
-        uiState.isDeletingRelatedEntries
+            uiState.isSaved ||
+            uiState.isFinishingAfterSave ||
+            uiState.isDeleting ||
+            uiState.isDeleted ||
+            uiState.isFinishingAfterDeleteOrArchive ||
+            uiState.isArchiving ||
+            uiState.isRecreatingAfterArchive ||
+            uiState.isDeletingRelatedEntries
 }
 
 enum class CreatePastScheduledSlotRecordsResult {
@@ -2352,12 +2367,12 @@ internal fun applyDefaultGroupNameToEditorState(
     defaultGroupName: String,
 ): MedicationGroupEditorUiState {
     val shouldResolveInitialGroupName = !currentState.isEditing &&
-        !currentState.hasResolvedInitialGroupName &&
-        defaultGroupName.isNotBlank()
+            !currentState.hasResolvedInitialGroupName &&
+            defaultGroupName.isNotBlank()
     return currentState.copy(
         defaultGroupName = defaultGroupName,
         hasResolvedInitialGroupName = currentState.hasResolvedInitialGroupName ||
-            shouldResolveInitialGroupName
+                shouldResolveInitialGroupName
     )
 }
 
@@ -2375,7 +2390,7 @@ internal fun applyReminderSettingsToEditorState(
             currentState.notificationsEnabled
         },
         hasResolvedNotificationDefault = currentState.hasResolvedNotificationDefault ||
-            shouldApplyNotificationDefault
+                shouldApplyNotificationDefault
     )
 }
 
@@ -2479,8 +2494,8 @@ internal fun isArchiveDateSelectionInvalid(
     if (archivedThroughDate == null) return false
     val minDate = window.minDate
     return !window.isSelectable ||
-        minDate == null ||
-        archivedThroughDate.isOutsideArchiveWindow(minDate, window.maxDate)
+            minDate == null ||
+            archivedThroughDate.isOutsideArchiveWindow(minDate, window.maxDate)
 }
 
 internal fun resolveArchiveDateWindow(

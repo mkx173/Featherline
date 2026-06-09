@@ -30,10 +30,13 @@ internal fun actualDoseDeltaFormParams(
 ): ActualDoseDeltaFormParams? = when (preparationType) {
     MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
         ActualDoseDeltaFormParams(fraction = 0.50, step = 0.1, underDrawOnly = true)
+
     MedicinePreparationType.INJECTION_MULTI_USE_VIAL ->
         ActualDoseDeltaFormParams(fraction = 0.20, step = 0.01, underDrawOnly = false)
+
     MedicinePreparationType.GEL_CONTAINER ->
         ActualDoseDeltaFormParams(fraction = 0.20, step = 0.1, underDrawOnly = false)
+
     else -> null
 }
 

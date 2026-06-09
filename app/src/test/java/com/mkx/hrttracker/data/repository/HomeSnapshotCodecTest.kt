@@ -91,7 +91,10 @@ class HomeSnapshotCodecTest {
                     uuid = UUID.fromString("d02c3d8a-76e4-4d48-a3c3-795c61a3cd17"),
                     medicine = medicine,
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 2),
+                    doseInstruction = DoseInstruction.TabletFraction(
+                        numerator = 1,
+                        denominator = 2
+                    ),
                     count = 2,
                 )
             ),
@@ -209,7 +212,10 @@ class HomeSnapshotCodecTest {
                     uuid = UUID.fromString("d02c3d8a-76e4-4d48-a3c3-795c61a3cd17"),
                     medicine = medicine,
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 2),
+                    doseInstruction = DoseInstruction.TabletFraction(
+                        numerator = 1,
+                        denominator = 2
+                    ),
                     count = 2,
                 )
             ),
@@ -477,7 +483,7 @@ class HomeSnapshotCodecTest {
 
         assertTrue(
             "Shared-medicine encoding ($sharedSize B) should be far smaller than " +
-                "distinct-medicine encoding ($distinctSize B)",
+                    "distinct-medicine encoding ($distinctSize B)",
             sharedSize < distinctSize / 2,
         )
     }

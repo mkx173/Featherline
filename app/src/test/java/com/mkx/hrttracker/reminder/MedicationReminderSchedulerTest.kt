@@ -92,7 +92,7 @@ class MedicationReminderSchedulerTest {
         )
         coEvery { groupRepository.getGroups() } returns listOf(group)
         coEvery { settingsRepository.getCurrentSettings() } returns
-            SettingsState(remindersEnabled = false)
+                SettingsState(remindersEnabled = false)
 
         scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 0))
 
@@ -111,7 +111,7 @@ class MedicationReminderSchedulerTest {
     fun rescheduleGroup_cancels_without_scheduling_when_master_switch_off() = runTest {
         val groupId = UUID.fromString("7e0b8a3d-1c2f-4d5e-8b9a-6f1e2c3d4a5b")
         coEvery { settingsRepository.getCurrentSettings() } returns
-            SettingsState(remindersEnabled = false)
+                SettingsState(remindersEnabled = false)
 
         scheduler.rescheduleGroup(
             groupUuid = groupId,
@@ -135,7 +135,7 @@ class MedicationReminderSchedulerTest {
         )
         coEvery { groupRepository.getGroups() } returns listOf(group)
         coEvery { settingsRepository.getCurrentSettings() } returns
-            SettingsState(remindersEnabled = true)
+                SettingsState(remindersEnabled = true)
         coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
 
         scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 8, 0))
@@ -149,9 +149,9 @@ class MedicationReminderSchedulerTest {
                 "MedicationReminderScheduler",
                 match { message ->
                     "reminder_reschedule_all_complete" in message &&
-                        "groups=1" in message &&
-                        "plans=1" in message &&
-                        "stored=1" in message
+                            "groups=1" in message &&
+                            "plans=1" in message &&
+                            "stored=1" in message
                 }
             )
         }
@@ -165,7 +165,7 @@ class MedicationReminderSchedulerTest {
             notificationsEnabled = true
         )
         coEvery { settingsRepository.getCurrentSettings() } returns
-            SettingsState(remindersEnabled = true)
+                SettingsState(remindersEnabled = true)
 
         scheduler.rescheduleFromHomeSnapshot(
             snapshot = HomeSnapshotRecord(
@@ -200,7 +200,7 @@ class MedicationReminderSchedulerTest {
         val staleGroupUuid = UUID.fromString("c087d68b-1da2-4b2d-bfb2-f247e845a599")
         coEvery { groupRepository.getGroups() } returns listOf(activeGroup)
         coEvery { settingsRepository.getCurrentSettings() } returns
-            SettingsState(remindersEnabled = true)
+                SettingsState(remindersEnabled = true)
         coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
         coEvery { reminderScheduleStore.getScheduledGroupUuids() } returns setOf(staleGroupUuid)
 
@@ -219,7 +219,7 @@ class MedicationReminderSchedulerTest {
         val staleGroupUuid = UUID.fromString("9c7b52d9-0ca7-4a29-9225-98e920ef0ad7")
         coEvery { groupRepository.getGroups() } returns listOf(activeGroup)
         coEvery { settingsRepository.getCurrentSettings() } returns
-            SettingsState(remindersEnabled = false)
+                SettingsState(remindersEnabled = false)
         coEvery { reminderScheduleStore.getScheduledGroupUuids() } returns setOf(staleGroupUuid)
 
         scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 8, 0))
@@ -237,7 +237,7 @@ class MedicationReminderSchedulerTest {
         )
         val staleGroupUuid = UUID.fromString("a5b3593c-dfb6-4a9b-8de6-b4b4950c9113")
         coEvery { settingsRepository.getCurrentSettings() } returns
-            SettingsState(remindersEnabled = true)
+                SettingsState(remindersEnabled = true)
         coEvery { reminderScheduleStore.getScheduledGroupUuids() } returns setOf(staleGroupUuid)
 
         scheduler.rescheduleFromHomeSnapshot(
@@ -277,7 +277,7 @@ class MedicationReminderSchedulerTest {
         every { Uri.parse(capture(parsedUriStrings)) } answers { mockk(relaxed = true) }
         coEvery { groupRepository.getGroups() } returns listOf(firstGroup, secondGroup)
         coEvery { settingsRepository.getCurrentSettings() } returns
-            SettingsState(remindersEnabled = true)
+                SettingsState(remindersEnabled = true)
         coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
 
         scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 8, 0))
@@ -298,7 +298,7 @@ class MedicationReminderSchedulerTest {
             notificationsEnabled = false
         )
         coEvery { settingsRepository.getCurrentSettings() } returns
-            SettingsState(remindersEnabled = true)
+                SettingsState(remindersEnabled = true)
         coEvery { groupRepository.getGroup(group.uuid) } returns group
 
         scheduler.rescheduleGroup(
@@ -320,7 +320,7 @@ class MedicationReminderSchedulerTest {
             notificationsEnabled = true
         )
         coEvery { settingsRepository.getCurrentSettings() } returns
-            SettingsState(remindersEnabled = true)
+                SettingsState(remindersEnabled = true)
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
 
@@ -343,7 +343,7 @@ class MedicationReminderSchedulerTest {
             notificationsEnabled = true,
         )
         coEvery { settingsRepository.getCurrentSettings() } returns
-            SettingsState(remindersEnabled = true)
+                SettingsState(remindersEnabled = true)
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
         scheduler.rescheduleGroup(

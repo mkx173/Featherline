@@ -203,6 +203,9 @@ class MedicationDoseDraftReducerTest {
             validateMedicineDraft = { it.selectedMedicineValidationErrorRes() },
         )
 
-        assertEquals(start.medicineDraft.selectedMedicineValidationErrorRes(), result.errorMessageRes)
+        assertEquals(
+            start.medicineDraft.selectedMedicineValidationErrorRes(),
+            result.errorMessageRes
+        )
     }
 }

@@ -99,21 +99,22 @@ class MedicineCreateActionsTest {
     }
 
     @Test
-    fun createMedicineFromDraft_patchWithoutRequiredFieldReturnsValidationErrorWithoutRepositoryCall() = runTest {
-        val result = createMedicineFromDraft(
-            medicineRepository = medicineRepository,
-            draft = defaultMedicineDraft().changeForm(MedicinePreparationForm.PATCH),
-        )
+    fun createMedicineFromDraft_patchWithoutRequiredFieldReturnsValidationErrorWithoutRepositoryCall() =
+        runTest {
+            val result = createMedicineFromDraft(
+                medicineRepository = medicineRepository,
+                draft = defaultMedicineDraft().changeForm(MedicinePreparationForm.PATCH),
+            )
 
-        assertEquals(
-            MedicineCreateResult.ValidationError(R.string.validation_patch_total_required),
-            result,
-        )
-        coVerify(exactly = 0) { medicineRepository.findOrCreateForCatalog(any(), any(), any()) }
-        coVerify(exactly = 0) {
-            medicineRepository.findOrCreateForCustom(any(), any(), any(), any(), any(), any())
+            assertEquals(
+                MedicineCreateResult.ValidationError(R.string.validation_patch_total_required),
+                result,
+            )
+            coVerify(exactly = 0) { medicineRepository.findOrCreateForCatalog(any(), any(), any()) }
+            coVerify(exactly = 0) {
+                medicineRepository.findOrCreateForCustom(any(), any(), any(), any(), any(), any())
+            }
         }
-    }
 
     @Test
     fun createMedicineFromDraft_identityCollisionMapsToCollisionFailure() = runTest {

@@ -136,11 +136,26 @@ class PlanCalendarDayUiStateTest {
             endDate = LocalDate.of(2026, 4, 19)
         )
 
-        assertEquals(PlanCalendarDayStatus.OFFPLAN, dayStates.getValue(LocalDate.of(2026, 4, 15)).status)
-        assertEquals(PlanCalendarDayStatus.FULFILLED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
-        assertEquals(PlanCalendarDayStatus.MISSED, dayStates.getValue(LocalDate.of(2026, 4, 17)).status)
-        assertEquals(PlanCalendarDayStatus.PARTIAL, dayStates.getValue(LocalDate.of(2026, 4, 18)).status)
-        assertEquals(PlanCalendarDayStatus.NONE, dayStates.getValue(LocalDate.of(2026, 4, 19)).status)
+        assertEquals(
+            PlanCalendarDayStatus.OFFPLAN,
+            dayStates.getValue(LocalDate.of(2026, 4, 15)).status
+        )
+        assertEquals(
+            PlanCalendarDayStatus.FULFILLED,
+            dayStates.getValue(LocalDate.of(2026, 4, 16)).status
+        )
+        assertEquals(
+            PlanCalendarDayStatus.MISSED,
+            dayStates.getValue(LocalDate.of(2026, 4, 17)).status
+        )
+        assertEquals(
+            PlanCalendarDayStatus.PARTIAL,
+            dayStates.getValue(LocalDate.of(2026, 4, 18)).status
+        )
+        assertEquals(
+            PlanCalendarDayStatus.NONE,
+            dayStates.getValue(LocalDate.of(2026, 4, 19)).status
+        )
     }
 
     @Test
@@ -180,9 +195,15 @@ class PlanCalendarDayUiStateTest {
             endDate = LocalDate.of(2026, 4, 17)
         )
 
-        assertEquals(PlanCalendarDayStatus.FULFILLED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+        assertEquals(
+            PlanCalendarDayStatus.FULFILLED,
+            dayStates.getValue(LocalDate.of(2026, 4, 16)).status
+        )
         assertEquals(false, dayStates.getValue(LocalDate.of(2026, 4, 16)).hasOffPlanRecord)
-        assertEquals(PlanCalendarDayStatus.NONE, dayStates.getValue(LocalDate.of(2026, 4, 17)).status)
+        assertEquals(
+            PlanCalendarDayStatus.NONE,
+            dayStates.getValue(LocalDate.of(2026, 4, 17)).status
+        )
         assertEquals(false, dayStates.getValue(LocalDate.of(2026, 4, 17)).hasOffPlanRecord)
     }
 
@@ -234,7 +255,10 @@ class PlanCalendarDayUiStateTest {
             endDate = LocalDate.of(2026, 4, 16)
         )
 
-        assertEquals(PlanCalendarDayStatus.FULFILLED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+        assertEquals(
+            PlanCalendarDayStatus.FULFILLED,
+            dayStates.getValue(LocalDate.of(2026, 4, 16)).status
+        )
     }
 
     @Test
@@ -384,9 +408,15 @@ class PlanCalendarDayUiStateTest {
             endDate = LocalDate.of(2026, 4, 17)
         )
 
-        assertEquals(PlanCalendarDayStatus.FULFILLED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+        assertEquals(
+            PlanCalendarDayStatus.FULFILLED,
+            dayStates.getValue(LocalDate.of(2026, 4, 16)).status
+        )
         assertEquals(false, dayStates.getValue(LocalDate.of(2026, 4, 16)).hasOffPlanRecord)
-        assertEquals(PlanCalendarDayStatus.NONE, dayStates.getValue(LocalDate.of(2026, 4, 17)).status)
+        assertEquals(
+            PlanCalendarDayStatus.NONE,
+            dayStates.getValue(LocalDate.of(2026, 4, 17)).status
+        )
     }
 
     @Test
@@ -431,7 +461,10 @@ class PlanCalendarDayUiStateTest {
             endDate = LocalDate.of(2026, 4, 16)
         )
 
-        assertEquals(PlanCalendarDayStatus.PARTIAL, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+        assertEquals(
+            PlanCalendarDayStatus.PARTIAL,
+            dayStates.getValue(LocalDate.of(2026, 4, 16)).status
+        )
         assertEquals(false, dayStates.getValue(LocalDate.of(2026, 4, 16)).hasOffPlanRecord)
     }
 
@@ -480,7 +513,10 @@ class PlanCalendarDayUiStateTest {
             endDate = LocalDate.of(2026, 4, 16)
         )
 
-        assertEquals(PlanCalendarDayStatus.MISSED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+        assertEquals(
+            PlanCalendarDayStatus.MISSED,
+            dayStates.getValue(LocalDate.of(2026, 4, 16)).status
+        )
         assertEquals(true, dayStates.getValue(LocalDate.of(2026, 4, 16)).hasOffPlanRecord)
     }
 
@@ -529,7 +565,10 @@ class PlanCalendarDayUiStateTest {
 
         assertEquals(0, dayStates.getValue(LocalDate.of(2026, 4, 16)).matchedOccurrenceCount)
         assertEquals(true, dayStates.getValue(LocalDate.of(2026, 4, 16)).hasMatchingScheduledRecord)
-        assertEquals(PlanCalendarDayStatus.PARTIAL, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+        assertEquals(
+            PlanCalendarDayStatus.PARTIAL,
+            dayStates.getValue(LocalDate.of(2026, 4, 16)).status
+        )
     }
 
     @Test
@@ -571,7 +610,10 @@ class PlanCalendarDayUiStateTest {
             endDate = LocalDate.of(2026, 4, 17)
         )
 
-        assertEquals(PlanCalendarDayStatus.OFFPLAN, dayStates.getValue(LocalDate.of(2026, 4, 17)).status)
+        assertEquals(
+            PlanCalendarDayStatus.OFFPLAN,
+            dayStates.getValue(LocalDate.of(2026, 4, 17)).status
+        )
     }
 
     @Test
@@ -623,7 +665,10 @@ class PlanCalendarDayUiStateTest {
             endDate = LocalDate.of(2026, 4, 16)
         )
 
-        assertEquals(PlanCalendarDayStatus.MISSED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+        assertEquals(
+            PlanCalendarDayStatus.MISSED,
+            dayStates.getValue(LocalDate.of(2026, 4, 16)).status
+        )
     }
 
     @Test
@@ -865,8 +910,10 @@ class PlanCalendarDayUiStateTest {
                         MedicationKey.ESTRADIOL,
                         MedicationKey.ESTRADIOL_GEL,
                         MedicationKey.ESTRADIOL_VALERATE -> 2.0
+
                         else -> null
                     }
+
                     is MedicineSelection.Custom -> null
                     is MedicineSelection.PatchOff -> null
                 }
@@ -945,6 +992,7 @@ class PlanCalendarDayUiStateTest {
             MedicationKey.ESTRADIOL,
             MedicationKey.ESTRADIOL_GEL,
             MedicationKey.ESTRADIOL_VALERATE -> dose
+
             else -> null
         }
         val uuid = medicineUuidsByKey.getOrPut(key) { UUID.randomUUID() }
@@ -953,6 +1001,7 @@ class PlanCalendarDayUiStateTest {
                 concentrationMgPerMl = 10.0,
                 vialVolumeMl = 5.0,
             )
+
             else -> MedicinePreparation.Pill(strengthMgPerTablet = dose)
         }
         val doseInstruction = when (applicationType) {

@@ -24,7 +24,10 @@ class EntryDisplayZoneTest {
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
             appliedAtTimeZoneId = "Asia/Tokyo"
         )
-        assertEquals(ZoneId.of("Asia/Tokyo"), displayZoneOf(entry, deviceZone = ZoneId.of("America/Los_Angeles")))
+        assertEquals(
+            ZoneId.of("Asia/Tokyo"),
+            displayZoneOf(entry, deviceZone = ZoneId.of("America/Los_Angeles"))
+        )
     }
 
     @Test
@@ -129,7 +132,10 @@ class EntryDisplayZoneTest {
             appliedAtTimeZoneId = "Asia/Tokyo"
         )
         val formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
-        assertEquals("09:00", formatEntryWallTime(entry, formatter, deviceZone = ZoneId.of("America/Los_Angeles")))
+        assertEquals(
+            "09:00",
+            formatEntryWallTime(entry, formatter, deviceZone = ZoneId.of("America/Los_Angeles"))
+        )
     }
 
     @Test

@@ -127,7 +127,10 @@ class DoseInstructionCalculatorTest {
         assertEquals(
             1.0,
             requireNotNull(
-                DoseInstructionCalculator.totalAmountMg(perUnitAmountMg = perUnitAmountMg, count = 2),
+                DoseInstructionCalculator.totalAmountMg(
+                    perUnitAmountMg = perUnitAmountMg,
+                    count = 2
+                ),
             ),
             0.0001,
         )

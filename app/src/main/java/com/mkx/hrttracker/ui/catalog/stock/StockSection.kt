@@ -331,7 +331,10 @@ private fun StockRowCard(
                     Text(
                         text = label,
                         style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(label),
+                        modifier = Modifier
+                            .weight(1f)
+                            .alignByBaseline()
+                            .cjkTextOffset(label),
                     )
                     val trailingCountText = trailingCount.resolve()
                     Text(
@@ -343,7 +346,9 @@ private fun StockRowCard(
                             tertiary = MaterialTheme.colorScheme.tertiary,
                             error = MaterialTheme.colorScheme.error,
                         ),
-                        modifier = Modifier.alignByBaseline().cjkTextOffset(trailingCountText)
+                        modifier = Modifier
+                            .alignByBaseline()
+                            .cjkTextOffset(trailingCountText)
                     )
                 }
                 if (progress != null) {
@@ -351,7 +356,9 @@ private fun StockRowCard(
                     FuelGauge(
                         progress = progress,
                         state = progressState,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp),
                     )
                 }
             }
@@ -434,16 +441,19 @@ internal fun stockSectionProgressIndicatorColors(
             color = tertiary,
             trackColor = secondaryContainer,
         )
+
         MedicineStockState.IMMINENT,
         MedicineStockState.OUT -> StockSectionProgressIndicatorColors(
             color = error,
             trackColor = secondaryContainer,
         )
+
         MedicineStockState.NO_RUNWAY,
         MedicineStockState.UNTRACKED -> StockSectionProgressIndicatorColors(
             color = secondary,
             trackColor = secondaryContainer,
         )
+
         MedicineStockState.HEALTHY -> StockSectionProgressIndicatorColors(
             color = primary,
             trackColor = secondaryContainer,
@@ -455,6 +465,7 @@ internal fun stockSectionShowsStatusIndicator(state: MedicineStockState): Boolea
     return when (state) {
         MedicineStockState.HEALTHY,
         MedicineStockState.UNTRACKED -> false
+
         MedicineStockState.USER_LOW,
         MedicineStockState.IMMINENT,
         MedicineStockState.OUT,
@@ -472,6 +483,7 @@ private fun RunwayRowCard(
     val iconRes = when (runway) {
         is RunwayProjection.Days,
         RunwayProjection.BeyondHorizon -> R.drawable.ic_insights
+
         RunwayProjection.NoSchedule -> R.drawable.ic_help
     }
     val titleText = when (runway) {
@@ -480,6 +492,7 @@ private fun RunwayRowCard(
             runway.days,
             runway.days,
         )
+
         RunwayProjection.BeyondHorizon -> stringResource(R.string.stock_runway_more_than_one_year)
         RunwayProjection.NoSchedule -> stringResource(R.string.stock_runway_unknown_title)
     }

@@ -40,7 +40,10 @@ class AppDiagnosticsExportServiceTest {
             logcatReader = logcatReader,
         )
 
-        service.exportLogs(destinationUri = destinationUri, exportedAt = Instant.parse("2026-05-07T03:04:05Z"))
+        service.exportLogs(
+            destinationUri = destinationUri,
+            exportedAt = Instant.parse("2026-05-07T03:04:05Z")
+        )
 
         val exportedText = output.toString(Charsets.UTF_8.name())
         assertTrue(exportedText.contains("Featherline diagnostic logs"))
@@ -69,7 +72,10 @@ class AppDiagnosticsExportServiceTest {
             logcatReader = logcatReader,
         )
 
-        service.exportLogs(destinationUri = destinationUri, exportedAt = Instant.parse("2026-05-07T03:04:05Z"))
+        service.exportLogs(
+            destinationUri = destinationUri,
+            exportedAt = Instant.parse("2026-05-07T03:04:05Z")
+        )
 
         val exportedText = output.toString(Charsets.UTF_8.name())
         assertTrue(exportedText.contains("No app diagnostics captured."))

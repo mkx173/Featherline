@@ -434,8 +434,8 @@ class HomeSnapshotRepositoryTest {
                 "HomeSnapshotRepository",
                 match { message ->
                     "home_snapshot_read_rejected" in message &&
-                        "reason=schema_version" in message &&
-                        "actual=${HOME_SNAPSHOT_SCHEMA_VERSION - 1}" in message
+                            "reason=schema_version" in message &&
+                            "actual=${HOME_SNAPSHOT_SCHEMA_VERSION - 1}" in message
                 }
             )
         }
@@ -647,7 +647,12 @@ class HomeSnapshotRepositoryTest {
             coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
             coEvery { medicineDao.getByUuids(any()) } returns emptyList()
             coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
-            coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
+            coEvery {
+                medicationLogDao.getScheduledEntriesInWindow(
+                    any(),
+                    any()
+                )
+            } returns emptyList()
             coEvery { userProfileDao.getProfile() } returns null
 
             HomeSnapshotRepository(
@@ -959,7 +964,8 @@ class HomeSnapshotRepositoryTest {
             equivalentE2Mg = 2.0,
             sourceGroupUuid = UUID.fromString("cccccccc-0000-0000-0000-000000000001").toString(),
             scheduleTimeUuid = UUID.fromString("dddddddd-0000-0000-0000-000000000001").toString(),
-            appliedAtEpochMillis = scheduledFor.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            appliedAtEpochMillis = scheduledFor.atZone(ZoneId.systemDefault()).toInstant()
+                .toEpochMilli(),
             scheduledForIso = scheduledFor.toString(),
         )
     }

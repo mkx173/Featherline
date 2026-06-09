@@ -245,7 +245,10 @@ class HrtTrackerNavHostTest {
     @Test
     fun medicationLogEntrySheetRequestSaver_roundTripsEditEntries() {
         val original = MedicationLogEntrySheetRequest(
-            entryIds = listOf("11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"),
+            entryIds = listOf(
+                "11111111-1111-1111-1111-111111111111",
+                "22222222-2222-2222-2222-222222222222"
+            ),
         )
 
         assertEquals(original, roundTrip(original))

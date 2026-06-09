@@ -189,7 +189,10 @@ class MainUiModelsTest {
         assertEquals(1, chart.sampleIntervalHours)
         assertEquals(listOf(1f, 2f, 1f, 4f, 1.5f), chart.points)
         assertEquals(listOf(0.0, 0.5, 1.0, 2.0, 4.0), chart.pointXHours)
-        assertEquals(listOf(MainE2DoseMarkerUiState(xHours = 0.5, concentration = 2f)), chart.doseMarkers)
+        assertEquals(
+            listOf(MainE2DoseMarkerUiState(xHours = 0.5, concentration = 2f)),
+            chart.doseMarkers
+        )
         assertEquals(168, chart.windowHours)
         assertEquals(2.0, chart.predictionStartXHours, 1e-9)
     }
@@ -553,7 +556,10 @@ class MainUiModelsTest {
         assertEquals(LocalDateTime.of(2026, 4, 18, 20, 0), planRow.nextDoseAt)
         assertEquals(true, planRow.isNextDosePastDue)
 
-        assertEquals("${group.uuid}:C|${MedicationKey.CYPROTERONE_ACETATE.name}:manual", manualRow.id)
+        assertEquals(
+            "${group.uuid}:C|${MedicationKey.CYPROTERONE_ACETATE.name}:manual",
+            manualRow.id
+        )
         assertEquals(cardMedicine, manualRow.medication.medicine)
         assertEquals(lastDoseTime, manualRow.lastDoseAt)
         assertEquals(loggedMedicine, manualRow.lastDose?.medicine)
@@ -1136,7 +1142,9 @@ class MainUiModelsTest {
                 MedicineSelection.Catalog(MedicationKey.CYPROTERONE_ACETATE),
                 MedicineSelection.Catalog(MedicationKey.SPIRONOLACTONE),
             ),
-            cards.map { card -> card.lastDose?.medicine?.selection ?: card.medication.medicine?.selection }
+            cards.map { card ->
+                card.lastDose?.medicine?.selection ?: card.medication.medicine?.selection
+            }
         )
         assertEquals(listOf(false, false, true, false), cards.map { it.isManualRow })
     }
@@ -1225,10 +1233,22 @@ class MainUiModelsTest {
     fun mainCompactElapsedTotalMinutes_counts_elapsed_minute_boundaries() {
         val appliedAt = LocalDateTime.of(2026, 4, 18, 19, 18, 50)
 
-        assertEquals(0L, mainCompactElapsedTotalMinutes(appliedAt, LocalDateTime.of(2026, 4, 18, 19, 18)))
-        assertEquals(1L, mainCompactElapsedTotalMinutes(appliedAt, LocalDateTime.of(2026, 4, 18, 19, 19)))
-        assertEquals(2L, mainCompactElapsedTotalMinutes(appliedAt, LocalDateTime.of(2026, 4, 18, 19, 20)))
-        assertEquals(3L, mainCompactElapsedTotalMinutes(appliedAt, LocalDateTime.of(2026, 4, 18, 19, 21)))
+        assertEquals(
+            0L,
+            mainCompactElapsedTotalMinutes(appliedAt, LocalDateTime.of(2026, 4, 18, 19, 18))
+        )
+        assertEquals(
+            1L,
+            mainCompactElapsedTotalMinutes(appliedAt, LocalDateTime.of(2026, 4, 18, 19, 19))
+        )
+        assertEquals(
+            2L,
+            mainCompactElapsedTotalMinutes(appliedAt, LocalDateTime.of(2026, 4, 18, 19, 20))
+        )
+        assertEquals(
+            3L,
+            mainCompactElapsedTotalMinutes(appliedAt, LocalDateTime.of(2026, 4, 18, 19, 21))
+        )
     }
 
     @Test
@@ -1482,7 +1502,10 @@ class MainUiModelsTest {
             unloggedArchivedSlotCutoff = now,
         )
 
-        assertEquals(true, section.rows.single { it.groupUuid == archived.uuid }.isFromArchivedGroup)
+        assertEquals(
+            true,
+            section.rows.single { it.groupUuid == archived.uuid }.isFromArchivedGroup
+        )
         assertEquals(false, section.rows.single { it.groupUuid == active.uuid }.isFromArchivedGroup)
     }
 

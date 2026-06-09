@@ -47,7 +47,9 @@ fun MedicalDisclaimerText(
             val disclaimerText = stringResource(kind.textRes)
             Text(
                 text = disclaimerText,
-                modifier = Modifier.fillMaxWidth().cjkTextOffset(disclaimerText),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .cjkTextOffset(disclaimerText),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

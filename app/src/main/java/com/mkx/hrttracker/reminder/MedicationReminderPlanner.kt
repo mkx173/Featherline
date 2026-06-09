@@ -40,14 +40,14 @@ internal fun buildNextMedicationReminderPlans(
                     // delivers immediately -> a just-tapped reminder re-fires on
                     // app reopen within the same minute.
                     occurrence.scheduledFor.isAfter(now) &&
-                        !isSlotFulfilled(
-                            group = group,
-                            slot = MedicationGroupSlotKey(
-                                scheduleTimeUuid = occurrence.scheduleTimeUuid,
-                                scheduledFor = occurrence.scheduledFor,
-                            ),
-                            entries = entries
-                        )
+                            !isSlotFulfilled(
+                                group = group,
+                                slot = MedicationGroupSlotKey(
+                                    scheduleTimeUuid = occurrence.scheduleTimeUuid,
+                                    scheduledFor = occurrence.scheduledFor,
+                                ),
+                                entries = entries
+                            )
                 }
                 ?.let { occurrence ->
                     MedicationReminderPlan(

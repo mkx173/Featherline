@@ -207,7 +207,7 @@ class MedicationReminderRescheduleReceiverTest {
     @Test
     fun reconcileFailure_stillFinishesPendingResult() = runTest {
         coEvery { reminderCapabilityReconciler.reconcile(any()) } throws
-            RuntimeException("simulated failure")
+                RuntimeException("simulated failure")
 
         handle(action = Intent.ACTION_BOOT_COMPLETED)
 

@@ -31,6 +31,7 @@ fun MedicationGroupSchedule.formatSummary(
                 addAll(formattedTimes)
             }.joinToString(" · ")
         }
+
         MedicationGroupScheduleType.DAILY -> {
             val timesString = formattedTimes.joinToString("/")
             "$dailyIntervalLabel · $timesString"

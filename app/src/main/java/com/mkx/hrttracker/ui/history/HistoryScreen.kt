@@ -435,13 +435,14 @@ private fun HistoryScreenContent(
             today = today
         )
     }
-    val visibleEntries = remember(uiState.entries, displayedMonth.yearMonth, effectiveSelectedDate) {
-        buildHistoryVisibleEntries(
-            entries = uiState.entries,
-            displayedMonth = displayedMonth.yearMonth,
-            selectedDate = effectiveSelectedDate
-        )
-    }
+    val visibleEntries =
+        remember(uiState.entries, displayedMonth.yearMonth, effectiveSelectedDate) {
+            buildHistoryVisibleEntries(
+                entries = uiState.entries,
+                displayedMonth = displayedMonth.yearMonth,
+                selectedDate = effectiveSelectedDate
+            )
+        }
     val groupedEntries = remember(visibleEntries) {
         groupHistoryEntriesByDate(visibleEntries)
     }
@@ -728,7 +729,7 @@ private fun HistoryScreenContent(
                                         HrtDropdownMenuItem(
                                             text = stringResource(R.string.history_delete_all_entries),
                                             enabled = uiState.allEntryCount > 0 &&
-                                                !uiState.isDeletingAllEntries,
+                                                    !uiState.isDeletingAllEntries,
                                             onClick = {
                                                 isDeleteAllConfirmationVisible = true
                                             },
@@ -782,148 +783,151 @@ private fun HistoryScreenContent(
                 contentPadding = appContentPaddingValues(),
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
             ) {
-            item(key = "history-header") {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
-                ) {
-                    HistoryMonthSummaryStrip(summary = monthSummary)
-                    HistoryMonthCalendar(
-                        calendarState = calendarState,
-                        displayedMonth = displayedMonth.yearMonth,
-                        settledDisplayedMonth = settledDisplayedMonth.yearMonth,
-                        today = today,
-                        firstDayOfWeek = uiState.calendarFirstDayOfWeek,
-                        dayStates = monthDayStates,
-                        appLocale = appLocale,
-                        selectedDate = calendarSelectedDate,
-                        hasResettableSelection = uiState.selectedDate != null &&
-                                pendingSelectionResetTargetMonth.value == null,
-                        onDayClick = { date ->
-                            pendingSelectionResetTargetMonth.value = null
-                            val selectedMonth = YearMonth.from(date)
-                            if (selectedMonth == settledDisplayedMonth.yearMonth) {
-                                pendingSelectedDate.value = null
-                                onDayClick(date)
-                            } else {
-                                calendarNavigationMonth = selectedMonth
-                                pendingSelectedDate.value = date
-                            }
-                        },
-                        onSelectionReset = { targetMonth ->
-                            pendingSelectedDate.value = null
-                            if (uiState.selectedDate != null) {
-                                pendingSelectionResetTargetMonth.value = targetMonth
-                            }
-                        },
-                        onDeferredDaySelectionRequested = {
-                            pendingSelectionResetTargetMonth.value = null
-                            pendingSelectedDate.value = it
-                        },
-                        onNavigationMonthChange = { calendarNavigationMonth = it },
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(top = 4.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                    )
-                    Text(
-                        text = entryListTitle.uppercase(),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-            }
-
-            if (visibleEntries.isEmpty()) {
-                item(key = "empty-state") {
-                    HistoryEmptyStateCard(
-                        text = stringResource(
-                            if (effectiveSelectedDate != null) {
-                                R.string.history_selected_day_empty_state
-                            } else if (uiState.entries.isEmpty()) {
-                                R.string.history_empty_state
-                            } else {
-                                R.string.history_month_empty_state
-                            }
-                        ),
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-            } else {
-                groupedEntries.entries.forEachIndexed { groupIndex, (date, dateEntries) ->
-                    item(key = "header-$date") {
-                        HistoryEntryGroupHeader(
-                            date = date,
+                item(key = "history-header") {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
+                    ) {
+                        HistoryMonthSummaryStrip(summary = monthSummary)
+                        HistoryMonthCalendar(
+                            calendarState = calendarState,
+                            displayedMonth = displayedMonth.yearMonth,
+                            settledDisplayedMonth = settledDisplayedMonth.yearMonth,
                             today = today,
-                            dayStatus = monthDayStates[date]?.status ?: PlanCalendarDayStatus.NONE,
-                            hasOffPlanRecord = monthDayStates[date]?.hasOffPlanRecord == true,
-                            countLabel = dateEntries.size.toString(),
-                            appLocale = appLocale
+                            firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+                            dayStates = monthDayStates,
+                            appLocale = appLocale,
+                            selectedDate = calendarSelectedDate,
+                            hasResettableSelection = uiState.selectedDate != null &&
+                                    pendingSelectionResetTargetMonth.value == null,
+                            onDayClick = { date ->
+                                pendingSelectionResetTargetMonth.value = null
+                                val selectedMonth = YearMonth.from(date)
+                                if (selectedMonth == settledDisplayedMonth.yearMonth) {
+                                    pendingSelectedDate.value = null
+                                    onDayClick(date)
+                                } else {
+                                    calendarNavigationMonth = selectedMonth
+                                    pendingSelectedDate.value = date
+                                }
+                            },
+                            onSelectionReset = { targetMonth ->
+                                pendingSelectedDate.value = null
+                                if (uiState.selectedDate != null) {
+                                    pendingSelectionResetTargetMonth.value = targetMonth
+                                }
+                            },
+                            onDeferredDaySelectionRequested = {
+                                pendingSelectionResetTargetMonth.value = null
+                                pendingSelectedDate.value = it
+                            },
+                            onNavigationMonthChange = { calendarNavigationMonth = it },
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(top = 4.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                        )
+                        Text(
+                            text = entryListTitle.uppercase(),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(top = 4.dp)
                         )
                     }
+                }
 
-                    item {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
-                        ) {
-                            dateEntries.forEachIndexed { index, entry ->
-                                HistoryEntryCard(
-                                    entry = entry,
-                                    timeFormatter = timeFormatter,
-                                    groupColorKey = entry.sourceGroupUuid?.let(groupColorsById::get),
-                                    isFromArchivedGroup = entry.sourceGroupUuid != null &&
-                                            entry.sourceGroupUuid in archivedGroupUuids,
-                                    isSelected = entry.uuid in uiState.selectedEntryIds,
-                                    isSelectionMode = uiState.isSelectionMode,
-                                    index = index,
-                                    count = dateEntries.size,
-                                    onClick = { onEntryClick(entry) },
-                                    onLongClick = { onEntryLongClick(entry) },
-                                    onSelectionClick = { onEntryLongClick(entry) }
-                                )
-                            }
-                            if (groupIndex < groupedEntries.size - 1) {
-                                Spacer(modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(4.dp))
+                if (visibleEntries.isEmpty()) {
+                    item(key = "empty-state") {
+                        HistoryEmptyStateCard(
+                            text = stringResource(
+                                if (effectiveSelectedDate != null) {
+                                    R.string.history_selected_day_empty_state
+                                } else if (uiState.entries.isEmpty()) {
+                                    R.string.history_empty_state
+                                } else {
+                                    R.string.history_month_empty_state
+                                }
+                            ),
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                } else {
+                    groupedEntries.entries.forEachIndexed { groupIndex, (date, dateEntries) ->
+                        item(key = "header-$date") {
+                            HistoryEntryGroupHeader(
+                                date = date,
+                                today = today,
+                                dayStatus = monthDayStates[date]?.status
+                                    ?: PlanCalendarDayStatus.NONE,
+                                hasOffPlanRecord = monthDayStates[date]?.hasOffPlanRecord == true,
+                                countLabel = dateEntries.size.toString(),
+                                appLocale = appLocale
+                            )
+                        }
+
+                        item {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+                            ) {
+                                dateEntries.forEachIndexed { index, entry ->
+                                    HistoryEntryCard(
+                                        entry = entry,
+                                        timeFormatter = timeFormatter,
+                                        groupColorKey = entry.sourceGroupUuid?.let(groupColorsById::get),
+                                        isFromArchivedGroup = entry.sourceGroupUuid != null &&
+                                                entry.sourceGroupUuid in archivedGroupUuids,
+                                        isSelected = entry.uuid in uiState.selectedEntryIds,
+                                        isSelectionMode = uiState.isSelectionMode,
+                                        index = index,
+                                        count = dateEntries.size,
+                                        onClick = { onEntryClick(entry) },
+                                        onLongClick = { onEntryLongClick(entry) },
+                                        onSelectionClick = { onEntryLongClick(entry) }
+                                    )
+                                }
+                                if (groupIndex < groupedEntries.size - 1) {
+                                    Spacer(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(4.dp)
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            if (effectiveSelectedDate != null) {
-                item(key = "clear-selection") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        HrtOutlinedButton(
-                            text = stringResource(R.string.history_clear_selection),
-                            onClick = {
-                                val selectedDate = uiState.selectedDate
-                                pendingSelectedDate.value = null
-                                pendingSelectionResetTargetMonth.value = null
-                                if (selectedDate != null) {
-                                    onDayClick(selectedDate)
-                                }
-                            },
-                            icon = Icons.Rounded.Close,
-                            iconModifier = Modifier.size(14.dp),
-                            iconSpacing = 6.dp,
-                            compact = true,
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.primary,
+                if (effectiveSelectedDate != null) {
+                    item(key = "clear-selection") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            HrtOutlinedButton(
+                                text = stringResource(R.string.history_clear_selection),
+                                onClick = {
+                                    val selectedDate = uiState.selectedDate
+                                    pendingSelectedDate.value = null
+                                    pendingSelectionResetTargetMonth.value = null
+                                    if (selectedDate != null) {
+                                        onDayClick(selectedDate)
+                                    }
+                                },
+                                icon = Icons.Rounded.Close,
+                                iconModifier = Modifier.size(14.dp),
+                                iconSpacing = 6.dp,
+                                compact = true,
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary,
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
-        }
         }
     }
 }
@@ -938,7 +942,9 @@ private fun HistoryMonthSummaryStrip(
         partialMode = HistoryIndicatorColorMode.Emphasized
     )
     Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -1367,7 +1373,9 @@ private fun HistoryCalendarTitle(
         )
     }
 
-    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -1608,7 +1616,9 @@ private fun HistoryMonthPickerWheel(
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.alpha(if (isSelected) 1f else 0.72f).padding(vertical = 8.dp)
+                    modifier = Modifier
+                        .alpha(if (isSelected) 1f else 0.72f)
+                        .padding(vertical = 8.dp)
                 )
             }
         }
@@ -1844,6 +1854,7 @@ private fun HistoryPrimaryStatusIndicator(
                 modifier = modifier
             )
         }
+
         PlanCalendarDayStatus.OFFPLAN -> {
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.OFFPLAN,
@@ -1851,6 +1862,7 @@ private fun HistoryPrimaryStatusIndicator(
                 modifier = modifier
             )
         }
+
         PlanCalendarDayStatus.MISSED -> {
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.MISSED,
@@ -1858,6 +1870,7 @@ private fun HistoryPrimaryStatusIndicator(
                 modifier = modifier
             )
         }
+
         PlanCalendarDayStatus.PARTIAL -> {
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.PARTIAL,
@@ -1865,6 +1878,7 @@ private fun HistoryPrimaryStatusIndicator(
                 modifier = modifier
             )
         }
+
         PlanCalendarDayStatus.FULFILLED -> {
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.CHECK,
@@ -1922,7 +1936,10 @@ internal fun HistoryEntryGroupHeader(
             HistoryStatusIndicator(
                 status = dayStatus,
                 colors = historyIndicatorColors(
-                    scheduledMode = if (dayStatus == PlanCalendarDayStatus.MISSED && date.isBefore(today)) {
+                    scheduledMode = if (dayStatus == PlanCalendarDayStatus.MISSED && date.isBefore(
+                            today
+                        )
+                    ) {
                         HistoryIndicatorColorMode.Emphasized
                     } else {
                         HistoryIndicatorColorMode.Neutral
@@ -1950,7 +1967,9 @@ internal fun HistoryEntryGroupHeader(
                 } else {
                     MaterialTheme.colorScheme.onSurface
                 },
-                modifier = Modifier.alignByBaseline().cjkTextOffset(label)
+                modifier = Modifier
+                    .alignByBaseline()
+                    .cjkTextOffset(label)
             )
             Text(
                 text = weekdayDisplayLabel,

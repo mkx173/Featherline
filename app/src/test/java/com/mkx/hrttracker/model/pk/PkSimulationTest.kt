@@ -40,7 +40,7 @@ class PkSimulationTest {
         )
 
         val expected = 2.0 * 0.03 * 0.32 / (0.32 - 0.41) *
-            (exp(-0.41) - exp(-0.32))
+                (exp(-0.41) - exp(-0.32))
         assertEquals(expected, amount, 1e-12)
     }
 
@@ -279,7 +279,11 @@ class PkSimulationTest {
         )
 
         assertEquals(directTrend.currentConcentration, cachedTrend.currentConcentration, 1e-9)
-        assertEquals(directTrend.previousDayConcentration, cachedTrend.previousDayConcentration, 1e-9)
+        assertEquals(
+            directTrend.previousDayConcentration,
+            cachedTrend.previousDayConcentration,
+            1e-9
+        )
         assertEquals(directTrend.dailyConcentrations, cachedTrend.dailyConcentrations)
         assertEquals(directTrend.chartWindowHours, cachedTrend.chartWindowHours)
         assertEquals(directTrend.predictionStartTimeH, cachedTrend.predictionStartTimeH, 1e-9)
@@ -501,7 +505,7 @@ class PkSimulationTest {
 
         for (timeH in listOf(0.0, 168.0, 200.0)) {
             val expected = (firstPatchOnly.concentrationAt(timeH) ?: 0.0) +
-                (secondPatchOnly.concentrationAt(timeH) ?: 0.0)
+                    (secondPatchOnly.concentrationAt(timeH) ?: 0.0)
             val actual = swapResult.concentrationAt(timeH) ?: 0.0
             assertEquals("at t=$timeH", expected, actual, 1e-9)
         }

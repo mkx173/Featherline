@@ -392,7 +392,9 @@ internal fun ArchiveMedicationGroupCard(
                 painter = painterResource(R.drawable.ic_archive),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp).alpha(if (enabled) 1f else 0.72f),
+                modifier = Modifier
+                    .size(24.dp)
+                    .alpha(if (enabled) 1f else 0.72f),
             )
         },
         trailingContent = {

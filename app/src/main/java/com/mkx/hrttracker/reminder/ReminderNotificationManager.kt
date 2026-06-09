@@ -59,13 +59,14 @@ class ReminderNotificationManager @Inject constructor(
             resolvedContext.getString(R.string.reminder_notification_channel_name),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = resolvedContext.getString(R.string.reminder_notification_channel_description)
+            description =
+                resolvedContext.getString(R.string.reminder_notification_channel_description)
         }
         notificationManager.createNotificationChannel(channel)
         diagnosticsLogger.info(
             TAG,
             "reminder_notification_channel_created channelId=$REMINDER_CHANNEL_ID " +
-                "languageTag=${languageTag ?: "default"}"
+                    "languageTag=${languageTag ?: "default"}"
         )
     }
 
@@ -86,7 +87,7 @@ class ReminderNotificationManager @Inject constructor(
             diagnosticsLogger.info(
                 TAG,
                 "reminder_notification_show_skipped reason=no_permission " +
-                    "tag=${bundle.notificationTag} items=${bundle.items.size}"
+                        "tag=${bundle.notificationTag} items=${bundle.items.size}"
             )
             return
         }
@@ -166,7 +167,7 @@ class ReminderNotificationManager @Inject constructor(
             diagnosticsLogger.info(
                 TAG,
                 "reminder_notification_shown tag=$notificationTag " +
-                    "items=${bundle.items.size} canSnooze=$canSnooze isMerged=$isMerged"
+                        "items=${bundle.items.size} canSnooze=$canSnooze isMerged=$isMerged"
             )
         } catch (_: SecurityException) {
             // Notification permission can be revoked after the preflight check.
@@ -189,7 +190,10 @@ class ReminderNotificationManager @Inject constructor(
     }
 
     fun showStockOutToast(medicine: Medicine) {
-        diagnosticsLogger.info(TAG, "reminder_notification_stock_out_toast medicine=${medicine.uuid}")
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_notification_stock_out_toast medicine=${medicine.uuid}"
+        )
         showToast { localized ->
             localized.getString(
                 R.string.stock_toast_out_single,
@@ -210,7 +214,10 @@ class ReminderNotificationManager @Inject constructor(
     }
 
     fun showStockImminentToast(medicine: Medicine) {
-        diagnosticsLogger.info(TAG, "reminder_notification_stock_imminent_toast medicine=${medicine.uuid}")
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_notification_stock_imminent_toast medicine=${medicine.uuid}"
+        )
         showToast { localized ->
             localized.getString(
                 R.string.stock_toast_imminent_single,
@@ -231,7 +238,10 @@ class ReminderNotificationManager @Inject constructor(
     }
 
     fun showStockUserLowToast(medicine: Medicine) {
-        diagnosticsLogger.info(TAG, "reminder_notification_stock_user_low_toast medicine=${medicine.uuid}")
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_notification_stock_user_low_toast medicine=${medicine.uuid}"
+        )
         showToast { localized ->
             localized.getString(
                 R.string.stock_toast_user_low_single,
@@ -307,10 +317,10 @@ class ReminderNotificationManager @Inject constructor(
         }
 
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun buildReminderActionPendingIntent(
@@ -353,6 +363,7 @@ class ReminderNotificationManager @Inject constructor(
                 firstGroupName,
                 secondGroupName,
             )
+
             is ReminderNotificationBody.MoreGroups -> context.resources.getQuantityString(
                 R.plurals.reminder_notification_more_groups,
                 additionalGroupCount,

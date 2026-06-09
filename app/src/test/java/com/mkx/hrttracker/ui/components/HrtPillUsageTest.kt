@@ -19,7 +19,7 @@ class HrtPillUsageTest {
 
         assertTrue(
             "Custom HrtPill blocks with leading icons must add 2.dp end padding to the trailing Text:\n" +
-                offenders.joinToString(separator = "\n"),
+                    offenders.joinToString(separator = "\n"),
             offenders.isEmpty(),
         )
     }
@@ -80,7 +80,7 @@ class HrtPillUsageTest {
         val textArgumentsStart = textStart + "Text".length
         val textEnd = findMatching(content, textArgumentsStart, open = '(', close = ')')
         return textEnd != -1 &&
-            content.substring(textStart, textEnd).contains("padding(end = 2.dp)")
+                content.substring(textStart, textEnd).contains("padding(end = 2.dp)")
     }
 
     private fun findMatching(
@@ -106,26 +106,32 @@ class HrtPillUsageTest {
                     inBlockComment = false
                     index += 1
                 }
+
                 inTripleString -> if (char == '"' && next == '"' && nextTwo == '"') {
                     inTripleString = false
                     index += 2
                 }
+
                 inString -> when {
                     char == '\\' -> index += 1
                     char == '"' -> inString = false
                 }
+
                 char == '/' && next == '/' -> {
                     inLineComment = true
                     index += 1
                 }
+
                 char == '/' && next == '*' -> {
                     inBlockComment = true
                     index += 1
                 }
+
                 char == '"' && next == '"' && nextTwo == '"' -> {
                     inTripleString = true
                     index += 2
                 }
+
                 char == '"' -> inString = true
                 char == open -> depth += 1
                 char == close -> {

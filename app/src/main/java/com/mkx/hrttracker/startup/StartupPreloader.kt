@@ -42,7 +42,10 @@ class StartupPreloader @Inject constructor(
 
     fun startAfterFirstHomeFrame() {
         if (!started.compareAndSet(false, true)) {
-            diagnosticsLogger.info(TAG, "startup_after_first_home_frame_skipped reason=already_started")
+            diagnosticsLogger.info(
+                TAG,
+                "startup_after_first_home_frame_skipped reason=already_started"
+            )
             return
         }
 
@@ -80,7 +83,10 @@ class StartupPreloader @Inject constructor(
 
     fun startReminderRescheduleFromSnapshot(now: LocalDateTime = LocalDateTime.now()) {
         if (!snapshotReminderStarted.compareAndSet(false, true)) {
-            diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_skipped reason=already_started now=$now")
+            diagnosticsLogger.info(
+                TAG,
+                "snapshot_reminder_reschedule_skipped reason=already_started now=$now"
+            )
             return
         }
 
@@ -97,7 +103,7 @@ class StartupPreloader @Inject constructor(
                 diagnosticsLogger.info(
                     TAG,
                     "snapshot_reminder_reschedule_using_snapshot " +
-                        "now=$now ${snapshot.reminderDiagnosticSummary()}"
+                            "now=$now ${snapshot.reminderDiagnosticSummary()}"
                 )
                 medicationReminderScheduler.rescheduleFromHomeSnapshot(
                     snapshot = snapshot,
@@ -105,7 +111,11 @@ class StartupPreloader @Inject constructor(
                 )
                 diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_complete now=$now")
             }.onFailure { throwable ->
-                diagnosticsLogger.warning(TAG, "snapshot_reminder_reschedule_failed now=$now", throwable)
+                diagnosticsLogger.warning(
+                    TAG,
+                    "snapshot_reminder_reschedule_failed now=$now",
+                    throwable
+                )
             }
         }
     }
@@ -130,7 +140,10 @@ class StartupPreloader @Inject constructor(
 
     private suspend fun rescheduleAllRemindersOnce(now: LocalDateTime) {
         if (!dbReminderStarted.compareAndSet(false, true)) {
-            diagnosticsLogger.info(TAG, "reminder_reschedule_skipped reason=already_started now=$now")
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_reschedule_skipped reason=already_started now=$now"
+            )
             return
         }
         diagnosticsLogger.info(TAG, "reminder_reschedule_start now=$now")

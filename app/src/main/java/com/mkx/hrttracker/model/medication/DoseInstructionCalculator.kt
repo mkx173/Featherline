@@ -27,11 +27,13 @@ object DoseInstructionCalculator {
         val delta = doseAmountDelta ?: 0.0
         return when {
             preparation is MedicinePreparation.InjectionMultiUseVial &&
-                doseInstruction is DoseInstruction.VolumeMl ->
+                    doseInstruction is DoseInstruction.VolumeMl ->
                 (doseInstruction.valueMl + delta).coerceAtLeast(MIN_EFFECTIVE_DOSE_EPSILON)
+
             preparation is MedicinePreparation.GelContainer &&
-                doseInstruction is DoseInstruction.WeightGrams ->
+                    doseInstruction is DoseInstruction.WeightGrams ->
                 (doseInstruction.valueGrams + delta).coerceAtLeast(MIN_EFFECTIVE_DOSE_EPSILON)
+
             else -> null
         }
     }
@@ -45,6 +47,7 @@ object DoseInstructionCalculator {
                 val fraction = doseInstruction as? DoseInstruction.TabletFraction ?: return null
                 preparation.strengthMgPerTablet * fraction.numerator.toDouble() / fraction.denominator
             }
+
             is MedicinePreparation.Capsule -> {
                 if (doseInstruction == DoseInstruction.WholeUnit) {
                     preparation.strengthMgPerCapsule
@@ -52,6 +55,7 @@ object DoseInstructionCalculator {
                     null
                 }
             }
+
             is MedicinePreparation.InjectionSingleUseVial -> {
                 if (doseInstruction == DoseInstruction.WholeUnit) {
                     preparation.strengthMgPerVial
@@ -59,10 +63,12 @@ object DoseInstructionCalculator {
                     null
                 }
             }
+
             is MedicinePreparation.InjectionMultiUseVial -> {
                 val volume = doseInstruction as? DoseInstruction.VolumeMl ?: return null
                 preparation.concentrationMgPerMl * volume.valueMl
             }
+
             is MedicinePreparation.GelSachet -> {
                 if (doseInstruction == DoseInstruction.WholeUnit) {
                     preparation.concentrationPercent * 10.0 * preparation.sachetWeightGrams
@@ -70,10 +76,12 @@ object DoseInstructionCalculator {
                     null
                 }
             }
+
             is MedicinePreparation.GelContainer -> {
                 val weight = doseInstruction as? DoseInstruction.WeightGrams ?: return null
                 preparation.concentrationPercent * 10.0 * weight.valueGrams
             }
+
             is MedicinePreparation.Patch -> {
                 when (val specification = preparation.specification) {
                     is MedicinePreparation.PatchSpecification.TotalMg -> {
@@ -83,6 +91,7 @@ object DoseInstructionCalculator {
                             null
                         }
                     }
+
                     is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay -> null
                 }
             }
@@ -136,6 +145,7 @@ object DoseInstructionCalculator {
                     perUnitAmountMg(medicine = medicine, doseInstruction = doseInstruction)
                 }
             }
+
             is MedicinePreparation.InjectionMultiUseVial -> {
                 val volumeMl = effectivePerAdministrationStockAmount(
                     preparation = preparation,
@@ -144,6 +154,7 @@ object DoseInstructionCalculator {
                 ) ?: return perUnitAmountMg(medicine = medicine, doseInstruction = doseInstruction)
                 preparation.concentrationMgPerMl * volumeMl
             }
+
             is MedicinePreparation.GelContainer -> {
                 val weightGrams = effectivePerAdministrationStockAmount(
                     preparation = preparation,
@@ -152,6 +163,7 @@ object DoseInstructionCalculator {
                 ) ?: return perUnitAmountMg(medicine = medicine, doseInstruction = doseInstruction)
                 preparation.concentrationPercent * 10.0 * weightGrams
             }
+
             else -> perUnitAmountMg(medicine = medicine, doseInstruction = doseInstruction)
         }
     }
@@ -170,8 +182,9 @@ object DoseInstructionCalculator {
     ): Double? {
         if (doseInstruction != DoseInstruction.WholeUnit) return null
         val patch = medicine.preparation as? MedicinePreparation.Patch ?: return null
-        val rate = patch.specification as? MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay
-            ?: return null
+        val rate =
+            patch.specification as? MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay
+                ?: return null
         return rate.valueMcgPerDay
     }
 

@@ -84,14 +84,14 @@ class MedicationReminderReceiver : BroadcastReceiver() {
                     diagnosticsLogger.info(
                         TAG,
                         "reminder_receiver_notification_shown groupUuid=$groupUuid " +
-                            "scheduledAt=$scheduledAt groups=${groups.size} entries=${entries.size} " +
-                            "items=${bundle.items.size}"
+                                "scheduledAt=$scheduledAt groups=${groups.size} entries=${entries.size} " +
+                                "items=${bundle.items.size}"
                     )
                 } else {
                     diagnosticsLogger.info(
                         TAG,
                         "reminder_receiver_notification_skipped reason=no_bundle groupUuid=$groupUuid " +
-                            "scheduledAt=$scheduledAt groups=${groups.size} entries=${entries.size}"
+                                "scheduledAt=$scheduledAt groups=${groups.size} entries=${entries.size}"
                     )
                 }
 
@@ -101,7 +101,11 @@ class MedicationReminderReceiver : BroadcastReceiver() {
                 )
                 diagnosticsLogger.info(
                     TAG,
-                    "reminder_receiver_reschedule_requested groupUuid=$groupUuid after=${scheduledAt.plusSeconds(1)}"
+                    "reminder_receiver_reschedule_requested groupUuid=$groupUuid after=${
+                        scheduledAt.plusSeconds(
+                            1
+                        )
+                    }"
                 )
             }.onFailure { throwable ->
                 diagnosticsLogger.warning(

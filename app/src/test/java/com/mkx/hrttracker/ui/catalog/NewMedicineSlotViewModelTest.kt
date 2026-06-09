@@ -221,7 +221,10 @@ class NewMedicineSlotViewModelTest {
         viewModel.saveGroupSlot()
         advanceUntilIdle()
 
-        assertEquals(R.string.validation_dose_volume_required, viewModel.uiState.value.errorMessageRes)
+        assertEquals(
+            R.string.validation_dose_volume_required,
+            viewModel.uiState.value.errorMessageRes
+        )
         assertNull(viewModel.uiState.value.slotResult)
         coVerify(exactly = 0) { medicineRepository.findOrCreateForCatalog(any(), any(), any()) }
     }
@@ -489,7 +492,19 @@ class NewMedicineSlotViewModelTest {
         )
         coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } returns medicine
         coEvery {
-            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            medicationLogRepository.saveEntry(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
         } throws IllegalStateException("save failed")
         val viewModel = newViewModel()
         viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
@@ -498,11 +513,26 @@ class NewMedicineSlotViewModelTest {
         advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.isSaved)
-        assertEquals(MedicineSlotDraftSaveResult.FAILURE, viewModel.uiState.value.manualLogSaveResult)
+        assertEquals(
+            MedicineSlotDraftSaveResult.FAILURE,
+            viewModel.uiState.value.manualLogSaveResult
+        )
         assertNull(viewModel.uiState.value.createdMedicineUuid)
         coVerify(exactly = 1) { medicineRepository.findOrCreateForCatalog(any(), any(), any()) }
         coVerify(exactly = 1) {
-            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            medicationLogRepository.saveEntry(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
         }
     }
 
@@ -529,7 +559,19 @@ class NewMedicineSlotViewModelTest {
         }
         var saveEntryCall = 0
         coEvery {
-            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            medicationLogRepository.saveEntry(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
         } coAnswers {
             saveEntryCall += 1
             if (saveEntryCall == 1) throw IllegalStateException("save failed")
@@ -543,7 +585,10 @@ class NewMedicineSlotViewModelTest {
 
         // First attempt: medicine created, log failed, no nudge yet.
         assertFalse(viewModel.uiState.value.isSaved)
-        assertEquals(MedicineSlotDraftSaveResult.FAILURE, viewModel.uiState.value.manualLogSaveResult)
+        assertEquals(
+            MedicineSlotDraftSaveResult.FAILURE,
+            viewModel.uiState.value.manualLogSaveResult
+        )
         assertNull(viewModel.uiState.value.createdMedicineUuid)
 
         viewModel.saveManualLog()
@@ -563,7 +608,10 @@ class NewMedicineSlotViewModelTest {
         viewModel.updateAppliedTime(LocalTime.of(7, 45))
         viewModel.saveGroupSlot()
         advanceUntilIdle()
-        assertEquals(R.string.validation_pill_strength_required, viewModel.uiState.value.errorMessageRes)
+        assertEquals(
+            R.string.validation_pill_strength_required,
+            viewModel.uiState.value.errorMessageRes
+        )
 
         viewModel.reset()
 
@@ -617,7 +665,19 @@ class NewMedicineSlotViewModelTest {
         val neverCompletes = CompletableDeferred<Unit>()
         coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } returns medicine
         coEvery {
-            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            medicationLogRepository.saveEntry(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
         } coAnswers {
             logSaveStarted.complete(Unit)
             neverCompletes.await()
@@ -682,7 +742,19 @@ class NewMedicineSlotViewModelTest {
         assertNull(viewModel.uiState.value.createSaveResult)
         assertNull(viewModel.uiState.value.manualLogSaveResult)
         coVerify(exactly = 0) {
-            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            medicationLogRepository.saveEntry(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
         }
     }
 
@@ -745,7 +817,10 @@ class NewMedicineSlotViewModelTest {
         advanceUntilIdle()
 
         assertEquals("2", viewModel.uiState.value.medicineDraft.pillStrengthMg)
-        assertEquals(DoseInstruction.TabletFraction(1, 1), viewModel.uiState.value.slotResult?.doseInstruction)
+        assertEquals(
+            DoseInstruction.TabletFraction(1, 1),
+            viewModel.uiState.value.slotResult?.doseInstruction
+        )
         assertEquals("1", viewModel.uiState.value.countText)
         assertEquals(originalDate, viewModel.uiState.value.appliedDate)
         assertEquals(originalTime, viewModel.uiState.value.appliedTime)
@@ -775,7 +850,10 @@ class NewMedicineSlotViewModelTest {
 
         assertTrue(viewModel.uiState.value.isSaved)
         assertEquals("2", viewModel.uiState.value.medicineDraft.pillStrengthMg)
-        assertEquals(DoseInstruction.TabletFraction(1, 1), viewModel.uiState.value.slotResult?.doseInstruction)
+        assertEquals(
+            DoseInstruction.TabletFraction(1, 1),
+            viewModel.uiState.value.slotResult?.doseInstruction
+        )
         assertEquals(savedSlotResult, viewModel.uiState.value.slotResult)
         assertEquals("1", viewModel.uiState.value.countText)
         assertEquals(originalDate, viewModel.uiState.value.appliedDate)

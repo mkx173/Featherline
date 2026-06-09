@@ -23,7 +23,11 @@ import java.util.UUID
 
 class QuickLogActionCallback : ActionCallback {
 
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
         val groupUuidStr = parameters[GroupUuidKey] ?: return
         val scheduleTimeUuidStr = parameters[ScheduleTimeUuidKey]
         val scheduledAtStr = parameters[ScheduledAtKey] ?: return
@@ -59,7 +63,10 @@ class QuickLogActionCallback : ActionCallback {
             // The group may have been archived after an active widget row was rendered.
             // Only rows that were already rendered as archived are allowed to re-log
             // archived-group doses.
-            diagnosticsLogger.info(TAG, "widget_quick_log_stale_active_row_archived_group uuid=$groupUuid")
+            diagnosticsLogger.info(
+                TAG,
+                "widget_quick_log_stale_active_row_archived_group uuid=$groupUuid"
+            )
             updateAllHrtWidgets(appContext)
             return
         }
@@ -72,7 +79,10 @@ class QuickLogActionCallback : ActionCallback {
         val targetGroup = if (medicationUuid != null) {
             val match = group.medications.firstOrNull { it.uuid == medicationUuid }
             if (match == null) {
-                diagnosticsLogger.warning(TAG, "widget_quick_log_medication_not_found uuid=$medicationUuid")
+                diagnosticsLogger.warning(
+                    TAG,
+                    "widget_quick_log_medication_not_found uuid=$medicationUuid"
+                )
                 updateAllHrtWidgets(appContext)
                 return
             }
@@ -121,7 +131,10 @@ class QuickLogActionCallback : ActionCallback {
                     hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails,
                 )
             } else {
-                diagnosticsLogger.info(TAG, "widget_quick_log_already_fulfilled slot=$scheduledAt group=$groupUuid")
+                diagnosticsLogger.info(
+                    TAG,
+                    "widget_quick_log_already_fulfilled slot=$scheduledAt group=$groupUuid"
+                )
                 updateAllHrtWidgets(appContext)
             }
         } catch (error: CancellationException) {

@@ -50,7 +50,7 @@ class ReminderCapabilityReconciler @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_capability_reconcile_start reason=$reason " +
-                "notification=$hasNotificationAccess exactAlarm=$hasExactAlarmAccess"
+                    "notification=$hasNotificationAccess exactAlarm=$hasExactAlarmAccess"
         )
 
         _state.value = ReminderCapabilityState(
@@ -80,7 +80,7 @@ class ReminderCapabilityReconciler @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_capability_reconcile_complete reason=$reason " +
-                "disabledMaster=$disabledReminders"
+                    "disabledMaster=$disabledReminders"
         )
     }
 

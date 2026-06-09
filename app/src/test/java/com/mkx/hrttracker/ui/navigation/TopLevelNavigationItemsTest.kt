@@ -12,7 +12,7 @@ class TopLevelNavigationItemsTest {
             val resolved = Screen.topLevelScreenForRoute(item.screen.route)
             assertNotNull(
                 "Route ${item.screen.route} from topLevelNavigationItems must resolve " +
-                    "via Screen.topLevelScreenForRoute",
+                        "via Screen.topLevelScreenForRoute",
                 resolved,
             )
             assertEquals(

@@ -13,7 +13,8 @@ class WidgetDailyRefreshWorker(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
-        val entryPoint = EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        val entryPoint =
+            EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
         val widgetSnapshotStore = entryPoint.widgetSnapshotStore()
         val homeSnapshotRepository = entryPoint.homeSnapshotRepository()
 
@@ -22,15 +23,17 @@ class WidgetDailyRefreshWorker(
         val snapshot = widgetSnapshotStore.readSnapshot()
 
         val projectionExpired = snapshot == null ||
-            snapshot.pkProjection?.toPkProjectionResult(now, zoneId) == null
+                snapshot.pkProjection?.toPkProjectionResult(now, zoneId) == null
 
         val anchorDateStale = snapshot?.isAnchoredBefore(now) == true
         val doseStatusStale = snapshot?.doseRows?.any { row ->
             when (row.status) {
                 WidgetDoseStatus.UPCOMING ->
                     !now.isBefore(row.scheduledAt.minusHours(1))
+
                 WidgetDoseStatus.DUE_SOON ->
                     !now.isBefore(row.scheduledAt.plusHours(1))
+
                 else -> false
             }
         } == true

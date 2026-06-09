@@ -12,8 +12,14 @@ class MedicationCompatibilityTest {
     fun preparationType_form_mapsEveryPreparationType() {
         assertForm(MedicinePreparationType.PILL, MedicinePreparationForm.TABLET)
         assertForm(MedicinePreparationType.CAPSULE, MedicinePreparationForm.CAPSULE)
-        assertForm(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL, MedicinePreparationForm.INJECTION)
-        assertForm(MedicinePreparationType.INJECTION_MULTI_USE_VIAL, MedicinePreparationForm.INJECTION)
+        assertForm(
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+            MedicinePreparationForm.INJECTION
+        )
+        assertForm(
+            MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+            MedicinePreparationForm.INJECTION
+        )
         assertForm(MedicinePreparationType.GEL_SACHET, MedicinePreparationForm.GEL)
         assertForm(MedicinePreparationType.GEL_CONTAINER, MedicinePreparationForm.GEL)
         assertForm(MedicinePreparationType.PATCH, MedicinePreparationForm.PATCH)
@@ -47,26 +53,42 @@ class MedicationCompatibilityTest {
 
     @Test
     fun doseInstructionCompatibility_matchesDoseShapeTable() {
-        assertTrue(DoseInstruction.TabletFraction(1, 1).isCompatibleWith(MedicinePreparationType.PILL))
+        assertTrue(
+            DoseInstruction.TabletFraction(1, 1).isCompatibleWith(MedicinePreparationType.PILL)
+        )
         assertFalse(DoseInstruction.WholeUnit.isCompatibleWith(MedicinePreparationType.PILL))
 
         assertTrue(DoseInstruction.WholeUnit.isCompatibleWith(MedicinePreparationType.CAPSULE))
-        assertFalse(DoseInstruction.TabletFraction(1, 1).isCompatibleWith(MedicinePreparationType.CAPSULE))
+        assertFalse(
+            DoseInstruction.TabletFraction(1, 1).isCompatibleWith(MedicinePreparationType.CAPSULE)
+        )
 
         assertTrue(DoseInstruction.WholeUnit.isCompatibleWith(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL))
-        assertFalse(DoseInstruction.VolumeMl(0.5).isCompatibleWith(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL))
+        assertFalse(
+            DoseInstruction.VolumeMl(0.5)
+                .isCompatibleWith(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL)
+        )
 
-        assertTrue(DoseInstruction.VolumeMl(0.5).isCompatibleWith(MedicinePreparationType.INJECTION_MULTI_USE_VIAL))
+        assertTrue(
+            DoseInstruction.VolumeMl(0.5)
+                .isCompatibleWith(MedicinePreparationType.INJECTION_MULTI_USE_VIAL)
+        )
         assertFalse(DoseInstruction.WholeUnit.isCompatibleWith(MedicinePreparationType.INJECTION_MULTI_USE_VIAL))
 
         assertTrue(DoseInstruction.WholeUnit.isCompatibleWith(MedicinePreparationType.GEL_SACHET))
-        assertFalse(DoseInstruction.WeightGrams(1.0).isCompatibleWith(MedicinePreparationType.GEL_SACHET))
+        assertFalse(
+            DoseInstruction.WeightGrams(1.0).isCompatibleWith(MedicinePreparationType.GEL_SACHET)
+        )
 
-        assertTrue(DoseInstruction.WeightGrams(1.0).isCompatibleWith(MedicinePreparationType.GEL_CONTAINER))
+        assertTrue(
+            DoseInstruction.WeightGrams(1.0).isCompatibleWith(MedicinePreparationType.GEL_CONTAINER)
+        )
         assertFalse(DoseInstruction.WholeUnit.isCompatibleWith(MedicinePreparationType.GEL_CONTAINER))
 
         assertTrue(DoseInstruction.WholeUnit.isCompatibleWith(MedicinePreparationType.PATCH))
-        assertFalse(DoseInstruction.TabletFraction(1, 1).isCompatibleWith(MedicinePreparationType.PATCH))
+        assertFalse(
+            DoseInstruction.TabletFraction(1, 1).isCompatibleWith(MedicinePreparationType.PATCH)
+        )
 
         assertTrue(DoseInstruction.Noop.isCompatibleWith(MedicinePreparationType.PATCH_OFF))
         assertTrue(DoseInstruction.Noop.isCompatibleWith(null))
@@ -76,18 +98,25 @@ class MedicationCompatibilityTest {
     @Test
     fun requiredApplicationType_returnsNullOnlyForPill() {
         assertTrue(MedicinePreparation.Pill(2.0).requiredApplicationType() == null)
-        assertTrue(MedicinePreparation.Capsule(100.0).requiredApplicationType() == MedicationApplicationType.ORAL)
+        assertTrue(
+            MedicinePreparation.Capsule(100.0)
+                .requiredApplicationType() == MedicationApplicationType.ORAL
+        )
         assertTrue(
             MedicinePreparation.InjectionSingleUseVial(10.0).requiredApplicationType() ==
-                MedicationApplicationType.INJECTION,
+                    MedicationApplicationType.INJECTION,
         )
         assertTrue(
             MedicinePreparation.InjectionMultiUseVial(10.0, 5.0).requiredApplicationType() ==
-                MedicationApplicationType.INJECTION,
+                    MedicationApplicationType.INJECTION,
         )
-        assertTrue(MedicinePreparation.GelSachet(0.06, 1.0).requiredApplicationType() == MedicationApplicationType.GEL)
         assertTrue(
-            MedicinePreparation.GelContainer(0.06, 80.0).requiredApplicationType() == MedicationApplicationType.GEL,
+            MedicinePreparation.GelSachet(0.06, 1.0)
+                .requiredApplicationType() == MedicationApplicationType.GEL
+        )
+        assertTrue(
+            MedicinePreparation.GelContainer(0.06, 80.0)
+                .requiredApplicationType() == MedicationApplicationType.GEL,
         )
         assertTrue(
             MedicinePreparation.Patch(MedicinePreparation.PatchSpecification.TotalMg(1.56))

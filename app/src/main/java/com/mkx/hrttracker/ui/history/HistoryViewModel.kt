@@ -40,7 +40,8 @@ class HistoryViewModel @Inject constructor(
     private val isDeleteConfirmationVisible = MutableStateFlow(false)
     private val isDeletingSelectedEntries = MutableStateFlow(false)
     private val isDeletingAllEntries = MutableStateFlow(false)
-    private val deleteSelectedEntriesResult = MutableStateFlow<HistoryDeleteSelectedEntriesResult?>(null)
+    private val deleteSelectedEntriesResult =
+        MutableStateFlow<HistoryDeleteSelectedEntriesResult?>(null)
     private val deleteAllEntriesResult = MutableStateFlow<HistoryDeleteAllEntriesResult?>(null)
     private val currentDateTime = appTimeSource.currentMinute
     private val displayedMonth = MutableStateFlow(
@@ -147,17 +148,17 @@ class HistoryViewModel @Inject constructor(
             selectedDate = selectedDay,
             selectedEntryIds = visibleSelection,
             isDeleteConfirmationVisible = deletionUiState.isDeleteConfirmationVisible &&
-                visibleSelection.isNotEmpty(),
+                    visibleSelection.isNotEmpty(),
             isDeletingSelectedEntries = deletionUiState.isDeletingSelectedEntries,
             isDeletingAllEntries = deletionUiState.isDeletingAllEntries,
             deleteSelectedEntriesResult = deletionUiState.deleteSelectedEntriesResult,
             deleteAllEntriesResult = deletionUiState.deleteAllEntriesResult,
         )
     }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = initialHistoryUiState(today = currentDateTime.value.toLocalDate())
-        )
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = initialHistoryUiState(today = currentDateTime.value.toLocalDate())
+    )
 
     fun setDisplayedMonth(month: YearMonth, clearSelection: Boolean = true) {
         if (displayedMonth.value == month) {

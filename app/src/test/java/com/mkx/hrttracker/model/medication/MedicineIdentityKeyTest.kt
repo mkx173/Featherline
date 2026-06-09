@@ -16,7 +16,8 @@ class MedicineIdentityKeyTest {
 
     @Test
     fun customSelectionCopyRecomputesNormalizedMedicationName() {
-        val selection = MedicineSelection.Custom("Estradiol").copy(medicationName = "  Estro   Gel  ")
+        val selection =
+            MedicineSelection.Custom("Estradiol").copy(medicationName = "  Estro   Gel  ")
 
         assertEquals("estro gel", selection.normalizedMedicationName)
     }

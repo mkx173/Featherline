@@ -87,7 +87,7 @@ internal val MedicationCardLeadingIconContainerColorArgbKey =
     SemanticsPropertyKey<Int>("MedicationCardLeadingIconContainerColorArgb")
 
 internal var SemanticsPropertyReceiver.medicationCardLeadingIconContainerColorArgb by
-    MedicationCardLeadingIconContainerColorArgbKey
+MedicationCardLeadingIconContainerColorArgbKey
 
 internal enum class MedicationCardMissingGroupColorTreatment {
     PRIMARY_CONTAINER,
@@ -117,7 +117,7 @@ internal fun medicationCardUsesGroupPalette(
     missingGroupColorTreatment: MedicationCardMissingGroupColorTreatment,
 ): Boolean {
     return groupColorKey != null ||
-        missingGroupColorTreatment == MedicationCardMissingGroupColorTreatment.NEUTRAL_GROUP_PALETTE
+            missingGroupColorTreatment == MedicationCardMissingGroupColorTreatment.NEUTRAL_GROUP_PALETTE
 }
 
 internal data class MedicationCardWithStockSegment(
@@ -222,7 +222,9 @@ internal fun MedicationCardWithStockSubcard(
                         MedicationStockSubcard(
                             projection = animatedProjection,
                             containerColor = stockSubcardContainerColor,
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
                             shape = MaterialTheme.shapes.small,
                             mutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
                             previewPostMutationState = previewPostMutationState,
@@ -493,8 +495,8 @@ private fun MedicationCardLeadingIconFlipSlot(
     val face = if (showingTarget) toState else fromState
     val rotationX = if (showingTarget) {
         -FlipQuarterTurnDegrees +
-            FlipQuarterTurnDegrees *
-            ((coercedProgress - FlipFaceSwapProgress) / FlipFaceSwapProgress)
+                FlipQuarterTurnDegrees *
+                ((coercedProgress - FlipFaceSwapProgress) / FlipFaceSwapProgress)
     } else {
         FlipQuarterTurnDegrees * (coercedProgress / FlipFaceSwapProgress)
     }

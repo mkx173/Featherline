@@ -38,11 +38,11 @@ internal fun List<MedicationGroup>.scheduledGroupsForPlanDay(
 ): List<MedicationGroup> {
     return filter { group ->
         group.schedule.isScheduledOn(date) ||
-            entries.any { entry ->
-                entry.sourceGroupUuid == group.uuid &&
-                    entry.scheduledFor?.toLocalDate() == date &&
-                    group.hasMedicationSignatureFor(entry)
-            }
+                entries.any { entry ->
+                    entry.sourceGroupUuid == group.uuid &&
+                            entry.scheduledFor?.toLocalDate() == date &&
+                            group.hasMedicationSignatureFor(entry)
+                }
     }
 }
 
@@ -58,8 +58,9 @@ internal fun isPlanOffPlanEntry(
         return true
     }
 
-    val group = scheduledGroups.firstOrNull { scheduledGroup -> scheduledGroup.uuid == sourceGroupUuid }
-        ?: return true
+    val group =
+        scheduledGroups.firstOrNull { scheduledGroup -> scheduledGroup.uuid == sourceGroupUuid }
+            ?: return true
     return !group.hasMedicationSignatureFor(entry)
 }
 
@@ -120,7 +121,7 @@ internal fun MedicationGroup.scheduledSlotsForPlanDay(
                 entry.scheduleTimeUuid != null &&
                 visibleSlots.any { slot ->
                     slot.scheduleTimeUuid == entry.scheduleTimeUuid &&
-                        slot.scheduledFor.toLocalDate() == scheduledFor.toLocalDate()
+                            slot.scheduledFor.toLocalDate() == scheduledFor.toLocalDate()
                 }
             ) {
                 return@mapNotNull null
@@ -145,8 +146,8 @@ private fun MedicationGroup.isArchivedUnloggedPlanSlotVisible(
     unloggedArchivedSlotCutoff: LocalDateTime?,
 ): Boolean {
     return archivedAtLocal == null ||
-        includeUnloggedArchivedSlots ||
-        unloggedArchivedSlotCutoff?.let { cutoff -> slotDateTime.isBefore(cutoff) } == true
+            includeUnloggedArchivedSlots ||
+            unloggedArchivedSlotCutoff?.let { cutoff -> slotDateTime.isBefore(cutoff) } == true
 }
 
 private fun MedicationGroup.hasMedicationSignatureFor(entry: MedicationLogEntry): Boolean {

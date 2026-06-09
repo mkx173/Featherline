@@ -26,6 +26,7 @@ class MedicationReminderBundlePlannerTest {
     // random per-call UUID would always mismatch and the test would never
     // exercise its actual fulfillment branch.
     private val estradiolMedicineUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
+
     @Test
     fun buildMedicationReminderBundle_merges_unfulfilled_groups_at_the_same_time() {
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
@@ -58,7 +59,10 @@ class MedicationReminderBundlePlannerTest {
             bundle?.slots?.map(MedicationReminderSlot::groupUuid)
         )
         assertEquals(
-            listOf(firstGroup.schedule.timeSlots.first().uuid, secondGroup.schedule.timeSlots.first().uuid),
+            listOf(
+                firstGroup.schedule.timeSlots.first().uuid,
+                secondGroup.schedule.timeSlots.first().uuid
+            ),
             bundle?.slots?.map(MedicationReminderSlot::scheduleTimeUuid)
         )
     }

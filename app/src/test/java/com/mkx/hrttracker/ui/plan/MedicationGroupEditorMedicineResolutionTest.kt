@@ -166,7 +166,8 @@ class MedicationGroupEditorMedicineResolutionTest {
         // "medicine resolution precedes group save" by checking the resolved
         // identity is threaded through. If toInput() ran after saveGroup, the
         // captured list would carry null medicineUuids.
-        val capturedUuids = savedMedications.captured.map(MedicationGroupMedicationInput::medicineUuid)
+        val capturedUuids =
+            savedMedications.captured.map(MedicationGroupMedicationInput::medicineUuid)
         assertEquals(2, capturedUuids.size)
         assertTrue(
             "expected both catalog ($catalogMedicineUuid) and existing ($existingMedicineUuid) UUIDs",
@@ -220,9 +221,14 @@ class MedicationGroupEditorMedicineResolutionTest {
 
         val medications = viewModel.uiState.value.medications
         val editingMedication = requireNotNull(viewModel.uiState.value.editingMedication)
-        assertEquals(listOf(firstMedicine.uuid), medications.mapNotNull { it.resolvedMedicine?.uuid })
+        assertEquals(
+            listOf(firstMedicine.uuid),
+            medications.mapNotNull { it.resolvedMedicine?.uuid })
         assertEquals(secondMedicine.uuid, editingMedication.resolvedMedicine?.uuid)
-        assertEquals(MedicationApplicationType.INJECTION, editingMedication.resolvedApplicationType())
+        assertEquals(
+            MedicationApplicationType.INJECTION,
+            editingMedication.resolvedApplicationType()
+        )
         assertEquals(
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
             editingMedication.doseInstructionDraft.preparationType,
@@ -317,7 +323,10 @@ class MedicationGroupEditorMedicineResolutionTest {
         assertEquals(medicine.uuid, editingMedication.resolvedMedicine?.uuid)
         // The route is forced to the medicine's preparation, not left at the
         // default — this is what makes the pre-filled sheet actually usable.
-        assertEquals(MedicationApplicationType.INJECTION, editingMedication.resolvedApplicationType())
+        assertEquals(
+            MedicationApplicationType.INJECTION,
+            editingMedication.resolvedApplicationType()
+        )
         assertEquals(
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
             editingMedication.doseInstructionDraft.preparationType,

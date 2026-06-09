@@ -196,7 +196,10 @@ class ScheduledRunwayCalculatorTest {
         val slotUuid = group.schedule.timeSlots.single().uuid
 
         val doubleCounted = compute(medicine = medicine, activeGroups = listOf(group))
-        assertEquals(RunwayProjection.Days(days = 1, lastFulfillable = today.plusDays(1)), doubleCounted)
+        assertEquals(
+            RunwayProjection.Days(days = 1, lastFulfillable = today.plusDays(1)),
+            doubleCounted
+        )
 
         val suppressed = ScheduledRunwayCalculator.computeScheduledRunway(
             medicine = medicine,
@@ -210,17 +213,22 @@ class ScheduledRunwayCalculatorTest {
                 scheduledFor = scheduledFor,
             ),
         )
-        assertEquals(RunwayProjection.Days(days = 2, lastFulfillable = today.plusDays(2)), suppressed)
+        assertEquals(
+            RunwayProjection.Days(days = 2, lastFulfillable = today.plusDays(2)),
+            suppressed
+        )
     }
 
     @Test
     fun partialCountLogLeavesOnlyTheRemainingCountForThatSignature() {
         val medicine = pill(unitsRemaining = 2.0)
-        val group = dailyGroup(medicine = medicine, medications = listOf(medication(medicine, count = 3)))
+        val group =
+            dailyGroup(medicine = medicine, medications = listOf(medication(medicine, count = 3)))
         val scheduledFor = LocalDateTime.of(today, LocalTime.of(8, 0))
         val log = logFor(group = group, medicine = medicine, scheduledFor = scheduledFor, count = 1)
 
-        val occurrences = enumerate(medicine = medicine, activeGroups = listOf(group), logEntries = listOf(log))
+        val occurrences =
+            enumerate(medicine = medicine, activeGroups = listOf(group), logEntries = listOf(log))
 
         assertEquals(2.0, occurrences.first().perDose, 1e-9)
     }
@@ -246,7 +254,8 @@ class ScheduledRunwayCalculatorTest {
         val scheduledFor = LocalDateTime.of(today, LocalTime.of(8, 0))
         val log = logFor(group = group, medicine = medicine, scheduledFor = scheduledFor, count = 1)
 
-        val occurrences = enumerate(medicine = medicine, activeGroups = listOf(group), logEntries = listOf(log))
+        val occurrences =
+            enumerate(medicine = medicine, activeGroups = listOf(group), logEntries = listOf(log))
 
         assertEquals(2.0, occurrences.first().perDose, 1e-9)
     }
@@ -316,12 +325,14 @@ class ScheduledRunwayCalculatorTest {
             doseInstruction = DoseInstruction.VolumeMl(0.7),
         )
 
-        val normalOrder = enumerate(medicine = medicine, activeGroups = listOf(earlyGroup, lateGroup))
-            .take(2)
-            .map { occurrence -> occurrence.perDose }
-        val reversedInputOrder = enumerate(medicine = medicine, activeGroups = listOf(lateGroup, earlyGroup))
-            .take(2)
-            .map { occurrence -> occurrence.perDose }
+        val normalOrder =
+            enumerate(medicine = medicine, activeGroups = listOf(earlyGroup, lateGroup))
+                .take(2)
+                .map { occurrence -> occurrence.perDose }
+        val reversedInputOrder =
+            enumerate(medicine = medicine, activeGroups = listOf(lateGroup, earlyGroup))
+                .take(2)
+                .map { occurrence -> occurrence.perDose }
 
         assertEquals(listOf(0.4, 0.7), normalOrder)
         assertEquals(normalOrder, reversedInputOrder)
@@ -410,7 +421,10 @@ class ScheduledRunwayCalculatorTest {
             category = MedicationCategory.ESTRADIOL,
             preparation = preparation,
             displayName = null,
-            identityKey = MedicineIdentityKey.catalog(MedicationKey.ESTRADIOL_VALERATE, preparation),
+            identityKey = MedicineIdentityKey.catalog(
+                MedicationKey.ESTRADIOL_VALERATE,
+                preparation
+            ),
             createdAt = Instant.EPOCH,
             updatedAt = Instant.EPOCH,
             archivedAt = null,

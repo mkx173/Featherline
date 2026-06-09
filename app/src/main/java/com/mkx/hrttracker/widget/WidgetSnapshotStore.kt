@@ -42,7 +42,11 @@ internal class WidgetSnapshotSerializer(
         return runCatching {
             WidgetSnapshotState(record = WidgetSnapshotCodec.decode(crypto.decrypt(encrypted)))
         }.getOrElse { throwable ->
-            diagnosticsLogger.warning(TAG, "widget_snapshot_read_failed bytes=${encrypted.size}", throwable)
+            diagnosticsLogger.warning(
+                TAG,
+                "widget_snapshot_read_failed bytes=${encrypted.size}",
+                throwable
+            )
             WidgetSnapshotState.Empty
         }
     }
@@ -83,7 +87,11 @@ private class AndroidWidgetSnapshotCrypto : WidgetSnapshotCrypto {
         val iv = ByteArray(ivLen).also { buf.get(it) }
         val enc = ByteArray(buf.remaining()).also { buf.get(it) }
         val cipher = Cipher.getInstance(CIPHER_TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
+        cipher.init(
+            Cipher.DECRYPT_MODE,
+            getOrCreateKey(),
+            GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
+        )
         return cipher.doFinal(enc)
     }
 
@@ -93,7 +101,10 @@ private class AndroidWidgetSnapshotCrypto : WidgetSnapshotCrypto {
         (ks.getKey(MASTER_KEY_ALIAS, null) as? SecretKey)?.let { return it }
         val gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEY_STORE)
         gen.init(
-            KeyGenParameterSpec.Builder(MASTER_KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            KeyGenParameterSpec.Builder(
+                MASTER_KEY_ALIAS,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+            )
                 .setKeySize(AES_KEY_SIZE_BITS)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
@@ -122,7 +133,10 @@ class WidgetSnapshotStore @Inject constructor(
         context.widgetSnapshotDataStore.data.map { state ->
             state.record?.takeIf { it.schemaVersion == WIDGET_SNAPSHOT_SCHEMA_VERSION } ?: run {
                 if (state.record != null) {
-                    diagnosticsLogger.warning(TAG, "widget_snapshot_schema_mismatch expected=$WIDGET_SNAPSHOT_SCHEMA_VERSION actual=${state.record.schemaVersion}")
+                    diagnosticsLogger.warning(
+                        TAG,
+                        "widget_snapshot_schema_mismatch expected=$WIDGET_SNAPSHOT_SCHEMA_VERSION actual=${state.record.schemaVersion}"
+                    )
                 }
                 null
             }
@@ -131,7 +145,10 @@ class WidgetSnapshotStore @Inject constructor(
     suspend fun readSnapshot(): WidgetSnapshotRecord? {
         val record = context.widgetSnapshotDataStore.data.first().record ?: return null
         if (record.schemaVersion != WIDGET_SNAPSHOT_SCHEMA_VERSION) {
-            diagnosticsLogger.warning(TAG, "widget_snapshot_schema_mismatch expected=$WIDGET_SNAPSHOT_SCHEMA_VERSION actual=${record.schemaVersion}")
+            diagnosticsLogger.warning(
+                TAG,
+                "widget_snapshot_schema_mismatch expected=$WIDGET_SNAPSHOT_SCHEMA_VERSION actual=${record.schemaVersion}"
+            )
             return null
         }
         return record
@@ -160,4 +177,5 @@ private const val VERSION_LENGTH_BYTES = 1
 private const val IV_LENGTH_BYTES = 1
 private const val MAX_GCM_IV_LENGTH_BYTES = 32
 private const val BYTE_MASK = 0xff
-private val MAGIC = byteArrayOf('W'.code.toByte(), 'D'.code.toByte(), 'G'.code.toByte(), 'T'.code.toByte())
+private val MAGIC =
+    byteArrayOf('W'.code.toByte(), 'D'.code.toByte(), 'G'.code.toByte(), 'T'.code.toByte())

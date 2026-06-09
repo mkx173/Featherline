@@ -68,7 +68,7 @@ class BackupExclusionRulesTest {
         val file = File(relativePath)
         require(file.isFile) {
             "Missing backup rules file at ${file.absolutePath}; unit tests must run " +
-                "with the app module as the working directory."
+                    "with the app module as the working directory."
         }
         val document = DocumentBuilderFactory.newInstance()
             .apply { isNamespaceAware = false }

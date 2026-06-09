@@ -78,7 +78,7 @@ class MedicationReminderSnoozeScheduler private constructor(
         diagnosticsLogger.info(
             TAG,
             "snooze_slots_complete slots=${slots.size} scheduled=${nextRecords.size} " +
-                "existing=${existingRecords.size} stored=${updatedRecords.size} snoozeAt=$snoozeAt"
+                    "existing=${existingRecords.size} stored=${updatedRecords.size} snoozeAt=$snoozeAt"
         )
         return nextRecords
     }
@@ -100,7 +100,7 @@ class MedicationReminderSnoozeScheduler private constructor(
         clearSnoozesMatching { record ->
             val slot = record.slot
             slot.groupUuid == group.uuid &&
-                !slot.matchesCurrentScheduleTime(slotTimesByUuid)
+                    !slot.matchesCurrentScheduleTime(slotTimesByUuid)
         }
     }
 
@@ -148,7 +148,7 @@ class MedicationReminderSnoozeScheduler private constructor(
         diagnosticsLogger.info(
             TAG,
             "snooze_clear_matching_complete cleared=${existingRecords.size - remainingRecords.size} " +
-                "affectedBundles=${affectedSnoozeTimes.size} stored=${remainingRecords.size}"
+                    "affectedBundles=${affectedSnoozeTimes.size} stored=${remainingRecords.size}"
         )
     }
 
@@ -163,7 +163,7 @@ class MedicationReminderSnoozeScheduler private constructor(
         diagnosticsLogger.info(
             TAG,
             "snooze_clear_all_complete cleared=${existingRecords.size} " +
-                "bundles=${existingRecords.groupBy(MedicationReminderSnoozeRecord::snoozeAt).size}"
+                    "bundles=${existingRecords.groupBy(MedicationReminderSnoozeRecord::snoozeAt).size}"
         )
     }
 
@@ -176,14 +176,14 @@ class MedicationReminderSnoozeScheduler private constructor(
             diagnosticsLogger.info(
                 TAG,
                 "snooze_reschedule_all_pruned expired=${records.size - futureRecords.size} " +
-                    "remaining=${futureRecords.size}"
+                        "remaining=${futureRecords.size}"
             )
         }
         scheduleSnoozeRecords(futureRecords)
         diagnosticsLogger.info(
             TAG,
             "snooze_reschedule_all_complete records=${futureRecords.size} " +
-                "bundles=${futureRecords.groupBy(MedicationReminderSnoozeRecord::snoozeAt).size}"
+                    "bundles=${futureRecords.groupBy(MedicationReminderSnoozeRecord::snoozeAt).size}"
         )
     }
 
@@ -213,7 +213,7 @@ class MedicationReminderSnoozeScheduler private constructor(
         diagnosticsLogger.info(
             TAG,
             "snooze_alarm_schedule snoozeAt=${records.first().snoozeAt} " +
-                "slots=${records.size} triggerAtMillis=$triggerAtMillis exact=$exactAlarm"
+                    "slots=${records.size} triggerAtMillis=$triggerAtMillis exact=$exactAlarm"
         )
         if (exactAlarm) {
             try {
@@ -228,7 +228,7 @@ class MedicationReminderSnoozeScheduler private constructor(
                 diagnosticsLogger.warning(
                     TAG,
                     "snooze_alarm_schedule_exact_revoked snoozeAt=${records.first().snoozeAt} " +
-                        "slots=${records.size}",
+                            "slots=${records.size}",
                     error,
                 )
                 alarmManager.setAndAllowWhileIdle(

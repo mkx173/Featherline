@@ -82,6 +82,7 @@ internal fun flipSlotRotationX(
                 .coerceIn(0f, 1f)
             FlipSlotQuarterTurnDegrees * faceProgress
         }
+
         FlipSlotFace.BACK -> {
             val faceProgress =
                 ((coercedProgress - FlipSlotHalfwayProgress) / FlipSlotHalfwayProgress)

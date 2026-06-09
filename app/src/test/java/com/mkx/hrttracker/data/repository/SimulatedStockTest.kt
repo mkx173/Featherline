@@ -9,7 +9,8 @@ class SimulatedStockTest {
 
     @Test
     fun poolStockSubtractsPerDoseUntilDepleted() {
-        val state = SimulatedStock(open = 5.0, sealed = 0.0, containerCapacity = 0.0, isContainer = false)
+        val state =
+            SimulatedStock(open = 5.0, sealed = 0.0, containerCapacity = 0.0, isContainer = false)
 
         val fulfilled = simulateNDoses(state = state, n = 5, perDose = 1.0)
 
@@ -18,7 +19,8 @@ class SimulatedStockTest {
 
     @Test
     fun poolStockStopsAtZero() {
-        val state = SimulatedStock(open = 1.0, sealed = 0.0, containerCapacity = 0.0, isContainer = false)
+        val state =
+            SimulatedStock(open = 1.0, sealed = 0.0, containerCapacity = 0.0, isContainer = false)
 
         val fulfilled = simulateNDoses(state = state, n = 3, perDose = 1.0)
 
@@ -32,7 +34,8 @@ class SimulatedStockTest {
         // discarded). That carried volume lets the second 0.7 dose still be
         // fulfilled from the open vial, where crack-and-discard would have left
         // only 0.3 and stopped at one dose.
-        val state = SimulatedStock(open = 0.5, sealed = 1.0, containerCapacity = 1.0, isContainer = true)
+        val state =
+            SimulatedStock(open = 0.5, sealed = 1.0, containerCapacity = 1.0, isContainer = true)
 
         val fulfilled = simulateNDoses(state = state, n = 2, perDose = 0.7)
 
@@ -41,7 +44,8 @@ class SimulatedStockTest {
 
     @Test
     fun containerReusesOpenUntilItCannotSatisfyDose() {
-        val state = SimulatedStock(open = 5.0, sealed = 0.0, containerCapacity = 5.0, isContainer = true)
+        val state =
+            SimulatedStock(open = 5.0, sealed = 0.0, containerCapacity = 5.0, isContainer = true)
 
         val fulfilled = simulateNDoses(state = state, n = 5, perDose = 1.0)
 
@@ -50,7 +54,8 @@ class SimulatedStockTest {
 
     @Test
     fun containerReturnsZeroWhenNeitherOpenNorSealedSatisfies() {
-        val state = SimulatedStock(open = 0.0, sealed = 0.0, containerCapacity = 1.0, isContainer = true)
+        val state =
+            SimulatedStock(open = 0.0, sealed = 0.0, containerCapacity = 1.0, isContainer = true)
 
         val fulfilled = simulateNDoses(state = state, n = 2, perDose = 0.5)
 
@@ -59,7 +64,8 @@ class SimulatedStockTest {
 
     @Test
     fun applyReturnsNullOnPoolStockout() {
-        val state = SimulatedStock(open = 0.5, sealed = 0.0, containerCapacity = 0.0, isContainer = false)
+        val state =
+            SimulatedStock(open = 0.5, sealed = 0.0, containerCapacity = 0.0, isContainer = false)
 
         assertTrue(state.applyDose(perDose = 1.0) == null)
     }
@@ -69,7 +75,8 @@ class SimulatedStockTest {
         // A dose larger than one container is fulfilled by draining across vials
         // as long as the total on hand covers it: 3.5 mL total, 2.7 mL dose ->
         // 0.8 mL left as a fresh open vial, all sealed units consumed.
-        val state = SimulatedStock(open = 0.5, sealed = 3.0, containerCapacity = 1.0, isContainer = true)
+        val state =
+            SimulatedStock(open = 0.5, sealed = 3.0, containerCapacity = 1.0, isContainer = true)
 
         val next = requireNotNull(state.applyDose(perDose = 2.7))
 
@@ -79,7 +86,8 @@ class SimulatedStockTest {
 
     @Test
     fun applyReturnsNullWhenDoseExceedsFreshContainerCapacity() {
-        val state = SimulatedStock(open = 0.0, sealed = 1.0, containerCapacity = 0.5, isContainer = true)
+        val state =
+            SimulatedStock(open = 0.0, sealed = 1.0, containerCapacity = 0.5, isContainer = true)
 
         assertNull(state.applyDose(perDose = 0.7))
     }
@@ -89,7 +97,8 @@ class SimulatedStockTest {
         // Exact-split: 0.1 open + 0.15 from a fresh 10 mL container fulfils the
         // 0.25 dose, leaving 10 - 0.15 = 9.85 (the 0.1 dreg is carried, not
         // discarded, which would leave 9.75).
-        val state = SimulatedStock(open = 0.1, sealed = 1.0, containerCapacity = 10.0, isContainer = true)
+        val state =
+            SimulatedStock(open = 0.1, sealed = 1.0, containerCapacity = 10.0, isContainer = true)
 
         val next = requireNotNull(state.applyDose(perDose = 0.25))
 

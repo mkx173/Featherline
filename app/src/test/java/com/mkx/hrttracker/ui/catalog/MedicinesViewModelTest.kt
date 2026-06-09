@@ -82,7 +82,8 @@ class MedicinesViewModelTest {
         every { medicineRepository.observeAllActive() } returns flowOf(listOf(estradiol, blocker))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
+        val viewModel =
+            MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -130,7 +131,8 @@ class MedicinesViewModelTest {
             listOf(groupReferencing, groupReferencingTwice),
         )
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
+        val viewModel =
+            MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -154,7 +156,8 @@ class MedicinesViewModelTest {
         every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(archivedGroup))
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
+        val viewModel =
+            MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -186,7 +189,8 @@ class MedicinesViewModelTest {
         every { medicineRepository.observeAllActive() } returns flowOf(listOf(second, first))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
+        val viewModel =
+            MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -221,7 +225,8 @@ class MedicinesViewModelTest {
             activeMedicines.value = listOf(original.copy(displayName = "Renamed"))
         }
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
+        val viewModel =
+            MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -251,10 +256,11 @@ class MedicinesViewModelTest {
             createdAt = Instant.parse("2026-05-01T00:00:01Z"),
         )
         every { medicineRepository.observeAllActive() } returns
-            flowOf(listOf(estradiolTablet, patchOff))
+                flowOf(listOf(estradiolTablet, patchOff))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
+        val viewModel =
+            MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -286,10 +292,11 @@ class MedicinesViewModelTest {
             createdAt = Instant.parse("2026-05-01T00:00:01Z"),
         )
         every { medicineRepository.observeAllActive() } returns
-            flowOf(listOf(patchMedicine, patchOff))
+                flowOf(listOf(patchMedicine, patchOff))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
+        val viewModel =
+            MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -323,10 +330,11 @@ class MedicinesViewModelTest {
             createdAt = createdAt,
         )
         every { medicineRepository.observeAllActive() } returns
-            flowOf(listOf(patchOff, patchMedicine))
+                flowOf(listOf(patchOff, patchMedicine))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
+        val viewModel =
+            MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
@@ -348,7 +356,8 @@ class MedicinesViewModelTest {
         every { medicineRepository.observeAllActive() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
+        val viewModel =
+            MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         assertTrue(viewModel.uiState.value.isLoading)
 
         val collectJob = startUiStateCollection(viewModel)
@@ -363,7 +372,8 @@ class MedicinesViewModelTest {
         every { medicineRepository.observeAllActive() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
+        val viewModel =
+            MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.isLoading)
@@ -388,9 +398,15 @@ class MedicinesViewModelTest {
         val otherProjection = projection.copy(medicine = otherMedicine)
         every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
-        every { stockRepository.observeProjections() } returns flowOf(listOf(otherProjection, projection))
+        every { stockRepository.observeProjections() } returns flowOf(
+            listOf(
+                otherProjection,
+                projection
+            )
+        )
 
-        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
+        val viewModel =
+            MedicinesViewModel(medicineRepository, medicationGroupRepository, stockRepository)
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 

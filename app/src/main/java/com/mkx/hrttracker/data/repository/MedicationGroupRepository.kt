@@ -319,12 +319,13 @@ class MedicationGroupRepository @Inject constructor(
                 val createdAtEpochMillis = existingGroupRow?.createdAtEpochMillis ?: nowEpochMillis
                 val isExistingRecreatedGroup = existingGroupRow?.recreatedFromGroupUuid != null
                 val hasExistingRecords = existingGroupRow != null &&
-                    database.medicationLogDao().getEntryCountForGroup(groupUuid.toString()) > 0
+                        database.medicationLogDao().getEntryCountForGroup(groupUuid.toString()) > 0
                 if (hasExistingRecords) {
                     val lockedExistingGroup = checkNotNull(existingGroup)
-                    val existingMedicineUuidsByItemUuid = lockedExistingGroup.items.associate { item ->
-                        item.uuid to item.medicineUuid
-                    }
+                    val existingMedicineUuidsByItemUuid =
+                        lockedExistingGroup.items.associate { item ->
+                            item.uuid to item.medicineUuid
+                        }
                     medications.forEach { medication ->
                         val itemUuid = medication.uuid?.toString() ?: return@forEach
                         if (itemUuid !in existingMedicineUuidsByItemUuid) {
@@ -345,17 +346,18 @@ class MedicationGroupRepository @Inject constructor(
                     else -> includePastScheduledSlots
                 }
                 val didBackfillModeChange = existingGroupRow != null &&
-                    !isExistingRecreatedGroup &&
-                    !hasExistingRecords &&
-                    existingGroupRow.includePastScheduledSlots != resolvedIncludePastScheduledSlots
+                        !isExistingRecreatedGroup &&
+                        !hasExistingRecords &&
+                        existingGroupRow.includePastScheduledSlots != resolvedIncludePastScheduledSlots
                 val didRecordlessRecreatedStartDateChange = existingGroupRow != null &&
-                    isExistingRecordlessRecreatedGroup &&
-                    existingGroupRow.scheduleSinceEpochDay != schedule.since.toEpochDay()
-                val recordlessRecreatedEffectiveFromLocal = if (schedule.since.isAfter(nowLocal.toLocalDate())) {
-                    schedule.since.atStartOfDay().toString()
-                } else {
-                    nowLocal.toString()
-                }
+                        isExistingRecordlessRecreatedGroup &&
+                        existingGroupRow.scheduleSinceEpochDay != schedule.since.toEpochDay()
+                val recordlessRecreatedEffectiveFromLocal =
+                    if (schedule.since.isAfter(nowLocal.toLocalDate())) {
+                        schedule.since.atStartOfDay().toString()
+                    } else {
+                        nowLocal.toString()
+                    }
                 val resolvedRecreatedFromGroupUuid = existingGroupRow?.recreatedFromGroupUuid
                     ?: replacesGroupUuid?.toString()
                 val existingScheduleTimesByUuid = existingGroup
@@ -411,7 +413,8 @@ class MedicationGroupRepository @Inject constructor(
                     scheduleTimes = schedule.timeSlots.mapIndexed { index, scheduleTime ->
                         val time = scheduleTime.time.withSecond(0).withNano(0)
                         val scheduleTimeUuid = scheduleTime.uuid ?: UUID.randomUUID()
-                        val existingScheduleTime = existingScheduleTimesByUuid[scheduleTimeUuid.toString()]
+                        val existingScheduleTime =
+                            existingScheduleTimesByUuid[scheduleTimeUuid.toString()]
                         val existingTime = existingScheduleTime?.let { existingTimeRow ->
                             LocalTime.of(existingTimeRow.hourOfDay, existingTimeRow.minuteOfHour)
                         }
@@ -424,7 +427,7 @@ class MedicationGroupRepository @Inject constructor(
                                     existingScheduleTime.effectiveFromLocalIso
 
                                 isExistingRecordlessRecreatedGroup &&
-                                    schedule.since.isAfter(nowLocal.toLocalDate()) ->
+                                        schedule.since.isAfter(nowLocal.toLocalDate()) ->
                                     schedule.since.atStartOfDay().toString()
 
                                 else -> nowLocal.toString()

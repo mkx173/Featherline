@@ -47,7 +47,7 @@ fun formatMainE2ConcentrationValue(
     return when (displayUnit) {
         BloodUnitKey.PG_ML,
         BloodUnitKey.PMOL_L,
-        -> value.roundToLong().toString()
+            -> value.roundToLong().toString()
 
         BloodUnitKey.NG_DL -> {
             val roundedValue = (value * 10.0).roundToLong() / 10.0

@@ -90,7 +90,7 @@ fun BackupPasswordDialog(
 
             BackupPasswordValidationError.MISMATCH,
             null,
-            -> null
+                -> null
         }
     }
     val confirmPasswordValidationMessage = if (
@@ -208,7 +208,9 @@ fun BackupPasswordDialog(
                 // a duplicate request or dismiss the encrypted buffer mid-
                 // decrypt (dialog dismissal is gated above).
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
                     horizontalArrangement = Arrangement.End,
                 ) {
                     TextButton(onClick = { if (!isInProgress) onDismiss() }) {

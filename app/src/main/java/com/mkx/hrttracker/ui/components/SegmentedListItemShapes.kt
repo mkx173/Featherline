@@ -38,6 +38,7 @@ private fun animatedSegmentedCornerShape(
     middleShape: CornerBasedShape,
 ): Shape {
     val density = LocalDensity.current
+
     // List-item corners are dp-based (shapes.large = 16.dp, the middle shape = 4.dp),
     // so corner px is size-independent and Size.Zero resolves them correctly.
     fun px(corner: CornerSize) = corner.toPx(Size.Zero, density)
@@ -50,7 +51,11 @@ private fun animatedSegmentedCornerShape(
     val spec = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
     val topStart by animateFloatAsState(px(topCorners.topStart), spec, label = "segTopStart")
     val topEnd by animateFloatAsState(px(topCorners.topEnd), spec, label = "segTopEnd")
-    val bottomStart by animateFloatAsState(px(bottomCorners.bottomStart), spec, label = "segBottomStart")
+    val bottomStart by animateFloatAsState(
+        px(bottomCorners.bottomStart),
+        spec,
+        label = "segBottomStart"
+    )
     val bottomEnd by animateFloatAsState(px(bottomCorners.bottomEnd), spec, label = "segBottomEnd")
 
     return RoundedCornerShape(

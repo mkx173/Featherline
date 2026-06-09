@@ -39,7 +39,7 @@ class MedicationReminderActionReceiver : BroadcastReceiver() {
         diagnosticsLogger.info(
             TAG,
             "reminder_action_receiver_received action=${intent.action} " +
-                "slots=${slots.size} notificationTag=${notificationTag.orEmpty()}"
+                    "slots=${slots.size} notificationTag=${notificationTag.orEmpty()}"
         )
         // Log targets are only shipped for log-now; absent extras come from a
         // pre-upgrade notification posted before the shipping format existed.
@@ -54,7 +54,7 @@ class MedicationReminderActionReceiver : BroadcastReceiver() {
                     diagnosticsLogger.warning(
                         TAG,
                         "reminder_action_receiver_log_targets_drop dropped=$dropped " +
-                            "raw=${rawTargets.size} action=${intent.action}"
+                                "raw=${rawTargets.size} action=${intent.action}"
                     )
                 }
                 parsed

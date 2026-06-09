@@ -87,19 +87,21 @@ class HomeSnapshotRepository @Inject constructor(
                     )
                     null
                 }
+
                 snapshot.generation < generation -> {
                     diagnosticsLogger.info(
                         TAG,
                         "home_snapshot_observed_rejected reason=generation " +
-                            "snapshotGeneration=${snapshot.generation} durableGeneration=$generation"
+                                "snapshotGeneration=${snapshot.generation} durableGeneration=$generation"
                     )
                     null
                 }
+
                 else -> {
                     diagnosticsLogger.info(
                         TAG,
                         "home_snapshot_observed_loaded ${snapshot.diagnosticSummary()} " +
-                            "durableGeneration=$generation"
+                                "durableGeneration=$generation"
                     )
                     snapshot
                 }
@@ -141,7 +143,10 @@ class HomeSnapshotRepository @Inject constructor(
                 val result = runCatching { block() }
                 mutationResult = result
                 result.onSuccess {
-                    diagnosticsLogger.info(TAG, "home_data_mutation_committed generation=$generation")
+                    diagnosticsLogger.info(
+                        TAG,
+                        "home_data_mutation_committed generation=$generation"
+                    )
                 }
                 // The generation has already been bumped, so observers will reject any
                 // stale snapshot. Clear while still serialized with other mutations.
@@ -182,7 +187,7 @@ class HomeSnapshotRepository @Inject constructor(
             diagnosticsLogger.info(
                 TAG,
                 "home_snapshot_read_rejected reason=generation " +
-                    "snapshotGeneration=${snapshot.generation} durableGeneration=$generation now=$now"
+                        "snapshotGeneration=${snapshot.generation} durableGeneration=$generation now=$now"
             )
             return null
         }
@@ -201,14 +206,14 @@ class HomeSnapshotRepository @Inject constructor(
             diagnosticsLogger.info(
                 TAG,
                 "home_snapshot_read_rejected reason=$usabilityFailure " +
-                    "${snapshot.diagnosticSummary()} now=$now"
+                        "${snapshot.diagnosticSummary()} now=$now"
             )
             return null
         }
         diagnosticsLogger.info(
             TAG,
             "home_snapshot_read_usable ${snapshot.diagnosticSummary()} " +
-                "durableGeneration=$generation now=$now"
+                    "durableGeneration=$generation now=$now"
         )
         return snapshot
     }
@@ -223,11 +228,11 @@ class HomeSnapshotRepository @Inject constructor(
             val scheduledFor = entry.scheduledFor
             if (scheduledFor != null) {
                 scheduledFor >= window.homeScheduledStart &&
-                    scheduledFor <= window.homeScheduledEnd
+                        scheduledFor <= window.homeScheduledEnd
             } else {
                 val appliedAtEpochMillis = entry.appliedAt.toEpochMilli()
                 appliedAtEpochMillis >= window.homeManualStartEpochMillis &&
-                    appliedAtEpochMillis < window.homeManualEndEpochMillis
+                        appliedAtEpochMillis < window.homeManualEndEpochMillis
             }
         }
     }
@@ -242,7 +247,7 @@ class HomeSnapshotRepository @Inject constructor(
             diagnosticsLogger.info(
                 TAG,
                 "home_snapshot_pk_projection_expired now=$now " +
-                    "expiresAt=${projectionRecord.pkProjectionExpiresAtEpochMillis}"
+                        "expiresAt=${projectionRecord.pkProjectionExpiresAtEpochMillis}"
             )
             return null
         }
@@ -303,27 +308,27 @@ class HomeSnapshotRepository @Inject constructor(
             pkProjection.windowEndEpochMillis < chartWindow.windowEndEpochMillis
         ) {
             return "pk_projection_window " +
-                "projectionStart=${pkProjection.windowStartEpochMillis} " +
-                "projectionEnd=${pkProjection.windowEndEpochMillis} " +
-                "requiredStart=${chartWindow.windowStartEpochMillis} " +
-                "requiredEnd=${chartWindow.windowEndEpochMillis}"
+                    "projectionStart=${pkProjection.windowStartEpochMillis} " +
+                    "projectionEnd=${pkProjection.windowEndEpochMillis} " +
+                    "requiredStart=${chartWindow.windowStartEpochMillis} " +
+                    "requiredEnd=${chartWindow.windowEndEpochMillis}"
         }
         val expectedChartWindowHours = option.chartWindowHours.toInt()
         if (pkProjection.chartWindowHours != expectedChartWindowHours) {
             return "pk_projection_chart_window_hours " +
-                "expected=$expectedChartWindowHours " +
-                "actual=${pkProjection.chartWindowHours}"
+                    "expected=$expectedChartWindowHours " +
+                    "actual=${pkProjection.chartWindowHours}"
         }
         val expectedDensePolicy = option.densePolicy.toRecord()
         if (pkProjection.densePolicy != expectedDensePolicy) {
             return "pk_projection_dense_policy " +
-                "expected=$expectedDensePolicy " +
-                "actual=${pkProjection.densePolicy}"
+                    "expected=$expectedDensePolicy " +
+                    "actual=${pkProjection.densePolicy}"
         }
         if (pkProjection.includesPostDoseOffsets != option.includesPostDoseOffsets) {
             return "pk_projection_post_dose_offsets " +
-                "expected=${option.includesPostDoseOffsets} " +
-                "actual=${pkProjection.includesPostDoseOffsets}"
+                    "expected=${option.includesPostDoseOffsets} " +
+                    "actual=${pkProjection.includesPostDoseOffsets}"
         }
         return null
     }
@@ -341,7 +346,11 @@ class HomeSnapshotRepository @Inject constructor(
                 if (throwable is CancellationException) {
                     throw throwable
                 }
-                diagnosticsLogger.warning(TAG, "home_snapshot_refresh_failed force=$force now=$now", throwable)
+                diagnosticsLogger.warning(
+                    TAG,
+                    "home_snapshot_refresh_failed force=$force now=$now",
+                    throwable
+                )
             }
         }
     }
@@ -349,7 +358,10 @@ class HomeSnapshotRepository @Inject constructor(
     suspend fun invalidateHomeSnapshot() {
         diagnosticsLogger.info(TAG, "home_snapshot_invalidate_start")
         val generation = homeSnapshotGenerationStore.incrementGeneration()
-        diagnosticsLogger.info(TAG, "home_snapshot_invalidate_generation_incremented generation=$generation")
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_invalidate_generation_incremented generation=$generation"
+        )
         snapshotMutationMutex.withLock {
             homeSnapshotStore.clearSnapshot()
             diagnosticsLogger.info(TAG, "home_snapshot_invalidated generation=$generation")
@@ -433,8 +445,8 @@ class HomeSnapshotRepository @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "home_snapshot_refresh_verify_existing force=$force " +
-                "generation=$gen " +
-                "existing=${existingSnapshot?.diagnosticSummary() ?: "none"}"
+                    "generation=$gen " +
+                    "existing=${existingSnapshot?.diagnosticSummary() ?: "none"}"
         )
         val pkExpired = existingSnapshot?.pkProjection?.let { record ->
             isPkProjectionExpired(record, now, zoneId)
@@ -449,7 +461,7 @@ class HomeSnapshotRepository @Inject constructor(
             diagnosticsLogger.info(
                 TAG,
                 "home_snapshot_refresh_skipped reason=existing_usable " +
-                    "${existingSnapshot.diagnosticSummary()} now=$now"
+                        "${existingSnapshot.diagnosticSummary()} now=$now"
             )
             return null
         }
@@ -457,7 +469,7 @@ class HomeSnapshotRepository @Inject constructor(
             diagnosticsLogger.info(
                 TAG,
                 "home_snapshot_refresh_continuing reason=pk_projection_expired " +
-                    "${existingSnapshot.diagnosticSummary()} now=$now"
+                        "${existingSnapshot.diagnosticSummary()} now=$now"
             )
         }
         return gen
@@ -513,7 +525,7 @@ class HomeSnapshotRepository @Inject constructor(
             )
             val entryMedicinesByUuid = database.resolveMedicinesForEntries(
                 scheduleEntryEntities + antiandrogenHistoryEntities + pkEntries +
-                    listOfNotNull(latestEstradiolEntryEntity) + stockFulfillmentEntities
+                        listOfNotNull(latestEstradiolEntryEntity) + stockFulfillmentEntities
             )
             val activeGroups = activeGroupEntities.map { group ->
                 group.toMedicationGroupModel(groupMedicinesByUuid)
@@ -555,12 +567,12 @@ class HomeSnapshotRepository @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "home_snapshot_refresh_inputs_loaded generation=$refreshGeneration " +
-                "activeGroups=${inputs.activeGroups.size} " +
-                "archivedGroups=${inputs.archivedGroups.size} " +
-                "scheduleEntries=${inputs.scheduleEntries.size} " +
-                "antiandrogenEntries=${inputs.antiandrogenHistoryEntries.size} " +
-                "pkEntries=${inputs.pkEntries.size} " +
-                "hasLatestEstradiol=${inputs.latestEstradiolEntry != null}"
+                    "activeGroups=${inputs.activeGroups.size} " +
+                    "archivedGroups=${inputs.archivedGroups.size} " +
+                    "scheduleEntries=${inputs.scheduleEntries.size} " +
+                    "antiandrogenEntries=${inputs.antiandrogenHistoryEntries.size} " +
+                    "pkEntries=${inputs.pkEntries.size} " +
+                    "hasLatestEstradiol=${inputs.latestEstradiolEntry != null}"
         )
 
         val horizon = now.toLocalDate().plusDays(option.projectionFutureDays()).atStartOfDay()
@@ -611,8 +623,8 @@ class HomeSnapshotRepository @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "home_snapshot_refresh_projection_built generation=$refreshGeneration " +
-                "windowStart=${projection.windowStart} windowEnd=${projection.windowEnd} " +
-                "expiresAt=$expiresAtInstant"
+                    "windowStart=${projection.windowStart} windowEnd=${projection.windowEnd} " +
+                    "expiresAt=$expiresAtInstant"
         )
         val pkProjectionRecord = HomePkProjectionRecord(
             generatedAtEpochMillis = projection.generatedAt.toEpochMilli(),
@@ -691,8 +703,8 @@ class HomeSnapshotRepository @Inject constructor(
                     diagnosticsLogger.info(
                         TAG,
                         "home_snapshot_write_skipped reason=generation_changed " +
-                            "refreshGeneration=$refreshGeneration " +
-                            "currentGeneration=${homeSnapshotGenerationStore.readGeneration()}"
+                                "refreshGeneration=$refreshGeneration " +
+                                "currentGeneration=${homeSnapshotGenerationStore.readGeneration()}"
                     )
                 }
             }
@@ -889,14 +901,14 @@ class HomeSnapshotRepository @Inject constructor(
 
 private fun HomeSnapshotRecord.diagnosticSummary(): String {
     return "schema=$schemaVersion " +
-        "generation=$generation " +
-        "anchorDate=${LocalDate.ofEpochDay(anchorDateEpochDay)} " +
-        "zone=$zoneId " +
-        "groups=${activeGroups.size} " +
-        "archivedGroups=${archivedGroups.size} " +
-        "scheduleEntries=${scheduleEntries.size} " +
-        "antiandrogenEntries=${antiandrogenHistoryEntries.size} " +
-        "hasPkProjection=${pkProjection != null}"
+            "generation=$generation " +
+            "anchorDate=${LocalDate.ofEpochDay(anchorDateEpochDay)} " +
+            "zone=$zoneId " +
+            "groups=${activeGroups.size} " +
+            "archivedGroups=${archivedGroups.size} " +
+            "scheduleEntries=${scheduleEntries.size} " +
+            "antiandrogenEntries=${antiandrogenHistoryEntries.size} " +
+            "hasPkProjection=${pkProjection != null}"
 }
 
 internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 7

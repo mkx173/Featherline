@@ -19,7 +19,7 @@ class ModelLayerPurityTest {
         val modelDir = File("src/main/java/com/mkx/hrttracker/model")
         require(modelDir.isDirectory) {
             "Expected model source directory at ${modelDir.absolutePath}; unit tests " +
-                "must run with the app module as the working directory."
+                    "must run with the app module as the working directory."
         }
 
         val offenders = modelDir.walkTopDown()
@@ -37,7 +37,7 @@ class ModelLayerPurityTest {
 
         assertTrue(
             "model must not import com.mkx.hrttracker.data.*; offending imports:\n" +
-                offenders.joinToString("\n"),
+                    offenders.joinToString("\n"),
             offenders.isEmpty(),
         )
     }

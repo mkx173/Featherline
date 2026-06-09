@@ -306,7 +306,12 @@ class MedicineStockRepositoryTest {
 
         val projection = repository.projectAll(
             medicines = listOf(medicine),
-            activeGroups = listOf(weeklyGroup(medicine, weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY))),
+            activeGroups = listOf(
+                weeklyGroup(
+                    medicine,
+                    weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY)
+                )
+            ),
             now = clock.instant(),
         ).single()
 
@@ -362,10 +367,11 @@ class MedicineStockRepositoryTest {
         every { medicineRepository.observeAllActive() } returns medicines
         every { medicineRepository.observeAllActiveOrNull() } returns medicines
         every { medicationGroupRepository.observeGroups() } returns
-            MutableStateFlow<List<MedicationGroup>?>(listOf(group))
+                MutableStateFlow<List<MedicationGroup>?>(listOf(group))
         every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
         every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
-        val projectionScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        val projectionScope =
+            CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
         try {
             val repository = MedicineStockRepository(
                 medicineRepository = medicineRepository,
@@ -413,10 +419,11 @@ class MedicineStockRepositoryTest {
         every { medicineRepository.observeAllActive() } returns medicines
         every { medicineRepository.observeAllActiveOrNull() } returns medicines
         every { medicationGroupRepository.observeGroups() } returns
-            MutableStateFlow<List<MedicationGroup>?>(listOf(group))
+                MutableStateFlow<List<MedicationGroup>?>(listOf(group))
         every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
         every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
-        val projectionScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        val projectionScope =
+            CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
         try {
             val repository = MedicineStockRepository(
                 medicineRepository = medicineRepository,
@@ -462,10 +469,11 @@ class MedicineStockRepositoryTest {
         every { medicineRepository.observeAllActive() } returns medicines
         every { medicineRepository.observeAllActiveOrNull() } returns medicines
         every { medicationGroupRepository.observeGroups() } returns
-            MutableStateFlow<List<MedicationGroup>?>(listOf(group))
+                MutableStateFlow<List<MedicationGroup>?>(listOf(group))
         every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
         every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
-        val projectionScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        val projectionScope =
+            CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
         try {
             val repository = MedicineStockRepository(
                 medicineRepository = medicineRepository,
@@ -505,13 +513,16 @@ class MedicineStockRepositoryTest {
         val group = dailyGroup(medicine)
         val medicines = MutableStateFlow(listOf(medicine))
         val groups = MutableStateFlow<List<MedicationGroup>?>(listOf(group))
-        val logs = MutableStateFlow<List<com.mkx.hrttracker.model.medication.MedicationLogEntry>?>(emptyList())
+        val logs = MutableStateFlow<List<com.mkx.hrttracker.model.medication.MedicationLogEntry>?>(
+            emptyList()
+        )
         every { medicineRepository.observeAllActive() } returns medicines
         every { medicineRepository.observeAllActiveOrNull() } returns medicines
         every { medicationGroupRepository.observeGroups() } returns groups
         every { medicationLogRepository.observeEntries() } returns logs
         every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
-        val projectionScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        val projectionScope =
+            CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
         try {
             val repository = MedicineStockRepository(
                 medicineRepository = medicineRepository,
@@ -524,13 +535,19 @@ class MedicineStockRepositoryTest {
             advanceUntilIdle()
 
             val initial = repository.observeProjections().first()
-            assertEquals(RunwayProjection.Days(1, LocalDate.of(2026, 1, 2)), initial.single().runway)
+            assertEquals(
+                RunwayProjection.Days(1, LocalDate.of(2026, 1, 2)),
+                initial.single().runway
+            )
 
             logs.value = listOf(logForToday(group = group, medicine = medicine))
             advanceUntilIdle()
 
             val updated = repository.observeProjections().first()
-            assertEquals(RunwayProjection.Days(2, LocalDate.of(2026, 1, 3)), updated.single().runway)
+            assertEquals(
+                RunwayProjection.Days(2, LocalDate.of(2026, 1, 3)),
+                updated.single().runway
+            )
         } finally {
             projectionScope.cancel()
         }
@@ -549,8 +566,14 @@ class MedicineStockRepositoryTest {
             )
         )
         every { medicineRepository.observeAllActive() } returns MutableStateFlow(listOf(medicine))
-        every { medicineRepository.observeAllActiveOrNull() } returns MutableStateFlow(listOf(medicine))
-        every { medicationGroupRepository.observeGroups() } returns MutableStateFlow<List<MedicationGroup>?>(emptyList())
+        every { medicineRepository.observeAllActiveOrNull() } returns MutableStateFlow(
+            listOf(
+                medicine
+            )
+        )
+        every { medicationGroupRepository.observeGroups() } returns MutableStateFlow<List<MedicationGroup>?>(
+            emptyList()
+        )
         every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
         every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
         clearMocks(
@@ -644,7 +667,10 @@ class MedicineStockRepositoryTest {
             category = MedicationCategory.ESTRADIOL,
             preparation = preparation,
             displayName = null,
-            identityKey = MedicineIdentityKey.catalog(MedicationKey.ESTRADIOL_VALERATE, preparation),
+            identityKey = MedicineIdentityKey.catalog(
+                MedicationKey.ESTRADIOL_VALERATE,
+                preparation
+            ),
             createdAt = Instant.EPOCH,
             updatedAt = Instant.EPOCH,
             archivedAt = null,

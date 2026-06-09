@@ -244,7 +244,10 @@ class CalibrationEditorViewModelTest {
         assertTrue(uiState.isEditing)
         assertFalse(uiState.isLoading)
         assertEquals(expectedCollectedDateTime.toLocalDate(), uiState.collectedDate)
-        assertEquals(expectedCollectedDateTime.toLocalTime().withSecond(0).withNano(0), uiState.collectedTime)
+        assertEquals(
+            expectedCollectedDateTime.toLocalTime().withSecond(0).withNano(0),
+            uiState.collectedTime
+        )
         assertEquals("Lab draw before morning dose", uiState.notes)
         assertEquals(
             listOf(BloodAnalyteKey.E2, BloodAnalyteKey.T),
@@ -429,54 +432,55 @@ class CalibrationEditorViewModelTest {
     }
 
     @Test
-    fun savingNewPanel_clearsPersistedDraftSoProcessDeathDoesNotRestoreSavedAsDuplicate() = runTest {
-        val savedPanelUuid = UUID.fromString("3a7d2c9e-1b44-4f0e-9a2c-7d6e5f4c3b2a")
-        coEvery {
-            repository.savePanel(
-                uuid = null,
-                collectedAt = any(),
-                collectedAtTimeZoneId = any(),
-                notes = any(),
-                results = any(),
-                now = any(),
+    fun savingNewPanel_clearsPersistedDraftSoProcessDeathDoesNotRestoreSavedAsDuplicate() =
+        runTest {
+            val savedPanelUuid = UUID.fromString("3a7d2c9e-1b44-4f0e-9a2c-7d6e5f4c3b2a")
+            coEvery {
+                repository.savePanel(
+                    uuid = null,
+                    collectedAt = any(),
+                    collectedAtTimeZoneId = any(),
+                    notes = any(),
+                    results = any(),
+                    now = any(),
+                )
+            } returns savedPanelUuid
+
+            val savedStateHandle = SavedStateHandle()
+            val firstSession = CalibrationEditorViewModel(
+                repository,
+                medicationLogRepository,
+                settingsRepository,
+                savedStateHandle,
             )
-        } returns savedPanelUuid
+            advanceUntilIdle()
+            firstSession.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
+            firstSession.updateAnalyteUnit(BloodAnalyteKey.E2, BloodUnitKey.PMOL_L)
+            firstSession.updateAnalyteValue(BloodAnalyteKey.T, "31.7")
+            firstSession.updateAnalyteUnit(BloodAnalyteKey.T, BloodUnitKey.NMOL_L)
+            advanceUntilIdle()
+            // The in-progress draft is persisted while editing.
+            assertNotNull(savedStateHandle.get<String>("calibrationDraft"))
 
-        val savedStateHandle = SavedStateHandle()
-        val firstSession = CalibrationEditorViewModel(
-            repository,
-            medicationLogRepository,
-            settingsRepository,
-            savedStateHandle,
-        )
-        advanceUntilIdle()
-        firstSession.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
-        firstSession.updateAnalyteUnit(BloodAnalyteKey.E2, BloodUnitKey.PMOL_L)
-        firstSession.updateAnalyteValue(BloodAnalyteKey.T, "31.7")
-        firstSession.updateAnalyteUnit(BloodAnalyteKey.T, BloodUnitKey.NMOL_L)
-        advanceUntilIdle()
-        // The in-progress draft is persisted while editing.
-        assertNotNull(savedStateHandle.get<String>("calibrationDraft"))
+            firstSession.save()
+            advanceUntilIdle()
+            assertTrue(firstSession.uiState.value.isSaved)
 
-        firstSession.save()
-        advanceUntilIdle()
-        assertTrue(firstSession.uiState.value.isSaved)
+            // A successful save clears the draft snapshot, so process death in the
+            // post-save/pre-navigation window cannot restore the just-saved panel as a new
+            // unsaved draft (which would create a duplicate when saved again).
+            assertNull(savedStateHandle.get<String>("calibrationDraft"))
 
-        // A successful save clears the draft snapshot, so process death in the
-        // post-save/pre-navigation window cannot restore the just-saved panel as a new
-        // unsaved draft (which would create a duplicate when saved again).
-        assertNull(savedStateHandle.get<String>("calibrationDraft"))
-
-        val restoredSession = CalibrationEditorViewModel(
-            repository,
-            medicationLogRepository,
-            settingsRepository,
-            savedStateHandle,
-        )
-        advanceUntilIdle()
-        assertNull(restoredSession.uiState.value.panelUuid)
-        assertTrue(restoredSession.uiState.value.drafts.all { it.valueText.isEmpty() })
-    }
+            val restoredSession = CalibrationEditorViewModel(
+                repository,
+                medicationLogRepository,
+                settingsRepository,
+                savedStateHandle,
+            )
+            advanceUntilIdle()
+            assertNull(restoredSession.uiState.value.panelUuid)
+            assertTrue(restoredSession.uiState.value.drafts.all { it.valueText.isEmpty() })
+        }
 
     @Test
     fun save_persistsE2AndAdditionalBuiltins() = runTest {
@@ -620,7 +624,10 @@ class CalibrationEditorViewModelTest {
 
         val savedResults = resultInputSlot.captured
         assertEquals(1, savedResults.size)
-        assertEquals(BloodAnalyteKey.E2, (savedResults.single() as BloodTestResultInput.Builtin).analyteKey)
+        assertEquals(
+            BloodAnalyteKey.E2,
+            (savedResults.single() as BloodTestResultInput.Builtin).analyteKey
+        )
     }
 
     @Test
@@ -666,7 +673,10 @@ class CalibrationEditorViewModelTest {
 
         val savedResults = resultInputSlot.captured
         assertEquals(2, savedResults.size)
-        assertEquals(BloodAnalyteKey.E2, (savedResults[0] as BloodTestResultInput.Builtin).analyteKey)
+        assertEquals(
+            BloodAnalyteKey.E2,
+            (savedResults[0] as BloodTestResultInput.Builtin).analyteKey
+        )
         val customResult = savedResults[1] as BloodTestResultInput.Custom
         assertEquals(customAnalyteUuid, customResult.customAnalyteUuid)
         assertEquals(18.4, customResult.value, 1e-9)
@@ -881,7 +891,12 @@ class CalibrationEditorViewModelTest {
         )
 
         assertEquals(
-            listOf(BloodAnalyteKey.E2, BloodAnalyteKey.PROG, BloodAnalyteKey.PRL, BloodAnalyteKey.LH),
+            listOf(
+                BloodAnalyteKey.E2,
+                BloodAnalyteKey.PROG,
+                BloodAnalyteKey.PRL,
+                BloodAnalyteKey.LH
+            ),
             calibrationAnalyteOptions(state)
         )
     }

@@ -153,7 +153,9 @@ data class PkTrendResult(
         index * chartSampleIntervalHours.toDouble()
     },
     val doseMarkers: List<PkDoseMarker> = emptyList(),
-    val chartWindowHours: Int = chartSampleIntervalHours * (chartConcentrations.size - 1).coerceAtLeast(0),
+    val chartWindowHours: Int = chartSampleIntervalHours * (chartConcentrations.size - 1).coerceAtLeast(
+        0
+    ),
     val predictionStartTimeH: Double = chartWindowHours.toDouble(),
 ) {
     val changeSincePreviousDay: Double
@@ -201,9 +203,9 @@ data class PkProjectionResult(
         val previousDayTimeH = currentTimeH - PkMedicationSimulation.hoursPerDay
 
         val chartTimeH = (
-            timeH.filter { time -> time in chartWindowStartH..chartVisibleEndH } +
-                listOf(chartWindowStartH, chartVisibleEndH, currentTimeH, previousDayTimeH)
-            )
+                timeH.filter { time -> time in chartWindowStartH..chartVisibleEndH } +
+                        listOf(chartWindowStartH, chartVisibleEndH, currentTimeH, previousDayTimeH)
+                )
             .filter { time -> time.isFinite() && time in chartWindowStartH..chartVisibleEndH }
             .map { time -> time.toProjectionChartXHour() }
             .distinct()
@@ -319,7 +321,8 @@ object PkMedicationSimulation {
         plannedEntries: List<MedicationLogEntry> = emptyList(),
         option: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
     ): PkTrendResult? {
-        val resolvedBodyWeightKg = bodyWeightKg?.takeIf { it.isFinite() && it > 0 } ?: DefaultBodyWeightKg
+        val resolvedBodyWeightKg =
+            bodyWeightKg?.takeIf { it.isFinite() && it > 0 } ?: DefaultBodyWeightKg
         val nowInstant = now.atZone(zoneId).toInstant()
         val startInstant = now
             .toLocalDate()
@@ -366,7 +369,8 @@ object PkMedicationSimulation {
         )
         return PkTrendResult(
             currentConcentration = result.concentrationAt(predictionStartTimeH) ?: 0.0,
-            previousDayConcentration = result.concentrationAt(predictionStartTimeH - HoursPerDay) ?: 0.0,
+            previousDayConcentration = result.concentrationAt(predictionStartTimeH - HoursPerDay)
+                ?: 0.0,
             dailyConcentrations = dailyConcentrations,
             concentrationUnit = result.metadata.concentrationUnit,
             chartConcentrations = chartSamples.map { (_, concentration) -> concentration },
@@ -393,7 +397,8 @@ object PkMedicationSimulation {
         option: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
         futureDays: Long = option.projectionFutureDays(),
     ): PkProjectionResult {
-        val resolvedBodyWeightKg = bodyWeightKg?.takeIf { it.isFinite() && it > 0 } ?: DefaultBodyWeightKg
+        val resolvedBodyWeightKg =
+            bodyWeightKg?.takeIf { it.isFinite() && it > 0 } ?: DefaultBodyWeightKg
         val generatedAtInstant = generatedAt.atZone(zoneId).toInstant()
         val windowStart = generatedAt
             .toLocalDate()
@@ -457,7 +462,12 @@ object PkMedicationSimulation {
         plannedEntries: List<MedicationLogEntry>,
     ): List<PkDoseEvent> {
         val realEvents = realEntries.asSequence()
-            .mapNotNull { entry -> entry.toEstradiolPkDoseEvent(anchor = anchor, isPlanned = false) }
+            .mapNotNull { entry ->
+                entry.toEstradiolPkDoseEvent(
+                    anchor = anchor,
+                    isPlanned = false
+                )
+            }
         val plannedEvents = plannedEntries.asSequence()
             .mapNotNull { entry -> entry.toEstradiolPkDoseEvent(anchor = anchor, isPlanned = true) }
         return (realEvents + plannedEvents).toList()
@@ -518,14 +528,14 @@ object PkMedicationSimulation {
             option = option,
         )
         val exactSampleTimeH = (
-            listOf(predictionStartTimeH.toChartXHour()) +
-                listOf(chartVisibleEndHours.toChartXHour()) +
-                listOf(previousDayTimeH.toChartXHour()).filter { timeH ->
-                    timeH.isFinite() && timeH in windowStart..windowEndHours
-                } +
-                loggedEventTimeH +
-                offsetSampleTimeH
-            )
+                listOf(predictionStartTimeH.toChartXHour()) +
+                        listOf(chartVisibleEndHours.toChartXHour()) +
+                        listOf(previousDayTimeH.toChartXHour()).filter { timeH ->
+                            timeH.isFinite() && timeH in windowStart..windowEndHours
+                        } +
+                        loggedEventTimeH +
+                        offsetSampleTimeH
+                )
             .filter { timeH -> timeH.isFinite() && timeH in windowStart..windowEndHours }
 
         return (denseSampleTimeH + exactSampleTimeH)
@@ -605,6 +615,7 @@ object PkMedicationSimulation {
                         .toChartXHour()
                 }
             }
+
             is DenseSamplePolicy.Budget -> {
                 val segmentCount = policy.segmentCount.coerceAtLeast(1)
                 val interval = span / segmentCount
@@ -656,7 +667,8 @@ class PkSimulationEngine(
             ?.toList()
             ?.takeIf { timeH -> timeH.size > 1 }
             ?: fixedSampleTimes()
-        val concentrationScale = metadata.concentrationUnit.concentrationScale(hormone) / plasmaVolumeMl
+        val concentrationScale =
+            metadata.concentrationUnit.concentrationScale(hormone) / plasmaVolumeMl
         val time = ArrayList<Double>(sampleTimes.size)
         val concentrations = ArrayList<Double>(sampleTimes.size)
         var previousConcentration = 0.0
@@ -718,14 +730,23 @@ private class PrecomputedPkEventModel(
         PkRoute.GEL,
         PkRoute.ORAL -> { timeH ->
             val tau = timeH - startTime
-            if (tau < 0.0) 0.0 else ThreeCompartmentModel.oneCompartmentAmount(tau, dose, oneCompParams)
+            if (tau < 0.0) 0.0 else ThreeCompartmentModel.oneCompartmentAmount(
+                tau,
+                dose,
+                oneCompParams
+            )
         }
 
         PkRoute.SUBLINGUAL -> { timeH ->
             val tau = timeH - startTime
             when {
                 tau < 0.0 -> 0.0
-                params.k2 > 0.0 -> ThreeCompartmentModel.dualAbsorptionMixedAmount(tau, dose, params)
+                params.k2 > 0.0 -> ThreeCompartmentModel.dualAbsorptionMixedAmount(
+                    tau,
+                    dose,
+                    params
+                )
+
                 else -> ThreeCompartmentModel.dualAbsorptionAmount(tau, dose, params)
             }
         }
@@ -740,9 +761,9 @@ private class PrecomputedPkEventModel(
                 .asSequence()
                 .filter { candidate ->
                     candidate.hormone == event.hormone &&
-                        candidate.compound == event.compound &&
-                        candidate.route == PkRoute.PATCH_REMOVE &&
-                        candidate.timeH > startTime
+                            candidate.compound == event.compound &&
+                            candidate.route == PkRoute.PATCH_REMOVE &&
+                            candidate.timeH > startTime
                 }
                 .minByOrNull(PkDoseEvent::timeH)
             val wearH = (removeEvent?.timeH ?: Double.POSITIVE_INFINITY) - startTime
@@ -1056,8 +1077,8 @@ object ThreeCompartmentModel {
                 return null
             }
             return scaledDose * k1 * k2 *
-                (exp(-k1 * tau) + exp(-k2 * tau) * (delta * tau - 1.0)) /
-                (delta * delta)
+                    (exp(-k1 * tau) + exp(-k2 * tau) * (delta * tau - 1.0)) /
+                    (delta * delta)
         }
 
         if (k1EqualsK2) {
@@ -1066,8 +1087,8 @@ object ThreeCompartmentModel {
                 return null
             }
             return scaledDose * k1 * k1 *
-                (exp(-k3 * tau) - exp(-k1 * tau) * (1.0 + delta * tau)) /
-                (delta * delta)
+                    (exp(-k3 * tau) - exp(-k1 * tau) * (1.0 + delta * tau)) /
+                    (delta * delta)
         }
 
         if (k1EqualsK3) {
@@ -1076,8 +1097,8 @@ object ThreeCompartmentModel {
                 return null
             }
             return scaledDose * k1 * k2 *
-                (exp(-k2 * tau) + exp(-k1 * tau) * (delta * tau - 1.0)) /
-                (delta * delta)
+                    (exp(-k2 * tau) + exp(-k1 * tau) * (delta * tau - 1.0)) /
+                    (delta * delta)
         }
 
         return null
@@ -1125,7 +1146,12 @@ private fun pkDoseAmounts(
         }
         // Non-patch routes: prefer the log snapshot; re-derive for planned entries.
         else -> snapshotEquivalentE2Mg
-            ?: medicine?.let { DoseInstructionCalculator.perUnitEquivalentE2Mg(it, doseInstruction) }
+            ?: medicine?.let {
+                DoseInstructionCalculator.perUnitEquivalentE2Mg(
+                    it,
+                    doseInstruction
+                )
+            }
             ?: 0.0
     }
     val releaseRateMcgPerDay =
@@ -1271,7 +1297,11 @@ object PkCatalog {
     private val twoPartDepot = mapOf(
         PkCompound.EB to TwoPartDepotParams(fracFast = 0.9, k1Fast = 0.144, k1Slow = 0.114),
         PkCompound.EV to TwoPartDepotParams(fracFast = 0.4, k1Fast = 0.0216, k1Slow = 0.0138),
-        PkCompound.EC to TwoPartDepotParams(fracFast = 0.229164549, k1Fast = 0.005035046, k1Slow = 0.004510574),
+        PkCompound.EC to TwoPartDepotParams(
+            fracFast = 0.229164549,
+            k1Fast = 0.005035046,
+            k1Slow = 0.004510574
+        ),
         PkCompound.EN to TwoPartDepotParams(fracFast = 0.05, k1Fast = 0.001, k1Slow = 0.005),
         PkCompound.TC to TwoPartDepotParams(fracFast = 0.4, k1Fast = 0.018, k1Slow = 0.0036),
         PkCompound.TE to TwoPartDepotParams(fracFast = 0.45, k1Fast = 0.02, k1Slow = 0.0069),

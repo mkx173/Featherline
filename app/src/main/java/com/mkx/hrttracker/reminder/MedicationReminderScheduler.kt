@@ -85,7 +85,7 @@ class MedicationReminderScheduler private constructor(
             diagnosticsLogger.info(
                 TAG,
                 "reminder_reschedule_all_disabled groups=${groups.size} " +
-                    "stored=${storedGroupUuids.size} cancel=${uuidsToCancel.size}"
+                        "stored=${storedGroupUuids.size} cancel=${uuidsToCancel.size}"
             )
             uuidsToCancel.forEach(::cancelReminderAlarm)
             reminderScheduleStore.replaceScheduledGroupUuids(emptySet())
@@ -113,9 +113,14 @@ class MedicationReminderScheduler private constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_all_complete groups=${groups.size} " +
-                "entries=${entries.size} plans=${plans.size} " +
-                "stored=${plans.mapTo(mutableSetOf(), MedicationReminderPlan::groupUuid).size} " +
-                "cancel=${uuidsToCancel.size}"
+                    "entries=${entries.size} plans=${plans.size} " +
+                    "stored=${
+                        plans.mapTo(
+                            mutableSetOf(),
+                            MedicationReminderPlan::groupUuid
+                        ).size
+                    } " +
+                    "cancel=${uuidsToCancel.size}"
         )
     }
 
@@ -126,8 +131,8 @@ class MedicationReminderScheduler private constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_from_snapshot_start now=$now " +
-                "generation=${snapshot.generation} groups=${snapshot.activeGroups.size} " +
-                "snapshotEntries=${snapshot.scheduleEntries.size}"
+                    "generation=${snapshot.generation} groups=${snapshot.activeGroups.size} " +
+                    "snapshotEntries=${snapshot.scheduleEntries.size}"
         )
         val groups = snapshot.activeGroups
         val groupUuids = groups.mapTo(mutableSetOf()) { group -> group.uuid }
@@ -138,7 +143,7 @@ class MedicationReminderScheduler private constructor(
             diagnosticsLogger.info(
                 TAG,
                 "reminder_reschedule_from_snapshot_disabled groups=${groups.size} " +
-                    "stored=${storedGroupUuids.size} cancel=${uuidsToCancel.size}"
+                        "stored=${storedGroupUuids.size} cancel=${uuidsToCancel.size}"
             )
             uuidsToCancel.forEach(::cancelReminderAlarm)
             reminderScheduleStore.replaceScheduledGroupUuids(emptySet())
@@ -152,8 +157,8 @@ class MedicationReminderScheduler private constructor(
         val entries = snapshot.scheduleEntries.filter { entry ->
             val scheduledFor = entry.scheduledFor
             entry.sourceGroupUuid != null &&
-                scheduledFor != null &&
-                !scheduledFor.isBefore(now)
+                    scheduledFor != null &&
+                    !scheduledFor.isBefore(now)
         }
         val plans = buildNextMedicationReminderPlans(
             groups = groups,
@@ -171,9 +176,14 @@ class MedicationReminderScheduler private constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_from_snapshot_complete groups=${groups.size} " +
-                "entries=${entries.size} plans=${plans.size} " +
-                "stored=${plans.mapTo(mutableSetOf(), MedicationReminderPlan::groupUuid).size} " +
-                "cancel=${uuidsToCancel.size}"
+                    "entries=${entries.size} plans=${plans.size} " +
+                    "stored=${
+                        plans.mapTo(
+                            mutableSetOf(),
+                            MedicationReminderPlan::groupUuid
+                        ).size
+                    } " +
+                    "cancel=${uuidsToCancel.size}"
         )
     }
 
@@ -181,7 +191,10 @@ class MedicationReminderScheduler private constructor(
         groupUuid: UUID,
         after: LocalDateTime = LocalDateTime.now()
     ) {
-        diagnosticsLogger.info(TAG, "reminder_reschedule_group_start groupUuid=$groupUuid after=$after")
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_reschedule_group_start groupUuid=$groupUuid after=$after"
+        )
         cancelReminder(groupUuid)
 
         if (!settingsRepository.getCurrentSettings().remindersEnabled) {
@@ -202,8 +215,8 @@ class MedicationReminderScheduler private constructor(
             diagnosticsLogger.info(
                 TAG,
                 "reminder_reschedule_group_skipped reason=inactive_or_notifications_disabled " +
-                    "groupUuid=$groupUuid archived=${group.isArchived()} " +
-                    "notificationsEnabled=${group.notificationsEnabled}"
+                        "groupUuid=$groupUuid archived=${group.isArchived()} " +
+                        "notificationsEnabled=${group.notificationsEnabled}"
             )
             return
         }
@@ -223,7 +236,7 @@ class MedicationReminderScheduler private constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_group_complete groupUuid=${plan.groupUuid} " +
-                "scheduledAt=${plan.scheduledAt} scheduleTimeUuid=${plan.scheduleTimeUuid} entries=${entries.size}"
+                    "scheduledAt=${plan.scheduledAt} scheduleTimeUuid=${plan.scheduleTimeUuid} entries=${entries.size}"
         )
     }
 
@@ -254,8 +267,8 @@ class MedicationReminderScheduler private constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_alarm_schedule groupUuid=${plan.groupUuid} " +
-                "scheduleTimeUuid=${plan.scheduleTimeUuid} scheduledAt=${plan.scheduledAt} " +
-                "triggerAtMillis=$triggerAtMillis exact=$exactAlarm"
+                    "scheduleTimeUuid=${plan.scheduleTimeUuid} scheduledAt=${plan.scheduledAt} " +
+                    "triggerAtMillis=$triggerAtMillis exact=$exactAlarm"
         )
 
         if (exactAlarm) {
@@ -273,7 +286,7 @@ class MedicationReminderScheduler private constructor(
                 diagnosticsLogger.warning(
                     TAG,
                     "reminder_alarm_schedule_exact_revoked groupUuid=${plan.groupUuid} " +
-                        "scheduledAt=${plan.scheduledAt}",
+                            "scheduledAt=${plan.scheduledAt}",
                     error,
                 )
                 alarmManager.setAndAllowWhileIdle(

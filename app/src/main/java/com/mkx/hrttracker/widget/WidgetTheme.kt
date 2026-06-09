@@ -61,7 +61,8 @@ internal fun widgetColorScheme(
     alpha: Float = 1.0f,
     forcedDark: Boolean? = null,
 ): WidgetColorScheme {
-    fun provider(lightColor: Color, darkColor: Color) = colorProvider(lightColor, darkColor, forcedDark)
+    fun provider(lightColor: Color, darkColor: Color) =
+        colorProvider(lightColor, darkColor, forcedDark)
     return WidgetColorScheme(
         primary = provider(light.primary, dark.primary),
         onPrimary = provider(light.onPrimary, dark.onPrimary),
@@ -89,8 +90,16 @@ internal fun widgetColorScheme(
 // MaterialKolor fallback: regenerate matching light & dark schemes from a single seed. Used
 // when adaptive color is off or below API 31, and by the preview/default surfaces below.
 internal fun seededWidgetColorSchemes(seed: Color): Pair<ColorScheme, ColorScheme> =
-    dynamicColorScheme(seedColor = seed, isDark = false, specVersion = ColorSpec.SpecVersion.SPEC_2025) to
-        dynamicColorScheme(seedColor = seed, isDark = true, specVersion = ColorSpec.SpecVersion.SPEC_2025)
+    dynamicColorScheme(
+        seedColor = seed,
+        isDark = false,
+        specVersion = ColorSpec.SpecVersion.SPEC_2025
+    ) to
+            dynamicColorScheme(
+                seedColor = seed,
+                isDark = true,
+                specVersion = ColorSpec.SpecVersion.SPEC_2025
+            )
 
 internal fun widgetColorScheme(seed: Color): WidgetColorScheme {
     val (light, dark) = seededWidgetColorSchemes(seed)
@@ -111,7 +120,10 @@ private val lightGroupProviders: Map<MedicationGroupColorKey?, ColorProvider> =
 private val darkGroupProviders: Map<MedicationGroupColorKey?, ColorProvider> =
     MedicationGroupPalettes.mapValues { (_, palette) -> fixedColorProvider(palette.darkAccent) }
 
-internal fun groupAccentColor(colorKey: MedicationGroupColorKey?, forcedDark: Boolean? = null): ColorProvider {
+internal fun groupAccentColor(
+    colorKey: MedicationGroupColorKey?,
+    forcedDark: Boolean? = null
+): ColorProvider {
     val providers = when (forcedDark) {
         true -> darkGroupProviders
         false -> lightGroupProviders

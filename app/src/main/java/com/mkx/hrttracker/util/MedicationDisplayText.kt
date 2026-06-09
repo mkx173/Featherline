@@ -35,6 +35,7 @@ fun medicationEntryTitle(
         medicine != null -> medicineDisplayName(medicine, context)
         applicationType == MedicationApplicationType.PATCH_OFF ->
             context.getString(R.string.medicine_patch_off_name)
+
         else -> context.getString(applicationType.labelRes)
     }
 }
@@ -146,10 +147,12 @@ fun doseInstructionText(
                 formatTabletFraction(effectiveInstruction),
             )
         }
+
         is DoseInstruction.VolumeMl -> context.getString(
             R.string.dose_instruction_summary_volume_ml,
             effectiveInstruction.valueMl.formatDose(locale),
         )
+
         is DoseInstruction.WeightGrams -> context.getString(
             R.string.dose_instruction_summary_weight_grams,
             effectiveInstruction.valueGrams.formatDose(locale),
@@ -162,22 +165,24 @@ fun doseInstructionText(
                 it.sachetWeightGrams.formatDose(locale),
             )
         }
+
         DoseInstruction.Noop -> null
     }
 
-    val activeAmount = DoseInstructionCalculator.perUnitAmountMg(medicine, doseInstruction, doseAmountDelta)
-        ?.let { perUnitMg ->
-            val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
-                medicine.displayDoseUnit
-            } else {
-                MedicineDisplayDoseUnit.MG
+    val activeAmount =
+        DoseInstructionCalculator.perUnitAmountMg(medicine, doseInstruction, doseAmountDelta)
+            ?.let { perUnitMg ->
+                val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
+                    medicine.displayDoseUnit
+                } else {
+                    MedicineDisplayDoseUnit.MG
+                }
+                context.getString(
+                    R.string.dose_instruction_summary_active_amount,
+                    displayUnit.fromMg(perUnitMg).formatDose(locale),
+                    context.getString(displayUnit.shortLabelStringRes()),
+                )
             }
-            context.getString(
-                R.string.dose_instruction_summary_active_amount,
-                displayUnit.fromMg(perUnitMg).formatDose(locale),
-                context.getString(displayUnit.shortLabelStringRes()),
-            )
-        }
 
     // Concentration-bearing preparations (multi-use vial, gel) show
     // "concentration · portion" so the row identifies which preparation
@@ -268,6 +273,7 @@ private fun aggregateConcentrationDoseInstructionText(
         )
         listOf(sachets, concentration, totalWeight).joinToString(separator = " · ")
     }
+
     effectiveInstruction is DoseInstruction.VolumeMl -> {
         val portion = context.getString(
             R.string.dose_instruction_summary_volume_ml,
@@ -275,6 +281,7 @@ private fun aggregateConcentrationDoseInstructionText(
         )
         listOf(concentration, portion).joinToString(separator = " · ")
     }
+
     effectiveInstruction is DoseInstruction.WeightGrams -> {
         val portion = context.getString(
             R.string.dose_instruction_summary_weight_grams,
@@ -282,6 +289,7 @@ private fun aggregateConcentrationDoseInstructionText(
         )
         listOf(concentration, portion).joinToString(separator = " · ")
     }
+
     effectiveInstruction == DoseInstruction.Noop -> null
     else -> concentration
 }
@@ -308,12 +316,16 @@ private fun aggregateDosePortionText(
             )
         }
     }
+
     preparation is MedicinePreparation.Capsule && effectiveInstruction == DoseInstruction.WholeUnit ->
         doseCountNoun(context, R.plurals.stock_count_capsules, count)
+
     preparation is MedicinePreparation.InjectionSingleUseVial && effectiveInstruction == DoseInstruction.WholeUnit ->
         doseCountNoun(context, R.plurals.stock_count_vials, count)
+
     preparation is MedicinePreparation.Patch && effectiveInstruction == DoseInstruction.WholeUnit ->
         doseCountNoun(context, R.plurals.stock_count_patches, count)
+
     else -> null
 }
 
@@ -326,7 +338,11 @@ private fun aggregateActiveAmountText(
     locale: Locale,
 ): String? {
     val totalMg = DoseInstructionCalculator.totalAmountMg(
-        perUnitAmountMg = DoseInstructionCalculator.perUnitAmountMg(medicine, doseInstruction, doseAmountDelta),
+        perUnitAmountMg = DoseInstructionCalculator.perUnitAmountMg(
+            medicine,
+            doseInstruction,
+            doseAmountDelta
+        ),
         count = count,
     ) ?: return null
     val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
@@ -360,14 +376,17 @@ private fun concentrationSummary(
         R.string.dose_instruction_summary_concentration_mg_per_ml,
         preparation.concentrationMgPerMl.formatDose(locale),
     )
+
     is MedicinePreparation.GelSachet -> context.getString(
         R.string.dose_instruction_summary_concentration_percent,
         preparation.concentrationPercent.formatDose(locale),
     )
+
     is MedicinePreparation.GelContainer -> context.getString(
         R.string.dose_instruction_summary_concentration_percent,
         preparation.concentrationPercent.formatDose(locale),
     )
+
     else -> null
 }
 

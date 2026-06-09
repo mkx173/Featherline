@@ -65,11 +65,11 @@ class MedicineSlotDraftViewModel @Inject constructor(
             } else {
                 state.copy(
                     appliedDate = appliedDate,
-                saveResult = null,
-                postLogStockWarning = null,
-            )
+                    saveResult = null,
+                    postLogStockWarning = null,
+                )
+            }
         }
-    }
     }
 
     fun updateAppliedTime(appliedTime: LocalTime) {
@@ -79,11 +79,11 @@ class MedicineSlotDraftViewModel @Inject constructor(
             } else {
                 state.copy(
                     appliedTime = appliedTime.withSecond(0).withNano(0),
-                saveResult = null,
-                postLogStockWarning = null,
-            )
+                    saveResult = null,
+                    postLogStockWarning = null,
+                )
+            }
         }
-    }
     }
 
     fun saveManualLog(

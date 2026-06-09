@@ -27,8 +27,18 @@ class AppDiagnosticsLogStoreTest {
     fun recordPersistsFormattedLogLines() {
         val store = AppDiagnosticsLogStore(logFile = logFile)
 
-        store.record(AppDiagnosticsLogLevel.INFO, "HomeSnapshotRepository", "home_snapshot_loaded", null)
-        store.record(AppDiagnosticsLogLevel.WARNING, "StartupPreloader", "warmup_failed", RuntimeException("boom"))
+        store.record(
+            AppDiagnosticsLogLevel.INFO,
+            "HomeSnapshotRepository",
+            "home_snapshot_loaded",
+            null
+        )
+        store.record(
+            AppDiagnosticsLogLevel.WARNING,
+            "StartupPreloader",
+            "warmup_failed",
+            RuntimeException("boom")
+        )
 
         val text = store.readText()
         assertTrue(text.contains("INFO/HomeSnapshotRepository: home_snapshot_loaded"))
@@ -41,7 +51,12 @@ class AppDiagnosticsLogStoreTest {
         val store = AppDiagnosticsLogStore(logFile = logFile, maxBytes = 160)
 
         repeat(20) { index ->
-            store.record(AppDiagnosticsLogLevel.INFO, "Diagnostics", "message-$index-abcdefghijklmnopqrstuvwxyz", null)
+            store.record(
+                AppDiagnosticsLogLevel.INFO,
+                "Diagnostics",
+                "message-$index-abcdefghijklmnopqrstuvwxyz",
+                null
+            )
         }
 
         val text = store.readText()

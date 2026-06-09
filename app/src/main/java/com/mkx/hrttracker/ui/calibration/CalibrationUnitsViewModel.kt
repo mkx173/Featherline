@@ -29,7 +29,8 @@ class CalibrationUnitsViewModel @Inject constructor(
     private val customAnalytes = MutableStateFlow(cachedCustomAnalytes.orEmpty())
     private val isLoadingCustomAnalytes = MutableStateFlow(cachedCustomAnalytes == null)
     private val isArchivingCustomAnalyte = MutableStateFlow(false)
-    private val archiveCustomAnalyteResult = MutableStateFlow<CalibrationArchiveCustomAnalyteResult?>(null)
+    private val archiveCustomAnalyteResult =
+        MutableStateFlow<CalibrationArchiveCustomAnalyteResult?>(null)
 
     val uiState: StateFlow<CalibrationUnitsUiState> = combine(
         settingsRepository.settingsState,

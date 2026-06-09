@@ -130,10 +130,22 @@ class AdjustStockSheetTest {
             .performTextInput("4")
 
         composeRule
-            .onNodeWithText(context.resources.getQuantityString(R.plurals.stock_runway_days_remaining, 21, 21))
+            .onNodeWithText(
+                context.resources.getQuantityString(
+                    R.plurals.stock_runway_days_remaining,
+                    21,
+                    21
+                )
+            )
             .assertIsDisplayed()
         composeRule
-            .onNodeWithText(context.resources.getQuantityString(R.plurals.stock_runway_days_remaining, 28, 28))
+            .onNodeWithText(
+                context.resources.getQuantityString(
+                    R.plurals.stock_runway_days_remaining,
+                    28,
+                    28
+                )
+            )
             .assertDoesNotExist()
     }
 

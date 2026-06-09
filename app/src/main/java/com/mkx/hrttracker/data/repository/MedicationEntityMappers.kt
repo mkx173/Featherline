@@ -208,6 +208,7 @@ internal fun doseInstructionFromStorage(
             numerator = checkNotNull(tabletFractionNumerator),
             denominator = checkNotNull(tabletFractionDenominator),
         )
+
         DoseInstructionKind.WHOLE_UNIT -> DoseInstruction.WholeUnit
         DoseInstructionKind.VOLUME_ML -> DoseInstruction.VolumeMl(checkNotNull(doseVolumeMl))
         DoseInstructionKind.WEIGHT_GRAMS -> DoseInstruction.WeightGrams(checkNotNull(doseWeightGrams))

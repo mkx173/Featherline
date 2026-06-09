@@ -19,11 +19,13 @@ internal fun formatWidgetE2Text(
             currentConcentration,
             BloodUnitKey.PMOL_L,
         )
+
         PkConcentrationUnit.NG_PER_DL -> BloodTestCatalog.toCanonical(
             BloodAnalyteKey.E2,
             currentConcentration,
             BloodUnitKey.NG_DL,
         )
+
         PkConcentrationUnit.NG_PER_ML -> currentConcentration * 1_000.0
         PkConcentrationUnit.NMOL_PER_L -> BloodTestCatalog.toCanonical(
             BloodAnalyteKey.E2,

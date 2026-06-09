@@ -138,17 +138,17 @@ class MedicationEditorSheetsTest {
         assertTrue(
             source.contains(
                 "internal fun MedicationEditorContent(\n" +
-                    "    medicineDraft: MedicinePickerUiState,\n" +
-                    "    doseInstructionDraft: DoseInstructionDraftUiState?,\n" +
-                    "    resolvedMedicine: Medicine,"
+                        "    medicineDraft: MedicinePickerUiState,\n" +
+                        "    doseInstructionDraft: DoseInstructionDraftUiState?,\n" +
+                        "    resolvedMedicine: Medicine,"
             ),
         )
         assertFalse(
             source.contains(
                 "internal fun MedicationEditorContent(\n" +
-                    "    medicineDraft: MedicinePickerUiState,\n" +
-                    "    doseInstructionDraft: DoseInstructionDraftUiState?,\n" +
-                    "    resolvedMedicine: Medicine?"
+                        "    medicineDraft: MedicinePickerUiState,\n" +
+                        "    doseInstructionDraft: DoseInstructionDraftUiState?,\n" +
+                        "    resolvedMedicine: Medicine?"
             ),
         )
         assertTrue(source.contains("private fun MedicationSummaryHeader(\n    medicine: Medicine,"))

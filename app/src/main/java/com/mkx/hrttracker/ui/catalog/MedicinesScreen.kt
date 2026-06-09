@@ -122,8 +122,10 @@ internal fun medicineManagerAddNewTarget(
         MedicineManagerLaunchMode.Manager,
         MedicineManagerLaunchMode.OnboardingStockOptIn ->
             MedicineManagerAddNewTarget.CreateMedicine
+
         is MedicineManagerLaunchMode.GroupSlot ->
             MedicineManagerAddNewTarget.NewMedicineSlot(CreateMedicineThenDoseSheetMode.GROUP_SLOT)
+
         MedicineManagerLaunchMode.ManualLog ->
             MedicineManagerAddNewTarget.NewMedicineSlot(CreateMedicineThenDoseSheetMode.MANUAL_LOG)
     }
@@ -136,6 +138,7 @@ internal fun medicineManagerTitle(
     return when (launchMode) {
         MedicineManagerLaunchMode.Manager,
         MedicineManagerLaunchMode.OnboardingStockOptIn -> R.string.medicines_title
+
         MedicineManagerLaunchMode.ManualLog -> R.string.medicine_manager_manual_log_title
         is MedicineManagerLaunchMode.GroupSlot -> R.string.medicine_picker_select_medicine
     }
@@ -201,7 +204,7 @@ internal fun MedicinesScreen(
         )
     )
     val isManualSlotLocked = launchMode == MedicineManagerLaunchMode.ManualLog &&
-        (slotDraftUiState.isSaving || slotDraftUiState.isSaved)
+            (slotDraftUiState.isSaving || slotDraftUiState.isSaved)
     val isNewSlotLocked = newMedicineSlotUiState.isSaving || newMedicineSlotUiState.isSaved
     val isManualSlotLockedState = rememberUpdatedState(isManualSlotLocked)
     val isNewSlotLockedState = rememberUpdatedState(isNewSlotLocked)
@@ -267,6 +270,7 @@ internal fun MedicinesScreen(
                 MedicineManagerLaunchMode.OnboardingStockOptIn -> {
                     pendingStockOptInUuid = medicineUuid.toString()
                 }
+
                 is MedicineManagerLaunchMode.GroupSlot,
                 MedicineManagerLaunchMode.ManualLog -> {
                     if (launchMode == MedicineManagerLaunchMode.ManualLog) {
@@ -286,7 +290,8 @@ internal fun MedicinesScreen(
         onAddNewMedicine = {
             when (medicineManagerAddNewTarget(launchMode)) {
                 MedicineManagerAddNewTarget.CreateMedicine -> showCreateMedicineSheet = true
-                is MedicineManagerAddNewTarget.NewMedicineSlot -> showCreateMedicineThenDoseSheet = true
+                is MedicineManagerAddNewTarget.NewMedicineSlot -> showCreateMedicineThenDoseSheet =
+                    true
             }
         },
         showOnboardingBanner = launchMode == MedicineManagerLaunchMode.OnboardingStockOptIn,
@@ -462,12 +467,14 @@ internal fun MedicinesScreen(
                 }
                 viewModel.clearStockOptInResult()
             }
+
             MedicineStockMutationResult.FAILURE -> {
                 isStockOptInProjectionFrozen = false
                 frozenStockOptInProjection = null
                 Toast.makeText(context, stockOptInFailureMessage, Toast.LENGTH_SHORT).show()
                 viewModel.clearStockOptInResult()
             }
+
             null -> Unit
         }
     }
@@ -501,7 +508,8 @@ internal fun MedicinesScreen(
                 isStockOptInProjectionFrozen = true
                 viewModel.enableTrackingFromReceived(
                     medicineUuid = displayOptInProjection.medicine.uuid,
-                    currentUnitsRemaining = displayOptInProjection.medicine.stock.unitsRemaining ?: 0.0,
+                    currentUnitsRemaining = displayOptInProjection.medicine.stock.unitsRemaining
+                        ?: 0.0,
                     received = received,
                 )
             },
@@ -522,8 +530,8 @@ internal fun canHideManualSlotSheet(
     allowManualSlotCompletionHide: Boolean,
 ): Boolean {
     return value != SheetValue.Hidden ||
-        !isManualSlotLocked ||
-        allowManualSlotCompletionHide
+            !isManualSlotLocked ||
+            allowManualSlotCompletionHide
 }
 
 internal fun MedicinesUiState.findMedicineItemByUuid(
@@ -744,6 +752,7 @@ private fun medicineRowTrailingContent(
                 ReferenceCountChip(count = referenceCount)
             }
         }
+
         MedicineManagerTrailingContentKind.CHEVRON -> {
             {
                 MedicineRowChevron()

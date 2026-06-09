@@ -392,162 +392,170 @@ private fun CalibrationEditorScreenContent(
                         .verticalScroll(scrollState)
                         .padding(appContentPaddingValues()),
                 ) {
-                val deviceZone = remember { ZoneId.systemDefault() }
-                val itemLocale = rememberAppLocale()
-                val crossZoneLabel = remember(
-                    uiState.collectedDate,
-                    uiState.collectedTime,
-                    uiState.collectedZoneId,
-                    deviceZone,
-                    itemLocale,
-                ) {
-                    val pickerInstant = LocalDateTime
-                        .of(uiState.collectedDate, uiState.collectedTime)
-                        .atZone(uiState.collectedZoneId)
-                        .toInstant()
-                    formatEditorZoneLabel(
-                        appliedZoneId = uiState.collectedZoneId,
-                        appliedAtInstant = pickerInstant,
-                        deviceZone = deviceZone,
-                        locale = itemLocale,
+                    val deviceZone = remember { ZoneId.systemDefault() }
+                    val itemLocale = rememberAppLocale()
+                    val crossZoneLabel = remember(
+                        uiState.collectedDate,
+                        uiState.collectedTime,
+                        uiState.collectedZoneId,
+                        deviceZone,
+                        itemLocale,
+                    ) {
+                        val pickerInstant = LocalDateTime
+                            .of(uiState.collectedDate, uiState.collectedTime)
+                            .atZone(uiState.collectedZoneId)
+                            .toInstant()
+                        formatEditorZoneLabel(
+                            appliedZoneId = uiState.collectedZoneId,
+                            appliedAtInstant = pickerInstant,
+                            deviceZone = deviceZone,
+                            locale = itemLocale,
+                        )
+                    }
+                    CalibrationDateTimeCard(
+                        dateLabel = dateFormatter(uiState.collectedDate),
+                        timeLabel = uiState.collectedTime.format(timeFormatter),
+                        timeSinceLastEstradiolDoseMillis = uiState.timeSinceLastEstradiolDoseMillis,
+                        onDateClick = onDateClick,
+                        onTimeClick = onTimeClick,
+                        crossZoneLabel = crossZoneLabel,
                     )
-                }
-                CalibrationDateTimeCard(
-                    dateLabel = dateFormatter(uiState.collectedDate),
-                    timeLabel = uiState.collectedTime.format(timeFormatter),
-                    timeSinceLastEstradiolDoseMillis = uiState.timeSinceLastEstradiolDoseMillis,
-                    onDateClick = onDateClick,
-                    onTimeClick = onTimeClick,
-                    crossZoneLabel = crossZoneLabel,
-                )
 
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                val totalCount = uiState.drafts.size
-                HrtSection(title = stringResource(R.string.settings_calibration_results)) {
-                    uiState.drafts.forEachIndexed { index, draft ->
-                        val nextDraft = uiState.drafts.getOrNull(index + 1)
-                        val nextFocusRequester = nextDraft
-                            ?.let { analyteFocusRequesters.getValue(it.draftKey) }
-                        // All drafts stay composed in a regular Column, so the next
-                        // field's FocusRequester is always attached when IME Next
-                        // fires. Direct requestFocus is sufficient.
-                        val onImeNext: () -> Unit = if (nextFocusRequester != null) {
-                            { nextFocusRequester.requestFocus() }
-                        } else {
-                            { contentFocusManager.clearFocus() }
-                        }
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                    val totalCount = uiState.drafts.size
+                    HrtSection(title = stringResource(R.string.settings_calibration_results)) {
+                        uiState.drafts.forEachIndexed { index, draft ->
+                            val nextDraft = uiState.drafts.getOrNull(index + 1)
+                            val nextFocusRequester = nextDraft
+                                ?.let { analyteFocusRequesters.getValue(it.draftKey) }
+                            // All drafts stay composed in a regular Column, so the next
+                            // field's FocusRequester is always attached when IME Next
+                            // fires. Direct requestFocus is sufficient.
+                            val onImeNext: () -> Unit = if (nextFocusRequester != null) {
+                                { nextFocusRequester.requestFocus() }
+                            } else {
+                                { contentFocusManager.clearFocus() }
+                            }
 
-                        item {
-                            draft.analyteKey?.let { analyteKey ->
-                                CalibrationAnalyteCard(
-                                    analyteKey = analyteKey,
-                                    valueText = draft.valueText,
-                                    isError = draft.draftKey in uiState.invalidDraftKeys,
-                                    unit = checkNotNull(draft.unit),
-                                    defaultUnit = checkNotNull(draft.defaultUnit),
-                                    originalUnit = draft.originalUnit,
+                            item {
+                                draft.analyteKey?.let { analyteKey ->
+                                    CalibrationAnalyteCard(
+                                        analyteKey = analyteKey,
+                                        valueText = draft.valueText,
+                                        isError = draft.draftKey in uiState.invalidDraftKeys,
+                                        unit = checkNotNull(draft.unit),
+                                        defaultUnit = checkNotNull(draft.defaultUnit),
+                                        originalUnit = draft.originalUnit,
+                                        focusRequester = analyteFocusRequesters.getValue(draft.draftKey),
+                                        nextFocusRequester = nextFocusRequester,
+                                        imeAction = calibrationEditorAnalyteImeAction(
+                                            index,
+                                            totalCount
+                                        ),
+                                        onImeNext = onImeNext,
+                                        onValueChange = { value ->
+                                            onBuiltinAnalyteValueChange(analyteKey, value)
+                                        },
+                                        onUnitChange = { unit ->
+                                            onBuiltinAnalyteUnitChange(analyteKey, unit)
+                                        },
+                                        onRemoveClick = { onRemoveBuiltinAnalyteClick(analyteKey) },
+                                        hideReferenceRanges = uiState.hideReferenceRanges,
+                                    )
+                                } ?: CalibrationCustomAnalyteCard(
                                     focusRequester = analyteFocusRequesters.getValue(draft.draftKey),
                                     nextFocusRequester = nextFocusRequester,
-                                    imeAction = calibrationEditorAnalyteImeAction(index, totalCount),
+                                    imeAction = calibrationEditorAnalyteImeAction(
+                                        index,
+                                        totalCount
+                                    ),
                                     onImeNext = onImeNext,
+                                    abbreviation = checkNotNull(draft.customAnalyteAbbreviation),
+                                    name = checkNotNull(draft.customAnalyteName),
+                                    unitLabel = checkNotNull(draft.customUnitLabel),
+                                    valueText = draft.valueText,
+                                    isError = draft.draftKey in uiState.invalidDraftKeys,
                                     onValueChange = { value ->
-                                        onBuiltinAnalyteValueChange(analyteKey, value)
+                                        onCustomAnalyteValueChange(
+                                            checkNotNull(draft.customAnalyteUuid),
+                                            value,
+                                        )
                                     },
-                                    onUnitChange = { unit ->
-                                        onBuiltinAnalyteUnitChange(analyteKey, unit)
+                                    onRemoveClick = {
+                                        onRemoveCustomAnalyteClick(
+                                            checkNotNull(draft.customAnalyteUuid)
+                                        )
                                     },
-                                    onRemoveClick = { onRemoveBuiltinAnalyteClick(analyteKey) },
-                                    hideReferenceRanges = uiState.hideReferenceRanges,
                                 )
-                            } ?: CalibrationCustomAnalyteCard(
-                                focusRequester = analyteFocusRequesters.getValue(draft.draftKey),
-                                nextFocusRequester = nextFocusRequester,
-                                imeAction = calibrationEditorAnalyteImeAction(index, totalCount),
-                                onImeNext = onImeNext,
-                                abbreviation = checkNotNull(draft.customAnalyteAbbreviation),
-                                name = checkNotNull(draft.customAnalyteName),
-                                unitLabel = checkNotNull(draft.customUnitLabel),
-                                valueText = draft.valueText,
-                                isError = draft.draftKey in uiState.invalidDraftKeys,
-                                onValueChange = { value ->
-                                    onCustomAnalyteValueChange(
-                                        checkNotNull(draft.customAnalyteUuid),
-                                        value,
-                                    )
+                            }
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = dimensionResource(R.dimen.padding_small))
+                    ) {
+                        Text(
+                            text = stringResource(
+                                R.string.settings_calibration_remaining_analytes,
+                                remainingAnalyteCount,
+                            ),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        HrtFilledTonalButton(
+                            text = stringResource(R.string.settings_calibration_add_analyte),
+                            onClick = onAddAnalyteClick,
+                            enabled = remainingAnalyteCount > 0,
+                            icon = Icons.Rounded.Add,
+                            iconModifier = Modifier.size(
+                                ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
+                            ),
+                            iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
+                            compact = true,
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                    HrtSection(title = stringResource(R.string.settings_calibration_notes_label)) {
+                        item {
+                            CalibrationNotesCard(
+                                notes = notesDraft,
+                                // Commit live (not just on focus loss) so the ViewModel's
+                                // persisted draft snapshot captures in-progress notes for
+                                // process-death restore, matching the analyte value fields.
+                                onNotesChange = {
+                                    notesDraft = it
+                                    onNotesCommit(it)
                                 },
-                                onRemoveClick = {
-                                    onRemoveCustomAnalyteClick(
-                                        checkNotNull(draft.customAnalyteUuid)
-                                    )
-                                },
+                                onNotesCommit = { onNotesCommit(notesDraft) },
                             )
                         }
                     }
-                }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth().padding(top = dimensionResource(R.dimen.padding_small))
-                ) {
-                    Text(
-                        text = stringResource(
-                            R.string.settings_calibration_remaining_analytes,
-                            remainingAnalyteCount,
-                        ),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    HrtFilledTonalButton(
-                        text = stringResource(R.string.settings_calibration_add_analyte),
-                        onClick = onAddAnalyteClick,
-                        enabled = remainingAnalyteCount > 0,
-                        icon = Icons.Rounded.Add,
-                        iconModifier = Modifier.size(
-                            ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
-                        ),
-                        iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
-                        compact = true,
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                HrtSection(title = stringResource(R.string.settings_calibration_notes_label)) {
-                    item {
-                        CalibrationNotesCard(
-                            notes = notesDraft,
-                            // Commit live (not just on focus loss) so the ViewModel's
-                            // persisted draft snapshot captures in-progress notes for
-                            // process-death restore, matching the analyte value fields.
-                            onNotesChange = {
-                                notesDraft = it
-                                onNotesCommit(it)
-                            },
-                            onNotesCommit = { onNotesCommit(notesDraft) },
+                    if (uiState.isEditing) {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                        HrtFilledTonalButton(
+                            text = stringResource(R.string.delete_entries_confirm),
+                            onClick = onDeleteClick,
+                            modifier = Modifier.fillMaxWidth(),
+                            icon = Icons.Rounded.Delete,
+                            iconModifier = Modifier.size(
+                                ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
+                            ),
+                            iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
                         )
                     }
-                }
 
-                if (uiState.isEditing) {
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                    HrtFilledTonalButton(
-                        text = stringResource(R.string.delete_entries_confirm),
-                        onClick = onDeleteClick,
-                        modifier = Modifier.fillMaxWidth(),
-                        icon = Icons.Rounded.Delete,
-                        iconModifier = Modifier.size(
-                            ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
-                        ),
-                        iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
-                    )
-                }
-
-                if (!uiState.hideReferenceRanges) {
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                    MedicalDisclaimerText(kinds = MedicalDisclaimerSets.calibrationEditor)
+                    if (!uiState.hideReferenceRanges) {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                        MedicalDisclaimerText(kinds = MedicalDisclaimerSets.calibrationEditor)
+                    }
                 }
             }
-        }
         }
     }
 }

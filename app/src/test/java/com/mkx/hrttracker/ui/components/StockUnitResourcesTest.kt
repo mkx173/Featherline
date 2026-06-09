@@ -45,12 +45,30 @@ class StockUnitResourcesTest {
 
     @Test
     fun stockUnitNounPluralForUnitResOnlyPluralizesCountableInventoryUnits() {
-        assertEquals(R.plurals.stock_count_tablets, stockUnitNounPluralForUnitRes(R.string.stock_unit_tablets))
-        assertEquals(R.plurals.stock_count_capsules, stockUnitNounPluralForUnitRes(R.string.stock_unit_capsules))
-        assertEquals(R.plurals.stock_count_patches, stockUnitNounPluralForUnitRes(R.string.stock_unit_patches))
-        assertEquals(R.plurals.stock_count_sachets, stockUnitNounPluralForUnitRes(R.string.stock_unit_sachets))
-        assertEquals(R.plurals.stock_count_vials, stockUnitNounPluralForUnitRes(R.string.stock_unit_vials))
-        assertEquals(R.plurals.stock_count_containers, stockUnitNounPluralForUnitRes(R.string.stock_unit_containers))
+        assertEquals(
+            R.plurals.stock_count_tablets,
+            stockUnitNounPluralForUnitRes(R.string.stock_unit_tablets)
+        )
+        assertEquals(
+            R.plurals.stock_count_capsules,
+            stockUnitNounPluralForUnitRes(R.string.stock_unit_capsules)
+        )
+        assertEquals(
+            R.plurals.stock_count_patches,
+            stockUnitNounPluralForUnitRes(R.string.stock_unit_patches)
+        )
+        assertEquals(
+            R.plurals.stock_count_sachets,
+            stockUnitNounPluralForUnitRes(R.string.stock_unit_sachets)
+        )
+        assertEquals(
+            R.plurals.stock_count_vials,
+            stockUnitNounPluralForUnitRes(R.string.stock_unit_vials)
+        )
+        assertEquals(
+            R.plurals.stock_count_containers,
+            stockUnitNounPluralForUnitRes(R.string.stock_unit_containers)
+        )
 
         assertNull(stockUnitNounPluralForUnitRes(R.string.stock_unit_ml))
         assertNull(stockUnitNounPluralForUnitRes(R.string.stock_unit_g))

@@ -165,10 +165,12 @@ fun MainScreen(
                 withFrameNanos { }
                 StartupTiming.mark("home_snapshot_rendered")
             }
+
             HomeInputSource.ROOM -> {
                 withFrameNanos { }
                 StartupTiming.mark("home_room_takeover_rendered")
             }
+
             null -> Unit
         }
     }
@@ -264,8 +266,10 @@ internal fun reduceHomeMoreOptionsMenuState(
         HomeMoreOptionsMenuAction.OPEN_DISPLAY_UNIT -> when (state) {
             HomeMoreOptionsMenuState.OPTIONS,
             HomeMoreOptionsMenuState.DISPLAY_UNIT -> HomeMoreOptionsMenuState.DISPLAY_UNIT
+
             HomeMoreOptionsMenuState.CLOSED -> HomeMoreOptionsMenuState.CLOSED
         }
+
         HomeMoreOptionsMenuAction.DISMISS -> HomeMoreOptionsMenuState.CLOSED
     }
 }
@@ -319,7 +323,12 @@ private fun HomeMoreOptionsMenu(
 
                 DropdownMenuItem(
                     onClick = { updateMenuState(HomeMoreOptionsMenuAction.OPEN_DISPLAY_UNIT) },
-                    text = { Text(text = selectUnitText, modifier = Modifier.cjkTextOffset(selectUnitText)) },
+                    text = {
+                        Text(
+                            text = selectUnitText,
+                            modifier = Modifier.cjkTextOffset(selectUnitText)
+                        )
+                    },
                     shape = MaterialTheme.shapes.medium,
                     trailingIcon = {
                         Icon(

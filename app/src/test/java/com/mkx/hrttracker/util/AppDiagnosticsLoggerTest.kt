@@ -49,7 +49,12 @@ class AppDiagnosticsLoggerTest {
 
         verify {
             logStore.record(AppDiagnosticsLogLevel.INFO, "Diagnostics", "captured info", null)
-            logStore.record(AppDiagnosticsLogLevel.WARNING, "Diagnostics", "captured warning", throwable)
+            logStore.record(
+                AppDiagnosticsLogLevel.WARNING,
+                "Diagnostics",
+                "captured warning",
+                throwable
+            )
         }
     }
 }

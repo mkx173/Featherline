@@ -318,7 +318,7 @@ internal fun DoseInstructionForm(
         MedicinePreparationType.CAPSULE,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH,
-        // PATCH_OFF emits a Noop dose; no per-instruction form to render.
+            // PATCH_OFF emits a Noop dose; no per-instruction form to render.
         MedicinePreparationType.PATCH_OFF -> Unit // whole-unit dose; no input needed.
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicationNumericField(
@@ -398,8 +398,10 @@ internal fun preparationTypeLabelRes(preparationType: MedicinePreparationType): 
         MedicinePreparationType.CAPSULE -> R.string.preparation_type_capsule
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
             R.string.preparation_type_injection_single_use_vial
+
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL ->
             R.string.preparation_type_injection_multi_use_vial
+
         MedicinePreparationType.GEL_SACHET -> R.string.preparation_type_gel_sachet
         MedicinePreparationType.GEL_CONTAINER -> R.string.preparation_type_gel_container
         MedicinePreparationType.PATCH -> R.string.preparation_type_patch
@@ -410,7 +412,7 @@ internal fun preparationTypeLabelRes(preparationType: MedicinePreparationType): 
 }
 
 internal fun DoseInstructionDraftUiState.toDoseInstructionOrNull():
-    DoseInstruction? {
+        DoseInstruction? {
     return runCatching { toDoseInstruction() }.getOrNull()
 }
 

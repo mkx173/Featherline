@@ -118,11 +118,16 @@ class MedicationReminderActionHandlerTest {
             savedEntries.captured.map { entry -> entry.sourceGroupUuid }
         )
         assertEquals(
-            listOf(firstGroup.schedule.timeSlots.first().uuid, secondGroup.schedule.timeSlots.first().uuid),
+            listOf(
+                firstGroup.schedule.timeSlots.first().uuid,
+                secondGroup.schedule.timeSlots.first().uuid
+            ),
             savedEntries.captured.map { entry -> entry.scheduleTimeUuid }
         )
         assertEquals(listOf(1, 1), savedEntries.captured.map { entry -> entry.count })
-        assertEquals(listOf(scheduledAt, scheduledAt), savedEntries.captured.map { entry -> entry.scheduledFor })
+        assertEquals(
+            listOf(scheduledAt, scheduledAt),
+            savedEntries.captured.map { entry -> entry.scheduledFor })
         coVerify { snoozeScheduler.clearSnoozesForSlots(listOf(firstSlot, secondSlot)) }
         coVerify { reminderScheduler.rescheduleGroup(firstGroup.uuid, any()) }
         coVerify { reminderScheduler.rescheduleGroup(secondGroup.uuid, any()) }
@@ -133,9 +138,9 @@ class MedicationReminderActionHandlerTest {
                 "MedicationReminderActionHandler",
                 match { message ->
                     "reminder_action_log_now_complete" in message &&
-                        "slots=2" in message &&
-                        "entriesSaved=2" in message &&
-                        "groupsRescheduled=2" in message
+                            "slots=2" in message &&
+                            "entriesSaved=2" in message &&
+                            "groupsRescheduled=2" in message
                 }
             )
         }
@@ -284,42 +289,43 @@ class MedicationReminderActionHandlerTest {
     }
 
     @Test
-    fun logNow_singleUserLowMedicineAfterSave_whenMedicationDetailsHidden_showsUserLowCountToast() = runTest {
-        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
-        val group = medicationGroup(
-            uuid = UUID.fromString("d7193a2c-c4bf-4705-8ce0-20fad5b52471"),
-            name = "Estradiol",
-            time = LocalTime.of(9, 0),
-            medicationKey = MedicationKey.ESTRADIOL,
-            medicationCount = 1,
-        )
-        val medicine = group.medications.single().medicine!!
-        val slot = group.toReminderSlot(scheduledAt)
-        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(
-            remindersEnabled = true,
-            hideMedicationDetails = true,
-        )
-        coEvery { groupRepository.getGroup(group.uuid) } returns group
-        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
-        // First projection is the pre-log "before" baseline (empty = was healthy),
-        // second is the post-log result that the warning is derived from.
-        coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
-            emptyList(),
-            listOf(stockProjection(medicine, MedicineStockState.USER_LOW)),
-        )
+    fun logNow_singleUserLowMedicineAfterSave_whenMedicationDetailsHidden_showsUserLowCountToast() =
+        runTest {
+            val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+            val group = medicationGroup(
+                uuid = UUID.fromString("d7193a2c-c4bf-4705-8ce0-20fad5b52471"),
+                name = "Estradiol",
+                time = LocalTime.of(9, 0),
+                medicationKey = MedicationKey.ESTRADIOL,
+                medicationCount = 1,
+            )
+            val medicine = group.medications.single().medicine!!
+            val slot = group.toReminderSlot(scheduledAt)
+            coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(
+                remindersEnabled = true,
+                hideMedicationDetails = true,
+            )
+            coEvery { groupRepository.getGroup(group.uuid) } returns group
+            coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+            coEvery { logRepository.saveNewEntries(any()) } just Runs
+            // First projection is the pre-log "before" baseline (empty = was healthy),
+            // second is the post-log result that the warning is derived from.
+            coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
+                emptyList(),
+                listOf(stockProjection(medicine, MedicineStockState.USER_LOW)),
+            )
 
-        actionHandler.logNow(
-            slots = listOf(slot),
-            logTargets = null,
-            notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(10),
-        )
+            actionHandler.logNow(
+                slots = listOf(slot),
+                logTargets = null,
+                notificationTag = "bundle-tag",
+                now = scheduledAt.plusMinutes(10),
+            )
 
-        verify { notificationManager.showStockUserLowCountToast(1) }
-        verify(exactly = 0) { notificationManager.showStockUserLowToast(any()) }
-        verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
-    }
+            verify { notificationManager.showStockUserLowCountToast(1) }
+            verify(exactly = 0) { notificationManager.showStockUserLowToast(any()) }
+            verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+        }
 
     @Test
     fun logNow_twoUserLowMedicinesAfterSave_showsManyAttentionToast() = runTest {
@@ -397,7 +403,10 @@ class MedicationReminderActionHandlerTest {
         )
 
         actionHandler.logNow(
-            slots = listOf(outGroup.toReminderSlot(scheduledAt), healthyGroup.toReminderSlot(scheduledAt)),
+            slots = listOf(
+                outGroup.toReminderSlot(scheduledAt),
+                healthyGroup.toReminderSlot(scheduledAt)
+            ),
             logTargets = null,
             notificationTag = "bundle-tag",
             now = scheduledAt.plusMinutes(10),
@@ -439,7 +448,10 @@ class MedicationReminderActionHandlerTest {
         )
 
         actionHandler.logNow(
-            slots = listOf(outGroup.toReminderSlot(scheduledAt), lowGroup.toReminderSlot(scheduledAt)),
+            slots = listOf(
+                outGroup.toReminderSlot(scheduledAt),
+                lowGroup.toReminderSlot(scheduledAt)
+            ),
             logTargets = null,
             notificationTag = "bundle-tag",
             now = scheduledAt.plusMinutes(10),
@@ -608,7 +620,10 @@ class MedicationReminderActionHandlerTest {
         coEvery { groupRepository.getGroup(activeGroup.uuid) } returns activeGroup
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery {
-            snoozeScheduler.snoozeSlots(slots = listOf(activeSlot), now = scheduledAt.plusMinutes(1))
+            snoozeScheduler.snoozeSlots(
+                slots = listOf(activeSlot),
+                now = scheduledAt.plusMinutes(1)
+            )
         } returns listOf(
             MedicationReminderSnoozeRecord(
                 slot = activeSlot,
@@ -623,8 +638,18 @@ class MedicationReminderActionHandlerTest {
             now = scheduledAt.plusMinutes(1),
         )
 
-        coVerify { snoozeScheduler.snoozeSlots(slots = listOf(activeSlot), now = scheduledAt.plusMinutes(1)) }
-        coVerify(exactly = 0) { snoozeScheduler.snoozeSlots(slots = match { archivedSlot in it }, now = any()) }
+        coVerify {
+            snoozeScheduler.snoozeSlots(
+                slots = listOf(activeSlot),
+                now = scheduledAt.plusMinutes(1)
+            )
+        }
+        coVerify(exactly = 0) {
+            snoozeScheduler.snoozeSlots(
+                slots = match { archivedSlot in it },
+                now = any()
+            )
+        }
     }
 
     @Test
@@ -888,40 +913,41 @@ class MedicationReminderActionHandlerTest {
     }
 
     @Test
-    fun showSnoozedReminder_postsNotificationWithoutSnoozeActionWhenAllSlotsAreAtMaxSnoozeCount() = runTest {
-        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
-        val group = medicationGroup(
-            uuid = UUID.fromString("d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80"),
-            name = "Estradiol",
-            time = LocalTime.of(9, 0),
-            medicationKey = MedicationKey.ESTRADIOL,
-            medicationCount = 1,
-        )
-        val slot = group.toReminderSlot(scheduledAt)
-        coEvery { groupRepository.getGroup(group.uuid) } returns group
-        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { snoozeScheduler.getSnoozeRecords() } returns listOf(
-            MedicationReminderSnoozeRecord(
-                slot = slot,
-                snoozeAt = scheduledAt.plusMinutes(15),
-                snoozeCount = MAX_REMINDER_SNOOZE_COUNT,
+    fun showSnoozedReminder_postsNotificationWithoutSnoozeActionWhenAllSlotsAreAtMaxSnoozeCount() =
+        runTest {
+            val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+            val group = medicationGroup(
+                uuid = UUID.fromString("d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80"),
+                name = "Estradiol",
+                time = LocalTime.of(9, 0),
+                medicationKey = MedicationKey.ESTRADIOL,
+                medicationCount = 1,
             )
-        )
-
-        actionHandler.showSnoozedReminder(
-            slots = listOf(slot),
-            notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(15),
-        )
-
-        verify(exactly = 1) {
-            notificationManager.showDoseReminderNotification(
-                any(),
-                canSnooze = false,
-                hideMedicationDetails = false,
+            val slot = group.toReminderSlot(scheduledAt)
+            coEvery { groupRepository.getGroup(group.uuid) } returns group
+            coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+            coEvery { snoozeScheduler.getSnoozeRecords() } returns listOf(
+                MedicationReminderSnoozeRecord(
+                    slot = slot,
+                    snoozeAt = scheduledAt.plusMinutes(15),
+                    snoozeCount = MAX_REMINDER_SNOOZE_COUNT,
+                )
             )
+
+            actionHandler.showSnoozedReminder(
+                slots = listOf(slot),
+                notificationTag = "bundle-tag",
+                now = scheduledAt.plusMinutes(15),
+            )
+
+            verify(exactly = 1) {
+                notificationManager.showDoseReminderNotification(
+                    any(),
+                    canSnooze = false,
+                    hideMedicationDetails = false,
+                )
+            }
         }
-    }
 
     @Test
     fun showSnoozedReminder_skips_notification_when_master_switch_off() = runTest {

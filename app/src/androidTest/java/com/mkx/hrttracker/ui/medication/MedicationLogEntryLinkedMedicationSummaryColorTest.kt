@@ -71,7 +71,7 @@ class MedicationLogEntryLinkedMedicationSummaryColorTest {
                     description = "leading icon container is not Material primaryContainer",
                 ) { node ->
                     node.config[MedicationCardLeadingIconContainerColorArgbKey] !=
-                        primaryContainerColor.toArgb()
+                            primaryContainerColor.toArgb()
                 },
             )
     }

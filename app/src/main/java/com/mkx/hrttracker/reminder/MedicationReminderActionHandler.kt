@@ -47,8 +47,8 @@ class MedicationReminderActionHandler @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_action_log_now_start slots=${normalizedSlots.size} " +
-                "rawSlots=${slots.size} logTargets=${logTargets?.size ?: -1} " +
-                "notificationTag=${notificationTag.orEmpty()} now=$now"
+                    "rawSlots=${slots.size} logTargets=${logTargets?.size ?: -1} " +
+                    "notificationTag=${notificationTag.orEmpty()} now=$now"
         )
         if (normalizedSlots.isEmpty()) {
             diagnosticsLogger.info(TAG, "reminder_action_log_now_skipped reason=empty_slots")
@@ -130,7 +130,7 @@ class MedicationReminderActionHandler @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_action_log_now_complete slots=${normalizedSlots.size} " +
-                "entriesSaved=${entriesToSave.size} groupsRescheduled=${groupUuidsToReschedule.size}"
+                    "entriesSaved=${entriesToSave.size} groupsRescheduled=${groupUuidsToReschedule.size}"
         )
     }
 
@@ -143,7 +143,7 @@ class MedicationReminderActionHandler @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_action_remind_later_start slots=${normalizedSlots.size} " +
-                "rawSlots=${slots.size} notificationTag=${notificationTag.orEmpty()} now=$now"
+                    "rawSlots=${slots.size} notificationTag=${notificationTag.orEmpty()} now=$now"
         )
         if (!settingsRepository.getCurrentSettings().remindersEnabled) {
             diagnosticsLogger.info(
@@ -167,7 +167,7 @@ class MedicationReminderActionHandler @Inject constructor(
             diagnosticsLogger.info(
                 TAG,
                 "reminder_action_remind_later_complete slots=${normalizedSlots.size} " +
-                    "unfulfilledSlots=0 snoozes=0"
+                        "unfulfilledSlots=0 snoozes=0"
             )
             return
         }
@@ -189,7 +189,7 @@ class MedicationReminderActionHandler @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_action_remind_later_complete slots=${normalizedSlots.size} " +
-                "unfulfilledSlots=${unfulfilledSlots.size} snoozes=${scheduledSnoozes.size}"
+                    "unfulfilledSlots=${unfulfilledSlots.size} snoozes=${scheduledSnoozes.size}"
         )
     }
 
@@ -202,7 +202,7 @@ class MedicationReminderActionHandler @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_action_show_snoozed_start slots=${normalizedSlots.size} " +
-                "rawSlots=${slots.size} notificationTag=${notificationTag.orEmpty()} now=$now"
+                    "rawSlots=${slots.size} notificationTag=${notificationTag.orEmpty()} now=$now"
         )
         val settings = settingsRepository.getCurrentSettings()
         if (!settings.remindersEnabled) {
@@ -254,7 +254,10 @@ class MedicationReminderActionHandler @Inject constructor(
                 )
             }
         if (bundleItems.isEmpty()) {
-            diagnosticsLogger.info(TAG, "reminder_action_show_snoozed_skipped reason=no_unfulfilled_slots")
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_action_show_snoozed_skipped reason=no_unfulfilled_slots"
+            )
             notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
             return
         }
@@ -277,7 +280,7 @@ class MedicationReminderActionHandler @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_action_show_snoozed_complete slots=${normalizedSlots.size} " +
-                "unfulfilledSlots=${unfulfilledSlots.size} bundleItems=${bundleItems.size} canSnooze=$canSnooze"
+                    "unfulfilledSlots=${unfulfilledSlots.size} bundleItems=${bundleItems.size} canSnooze=$canSnooze"
         )
     }
 
@@ -303,7 +306,7 @@ class MedicationReminderActionHandler @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_action_unfulfilled_slots_checked slots=${slots.size} " +
-                "groups=${groupsByUuid.size} entries=${entries.size} unfulfilled=${unfulfilledSlots.size}"
+                    "groups=${groupsByUuid.size} entries=${entries.size} unfulfilled=${unfulfilledSlots.size}"
         )
         return unfulfilledSlots
     }
@@ -382,7 +385,7 @@ internal fun buildMissingScheduledLogEntries(
         .groupBy(MedicationSignature::fromGroupMedication)
         .mapNotNull { (signature, medications) ->
             val missingCount = requiredCounts.getValue(signature) -
-                loggedCounts.getOrDefault(signature, 0)
+                    loggedCounts.getOrDefault(signature, 0)
             if (missingCount <= 0) {
                 return@mapNotNull null
             }
@@ -448,25 +451,39 @@ internal suspend fun showPostLogToast(
         return
     }
 
-    when (val warning = resolvePostLogStockWarning(projections, affectedMedicineUuids, beforeStatesByUuid)) {
+    when (val warning =
+        resolvePostLogStockWarning(projections, affectedMedicineUuids, beforeStatesByUuid)) {
         null -> reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
         is PostLogStockWarning.Single -> {
             if (hideMedicationDetails) {
                 when (warning.state) {
                     MedicineStockState.OUT -> reminderNotificationManager.showStockOutCountToast(1)
-                    MedicineStockState.IMMINENT -> reminderNotificationManager.showStockImminentCountToast(1)
-                    MedicineStockState.USER_LOW -> reminderNotificationManager.showStockUserLowCountToast(1)
+                    MedicineStockState.IMMINENT -> reminderNotificationManager.showStockImminentCountToast(
+                        1
+                    )
+
+                    MedicineStockState.USER_LOW -> reminderNotificationManager.showStockUserLowCountToast(
+                        1
+                    )
+
                     else -> reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
                 }
             } else {
                 when (warning.state) {
                     MedicineStockState.OUT -> reminderNotificationManager.showStockOutToast(warning.medicine)
-                    MedicineStockState.IMMINENT -> reminderNotificationManager.showStockImminentToast(warning.medicine)
-                    MedicineStockState.USER_LOW -> reminderNotificationManager.showStockUserLowToast(warning.medicine)
+                    MedicineStockState.IMMINENT -> reminderNotificationManager.showStockImminentToast(
+                        warning.medicine
+                    )
+
+                    MedicineStockState.USER_LOW -> reminderNotificationManager.showStockUserLowToast(
+                        warning.medicine
+                    )
+
                     else -> reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
                 }
             }
         }
+
         is PostLogStockWarning.Many ->
             reminderNotificationManager.showStockManyAttentionToast(warning.count)
     }
@@ -490,7 +507,8 @@ internal fun resolvePostLogStockWarning(
         // the rank is 0 for non-warning states, so this also drops medicines that
         // are still healthy after the log.
         .filter { projection ->
-            val beforeRank = beforeStatesByUuid[projection.medicine.uuid]?.lowStockSeverityRank() ?: 0
+            val beforeRank =
+                beforeStatesByUuid[projection.medicine.uuid]?.lowStockSeverityRank() ?: 0
             projection.state.lowStockSeverityRank() > beforeRank
         }
     if (warned.isEmpty()) return null

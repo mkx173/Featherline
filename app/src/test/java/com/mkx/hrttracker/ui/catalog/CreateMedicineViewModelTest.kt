@@ -193,7 +193,10 @@ class CreateMedicineViewModelTest {
         advanceUntilIdle()
 
         assertNull(createdUuid)
-        assertEquals(R.string.validation_pill_strength_required, viewModel.uiState.value.errorMessageRes)
+        assertEquals(
+            R.string.validation_pill_strength_required,
+            viewModel.uiState.value.errorMessageRes
+        )
         assertNull(viewModel.uiState.value.saveResult)
         coVerify(exactly = 0) { medicineRepository.findOrCreateForCatalog(any(), any(), any()) }
         coVerify(exactly = 0) {

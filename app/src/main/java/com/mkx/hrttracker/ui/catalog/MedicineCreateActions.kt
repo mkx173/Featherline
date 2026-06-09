@@ -18,6 +18,7 @@ internal sealed interface MedicineCreateResult {
         val medicine: Medicine,
         val createdNew: Boolean = true,
     ) : MedicineCreateResult
+
     data class ValidationError(@param:StringRes val messageRes: Int) : MedicineCreateResult
     data class SaveFailure(val saveResult: CreateMedicineSaveResult) : MedicineCreateResult
 }

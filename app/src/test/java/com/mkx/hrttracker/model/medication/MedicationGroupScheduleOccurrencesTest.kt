@@ -136,7 +136,10 @@ class MedicationGroupScheduleOccurrencesTest {
             listOf(LocalDateTime.of(2026, 4, 19, 9, 0)),
             occurrences.map(MedicationGroupSlotOccurrence::scheduledFor),
         )
-        assertEquals(listOf(scheduleTimeUuid), occurrences.map(MedicationGroupSlotOccurrence::scheduleTimeUuid))
+        assertEquals(
+            listOf(scheduleTimeUuid),
+            occurrences.map(MedicationGroupSlotOccurrence::scheduleTimeUuid)
+        )
     }
 
     @Test

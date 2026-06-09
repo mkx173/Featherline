@@ -216,7 +216,12 @@ class HistoryViewModelTest {
             appliedAt = Instant.parse("2026-04-26T01:00:00Z"),
         )
         val entryIds = setOf(firstEntry.uuid, secondEntry.uuid)
-        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(firstEntry, secondEntry))
+        every { medicationLogRepository.observeEntries() } returns flowOf(
+            listOf(
+                firstEntry,
+                secondEntry
+            )
+        )
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicationLogRepository.deleteEntries(entryIds) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
@@ -294,7 +299,9 @@ class HistoryViewModelTest {
         )
         every { medicationLogRepository.observeEntries() } returns flowOf(listOf(entry))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
-        coEvery { medicationLogRepository.deleteEntries(setOf(entry.uuid)) } throws RuntimeException("delete failed")
+        coEvery { medicationLogRepository.deleteEntries(setOf(entry.uuid)) } throws RuntimeException(
+            "delete failed"
+        )
 
         val viewModel = HistoryViewModel(
             medicationLogRepository = medicationLogRepository,
@@ -386,7 +393,12 @@ class HistoryViewModelTest {
 
     @Test
     fun hiddenArchivedGroupRecords_areCountedForDeleteAllWarning() = runTest {
-        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = false, firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY))
+        val settingsState = MutableStateFlow(
+            SettingsState(
+                showArchivedGroupRecords = false,
+                firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY
+            )
+        )
         every { settingsRepository.settingsState } returns settingsState
         val archivedGroup = testGroup(
             uuid = UUID.fromString("5130b7b7-50dd-4a62-bd08-15f35b7863de"),
@@ -409,7 +421,12 @@ class HistoryViewModelTest {
             appliedAt = Instant.parse("2026-04-19T00:00:00Z"),
             scheduledFor = LocalDateTime.of(2026, 4, 19, 9, 0),
         )
-        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(visibleEntry, hiddenEntry))
+        every { medicationLogRepository.observeEntries() } returns flowOf(
+            listOf(
+                visibleEntry,
+                hiddenEntry
+            )
+        )
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(archivedGroup))
 
         val viewModel = HistoryViewModel(
@@ -430,7 +447,12 @@ class HistoryViewModelTest {
 
     @Test
     fun deleteAllEntries_deletesHiddenArchivedOnlyRecords() = runTest {
-        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = false, firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY))
+        val settingsState = MutableStateFlow(
+            SettingsState(
+                showArchivedGroupRecords = false,
+                firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY
+            )
+        )
         every { settingsRepository.settingsState } returns settingsState
         val archivedGroup = testGroup(
             uuid = UUID.fromString("0e26438c-d4b6-4ee0-a4e9-91f9affebf11"),

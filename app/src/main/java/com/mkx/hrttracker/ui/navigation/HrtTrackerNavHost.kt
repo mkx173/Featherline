@@ -117,6 +117,7 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
             return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
         }
     }
+
     data object PlanArchivedGroups : Screen(
         "plan_archived_groups?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
         R.string.plan_archived_groups
@@ -127,6 +128,7 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
             return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
         }
     }
+
     data object History : Screen(
         "history?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
         R.string.tab_history
@@ -137,6 +139,7 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
             return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
         }
     }
+
     data object Settings : Screen("settings", R.string.tab_settings)
     data object SettingsCalibration : Screen(
         "settings_calibration?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
@@ -150,6 +153,7 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
             return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
         }
     }
+
     data object SettingsCalibrationUnits : Screen(
         "settings_calibration_units?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
         R.string.settings_calibration_settings
@@ -162,6 +166,7 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
             return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
         }
     }
+
     data object SettingsCalibrationEntry : Screen(
         "settings_calibration_entry?" +
                 "${CalibrationEditorViewModel.PANEL_ID_ARG}={${CalibrationEditorViewModel.PANEL_ID_ARG}}" +
@@ -184,10 +189,11 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
 
     data object Medicines : Screen(
         "medicines/{$TOP_LEVEL_PARENT_ARG}?" +
-            "$SLOT_RESULT_KEY_ARG={$SLOT_RESULT_KEY_ARG}",
+                "$SLOT_RESULT_KEY_ARG={$SLOT_RESULT_KEY_ARG}",
         R.string.medicines_title,
     ) {
         const val baseRoute = "medicines"
+
         // Route template stripped of its query string — matches what
         // NavigationTransitions.normalizeNavigationRoute() yields.
         const val motionRoute = "$baseRoute/{$TOP_LEVEL_PARENT_ARG}"
@@ -217,6 +223,7 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
         R.string.medicine_detail_title,
     ) {
         const val baseRoute = "medicine_detail"
+
         // Route template stripped of its query string — matches what
         // NavigationTransitions.normalizeNavigationRoute() yields.
         const val motionRoute = "$baseRoute/{${MedicineDetailViewModel.MEDICINE_ID_ARG}}"
@@ -451,6 +458,7 @@ fun HrtTrackerNavHost(
         // LocalContextGetResourceValueCall lint false-positives here.
         @Suppress("LocalContextGetResourceValueCall")
         val nudgeMessage = snackbarContext.getString(R.string.stock_nudge_message, displayName)
+
         @Suppress("LocalContextGetResourceValueCall")
         val nudgeActionLabel = snackbarContext.getString(R.string.stock_nudge_action_enable)
         val result = snackbarHostState.showSnackbar(
@@ -526,6 +534,7 @@ fun HrtTrackerNavHost(
                     homeDeepLinkSignal,
                 )
             }
+
             HomeDeepLinkNavigationAction.NAVIGATE_HOME -> {
                 lastHandledHomeDeepLinkSignal = homeDeepLinkSignal
                 pendingHomeDeepLinkHighlightSignal = homeDeepLinkSignal
@@ -616,7 +625,10 @@ fun HrtTrackerNavHost(
                                 )
                             ) {
                                 TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
-                                    navController.popBackStackSafely(navItem.screen.route, inclusive = false)
+                                    navController.popBackStackSafely(
+                                        navItem.screen.route,
+                                        inclusive = false
+                                    )
                                 }
 
                                 TopLevelNavigationTapAction.SCROLL_TO_TOP -> {
@@ -656,437 +668,442 @@ fun HrtTrackerNavHost(
             }
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
-            NavHost(
-                navController = navController,
-                startDestination = Screen.Main.route,
-                modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
-                enterTransition = { hrtNavHostEnterTransition(density, layoutDirection) },
-                exitTransition = { hrtNavHostExitTransition(density, layoutDirection) },
-                popEnterTransition = { hrtNavHostPopEnterTransition(density, layoutDirection) },
-                popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
-            ) {
-                composable(Screen.Main.route) {
-                    MainScreen(
-                        modifier,
-                        scrollToTopSignal = mainScrollToTopSignal,
-                        highlightEffectsEnabled = homeDeepLinkHighlightEffectsEnabled,
-                        onEntryClick = { request ->
-                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                entryIds = request.entryUuids.map(UUID::toString),
-                                editSnapshot = request.toMedicationLogEntryEditSnapshot(),
-                            )
-                        },
-                        onMedicineDetailClick = { medicineId ->
-                            // Root the detail under the current tab (Home) so the
-                            // highlighted tab stays put and back returns straight
-                            // here, instead of stacking under a different tab.
-                            navController.navigate(
-                                Screen.MedicineDetail.createRoute(
-                                    medicineId = medicineId.toString(),
-                                    topLevelParentRoute = selectedBottomScreen.route,
-                                ),
-                            )
-                        },
-                        onAddEntryClick = {
-                            // Jump straight to the manager; its dose sheet saves
-                            // the manual log directly in manual-log mode.
-                            navController.navigate(
-                                Screen.Medicines.createRoute(
-                                    topLevelParentRoute = selectedBottomScreen.route,
-                                    slotResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
-                                ),
-                            )
-                        },
-                        onQuickLogDoseClick = { request ->
-                            if (request.medicationCount > 0) {
+                NavHost(
+                    navController = navController,
+                    startDestination = Screen.Main.route,
+                    modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
+                    enterTransition = { hrtNavHostEnterTransition(density, layoutDirection) },
+                    exitTransition = { hrtNavHostExitTransition(density, layoutDirection) },
+                    popEnterTransition = { hrtNavHostPopEnterTransition(density, layoutDirection) },
+                    popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
+                ) {
+                    composable(Screen.Main.route) {
+                        MainScreen(
+                            modifier,
+                            scrollToTopSignal = mainScrollToTopSignal,
+                            highlightEffectsEnabled = homeDeepLinkHighlightEffectsEnabled,
+                            onEntryClick = { request ->
                                 medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                    quickLogRequest = MedicationLogEntryQuickLogRequest(
-                                        groupId = request.groupUuid,
-                                        scheduleTimeUuid = request.scheduleTimeUuid,
-                                        scheduledFor = request.scheduledAt,
-                                        medicine = request.medicine,
-                                        applicationType = request.applicationType,
-                                        doseInstruction = request.doseInstruction,
-                                        medicationCount = request.medicationCount,
-                                        sourceGroupName = request.sourceGroupName,
-                                        sourceGroupColorKey = request.sourceGroupColorKey,
-                                        sourceGroupIsArchived = request.sourceGroupIsArchived,
-                                        sourceGroupPreviousScheduledFor = request.sourceGroupPreviousScheduledFor,
-                                        sourceGroupNextScheduledFor = request.sourceGroupNextScheduledFor,
-                                    )
+                                    entryIds = request.entryUuids.map(UUID::toString),
+                                    editSnapshot = request.toMedicationLogEntryEditSnapshot(),
                                 )
-                            }
-                        }
-                    )
-                }
-                composable(Screen.Plan.route) {
-                    PlanScreen(
-                        modifier = modifier,
-                        scrollToTopSignal = planScrollToTopSignal,
-                        onGroupClick = { groupId ->
-                            navController.navigate(
-                                Screen.EditMedicationGroup.createRoute(
-                                    topLevelParentRoute = Screen.Plan.route,
-                                    groupId = groupId.toString()
-                                )
-                            )
-                        },
-                        onEntryClick = { entryIds ->
-                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                entryIds = entryIds.map(UUID::toString)
-                            )
-                        },
-                        onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medication, medicationCount ->
-                            if (medicationCount > 0) {
-                                medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                    quickLogRequest = MedicationLogEntryQuickLogRequest(
-                                        groupId = groupId,
-                                        scheduleTimeUuid = scheduleTimeUuid,
-                                        scheduledFor = scheduledAt,
-                                        medicine = medication.medicine,
-                                        applicationType = medication.applicationType,
-                                        doseInstruction = medication.doseInstruction,
-                                        medicationCount = medicationCount
-                                    )
-                                )
-                            }
-                        },
-                        onAddGroupClick = {
-                            navController.navigate(
-                                Screen.EditMedicationGroup.createRoute(
-                                    topLevelParentRoute = Screen.Plan.route
-                                )
-                            )
-                        },
-                        onHistoryClick = {
-                            navController.navigate(Screen.History.createRoute(Screen.Plan.route)) {
-                                launchSingleTop = true
-                            }
-                        },
-                        onBatchAddClick = {
-                            navController.navigate(Screen.PlanBatchAdd.createRoute(Screen.Plan.route)) {
-                                launchSingleTop = true
-                            }
-                        },
-                        onArchivedGroupsClick = {
-                            navController.navigate(Screen.PlanArchivedGroups.createRoute(Screen.Plan.route)) {
-                                launchSingleTop = true
-                            }
-                        },
-                        onMedicinesClick = {
-                            navController.navigate(Screen.Medicines.createRoute(Screen.Plan.route)) {
-                                launchSingleTop = true
-                            }
-                        }
-                    )
-                }
-                composable(
-                    route = Screen.PlanBatchAdd.route,
-                    arguments = listOf(
-                        navArgument(TOP_LEVEL_PARENT_ARG) {
-                            type = NavType.StringType
-                            defaultValue = Screen.Plan.route
-                        }
-                    )
-                ) {
-                    PlanBatchAddScreen(
-                        modifier = modifier,
-                        onNavigateBack = { navController.popBackStackSafely() },
-                        onStockWarning = showPostLogStockWarning,
-                    )
-                }
-                composable(
-                    route = Screen.PlanArchivedGroups.route,
-                    arguments = listOf(
-                        navArgument(TOP_LEVEL_PARENT_ARG) {
-                            type = NavType.StringType
-                            defaultValue = Screen.Plan.route
-                        }
-                    )
-                ) {
-                    ArchivedMedicationGroupsScreen(
-                        modifier = modifier,
-                        onNavigateBack = { navController.popBackStackSafely() },
-                        onGroupClick = { groupId ->
-                            navController.navigate(
-                                Screen.EditMedicationGroup.createRoute(
-                                    topLevelParentRoute = Screen.Plan.route,
-                                    groupId = groupId.toString(),
-                                    source = MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS,
-                                )
-                            )
-                        }
-                    )
-                }
-                composable(
-                    route = Screen.History.route,
-                    arguments = listOf(
-                        navArgument(TOP_LEVEL_PARENT_ARG) {
-                            type = NavType.StringType
-                            defaultValue = Screen.Plan.route
-                        }
-                    )
-                ) {
-                    HistoryScreen(
-                        modifier = modifier,
-                        onNavigateBack = { navController.popBackStackSafely() },
-                        onEntryClick = { entryIds ->
-                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                entryIds = entryIds.map(UUID::toString)
-                            )
-                        }
-                    )
-                }
-                composable(Screen.Settings.route) {
-                    SettingsScreen(
-                        modifier = modifier,
-                        scrollToTopSignal = settingsScrollToTopSignal,
-                        onCalibrationClick = {
-                            navController.navigate(
-                                Screen.SettingsCalibration.createRoute(Screen.Settings.route)
-                            )
-                        }
-                    )
-                }
-                composable(
-                    route = Screen.SettingsCalibration.route,
-                    arguments = listOf(
-                        navArgument(TOP_LEVEL_PARENT_ARG) {
-                            type = NavType.StringType
-                            defaultValue = Screen.Settings.route
-                        }
-                    )
-                ) {
-                    CalibrationScreen(
-                        modifier = modifier,
-                        onNavigateBack = { navController.popBackStackSafely() },
-                        onUnitsClick = {
-                            navController.navigate(
-                                Screen.SettingsCalibrationUnits.createRoute(Screen.Settings.route)
-                            )
-                        },
-                        onAddClick = {
-                            navController.navigate(
-                                Screen.SettingsCalibrationEntry.createRoute(Screen.Settings.route)
-                            )
-                        },
-                        onPanelClick = { panelUuid ->
-                            navController.navigate(
-                                Screen.SettingsCalibrationEntry.createRoute(
-                                    topLevelParentRoute = Screen.Settings.route,
-                                    panelId = panelUuid.toString()
-                                )
-                            )
-                        }
-                    )
-                }
-                composable(
-                    route = Screen.SettingsCalibrationUnits.route,
-                    arguments = listOf(
-                        navArgument(TOP_LEVEL_PARENT_ARG) {
-                            type = NavType.StringType
-                            defaultValue = Screen.Settings.route
-                        }
-                    )
-                ) {
-                    CalibrationUnitsScreen(
-                        modifier = modifier,
-                        onNavigateBack = { navController.popBackStackSafely() },
-                    )
-                }
-                composable(
-                    route = Screen.SettingsCalibrationEntry.route,
-                    arguments = listOf(
-                        navArgument(CalibrationEditorViewModel.PANEL_ID_ARG) {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        },
-                        navArgument(TOP_LEVEL_PARENT_ARG) {
-                            type = NavType.StringType
-                            defaultValue = Screen.Settings.route
-                        }
-                    )
-                ) {
-                    CalibrationEditorScreen(
-                        modifier = modifier,
-                        onNavigateBack = { navController.popBackStackSafely() },
-                        onSaved = { navController.popBackStackSafely() }
-                    )
-                }
-                composable(
-                    route = Screen.Medicines.route,
-                    arguments = listOf(
-                        navArgument(TOP_LEVEL_PARENT_ARG) {
-                            type = NavType.StringType
-                            defaultValue = Screen.Plan.route
-                        },
-                        navArgument(SLOT_RESULT_KEY_ARG) {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        },
-                    ),
-                ) { backStackEntry ->
-                    val topLevelParentRoute =
-                        backStackEntry.arguments?.getString(TOP_LEVEL_PARENT_ARG)
-                            ?: Screen.Plan.route
-                    val slotResultKey =
-                        backStackEntry.arguments?.getString(SLOT_RESULT_KEY_ARG)
-                    val launchMode = medicineManagerLaunchMode(
-                        slotResultKey = slotResultKey,
-                        manualLogResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
-                    )
-                    MedicinesScreen(
-                        modifier = modifier,
-                        onNavigateBack = { navController.popBackStackSafely() },
-                        onMedicineClick = { medicineId ->
-                            // Slot-result mode: MedicinesScreen hosts the dose
-                            // sheet itself and returns the completed slot via
-                            // onSlotResolved below — don't open the detail
-                            // screen in that case.
-                            if (launchMode == MedicineManagerLaunchMode.Manager) {
+                            },
+                            onMedicineDetailClick = { medicineId ->
+                                // Root the detail under the current tab (Home) so the
+                                // highlighted tab stays put and back returns straight
+                                // here, instead of stacking under a different tab.
                                 navController.navigate(
                                     Screen.MedicineDetail.createRoute(
                                         medicineId = medicineId.toString(),
-                                        topLevelParentRoute = topLevelParentRoute,
+                                        topLevelParentRoute = selectedBottomScreen.route,
                                     ),
                                 )
-                            }
-                        },
-                        launchMode = launchMode,
-                        onSlotResolved = { slotResult ->
-                            val groupSlotMode = launchMode as? MedicineManagerLaunchMode.GroupSlot
-                                ?: return@MedicinesScreen
-                            navController.previousBackStackEntry
-                                ?.savedStateHandle
-                                ?.set(groupSlotMode.resultKey, slotResult.toBundle())
-                            navController.popBackStackSafely()
-                        },
-                        onManualLogSaved = { warning ->
-                            navController.popBackStackSafely()
-                            warning?.let(showPostLogStockWarning)
-                        },
-                        onNewMedicineCreated = stockNudgeViewModel::onNewMedicineCreated,
-                        stockNudgeEnabled = stockNudgeEnabled,
-                        onSetStockNudgeEnabled = stockNudgeViewModel::setEnabled,
-                    )
-                }
-                composable(
-                    route = Screen.MedicineDetail.route,
-                    arguments = listOf(
-                        navArgument(MedicineDetailViewModel.MEDICINE_ID_ARG) {
-                            type = NavType.StringType
-                        },
-                        navArgument(TOP_LEVEL_PARENT_ARG) {
-                            type = NavType.StringType
-                            defaultValue = Screen.Plan.route
-                        },
-                        navArgument(MedicineDetailViewModel.OPEN_OPT_IN_ARG) {
-                            type = NavType.BoolType
-                            defaultValue = false
-                        },
-                    ),
-                ) {
-                    MedicineDetailScreen(
-                        modifier = modifier,
-                        onNavigateBack = { navController.popBackStackSafely() },
-                        onGroupClick = { groupId ->
-                            navController.navigate(
-                                Screen.EditMedicationGroup.createRoute(
-                                    topLevelParentRoute = Screen.Plan.route,
-                                    groupId = groupId.toString(),
-                                ),
-                            )
-                        },
-                    )
-                }
-                composable(
-                    route = Screen.EditMedicationGroup.route,
-                    arguments = listOf(
-                        navArgument(MedicationGroupEditorViewModel.GROUP_ID_ARG) {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        },
-                        navArgument(TOP_LEVEL_PARENT_ARG) {
-                            type = NavType.StringType
-                            defaultValue = Screen.Plan.route
-                        },
-                        navArgument(MEDICATION_GROUP_EDITOR_SOURCE_ARG) {
-                            type = NavType.StringType
-                            defaultValue = ""
-                        }
-                    )
-                ) { backStackEntry ->
-                    val openedFromArchivedGroupsPage =
-                        backStackEntry.arguments?.getString(MEDICATION_GROUP_EDITOR_SOURCE_ARG) ==
-                                MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS
-                    val topLevelParentRoute =
-                        backStackEntry.arguments?.getString(TOP_LEVEL_PARENT_ARG)
-                            ?: Screen.Plan.route
-                    val groupEditorViewModel: MedicationGroupEditorViewModel =
-                        hiltViewModel(backStackEntry)
-                    var pendingSlotResultKey by rememberSaveable {
-                        mutableStateOf<String?>(null)
-                    }
-                    var pendingSlotLocalId by rememberSaveable {
-                        mutableStateOf<String?>(null)
-                    }
-                    val pendingResultKey = pendingSlotResultKey
-                    val groupSlotResultBundle by if (pendingResultKey != null) {
-                        backStackEntry.savedStateHandle
-                            .getStateFlow<android.os.Bundle?>(pendingResultKey, null)
-                            .collectAsStateWithLifecycle()
-                    } else {
-                        remember { mutableStateOf<android.os.Bundle?>(null) }
-                    }
-                    LaunchedEffect(pendingResultKey, groupSlotResultBundle) {
-                        val key = pendingResultKey ?: return@LaunchedEffect
-                        val localId = pendingSlotLocalId ?: return@LaunchedEffect
-                        val bundle = groupSlotResultBundle ?: return@LaunchedEffect
-                        com.mkx.hrttracker.ui.catalog.MedicineSlotResult.fromBundle(bundle)
-                            ?.let { slotResult ->
-                                groupEditorViewModel.addCompletedMedicationSlot(
-                                    localId = localId,
-                                    slot = slotResult,
+                            },
+                            onAddEntryClick = {
+                                // Jump straight to the manager; its dose sheet saves
+                                // the manual log directly in manual-log mode.
+                                navController.navigate(
+                                    Screen.Medicines.createRoute(
+                                        topLevelParentRoute = selectedBottomScreen.route,
+                                        slotResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
+                                    ),
                                 )
+                            },
+                            onQuickLogDoseClick = { request ->
+                                if (request.medicationCount > 0) {
+                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                        quickLogRequest = MedicationLogEntryQuickLogRequest(
+                                            groupId = request.groupUuid,
+                                            scheduleTimeUuid = request.scheduleTimeUuid,
+                                            scheduledFor = request.scheduledAt,
+                                            medicine = request.medicine,
+                                            applicationType = request.applicationType,
+                                            doseInstruction = request.doseInstruction,
+                                            medicationCount = request.medicationCount,
+                                            sourceGroupName = request.sourceGroupName,
+                                            sourceGroupColorKey = request.sourceGroupColorKey,
+                                            sourceGroupIsArchived = request.sourceGroupIsArchived,
+                                            sourceGroupPreviousScheduledFor = request.sourceGroupPreviousScheduledFor,
+                                            sourceGroupNextScheduledFor = request.sourceGroupNextScheduledFor,
+                                        )
+                                    )
+                                }
                             }
-                        backStackEntry.savedStateHandle.remove<android.os.Bundle>(key)
-                        pendingSlotResultKey = null
-                        pendingSlotLocalId = null
+                        )
                     }
-                    MedicationGroupEditorScreen(
-                        modifier = modifier,
-                        onNavigateBack = { navController.popBackStackSafely() },
-                        onGroupSaved = { navController.popBackStackSafely() },
-                        onGroupSavedToPlan = {
-                            if (!navController.popBackStackSafely(Screen.Plan.route, inclusive = false)) {
-                                navController.navigate(Screen.Plan.route) {
+                    composable(Screen.Plan.route) {
+                        PlanScreen(
+                            modifier = modifier,
+                            scrollToTopSignal = planScrollToTopSignal,
+                            onGroupClick = { groupId ->
+                                navController.navigate(
+                                    Screen.EditMedicationGroup.createRoute(
+                                        topLevelParentRoute = Screen.Plan.route,
+                                        groupId = groupId.toString()
+                                    )
+                                )
+                            },
+                            onEntryClick = { entryIds ->
+                                medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                    entryIds = entryIds.map(UUID::toString)
+                                )
+                            },
+                            onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medication, medicationCount ->
+                                if (medicationCount > 0) {
+                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                        quickLogRequest = MedicationLogEntryQuickLogRequest(
+                                            groupId = groupId,
+                                            scheduleTimeUuid = scheduleTimeUuid,
+                                            scheduledFor = scheduledAt,
+                                            medicine = medication.medicine,
+                                            applicationType = medication.applicationType,
+                                            doseInstruction = medication.doseInstruction,
+                                            medicationCount = medicationCount
+                                        )
+                                    )
+                                }
+                            },
+                            onAddGroupClick = {
+                                navController.navigate(
+                                    Screen.EditMedicationGroup.createRoute(
+                                        topLevelParentRoute = Screen.Plan.route
+                                    )
+                                )
+                            },
+                            onHistoryClick = {
+                                navController.navigate(Screen.History.createRoute(Screen.Plan.route)) {
+                                    launchSingleTop = true
+                                }
+                            },
+                            onBatchAddClick = {
+                                navController.navigate(Screen.PlanBatchAdd.createRoute(Screen.Plan.route)) {
+                                    launchSingleTop = true
+                                }
+                            },
+                            onArchivedGroupsClick = {
+                                navController.navigate(Screen.PlanArchivedGroups.createRoute(Screen.Plan.route)) {
+                                    launchSingleTop = true
+                                }
+                            },
+                            onMedicinesClick = {
+                                navController.navigate(Screen.Medicines.createRoute(Screen.Plan.route)) {
                                     launchSingleTop = true
                                 }
                             }
-                        },
-                        openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
-                        viewModel = groupEditorViewModel,
-                        // The screen still asks the host to "open the picker"
-                        // with a slot localId; the host now navigates to the
-                        // manager with a slotResultKey so the manager hosts the
-                        // dose sheet and returns a complete slot Bundle.
-                        onOpenMedicinePicker = { localId ->
-                            val resultKey = "$GROUP_SLOT_MEDICINE_RESULT_KEY_PREFIX$localId"
-                            pendingSlotResultKey = resultKey
-                            pendingSlotLocalId = localId
-                            navController.navigate(
-                                Screen.Medicines.createRoute(
-                                    topLevelParentRoute = topLevelParentRoute,
-                                    slotResultKey = resultKey,
-                                ),
-                            )
-                        },
-                    )
+                        )
+                    }
+                    composable(
+                        route = Screen.PlanBatchAdd.route,
+                        arguments = listOf(
+                            navArgument(TOP_LEVEL_PARENT_ARG) {
+                                type = NavType.StringType
+                                defaultValue = Screen.Plan.route
+                            }
+                        )
+                    ) {
+                        PlanBatchAddScreen(
+                            modifier = modifier,
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            onStockWarning = showPostLogStockWarning,
+                        )
+                    }
+                    composable(
+                        route = Screen.PlanArchivedGroups.route,
+                        arguments = listOf(
+                            navArgument(TOP_LEVEL_PARENT_ARG) {
+                                type = NavType.StringType
+                                defaultValue = Screen.Plan.route
+                            }
+                        )
+                    ) {
+                        ArchivedMedicationGroupsScreen(
+                            modifier = modifier,
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            onGroupClick = { groupId ->
+                                navController.navigate(
+                                    Screen.EditMedicationGroup.createRoute(
+                                        topLevelParentRoute = Screen.Plan.route,
+                                        groupId = groupId.toString(),
+                                        source = MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS,
+                                    )
+                                )
+                            }
+                        )
+                    }
+                    composable(
+                        route = Screen.History.route,
+                        arguments = listOf(
+                            navArgument(TOP_LEVEL_PARENT_ARG) {
+                                type = NavType.StringType
+                                defaultValue = Screen.Plan.route
+                            }
+                        )
+                    ) {
+                        HistoryScreen(
+                            modifier = modifier,
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            onEntryClick = { entryIds ->
+                                medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                    entryIds = entryIds.map(UUID::toString)
+                                )
+                            }
+                        )
+                    }
+                    composable(Screen.Settings.route) {
+                        SettingsScreen(
+                            modifier = modifier,
+                            scrollToTopSignal = settingsScrollToTopSignal,
+                            onCalibrationClick = {
+                                navController.navigate(
+                                    Screen.SettingsCalibration.createRoute(Screen.Settings.route)
+                                )
+                            }
+                        )
+                    }
+                    composable(
+                        route = Screen.SettingsCalibration.route,
+                        arguments = listOf(
+                            navArgument(TOP_LEVEL_PARENT_ARG) {
+                                type = NavType.StringType
+                                defaultValue = Screen.Settings.route
+                            }
+                        )
+                    ) {
+                        CalibrationScreen(
+                            modifier = modifier,
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            onUnitsClick = {
+                                navController.navigate(
+                                    Screen.SettingsCalibrationUnits.createRoute(Screen.Settings.route)
+                                )
+                            },
+                            onAddClick = {
+                                navController.navigate(
+                                    Screen.SettingsCalibrationEntry.createRoute(Screen.Settings.route)
+                                )
+                            },
+                            onPanelClick = { panelUuid ->
+                                navController.navigate(
+                                    Screen.SettingsCalibrationEntry.createRoute(
+                                        topLevelParentRoute = Screen.Settings.route,
+                                        panelId = panelUuid.toString()
+                                    )
+                                )
+                            }
+                        )
+                    }
+                    composable(
+                        route = Screen.SettingsCalibrationUnits.route,
+                        arguments = listOf(
+                            navArgument(TOP_LEVEL_PARENT_ARG) {
+                                type = NavType.StringType
+                                defaultValue = Screen.Settings.route
+                            }
+                        )
+                    ) {
+                        CalibrationUnitsScreen(
+                            modifier = modifier,
+                            onNavigateBack = { navController.popBackStackSafely() },
+                        )
+                    }
+                    composable(
+                        route = Screen.SettingsCalibrationEntry.route,
+                        arguments = listOf(
+                            navArgument(CalibrationEditorViewModel.PANEL_ID_ARG) {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            },
+                            navArgument(TOP_LEVEL_PARENT_ARG) {
+                                type = NavType.StringType
+                                defaultValue = Screen.Settings.route
+                            }
+                        )
+                    ) {
+                        CalibrationEditorScreen(
+                            modifier = modifier,
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            onSaved = { navController.popBackStackSafely() }
+                        )
+                    }
+                    composable(
+                        route = Screen.Medicines.route,
+                        arguments = listOf(
+                            navArgument(TOP_LEVEL_PARENT_ARG) {
+                                type = NavType.StringType
+                                defaultValue = Screen.Plan.route
+                            },
+                            navArgument(SLOT_RESULT_KEY_ARG) {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            },
+                        ),
+                    ) { backStackEntry ->
+                        val topLevelParentRoute =
+                            backStackEntry.arguments?.getString(TOP_LEVEL_PARENT_ARG)
+                                ?: Screen.Plan.route
+                        val slotResultKey =
+                            backStackEntry.arguments?.getString(SLOT_RESULT_KEY_ARG)
+                        val launchMode = medicineManagerLaunchMode(
+                            slotResultKey = slotResultKey,
+                            manualLogResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
+                        )
+                        MedicinesScreen(
+                            modifier = modifier,
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            onMedicineClick = { medicineId ->
+                                // Slot-result mode: MedicinesScreen hosts the dose
+                                // sheet itself and returns the completed slot via
+                                // onSlotResolved below — don't open the detail
+                                // screen in that case.
+                                if (launchMode == MedicineManagerLaunchMode.Manager) {
+                                    navController.navigate(
+                                        Screen.MedicineDetail.createRoute(
+                                            medicineId = medicineId.toString(),
+                                            topLevelParentRoute = topLevelParentRoute,
+                                        ),
+                                    )
+                                }
+                            },
+                            launchMode = launchMode,
+                            onSlotResolved = { slotResult ->
+                                val groupSlotMode =
+                                    launchMode as? MedicineManagerLaunchMode.GroupSlot
+                                        ?: return@MedicinesScreen
+                                navController.previousBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.set(groupSlotMode.resultKey, slotResult.toBundle())
+                                navController.popBackStackSafely()
+                            },
+                            onManualLogSaved = { warning ->
+                                navController.popBackStackSafely()
+                                warning?.let(showPostLogStockWarning)
+                            },
+                            onNewMedicineCreated = stockNudgeViewModel::onNewMedicineCreated,
+                            stockNudgeEnabled = stockNudgeEnabled,
+                            onSetStockNudgeEnabled = stockNudgeViewModel::setEnabled,
+                        )
+                    }
+                    composable(
+                        route = Screen.MedicineDetail.route,
+                        arguments = listOf(
+                            navArgument(MedicineDetailViewModel.MEDICINE_ID_ARG) {
+                                type = NavType.StringType
+                            },
+                            navArgument(TOP_LEVEL_PARENT_ARG) {
+                                type = NavType.StringType
+                                defaultValue = Screen.Plan.route
+                            },
+                            navArgument(MedicineDetailViewModel.OPEN_OPT_IN_ARG) {
+                                type = NavType.BoolType
+                                defaultValue = false
+                            },
+                        ),
+                    ) {
+                        MedicineDetailScreen(
+                            modifier = modifier,
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            onGroupClick = { groupId ->
+                                navController.navigate(
+                                    Screen.EditMedicationGroup.createRoute(
+                                        topLevelParentRoute = Screen.Plan.route,
+                                        groupId = groupId.toString(),
+                                    ),
+                                )
+                            },
+                        )
+                    }
+                    composable(
+                        route = Screen.EditMedicationGroup.route,
+                        arguments = listOf(
+                            navArgument(MedicationGroupEditorViewModel.GROUP_ID_ARG) {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            },
+                            navArgument(TOP_LEVEL_PARENT_ARG) {
+                                type = NavType.StringType
+                                defaultValue = Screen.Plan.route
+                            },
+                            navArgument(MEDICATION_GROUP_EDITOR_SOURCE_ARG) {
+                                type = NavType.StringType
+                                defaultValue = ""
+                            }
+                        )
+                    ) { backStackEntry ->
+                        val openedFromArchivedGroupsPage =
+                            backStackEntry.arguments?.getString(MEDICATION_GROUP_EDITOR_SOURCE_ARG) ==
+                                    MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS
+                        val topLevelParentRoute =
+                            backStackEntry.arguments?.getString(TOP_LEVEL_PARENT_ARG)
+                                ?: Screen.Plan.route
+                        val groupEditorViewModel: MedicationGroupEditorViewModel =
+                            hiltViewModel(backStackEntry)
+                        var pendingSlotResultKey by rememberSaveable {
+                            mutableStateOf<String?>(null)
+                        }
+                        var pendingSlotLocalId by rememberSaveable {
+                            mutableStateOf<String?>(null)
+                        }
+                        val pendingResultKey = pendingSlotResultKey
+                        val groupSlotResultBundle by if (pendingResultKey != null) {
+                            backStackEntry.savedStateHandle
+                                .getStateFlow<android.os.Bundle?>(pendingResultKey, null)
+                                .collectAsStateWithLifecycle()
+                        } else {
+                            remember { mutableStateOf<android.os.Bundle?>(null) }
+                        }
+                        LaunchedEffect(pendingResultKey, groupSlotResultBundle) {
+                            val key = pendingResultKey ?: return@LaunchedEffect
+                            val localId = pendingSlotLocalId ?: return@LaunchedEffect
+                            val bundle = groupSlotResultBundle ?: return@LaunchedEffect
+                            com.mkx.hrttracker.ui.catalog.MedicineSlotResult.fromBundle(bundle)
+                                ?.let { slotResult ->
+                                    groupEditorViewModel.addCompletedMedicationSlot(
+                                        localId = localId,
+                                        slot = slotResult,
+                                    )
+                                }
+                            backStackEntry.savedStateHandle.remove<android.os.Bundle>(key)
+                            pendingSlotResultKey = null
+                            pendingSlotLocalId = null
+                        }
+                        MedicationGroupEditorScreen(
+                            modifier = modifier,
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            onGroupSaved = { navController.popBackStackSafely() },
+                            onGroupSavedToPlan = {
+                                if (!navController.popBackStackSafely(
+                                        Screen.Plan.route,
+                                        inclusive = false
+                                    )
+                                ) {
+                                    navController.navigate(Screen.Plan.route) {
+                                        launchSingleTop = true
+                                    }
+                                }
+                            },
+                            openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+                            viewModel = groupEditorViewModel,
+                            // The screen still asks the host to "open the picker"
+                            // with a slot localId; the host now navigates to the
+                            // manager with a slotResultKey so the manager hosts the
+                            // dose sheet and returns a complete slot Bundle.
+                            onOpenMedicinePicker = { localId ->
+                                val resultKey = "$GROUP_SLOT_MEDICINE_RESULT_KEY_PREFIX$localId"
+                                pendingSlotResultKey = resultKey
+                                pendingSlotLocalId = localId
+                                navController.navigate(
+                                    Screen.Medicines.createRoute(
+                                        topLevelParentRoute = topLevelParentRoute,
+                                        slotResultKey = resultKey,
+                                    ),
+                                )
+                            },
+                        )
+                    }
                 }
-            }
                 SnackbarHost(
                     hostState = snackbarHostState,
                     modifier = Modifier
@@ -1189,12 +1206,15 @@ internal data class MedicationLogEntrySheetRequest(
     val editSnapshot: MedicationLogEntryEditSnapshot? = null,
 )
 
-internal val MedicationLogEntrySheetRequestSaver: Saver<MedicationLogEntrySheetRequest?, Any> = Saver(
-    save = { request -> request?.let(::saveMedicationLogEntrySheetRequest) ?: SAVED_REQUEST_ABSENT },
-    restore = { saved ->
-        if (saved == SAVED_REQUEST_ABSENT) null else restoreMedicationLogEntrySheetRequest(saved)
-    }
-)
+internal val MedicationLogEntrySheetRequestSaver: Saver<MedicationLogEntrySheetRequest?, Any> =
+    Saver(
+        save = { request ->
+            request?.let(::saveMedicationLogEntrySheetRequest) ?: SAVED_REQUEST_ABSENT
+        },
+        restore = { saved ->
+            if (saved == SAVED_REQUEST_ABSENT) null else restoreMedicationLogEntrySheetRequest(saved)
+        }
+    )
 
 private const val SAVED_REQUEST_ABSENT = "absent"
 
@@ -1499,6 +1519,7 @@ private fun saveDoseInstruction(instruction: DoseInstruction): ArrayList<Any?> {
         is DoseInstruction.VolumeMl -> arrayListOf(instruction.kind.name, instruction.valueMl)
         is DoseInstruction.WeightGrams ->
             arrayListOf(instruction.kind.name, instruction.valueGrams)
+
         DoseInstruction.Noop -> arrayListOf(instruction.kind.name)
     }
 }
@@ -1516,6 +1537,7 @@ private fun restoreDoseInstruction(saved: Any): DoseInstruction {
         DoseInstructionKind.VOLUME_ML -> DoseInstruction.VolumeMl(valueMl = list[1] as Double)
         DoseInstructionKind.WEIGHT_GRAMS ->
             DoseInstruction.WeightGrams(valueGrams = list[1] as Double)
+
         DoseInstructionKind.NOOP -> DoseInstruction.Noop
     }
 }

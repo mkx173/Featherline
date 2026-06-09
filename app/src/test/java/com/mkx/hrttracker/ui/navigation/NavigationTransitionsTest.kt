@@ -20,7 +20,7 @@ class NavigationTransitionsTest {
     @Test
     fun fadeThroughAlphaProgress_fadesIncomingAfterThreshold() {
         val halfwayThroughIncomingRange = navigationFadeThroughProgressThreshold +
-            (1f - navigationFadeThroughProgressThreshold) / 2f
+                (1f - navigationFadeThroughProgressThreshold) / 2f
 
         assertEquals(
             0.5f,

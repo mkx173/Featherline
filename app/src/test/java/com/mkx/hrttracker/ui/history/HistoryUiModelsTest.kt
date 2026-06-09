@@ -40,7 +40,8 @@ class HistoryUiModelsTest {
     fun historyEntryGroupDayFormatter_uses_compact_chinese_month_day_format() {
         assertEquals(
             "4月23日",
-            LocalDate.of(2026, 4, 23).format(historyEntryGroupDayFormatter(Locale.SIMPLIFIED_CHINESE))
+            LocalDate.of(2026, 4, 23)
+                .format(historyEntryGroupDayFormatter(Locale.SIMPLIFIED_CHINESE))
         )
     }
 
@@ -667,7 +668,10 @@ class HistoryUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("88ceb348-79c3-42e8-b7ca-d7db366d51d8"),
-                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    medicine = testMedicine(
+                        uuid = estradiolMedicineUuid,
+                        key = MedicationKey.ESTRADIOL
+                    ),
                     applicationType = MedicationApplicationType.ORAL,
                     doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
@@ -681,7 +685,10 @@ class HistoryUiModelsTest {
             entries = listOf(
                 testMedicationLogEntry(
                     uuid = UUID.fromString("9c6b8810-0f6a-49ec-b4c1-d6777f5f3d91"),
-                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    medicine = testMedicine(
+                        uuid = estradiolMedicineUuid,
+                        key = MedicationKey.ESTRADIOL
+                    ),
                     applicationType = MedicationApplicationType.ORAL,
                     doseInstruction = DoseInstruction.TabletFraction(1, 1),
                     equivalentE2Mg = 2.0,
@@ -721,7 +728,10 @@ class HistoryUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("9bd71b0c-a8f6-4660-a67e-ec0b7d082be4"),
-                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    medicine = testMedicine(
+                        uuid = estradiolMedicineUuid,
+                        key = MedicationKey.ESTRADIOL
+                    ),
                     applicationType = MedicationApplicationType.ORAL,
                     doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
@@ -782,7 +792,10 @@ class HistoryUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("44ad043e-d440-40ef-b20d-2d265cb08d58"),
-                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    medicine = testMedicine(
+                        uuid = estradiolMedicineUuid,
+                        key = MedicationKey.ESTRADIOL
+                    ),
                     applicationType = MedicationApplicationType.ORAL,
                     doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
@@ -842,7 +855,10 @@ class HistoryUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("9fc1bb97-6f3e-4e91-bf30-c757e43de714"),
-                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    medicine = testMedicine(
+                        uuid = estradiolMedicineUuid,
+                        key = MedicationKey.ESTRADIOL
+                    ),
                     applicationType = MedicationApplicationType.ORAL,
                     doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
@@ -902,7 +918,10 @@ class HistoryUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("d2f9a642-05d7-4935-94e2-92ec5f55fc28"),
-                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    medicine = testMedicine(
+                        uuid = estradiolMedicineUuid,
+                        key = MedicationKey.ESTRADIOL
+                    ),
                     applicationType = MedicationApplicationType.ORAL,
                     doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
@@ -962,7 +981,10 @@ class HistoryUiModelsTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("50edcf50-76aa-4ced-aab1-1fa19ff52860"),
-                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    medicine = testMedicine(
+                        uuid = estradiolMedicineUuid,
+                        key = MedicationKey.ESTRADIOL
+                    ),
                     applicationType = MedicationApplicationType.ORAL,
                     doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
@@ -1004,7 +1026,10 @@ class HistoryUiModelsTest {
             entries = listOf(
                 testMedicationLogEntry(
                     uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
-                    medicine = testMedicine(uuid = estradiolMedicineUuid, key = MedicationKey.ESTRADIOL),
+                    medicine = testMedicine(
+                        uuid = estradiolMedicineUuid,
+                        key = MedicationKey.ESTRADIOL
+                    ),
                     applicationType = MedicationApplicationType.ORAL,
                     doseInstruction = DoseInstruction.TabletFraction(1, 1),
                     equivalentE2Mg = 2.0,
@@ -1350,18 +1375,22 @@ class HistoryUiModelsTest {
                 status = status,
                 hasOffPlanRecord = hasOffPlanRecord
             )
+
             PlanCalendarDayStatus.OFFPLAN -> HistoryCalendarDayUiState(
                 status = status,
                 hasOffPlanRecord = hasOffPlanRecord
             )
+
             PlanCalendarDayStatus.MISSED -> HistoryCalendarDayUiState(
                 status = status,
                 hasOffPlanRecord = hasOffPlanRecord
             )
+
             PlanCalendarDayStatus.PARTIAL -> HistoryCalendarDayUiState(
                 status = status,
                 hasOffPlanRecord = hasOffPlanRecord
             )
+
             PlanCalendarDayStatus.FULFILLED -> HistoryCalendarDayUiState(
                 status = status,
                 hasOffPlanRecord = hasOffPlanRecord

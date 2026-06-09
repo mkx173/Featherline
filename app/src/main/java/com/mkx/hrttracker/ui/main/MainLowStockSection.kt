@@ -90,7 +90,9 @@ fun MainLowStockSection(
 
             AnimatedVisibility(visible = expanded) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
                 ) {
                     sortedWarnings.forEachIndexed { index, projection ->
@@ -153,7 +155,9 @@ private fun MainLowStockCardHeader(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).cjkTextOffset(title),
+            modifier = Modifier
+                .weight(1f)
+                .cjkTextOffset(title),
         )
 
         Icon(
@@ -261,9 +265,11 @@ internal fun mainLowStockRunwaySupportingText(
             pluralResId = R.plurals.stock_runway_days_remaining,
             intArg = runway.days,
         )
+
         RunwayProjection.BeyondHorizon -> MainLowStockRunwaySupportingText(
             resId = R.string.stock_runway_more_than_one_year,
         )
+
         RunwayProjection.NoSchedule -> MainLowStockRunwaySupportingText(
             resId = R.string.stock_runway_unknown_title,
         )
@@ -279,6 +285,7 @@ private fun MainLowStockRunwaySupportingText.resolve(): String {
     return when {
         pluralResId != null && intArg != null ->
             pluralStringResource(pluralResId, intArg, intArg)
+
         resId != null -> stringResource(resId)
         else -> ""
     }

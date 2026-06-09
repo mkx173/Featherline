@@ -82,7 +82,7 @@ private fun PastScheduleSelectorRows(
         if (state.showGeneratePastRecordsOption) {
             add(
                 PastScheduleOption.SHOW_AND_GENERATE_RECORDS to
-                    R.string.group_past_schedule_show_and_generate_records
+                        R.string.group_past_schedule_show_and_generate_records
             )
         }
     }

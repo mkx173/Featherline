@@ -174,12 +174,16 @@ private fun PlanBatchAddScreenContent(
     val deductStockSupportingText = when (uiState.deductStockAvailability) {
         DeductStockAvailability.NO_GROUP ->
             stringResource(R.string.plan_batch_add_select_group_prompt)
+
         DeductStockAvailability.NONE_TRACKED ->
             stringResource(R.string.plan_batch_add_deduct_stock_none_tracked)
+
         DeductStockAvailability.NOT_STARTED ->
             stringResource(R.string.plan_batch_add_group_not_started)
+
         DeductStockAvailability.NO_CHANGES ->
             stringResource(R.string.plan_batch_add_select_group_no_available_medicines)
+
         DeductStockAvailability.AVAILABLE -> pluralStringResource(
             R.plurals.plan_batch_add_deduct_stock_change_count,
             uiState.stockPreviewItems.size,
@@ -422,8 +426,10 @@ private fun PlanBatchAddRangeSelector(
                     supportingText = when {
                         !hasSelectedGroup ->
                             stringResource(R.string.plan_batch_add_select_group_prompt)
+
                         selectedGroupStartsInFuture ->
                             stringResource(R.string.plan_batch_add_group_not_started)
+
                         else -> stringResource(
                             R.string.plan_batch_add_date_range_value,
                             dateFormatter(startDate),
@@ -505,7 +511,9 @@ private fun PlanBatchAddRangeSelector(
             onClick = onConfirmClick,
             enabled = canConfirm,
             icon = ImageVector.vectorResource(R.drawable.ic_format_list_bulleted_add),
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
             iconModifier = Modifier.size(20.dp)
         )
     }
@@ -547,7 +555,9 @@ private fun PlanBatchAddStockSection(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
-                onClick = if (switchEnabled) { { onDeductStockChange(!deductStock) } } else null,
+                onClick = if (switchEnabled) {
+                    { onDeductStockChange(!deductStock) }
+                } else null,
                 trailingContent = {
                     Switch(
                         checked = deductStock,
@@ -610,7 +620,7 @@ private fun PlanBatchDateRangePickerDialog(
         confirmButton = {
             TextButton(
                 enabled = state.getSelectedStartDate() != null &&
-                    state.getSelectedEndDate() != null,
+                        state.getSelectedEndDate() != null,
                 onClick = {
                     val selectedStartDate = state.getSelectedStartDate()
                     val selectedEndDate = state.getSelectedEndDate()

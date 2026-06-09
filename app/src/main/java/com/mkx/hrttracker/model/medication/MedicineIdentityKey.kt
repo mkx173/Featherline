@@ -56,29 +56,36 @@ object MedicineIdentityKey {
             is MedicinePreparation.Pill -> {
                 appendField("strengthMgPerTablet", preparation.strengthMgPerTablet)
             }
+
             is MedicinePreparation.Capsule -> {
                 appendField("strengthMgPerTablet", preparation.strengthMgPerCapsule)
             }
+
             is MedicinePreparation.InjectionSingleUseVial -> {
                 appendField("strengthMgPerVial", preparation.strengthMgPerVial)
             }
+
             is MedicinePreparation.InjectionMultiUseVial -> {
                 appendField("concentrationMgPerMl", preparation.concentrationMgPerMl)
                 appendField("vialVolumeMl", preparation.vialVolumeMl)
             }
+
             is MedicinePreparation.GelSachet -> {
                 appendField("concentrationPercent", preparation.concentrationPercent)
                 appendField("sachetWeightGrams", preparation.sachetWeightGrams)
             }
+
             is MedicinePreparation.GelContainer -> {
                 appendField("concentrationPercent", preparation.concentrationPercent)
                 appendField("containerWeightGrams", preparation.containerWeightGrams)
             }
+
             is MedicinePreparation.Patch -> {
                 when (val specification = preparation.specification) {
                     is MedicinePreparation.PatchSpecification.TotalMg -> {
                         appendField("patchTotalMg", specification.valueMg)
                     }
+
                     is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay -> {
                         appendField("patchReleaseRateMcgPerDay", specification.valueMcgPerDay)
                     }

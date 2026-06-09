@@ -274,6 +274,7 @@ fun MedicationGroupEditorScreen(
             isExactAlarmDialogVisible = exactAlarmUiState.showExactAlarmDialog
         }
     }
+
     fun navigateAfterSave(target: MedicationGroupEditorSaveNavigationTarget) {
         when (target) {
             MedicationGroupEditorSaveNavigationTarget.BACK -> onGroupSaved()
@@ -579,8 +580,8 @@ private fun MedicationGroupEditorScreenContent(
     // keep the save button visually normal; the click handler no-ops via
     // shouldDisableMedicationGroupEditorSaveAction below.
     val canSave = hasSaveableMedicationGroupContent(uiState) &&
-        !uiState.scheduleTimeOrderError &&
-        !uiState.isArchived
+            !uiState.scheduleTimeOrderError &&
+            !uiState.isArchived
     val shouldUseArchivedPresentation = shouldUseArchivedMedicationGroupEditorPresentation(
         uiState = uiState,
         openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
@@ -944,9 +945,9 @@ private fun MedicationGroupEditorScreenContent(
         var shouldCreateActiveCopyAfterArchive by rememberSaveable { mutableStateOf(false) }
         var hasAcknowledgedArchiveIsPermanent by rememberSaveable { mutableStateOf(false) }
         val isArchiveActionInProgress = uiState.isSaving ||
-            uiState.isFinishingAfterSave ||
-            uiState.isArchiving ||
-            uiState.isRecreatingAfterArchive
+                uiState.isFinishingAfterSave ||
+                uiState.isArchiving ||
+                uiState.isRecreatingAfterArchive
         val isArchiveBlockedByCurrentOrFuturePlannedSlots =
             uiState.currentOrFuturePlannedSlotCount > 0
         // null = the default "now" cutoff (bound at confirm time); a non-null
@@ -1023,6 +1024,7 @@ private fun MedicationGroupEditorScreenContent(
                                     // stays on "Now".
                                     selectedArchiveDateValue == null ->
                                         stringResource(R.string.archive_medication_group_end_date_now)
+
                                     else -> archiveDateFormatter(selectedArchiveDateValue)
                                 },
                                 onClick = if (uiState.archiveDateWindow.isSelectable) {
@@ -1106,11 +1108,11 @@ private fun MedicationGroupEditorScreenContent(
                 // stays visually normal while ROOM is writing.
                 TextButton(
                     enabled = hasAcknowledgedArchiveIsPermanent &&
-                        !isArchiveBlockedByCurrentOrFuturePlannedSlots &&
-                        !isArchiveDateSelectionInvalid(
-                            selectedArchiveDate,
-                            uiState.archiveDateWindow,
-                        ),
+                            !isArchiveBlockedByCurrentOrFuturePlannedSlots &&
+                            !isArchiveDateSelectionInvalid(
+                                selectedArchiveDate,
+                                uiState.archiveDateWindow,
+                            ),
                     onClick = {
                         if (isArchiveActionInProgress) return@TextButton
                         runArchiveConfirmationAction(
@@ -1352,380 +1354,388 @@ private fun MedicationGroupEditorScreenContent(
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-            if (shouldRenderLockedState) {
-                item {
-                    SupportMessageListItem(
-                        text = stringResource(R.string.group_locked_banner),
-                        painter = painterResource(R.drawable.ic_calendar_lock),
-                        leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        titleColor = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                }
-            }
-
-            item {
-                MedicationGroupNameField(
-                    groupName = uiState.groupName,
-                    defaultGroupName = uiState.defaultGroupName,
-                    isEditing = uiState.isEditing,
-                    isFinishingAfterSave = uiState.isFinishingAfterSave,
-                    selectedColorKey = uiState.groupColorKey,
-                    enabled = !uiState.isArchived,
-                    focusRequester = groupNameFocusRequester,
-                    onGroupNameChange = onGroupNameChange,
-                    onColorSelected = onGroupColorChange,
-                )
-            }
-
-            item {
-                Column {
-                    HrtSection(title = stringResource(R.string.group_medications_title)) {
-                        if (uiState.medications.isEmpty()) {
-                            item {
-                                SupportMessageListItem(
-                                    text = stringResource(R.string.group_medications_empty),
-                                    painter = painterResource(R.drawable.ic_info),
-                                    leadingIconSize = 22.dp
-                                )
-                            }
-                        } else {
-                            uiState.medications.forEach { medication ->
-                                item {
-                                    val medicationEditable = !areFieldsRenderedLocked
-                                    val isMedicineArchived =
-                                        medication.resolvedMedicine?.isArchived == true
-                                    MedicationCard(
-                                        medicine = medication.resolvedMedicine,
-                                        doseInstruction = medication.doseInstruction,
-                                        applicationType = medication.applicationType,
-                                        medicationCount = medication.count,
-                                        groupColorKey = uiState.groupColorKey,
-                                        // Null onClick drops the ripple on
-                                        // medication cards while the group is
-                                        // archived / locked, since tapping does
-                                        // nothing in that state.
-                                        onClick = if (medicationEditable) {
-                                            { openMedicationEditor(medication.localId) }
-                                        } else {
-                                            null
-                                        },
-                                        // Editable cards open the slot editor sheet,
-                                        // where the removal action now lives — so the
-                                        // trailing affordance is a tap-to-edit
-                                        // chevron rather than a delete icon. When the
-                                        // group is archived, flag any medicine that's
-                                        // also archived instead (the duplicate flow
-                                        // skips those slots since saving them would
-                                        // silently revive the archived medicine).
-                                        trailingContent = when {
-                                            uiState.isArchived && isMedicineArchived -> {
-                                                {
-                                                    Icon(
-                                                        painter = painterResource(R.drawable.ic_archive),
-                                                        contentDescription = stringResource(
-                                                            R.string.medication_archived_indicator_cd,
-                                                        ),
-                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        modifier = Modifier.size(20.dp),
-                                                    )
-                                                }
-                                            }
-
-                                            medicationEditable -> {
-                                                {
-                                                    Icon(
-                                                        imageVector = Icons.Rounded.ChevronRight,
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        modifier = Modifier.size(24.dp),
-                                                    )
-                                                }
-                                            }
-
-                                            else -> null
-                                        },
-                                        enabled = true,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    if (!areFieldsRenderedLocked) {
-                        HrtFilledTonalButton(
-                            text = stringResource(R.string.add),
-                            onClick = openAddMedicationEditor,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp),
-                            icon = Icons.Rounded.Add,
-                            iconModifier = Modifier.size(
-                                ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
-                            ),
-                            iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
-                            compact = true,
-                        )
-                    }
-                }
-            }
-
-            item {
-                val pastScheduleSelectorState =
-                    if (
-                        shouldShowPastScheduleSection(
-                            uiState = uiState,
-                            referenceTime = resolvedOccurrenceReferenceTime,
-                        )
-                    ) {
-                        val recreatedLockedMessage =
-                            if (shouldShowRecreatedPastScheduleMessage(uiState)) {
-                                stringResource(R.string.group_past_schedule_recreated_locked_note)
-                            } else {
-                                null
-                            }
-                        resolvePastScheduleSelectorState(
-                            uiState = uiState,
-                            isNewGroupCreationFlow = isNewGroupCreationFlow,
-                            lockedMessage = recreatedLockedMessage,
-                        )
-                    } else {
-                        null
-                    }
-                val onPastScheduleOptionSelected: (PastScheduleOption) -> Unit = { option ->
-                    if (pastScheduleSelectorState?.interactive == true) {
-                        applyPastScheduleOption(
-                            option = option,
-                            onIncludePastScheduledSlotsChange = onIncludePastScheduledSlotsChange,
-                            onCreatePastScheduledSlotRecordsChange =
-                                onCreatePastScheduledSlotRecordsChange,
-                        )
-                    }
-                }
-                val showRecreatedStartDatePastLimitMessage =
-                    shouldShowRecreatedStartDatePastLimitMessage(uiState)
-                Column {
-                    HrtSection(title = stringResource(R.string.group_schedule_title)) {
-                        if (showRecreatedStartDatePastLimitMessage) {
-                            item {
-                                SupportMessageListItem(
-                                    text = stringResource(R.string.group_schedule_recreated_start_date_past_note),
-                                    painter = painterResource(R.drawable.ic_calendar_lock),
-                                    leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                    titleColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                                )
-                            }
-                        }
-                    }
-                    if (showRecreatedStartDatePastLimitMessage) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                    CompositionLocalProvider(
-                        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
-                    ) {
-                        ConnectedButtonGroup(
-                            modifier = Modifier.fillMaxWidth(),
-                            options = scheduleOptions,
-                            selectedOption = uiState.scheduleType,
-                            optionLabel = { scheduleType ->
-                                stringResource(
-                                    if (scheduleType == MedicationGroupScheduleType.DAILY) {
-                                        R.string.group_schedule_daily
-                                    } else {
-                                        R.string.group_schedule_weekly
-                                    }
-                                )
-                            },
-                            onOptionSelected = onScheduleTypeChange,
-                            enabled = !areFieldsRenderedLocked,
-                            layout = ConnectedButtonGroupLayout.ROW,
-                            expandOptions = true,
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
-                        WeeklyScheduleEditor(
-                            sinceDate = uiState.sinceDate,
-                            intervalWeeks = uiState.weeklyIntervalWeeks,
-                            selectedDaysOfWeek = uiState.weeklyDaysOfWeek,
-                            firstDayOfWeek = uiState.firstDayOfWeek,
-                            time = uiState.weeklyTime,
-                            originalTime = uiState.originalWeeklyTime.takeIf {
-                                uiState.originalScheduleType ==
-                                    MedicationGroupScheduleType.WEEKLY
-                            },
-                            previewOccurrences = upcomingOccurrences,
-                            currentDate = currentDate,
-                            appLocale = appLocale,
-                            dateFormatter = dateFormatter,
-                            timeFormatter = timeFormatter,
-                            onSinceDateChange = { currentDate -> pendingSinceDate = currentDate },
-                            onIntervalChange = onWeeklyIntervalChange,
-                            onDayChange = onWeeklyDayChange,
-                            onResetDaysOfWeek = onWeeklyResetDaysOfWeek,
-                            onTimeChange = { currentTime -> pendingWeeklyTime = currentTime },
-                            pastScheduleSelectorState = pastScheduleSelectorState,
-                            onPastScheduleOptionSelected = onPastScheduleOptionSelected,
-                            sinceEnabled = !areFieldsRenderedLocked &&
-                                !uiState.isScheduleStartDateLocked,
-                            intervalEnabled = !areFieldsRenderedLocked,
-                            daySelectionEnabled = !areFieldsRenderedLocked,
-                            timeEditEnabled = !uiState.isArchived,
-                            showLockedTimeNote = shouldShowLockedTimeChangeNote,
-                            shapeLocked = areFieldsRenderedLocked,
-                        )
-                    } else {
-                        DailyScheduleEditor(
-                            sinceDate = uiState.sinceDate,
-                            intervalDays = uiState.dailyIntervalDays,
-                            dailyTimes = uiState.dailyTimes,
-                            previewOccurrences = upcomingOccurrences,
-                            currentDate = currentDate,
-                            dateFormatter = dateFormatter,
-                            timeFormatter = timeFormatter,
-                            onSinceDateChange = { currentDate -> pendingSinceDate = currentDate },
-                            onIntervalChange = onDailyIntervalChange,
-                            onAddTime = {
-                                pendingNewDailyTime = LocalTime.now()
-                                    .withSecond(0)
-                                    .withNano(0)
-                            },
-                            onTimeClick = { localId, currentTime ->
-                                pendingDailyTimeEdit = DailyTimeEditRequest(
-                                    localId = localId,
-                                    initialTime = currentTime
-                                )
-                            },
-                            pastScheduleSelectorState = pastScheduleSelectorState,
-                            onPastScheduleOptionSelected = onPastScheduleOptionSelected,
-                            sinceEnabled = !areFieldsRenderedLocked &&
-                                !uiState.isScheduleStartDateLocked,
-                            intervalEnabled = !areFieldsRenderedLocked,
-                            addRemoveTimeEnabled = !areFieldsRenderedLocked,
-                            timeEditEnabled = !uiState.isArchived,
-                            showLockedTimeNote = shouldShowLockedTimeChangeNote,
-                            shapeLocked = areFieldsRenderedLocked,
-                        )
-                    }
-                }
-            }
-
-            item {
-                HrtSection(title = stringResource(R.string.group_notifications_title)) {
+                if (shouldRenderLockedState) {
                     item {
-                        NotificationsCard(
-                            enabled = uiState.notificationsEnabled,
-                            toggleEnabled = presentedNotificationsToggleEnabled,
-                            onToggle = onNotificationsEnabledChange,
+                        SupportMessageListItem(
+                            text = stringResource(R.string.group_locked_banner),
+                            painter = painterResource(R.drawable.ic_calendar_lock),
+                            leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            titleColor = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                     }
-                    if (uiState.isArchived) {
-                        item {
-                            SupportMessageListItem(
-                                text = stringResource(R.string.group_notifications_archived_disabled),
-                                painter = painterResource(R.drawable.ic_error_outline),
-                                leadingIconTint = MaterialTheme.colorScheme.tertiary,
-                                leadingIconSize = 24.dp,
-                            )
+                }
+
+                item {
+                    MedicationGroupNameField(
+                        groupName = uiState.groupName,
+                        defaultGroupName = uiState.defaultGroupName,
+                        isEditing = uiState.isEditing,
+                        isFinishingAfterSave = uiState.isFinishingAfterSave,
+                        selectedColorKey = uiState.groupColorKey,
+                        enabled = !uiState.isArchived,
+                        focusRequester = groupNameFocusRequester,
+                        onGroupNameChange = onGroupNameChange,
+                        onColorSelected = onGroupColorChange,
+                    )
+                }
+
+                item {
+                    Column {
+                        HrtSection(title = stringResource(R.string.group_medications_title)) {
+                            if (uiState.medications.isEmpty()) {
+                                item {
+                                    SupportMessageListItem(
+                                        text = stringResource(R.string.group_medications_empty),
+                                        painter = painterResource(R.drawable.ic_info),
+                                        leadingIconSize = 22.dp
+                                    )
+                                }
+                            } else {
+                                uiState.medications.forEach { medication ->
+                                    item {
+                                        val medicationEditable = !areFieldsRenderedLocked
+                                        val isMedicineArchived =
+                                            medication.resolvedMedicine?.isArchived == true
+                                        MedicationCard(
+                                            medicine = medication.resolvedMedicine,
+                                            doseInstruction = medication.doseInstruction,
+                                            applicationType = medication.applicationType,
+                                            medicationCount = medication.count,
+                                            groupColorKey = uiState.groupColorKey,
+                                            // Null onClick drops the ripple on
+                                            // medication cards while the group is
+                                            // archived / locked, since tapping does
+                                            // nothing in that state.
+                                            onClick = if (medicationEditable) {
+                                                { openMedicationEditor(medication.localId) }
+                                            } else {
+                                                null
+                                            },
+                                            // Editable cards open the slot editor sheet,
+                                            // where the removal action now lives — so the
+                                            // trailing affordance is a tap-to-edit
+                                            // chevron rather than a delete icon. When the
+                                            // group is archived, flag any medicine that's
+                                            // also archived instead (the duplicate flow
+                                            // skips those slots since saving them would
+                                            // silently revive the archived medicine).
+                                            trailingContent = when {
+                                                uiState.isArchived && isMedicineArchived -> {
+                                                    {
+                                                        Icon(
+                                                            painter = painterResource(R.drawable.ic_archive),
+                                                            contentDescription = stringResource(
+                                                                R.string.medication_archived_indicator_cd,
+                                                            ),
+                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            modifier = Modifier.size(20.dp),
+                                                        )
+                                                    }
+                                                }
+
+                                                medicationEditable -> {
+                                                    {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.ChevronRight,
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            modifier = Modifier.size(24.dp),
+                                                        )
+                                                    }
+                                                }
+
+                                                else -> null
+                                            },
+                                            enabled = true,
+                                        )
+                                    }
+                                }
+                            }
                         }
-                    } else {
-                        when (notificationSupportState) {
-                            NotificationSupportState.ACCESS_OFF -> {
-                                item {
-                                    SupportMessageListItem(
-                                        text = stringResource(R.string.settings_reminders_permission_off_summary),
-                                        painter = painterResource(R.drawable.ic_error_outline),
-                                        leadingIconTint = MaterialTheme.colorScheme.tertiary,
-                                        leadingIconSize = 24.dp,
-                                        onClick = onRecoverMasterReminders,
-                                        showChevron = true,
-                                    )
-                                }
-                            }
-
-                            NotificationSupportState.MASTER_OFF -> {
-                                item {
-                                    SupportMessageListItem(
-                                        text = stringResource(R.string.group_notifications_master_disabled),
-                                        painter = painterResource(R.drawable.ic_error_outline),
-                                        leadingIconTint = MaterialTheme.colorScheme.tertiary,
-                                        leadingIconSize = 24.dp,
-                                        onClick = { isMasterReminderRecoveryDialogVisible = true },
-                                        showChevron = true,
-                                    )
-                                }
-                            }
-
-                            NotificationSupportState.INEXACT -> {
-                                item {
-                                    SupportMessageListItem(
-                                        text = stringResource(R.string.group_notifications_inexact_warning),
-                                        painter = painterResource(R.drawable.ic_error_outline),
-                                        leadingIconTint = MaterialTheme.colorScheme.tertiary,
-                                        leadingIconSize = 24.dp,
-                                        onClick = onRequestExactAlarmAccess,
-                                        showChevron = true,
-                                    )
-                                }
-                            }
-
-                            NotificationSupportState.NONE -> Unit
+                        if (!areFieldsRenderedLocked) {
+                            HrtFilledTonalButton(
+                                text = stringResource(R.string.add),
+                                onClick = openAddMedicationEditor,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                icon = Icons.Rounded.Add,
+                                iconModifier = Modifier.size(
+                                    ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
+                                ),
+                                iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
+                                compact = true,
+                            )
                         }
                     }
                 }
-            }
 
-            if (shouldRenderAsEditing) {
                 item {
-                    val hasRelatedRecords = shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
-                        uiState = uiState,
-                        isNewGroupCreationFlow = isNewGroupCreationFlow,
-                    )
-                    HrtSection(title = stringResource(R.string.group_danger_zone_title)) {
-                        if (!uiState.isArchived) {
+                    val pastScheduleSelectorState =
+                        if (
+                            shouldShowPastScheduleSection(
+                                uiState = uiState,
+                                referenceTime = resolvedOccurrenceReferenceTime,
+                            )
+                        ) {
+                            val recreatedLockedMessage =
+                                if (shouldShowRecreatedPastScheduleMessage(uiState)) {
+                                    stringResource(R.string.group_past_schedule_recreated_locked_note)
+                                } else {
+                                    null
+                                }
+                            resolvePastScheduleSelectorState(
+                                uiState = uiState,
+                                isNewGroupCreationFlow = isNewGroupCreationFlow,
+                                lockedMessage = recreatedLockedMessage,
+                            )
+                        } else {
+                            null
+                        }
+                    val onPastScheduleOptionSelected: (PastScheduleOption) -> Unit = { option ->
+                        if (pastScheduleSelectorState?.interactive == true) {
+                            applyPastScheduleOption(
+                                option = option,
+                                onIncludePastScheduledSlotsChange = onIncludePastScheduledSlotsChange,
+                                onCreatePastScheduledSlotRecordsChange =
+                                    onCreatePastScheduledSlotRecordsChange,
+                            )
+                        }
+                    }
+                    val showRecreatedStartDatePastLimitMessage =
+                        shouldShowRecreatedStartDatePastLimitMessage(uiState)
+                    Column {
+                        HrtSection(title = stringResource(R.string.group_schedule_title)) {
+                            if (showRecreatedStartDatePastLimitMessage) {
+                                item {
+                                    SupportMessageListItem(
+                                        text = stringResource(R.string.group_schedule_recreated_start_date_past_note),
+                                        painter = painterResource(R.drawable.ic_calendar_lock),
+                                        leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                        titleColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    )
+                                }
+                            }
+                        }
+                        if (showRecreatedStartDatePastLimitMessage) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        CompositionLocalProvider(
+                            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                        ) {
+                            ConnectedButtonGroup(
+                                modifier = Modifier.fillMaxWidth(),
+                                options = scheduleOptions,
+                                selectedOption = uiState.scheduleType,
+                                optionLabel = { scheduleType ->
+                                    stringResource(
+                                        if (scheduleType == MedicationGroupScheduleType.DAILY) {
+                                            R.string.group_schedule_daily
+                                        } else {
+                                            R.string.group_schedule_weekly
+                                        }
+                                    )
+                                },
+                                onOptionSelected = onScheduleTypeChange,
+                                enabled = !areFieldsRenderedLocked,
+                                layout = ConnectedButtonGroupLayout.ROW,
+                                expandOptions = true,
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
+                            WeeklyScheduleEditor(
+                                sinceDate = uiState.sinceDate,
+                                intervalWeeks = uiState.weeklyIntervalWeeks,
+                                selectedDaysOfWeek = uiState.weeklyDaysOfWeek,
+                                firstDayOfWeek = uiState.firstDayOfWeek,
+                                time = uiState.weeklyTime,
+                                originalTime = uiState.originalWeeklyTime.takeIf {
+                                    uiState.originalScheduleType ==
+                                            MedicationGroupScheduleType.WEEKLY
+                                },
+                                previewOccurrences = upcomingOccurrences,
+                                currentDate = currentDate,
+                                appLocale = appLocale,
+                                dateFormatter = dateFormatter,
+                                timeFormatter = timeFormatter,
+                                onSinceDateChange = { currentDate ->
+                                    pendingSinceDate = currentDate
+                                },
+                                onIntervalChange = onWeeklyIntervalChange,
+                                onDayChange = onWeeklyDayChange,
+                                onResetDaysOfWeek = onWeeklyResetDaysOfWeek,
+                                onTimeChange = { currentTime -> pendingWeeklyTime = currentTime },
+                                pastScheduleSelectorState = pastScheduleSelectorState,
+                                onPastScheduleOptionSelected = onPastScheduleOptionSelected,
+                                sinceEnabled = !areFieldsRenderedLocked &&
+                                        !uiState.isScheduleStartDateLocked,
+                                intervalEnabled = !areFieldsRenderedLocked,
+                                daySelectionEnabled = !areFieldsRenderedLocked,
+                                timeEditEnabled = !uiState.isArchived,
+                                showLockedTimeNote = shouldShowLockedTimeChangeNote,
+                                shapeLocked = areFieldsRenderedLocked,
+                            )
+                        } else {
+                            DailyScheduleEditor(
+                                sinceDate = uiState.sinceDate,
+                                intervalDays = uiState.dailyIntervalDays,
+                                dailyTimes = uiState.dailyTimes,
+                                previewOccurrences = upcomingOccurrences,
+                                currentDate = currentDate,
+                                dateFormatter = dateFormatter,
+                                timeFormatter = timeFormatter,
+                                onSinceDateChange = { currentDate ->
+                                    pendingSinceDate = currentDate
+                                },
+                                onIntervalChange = onDailyIntervalChange,
+                                onAddTime = {
+                                    pendingNewDailyTime = LocalTime.now()
+                                        .withSecond(0)
+                                        .withNano(0)
+                                },
+                                onTimeClick = { localId, currentTime ->
+                                    pendingDailyTimeEdit = DailyTimeEditRequest(
+                                        localId = localId,
+                                        initialTime = currentTime
+                                    )
+                                },
+                                pastScheduleSelectorState = pastScheduleSelectorState,
+                                onPastScheduleOptionSelected = onPastScheduleOptionSelected,
+                                sinceEnabled = !areFieldsRenderedLocked &&
+                                        !uiState.isScheduleStartDateLocked,
+                                intervalEnabled = !areFieldsRenderedLocked,
+                                addRemoveTimeEnabled = !areFieldsRenderedLocked,
+                                timeEditEnabled = !uiState.isArchived,
+                                showLockedTimeNote = shouldShowLockedTimeChangeNote,
+                                shapeLocked = areFieldsRenderedLocked,
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    HrtSection(title = stringResource(R.string.group_notifications_title)) {
+                        item {
+                            NotificationsCard(
+                                enabled = uiState.notificationsEnabled,
+                                toggleEnabled = presentedNotificationsToggleEnabled,
+                                onToggle = onNotificationsEnabledChange,
+                            )
+                        }
+                        if (uiState.isArchived) {
                             item {
-                                ArchiveMedicationGroupCard(
-                                    onClick = onArchiveClick,
+                                SupportMessageListItem(
+                                    text = stringResource(R.string.group_notifications_archived_disabled),
+                                    painter = painterResource(R.drawable.ic_error_outline),
+                                    leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                                    leadingIconSize = 24.dp,
                                 )
                             }
                         } else {
-                            item {
-                                DuplicateMedicationGroupCard(
-                                    onClick = onDuplicateArchivedGroupClick,
-                                )
+                            when (notificationSupportState) {
+                                NotificationSupportState.ACCESS_OFF -> {
+                                    item {
+                                        SupportMessageListItem(
+                                            text = stringResource(R.string.settings_reminders_permission_off_summary),
+                                            painter = painterResource(R.drawable.ic_error_outline),
+                                            leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                                            leadingIconSize = 24.dp,
+                                            onClick = onRecoverMasterReminders,
+                                            showChevron = true,
+                                        )
+                                    }
+                                }
+
+                                NotificationSupportState.MASTER_OFF -> {
+                                    item {
+                                        SupportMessageListItem(
+                                            text = stringResource(R.string.group_notifications_master_disabled),
+                                            painter = painterResource(R.drawable.ic_error_outline),
+                                            leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                                            leadingIconSize = 24.dp,
+                                            onClick = {
+                                                isMasterReminderRecoveryDialogVisible = true
+                                            },
+                                            showChevron = true,
+                                        )
+                                    }
+                                }
+
+                                NotificationSupportState.INEXACT -> {
+                                    item {
+                                        SupportMessageListItem(
+                                            text = stringResource(R.string.group_notifications_inexact_warning),
+                                            painter = painterResource(R.drawable.ic_error_outline),
+                                            leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                                            leadingIconSize = 24.dp,
+                                            onClick = onRequestExactAlarmAccess,
+                                            showChevron = true,
+                                        )
+                                    }
+                                }
+
+                                NotificationSupportState.NONE -> Unit
                             }
                         }
-                        item {
-                            DeleteMedicationGroupRecordsCard(
-                                onClick = {
-                                    if (!isMedicationGroupEditorBusy(uiState)) {
-                                        if (hasRelatedRecords) {
-                                            onDeleteRelatedEntriesClick()
-                                        } else {
-                                            Toast.makeText(
-                                                context,
-                                                deleteRelatedEntriesUnavailableMessage,
-                                                Toast.LENGTH_SHORT,
-                                            ).show()
+                    }
+                }
+
+                if (shouldRenderAsEditing) {
+                    item {
+                        val hasRelatedRecords =
+                            shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
+                                uiState = uiState,
+                                isNewGroupCreationFlow = isNewGroupCreationFlow,
+                            )
+                        HrtSection(title = stringResource(R.string.group_danger_zone_title)) {
+                            if (!uiState.isArchived) {
+                                item {
+                                    ArchiveMedicationGroupCard(
+                                        onClick = onArchiveClick,
+                                    )
+                                }
+                            } else {
+                                item {
+                                    DuplicateMedicationGroupCard(
+                                        onClick = onDuplicateArchivedGroupClick,
+                                    )
+                                }
+                            }
+                            item {
+                                DeleteMedicationGroupRecordsCard(
+                                    onClick = {
+                                        if (!isMedicationGroupEditorBusy(uiState)) {
+                                            if (hasRelatedRecords) {
+                                                onDeleteRelatedEntriesClick()
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    deleteRelatedEntriesUnavailableMessage,
+                                                    Toast.LENGTH_SHORT,
+                                                ).show()
+                                            }
                                         }
-                                    }
-                                },
-                            )
-                        }
-                        item {
-                            DeleteMedicationGroupCard(
-                                onClick = onDeleteClick,
-                            )
+                                    },
+                                )
+                            }
+                            item {
+                                DeleteMedicationGroupCard(
+                                    onClick = onDeleteClick,
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
         }
     }
 
     uiState.editingMedication?.let { medication ->
-        val isEditingExistingMedication = uiState.medications.any { it.localId == medication.localId }
+        val isEditingExistingMedication =
+            uiState.medications.any { it.localId == medication.localId }
         val canEditMedicationIdentity = !areFieldsRenderedLocked && !isEditingExistingMedication
         val resolvedMedicine = checkNotNull(medication.resolvedMedicine) {
             "Medication group slot editor requires a resolved medicine."
@@ -1832,7 +1842,7 @@ internal fun resolveMedicationGroupEditorIsNewGroupCreationFlow(
     openedFromArchivedGroupsPage: Boolean,
 ): Boolean {
     return startedAsNewGroupCreationFlow ||
-        (openedFromArchivedGroupsPage && !uiState.isArchived)
+            (openedFromArchivedGroupsPage && !uiState.isArchived)
 }
 
 internal fun shouldRenderMedicationGroupEditorAsEditing(
@@ -1840,7 +1850,7 @@ internal fun shouldRenderMedicationGroupEditorAsEditing(
     isNewGroupCreationFlow: Boolean,
 ): Boolean {
     return uiState.isEditing &&
-        !(isNewGroupCreationFlow && (uiState.isSaved || uiState.isFinishingAfterSave))
+            !(isNewGroupCreationFlow && (uiState.isSaved || uiState.isFinishingAfterSave))
 }
 
 internal fun shouldUseArchivedMedicationGroupEditorPresentation(
@@ -1895,12 +1905,12 @@ internal fun shouldDisableMedicationGroupEditorSaveAction(
     uiState: MedicationGroupEditorUiState,
 ): Boolean {
     return !hasSaveableMedicationGroupContent(uiState) ||
-        uiState.isArchived ||
-        uiState.scheduleTimeOrderError ||
-        uiState.isSaved ||
-        uiState.isFinishingAfterSave ||
-        uiState.isDeleted ||
-        uiState.isFinishingAfterDeleteOrArchive
+            uiState.isArchived ||
+            uiState.scheduleTimeOrderError ||
+            uiState.isSaved ||
+            uiState.isFinishingAfterSave ||
+            uiState.isDeleted ||
+            uiState.isFinishingAfterDeleteOrArchive
 }
 
 internal fun runArchiveConfirmationAction(
@@ -1927,15 +1937,15 @@ internal fun isMedicationGroupEditorBusy(
     uiState: MedicationGroupEditorUiState,
 ): Boolean {
     return uiState.isLoadingGroupForEditing ||
-        uiState.isSaving ||
-        uiState.isDeleting ||
-        uiState.isArchiving ||
-        uiState.isRecreatingAfterArchive ||
-        uiState.isDeletingRelatedEntries ||
-        uiState.isSaved ||
-        uiState.isFinishingAfterSave ||
-        uiState.isDeleted ||
-        uiState.isFinishingAfterDeleteOrArchive
+            uiState.isSaving ||
+            uiState.isDeleting ||
+            uiState.isArchiving ||
+            uiState.isRecreatingAfterArchive ||
+            uiState.isDeletingRelatedEntries ||
+            uiState.isSaved ||
+            uiState.isFinishingAfterSave ||
+            uiState.isDeleted ||
+            uiState.isFinishingAfterDeleteOrArchive
 }
 
 internal fun shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
@@ -1943,7 +1953,7 @@ internal fun shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistor
     isNewGroupCreationFlow: Boolean,
 ): Boolean {
     return (uiState.isSaving || uiState.isSaved || uiState.isFinishingAfterSave) &&
-        (isNewGroupCreationFlow || uiState.createPastScheduledSlotRecords)
+            (isNewGroupCreationFlow || uiState.createPastScheduledSlotRecords)
 }
 
 internal fun shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
@@ -1951,18 +1961,18 @@ internal fun shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
     isNewGroupCreationFlow: Boolean,
 ): Boolean {
     return uiState.relatedEntryCount > 0 &&
-        !shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
-            uiState = uiState,
-            isNewGroupCreationFlow = isNewGroupCreationFlow,
-        )
+            !shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
+                uiState = uiState,
+                isNewGroupCreationFlow = isNewGroupCreationFlow,
+            )
 }
 
 internal fun shouldShowRecreatedStartDatePastLimitMessage(
     uiState: MedicationGroupEditorUiState,
 ): Boolean {
     return !uiState.isArchived &&
-        uiState.recreatedFromGroupId != null &&
-        uiState.relatedEntryCount == 0
+            uiState.recreatedFromGroupId != null &&
+            uiState.relatedEntryCount == 0
 }
 
 internal enum class PastScheduleOption {
@@ -1990,14 +2000,14 @@ internal fun resolvePastScheduleSelectorState(
 ): PastScheduleSelectorUiState {
     val selectedPastScheduleOption = resolvePastScheduleOption(uiState)
     val pastScheduleOptionsEnabled = lockedMessage == null &&
-        uiState.canEditBackfillOption
+            uiState.canEditBackfillOption
     val showGeneratePastRecordsOption =
         shouldShowGeneratePastScheduledSlotRecordsOption(
             uiState = uiState,
             isNewGroupCreationFlow = isNewGroupCreationFlow,
             isFinishingAfterSave = uiState.isFinishingAfterSave,
         ) ||
-            selectedPastScheduleOption == PastScheduleOption.SHOW_AND_GENERATE_RECORDS
+                selectedPastScheduleOption == PastScheduleOption.SHOW_AND_GENERATE_RECORDS
 
     return PastScheduleSelectorUiState(
         selectedOption = selectedPastScheduleOption,
@@ -2013,13 +2023,13 @@ internal fun shouldShowPastScheduleSection(
     referenceTime: LocalDateTime,
 ): Boolean {
     return !uiState.isArchived &&
-        (
-            shouldShowRecreatedPastScheduleMessage(uiState) ||
-                hasPastScheduleOptionWindow(
-                    uiState = uiState,
-                    referenceTime = referenceTime,
-                )
-            )
+            (
+                    shouldShowRecreatedPastScheduleMessage(uiState) ||
+                            hasPastScheduleOptionWindow(
+                                uiState = uiState,
+                                referenceTime = referenceTime,
+                            )
+                    )
 }
 
 internal fun shouldShowGeneratePastScheduledSlotRecordsOption(
@@ -2028,14 +2038,14 @@ internal fun shouldShowGeneratePastScheduledSlotRecordsOption(
     isFinishingAfterSave: Boolean,
 ): Boolean {
     return !uiState.isArchived &&
-        !shouldShowRecreatedPastScheduleMessage(uiState)
+            !shouldShowRecreatedPastScheduleMessage(uiState)
 }
 
 internal fun shouldShowRecreatedPastScheduleMessage(
     uiState: MedicationGroupEditorUiState,
 ): Boolean {
     return !uiState.isArchived &&
-        (uiState.recreatedFromGroupId != null || uiState.pendingReplacementGroupId != null)
+            (uiState.recreatedFromGroupId != null || uiState.pendingReplacementGroupId != null)
 }
 
 internal fun hasPastScheduleOptionWindow(
@@ -2148,7 +2158,7 @@ internal fun shouldEnableMasterReminders(
 internal fun shouldEnableGroupNotifications(
     pendingNotificationEnableRequest: String?
 ): Boolean = pendingNotificationEnableRequest == GROUP_ONLY_NOTIFICATION_ENABLE_REQUEST ||
-    pendingNotificationEnableRequest == MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST
+        pendingNotificationEnableRequest == MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST
 
 @Composable
 internal fun MedicationGroupNameField(
@@ -2614,8 +2624,8 @@ private fun MedicationGroupEditorPreviewContent(
         onConsumeMedicationEditorSaved = { },
         onConsumeMedicationEditorInfoMessage = { },
         onMedicineDraftChange = { },
-            onDoseInstructionDraftChange = { },
-            onOpenMedicinePicker = { _ -> },
+        onDoseInstructionDraftChange = { },
+        onOpenMedicinePicker = { _ -> },
         onEditingMedicationCountTextChange = { },
         onDecreaseEditingMedicationCount = { },
         onIncreaseEditingMedicationCount = { },
@@ -2683,7 +2693,8 @@ private fun buildMedicationGroupEditorPreviewUiState(
         medications = listOf(
             MedicationGroupMedicationItemUiState(
                 localId = "med-1",
-                persistedMedicationId = UUID.fromString("a5a8da0b-2510-4f7c-8bf3-fbc74b409321").toString(),
+                persistedMedicationId = UUID.fromString("a5a8da0b-2510-4f7c-8bf3-fbc74b409321")
+                    .toString(),
                 resolvedMedicine = previewEditorMedicine(MedicationKey.ESTRADIOL),
                 applicationType = MedicationApplicationType.ORAL,
                 doseInstruction = DoseInstruction.TabletFraction(1, 1),
@@ -2691,7 +2702,8 @@ private fun buildMedicationGroupEditorPreviewUiState(
             ),
             MedicationGroupMedicationItemUiState(
                 localId = "med-2",
-                persistedMedicationId = UUID.fromString("73ceca25-8547-43cf-8517-0d1e46a95d56").toString(),
+                persistedMedicationId = UUID.fromString("73ceca25-8547-43cf-8517-0d1e46a95d56")
+                    .toString(),
                 resolvedMedicine = previewEditorMedicine(MedicationKey.SPIRONOLACTONE),
                 applicationType = MedicationApplicationType.ORAL,
                 doseInstruction = DoseInstruction.TabletFraction(1, 1),

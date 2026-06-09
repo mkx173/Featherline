@@ -156,34 +156,34 @@ object MedicationCatalog {
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_VALERATE,
                     doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
-                        multiUseVialDoseAssistPresets(
-                            concentrationsMgPerMl = listOf("20", "40"),
-                            volumesMl = listOf("5", "10"),
-                        ),
+                            multiUseVialDoseAssistPresets(
+                                concentrationsMgPerMl = listOf("20", "40"),
+                                volumesMl = listOf("5", "10"),
+                            ),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_CYPIONATE,
                     doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
-                        multiUseVialDoseAssistPresets(
-                            concentrationsMgPerMl = listOf("20", "40"),
-                            volumesMl = listOf("5", "10"),
-                        ),
+                            multiUseVialDoseAssistPresets(
+                                concentrationsMgPerMl = listOf("20", "40"),
+                                volumesMl = listOf("5", "10"),
+                            ),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_ENANTHATE,
                     doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
-                        multiUseVialDoseAssistPresets(
-                            concentrationsMgPerMl = listOf("20", "40"),
-                            volumesMl = listOf("5", "10"),
-                        ),
+                            multiUseVialDoseAssistPresets(
+                                concentrationsMgPerMl = listOf("20", "40"),
+                                volumesMl = listOf("5", "10"),
+                            ),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_BENZOATE,
                     doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
-                        multiUseVialDoseAssistPresets(
-                            concentrationsMgPerMl = listOf("20", "40"),
-                            volumesMl = listOf("5", "10"),
-                        ),
+                            multiUseVialDoseAssistPresets(
+                                concentrationsMgPerMl = listOf("20", "40"),
+                                volumesMl = listOf("5", "10"),
+                            ),
                 ),
             ),
             allowCustomMedicationName = false,
@@ -265,7 +265,8 @@ object MedicationCatalog {
         ),
     )
 
-    private val catalogs = estradiolCatalog + antiandrogenCatalog + testosteroneCatalog + customCatalog
+    private val catalogs =
+        estradiolCatalog + antiandrogenCatalog + testosteroneCatalog + customCatalog
 
     fun applicationTypesFor(category: MedicationCategory): List<MedicationApplicationType> {
         return catalogs
@@ -296,7 +297,7 @@ object MedicationCatalog {
     fun tabletRoutesFor(category: MedicationCategory): List<MedicationApplicationType> {
         return applicationTypesFor(category).filter { applicationType ->
             applicationType == MedicationApplicationType.ORAL ||
-                applicationType == MedicationApplicationType.SUBLINGUAL
+                    applicationType == MedicationApplicationType.SUBLINGUAL
         }
     }
 
@@ -387,12 +388,12 @@ object MedicationCatalog {
     ): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
         return mapOf(
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL to (
-                concentrationsMgPerMl.map {
-                    MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl(it)
-                } + volumesMl.map {
-                    MedicationDoseAssistPreset.MultiUseVialVolumeMl(it)
-                }
-                ),
+                    concentrationsMgPerMl.map {
+                        MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl(it)
+                    } + volumesMl.map {
+                        MedicationDoseAssistPreset.MultiUseVialVolumeMl(it)
+                    }
+                    ),
         )
     }
 
@@ -435,7 +436,8 @@ fun MedicationApplicationType.preparationForms(): List<MedicinePreparationForm> 
     return when (this) {
         MedicationApplicationType.ORAL,
         MedicationApplicationType.SUBLINGUAL,
-        -> listOf(MedicinePreparationForm.TABLET)
+            -> listOf(MedicinePreparationForm.TABLET)
+
         MedicationApplicationType.INJECTION -> listOf(MedicinePreparationForm.INJECTION)
         MedicationApplicationType.GEL -> listOf(MedicinePreparationForm.GEL)
         MedicationApplicationType.PATCH_ON -> listOf(MedicinePreparationForm.PATCH)

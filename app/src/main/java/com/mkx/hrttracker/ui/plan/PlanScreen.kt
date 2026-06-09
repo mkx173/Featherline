@@ -365,134 +365,137 @@ private fun PlanScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValues(),
             ) {
-            item(key = "week-calendar") {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    PlanWeekHeader(
-                        weekStartDate = visibleWeekStartDate,
-                        today = uiState.today,
-                        firstDayOfWeek = uiState.calendarFirstDayOfWeek,
-                        monthFormatter = monthFormatter,
-                        selectedDate = displaySelection,
-                        pageProgress = weekPageProgress,
-                        onPreviousClick = {
-                            scope.launch {
-                                state.animateScrollToWeek(visibleWeekStartDate.minusWeeks(1))
-                            }
-                        },
-                        onCurrentClick = {
-                            val previousSelection = selection
-                            if (previousSelection != null) {
-                                pendingCalendarSelectedDate = previousSelection
-                                pendingCurrentWeekSelectionReset = previousSelection
-                                if (visibleWeekStartDate == currentWeekStartDate) {
-                                    onDateSelectionReset()
+                item(key = "week-calendar") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        PlanWeekHeader(
+                            weekStartDate = visibleWeekStartDate,
+                            today = uiState.today,
+                            firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+                            monthFormatter = monthFormatter,
+                            selectedDate = displaySelection,
+                            pageProgress = weekPageProgress,
+                            onPreviousClick = {
+                                scope.launch {
+                                    state.animateScrollToWeek(visibleWeekStartDate.minusWeeks(1))
                                 }
-                            }
-                            scope.launch {
-                                try {
-                                    state.animateScrollToWeek(uiState.today)
-                                } finally {
-                                    if (pendingCalendarSelectedDate == previousSelection) {
-                                        pendingCalendarSelectedDate = null
+                            },
+                            onCurrentClick = {
+                                val previousSelection = selection
+                                if (previousSelection != null) {
+                                    pendingCalendarSelectedDate = previousSelection
+                                    pendingCurrentWeekSelectionReset = previousSelection
+                                    if (visibleWeekStartDate == currentWeekStartDate) {
+                                        onDateSelectionReset()
                                     }
                                 }
+                                scope.launch {
+                                    try {
+                                        state.animateScrollToWeek(uiState.today)
+                                    } finally {
+                                        if (pendingCalendarSelectedDate == previousSelection) {
+                                            pendingCalendarSelectedDate = null
+                                        }
+                                    }
+                                }
+                            },
+                            onNextClick = {
+                                scope.launch {
+                                    state.animateScrollToWeek(visibleWeekStartDate.plusWeeks(1))
+                                }
                             }
-                        },
-                        onNextClick = {
-                            scope.launch {
-                                state.animateScrollToWeek(visibleWeekStartDate.plusWeeks(1))
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        WeekCalendar(
+                            modifier = Modifier.fillMaxWidth(),
+                            state = state,
+                            dayContent = { day ->
+                                val dayState =
+                                    uiState.calendarDays[day.date] ?: PlanCalendarDayUiState()
+                                Day(
+                                    date = day.date,
+                                    today = uiState.today,
+                                    appLocale = appLocale,
+                                    dayState = dayState,
+                                    isSelected = calendarSelectedDate == day.date
+                                ) { clicked ->
+                                    pendingCalendarSelectedDate = null
+                                    onDateSelected(clicked)
+                                }
                             }
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    WeekCalendar(
-                        modifier = Modifier.fillMaxWidth(),
-                        state = state,
-                        dayContent = { day ->
-                            val dayState = uiState.calendarDays[day.date] ?: PlanCalendarDayUiState()
-                            Day(
-                                date = day.date,
-                                today = uiState.today,
-                                appLocale = appLocale,
-                                dayState = dayState,
-                                isSelected = calendarSelectedDate == day.date
-                            ) { clicked ->
-                                pendingCalendarSelectedDate = null
-                                onDateSelected(clicked)
-                            }
-                        }
-                    )
+                        )
+                    }
                 }
-            }
 
-            item(key = "selected-day") {
-                Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                    SelectedDaySection(
-                        date = displayedDate,
-                        today = uiState.today,
-                        overallStatus = uiState.calendarDays[displayedDate]?.status
-                            ?: PlanCalendarDayStatus.NONE,
-                        daySchedule = daySchedule,
-                        appLocale = appLocale,
-                        timeFormatter = timeFormatter,
-                        archivedGroupUuids = archivedGroupUuids,
-                        onScheduledClick = { scheduled ->
-                            val editingEntryIds = plannedEntryEditorIds(scheduled)
-                            if (
-                                editingEntryIds.isNotEmpty() &&
-                                (scheduled.isFulfilled || scheduled.hasOutsideScheduleWindowEntry)
-                            ) {
-                                onEntryClick(editingEntryIds)
-                            } else {
-                                onQuickLogClick(
-                                    scheduled.groupUuid,
-                                    scheduled.scheduleTimeUuid,
-                                    scheduled.scheduledFor,
-                                    scheduled.medication,
-                                    remainingQuickLogCount(
-                                        totalCount = scheduled.medication.count,
-                                        fulfilledCount = scheduled.loggedCount
-                                    )
-                                )
-                            }
-                        },
-                        onUnplannedClick = { entry ->
-                            onEntryClick(unplannedEntryEditorIds(entry))
-                        }
-                    )
-                }
-            }
-
-            item(key = "regimen-section") {
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-
-                RegimenSection(
-                    groups = uiState.medicationGroups,
-                    remindersEnabled = uiState.remindersEnabled,
-                    hasNotificationAccess = hasNotificationAccess,
-                    appLocale = appLocale,
-                    dateFormatter = dateFormatter,
-                    timeFormatter = timeFormatter,
-                    nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
-                    today = uiState.today,
-                    firstDayOfWeek = uiState.calendarFirstDayOfWeek,
-                    onGroupClick = onGroupClick
-                )
-            }
-
-            item(key = "add-group-button") {
-                HrtButton(
-                    text = stringResource(R.string.add),
-                    onClick = onAddGroupClick,
-                    modifier = Modifier
+                item(key = "selected-day") {
+                    Column(modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    icon = Icons.Rounded.Add,
-                )
+                        .padding(top = 4.dp)) {
+                        SelectedDaySection(
+                            date = displayedDate,
+                            today = uiState.today,
+                            overallStatus = uiState.calendarDays[displayedDate]?.status
+                                ?: PlanCalendarDayStatus.NONE,
+                            daySchedule = daySchedule,
+                            appLocale = appLocale,
+                            timeFormatter = timeFormatter,
+                            archivedGroupUuids = archivedGroupUuids,
+                            onScheduledClick = { scheduled ->
+                                val editingEntryIds = plannedEntryEditorIds(scheduled)
+                                if (
+                                    editingEntryIds.isNotEmpty() &&
+                                    (scheduled.isFulfilled || scheduled.hasOutsideScheduleWindowEntry)
+                                ) {
+                                    onEntryClick(editingEntryIds)
+                                } else {
+                                    onQuickLogClick(
+                                        scheduled.groupUuid,
+                                        scheduled.scheduleTimeUuid,
+                                        scheduled.scheduledFor,
+                                        scheduled.medication,
+                                        remainingQuickLogCount(
+                                            totalCount = scheduled.medication.count,
+                                            fulfilledCount = scheduled.loggedCount
+                                        )
+                                    )
+                                }
+                            },
+                            onUnplannedClick = { entry ->
+                                onEntryClick(unplannedEntryEditorIds(entry))
+                            }
+                        )
+                    }
+                }
+
+                item(key = "regimen-section") {
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+                    RegimenSection(
+                        groups = uiState.medicationGroups,
+                        remindersEnabled = uiState.remindersEnabled,
+                        hasNotificationAccess = hasNotificationAccess,
+                        appLocale = appLocale,
+                        dateFormatter = dateFormatter,
+                        timeFormatter = timeFormatter,
+                        nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
+                        today = uiState.today,
+                        firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+                        onGroupClick = onGroupClick
+                    )
+                }
+
+                item(key = "add-group-button") {
+                    HrtButton(
+                        text = stringResource(R.string.add),
+                        onClick = onAddGroupClick,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        icon = Icons.Rounded.Add,
+                    )
+                }
             }
-        }
         }
     }
 
@@ -910,6 +913,7 @@ private fun PlanDayStatusIndicator(
                     modifier = modifier
                 )
             }
+
             PlanCalendarDayStatus.OFFPLAN -> {
                 PlanDayIndicatorGlyph(
                     kind = PlanDayIndicatorKind.OFFPLAN,
@@ -917,6 +921,7 @@ private fun PlanDayStatusIndicator(
                     modifier = modifier
                 )
             }
+
             PlanCalendarDayStatus.MISSED -> {
                 PlanDayIndicatorGlyph(
                     kind = if (showFutureMissedIcon) {
@@ -928,6 +933,7 @@ private fun PlanDayStatusIndicator(
                     modifier = modifier
                 )
             }
+
             PlanCalendarDayStatus.PARTIAL -> {
                 PlanDayIndicatorGlyph(
                     kind = PlanDayIndicatorKind.PARTIAL,
@@ -935,6 +941,7 @@ private fun PlanDayStatusIndicator(
                     modifier = modifier
                 )
             }
+
             PlanCalendarDayStatus.FULFILLED -> {
                 PlanDayIndicatorGlyph(
                     kind = PlanDayIndicatorKind.CHECK,

@@ -179,7 +179,8 @@ private fun HrtPreviewContent(
 class HrtWidgetMedium : GlanceAppWidget() {
     override val stateDefinition: GlanceStateDefinition<*> = HrtWidgetStateDefinition
     override val sizeMode: SizeMode = SizeMode.Exact
-    override val previewSizeMode: PreviewSizeMode = SizeMode.Responsive(setOf(MEDIUM_WIDGET_PREVIEW_SIZE))
+    override val previewSizeMode: PreviewSizeMode =
+        SizeMode.Responsive(setOf(MEDIUM_WIDGET_PREVIEW_SIZE))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideHrtContent(context, id) { snapshot -> MediumWidgetContent(snapshot) }
@@ -193,7 +194,8 @@ class HrtWidgetMedium : GlanceAppWidget() {
 class HrtWidgetLarge : GlanceAppWidget() {
     override val stateDefinition: GlanceStateDefinition<*> = HrtWidgetStateDefinition
     override val sizeMode: SizeMode = SizeMode.Exact
-    override val previewSizeMode: PreviewSizeMode = SizeMode.Responsive(setOf(LARGE_WIDGET_PREVIEW_SIZE))
+    override val previewSizeMode: PreviewSizeMode =
+        SizeMode.Responsive(setOf(LARGE_WIDGET_PREVIEW_SIZE))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideHrtContent(context, id) { snapshot -> LargeWidgetContent(snapshot) }
@@ -237,10 +239,24 @@ suspend fun updateAllHrtWidgets(context: Context) {
 suspend fun pushHrtWidgets(context: Context, record: WidgetSnapshotRecord?) {
     val appWidgetManager = AppWidgetManager.getInstance(context)
     coroutineScope {
-        launch { pushHrtWidget(context, appWidgetManager, HrtWidgetMediumReceiver::class.java, record, isMedium = true) }
+        launch {
+            pushHrtWidget(
+                context,
+                appWidgetManager,
+                HrtWidgetMediumReceiver::class.java,
+                record,
+                isMedium = true
+            )
+        }
         launch {
             if (shouldUseSynchronousWidgetPush()) {
-                pushHrtWidget(context, appWidgetManager, HrtWidgetLargeReceiver::class.java, record, isMedium = false)
+                pushHrtWidget(
+                    context,
+                    appWidgetManager,
+                    HrtWidgetLargeReceiver::class.java,
+                    record,
+                    isMedium = false
+                )
             } else {
                 HrtWidgetLarge().glanceUpdateAll(context)
             }
@@ -295,7 +311,8 @@ private fun currentWidgetSizeDp(
     val maxWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH)
     val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
     val maxHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
-    val landscape = context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val landscape =
+        context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val widthDp = if (landscape) maxWidth else minWidth
     val heightDp = if (landscape) minHeight else maxHeight
     if (widthDp > 0 && heightDp > 0) {
@@ -365,7 +382,10 @@ internal fun groupRowsByScheduledGroupSlot(rows: List<WidgetDoseRow>): List<List
 // ── State definition ──────────────────────────────────────────────────────────
 
 internal object HrtWidgetStateDefinition : GlanceStateDefinition<WidgetSnapshotState> {
-    override suspend fun getDataStore(context: Context, fileKey: String): DataStore<WidgetSnapshotState> =
+    override suspend fun getDataStore(
+        context: Context,
+        fileKey: String
+    ): DataStore<WidgetSnapshotState> =
         context.widgetSnapshotDataStore
 
     override fun getLocation(context: Context, fileKey: String): File =
@@ -393,33 +413,41 @@ private const val LARGE_WIDGET_PREVIEW_WIDTH_DP = 624
 private const val WIDGET_PREVIEW_HEIGHT_DP = 276
 private const val WIDGET_PREVIEW_CONTENT_SCALE = 0.6f
 private const val WIDGET_PREVIEW_E2_PG_PER_ML = 120.0
-private val MEDIUM_WIDGET_PREVIEW_SIZE = DpSize(MEDIUM_WIDGET_PREVIEW_WIDTH_DP.dp, WIDGET_PREVIEW_HEIGHT_DP.dp)
-private val LARGE_WIDGET_PREVIEW_SIZE = DpSize(LARGE_WIDGET_PREVIEW_WIDTH_DP.dp, WIDGET_PREVIEW_HEIGHT_DP.dp)
+private val MEDIUM_WIDGET_PREVIEW_SIZE =
+    DpSize(MEDIUM_WIDGET_PREVIEW_WIDTH_DP.dp, WIDGET_PREVIEW_HEIGHT_DP.dp)
+private val LARGE_WIDGET_PREVIEW_SIZE =
+    DpSize(LARGE_WIDGET_PREVIEW_WIDTH_DP.dp, WIDGET_PREVIEW_HEIGHT_DP.dp)
 private const val WIDGET_BASELINE_PREFS = "hrt_widget_baseline"
+
 // Key suffix is bumped (_v3) when the capture logic changes, so installs carrying a
 // baseline persisted by the old buggy logic discard it and re-capture cleanly. _v2 keyed
 // off the per-composition LocalSize, which let the short landscape pass lock the baseline
 // before the portrait pass; _v3 captures the portrait cell height directly.
 private const val WIDGET_BASELINE_KEY_MEDIUM = "medium_height_dp_v3"
 private const val WIDGET_BASELINE_KEY_LARGE = "large_height_dp_v3"
+
 // Matches the preview viewport height: scale == 1.0 corresponds to the fully
 // laid-out widget size seen in @GlancePreview / Live Preview.
 private const val WIDGET_BASELINE_REFERENCE_DP = 276f
+
 // Reject obviously bogus first-render sizes (e.g. transient 0dp loading frames)
 // so we don't permanently lock the device baseline to nonsense.
 private const val WIDGET_BASELINE_MIN_SANE_DP = 50f
 private const val WIDGET_BASELINE_MAX_SANE_DP = 400f
+
 // Floor for the device-baseline component (baseline / reference) so an unexpectedly
 // small captured baseline can't collapse content to an illegible size. Sits below the
 // normal placed-widget ratio (~0.4–0.58) so it never oversizes a real cell, while still
 // catching pathologically tiny baselines. The user's own scale choice multiplies on top.
 private const val WIDGET_MIN_BASELINE_SCALE_RATIO = 0.35f
 private val LocalPreviewBaselineHeight = compositionLocalOf<Float?> { null }
+
 // The launcher's portrait target-cell height (dp), resolved from AppWidgetManager options
 // and provided by HrtWidgetThemed. Unlike LocalSize it is the same value on every
 // SizeMode.Exact pass, so baseline capture no longer depends on which orientation pass
 // composes (and persists) first. Null until the launcher reports options.
 private val LocalDeviceBaselineHeight = compositionLocalOf<Float?> { null }
+
 // Pre-formatted E2 trend label shown in previews. Bypasses the real
 // PkProjection path (whose windowing is unfriendly to fabricated data) so the
 // preview can demonstrate the trend pill without seeding a full projection.
@@ -501,7 +529,11 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
         contentAlignment = Alignment.Center,
     ) {
         if (isEmptySetup(snapshot)) {
-            EmptyWidgetContent(iconSize = 22f, backgroundColor = colors.secondary, foregroundColor = colors.onSecondary)
+            EmptyWidgetContent(
+                iconSize = 22f,
+                backgroundColor = colors.secondary,
+                foregroundColor = colors.onSecondary
+            )
             return@WidgetShell
         }
         val record = checkNotNull(snapshot)
@@ -510,9 +542,16 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
         val e2Trend = record.pkProjection
             ?.toPkProjectionResult(now, zoneId)
             ?.toMainEstradiolTrend(now, zoneId)
-        val e2DisplayUnit = BloodUnitKey.fromStorageValue(record.e2DisplayUnit) ?: BloodUnitKey.PG_ML
+        val e2DisplayUnit =
+            BloodUnitKey.fromStorageValue(record.e2DisplayUnit) ?: BloodUnitKey.PG_ML
         val e2Text = LocalPreviewE2Text.current
-            ?: e2Trend?.let { formatWidgetE2Text(it.currentConcentration, it.concentrationUnit, e2DisplayUnit) }
+            ?: e2Trend?.let {
+                formatWidgetE2Text(
+                    it.currentConcentration,
+                    it.concentrationUnit,
+                    e2DisplayUnit
+                )
+            }
         val doneCount = record.doneCount
         val totalCount = record.totalCount
         // Only treat the day as "nothing scheduled" when there are no rows at all to
@@ -557,7 +596,8 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
         //   everythingLogged → every slot has a log attached, but at least one is
         //     out-of-window (took the dose, just timed imperfectly). No missed slots.
         //   otherwise → at least one OVERDUE slot with no log (missed).
-        val allInWindow = noActionableRemaining && todayRows.all { it.status == WidgetDoseStatus.DONE }
+        val allInWindow =
+            noActionableRemaining && todayRows.all { it.status == WidgetDoseStatus.DONE }
         val everythingLogged = noActionableRemaining && todayRows.none { it.isExpired() }
 
         Column(modifier = GlanceModifier.fillMaxSize()) {
@@ -580,7 +620,8 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 }
             }
             Row(
-                modifier = GlanceModifier.fillMaxWidth().padding(top = (-6 * scale).dp, bottom = (-4 * scale).dp),
+                modifier = GlanceModifier.fillMaxWidth()
+                    .padding(top = (-6 * scale).dp, bottom = (-4 * scale).dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(verticalAlignment = Alignment.Bottom) {
@@ -611,7 +652,8 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             if ((noActionableRemaining || nothingScheduledToday) && activeRow == null) {
                 val useCelebrationColor = allInWindow || nothingScheduledToday
                 val badgeBackground = if (useCelebrationColor) colors.primary else colors.secondary
-                val badgeForeground = if (useCelebrationColor) colors.onPrimary else colors.onSecondary
+                val badgeForeground =
+                    if (useCelebrationColor) colors.onPrimary else colors.onSecondary
                 Box(
                     modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
                     contentAlignment = Alignment.Center,
@@ -661,6 +703,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 val displayName = when {
                     record.hideMedicationDetails && activeRow.isManualRecord ->
                         context.getString(R.string.widget_manual_record)
+
                     isMultiMedGroup || record.hideMedicationDetails -> activeRow.groupName
                     else -> activeRow.medicationName
                 }
@@ -686,7 +729,10 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     GlanceModifier
                 }
                 Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
-                    SectionHeader(text = context.getString(R.string.widget_upcoming), topPadding = 0.dp)
+                    SectionHeader(
+                        text = context.getString(R.string.widget_upcoming),
+                        topPadding = 0.dp
+                    )
                     Spacer(modifier = GlanceModifier.height((4 * scale).dp))
                     RoundedBackgroundRow(
                         modifier = GlanceModifier
@@ -702,7 +748,10 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             modifier = GlanceModifier
                                 .width((6f * scale).dp)
                                 .height((44f * scale).dp),
-                            color = groupAccentColor(activeRow.colorKey, LocalWidgetForcedDark.current),
+                            color = groupAccentColor(
+                                activeRow.colorKey,
+                                LocalWidgetForcedDark.current
+                            ),
                             shape = WidgetRoundedShape.Pill,
                         ) {}
                         Spacer(GlanceModifier.width((10f * scale).dp))
@@ -796,7 +845,11 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
         contentAlignment = Alignment.Center,
     ) {
         if (isEmptySetup(snapshot)) {
-            EmptyWidgetContent(iconSize = 22f, backgroundColor = colors.secondary, foregroundColor = colors.onSecondary)
+            EmptyWidgetContent(
+                iconSize = 22f,
+                backgroundColor = colors.secondary,
+                foregroundColor = colors.onSecondary
+            )
             return@WidgetShell
         }
         val record = checkNotNull(snapshot)
@@ -805,9 +858,16 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
         val e2Trend = record.pkProjection
             ?.toPkProjectionResult(now, zoneId)
             ?.toMainEstradiolTrend(now, zoneId)
-        val e2DisplayUnit = BloodUnitKey.fromStorageValue(record.e2DisplayUnit) ?: BloodUnitKey.PG_ML
+        val e2DisplayUnit =
+            BloodUnitKey.fromStorageValue(record.e2DisplayUnit) ?: BloodUnitKey.PG_ML
         val e2Text = LocalPreviewE2Text.current
-            ?: e2Trend?.let { formatWidgetE2Text(it.currentConcentration, it.concentrationUnit, e2DisplayUnit) }
+            ?: e2Trend?.let {
+                formatWidgetE2Text(
+                    it.currentConcentration,
+                    it.concentrationUnit,
+                    e2DisplayUnit
+                )
+            }
         val doneCount = record.doneCount
         val totalCount = record.totalCount
         // Only treat the day as "nothing scheduled" when there are no rows at all to
@@ -878,7 +938,13 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             ) {
                 Column(modifier = GlanceModifier.defaultWeight().wrapContentHeight()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        WidgetLabel("${context.getString(R.string.widget_today)} · $doneCount/$totalCount ${context.getString(R.string.main_today_summary_done_label)}")
+                        WidgetLabel(
+                            "${context.getString(R.string.widget_today)} · $doneCount/$totalCount ${
+                                context.getString(
+                                    R.string.main_today_summary_done_label
+                                )
+                            }"
+                        )
 //                        if (allDone) {
 //                            Spacer(GlanceModifier.width((8f * scale).dp))
 //                            Image(
@@ -904,7 +970,8 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 }
             }
 
-            val largeWidgetProgressBarBottomPadding = if (listItems.firstOrNull() is WidgetListItem.Header) 8 else 12
+            val largeWidgetProgressBarBottomPadding =
+                if (listItems.firstOrNull() is WidgetListItem.Header) 8 else 12
             Spacer(GlanceModifier.height((largeWidgetProgressBarBottomPadding * scale).dp))
 
             if (nothingScheduledToday) {
@@ -946,9 +1013,16 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         items = listItems,
                         itemId = { index, _ -> (index + 1).toLong() },
                     ) { index, item ->
-                        Column(modifier = GlanceModifier.fillMaxWidth().padding(top = if (index > 0) 2.dp else 0.dp)) {
+                        Column(
+                            modifier = GlanceModifier.fillMaxWidth()
+                                .padding(top = if (index > 0) 2.dp else 0.dp)
+                        ) {
                             when (item) {
-                                is WidgetListItem.Header -> SectionHeader(item.text, topPadding = if (index == 0) 0.dp else 4.dp)
+                                is WidgetListItem.Header -> SectionHeader(
+                                    item.text,
+                                    topPadding = if (index == 0) 0.dp else 4.dp
+                                )
+
                                 is WidgetListItem.Row -> DoseRow(
                                     row = item.row,
                                     showLogAction = item.row.status == WidgetDoseStatus.DUE_SOON ||

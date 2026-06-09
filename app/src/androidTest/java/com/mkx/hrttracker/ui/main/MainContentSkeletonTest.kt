@@ -40,9 +40,12 @@ class MainContentSkeletonTest {
             }
         }
 
-        composeRule.onNodeWithText(estradiolTitle, ignoreCase = true, useUnmergedTree = true).assertExists()
-        composeRule.onNodeWithText(todayTitle, ignoreCase = true, useUnmergedTree = true).assertExists()
-        composeRule.onNodeWithText(upcomingTitle, ignoreCase = true, useUnmergedTree = true).assertExists()
+        composeRule.onNodeWithText(estradiolTitle, ignoreCase = true, useUnmergedTree = true)
+            .assertExists()
+        composeRule.onNodeWithText(todayTitle, ignoreCase = true, useUnmergedTree = true)
+            .assertExists()
+        composeRule.onNodeWithText(upcomingTitle, ignoreCase = true, useUnmergedTree = true)
+            .assertExists()
     }
 
     @Test
@@ -61,8 +64,10 @@ class MainContentSkeletonTest {
             }
         }
 
-        composeRule.onNodeWithTag(MainE2ChartSkeletonTestTag, useUnmergedTree = true).assertIsDisplayed()
-        composeRule.onNodeWithTag(MainE2ChartContentTestTag, useUnmergedTree = true).assertDoesNotExist()
+        composeRule.onNodeWithTag(MainE2ChartSkeletonTestTag, useUnmergedTree = true)
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag(MainE2ChartContentTestTag, useUnmergedTree = true)
+            .assertDoesNotExist()
     }
 
     @Test
@@ -81,8 +86,10 @@ class MainContentSkeletonTest {
             }
         }
 
-        composeRule.onNodeWithTag(MainE2ChartContentTestTag, useUnmergedTree = true).assertIsDisplayed()
-        composeRule.onNodeWithTag(MainE2ChartSkeletonTestTag, useUnmergedTree = true).assertDoesNotExist()
+        composeRule.onNodeWithTag(MainE2ChartContentTestTag, useUnmergedTree = true)
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag(MainE2ChartSkeletonTestTag, useUnmergedTree = true)
+            .assertDoesNotExist()
     }
 
     @Test

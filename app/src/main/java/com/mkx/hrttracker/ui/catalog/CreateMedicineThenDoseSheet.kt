@@ -165,10 +165,10 @@ fun CreateMedicineThenDoseSheet(
         // normally rides the card's trailing slot is surfaced on the strength
         // field instead. Gated on the dose instruction form being present.
         val showStrengthDoseWarning = requiresEditableDoseInstructionForm(activePreparationType) &&
-            uiState.medicineDraft.exceedsDoseWarningThreshold(
-                uiState.doseInstructionDraft,
-                parseMedicationCountText(uiState.countText),
-            )
+                uiState.medicineDraft.exceedsDoseWarningThreshold(
+                    uiState.doseInstructionDraft,
+                    parseMedicationCountText(uiState.countText),
+                )
         // Controls stay visually enabled while a save is in flight; the VM
         // ignores draft mutations during the lock, text fields stay read-
         // only to avoid input flicker, and the sheet's dismissal lock keeps
@@ -266,6 +266,6 @@ internal fun canHideCreateMedicineThenDoseSheet(
     allowCompletionHide: Boolean,
 ): Boolean {
     return value != SheetValue.Hidden ||
-        !isSlotLocked ||
-        allowCompletionHide
+            !isSlotLocked ||
+            allowCompletionHide
 }

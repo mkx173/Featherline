@@ -74,7 +74,8 @@ sealed interface MedicinePreparation {
             require(strengthMgPerVial.isFinitePositive())
         }
 
-        override val type: MedicinePreparationType = MedicinePreparationType.INJECTION_SINGLE_USE_VIAL
+        override val type: MedicinePreparationType =
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL
     }
 
     data class InjectionMultiUseVial(
@@ -86,7 +87,8 @@ sealed interface MedicinePreparation {
             require(vialVolumeMl.isFinitePositive())
         }
 
-        override val type: MedicinePreparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL
+        override val type: MedicinePreparationType =
+            MedicinePreparationType.INJECTION_MULTI_USE_VIAL
     }
 
     data class GelSachet(

@@ -156,13 +156,21 @@ class PlanViewModelTest {
         assertEquals(selectedDate, viewModel.uiState.value.selectedDate)
         assertEquals(selectedDate, viewModel.uiState.value.daySchedule.date)
         assertEquals(1, viewModel.uiState.value.daySchedule.scheduledEntries.size)
-        assertEquals(PlanCalendarDayStatus.MISSED, viewModel.uiState.value.calendarDays[selectedDate]?.status)
+        assertEquals(
+            PlanCalendarDayStatus.MISSED,
+            viewModel.uiState.value.calendarDays[selectedDate]?.status
+        )
     }
 
     @Test
     fun archivedRecordsAreShownAsPlannedRowsWithoutAddingArchivedGroupToRegimen() = runTest {
         val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 18, 10, 0))
-        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = true, firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY))
+        val settingsState = MutableStateFlow(
+            SettingsState(
+                showArchivedGroupRecords = true,
+                firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY
+            )
+        )
         every { settingsRepository.settingsState } returns settingsState
         val archivedGroup = medicationGroup(times = listOf(LocalTime.of(8, 0))).copy(
             archivedAt = Instant.parse("2026-04-18T09:00:00Z"),
@@ -204,7 +212,12 @@ class PlanViewModelTest {
     @Test
     fun hideArchivedGroupRecordsSettingHidesArchivedRecordsFromPlan() = runTest {
         val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 18, 10, 0))
-        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = false, firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY))
+        val settingsState = MutableStateFlow(
+            SettingsState(
+                showArchivedGroupRecords = false,
+                firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY
+            )
+        )
         every { settingsRepository.settingsState } returns settingsState
         val archivedGroup = medicationGroup(times = listOf(LocalTime.of(8, 0))).copy(
             archivedAt = Instant.parse("2026-04-18T09:00:00Z"),
@@ -264,7 +277,9 @@ class PlanViewModelTest {
         advanceUntilIdle()
 
         val uiState = viewModel.uiState.value
-        assertEquals(listOf(LocalTime.of(8, 0)), uiState.daySchedule.scheduledEntries.map { it.scheduledTime })
+        assertEquals(
+            listOf(LocalTime.of(8, 0)),
+            uiState.daySchedule.scheduledEntries.map { it.scheduledTime })
         assertTrue(uiState.daySchedule.scheduledEntries.single().isPastDue)
         assertEquals(
             PlanCalendarDayStatus.MISSED,
@@ -321,7 +336,11 @@ class PlanViewModelTest {
         every { medicationGroupRepository.observeGroups() } returns flowOf(
             listOf(archivedOriginalGroup, recreatedGroup)
         )
-        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(fulfilledOriginalSlot))
+        every { medicationLogRepository.observeEntries() } returns flowOf(
+            listOf(
+                fulfilledOriginalSlot
+            )
+        )
 
         val viewModel = PlanViewModel(
             medicationGroupRepository = medicationGroupRepository,

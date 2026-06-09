@@ -181,7 +181,10 @@ internal object WidgetSnapshotCodec {
     private fun DataInputStream.readNullableBoolean(): Boolean? =
         if (readBoolean()) readBoolean() else null
 
-    private fun <T> DataOutputStream.writeList(values: List<T>, write: DataOutputStream.(T) -> Unit) {
+    private fun <T> DataOutputStream.writeList(
+        values: List<T>,
+        write: DataOutputStream.(T) -> Unit
+    ) {
         writeInt(values.size)
         values.forEach { write(it) }
     }

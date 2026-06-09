@@ -136,7 +136,11 @@ class MedicationLogRepository @Inject internal constructor(
                         // consistent Room invalidation recovers.
                         runCatching {
                             val medicinesByUuid = it.resolveMedicinesForEntries(entities)
-                            entities.map { entity -> entity.toMedicationLogEntryModel(medicinesByUuid) }
+                            entities.map { entity ->
+                                entity.toMedicationLogEntryModel(
+                                    medicinesByUuid
+                                )
+                            }
                         }.getOrElse { error ->
                             if (error is CancellationException) throw error
                             emptyList()

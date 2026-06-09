@@ -34,8 +34,10 @@ class BloodTestRepository @Inject constructor(
 ) {
     @Volatile
     private var cachedPanels: List<BloodTestPanel> = emptyList()
+
     @Volatile
     private var hasCachedPanelList = false
+
     @Volatile
     private var cachedActiveCustomAnalytes: List<CustomBloodAnalyte>? = null
 
@@ -140,11 +142,14 @@ class BloodTestRepository @Inject constructor(
     }
 
     suspend fun getActiveCustomAnalytes(): List<CustomBloodAnalyte> {
-        return cacheActiveCustomAnalytes(databaseHolder.get().bloodTestDao()
+        return cacheActiveCustomAnalytes(
+            databaseHolder.get().bloodTestDao()
             .getActiveCustomAnalytes()
             .map { analyte -> analyte.toModel() }
             .sortedWith(
-                compareBy<CustomBloodAnalyte>({ it.createdAt }, { it.name.lowercase(Locale.ROOT) })
+                compareBy<CustomBloodAnalyte>(
+                    { it.createdAt },
+                    { it.name.lowercase(Locale.ROOT) })
                     .thenBy { it.unitLabel.lowercase(Locale.ROOT) }
             )
         )
@@ -191,8 +196,8 @@ class BloodTestRepository @Inject constructor(
         }
         require(
             existingDuplicate == null ||
-                existingDuplicate.uuid == uuid?.toString() ||
-                reusableArchivedDuplicate != null
+                    existingDuplicate.uuid == uuid?.toString() ||
+                    reusableArchivedDuplicate != null
         ) {
             "A custom analyte with the same name and unit already exists."
         }
@@ -200,7 +205,8 @@ class BloodTestRepository @Inject constructor(
         val analyteUuid = uuid
             ?: reusableArchivedDuplicate?.uuid?.let(UUID::fromString)
             ?: UUID.randomUUID()
-        val existingAnalyte = uuid?.let { dao.getCustomAnalyte(it.toString()) } ?: reusableArchivedDuplicate
+        val existingAnalyte =
+            uuid?.let { dao.getCustomAnalyte(it.toString()) } ?: reusableArchivedDuplicate
         val nowEpochMillis = now.toEpochMilli()
         val isRevivingArchivedDuplicate = reusableArchivedDuplicate != null && uuid == null
         val entity = CustomBloodAnalyteEntity(

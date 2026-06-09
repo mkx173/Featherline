@@ -59,13 +59,13 @@ class BloodTestRepositoryTest {
         val resultsSlot = slot<List<BloodTestResultEntity>>()
         val customAnalyteUuid = UUID.randomUUID()
         coEvery { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) } returns
-            testMedicationLogEntry(
-                medicine = testMedicine(key = MedicationKey.ESTRADIOL),
-                applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = DoseInstruction.TabletFraction(1, 1),
-                sourceGroupUuid = null,
-                appliedAt = Instant.ofEpochMilli(1_699_999_000_000L)
-            )
+                testMedicationLogEntry(
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    sourceGroupUuid = null,
+                    appliedAt = Instant.ofEpochMilli(1_699_999_000_000L)
+                )
         coEvery { dao.getCustomAnalytesByIds(listOf(customAnalyteUuid.toString())) } returns listOf(
             customAnalyte(
                 uuid = customAnalyteUuid,
@@ -73,7 +73,12 @@ class BloodTestRepositoryTest {
                 unitLabel = "ng/dL"
             )
         )
-        coEvery { dao.upsertPanelWithResults(capture(panelSlot), capture(resultsSlot)) } returns Unit
+        coEvery {
+            dao.upsertPanelWithResults(
+                capture(panelSlot),
+                capture(resultsSlot)
+            )
+        } returns Unit
 
         val panelUuid = repository.savePanel(
             uuid = null,

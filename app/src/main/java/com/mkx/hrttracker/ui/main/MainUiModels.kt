@@ -459,9 +459,9 @@ internal fun mainE2ChartYAxisSpec(
     doseMarkers: List<MainE2DoseMarkerUiState> = emptyList(),
 ): MainE2ChartYAxisSpec {
     val rawMax = (
-        points.asSequence().map(Float::toDouble) +
-            doseMarkers.asSequence().map { marker -> marker.concentration.toDouble() }
-        )
+            points.asSequence().map(Float::toDouble) +
+                    doseMarkers.asSequence().map { marker -> marker.concentration.toDouble() }
+            )
         .filter { value -> value.isFinite() && value > 0.0 }
         .maxOrNull()
         ?: 0.0
@@ -505,7 +505,7 @@ internal fun buildMainAntiandrogenCards(
     val lastDoseCutoff = mainHomeLatestDoseCutoff(now = now, zoneId = zoneId)
     val antiandrogenEntriesAtOrBeforeNow = entries.filter { entry ->
         entry.category == MedicationCategory.ANTIANDROGEN &&
-            lastDoseCutoff.contains(entry.appliedAt)
+                lastDoseCutoff.contains(entry.appliedAt)
     }
     return groups.sortedBy { it.createdAt }.flatMap { group ->
         group.medications
@@ -702,7 +702,7 @@ internal fun isMainE2TrendDeltaDisplayZero(
     displayUnit: BloodUnitKey,
 ): Boolean {
     return formatMainE2ConcentrationValue(abs(changeSinceYesterday), displayUnit) ==
-        formatMainE2ConcentrationValue(0.0, displayUnit)
+            formatMainE2ConcentrationValue(0.0, displayUnit)
 }
 
 private fun mainE2DisplayUnitLabel(displayUnit: BloodUnitKey): String {
@@ -736,11 +736,13 @@ private fun mainE2ConcentrationToCanonical(
             value = value,
             unit = BloodUnitKey.PMOL_L,
         )
+
         PkConcentrationUnit.NG_PER_DL -> BloodTestCatalog.toCanonical(
             analyteKey = BloodAnalyteKey.E2,
             value = value,
             unit = BloodUnitKey.NG_DL,
         )
+
         PkConcentrationUnit.NG_PER_ML -> value * 1_000.0
         PkConcentrationUnit.NMOL_PER_L -> BloodTestCatalog.toCanonical(
             analyteKey = BloodAnalyteKey.E2,
@@ -856,7 +858,7 @@ private fun buildMainTodayRowsForDate(
             loggedCount = entry.count,
             isManualRecord = true,
             isFromArchivedGroup = entry.sourceGroupUuid != null &&
-                entry.sourceGroupUuid in archivedGroupUuids,
+                    entry.sourceGroupUuid in archivedGroupUuids,
             editSnapshotEntries = listOf(entry),
         )
     }
@@ -875,10 +877,11 @@ private fun mainIsLastNightTime(time: LocalTime): Boolean {
     return !time.isBefore(MainLastNightStartTime)
 }
 
-private val mainTodayDoseRowComparator = compareBy<MainTodayDoseRowUiState> { row -> row.scheduledAt }
-    .thenBy { row -> if (row.isManualRecord) 1 else 0 }
-    .thenBy { row -> row.groupCreatedAt }
-    .thenBy { row -> row.medicationSortOrder }
+private val mainTodayDoseRowComparator =
+    compareBy<MainTodayDoseRowUiState> { row -> row.scheduledAt }
+        .thenBy { row -> if (row.isManualRecord) 1 else 0 }
+        .thenBy { row -> row.groupCreatedAt }
+        .thenBy { row -> row.medicationSortOrder }
 
 internal fun buildMainUpcomingSection(
     groups: List<MedicationGroup>,
@@ -965,8 +968,8 @@ private fun MedicationLogEntry.matchesAntiandrogenPlanSignature(
     medication: MedicationGroupMedication,
 ): Boolean {
     return sourceGroupUuid == group.uuid &&
-        MedicationSignature.fromLogEntry(this) ==
-        MedicationSignature.fromGroupMedication(medication)
+            MedicationSignature.fromLogEntry(this) ==
+            MedicationSignature.fromGroupMedication(medication)
 }
 
 private fun MedicationLogEntry.matchesManualAntiandrogenName(nameKey: String): Boolean {
@@ -1133,6 +1136,7 @@ private fun List<Pair<Double, Float>>.exactOrInterpolatedPointAt(
             val ratio = (x - x0) / (x1 - x0)
             x to (y0 + (y1 - y0) * ratio).toFloat()
         }
+
         previous != null && x == previous.first -> previous
         next != null && x == next.first -> next
         else -> null
@@ -1166,9 +1170,9 @@ internal fun DoseRowHighlightKey.matches(row: MainTodayDoseRowUiState): Boolean 
     when (this) {
         is DoseRowHighlightKey.Scheduled ->
             row.groupUuid == groupUuid &&
-                row.scheduleTimeUuid == scheduleTimeUuid &&
-                row.scheduledAt == scheduledAt &&
-                (medicationUuid == null || row.medication.uuid == medicationUuid)
+                    row.scheduleTimeUuid == scheduleTimeUuid &&
+                    row.scheduledAt == scheduledAt &&
+                    (medicationUuid == null || row.medication.uuid == medicationUuid)
 
         is DoseRowHighlightKey.Manual ->
             row.isManualRecord && entryUuid in row.fulfillingEntryUuids
@@ -1176,10 +1180,10 @@ internal fun DoseRowHighlightKey.matches(row: MainTodayDoseRowUiState): Boolean 
 
 internal fun DoseRowHighlightKey.matches(row: MainUpcomingDoseRowUiState): Boolean =
     this is DoseRowHighlightKey.Scheduled &&
-        row.groupUuid == groupUuid &&
-        row.scheduleTimeUuid == scheduleTimeUuid &&
-        row.scheduledAt == scheduledAt &&
-        (medicationUuid == null || row.medication.uuid == medicationUuid)
+            row.groupUuid == groupUuid &&
+            row.scheduleTimeUuid == scheduleTimeUuid &&
+            row.scheduledAt == scheduledAt &&
+            (medicationUuid == null || row.medication.uuid == medicationUuid)
 
 internal fun DoseRowHighlightRequest.matches(row: MainTodayDoseRowUiState): Boolean =
     keys.any { key -> key.matches(row) }

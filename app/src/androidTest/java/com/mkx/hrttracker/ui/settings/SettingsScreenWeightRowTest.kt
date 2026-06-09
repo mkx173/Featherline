@@ -66,7 +66,7 @@ class SettingsScreenWeightRowTest {
         composeRule
             .onNode(
                 matcher = hasText(context.getString(R.string.personalization_weight)) and
-                    hasClickAction(),
+                        hasClickAction(),
             )
             .assertIsEnabled()
             .performClick()

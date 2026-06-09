@@ -35,6 +35,7 @@ internal fun buildReminderNotificationText(
             titleRes = R.string.reminder_notification_single_title,
             body = ReminderNotificationBody.GroupName(firstGroupName),
         )
+
         items.size == 2 -> ReminderNotificationText(
             titleRes = R.string.reminder_notification_merged_title,
             body = ReminderNotificationBody.TwoGroups(
@@ -42,6 +43,7 @@ internal fun buildReminderNotificationText(
                 secondGroupName = items[1].groupName,
             ),
         )
+
         else -> ReminderNotificationText(
             titleRes = R.string.reminder_notification_merged_title,
             body = ReminderNotificationBody.MoreGroups(

@@ -18,8 +18,9 @@ fun MedicationGroupSchedule.isScheduledOn(date: LocalDate): Boolean {
     return when (type) {
         MedicationGroupScheduleType.DAILY -> {
             !date.isBefore(since) &&
-                ChronoUnit.DAYS.between(since, date) % normalizedInterval.toLong() == 0L
+                    ChronoUnit.DAYS.between(since, date) % normalizedInterval.toLong() == 0L
         }
+
         MedicationGroupScheduleType.WEEKLY -> {
             if (date.isBefore(since) ||
                 weeklyDaysOfWeek.isEmpty() ||

@@ -73,7 +73,9 @@ class MainViewModelTest {
         every { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) } returns Unit
         every { timeZoneChangeNoticeController.notice } returns MutableStateFlow(null)
         every { settingsRepository.homeLowStockSectionExpandedFlow } returns MutableStateFlow(true)
-        every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(emptyMap())
+        every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
+            emptyMap()
+        )
         coEvery { settingsRepository.setHomeLowStockSectionFoldState(any(), any()) } returns Unit
         coEvery { settingsRepository.clearHomeLowStockAcknowledgedWarningStates() } returns Unit
     }
@@ -127,60 +129,61 @@ class MainViewModelTest {
     }
 
     @Test
-    fun explicitRefreshWithinSameDayAndZoneReanchorsNowWithoutResubscribingOrRefreshingSnapshot() = runTest {
-        val firstMinute = LocalDateTime.of(2026, 4, 30, 9, 0)
-        val zoneId = ZoneId.of("UTC")
-        val appTimeSource = FakeAppTimeSource(firstMinute, initialZone = zoneId)
-        every { homeRepository.observeHomeInputs(any(), any(), any()) } answers {
-            flowOf(
-                homeInputs(
-                    now = secondArg<StateFlow<LocalDateTime>>().value,
-                    source = HomeInputSource.ROOM,
+    fun explicitRefreshWithinSameDayAndZoneReanchorsNowWithoutResubscribingOrRefreshingSnapshot() =
+        runTest {
+            val firstMinute = LocalDateTime.of(2026, 4, 30, 9, 0)
+            val zoneId = ZoneId.of("UTC")
+            val appTimeSource = FakeAppTimeSource(firstMinute, initialZone = zoneId)
+            every { homeRepository.observeHomeInputs(any(), any(), any()) } answers {
+                flowOf(
+                    homeInputs(
+                        now = secondArg<StateFlow<LocalDateTime>>().value,
+                        source = HomeInputSource.ROOM,
+                    )
                 )
+            }
+
+            val viewModel = MainViewModel(
+                homeRepository = homeRepository,
+                settingsRepository = settingsRepository,
+                timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+                appTimeSource = appTimeSource,
+                defaultDispatcher = dispatcher,
             )
+            startUiStateCollection(viewModel)
+            advanceUntilIdle()
+
+            verify(exactly = 1) {
+                homeRepository.observeHomeInputs(
+                    firstMinute.toLocalDate(),
+                    appTimeSource.currentMinute,
+                    zoneId,
+                )
+            }
+            verify(exactly = 1) {
+                homeRepository.refreshHomeSnapshotAsync(
+                    now = firstMinute,
+                    force = false,
+                    zoneId = zoneId,
+                )
+            }
+
+            val normalTick = firstMinute.plusMinutes(1)
+            appTimeSource.setCurrentMinute(normalTick)
+            advanceUntilIdle()
+
+            verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any(), any()) }
+            verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) }
+            assertEquals(normalTick, viewModel.uiState.value.now)
+
+            val refreshedMinute = firstMinute.plusHours(2)
+            appTimeSource.setCurrentSnapshot(refreshedMinute, zoneId)
+            advanceUntilIdle()
+
+            verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any(), any()) }
+            verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) }
+            assertEquals(refreshedMinute, viewModel.uiState.value.now)
         }
-
-        val viewModel = MainViewModel(
-            homeRepository = homeRepository,
-            settingsRepository = settingsRepository,
-            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
-            appTimeSource = appTimeSource,
-            defaultDispatcher = dispatcher,
-        )
-        startUiStateCollection(viewModel)
-        advanceUntilIdle()
-
-        verify(exactly = 1) {
-            homeRepository.observeHomeInputs(
-                firstMinute.toLocalDate(),
-                appTimeSource.currentMinute,
-                zoneId,
-            )
-        }
-        verify(exactly = 1) {
-            homeRepository.refreshHomeSnapshotAsync(
-                now = firstMinute,
-                force = false,
-                zoneId = zoneId,
-            )
-        }
-
-        val normalTick = firstMinute.plusMinutes(1)
-        appTimeSource.setCurrentMinute(normalTick)
-        advanceUntilIdle()
-
-        verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any(), any()) }
-        verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) }
-        assertEquals(normalTick, viewModel.uiState.value.now)
-
-        val refreshedMinute = firstMinute.plusHours(2)
-        appTimeSource.setCurrentSnapshot(refreshedMinute, zoneId)
-        advanceUntilIdle()
-
-        verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any(), any()) }
-        verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) }
-        assertEquals(refreshedMinute, viewModel.uiState.value.now)
-    }
 
     @Test
     fun clockTickWithinSameDay_recomputesProjectionTrendWithLatestMinute() = runTest {
@@ -607,7 +610,9 @@ class MainViewModelTest {
             state = MedicineStockState.USER_LOW,
         )
         every { settingsRepository.homeLowStockSectionExpandedFlow } returns MutableStateFlow(false)
-        every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(emptyMap())
+        every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
+            emptyMap()
+        )
         every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
             homeInputs(now = now, stockWarnings = listOf(projection))
         )
@@ -796,7 +801,11 @@ class MainViewModelTest {
     @Test
     fun setLowStockSectionExpandedTrueClearsAcknowledgedWarningStates() = runTest {
         val now = LocalDateTime.of(2026, 4, 30, 12, 0)
-        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(homeInputs(now = now))
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(
+                now = now
+            )
+        )
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
@@ -853,7 +862,7 @@ class MainViewModelTest {
             mapOf("11111111-1111-1111-1111-111111111111" to MedicineStockState.OUT)
         )
         coEvery { settingsRepository.clearHomeLowStockAcknowledgedWarningStates() } throws
-            IllegalStateException("datastore write failed")
+                IllegalStateException("datastore write failed")
         every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
             homeInputs(
                 now = now,
@@ -1084,7 +1093,11 @@ class MainViewModelTest {
         advanceUntilIdle()
 
         verify(exactly = 1) {
-            homeRepository.observeHomeInputs(localMinute.toLocalDate(), appTimeSource.currentMinute, utc)
+            homeRepository.observeHomeInputs(
+                localMinute.toLocalDate(),
+                appTimeSource.currentMinute,
+                utc
+            )
         }
         verify(exactly = 1) {
             homeRepository.refreshHomeSnapshotAsync(
@@ -1098,7 +1111,11 @@ class MainViewModelTest {
         advanceUntilIdle()
 
         verify(exactly = 1) {
-            homeRepository.observeHomeInputs(localMinute.toLocalDate(), appTimeSource.currentMinute, tokyo)
+            homeRepository.observeHomeInputs(
+                localMinute.toLocalDate(),
+                appTimeSource.currentMinute,
+                tokyo
+            )
         }
         verify(exactly = 1) {
             homeRepository.refreshHomeSnapshotAsync(
@@ -1224,7 +1241,10 @@ class MainViewModelTest {
         advanceUntilIdle()
 
         assertEquals(0, viewModel.uiState.value.todaySection.manualCount)
-        assertEquals(emptyList<MainTodayDoseRowUiState>(), viewModel.uiState.value.todaySection.rows)
+        assertEquals(
+            emptyList<MainTodayDoseRowUiState>(),
+            viewModel.uiState.value.todaySection.rows
+        )
 
         acknowledgedWarningStatesFlow.value = mapOf("stale-warning" to MedicineStockState.OUT)
         advanceUntilIdle()

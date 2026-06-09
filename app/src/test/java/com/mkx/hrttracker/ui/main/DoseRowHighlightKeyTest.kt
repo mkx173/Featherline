@@ -45,7 +45,10 @@ class DoseRowHighlightKeyTest {
             groupColorKey = null,
             scheduleTimeUuid = null,
             scheduledAt = scheduledAt,
-            medication = testMedicationGroupMedication(uuid = UUID.randomUUID(), medicine = medicine),
+            medication = testMedicationGroupMedication(
+                uuid = UUID.randomUUID(),
+                medicine = medicine
+            ),
             status = MainTodayDoseStatus.DONE,
             isManualRecord = true,
             fulfillingEntryUuids = listOf(entryUuid),
@@ -75,7 +78,8 @@ class DoseRowHighlightKeyTest {
 
     @Test
     fun `Scheduled with null medicationUuid matches any medication in that slot`() {
-        val key = DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medicationUuid = null)
+        val key =
+            DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medicationUuid = null)
         assertTrue(key.matches(scheduledTodayRow(medicationUuid = UUID.randomUUID())))
     }
 
@@ -127,7 +131,8 @@ class DoseRowHighlightKeyTest {
 
     @Test
     fun `Scheduled with null medicationUuid matches upcoming row`() {
-        val key = DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medicationUuid = null)
+        val key =
+            DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medicationUuid = null)
         assertTrue(key.matches(upcomingRow(medicationUuid = UUID.randomUUID())))
     }
 
@@ -150,7 +155,12 @@ class DoseRowHighlightKeyTest {
         val request = DoseRowHighlightRequest(
             listOf(
                 DoseRowHighlightKey.Scheduled(UUID.randomUUID(), slotUuid, scheduledAt, medUuid),
-                DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medicationUuid = null),
+                DoseRowHighlightKey.Scheduled(
+                    groupUuid,
+                    slotUuid,
+                    scheduledAt,
+                    medicationUuid = null
+                ),
             )
         )
 
@@ -163,7 +173,12 @@ class DoseRowHighlightKeyTest {
         val request = DoseRowHighlightRequest(
             listOf(
                 DoseRowHighlightKey.Scheduled(otherGroupUuid, slotUuid, scheduledAt, medUuid),
-                DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medicationUuid = null),
+                DoseRowHighlightKey.Scheduled(
+                    groupUuid,
+                    slotUuid,
+                    scheduledAt,
+                    medicationUuid = null
+                ),
             )
         )
 

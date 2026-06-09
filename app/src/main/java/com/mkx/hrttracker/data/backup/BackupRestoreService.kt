@@ -101,7 +101,7 @@ class BackupRestoreService @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "validate_backup_start bytes=${encryptedBytes.size} " +
-                "header=${encryptedBytes.headerPreviewHex()}",
+                    "header=${encryptedBytes.headerPreviewHex()}",
         )
         try {
             backupCrypto.validateEncryptedBackupContainer(encryptedBytes)
@@ -113,7 +113,7 @@ class BackupRestoreService @Inject constructor(
             diagnosticsLogger.warning(
                 TAG,
                 "validate_backup_incompatible bytes=${encryptedBytes.size} " +
-                    "header=${encryptedBytes.headerPreviewHex()} reason=${error.message}",
+                        "header=${encryptedBytes.headerPreviewHex()} reason=${error.message}",
                 error,
             )
             throw IncompatibleBackupFileException(
@@ -130,7 +130,7 @@ class BackupRestoreService @Inject constructor(
             diagnosticsLogger.warning(
                 TAG,
                 "validate_backup_unexpected_error bytes=${encryptedBytes.size} " +
-                    "header=${encryptedBytes.headerPreviewHex()}",
+                        "header=${encryptedBytes.headerPreviewHex()}",
                 error,
             )
             throw error
@@ -167,7 +167,7 @@ class BackupRestoreService @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "restore_backup_start bytes=${encryptedBytes.size} " +
-                "expectedBackupPackage=$BACKUP_APP_PACKAGE_NAME installedPackage=${context.packageName}",
+                    "expectedBackupPackage=$BACKUP_APP_PACKAGE_NAME installedPackage=${context.packageName}",
         )
         val passwordChars = password.toCharArray()
         val json = try {
@@ -229,7 +229,8 @@ class BackupRestoreService @Inject constructor(
                 database.userProfileDao().deleteProfile()
 
                 if (validatedSnapshot.customBloodAnalytes.isNotEmpty()) {
-                    database.bloodTestDao().insertCustomAnalytes(validatedSnapshot.customBloodAnalytes)
+                    database.bloodTestDao()
+                        .insertCustomAnalytes(validatedSnapshot.customBloodAnalytes)
                 }
                 if (validatedSnapshot.bloodTestPanels.isNotEmpty()) {
                     database.bloodTestDao().insertPanels(validatedSnapshot.bloodTestPanels)
@@ -248,7 +249,8 @@ class BackupRestoreService @Inject constructor(
                     database.medicationGroupDao().insertGroups(validatedSnapshot.medicationGroups)
                 }
                 if (validatedSnapshot.medicationGroupItems.isNotEmpty()) {
-                    database.medicationGroupDao().insertItems(validatedSnapshot.medicationGroupItems)
+                    database.medicationGroupDao()
+                        .insertItems(validatedSnapshot.medicationGroupItems)
                 }
                 if (validatedSnapshot.medicationGroupScheduleTimes.isNotEmpty()) {
                     database.medicationGroupDao()
@@ -566,7 +568,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 val referenced = medicineEntitiesByUuid[validatedMedication.medicineUuid]
                 require(referenced?.archivedAtEpochMillis == null) {
                     "Active medication group ${group.uuid} references archived medicine " +
-                        "${validatedMedication.medicineUuid}."
+                            "${validatedMedication.medicineUuid}."
                 }
             }
             groupItemEntities += MedicationGroupItemEntity(
@@ -587,7 +589,8 @@ internal fun BackupSnapshot.toValidatedSnapshot(
     }
 
     val groupEntitiesWithLineage = groupEntities.withDerivedRecreatedFromGroupUuids()
-    val validGroupUuids = groupEntitiesWithLineage.mapTo(mutableSetOf(), MedicationGroupEntity::uuid)
+    val validGroupUuids =
+        groupEntitiesWithLineage.mapTo(mutableSetOf(), MedicationGroupEntity::uuid)
     val scheduleTimeGroupByUuid = groupScheduleTimeEntities.associate { scheduleTime ->
         scheduleTime.uuid to scheduleTime.groupUuid
     }
@@ -602,7 +605,8 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             "Medication log ${log.uuid} must have a positive count."
         }
         requireZoneId(log.appliedAtTimeZoneId, "medication log time zone")
-        val sourceGroupUuid = log.sourceGroupUuid?.parseUuid("medication log source group UUID")?.toString()
+        val sourceGroupUuid =
+            log.sourceGroupUuid?.parseUuid("medication log source group UUID")?.toString()
         if (sourceGroupUuid != null) {
             require(sourceGroupUuid in validGroupUuids) {
                 "Grouped medication logs must reference a restored medication group."
@@ -627,8 +631,8 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             groupScheduleTimeEntities
                 .filter { scheduleTime ->
                     scheduleTime.groupUuid == sourceGroupUuid &&
-                        scheduleTime.hourOfDay == scheduledFor.hour &&
-                        scheduleTime.minuteOfHour == scheduledFor.minute
+                            scheduleTime.hourOfDay == scheduledFor.hour &&
+                            scheduleTime.minuteOfHour == scheduledFor.minute
                 }
                 .singleOrNull()
                 ?.uuid
@@ -638,8 +642,8 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         if (scheduleTimeUuid != null) {
             require(
                 sourceGroupUuid != null &&
-                    scheduledFor != null &&
-                    scheduleTimeGroupByUuid[scheduleTimeUuid] == sourceGroupUuid
+                        scheduledFor != null &&
+                        scheduleTimeGroupByUuid[scheduleTimeUuid] == sourceGroupUuid
             ) {
                 "Medication log ${log.uuid} references a schedule time outside its source group."
             }
@@ -711,9 +715,10 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             }
 
             if (hasBuiltinAnalyte) {
-                val analyteKey = checkNotNull(BloodAnalyteKey.fromStorageValue(result.builtinAnalyteKey)) {
-                    "Unsupported built-in blood analyte key ${result.builtinAnalyteKey}."
-                }
+                val analyteKey =
+                    checkNotNull(BloodAnalyteKey.fromStorageValue(result.builtinAnalyteKey)) {
+                        "Unsupported built-in blood analyte key ${result.builtinAnalyteKey}."
+                    }
                 val unitKey = checkNotNull(BloodUnitKey.fromStorageValue(result.unitSnapshot)) {
                     "Unsupported built-in blood unit ${result.unitSnapshot}."
                 }
@@ -817,15 +822,16 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         firstDayOfWeekOption,
         "first day of week option",
     )
-    val calibrationDefaultUnits = calibrationDefaultUnits.map { (analyteStorageValue, unitStorageValue) ->
-        val analyteKey = checkNotNull(BloodAnalyteKey.fromStorageValue(analyteStorageValue)) {
-            "Unsupported calibration analyte key $analyteStorageValue."
-        }
-        val unitKey = checkNotNull(BloodUnitKey.fromStorageValue(unitStorageValue)) {
-            "Unsupported calibration unit key $unitStorageValue."
-        }
-        AllowedAnalyteUnit.of(analyteKey, unitKey)
-    }.toSet()
+    val calibrationDefaultUnits =
+        calibrationDefaultUnits.map { (analyteStorageValue, unitStorageValue) ->
+            val analyteKey = checkNotNull(BloodAnalyteKey.fromStorageValue(analyteStorageValue)) {
+                "Unsupported calibration analyte key $analyteStorageValue."
+            }
+            val unitKey = checkNotNull(BloodUnitKey.fromStorageValue(unitStorageValue)) {
+                "Unsupported calibration unit key $unitStorageValue."
+            }
+            AllowedAnalyteUnit.of(analyteKey, unitKey)
+        }.toSet()
     val homeE2DisplayUnitKey = checkNotNull(BloodUnitKey.fromStorageValue(homeE2DisplayUnit)) {
         "Unsupported home E2 display unit key $homeE2DisplayUnit."
     }
@@ -853,7 +859,10 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         lastSeenTimeZoneId = lastSeenTimeZoneId,
         hideMedicationDetails = hideMedicationDetails,
         widgetContentScale = widgetContentScale.requireFiniteIn(0.5f..1.5f, "widget content scale"),
-        widgetBackgroundAlpha = widgetBackgroundAlpha.requireFiniteIn(0.5f..1f, "widget background opacity"),
+        widgetBackgroundAlpha = widgetBackgroundAlpha.requireFiniteIn(
+            0.5f..1f,
+            "widget background opacity"
+        ),
         widgetDarkModeOption = widgetDarkModeOption,
         groupNameCounter = groupNameCounter,
         firstDayOfWeekOption = firstDayOfWeekOption,
@@ -942,6 +951,7 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
             }
             MedicineSelection.PatchOff
         }
+
         selectionKind == MedicationSelectionKind.CATALOG -> {
             require(customMedicationName == null && customMedicationNameNormalized == null) {
                 "Catalog medicine $uuid must not carry a custom name."
@@ -954,6 +964,7 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
             }
             MedicineSelection.Catalog(medicationKey = key)
         }
+
         else -> {
             require(medicationKey == null) {
                 "Custom medicine $uuid must not carry a catalog medication key."
@@ -993,8 +1004,10 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
     val expectedIdentityKey = when (resolvedSelection) {
         is MedicineSelection.Catalog ->
             MedicineIdentityKey.catalog(resolvedSelection.medicationKey, resolvedPreparation)
+
         is MedicineSelection.Custom ->
             MedicineIdentityKey.custom(resolvedSelection.medicationName, resolvedPreparation)
+
         is MedicineSelection.PatchOff -> MedicineIdentityKey.patchOff()
     }
     require(identityKey == expectedIdentityKey) {
@@ -1123,16 +1136,19 @@ private fun MedicinePreparationType.toValidatedPreparation(
             requireFieldsOnly("strengthMgPerTablet")
             MedicinePreparation.Pill(strengthMgPerTablet = checkNotNull(strengthMgPerTablet))
         }
+
         MedicinePreparationType.CAPSULE -> {
             requireFieldsOnly("strengthMgPerTablet")
             MedicinePreparation.Capsule(strengthMgPerCapsule = checkNotNull(strengthMgPerTablet))
         }
+
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> {
             requireFieldsOnly("strengthMgPerVial")
             MedicinePreparation.InjectionSingleUseVial(
                 strengthMgPerVial = checkNotNull(strengthMgPerVial)
             )
         }
+
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
             requireFieldsOnly("concentrationMgPerMl", "vialVolumeMl")
             MedicinePreparation.InjectionMultiUseVial(
@@ -1140,6 +1156,7 @@ private fun MedicinePreparationType.toValidatedPreparation(
                 vialVolumeMl = checkNotNull(vialVolumeMl),
             )
         }
+
         MedicinePreparationType.GEL_SACHET -> {
             requireFieldsOnly("concentrationPercent", "sachetWeightGrams")
             MedicinePreparation.GelSachet(
@@ -1147,6 +1164,7 @@ private fun MedicinePreparationType.toValidatedPreparation(
                 sachetWeightGrams = checkNotNull(sachetWeightGrams),
             )
         }
+
         MedicinePreparationType.GEL_CONTAINER -> {
             requireFieldsOnly("concentrationPercent", "containerWeightGrams")
             MedicinePreparation.GelContainer(
@@ -1154,6 +1172,7 @@ private fun MedicinePreparationType.toValidatedPreparation(
                 containerWeightGrams = checkNotNull(containerWeightGrams),
             )
         }
+
         MedicinePreparationType.PATCH -> {
             val patchFields = listOfNotNull(patchTotalMg, patchReleaseRateMcgPerDay)
             require(patchFields.size == 1) {
@@ -1354,48 +1373,53 @@ private data class ValidatedMedicationData(
                         denominator = denominator,
                     )
                 }
+
                 DoseInstructionKind.WHOLE_UNIT -> {
                     require(
                         tabletFractionNumerator == null &&
-                            tabletFractionDenominator == null &&
-                            doseVolumeMl == null &&
-                            doseWeightGrams == null
+                                tabletFractionDenominator == null &&
+                                doseVolumeMl == null &&
+                                doseWeightGrams == null
                     ) {
                         "$fieldPrefix WHOLE_UNIT must not carry tablet fraction or volume/weight fields."
                     }
                     DoseInstruction.WholeUnit
                 }
+
                 DoseInstructionKind.VOLUME_ML -> {
                     val volumeMl = doseVolumeMl.requirePositiveFinite("$fieldPrefix dose volume")
                     require(
                         tabletFractionNumerator == null &&
-                            tabletFractionDenominator == null &&
-                            doseWeightGrams == null
+                                tabletFractionDenominator == null &&
+                                doseWeightGrams == null
                     ) {
                         "$fieldPrefix VOLUME_ML must not carry tablet fraction or weight."
                     }
                     DoseInstruction.VolumeMl(volumeMl)
                 }
+
                 DoseInstructionKind.WEIGHT_GRAMS -> {
-                    val weightGrams = doseWeightGrams.requirePositiveFinite("$fieldPrefix dose weight")
+                    val weightGrams =
+                        doseWeightGrams.requirePositiveFinite("$fieldPrefix dose weight")
                     require(
                         tabletFractionNumerator == null &&
-                            tabletFractionDenominator == null &&
-                            doseVolumeMl == null
+                                tabletFractionDenominator == null &&
+                                doseVolumeMl == null
                     ) {
                         "$fieldPrefix WEIGHT_GRAMS must not carry tablet fraction or volume."
                     }
                     DoseInstruction.WeightGrams(weightGrams)
                 }
+
                 DoseInstructionKind.NOOP -> {
                     require(applicationType == MedicationApplicationType.PATCH_OFF) {
                         "$fieldPrefix NOOP dose instruction is only valid for PATCH_OFF."
                     }
                     require(
                         tabletFractionNumerator == null &&
-                            tabletFractionDenominator == null &&
-                            doseVolumeMl == null &&
-                            doseWeightGrams == null
+                                tabletFractionDenominator == null &&
+                                doseVolumeMl == null &&
+                                doseWeightGrams == null
                     ) {
                         "$fieldPrefix NOOP must not carry dose fields."
                     }
@@ -1417,7 +1441,7 @@ private data class ValidatedMedicationData(
             }
             require(normalizedDoseInstruction.isCompatibleWith(preparationType)) {
                 "$fieldPrefix doseInstruction=${normalizedDoseInstruction.kind} " +
-                    "is not compatible with preparation=$preparationType."
+                        "is not compatible with preparation=$preparationType."
             }
 
             if (applicationType != MedicationApplicationType.GEL) {

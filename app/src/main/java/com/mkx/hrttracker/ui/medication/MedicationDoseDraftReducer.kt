@@ -27,7 +27,7 @@ fun MedicationDoseDraft.applyMedicinePicker(
     val updatedPreparationType = updatedDraft.inferredOrSelectedPreparationType()
     val shouldResetDoseDraft =
         resetPolicy == MedicationDoseResetPolicy.RESET_ON_PREPARATION_CHANGE &&
-            medicineDraft.inferredOrSelectedPreparationType() != updatedPreparationType
+                medicineDraft.inferredOrSelectedPreparationType() != updatedPreparationType
     return copy(
         medicineDraft = updatedDraft,
         resolvedMedicine = if (updatedDraft.selectedMedicineUuid == null) null else resolvedMedicine,

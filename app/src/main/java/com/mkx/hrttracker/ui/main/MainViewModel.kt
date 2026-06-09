@@ -211,7 +211,8 @@ class MainViewModel @Inject constructor(
             allGroups,
             inputs.settings.showArchivedGroupRecords,
         )
-        val scheduleGroups = if (inputs.settings.showArchivedGroupRecords) allGroups else inputs.activeGroups
+        val scheduleGroups =
+            if (inputs.settings.showArchivedGroupRecords) allGroups else inputs.activeGroups
         // HomeInputs was constructed against the date-scoped anchor `now` at
         // flow subscription time. The live `now` ticks per minute and may
         // cross a planned-slot expiry without a fresh upstream emission, so
@@ -248,8 +249,8 @@ class MainViewModel @Inject constructor(
         // present. Only a SNAPSHOT with neither (no dose history) stays gated
         // on the ROOM emission.
         val e2TrendReady = freshProjection != null ||
-            inputs.estradiolPkEntries.isNotEmpty() ||
-            inputs.source == HomeInputSource.ROOM
+                inputs.estradiolPkEntries.isNotEmpty() ||
+                inputs.source == HomeInputSource.ROOM
 
         // Local re-simulation only happens when no usable cached projection
         // remains but embedded PK entries do — log just that case, not every
@@ -258,9 +259,9 @@ class MainViewModel @Inject constructor(
             diagnosticsLogger.info(
                 TAG,
                 "home_pk_trend_resimulated source=${inputs.source} " +
-                    "projectionExpired=${inputs.pkProjection != null} " +
-                    "pkEntries=${inputs.estradiolPkEntries.size} " +
-                    "plannedEntries=${freshPlannedEntries.size}",
+                        "projectionExpired=${inputs.pkProjection != null} " +
+                        "pkEntries=${inputs.estradiolPkEntries.size} " +
+                        "plannedEntries=${freshPlannedEntries.size}",
             )
         }
 
@@ -336,7 +337,7 @@ class MainViewModel @Inject constructor(
         return currentWarningStates.any { (uuid, currentState) ->
             val acknowledgedState = acknowledgedWarningStates[uuid]
             acknowledgedState == null ||
-                acknowledgedState.lowStockSeverityRank() < currentState.lowStockSeverityRank()
+                    acknowledgedState.lowStockSeverityRank() < currentState.lowStockSeverityRank()
         }
     }
 
@@ -363,7 +364,7 @@ class MainViewModel @Inject constructor(
 
     private fun HomeTimeKey.matches(snapshot: AppTimeSnapshot): Boolean {
         return date == snapshot.minute.toLocalDate() &&
-            zoneId == snapshot.zone
+                zoneId == snapshot.zone
     }
 
     private companion object {

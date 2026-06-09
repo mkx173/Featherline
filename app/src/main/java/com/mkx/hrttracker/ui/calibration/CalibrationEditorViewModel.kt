@@ -73,6 +73,7 @@ class CalibrationEditorViewModel @Inject constructor(
     private var latestSettingsState = settingsRepository.settingsState.value
     private val cachedCustomAnalytes = bloodTestRepository.getCachedActiveCustomAnalytes()
     private val cachedEditingPanel = editingPanelUuid?.let(bloodTestRepository::getCachedPanel)
+
     // The calibration form is almost entirely external input, so its in-progress
     // draft is persisted across process death — the one editor exempt from the
     // "input loss is acceptable" rule.
@@ -80,6 +81,7 @@ class CalibrationEditorViewModel @Inject constructor(
         savedStateHandle.get<String>(DRAFT_SNAPSHOT_KEY)?.let { json ->
             runCatching { draftSnapshotAdapter.fromJson(json) }.getOrNull()
         }
+
     // Once a save/delete succeeds the editor navigates away, so persistence stops (the
     // collector job is cancelled) and the stored snapshot is cleared: otherwise a process
     // death in the post-save window would restore the committed entry as a new unsaved
@@ -125,7 +127,9 @@ class CalibrationEditorViewModel @Inject constructor(
                 collectedDate = collectedDate,
                 collectedTime = collectedTime,
                 timeSinceLastEstradiolDoseMillis = when (
-                    val lookup = medicationLogRepository.getObservedLatestEstradiolEntryOnOrBefore(collectedAt)
+                    val lookup = medicationLogRepository.getObservedLatestEstradiolEntryOnOrBefore(
+                        collectedAt
+                    )
                 ) {
                     is ObservedEstradiolEntryLookup.Loaded ->
                         timeSinceEntryMillis(target = collectedAt, entry = lookup.entry)
@@ -503,7 +507,8 @@ class CalibrationEditorViewModel @Inject constructor(
         val targetState = uiState.value
         val targetCollectedAt = targetState.toCollectedAtInstant(targetState.collectedZoneId)
         when (
-            val lookup = medicationLogRepository.getObservedLatestEstradiolEntryOnOrBefore(targetCollectedAt)
+            val lookup =
+                medicationLogRepository.getObservedLatestEstradiolEntryOnOrBefore(targetCollectedAt)
         ) {
             is ObservedEstradiolEntryLookup.Loaded -> {
                 updateTimeSinceLastEstradiolDose(
@@ -578,7 +583,10 @@ class CalibrationEditorViewModel @Inject constructor(
                         analyteKey = analyte.key,
                         resultUuid = result.uuid,
                         valueText = formatCalibrationNumericValue(result.value),
-                        unit = storedUnit ?: defaultCalibrationUnitFor(analyte.key, latestSettingsState),
+                        unit = storedUnit ?: defaultCalibrationUnitFor(
+                            analyte.key,
+                            latestSettingsState
+                        ),
                         defaultUnit = defaultCalibrationUnitFor(analyte.key, latestSettingsState),
                         originalUnit = storedUnit,
                     )
@@ -685,10 +693,10 @@ internal fun canSaveCalibrationEditorState(state: CalibrationEditorUiState): Boo
 
 internal fun isCalibrationEditorBusy(state: CalibrationEditorUiState): Boolean {
     return state.isLoading ||
-        state.isSaving ||
-        state.isDeleting ||
-        state.isSaved ||
-        state.isDeleted
+            state.isSaving ||
+            state.isDeleting ||
+            state.isSaved ||
+            state.isDeleted
 }
 
 internal fun invalidCalibrationDraftKeys(state: CalibrationEditorUiState): Set<String> {
@@ -727,8 +735,10 @@ internal sealed interface CalibrationAddAnalyteOption {
 internal fun calibrationAddAnalyteOptions(
     state: CalibrationEditorUiState,
 ): List<CalibrationAddAnalyteOption> {
-    val presentBuiltinAnalytes = state.drafts.mapNotNull(CalibrationResultDraftUiState::analyteKey).toSet()
-    val presentCustomAnalytes = state.drafts.mapNotNull(CalibrationResultDraftUiState::customAnalyteUuid).toSet()
+    val presentBuiltinAnalytes =
+        state.drafts.mapNotNull(CalibrationResultDraftUiState::analyteKey).toSet()
+    val presentCustomAnalytes =
+        state.drafts.mapNotNull(CalibrationResultDraftUiState::customAnalyteUuid).toSet()
     val builtinOptions = calibrationAnalytes
         .filterNot(presentBuiltinAnalytes::contains)
         .map(CalibrationAddAnalyteOption::Builtin)

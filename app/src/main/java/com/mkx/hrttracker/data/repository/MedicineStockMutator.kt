@@ -433,7 +433,7 @@ internal class MedicineStockMutator @Inject constructor() {
 
 internal fun MedicinePreparationType.isContainerTopology(): Boolean {
     return this == MedicinePreparationType.INJECTION_MULTI_USE_VIAL ||
-        this == MedicinePreparationType.GEL_CONTAINER
+            this == MedicinePreparationType.GEL_CONTAINER
 }
 
 internal fun MedicineEntity.containerSizeOrNull(): Double? {

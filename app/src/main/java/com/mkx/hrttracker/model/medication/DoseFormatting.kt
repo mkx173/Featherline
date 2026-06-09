@@ -35,6 +35,7 @@ fun FoldedPortion.formatPortion(locale: Locale): String = when {
     100L % denominator == 0L -> BigDecimal.valueOf(numerator)
         .divide(BigDecimal.valueOf(denominator))
         .formatNormalizedDecimal(locale)
+
     else -> "$numerator/$denominator"
 }
 

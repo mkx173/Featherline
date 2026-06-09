@@ -108,7 +108,9 @@ class PlanDayOccurrenceTest {
             zoneId = zoneId,
         )
 
-        assertEquals(listOf(LocalTime.of(11, 0)), schedule.scheduledEntries.map { it.scheduledTime })
+        assertEquals(
+            listOf(LocalTime.of(11, 0)),
+            schedule.scheduledEntries.map { it.scheduledTime })
     }
 
     @Test
@@ -447,7 +449,10 @@ class PlanDayOccurrenceTest {
 
         assertEquals(1, schedule.scheduledEntries.size)
         assertEquals(LocalTime.of(9, 0), schedule.scheduledEntries.single().scheduledTime)
-        assertEquals(listOf(shiftedSlotLog.uuid), schedule.scheduledEntries.single().fulfillingEntryUuids)
+        assertEquals(
+            listOf(shiftedSlotLog.uuid),
+            schedule.scheduledEntries.single().fulfillingEntryUuids
+        )
         assertTrue(schedule.scheduledEntries.single().isFulfilled)
         assertTrue(schedule.unplannedEntries.isEmpty())
     }
@@ -484,7 +489,10 @@ class PlanDayOccurrenceTest {
         )
 
         assertTrue(schedule.scheduledEntries.single().isFulfilled)
-        assertEquals(LocalDateTime.of(2026, 4, 18, 9, 3), schedule.scheduledEntries.single().loggedAt)
+        assertEquals(
+            LocalDateTime.of(2026, 4, 18, 9, 3),
+            schedule.scheduledEntries.single().loggedAt
+        )
         assertFalse(schedule.scheduledEntries.single().isPastDue)
         assertFalse(schedule.scheduledEntries.single().isDueSoon)
     }
@@ -521,7 +529,10 @@ class PlanDayOccurrenceTest {
         )
 
         assertTrue(schedule.scheduledEntries.single().isFulfilled)
-        assertEquals(LocalDateTime.of(2026, 4, 19, 0, 15), schedule.scheduledEntries.single().loggedAt)
+        assertEquals(
+            LocalDateTime.of(2026, 4, 19, 0, 15),
+            schedule.scheduledEntries.single().loggedAt
+        )
         assertTrue(schedule.unplannedEntries.isEmpty())
     }
 
@@ -562,7 +573,10 @@ class PlanDayOccurrenceTest {
         assertEquals(1, schedule.scheduledEntries.size)
         assertEquals(group.name, schedule.scheduledEntries.single().groupName)
         assertEquals(group.colorKey, schedule.scheduledEntries.single().groupColorKey)
-        assertEquals(listOf(linkedEntry.uuid), schedule.scheduledEntries.single().fulfillingEntryUuids)
+        assertEquals(
+            listOf(linkedEntry.uuid),
+            schedule.scheduledEntries.single().fulfillingEntryUuids
+        )
         assertTrue(schedule.scheduledEntries.single().isFulfilled)
     }
 
@@ -698,7 +712,10 @@ class PlanDayOccurrenceTest {
         assertFalse(firstScheduledEntry.isFulfilled)
         assertTrue(firstScheduledEntry.fulfillingEntryUuids.isEmpty())
         assertEquals(listOf(linkedEntry.uuid), firstScheduledEntry.outsideScheduleWindowEntryUuids)
-        assertEquals(LocalDateTime.of(2026, 4, 18, 10, 1), firstScheduledEntry.outsideScheduleWindowLoggedAt)
+        assertEquals(
+            LocalDateTime.of(2026, 4, 18, 10, 1),
+            firstScheduledEntry.outsideScheduleWindowLoggedAt
+        )
         assertTrue(schedule.unplannedEntries.isEmpty())
     }
 

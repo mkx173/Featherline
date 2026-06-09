@@ -41,6 +41,7 @@ internal fun postLogStockWarningDestination(
             medicineId = warning.medicine.uuid.toString(),
             topLevelParentRoute = topLevelParentRoute,
         )
+
         is PostLogStockWarning.Many -> Screen.Medicines.createRoute(
             topLevelParentRoute = topLevelParentRoute,
         )
@@ -59,19 +60,23 @@ internal fun postLogStockWarningSnackbarMessage(
                     R.string.stock_toast_out_single,
                     displayName,
                 )
+
                 MedicineStockState.IMMINENT -> context.getString(
                     R.string.stock_toast_imminent_single,
                     displayName,
                 )
+
                 MedicineStockState.USER_LOW -> context.getString(
                     R.string.stock_toast_user_low_single,
                     displayName,
                 )
+
                 MedicineStockState.HEALTHY,
                 MedicineStockState.UNTRACKED,
                 MedicineStockState.NO_RUNWAY -> unsupportedPostLogStockWarningState(warning.state)
             }
         }
+
         is PostLogStockWarning.Many -> context.resources.getQuantityString(
             R.plurals.stock_toast_many_attention,
             warning.count,

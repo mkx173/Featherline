@@ -84,7 +84,10 @@ fun DatePickerModal(
                             // with the system zone in non-UTC offsets would shift to the previous
                             // (or next) calendar day on confirm.
                             onDateSelected(
-                                materialPickerDateMillisToLocalDate(selectedDateMillis, ZoneOffset.UTC)
+                                materialPickerDateMillisToLocalDate(
+                                    selectedDateMillis,
+                                    ZoneOffset.UTC
+                                )
                             )
                         }
                         onDismiss()
@@ -108,12 +111,12 @@ internal fun datePickerSelectableDates(
         override fun isSelectableDate(utcTimeMillis: Long): Boolean {
             val date = materialPickerDateMillisToLocalDate(utcTimeMillis, ZoneOffset.UTC)
             return (minimumDate == null || !date.isBefore(minimumDate)) &&
-                (maximumDate == null || !date.isAfter(maximumDate))
+                    (maximumDate == null || !date.isAfter(maximumDate))
         }
 
         override fun isSelectableYear(year: Int): Boolean {
             return (minimumDate == null || year >= minimumDate.year) &&
-                (maximumDate == null || year <= maximumDate.year)
+                    (maximumDate == null || year <= maximumDate.year)
         }
     }
 }

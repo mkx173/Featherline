@@ -126,7 +126,7 @@ object ScheduledRunwayCalculator {
 
                 required.forEach { (signature, requirement) ->
                     val remaining = requirement.requiredCount -
-                        loggedCounts.getOrDefault(signature, 0)
+                            loggedCounts.getOrDefault(signature, 0)
                     if (remaining > 0) {
                         doses += MedicineDoseOccurrence(
                             scheduledFor = occurrence.scheduledFor,
@@ -214,10 +214,10 @@ object ScheduledRunwayCalculator {
             }
     }
 
-private data class DoseRequirement(
-    val requiredCount: Int,
-    val perAdministration: Double,
-)
+    private data class DoseRequirement(
+        val requiredCount: Int,
+        val perAdministration: Double,
+    )
 }
 
 private data class LogPlanSlotKey(
@@ -237,7 +237,8 @@ private class PlanSlotLogIndex(logEntries: List<MedicationLogEntry>) {
 
     init {
         val exact = mutableMapOf<LogPlanSlotKey, MutableList<MedicationLogEntry>>()
-        val scheduleTimeDate = mutableMapOf<LogScheduleTimeDateKey, MutableList<MedicationLogEntry>>()
+        val scheduleTimeDate =
+            mutableMapOf<LogScheduleTimeDateKey, MutableList<MedicationLogEntry>>()
         for (entry in logEntries) {
             val groupUuid = entry.sourceGroupUuid ?: continue
             val scheduledFor = entry.scheduledFor ?: continue
@@ -303,7 +304,12 @@ data class FulfilledScheduledSlot(
 
 internal fun initialSimulatedStock(medicine: Medicine): SimulatedStock {
     if (!medicine.stock.trackingEnabled) {
-        return SimulatedStock(open = 0.0, sealed = 0.0, containerCapacity = 0.0, isContainer = false)
+        return SimulatedStock(
+            open = 0.0,
+            sealed = 0.0,
+            containerCapacity = 0.0,
+            isContainer = false
+        )
     }
 
     val units = medicine.stock.unitsRemaining ?: 0.0

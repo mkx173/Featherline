@@ -223,7 +223,7 @@ fun MedicationLogEntryEditorSheet(
         )
 
         val showsActualAmountSection = (allowsActualDoseDelta || showActualDoseDeltaReadOnly) &&
-            effectiveActualAmount != null
+                effectiveActualAmount != null
         if (showsActualAmountSection) {
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         }

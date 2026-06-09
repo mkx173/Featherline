@@ -76,7 +76,13 @@ class ReminderNotificationManagerTest {
         every { anyConstructed<NotificationCompat.Builder>().setContentIntent(any()) } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().setAutoCancel(any()) } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().setStyle(any()) } answers { self as NotificationCompat.Builder }
-        every { anyConstructed<NotificationCompat.Builder>().addAction(any<Int>(), any(), any()) } answers { self as NotificationCompat.Builder }
+        every {
+            anyConstructed<NotificationCompat.Builder>().addAction(
+                any<Int>(),
+                any(),
+                any()
+            )
+        } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().build() } returns mockk()
 
         // Intent setters used in apply blocks; return values are discarded by the caller
@@ -119,7 +125,13 @@ class ReminderNotificationManagerTest {
         val notifManagerCompat: NotificationManagerCompat = mockk()
         every { NotificationManagerCompat.from(any()) } returns notifManagerCompat
         every { notifManagerCompat.areNotificationsEnabled() } returns true
-        every { notifManagerCompat.notify(any<String>(), any(), any()) } throws SecurityException("revoked")
+        every {
+            notifManagerCompat.notify(
+                any<String>(),
+                any(),
+                any()
+            )
+        } throws SecurityException("revoked")
 
         notificationManager.showDoseReminderNotification(bundle, canSnooze = false)
 
@@ -148,11 +160,11 @@ class ReminderNotificationManagerTest {
             context.getString(R.string.stock_toast_user_low_single, "Estradiol")
         } returns "Low stock: Estradiol"
         every { resources.getQuantityString(R.plurals.stock_toast_out_multiple, 2, 2) } returns
-            "2 medicines out of stock"
+                "2 medicines out of stock"
         every { resources.getQuantityString(R.plurals.stock_toast_imminent_multiple, 2, 2) } returns
-            "2 medicines almost out"
+                "2 medicines almost out"
         every { resources.getQuantityString(R.plurals.stock_toast_user_low_multiple, 2, 2) } returns
-            "2 medicines low on stock"
+                "2 medicines low on stock"
 
         notificationManager.showStockOutToast(medicine)
         notificationManager.showStockImminentToast(medicine)
@@ -173,11 +185,11 @@ class ReminderNotificationManagerTest {
     @Test
     fun stockWarningCountToasts_supportSingleCount() {
         every { resources.getQuantityString(R.plurals.stock_toast_out_multiple, 1, 1) } returns
-            "1 medicine out of stock"
+                "1 medicine out of stock"
         every { resources.getQuantityString(R.plurals.stock_toast_imminent_multiple, 1, 1) } returns
-            "1 medicine almost out"
+                "1 medicine almost out"
         every { resources.getQuantityString(R.plurals.stock_toast_user_low_multiple, 1, 1) } returns
-            "1 medicine low on stock"
+                "1 medicine low on stock"
 
         notificationManager.showStockOutCountToast(1)
         notificationManager.showStockImminentCountToast(1)
@@ -265,8 +277,8 @@ class ReminderNotificationManagerTest {
                 EXTRA_HIGHLIGHT_SCHEDULED_TARGETS,
                 arrayListOf(
                     "aaaaaaaa-0000-0000-0000-000000000000|" +
-                        "bbbbbbbb-0000-0000-0000-000000000000|" +
-                        "2026-05-20T09:00"
+                            "bbbbbbbb-0000-0000-0000-000000000000|" +
+                            "2026-05-20T09:00"
                 ),
             )
         }

@@ -43,7 +43,8 @@ class MedicationCatalogTest {
 
     @Test
     fun antiandrogen_only_exposes_oral_route_with_required_medications() {
-        val applicationTypes = MedicationCatalog.applicationTypesFor(MedicationCategory.ANTIANDROGEN)
+        val applicationTypes =
+            MedicationCatalog.applicationTypesFor(MedicationCategory.ANTIANDROGEN)
         val catalog = catalogFor(
             category = MedicationCategory.ANTIANDROGEN,
             applicationType = MedicationApplicationType.ORAL,

@@ -177,8 +177,8 @@ internal fun medicationStockSubcardModel(
         else -> currentValueTone
     }
     val blinkPreview = hasPreview &&
-        postMutationState != null &&
-        postMutationState != currentState
+            postMutationState != null &&
+            postMutationState != currentState
 
     return MedicationStockSubcardModel(
         chipLabelRes = stockSubcardChipLabelRes(currentState),
@@ -201,14 +201,15 @@ internal fun MedicationStockSubcard(
     previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? = null,
 ) {
     val appLocale = rememberAppLocale()
-    val model = remember(projection, mutationPreviewDoseMagnitude, previewPostMutationState, appLocale) {
-        medicationStockSubcardModel(
-            projection = projection,
-            mutationPreviewDoseMagnitude = mutationPreviewDoseMagnitude,
-            previewPostMutationState = previewPostMutationState,
-            locale = appLocale,
-        )
-    } ?: return
+    val model =
+        remember(projection, mutationPreviewDoseMagnitude, previewPostMutationState, appLocale) {
+            medicationStockSubcardModel(
+                projection = projection,
+                mutationPreviewDoseMagnitude = mutationPreviewDoseMagnitude,
+                previewPostMutationState = previewPostMutationState,
+                locale = appLocale,
+            )
+        } ?: return
     val chipColors = stockSubcardChipColors(model.tone)
     val iconContainerColor = stockSubcardIconContainerColor(
         containerColor = containerColor,
@@ -253,7 +254,9 @@ internal fun MedicationStockSubcard(
                         val runwayTextString = runwayText.resolve()
                         Text(
                             text = runwayTextString,
-                            modifier = Modifier.weight(1f).cjkTextOffset(runwayTextString),
+                            modifier = Modifier
+                                .weight(1f)
+                                .cjkTextOffset(runwayTextString),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.End,
@@ -332,7 +335,10 @@ private fun StockSubcardMetricCell(
             color = iconContainerColor,
             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             shape = MaterialTheme.shapes.small,
-            modifier = Modifier.aspectRatio(1f).width(24.dp).fillMaxHeight()
+            modifier = Modifier
+                .aspectRatio(1f)
+                .width(24.dp)
+                .fillMaxHeight()
         ) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -376,7 +382,9 @@ private fun StockSubcardMetricCell(
                         progress = { 1f },
                         color = progressIndicatorColors.color,
                         trackColor = progressIndicatorColors.trackColor,
-                        modifier = Modifier.weight(newContainerBarWeight).height(6.dp),
+                        modifier = Modifier
+                            .weight(newContainerBarWeight)
+                            .height(6.dp),
                     )
                     PulsingStockSubcardProgressIndicator(
                         progress = row.progress,
@@ -385,7 +393,9 @@ private fun StockSubcardMetricCell(
                         // the bar collapses back the current container settles solid.
                         pulsing = row.opensNewContainer,
                         pulseAlpha = pulseAlpha,
-                        modifier = Modifier.weight(1f).height(6.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(6.dp),
                     )
                 }
             } else {
@@ -405,7 +415,10 @@ private fun StockSubcardMetricCell(
                 val sealedSuffix = row.sealedSupplement?.labelSuffix().orEmpty()
                 Text(
                     text = labelText + sealedSuffix,
-                    modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(appLocale),
+                    modifier = Modifier
+                        .weight(1f)
+                        .alignByBaseline()
+                        .cjkTextOffset(appLocale),
                     style = metricTextStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium,
@@ -493,7 +506,9 @@ private fun RowScope.StockSubcardValueText(
             textAlign = TextAlign.End,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.alignByBaseline().cjkTextOffset(appLocale),
+            modifier = Modifier
+                .alignByBaseline()
+                .cjkTextOffset(appLocale),
         )
         return
     }
@@ -511,7 +526,9 @@ private fun RowScope.StockSubcardValueText(
             textAlign = TextAlign.End,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.alignByBaseline().cjkTextOffset(appLocale),
+            modifier = Modifier
+                .alignByBaseline()
+                .cjkTextOffset(appLocale),
         )
     }
     Text(
@@ -520,7 +537,9 @@ private fun RowScope.StockSubcardValueText(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
-        modifier = Modifier.alignByBaseline().cjkTextOffset(appLocale),
+        modifier = Modifier
+            .alignByBaseline()
+            .cjkTextOffset(appLocale),
     )
     Text(
         text = resolvedStockValueText(
@@ -534,7 +553,10 @@ private fun RowScope.StockSubcardValueText(
         textAlign = TextAlign.End,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.alignByBaseline().cjkTextOffset(appLocale).alpha(blinkAlpha),
+        modifier = Modifier
+            .alignByBaseline()
+            .cjkTextOffset(appLocale)
+            .alpha(blinkAlpha),
     )
 }
 
@@ -563,6 +585,7 @@ private fun MedicationStockSubcardText.resolve(): String {
     return when {
         pluralResId != null && intArg != null ->
             pluralStringResource(pluralResId, intArg, intArg)
+
         resId != null -> stringResource(resId)
         else -> ""
     }
@@ -604,14 +627,17 @@ internal fun stockSubcardProgressIndicatorColors(
             color = primary,
             trackColor = secondaryContainer,
         )
+
         MedicationStockSubcardTone.WARNING -> StockSubcardProgressIndicatorColors(
             color = tertiary,
             trackColor = secondaryContainer,
         )
+
         MedicationStockSubcardTone.ERROR -> StockSubcardProgressIndicatorColors(
             color = error,
             trackColor = secondaryContainer,
         )
+
         MedicationStockSubcardTone.NEUTRAL -> StockSubcardProgressIndicatorColors(
             color = secondary,
             trackColor = secondaryContainer,
@@ -629,7 +655,7 @@ internal fun stockSubcardValueTextColor(
     MedicationStockSubcardTone.ERROR -> error
     MedicationStockSubcardTone.HEALTHY,
     MedicationStockSubcardTone.NEUTRAL,
-    -> onSurface
+        -> onSurface
 }
 
 @Composable
@@ -641,14 +667,17 @@ internal fun stockSubcardChipColors(
             container = MaterialTheme.colorScheme.secondaryContainer,
             content = MaterialTheme.colorScheme.onSecondaryContainer,
         )
+
         MedicationStockSubcardTone.WARNING -> StockSubcardChipColors(
             container = MaterialTheme.colorScheme.tertiaryContainer,
             content = MaterialTheme.colorScheme.onTertiaryContainer,
         )
+
         MedicationStockSubcardTone.ERROR -> StockSubcardChipColors(
             container = MaterialTheme.colorScheme.errorContainer,
             content = MaterialTheme.colorScheme.onErrorContainer,
         )
+
         MedicationStockSubcardTone.NEUTRAL -> StockSubcardChipColors(
             container = MaterialTheme.colorScheme.secondaryContainer,
             content = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -814,10 +843,11 @@ internal fun stockSubcardTone(state: MedicineStockState): MedicationStockSubcard
         MedicineStockState.USER_LOW -> MedicationStockSubcardTone.WARNING
         MedicineStockState.IMMINENT,
         MedicineStockState.OUT,
-        -> MedicationStockSubcardTone.ERROR
+            -> MedicationStockSubcardTone.ERROR
+
         MedicineStockState.NO_RUNWAY,
         MedicineStockState.UNTRACKED,
-        -> MedicationStockSubcardTone.NEUTRAL
+            -> MedicationStockSubcardTone.NEUTRAL
     }
 }
 
@@ -829,9 +859,11 @@ internal fun stockSubcardRunwayText(
             pluralResId = R.plurals.stock_subcard_runway_days,
             intArg = runway.days,
         )
+
         RunwayProjection.BeyondHorizon -> MedicationStockSubcardText(
             resId = R.string.stock_subcard_runway_more_than_one_year,
         )
+
         RunwayProjection.NoSchedule -> null
     }
 }

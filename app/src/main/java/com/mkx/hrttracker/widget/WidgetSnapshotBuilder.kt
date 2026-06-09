@@ -28,7 +28,10 @@ internal fun buildWidgetSnapshotRecord(
     settings: SettingsState,
     now: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    timeFormatter: DateTimeFormatter = localizedShortTimeFormatter(Locale.US, uses24HourFormat = true),
+    timeFormatter: DateTimeFormatter = localizedShortTimeFormatter(
+        Locale.US,
+        uses24HourFormat = true
+    ),
 ): WidgetSnapshotRecord {
     val today = now.toLocalDate()
     val yesterday = today.minusDays(1)
@@ -76,7 +79,7 @@ internal fun buildWidgetSnapshotRecord(
                     colorKey = entry.sourceGroupUuid?.let(groupColorByUuid::get),
                     contextChip = WidgetDoseChip.LAST_NIGHT,
                     isFromArchivedGroup = entry.sourceGroupUuid != null &&
-                        entry.sourceGroupUuid in archivedGroupUuids,
+                            entry.sourceGroupUuid in archivedGroupUuids,
                 )
             }
             .filter { row -> !row.scheduledAt.toLocalTime().isBefore(eveningCutoff) }
@@ -111,7 +114,7 @@ internal fun buildWidgetSnapshotRecord(
                 colorKey = entry.sourceGroupUuid?.let(groupColorByUuid::get),
                 contextChip = null,
                 isFromArchivedGroup = entry.sourceGroupUuid != null &&
-                    entry.sourceGroupUuid in archivedGroupUuids,
+                        entry.sourceGroupUuid in archivedGroupUuids,
             )
         }
 
@@ -211,7 +214,8 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
     val displayTime = when (status) {
         WidgetDoseStatus.DONE,
         WidgetDoseStatus.LOGGED_OUT_OF_WINDOW,
-        -> null
+            -> null
+
         else -> scheduledFor.format(timeFormatter)
     }
     return WidgetDoseRow(

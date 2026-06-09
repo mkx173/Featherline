@@ -23,6 +23,7 @@ class PlanUpcomingOccurrencesTest {
     // Shared so the slot/entry signature matches between the scheduled
     // medication and the fulfilling log entry.
     private val estradiolMedicineUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
+
     @Test
     fun buildNextOccurrencesByGroup_skips_past_slots_on_today() {
         val group = medicationGroup(

@@ -92,7 +92,13 @@ class WidgetSnapshotCodecTest {
             concentrationUnit = "PG_PER_ML",
             timeH = listOf(0.0, 1.0, 2.0),
             concentrations = listOf(120.0, 115.0, 110.0),
-            doseMarkers = listOf(WidgetPkDoseMarkerRecord(timeH = 0.5, concentration = 118.0, isPlanned = false)),
+            doseMarkers = listOf(
+                WidgetPkDoseMarkerRecord(
+                    timeH = 0.5,
+                    concentration = 118.0,
+                    isPlanned = false
+                )
+            ),
         ),
     )
 
@@ -168,7 +174,10 @@ class WidgetSnapshotCodecTest {
     @Test
     fun `codec round-trips e2DisplayUnit`() {
         val record = baseRecord.copy(e2DisplayUnit = "pmol_l")
-        assertEquals("pmol_l", WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)).e2DisplayUnit)
+        assertEquals(
+            "pmol_l",
+            WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)).e2DisplayUnit
+        )
     }
 
     @Test
@@ -177,12 +186,17 @@ class WidgetSnapshotCodecTest {
         // must survive process death intact or the chrome would fall back to the system
         // language while the baked medication strings stay in the app language.
         val record = baseRecord.copy(appLanguageTag = "en")
-        assertEquals("en", WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)).appLanguageTag)
+        assertEquals(
+            "en",
+            WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)).appLanguageTag
+        )
     }
 
     @Test
     fun `codec round-trips anchorDateEpochDay`() {
-        val record = baseRecord.copy(anchorDateEpochDay = LocalDateTime.of(2026, 5, 19, 0, 0).toLocalDate().toEpochDay())
+        val record = baseRecord.copy(
+            anchorDateEpochDay = LocalDateTime.of(2026, 5, 19, 0, 0).toLocalDate().toEpochDay()
+        )
         assertEquals(
             record.anchorDateEpochDay,
             WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)).anchorDateEpochDay,
@@ -194,7 +208,10 @@ class WidgetSnapshotCodecTest {
         val now = LocalDateTime.of(2026, 5, 19, 0, 1)
 
         assertTrue(baseRecord.isAnchoredBefore(now))
-        assertFalse(baseRecord.copy(anchorDateEpochDay = now.toLocalDate().toEpochDay()).isAnchoredBefore(now))
+        assertFalse(
+            baseRecord.copy(anchorDateEpochDay = now.toLocalDate().toEpochDay())
+                .isAnchoredBefore(now)
+        )
     }
 
     @Test

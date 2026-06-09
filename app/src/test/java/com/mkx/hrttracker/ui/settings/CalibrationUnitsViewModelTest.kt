@@ -207,7 +207,10 @@ class CalibrationUnitsViewModelTest {
         viewModel.archiveCustomAnalyte(analyteUuid)
         advanceUntilIdle()
 
-        assertEquals(CalibrationArchiveCustomAnalyteResult.SUCCESS, viewModel.uiState.value.archiveCustomAnalyteResult)
+        assertEquals(
+            CalibrationArchiveCustomAnalyteResult.SUCCESS,
+            viewModel.uiState.value.archiveCustomAnalyteResult
+        )
         assertFalse(viewModel.uiState.value.isArchivingCustomAnalyte)
         assertEquals(emptyList<CustomBloodAnalyte>(), viewModel.uiState.value.customAnalytes)
 
@@ -247,7 +250,10 @@ class CalibrationUnitsViewModelTest {
         viewModel.archiveCustomAnalyte(analyteUuid)
         advanceUntilIdle()
 
-        assertEquals(CalibrationArchiveCustomAnalyteResult.SUCCESS, viewModel.uiState.value.archiveCustomAnalyteResult)
+        assertEquals(
+            CalibrationArchiveCustomAnalyteResult.SUCCESS,
+            viewModel.uiState.value.archiveCustomAnalyteResult
+        )
         assertFalse(viewModel.uiState.value.isArchivingCustomAnalyte)
         assertEquals(emptyList<CustomBloodAnalyte>(), viewModel.uiState.value.customAnalytes)
     }

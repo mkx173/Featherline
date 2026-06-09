@@ -50,8 +50,9 @@ class HomeWidgetManager @Inject constructor(
         val workManager = WorkManager.getInstance(context)
 
         // 1. Enqueue the periodic re-render/rebuild worker (idempotent).
-        val periodicRequest = PeriodicWorkRequestBuilder<WidgetDailyRefreshWorker>(15, TimeUnit.MINUTES)
-            .build()
+        val periodicRequest =
+            PeriodicWorkRequestBuilder<WidgetDailyRefreshWorker>(15, TimeUnit.MINUTES)
+                .build()
         workManager.enqueueUniquePeriodicWork(
             WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
@@ -78,7 +79,11 @@ class HomeWidgetManager @Inject constructor(
                         // Don't let runCatching swallow cancellation of this app-scoped
                         // collector; rethrow so the coroutine stops cleanly.
                         if (throwable is CancellationException) throw throwable
-                        diagnosticsLogger.warning(TAG, "widget_snapshot_home_observer_failed", throwable)
+                        diagnosticsLogger.warning(
+                            TAG,
+                            "widget_snapshot_home_observer_failed",
+                            throwable
+                        )
                     }
                 }
         }
@@ -105,7 +110,11 @@ class HomeWidgetManager @Inject constructor(
                         widgetSnapshotRepository.refreshWidgetSnapshot()
                     }.onFailure { throwable ->
                         if (throwable is CancellationException) throw throwable
-                        diagnosticsLogger.warning(TAG, "widget_snapshot_settings_refresh_failed", throwable)
+                        diagnosticsLogger.warning(
+                            TAG,
+                            "widget_snapshot_settings_refresh_failed",
+                            throwable
+                        )
                     }
                 }
         }
@@ -122,7 +131,11 @@ class HomeWidgetManager @Inject constructor(
                         widgetSnapshotRepository.refreshWidgetSnapshot()
                     }.onFailure { throwable ->
                         if (throwable is CancellationException) throw throwable
-                        diagnosticsLogger.warning(TAG, "widget_snapshot_time_format_refresh_failed", throwable)
+                        diagnosticsLogger.warning(
+                            TAG,
+                            "widget_snapshot_time_format_refresh_failed",
+                            throwable
+                        )
                     }
                 }
         }
@@ -140,12 +153,16 @@ class HomeWidgetManager @Inject constructor(
             runCatching {
                 val appWidgetManager = context.getSystemService(AppWidgetManager::class.java)
                 val glanceAppWidgetManager = GlanceAppWidgetManager(context)
-                val prefs = context.getSharedPreferences(GENERATED_PREVIEW_PREFS, Context.MODE_PRIVATE)
+                val prefs =
+                    context.getSharedPreferences(GENERATED_PREVIEW_PREFS, Context.MODE_PRIVATE)
 
                 for (receiver in GENERATED_PREVIEW_RECEIVERS) {
                     if (
                         receiver.hasGeneratedHomePreview(appWidgetManager) &&
-                        prefs.getInt(receiver.generatedHomePreviewVersionKey, 0) == GENERATED_PREVIEW_VERSION
+                        prefs.getInt(
+                            receiver.generatedHomePreviewVersionKey,
+                            0
+                        ) == GENERATED_PREVIEW_VERSION
                     ) {
                         diagnosticsLogger.info(
                             TAG,
@@ -162,7 +179,10 @@ class HomeWidgetManager @Inject constructor(
                     ) {
                         SET_WIDGET_PREVIEWS_RESULT_SUCCESS -> {
                             prefs.edit()
-                                .putInt(receiver.generatedHomePreviewVersionKey, GENERATED_PREVIEW_VERSION)
+                                .putInt(
+                                    receiver.generatedHomePreviewVersionKey,
+                                    GENERATED_PREVIEW_VERSION
+                                )
                                 .apply()
                             diagnosticsLogger.info(
                                 TAG,

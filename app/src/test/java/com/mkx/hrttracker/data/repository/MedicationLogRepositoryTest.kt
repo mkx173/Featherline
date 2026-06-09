@@ -424,59 +424,60 @@ class MedicationLogRepositoryTest {
     }
 
     @Test
-    fun getObservedLatestEstradiolEntryOnOrBefore_returnsLatestObservedEntryAtOrBeforeTarget() = runTest {
-        val target = Instant.parse("2026-04-30T00:00:00Z")
-        val medicineUuid = "aaaaaaaa-0000-0000-0000-000000000000"
-        val latestEntry = testMedicationLogEntryEntity(
-            uuid = "8bbef05b-368d-4ae4-9e9d-4a83e35f8d9c",
-            appliedAt = target.minus(Duration.ofDays(60)),
-            medicineUuid = medicineUuid,
-        )
-        val olderEntry = testMedicationLogEntryEntity(
-            uuid = "e93047ed-1825-4f9f-a017-3b93d4f0698e",
-            appliedAt = target.minus(Duration.ofDays(90)),
-            medicineUuid = medicineUuid,
-        )
-        val futureEntry = testMedicationLogEntryEntity(
-            uuid = "151986f6-7981-4734-ad5b-5366c5dcd931",
-            appliedAt = target.plus(Duration.ofHours(1)),
-            medicineUuid = medicineUuid,
-        )
-        val antiandrogenEntry = testMedicationLogEntryEntity(
-            uuid = "e22f2f1e-1cb5-4137-83ca-f5d35417cbcd",
-            appliedAt = target.minus(Duration.ofDays(2)),
-            category = MedicationCategory.ANTIANDROGEN,
-            medicineUuid = medicineUuid,
-        )
+    fun getObservedLatestEstradiolEntryOnOrBefore_returnsLatestObservedEntryAtOrBeforeTarget() =
+        runTest {
+            val target = Instant.parse("2026-04-30T00:00:00Z")
+            val medicineUuid = "aaaaaaaa-0000-0000-0000-000000000000"
+            val latestEntry = testMedicationLogEntryEntity(
+                uuid = "8bbef05b-368d-4ae4-9e9d-4a83e35f8d9c",
+                appliedAt = target.minus(Duration.ofDays(60)),
+                medicineUuid = medicineUuid,
+            )
+            val olderEntry = testMedicationLogEntryEntity(
+                uuid = "e93047ed-1825-4f9f-a017-3b93d4f0698e",
+                appliedAt = target.minus(Duration.ofDays(90)),
+                medicineUuid = medicineUuid,
+            )
+            val futureEntry = testMedicationLogEntryEntity(
+                uuid = "151986f6-7981-4734-ad5b-5366c5dcd931",
+                appliedAt = target.plus(Duration.ofHours(1)),
+                medicineUuid = medicineUuid,
+            )
+            val antiandrogenEntry = testMedicationLogEntryEntity(
+                uuid = "e22f2f1e-1cb5-4137-83ca-f5d35417cbcd",
+                appliedAt = target.minus(Duration.ofDays(2)),
+                category = MedicationCategory.ANTIANDROGEN,
+                medicineUuid = medicineUuid,
+            )
 
-        val repository = repositoryWithObservedEntries(
-            entries = listOf(
-                futureEntry,
-                latestEntry,
-                antiandrogenEntry,
-                olderEntry,
-            ),
-            medicineEntities = listOf(
-                testMedicineEntity(
-                    uuid = medicineUuid,
-                    medicationKey = MedicationKey.ESTRADIOL,
-                    preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+            val repository = repositoryWithObservedEntries(
+                entries = listOf(
+                    futureEntry,
+                    latestEntry,
+                    antiandrogenEntry,
+                    olderEntry,
                 ),
-            ),
-            appScope = CoroutineScope(
-                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
-            ),
-        )
-        advanceUntilIdle()
+                medicineEntities = listOf(
+                    testMedicineEntity(
+                        uuid = medicineUuid,
+                        medicationKey = MedicationKey.ESTRADIOL,
+                        preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                    ),
+                ),
+                appScope = CoroutineScope(
+                    backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+                ),
+            )
+            advanceUntilIdle()
 
-        val lookup = repository.getObservedLatestEstradiolEntryOnOrBefore(target)
+            val lookup = repository.getObservedLatestEstradiolEntryOnOrBefore(target)
 
-        assertTrue(lookup is ObservedEstradiolEntryLookup.Loaded)
-        assertEquals(
-            latestEntry.uuid,
-            (lookup as ObservedEstradiolEntryLookup.Loaded).entry?.uuid.toString(),
-        )
-    }
+            assertTrue(lookup is ObservedEstradiolEntryLookup.Loaded)
+            assertEquals(
+                latestEntry.uuid,
+                (lookup as ObservedEstradiolEntryLookup.Loaded).entry?.uuid.toString(),
+            )
+        }
 
     @Test
     fun getObservedLatestEstradiolEntryOnOrBefore_returnsNotLoadedBeforeEntriesFlowLoads() {
@@ -571,7 +572,7 @@ class MedicationLogRepositoryTest {
         // it never reflects the restored entry; with it, the flow recovers.
         assertEquals(
             "observeScheduledEntriesInWindow() must recover after a transient " +
-                "unresolved-medicine failure during restore",
+                    "unresolved-medicine failure during restore",
             listOf(newEntry.uuid),
             emissions.last().map { it.uuid.toString() },
         )

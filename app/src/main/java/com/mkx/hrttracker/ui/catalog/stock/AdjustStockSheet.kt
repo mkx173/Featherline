@@ -104,8 +104,9 @@ fun AdjustStockSheet(
     val appLocale = rememberAppLocale()
     val effectiveInitialTab = if (receivedOnly) AdjustSheetTab.RECEIVED else initialTab
     var activeTab by remember(effectiveInitialTab) { mutableStateOf(effectiveInitialTab) }
-    val isContainer = projection.medicine.preparation is MedicinePreparation.InjectionMultiUseVial ||
-        projection.medicine.preparation is MedicinePreparation.GelContainer
+    val isContainer =
+        projection.medicine.preparation is MedicinePreparation.InjectionMultiUseVial ||
+                projection.medicine.preparation is MedicinePreparation.GelContainer
     val scope = rememberCoroutineScope()
     val resolvedOnCloseClick = onCloseClick ?: {
         hideBottomSheet(scope, sheetState, onDismissRequest)
@@ -426,9 +427,11 @@ internal fun adjustPreviewRunwayText(runway: RunwayProjection): AdjustPreviewRun
             pluralResId = R.plurals.stock_runway_days_remaining,
             intArg = runway.days,
         )
+
         RunwayProjection.BeyondHorizon -> AdjustPreviewRunwayText(
             resId = R.string.stock_runway_more_than_one_year,
         )
+
         RunwayProjection.NoSchedule -> null
     }
 }
@@ -438,6 +441,7 @@ private fun AdjustPreviewRunwayText.resolve(): String {
     return when {
         pluralResId != null && intArg != null ->
             pluralStringResource(pluralResId, intArg, intArg)
+
         resId != null -> stringResource(resId)
         else -> ""
     }
@@ -594,6 +598,7 @@ private fun QuickAddChips(
 private fun quickAddPresets(preparation: MedicinePreparation): List<Int> = when (preparation) {
     is MedicinePreparation.Pill,
     is MedicinePreparation.Capsule -> listOf(10, 14, 21, 28)
+
     is MedicinePreparation.InjectionSingleUseVial -> listOf(5, 10)
     is MedicinePreparation.Patch -> listOf(8, 12, 24)
     else -> emptyList()
@@ -678,7 +683,7 @@ private fun storedTotalUnits(projection: MedicineStockProjection): Double {
         is MedicinePreparation.GelContainer -> {
             val containerSize = preparation.containerSizeUnits()
             (stock.unitsRemaining ?: 0.0) * containerSize +
-                (stock.openContainerAmount ?: 0.0)
+                    (stock.openContainerAmount ?: 0.0)
         }
 
         else -> stock.unitsRemaining ?: 0.0

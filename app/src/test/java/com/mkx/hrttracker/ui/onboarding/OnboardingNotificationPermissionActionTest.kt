@@ -10,17 +10,42 @@ class OnboardingNotificationPermissionActionTest {
     @Test
     fun exactAlarmCard_hiddenBelowS_regardlessOfGrant() {
         // SCHEDULE_EXACT_ALARM does not exist before API 31, so the card never applies.
-        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = 30, exactAlarmGrantedAtStart = false))
-        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = 30, exactAlarmGrantedAtStart = true))
+        assertFalse(
+            shouldShowExactAlarmOnboardingCard(
+                sdkInt = 30,
+                exactAlarmGrantedAtStart = false
+            )
+        )
+        assertFalse(
+            shouldShowExactAlarmOnboardingCard(
+                sdkInt = 30,
+                exactAlarmGrantedAtStart = true
+            )
+        )
     }
 
     @Test
     fun exactAlarmCard_hidden_whenGrantedAtStart() {
         // From API 31 the permission is granted by default; if the user still has
         // it when onboarding begins there is nothing to ask, so the card is skipped.
-        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = 31, exactAlarmGrantedAtStart = true))
-        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = Build.VERSION_CODES.TIRAMISU, exactAlarmGrantedAtStart = true))
-        assertFalse(shouldShowExactAlarmOnboardingCard(sdkInt = Build.VERSION_CODES.UPSIDE_DOWN_CAKE, exactAlarmGrantedAtStart = true))
+        assertFalse(
+            shouldShowExactAlarmOnboardingCard(
+                sdkInt = 31,
+                exactAlarmGrantedAtStart = true
+            )
+        )
+        assertFalse(
+            shouldShowExactAlarmOnboardingCard(
+                sdkInt = Build.VERSION_CODES.TIRAMISU,
+                exactAlarmGrantedAtStart = true
+            )
+        )
+        assertFalse(
+            shouldShowExactAlarmOnboardingCard(
+                sdkInt = Build.VERSION_CODES.UPSIDE_DOWN_CAKE,
+                exactAlarmGrantedAtStart = true
+            )
+        )
     }
 
     @Test
@@ -28,7 +53,12 @@ class OnboardingNotificationPermissionActionTest {
         // Edge case: user revoked exact alarms before onboarding. We surface the
         // card, and because visibility keys off the captured start state it stays
         // visible (does not vanish) once the user re-grants during onboarding.
-        assertTrue(shouldShowExactAlarmOnboardingCard(sdkInt = 31, exactAlarmGrantedAtStart = false))
+        assertTrue(
+            shouldShowExactAlarmOnboardingCard(
+                sdkInt = 31,
+                exactAlarmGrantedAtStart = false
+            )
+        )
     }
 
     @Test

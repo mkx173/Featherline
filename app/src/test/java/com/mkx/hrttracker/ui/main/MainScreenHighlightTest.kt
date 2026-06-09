@@ -46,89 +46,91 @@ class MainScreenHighlightTest {
     }
 
     @Test
-    fun runDoseRowHighlightLifecycle_waitsForScrollSettleThenDelays75MillisBeforeFlashReady() = runTest {
-        val scrollSettled = CompletableDeferred<Unit>()
-        val events = mutableListOf<String>()
-        val job = launch {
-            runDoseRowHighlightLifecycle(
-                setFlashReady = { ready -> events += "flashReady=$ready" },
-                awaitFirstLayoutFrame = { events += "layoutFrame" },
-                awaitScrollSettled = {
-                    events += "waitScrollSettled"
-                    scrollSettled.await()
-                },
-                preFlashDelayMillis = 75L,
-                clearDelayMillis = 0,
-                consumeHighlightRequest = { events += "consume" },
+    fun runDoseRowHighlightLifecycle_waitsForScrollSettleThenDelays75MillisBeforeFlashReady() =
+        runTest {
+            val scrollSettled = CompletableDeferred<Unit>()
+            val events = mutableListOf<String>()
+            val job = launch {
+                runDoseRowHighlightLifecycle(
+                    setFlashReady = { ready -> events += "flashReady=$ready" },
+                    awaitFirstLayoutFrame = { events += "layoutFrame" },
+                    awaitScrollSettled = {
+                        events += "waitScrollSettled"
+                        scrollSettled.await()
+                    },
+                    preFlashDelayMillis = 75L,
+                    clearDelayMillis = 0,
+                    consumeHighlightRequest = { events += "consume" },
+                )
+            }
+
+            runCurrent()
+
+            assertEquals(
+                listOf("flashReady=false", "layoutFrame", "waitScrollSettled"),
+                events,
             )
+
+            // The row is now in view, but the flash must wait out the pre-flash delay
+            // rather than firing the instant the scroll settles.
+            scrollSettled.complete(Unit)
+            runCurrent()
+            assertEquals(
+                listOf("flashReady=false", "layoutFrame", "waitScrollSettled"),
+                events,
+            )
+
+            advanceTimeBy(50L)
+            runCurrent()
+            assertFalse(
+                "flash fired before the pre-flash delay elapsed",
+                events.contains("flashReady=true"),
+            )
+
+            advanceTimeBy(25L)
+            runCurrent()
+            assertEquals(
+                listOf(
+                    "flashReady=false",
+                    "layoutFrame",
+                    "waitScrollSettled",
+                    "flashReady=true",
+                    "consume",
+                ),
+                events,
+            )
+
+            job.cancel()
         }
-
-        runCurrent()
-
-        assertEquals(
-            listOf("flashReady=false", "layoutFrame", "waitScrollSettled"),
-            events,
-        )
-
-        // The row is now in view, but the flash must wait out the pre-flash delay
-        // rather than firing the instant the scroll settles.
-        scrollSettled.complete(Unit)
-        runCurrent()
-        assertEquals(
-            listOf("flashReady=false", "layoutFrame", "waitScrollSettled"),
-            events,
-        )
-
-        advanceTimeBy(50L)
-        runCurrent()
-        assertFalse(
-            "flash fired before the pre-flash delay elapsed",
-            events.contains("flashReady=true"),
-        )
-
-        advanceTimeBy(25L)
-        runCurrent()
-        assertEquals(
-            listOf(
-                "flashReady=false",
-                "layoutFrame",
-                "waitScrollSettled",
-                "flashReady=true",
-                "consume",
-            ),
-            events,
-        )
-
-        job.cancel()
-    }
 
     @Test
-    fun runDoseRowHighlightLifecycle_consumesRequest_whenCancelledBeforeClearDelayElapses() = runTest {
-        // Leaving the Home tab disposes MainScreen, cancelling this coroutine
-        // mid clear-delay. The request must still be consumed so it cannot
-        // replay the highlight when the user returns to the tab.
-        val events = mutableListOf<String>()
-        val job = launch {
-            runDoseRowHighlightLifecycle(
-                setFlashReady = { ready -> events += "flashReady=$ready" },
-                awaitFirstLayoutFrame = { },
-                awaitScrollSettled = { },
-                preFlashDelayMillis = 0L,
-                clearDelayMillis = 10_000L,
-                consumeHighlightRequest = { events += "consume" },
-            )
+    fun runDoseRowHighlightLifecycle_consumesRequest_whenCancelledBeforeClearDelayElapses() =
+        runTest {
+            // Leaving the Home tab disposes MainScreen, cancelling this coroutine
+            // mid clear-delay. The request must still be consumed so it cannot
+            // replay the highlight when the user returns to the tab.
+            val events = mutableListOf<String>()
+            val job = launch {
+                runDoseRowHighlightLifecycle(
+                    setFlashReady = { ready -> events += "flashReady=$ready" },
+                    awaitFirstLayoutFrame = { },
+                    awaitScrollSettled = { },
+                    preFlashDelayMillis = 0L,
+                    clearDelayMillis = 10_000L,
+                    consumeHighlightRequest = { events += "consume" },
+                )
+            }
+
+            runCurrent()
+            advanceTimeBy(1_000L)
+            runCurrent()
+            assertFalse("request consumed before clear delay elapsed", events.contains("consume"))
+
+            job.cancel()
+            job.join()
+
+            assertTrue("request not consumed after cancellation", events.contains("consume"))
         }
-
-        runCurrent()
-        advanceTimeBy(1_000L)
-        runCurrent()
-        assertFalse("request consumed before clear delay elapsed", events.contains("consume"))
-
-        job.cancel()
-        job.join()
-
-        assertTrue("request not consumed after cancellation", events.contains("consume"))
-    }
 
     private fun doseRowHighlightPreFlashDelayMillis(): Long {
         val field = Class.forName("com.mkx.hrttracker.ui.main.MainScreenKt")

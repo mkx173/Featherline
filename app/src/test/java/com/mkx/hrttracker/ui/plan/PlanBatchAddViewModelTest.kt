@@ -148,7 +148,8 @@ class PlanBatchAddViewModelTest {
             medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
         )
         val timeSource = FakeAppTimeSource(initialMinute = LocalDateTime.of(2026, 4, 25, 12, 0))
-        val viewModel = planBatchAddViewModel(groups = listOf(futureGroup), appTimeSource = timeSource)
+        val viewModel =
+            planBatchAddViewModel(groups = listOf(futureGroup), appTimeSource = timeSource)
         advanceUntilIdle()
 
         viewModel.selectGroup(futureGroup.uuid)
@@ -238,7 +239,12 @@ class PlanBatchAddViewModelTest {
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(9, 0)),
             ),
-            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine(), count = 2)),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    medicine = estradiolMedicine(),
+                    count = 2
+                )
+            ),
         )
 
         val entries = buildPlanBatchAddEntries(
@@ -427,7 +433,9 @@ class PlanBatchAddViewModelTest {
         val entries = plan.entries
         assertEquals(2, entries.size)
         assertEquals(2, plan.skippedEntryCount)
-        assertEquals(listOf(remainingSlot, remainingSlot), entries.map { entry -> entry.scheduledFor })
+        assertEquals(
+            listOf(remainingSlot, remainingSlot),
+            entries.map { entry -> entry.scheduledFor })
     }
 
     @Test
@@ -547,10 +555,19 @@ class PlanBatchAddViewModelTest {
 
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
-        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState(remindersEnabled = true))
+        every { settingsRepository.settingsState } returns MutableStateFlow(
+            SettingsState(
+                remindersEnabled = true
+            )
+        )
         every { medicineStockRepository.getCachedProjections() } returns emptyList()
         every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
-        coEvery { medicationLogRepository.saveBackfillEntries(any(), deductStock = true) } returns Unit
+        coEvery {
+            medicationLogRepository.saveBackfillEntries(
+                any(),
+                deductStock = true
+            )
+        } returns Unit
         coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
             listOf(
                 stockProjection(
@@ -584,13 +601,19 @@ class PlanBatchAddViewModelTest {
         advanceUntilIdle()
 
         assertEquals(
-            PostLogStockWarning.Single(medicine, com.mkx.hrttracker.model.medication.MedicineStockState.OUT),
+            PostLogStockWarning.Single(
+                medicine,
+                com.mkx.hrttracker.model.medication.MedicineStockState.OUT
+            ),
             viewModel.uiState.value.postLogStockWarning,
         )
         viewModel.consumeSavedState()
         advanceUntilIdle()
         assertEquals(
-            PostLogStockWarning.Single(medicine, com.mkx.hrttracker.model.medication.MedicineStockState.OUT),
+            PostLogStockWarning.Single(
+                medicine,
+                com.mkx.hrttracker.model.medication.MedicineStockState.OUT
+            ),
             viewModel.uiState.value.postLogStockWarning,
         )
         viewModel.consumePostLogStockWarning()
@@ -627,7 +650,11 @@ class PlanBatchAddViewModelTest {
 
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
-        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState(remindersEnabled = true))
+        every { settingsRepository.settingsState } returns MutableStateFlow(
+            SettingsState(
+                remindersEnabled = true
+            )
+        )
         every { medicineStockRepository.getCachedProjections() } returns emptyList()
         every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
         coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
@@ -683,10 +710,19 @@ class PlanBatchAddViewModelTest {
 
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
-        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState(remindersEnabled = true))
+        every { settingsRepository.settingsState } returns MutableStateFlow(
+            SettingsState(
+                remindersEnabled = true
+            )
+        )
         every { medicineStockRepository.getCachedProjections() } returns emptyList()
         every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
-        coEvery { medicationLogRepository.saveBackfillEntries(any(), deductStock = false) } returns Unit
+        coEvery {
+            medicationLogRepository.saveBackfillEntries(
+                any(),
+                deductStock = false
+            )
+        } returns Unit
 
         val viewModel = PlanBatchAddViewModel(
             medicationGroupRepository = medicationGroupRepository,
@@ -782,7 +818,11 @@ class PlanBatchAddViewModelTest {
 
         assertEquals(1, items.size)
         // before stock is the medicine's current stock; afterStock is cumulative.
-        assertEquals(2.0, items.single().medicine.stock.unitsRemaining ?: error("missing before"), 0.0)
+        assertEquals(
+            2.0,
+            items.single().medicine.stock.unitsRemaining ?: error("missing before"),
+            0.0
+        )
         // Both 1-tablet deductions applied to one medicine: 2 - 1 - 1 = 0.
         assertEquals(0.0, items.single().afterStock.unitsRemaining ?: error("missing after"), 0.0)
     }
@@ -850,8 +890,14 @@ class PlanBatchAddViewModelTest {
         val viewModel = planBatchAddViewModelWithProjections(
             group = group,
             projections = listOf(
-                stockProjection(medicine = tracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY),
-                stockProjection(medicine = untracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.UNTRACKED),
+                stockProjection(
+                    medicine = tracked,
+                    state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY
+                ),
+                stockProjection(
+                    medicine = untracked,
+                    state = com.mkx.hrttracker.model.medication.MedicineStockState.UNTRACKED
+                ),
             ),
         )
         advanceUntilIdle()
@@ -871,7 +917,10 @@ class PlanBatchAddViewModelTest {
         val viewModel = planBatchAddViewModelWithProjections(
             group = group,
             projections = listOf(
-                stockProjection(medicine = untracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.UNTRACKED),
+                stockProjection(
+                    medicine = untracked,
+                    state = com.mkx.hrttracker.model.medication.MedicineStockState.UNTRACKED
+                ),
             ),
         )
         advanceUntilIdle()
@@ -895,7 +944,10 @@ class PlanBatchAddViewModelTest {
         val viewModel = planBatchAddViewModelWithProjections(
             group = group,
             projections = listOf(
-                stockProjection(medicine = tracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY),
+                stockProjection(
+                    medicine = tracked,
+                    state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY
+                ),
             ),
         )
         advanceUntilIdle()
@@ -903,7 +955,10 @@ class PlanBatchAddViewModelTest {
         viewModel.selectGroup(group.uuid)
         advanceUntilIdle()
 
-        assertEquals(DeductStockAvailability.AVAILABLE, viewModel.uiState.value.deductStockAvailability)
+        assertEquals(
+            DeductStockAvailability.AVAILABLE,
+            viewModel.uiState.value.deductStockAvailability
+        )
     }
 
     @Test
@@ -943,27 +998,39 @@ class PlanBatchAddViewModelTest {
         val noGroupViewModel = planBatchAddViewModelWithProjections(
             group = trackedMedicineGroup(medicines = listOf(tracked)),
             projections = listOf(
-                stockProjection(medicine = tracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY),
+                stockProjection(
+                    medicine = tracked,
+                    state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY
+                ),
             ),
         )
         val futureViewModel = planBatchAddViewModelWithProjections(
             group = selectedGroupStartsInFuture,
             projections = listOf(
-                stockProjection(medicine = tracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY),
+                stockProjection(
+                    medicine = tracked,
+                    state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY
+                ),
             ),
             now = LocalDateTime.of(2026, 4, 10, 12, 0),
         )
         val noChangesViewModel = planBatchAddViewModelWithProjections(
             group = selectedGroupHasNoChangesYet,
             projections = listOf(
-                stockProjection(medicine = tracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY),
+                stockProjection(
+                    medicine = tracked,
+                    state = com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY
+                ),
             ),
             now = LocalDateTime.of(2026, 4, 10, 12, 0),
         )
         val noneTrackedViewModel = planBatchAddViewModelWithProjections(
             group = selectedGroupHasNoTrackedMedicine,
             projections = listOf(
-                stockProjection(medicine = untracked, state = com.mkx.hrttracker.model.medication.MedicineStockState.UNTRACKED),
+                stockProjection(
+                    medicine = untracked,
+                    state = com.mkx.hrttracker.model.medication.MedicineStockState.UNTRACKED
+                ),
             ),
         )
         advanceUntilIdle()
@@ -973,10 +1040,22 @@ class PlanBatchAddViewModelTest {
         noneTrackedViewModel.selectGroup(selectedGroupHasNoTrackedMedicine.uuid)
         advanceUntilIdle()
 
-        assertEquals(DeductStockAvailability.NO_GROUP, noGroupViewModel.uiState.value.deductStockAvailability)
-        assertEquals(DeductStockAvailability.NOT_STARTED, futureViewModel.uiState.value.deductStockAvailability)
-        assertEquals(DeductStockAvailability.NO_CHANGES, noChangesViewModel.uiState.value.deductStockAvailability)
-        assertEquals(DeductStockAvailability.NONE_TRACKED, noneTrackedViewModel.uiState.value.deductStockAvailability)
+        assertEquals(
+            DeductStockAvailability.NO_GROUP,
+            noGroupViewModel.uiState.value.deductStockAvailability
+        )
+        assertEquals(
+            DeductStockAvailability.NOT_STARTED,
+            futureViewModel.uiState.value.deductStockAvailability
+        )
+        assertEquals(
+            DeductStockAvailability.NO_CHANGES,
+            noChangesViewModel.uiState.value.deductStockAvailability
+        )
+        assertEquals(
+            DeductStockAvailability.NONE_TRACKED,
+            noneTrackedViewModel.uiState.value.deductStockAvailability
+        )
     }
 
     private fun trackedMedicineGroup(
@@ -1006,7 +1085,11 @@ class PlanBatchAddViewModelTest {
 
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
-        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState(remindersEnabled = true))
+        every { settingsRepository.settingsState } returns MutableStateFlow(
+            SettingsState(
+                remindersEnabled = true
+            )
+        )
         every { medicineStockRepository.getCachedProjections() } returns projections
         every { medicineStockRepository.observeProjections() } returns flowOf(projections)
 

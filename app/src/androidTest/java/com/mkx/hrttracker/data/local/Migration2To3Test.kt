@@ -59,7 +59,14 @@ class Migration2To3Test {
                 assertEquals("MG", cursor.getString(0))
                 assertFalse(cursor.moveToNext())
             }
-            assertColumn(db, "medicines", "displayDoseUnit", "TEXT", notNull = true, defaultValue = "'MG'")
+            assertColumn(
+                db,
+                "medicines",
+                "displayDoseUnit",
+                "TEXT",
+                notNull = true,
+                defaultValue = "'MG'"
+            )
         }
     }
 
@@ -88,8 +95,8 @@ class Migration2To3Test {
             val db = migrated.database
             db.query(
                 "SELECT trackingEnabled, stockUnitsRemaining, " +
-                    "stockUnitsLastTotal, openContainerAmount, " +
-                    "warnAtDaysRemaining, stockGeneration FROM medicines WHERE uuid = 'm1'"
+                        "stockUnitsLastTotal, openContainerAmount, " +
+                        "warnAtDaysRemaining, stockGeneration FROM medicines WHERE uuid = 'm1'"
             ).use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals(0, cursor.getInt(0))
@@ -100,12 +107,54 @@ class Migration2To3Test {
                 assertEquals(0L, cursor.getLong(5))
                 assertFalse(cursor.moveToNext())
             }
-            assertColumn(db, "medicines", "trackingEnabled", "INTEGER", notNull = true, defaultValue = "0")
-            assertColumn(db, "medicines", "stockUnitsRemaining", "REAL", notNull = false, defaultValue = null)
-            assertColumn(db, "medicines", "stockUnitsLastTotal", "REAL", notNull = false, defaultValue = null)
-            assertColumn(db, "medicines", "openContainerAmount", "REAL", notNull = false, defaultValue = null)
-            assertColumn(db, "medicines", "warnAtDaysRemaining", "INTEGER", notNull = true, defaultValue = "14")
-            assertColumn(db, "medicines", "stockGeneration", "INTEGER", notNull = true, defaultValue = "0")
+            assertColumn(
+                db,
+                "medicines",
+                "trackingEnabled",
+                "INTEGER",
+                notNull = true,
+                defaultValue = "0"
+            )
+            assertColumn(
+                db,
+                "medicines",
+                "stockUnitsRemaining",
+                "REAL",
+                notNull = false,
+                defaultValue = null
+            )
+            assertColumn(
+                db,
+                "medicines",
+                "stockUnitsLastTotal",
+                "REAL",
+                notNull = false,
+                defaultValue = null
+            )
+            assertColumn(
+                db,
+                "medicines",
+                "openContainerAmount",
+                "REAL",
+                notNull = false,
+                defaultValue = null
+            )
+            assertColumn(
+                db,
+                "medicines",
+                "warnAtDaysRemaining",
+                "INTEGER",
+                notNull = true,
+                defaultValue = "14"
+            )
+            assertColumn(
+                db,
+                "medicines",
+                "stockGeneration",
+                "INTEGER",
+                notNull = true,
+                defaultValue = "0"
+            )
         }
     }
 

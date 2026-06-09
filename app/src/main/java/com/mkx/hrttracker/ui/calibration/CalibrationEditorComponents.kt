@@ -177,7 +177,13 @@ internal fun CalibrationElapsedEstradiolDosePill(
         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
         modifier = modifier,
         size = HrtPillSize.Medium,
-        icon = { Icon(painterResource(R.drawable.ic_labs), contentDescription = null, modifier = iconModifier) },
+        icon = {
+            Icon(
+                painterResource(R.drawable.ic_labs),
+                contentDescription = null,
+                modifier = iconModifier
+            )
+        },
     )
 }
 
@@ -381,7 +387,10 @@ internal fun CalibrationAnalyteCard(
                 horizontalArrangement = Arrangement.End,
                 // Pin the row to its tallest pill so a taller line box (e.g. CJK range
                 // labels) doesn't leave the converted-value pill looking stunted beside it.
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(top = 4.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
+                    .padding(top = 4.dp)
             ) {
                 if (defaultUnitValueLabel != null) {
                     HrtPill(
@@ -409,7 +418,9 @@ internal fun CalibrationAnalyteCard(
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
@@ -553,7 +564,9 @@ internal fun CalibrationCustomAnalyteCard(
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Spacer(modifier = Modifier.weight(1f))

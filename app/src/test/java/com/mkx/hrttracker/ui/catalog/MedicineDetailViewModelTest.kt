@@ -321,7 +321,7 @@ class MedicineDetailViewModelTest {
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
         coEvery { medicineRepository.archive(medicineUuid, any()) } throws
-            MedicineReferencedByActiveGroupException(medicineUuid)
+                MedicineReferencedByActiveGroupException(medicineUuid)
 
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
@@ -562,7 +562,12 @@ class MedicineDetailViewModelTest {
         )
         every { medicineRepository.observeByUuid(medicineUuid) } returns flowOf(medicine)
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
-        every { stockRepository.observeProjections() } returns flowOf(listOf(otherProjection, projection))
+        every { stockRepository.observeProjections() } returns flowOf(
+            listOf(
+                otherProjection,
+                projection
+            )
+        )
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
 
         val viewModel = MedicineDetailViewModel(
@@ -627,7 +632,10 @@ class MedicineDetailViewModelTest {
         advanceUntilIdle()
 
         assertEquals(false, viewModel.uiState.value.showDisableConfirmation)
-        assertEquals(false, viewModel.uiState.value.stockProjection?.medicine?.stock?.trackingEnabled)
+        assertEquals(
+            false,
+            viewModel.uiState.value.stockProjection?.medicine?.stock?.trackingEnabled
+        )
     }
 
     @Test
@@ -875,7 +883,11 @@ class MedicineDetailViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) {
-            medicineRepository.applyReceived(medicineUuid, StockReceived(unitsReceived = 5.0), any())
+            medicineRepository.applyReceived(
+                medicineUuid,
+                StockReceived(unitsReceived = 5.0),
+                any()
+            )
         }
         assertEquals(true, viewModel.uiState.value.showAdjustSheet)
 
@@ -981,7 +993,15 @@ class MedicineDetailViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 0) { medicineRepository.applyRecount(any(), any(), any()) }
-        coVerify(exactly = 0) { medicineRepository.enableTracking(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) {
+            medicineRepository.enableTracking(
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
+        }
         assertEquals(false, viewModel.uiState.value.showAdjustSheet)
         assertEquals(false, viewModel.uiState.value.pendingEnableTracking)
     }
