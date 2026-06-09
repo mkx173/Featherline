@@ -55,6 +55,22 @@ class HazeChromeIntegrationTest {
                     "not become a child of the same Haze source it samples.",
             !navigationScaffoldFile.readText().contains("hazeSourceArea(LocalChromeHazeState.current)"),
         )
+        val navHostText =
+            File("src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt").readText()
+        assertTrue(
+            "Top app bars need per-destination Haze state. A single top chrome state around " +
+                    "the whole NavHost lets outgoing and incoming pages register source layers " +
+                    "at the same time, which can make the top blur sample stale transition content.",
+            navHostText.contains("RoutedTopChromeHazeProvider") &&
+                    navHostText.contains("val routeTopChromeHazeState = rememberChromeHazeState()") &&
+                    navHostText.contains("LocalChromeHazeState provides routeTopChromeHazeState") &&
+                    !navHostText.contains("val topChromeHazeState = rememberChromeHazeState()"),
+        )
+        assertTrue(
+            "Every NavHost destination should be wrapped in RoutedTopChromeHazeProvider.",
+            Regex("""\bcomposable\(""").findAll(navHostText).count() ==
+                    Regex("""RoutedTopChromeHazeProvider \{""").findAll(navHostText).count(),
+        )
 
         val offenders = uiDir.walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
