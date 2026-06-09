@@ -365,6 +365,7 @@ class MainActivity : AppCompatActivity() {
                                         navController = navController,
                                         homeDeepLinkSignal = homeDeepLinkSignal,
                                         highlightEffectsEnabled = highlightEffectsEnabled,
+                                        settingsState = settingsState,
                                     )
                                 }
 

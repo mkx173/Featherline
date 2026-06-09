@@ -480,6 +480,8 @@
     <string name="settings_dark_mode">Dark mode</string>
     <string name="settings_adaptive_color">Adaptive color</string>
     <string name="settings_amoled_black">Pure black dark theme</string>
+    <string name="settings_haze_blur">Background blur</string>
+    <string name="settings_haze_blur_summary">Blur content behind app bars and navigation.</string>
     <string name="settings_widget_appearance">Widgets</string>
     <string name="settings_widget_content_scale">Content scale</string>
     <string name="settings_widget_background_opacity">Background opacity</string>

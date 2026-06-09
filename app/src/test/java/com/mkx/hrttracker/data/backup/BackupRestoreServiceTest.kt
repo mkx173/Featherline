@@ -96,7 +96,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(),
-                any(), any(), any(),
+                any(), any(), any(), any(),
             )
         } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
@@ -160,7 +160,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(),
-                any(), any(), any(),
+                any(), any(), any(), any(),
             )
         }
     }
@@ -298,6 +298,7 @@ class BackupRestoreServiceTest {
                 adaptiveColorEnabled = any(),
                 pureBlackEnabled = any(),
                 cjkTextOffsetEnabled = any(),
+                hazeBlurEnabled = any(),
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
@@ -342,6 +343,7 @@ class BackupRestoreServiceTest {
                 adaptiveColorEnabled = any(),
                 pureBlackEnabled = capture(capturedValues),
                 cjkTextOffsetEnabled = any(),
+                hazeBlurEnabled = any(),
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
@@ -387,6 +389,7 @@ class BackupRestoreServiceTest {
                 adaptiveColorEnabled = any(),
                 pureBlackEnabled = any(),
                 cjkTextOffsetEnabled = capture(capturedValues),
+                hazeBlurEnabled = any(),
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
@@ -424,6 +427,52 @@ class BackupRestoreServiceTest {
     }
 
     @Test
+    fun restoreBackupBytes_restoresHazeBlurSetting() = runTest {
+        val capturedValues = mutableListOf<Boolean>()
+        coEvery {
+            settingsRepository.restoreSettings(
+                darkModeOption = any(),
+                adaptiveColorEnabled = any(),
+                pureBlackEnabled = any(),
+                cjkTextOffsetEnabled = any(),
+                hazeBlurEnabled = capture(capturedValues),
+                remindersEnabled = any(),
+                showArchivedGroupRecords = any(),
+                hideReferenceRanges = any(),
+                appLockGracePeriodOption = any(),
+                hideScreenContentEnabled = any(),
+                onboardingCompleted = any(),
+                appLanguageOption = any(),
+                calibrationDefaultUnits = any(),
+                homeE2DisplayUnit = any(),
+                homeE2ChartWindowOption = any(),
+                lastSeenTimeZoneId = any(),
+                hideMedicationDetails = any(),
+                widgetContentScale = any(),
+                widgetBackgroundAlpha = any(),
+                widgetDarkModeOption = any(),
+                groupNameCounter = any(),
+                firstDayOfWeekOption = any(),
+                stockNudgeEnabled = any(),
+                stockNudgeUserEnabled = any(),
+            )
+        } just Runs
+
+        val snapshot = emptySnapshot().let { base ->
+            base.copy(settings = base.settings.copy(hazeBlurEnabled = false))
+        }
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        assertEquals(listOf(false), capturedValues)
+    }
+
+    @Test
     fun restoreBackupBytes_withoutStockNudgeEnabledField_restoresTrue() = runTest {
         val capturedValues = mutableListOf<Boolean>()
         coEvery {
@@ -432,6 +481,7 @@ class BackupRestoreServiceTest {
                 adaptiveColorEnabled = any(),
                 pureBlackEnabled = any(),
                 cjkTextOffsetEnabled = any(),
+                hazeBlurEnabled = any(),
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
@@ -476,6 +526,7 @@ class BackupRestoreServiceTest {
                 adaptiveColorEnabled = any(),
                 pureBlackEnabled = any(),
                 cjkTextOffsetEnabled = any(),
+                hazeBlurEnabled = any(),
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),

@@ -2,6 +2,7 @@
 
 package com.mkx.hrttracker.ui.components
 
+import android.os.Build
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
@@ -21,6 +22,7 @@ import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import dev.chrisbanes.haze.rememberHazeState
 
+val LocalHazeBlurEnabled = staticCompositionLocalOf { isHazeBlurSupported() }
 val LocalChromeHazeState = staticCompositionLocalOf<HazeState?> { null }
 
 internal const val TopAppBarScrolledOverlapThreshold = 0.01f
@@ -28,8 +30,20 @@ internal const val TopAppBarScrolledOverlapThreshold = 0.01f
 @Composable
 fun rememberChromeHazeState(): HazeState = rememberHazeState()
 
+fun isHazeBlurSupported(sdkInt: Int = Build.VERSION.SDK_INT): Boolean {
+    return sdkInt >= Build.VERSION_CODES.S
+}
+
+fun effectiveHazeBlurEnabled(
+    preferenceEnabled: Boolean,
+    sdkInt: Int = Build.VERSION.SDK_INT,
+): Boolean {
+    return preferenceEnabled && isHazeBlurSupported(sdkInt)
+}
+
+@Composable
 fun Modifier.hazeSourceArea(state: HazeState?): Modifier {
-    return if (state == null) this else hazeSource(state)
+    return if (!LocalHazeBlurEnabled.current || state == null) this else hazeSource(state)
 }
 
 @Composable
@@ -37,7 +51,7 @@ fun Modifier.hazeChrome(
     state: HazeState? = LocalChromeHazeState.current,
     enabled: Boolean = true,
 ): Modifier {
-    if (!enabled || state == null) return this
+    if (!LocalHazeBlurEnabled.current || !enabled || state == null) return this
 
     return hazeEffect(
         state = state,
@@ -55,7 +69,9 @@ fun topAppBarHazeEnabled(scrollBehavior: TopAppBarScrollBehavior): Boolean {
 }
 
 @Composable
-fun hazeTopAppBarColors(): TopAppBarColors {
+fun hazeTopAppBarColors(enabled: Boolean = LocalHazeBlurEnabled.current): TopAppBarColors {
+    if (!enabled) return TopAppBarDefaults.topAppBarColors()
+
     return TopAppBarDefaults.topAppBarColors(
         containerColor = Color.Transparent,
         scrolledContainerColor = Color.Transparent,
@@ -63,7 +79,11 @@ fun hazeTopAppBarColors(): TopAppBarColors {
 }
 
 @Composable
-fun hazeNavigationSuiteColors(): NavigationSuiteColors {
+fun hazeNavigationSuiteColors(
+    enabled: Boolean = LocalHazeBlurEnabled.current,
+): NavigationSuiteColors {
+    if (!enabled) return NavigationSuiteDefaults.colors()
+
     return NavigationSuiteDefaults.colors(
         shortNavigationBarContainerColor = Color.Transparent,
         navigationBarContainerColor = Color.Transparent,

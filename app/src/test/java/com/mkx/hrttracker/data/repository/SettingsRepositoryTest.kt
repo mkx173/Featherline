@@ -133,10 +133,28 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `haze blur setting persists and defaults on`() = runTest(testDispatcher) {
+        assertEquals(true, settingsRepository.getCurrentSettings().hazeBlurEnabled)
+
+        settingsRepository.setHazeBlurEnabled(false)
+        assertEquals(false, settingsRepository.getCurrentSettings().hazeBlurEnabled)
+
+        settingsRepository.setHazeBlurEnabled(true)
+        assertEquals(true, settingsRepository.getCurrentSettings().hazeBlurEnabled)
+    }
+
+    @Test
     fun `restoreSettings restores cjk text offset setting`() = runTest(testDispatcher) {
         restoreSettingsWithCjkTextOffsetEnabled(true)
 
         assertEquals(true, settingsRepository.getCurrentSettings().cjkTextOffsetEnabled)
+    }
+
+    @Test
+    fun `restoreSettings restores haze blur setting`() = runTest(testDispatcher) {
+        restoreSettingsWithHazeBlurEnabled(false)
+
+        assertEquals(false, settingsRepository.getCurrentSettings().hazeBlurEnabled)
     }
 
     @Test
@@ -486,6 +504,28 @@ class SettingsRepositoryTest {
             adaptiveColorEnabled = true,
             pureBlackEnabled = false,
             cjkTextOffsetEnabled = enabled,
+            remindersEnabled = true,
+            showArchivedGroupRecords = true,
+            hideReferenceRanges = false,
+            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
+            hideScreenContentEnabled = false,
+            onboardingCompleted = true,
+            appLanguageOption = AppLanguageOption.ENGLISH,
+            calibrationDefaultUnits = emptySet(),
+            homeE2DisplayUnit = AllowedAnalyteUnit.of(
+                BloodAnalyteKey.E2,
+                BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+            ),
+            homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+        )
+    }
+
+    private suspend fun restoreSettingsWithHazeBlurEnabled(enabled: Boolean) {
+        settingsRepository.restoreSettings(
+            darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
+            adaptiveColorEnabled = true,
+            pureBlackEnabled = false,
+            hazeBlurEnabled = enabled,
             remindersEnabled = true,
             showArchivedGroupRecords = true,
             hideReferenceRanges = false,

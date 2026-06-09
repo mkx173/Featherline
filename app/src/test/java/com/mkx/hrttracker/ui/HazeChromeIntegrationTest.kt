@@ -180,6 +180,44 @@ class HazeChromeIntegrationTest {
         )
     }
 
+    @Test
+    fun haze_blur_is_controlled_by_app_wide_platform_gated_setting() {
+        val hazeChromeText =
+            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
+        val navHostText =
+            File("src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt").readText()
+        val mainActivityText =
+            File("src/main/java/com/mkx/hrttracker/MainActivity.kt").readText()
+        val settingsScreenText =
+            File("src/main/java/com/mkx/hrttracker/ui/settings/SettingsScreen.kt").readText()
+
+        assertTrue(
+            "Haze needs a central composition local so every chrome/source modifier can be " +
+                    "disabled from one app-wide setting.",
+            hazeChromeText.contains("LocalHazeBlurEnabled") &&
+                    hazeChromeText.contains("effectiveHazeBlurEnabled(") &&
+                    hazeChromeText.contains("Build.VERSION_CODES.S") &&
+                    hazeChromeText.contains("hazeTopAppBarColors(") &&
+                    hazeChromeText.contains("hazeNavigationSuiteColors("),
+        )
+        assertTrue(
+            "The NavHost should publish the effective value from SettingsState, with the " +
+                    "Android 12+ platform gate applied before it reaches screen chrome.",
+            mainActivityText.contains("settingsRepository.settingsState.collectAsStateWithLifecycle()") &&
+                    mainActivityText.contains("settingsState = settingsState") &&
+                    navHostText.contains("effectiveHazeBlurEnabled(") &&
+                    navHostText.contains("settingsState.hazeBlurEnabled") &&
+                    navHostText.contains("LocalHazeBlurEnabled provides"),
+        )
+        assertTrue(
+            "Settings should expose the haze switch only through an Android 12+ gate.",
+            settingsScreenText.contains("shouldShowHazeBlurToggle(") &&
+                    settingsScreenText.contains("Build.VERSION_CODES.S") &&
+                    settingsScreenText.contains("onHazeBlurEnabledChange") &&
+                    settingsScreenText.contains("settingsState.hazeBlurEnabled"),
+        )
+    }
+
     private companion object {
         private val TOP_APP_BAR_CALL = Regex("""\b(?:CenterAlignedTopAppBar|TopAppBar)\(""")
     }

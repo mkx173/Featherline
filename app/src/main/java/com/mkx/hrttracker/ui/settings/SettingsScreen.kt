@@ -488,6 +488,7 @@ fun SettingsScreen(
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
         onPureBlackEnabledChange = viewModel::setPureBlackEnabled,
         onCjkTextOffsetEnabledChange = viewModel::setCjkTextOffsetEnabled,
+        onHazeBlurEnabledChange = viewModel::setHazeBlurEnabled,
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
         onHideMedicationDetailsChange = viewModel::setHideMedicationDetails,
@@ -612,6 +613,10 @@ fun SettingsScreen(
 // "NN%" label shown next to the slider (e.g. 1.0455 → 1.05, displayed as 105%). Without
 // this the slider saves its raw continuous position while the label rounds for display.
 private fun snapToWholePercent(value: Float): Float = (value * 100).roundToInt() / 100f
+
+internal fun shouldShowHazeBlurToggle(sdkInt: Int = Build.VERSION.SDK_INT): Boolean {
+    return sdkInt >= Build.VERSION_CODES.S
+}
 
 @Composable
 internal fun WidgetAppearanceDialog(
@@ -778,6 +783,7 @@ internal fun SettingsScreenContent(
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
     onPureBlackEnabledChange: (Boolean) -> Unit,
     onCjkTextOffsetEnabledChange: (Boolean) -> Unit,
+    onHazeBlurEnabledChange: (Boolean) -> Unit,
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
@@ -1273,6 +1279,29 @@ internal fun SettingsScreenContent(
                                 )
                             }
                         )
+                    }
+
+                    if (shouldShowHazeBlurToggle()) {
+                        item {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_haze_blur),
+                                supportingText = stringResource(R.string.settings_haze_blur_summary),
+                                onClick = {
+                                    onHazeBlurEnabledChange(!settingsState.hazeBlurEnabled)
+                                },
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_contrast)
+                                    )
+                                },
+                                trailingContent = {
+                                    Switch(
+                                        checked = settingsState.hazeBlurEnabled,
+                                        onCheckedChange = onHazeBlurEnabledChange
+                                    )
+                                }
+                            )
+                        }
                     }
 
                     if (shouldShowAdaptiveColor()) {
@@ -1994,6 +2023,7 @@ private fun SettingsScreenPreview() {
             onAdaptiveColorEnabledChange = { },
             onPureBlackEnabledChange = { },
             onCjkTextOffsetEnabledChange = { },
+            onHazeBlurEnabledChange = { },
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },

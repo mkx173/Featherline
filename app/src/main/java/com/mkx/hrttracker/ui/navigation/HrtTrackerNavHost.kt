@@ -65,6 +65,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
@@ -81,8 +82,10 @@ import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
+import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.effectiveHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.rememberChromeHazeState
 import com.mkx.hrttracker.ui.components.stockInventoryCountText
 import com.mkx.hrttracker.ui.history.HistoryScreen
@@ -389,6 +392,7 @@ fun HrtTrackerNavHost(
     navController: NavHostController,
     homeDeepLinkSignal: Int = 0,
     highlightEffectsEnabled: Boolean = true,
+    settingsState: SettingsState = SettingsState(),
     modifier: Modifier = Modifier,
 ) {
     var medicationLogEntrySheetRequest by rememberSaveable(stateSaver = MedicationLogEntrySheetRequestSaver) {
@@ -614,9 +618,11 @@ fun HrtTrackerNavHost(
     val appContentBottomInset =
         if (isBottomBar) navigationBarHeight else rawNavigationBarBottomInset
     val navigationChromeHazeState = rememberChromeHazeState()
+    val hazeBlurEnabled = effectiveHazeBlurEnabled(settingsState.hazeBlurEnabled)
 
     CompositionLocalProvider(
         LocalAppContentBottomInset provides appContentBottomInset,
+        LocalHazeBlurEnabled provides hazeBlurEnabled,
     ) {
         EdgeToEdgeNavigationSuiteScaffold(
             modifier = modifier,
