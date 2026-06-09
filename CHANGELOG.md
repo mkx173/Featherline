@@ -30,6 +30,7 @@ _Nothing yet._
 ### Changed
 
 - Multi-unit dose summaries now fold the count into the dose (e.g. "1.5 tablets · 15 mg") instead of showing a separate count multiplier like "2x".
+- General UI polish: refresh icons and unify paddings.
 
 ### Fixed
 

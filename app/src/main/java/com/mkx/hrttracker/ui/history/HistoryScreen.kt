@@ -1963,7 +1963,10 @@ internal fun HistoryEntryGroupHeader(
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
-                modifier = Modifier.alignByBaseline().cjkTextOffset(weekdayDisplayLabel),
+                modifier = Modifier
+                    .alignByBaseline()
+                    .padding(end = 2.dp)
+                    .cjkTextOffset(weekdayDisplayLabel),
             )
         }
         if (!countLabel.isNullOrBlank()) {
