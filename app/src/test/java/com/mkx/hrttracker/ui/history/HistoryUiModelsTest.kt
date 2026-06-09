@@ -1141,6 +1141,91 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun historySelectionFabScrollState_requiresHideThresholdBeforeHiding() {
+        val afterSmallScroll = updateHistorySelectionFabScrollState(
+            state = HistorySelectionFabScrollState(visible = true),
+            previousIndex = 0,
+            previousOffset = 0,
+            index = 0,
+            offset = 24,
+            hideThresholdPx = 48,
+            showThresholdPx = 24,
+        )
+        val afterThresholdScroll = updateHistorySelectionFabScrollState(
+            state = afterSmallScroll,
+            previousIndex = 0,
+            previousOffset = 24,
+            index = 0,
+            offset = 48,
+            hideThresholdPx = 48,
+            showThresholdPx = 24,
+        )
+
+        assertEquals(true, afterSmallScroll.visible)
+        assertEquals(false, afterThresholdScroll.visible)
+    }
+
+    @Test
+    fun historySelectionFabScrollState_requiresShowThresholdBeforeShowing() {
+        val afterSmallScroll = updateHistorySelectionFabScrollState(
+            state = HistorySelectionFabScrollState(visible = false),
+            previousIndex = 0,
+            previousOffset = 100,
+            index = 0,
+            offset = 88,
+            hideThresholdPx = 48,
+            showThresholdPx = 24,
+        )
+        val afterThresholdScroll = updateHistorySelectionFabScrollState(
+            state = afterSmallScroll,
+            previousIndex = 0,
+            previousOffset = 88,
+            index = 0,
+            offset = 76,
+            hideThresholdPx = 48,
+            showThresholdPx = 24,
+        )
+
+        assertEquals(false, afterSmallScroll.visible)
+        assertEquals(true, afterThresholdScroll.visible)
+    }
+
+    @Test
+    fun historySelectionFabScrollState_resetsAccumulatedScrollWhenDirectionChanges() {
+        val afterDownScroll = updateHistorySelectionFabScrollState(
+            state = HistorySelectionFabScrollState(visible = true),
+            previousIndex = 0,
+            previousOffset = 0,
+            index = 0,
+            offset = 32,
+            hideThresholdPx = 48,
+            showThresholdPx = 24,
+        )
+        val afterDirectionChange = updateHistorySelectionFabScrollState(
+            state = afterDownScroll,
+            previousIndex = 0,
+            previousOffset = 32,
+            index = 0,
+            offset = 24,
+            hideThresholdPx = 48,
+            showThresholdPx = 24,
+        )
+        val afterSecondDownScroll = updateHistorySelectionFabScrollState(
+            state = afterDirectionChange,
+            previousIndex = 0,
+            previousOffset = 24,
+            index = 0,
+            offset = 44,
+            hideThresholdPx = 48,
+            showThresholdPx = 24,
+        )
+
+        assertEquals(true, afterDownScroll.visible)
+        assertEquals(true, afterDirectionChange.visible)
+        assertEquals(true, afterSecondDownScroll.visible)
+    }
+
+    @Test
     fun historyCalendarDayAlpha_keeps_adjacent_month_days_visible() {
         assertEquals(
             0.56f,

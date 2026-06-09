@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -153,6 +154,8 @@ import java.util.Locale
 import java.util.UUID
 
 private const val HistoryCalendarNavigationSettleTimeoutMillis = 500L
+private val HistorySelectionFabHideScrollThreshold = 48.dp
+private val HistorySelectionFabShowScrollThreshold = 24.dp
 
 @Composable
 fun HistoryScreen(
@@ -227,6 +230,7 @@ private fun HistoryScreenContent(
 ) {
     val appLocale = rememberAppLocale()
     val context = LocalContext.current
+    val density = LocalDensity.current
     val today = uiState.today
     val dateFormatter = remember(appLocale, today) {
         dateLabelFormatter(appLocale, today)
@@ -241,7 +245,15 @@ private fun HistoryScreenContent(
         lazyListState = listState,
         state = topAppBarState
     )
-    var isSelectionFabVisible by remember { mutableStateOf(true) }
+    var selectionFabScrollState by remember {
+        mutableStateOf(HistorySelectionFabScrollState(visible = true))
+    }
+    val selectionFabHideScrollThresholdPx = with(density) {
+        HistorySelectionFabHideScrollThreshold.roundToPx()
+    }
+    val selectionFabShowScrollThresholdPx = with(density) {
+        HistorySelectionFabShowScrollThreshold.roundToPx()
+    }
     val calendarState = key(
         uiState.calendarStartMonth,
         uiState.calendarEndMonth,
@@ -362,13 +374,19 @@ private fun HistoryScreenContent(
         }
     }
 
-    LaunchedEffect(listState, uiState.isSelectionMode) {
+    LaunchedEffect(
+        listState,
+        uiState.isSelectionMode,
+        selectionFabHideScrollThresholdPx,
+        selectionFabShowScrollThresholdPx,
+    ) {
         if (!uiState.isSelectionMode) {
-            isSelectionFabVisible = true
+            selectionFabScrollState = HistorySelectionFabScrollState(visible = true)
             return@LaunchedEffect
         }
 
-        isSelectionFabVisible = true
+        var currentFabScrollState = HistorySelectionFabScrollState(visible = true)
+        selectionFabScrollState = currentFabScrollState
         var previousIndex = listState.firstVisibleItemIndex
         var previousOffset = listState.firstVisibleItemScrollOffset
 
@@ -377,15 +395,16 @@ private fun HistoryScreenContent(
         }
             .distinctUntilChanged()
             .collect { (index, offset) ->
-                val isScrollingDown = index > previousIndex ||
-                        (index == previousIndex && offset > previousOffset)
-                val isScrollingUp = index < previousIndex ||
-                        (index == previousIndex && offset < previousOffset)
-
-                when {
-                    isScrollingDown -> isSelectionFabVisible = false
-                    isScrollingUp -> isSelectionFabVisible = true
-                }
+                currentFabScrollState = updateHistorySelectionFabScrollState(
+                    state = currentFabScrollState,
+                    previousIndex = previousIndex,
+                    previousOffset = previousOffset,
+                    index = index,
+                    offset = offset,
+                    hideThresholdPx = selectionFabHideScrollThresholdPx,
+                    showThresholdPx = selectionFabShowScrollThresholdPx,
+                )
+                selectionFabScrollState = currentFabScrollState
 
                 previousIndex = index
                 previousOffset = offset
@@ -644,7 +663,7 @@ private fun HistoryScreenContent(
                 onClick = onDeleteSelectedClick,
                 modifier = Modifier
                     .animateFloatingActionButton(
-                        visible = uiState.isSelectionMode && isSelectionFabVisible,
+                        visible = uiState.isSelectionMode && selectionFabScrollState.visible,
                         alignment = Alignment.BottomEnd,
                     )
                     // The page now paints edge-to-edge behind the bottom navigation bar, so the

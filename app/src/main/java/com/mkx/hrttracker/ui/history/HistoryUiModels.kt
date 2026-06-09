@@ -41,6 +41,12 @@ internal enum class HistoryEntryTapAction {
     TOGGLE_SELECTION,
 }
 
+internal data class HistorySelectionFabScrollState(
+    val visible: Boolean = true,
+    val accumulatedDownScrollPx: Int = 0,
+    val accumulatedUpScrollPx: Int = 0,
+)
+
 internal fun buildHistoryVisibleEntries(
     entries: List<MedicationLogEntry>,
     displayedMonth: YearMonth,
@@ -449,5 +455,79 @@ internal fun historyEntryTapAction(
         HistoryEntryTapAction.OPEN_EDITOR
     } else {
         HistoryEntryTapAction.TOGGLE_SELECTION
+    }
+}
+
+internal fun updateHistorySelectionFabScrollState(
+    state: HistorySelectionFabScrollState,
+    previousIndex: Int,
+    previousOffset: Int,
+    index: Int,
+    offset: Int,
+    hideThresholdPx: Int,
+    showThresholdPx: Int,
+): HistorySelectionFabScrollState {
+    val resolvedHideThresholdPx = hideThresholdPx.coerceAtLeast(1)
+    val resolvedShowThresholdPx = showThresholdPx.coerceAtLeast(1)
+    val deltaPx = historySelectionFabScrollDeltaPx(
+        previousIndex = previousIndex,
+        previousOffset = previousOffset,
+        index = index,
+        offset = offset,
+        hideThresholdPx = resolvedHideThresholdPx,
+        showThresholdPx = resolvedShowThresholdPx,
+    )
+
+    return when {
+        deltaPx > 0 -> {
+            val accumulatedDownScrollPx = state.accumulatedDownScrollPx + deltaPx
+            HistorySelectionFabScrollState(
+                visible = if (accumulatedDownScrollPx >= resolvedHideThresholdPx) {
+                    false
+                } else {
+                    state.visible
+                },
+                accumulatedDownScrollPx = if (accumulatedDownScrollPx >= resolvedHideThresholdPx) {
+                    0
+                } else {
+                    accumulatedDownScrollPx
+                },
+                accumulatedUpScrollPx = 0,
+            )
+        }
+
+        deltaPx < 0 -> {
+            val accumulatedUpScrollPx = state.accumulatedUpScrollPx - deltaPx
+            HistorySelectionFabScrollState(
+                visible = if (accumulatedUpScrollPx >= resolvedShowThresholdPx) {
+                    true
+                } else {
+                    state.visible
+                },
+                accumulatedDownScrollPx = 0,
+                accumulatedUpScrollPx = if (accumulatedUpScrollPx >= resolvedShowThresholdPx) {
+                    0
+                } else {
+                    accumulatedUpScrollPx
+                },
+            )
+        }
+
+        else -> state
+    }
+}
+
+private fun historySelectionFabScrollDeltaPx(
+    previousIndex: Int,
+    previousOffset: Int,
+    index: Int,
+    offset: Int,
+    hideThresholdPx: Int,
+    showThresholdPx: Int,
+): Int {
+    return when {
+        index > previousIndex -> hideThresholdPx
+        index < previousIndex -> -showThresholdPx
+        else -> offset - previousOffset
     }
 }
