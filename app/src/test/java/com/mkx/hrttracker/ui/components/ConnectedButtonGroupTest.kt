@@ -2,6 +2,8 @@ package com.mkx.hrttracker.ui.components
 
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConnectedButtonGroupTest {
@@ -13,5 +15,27 @@ class ConnectedButtonGroupTest {
         )
 
         assertEquals(MedicationApplicationType.ORAL, resolved)
+    }
+
+    @Test
+    fun button_has_start_icon_when_icons_or_leading_content_are_present() {
+        assertFalse(
+            connectedButtonGroupButtonHasStartIcon(
+                optionIconCount = 0,
+                hasLeadingContent = false,
+            ),
+        )
+        assertTrue(
+            connectedButtonGroupButtonHasStartIcon(
+                optionIconCount = 1,
+                hasLeadingContent = false,
+            ),
+        )
+        assertTrue(
+            connectedButtonGroupButtonHasStartIcon(
+                optionIconCount = 0,
+                hasLeadingContent = true,
+            ),
+        )
     }
 }

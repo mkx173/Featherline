@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.minus
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
@@ -40,8 +41,7 @@ fun HrtButton(
     val resolvedContentPadding = contentPadding
         ?: ButtonDefaults.contentPaddingFor(
             buttonHeight = ButtonDefaults.MinHeight,
-            hasStartIcon = icon != null,
-        )
+        ).minus(PaddingValues(start = if (icon != null) 2.dp else 0.dp))
 
     ButtonContainer(compact = compact) {
         Button(

@@ -3,11 +3,14 @@ package com.mkx.hrttracker.ui.components
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.minus
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -209,12 +212,20 @@ private fun <T> ConnectedButtonGroupButton(
     applyCjkTextOffset: Boolean,
     colors: ToggleButtonColors,
 ) {
+    val hasStartIcon = connectedButtonGroupButtonHasStartIcon(
+        optionIconCount = optionIcons.size,
+        hasLeadingContent = optionLeadingContent != null,
+    )
+
     ToggleButton(
         modifier = modifier,
         checked = selected,
         onCheckedChange = { onOptionToggled(option) },
         enabled = enabled || selected,
         colors = colors,
+        contentPadding = ButtonDefaults.contentPaddingFor(
+            buttonHeight = ButtonDefaults.MinHeight,
+        ).minus(PaddingValues(start = if (hasStartIcon) 2.dp else 0.dp)),
         shapes =
             when (index) {
                 0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
@@ -279,4 +290,11 @@ private fun <T> ConnectedButtonGroupRowButton(
 
 internal fun <T> resolveConnectedButtonSelection(options: List<T>, selectedOption: T?): T? {
     return options.firstOrNull { it == selectedOption } ?: options.firstOrNull()
+}
+
+internal fun connectedButtonGroupButtonHasStartIcon(
+    optionIconCount: Int,
+    hasLeadingContent: Boolean,
+): Boolean {
+    return hasLeadingContent || optionIconCount > 0
 }

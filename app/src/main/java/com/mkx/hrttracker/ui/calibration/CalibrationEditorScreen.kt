@@ -510,10 +510,6 @@ private fun CalibrationEditorScreenContent(
                         ),
                         iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
                         compact = true,
-                        contentPadding = ButtonDefaults.contentPaddingFor(
-                            ButtonDefaults.MinHeight,
-                            hasStartIcon = true
-                        ),
                     )
                 }
 
