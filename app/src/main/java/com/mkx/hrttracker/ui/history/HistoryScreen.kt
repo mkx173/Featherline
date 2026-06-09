@@ -865,12 +865,12 @@ private fun HistoryScreenContent(
                             )
                         }
 
-                        item {
+                        item(key = "entries-$date") {
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
                             ) {
                                 dateEntries.forEachIndexed { index, entry ->
-                                    HistoryEntryCard(
+                                    HistoryEntryCardItem(
                                         entry = entry,
                                         timeFormatter = timeFormatter,
                                         groupColorKey = entry.sourceGroupUuid?.let(groupColorsById::get),
@@ -2050,6 +2050,37 @@ private fun historyIndicatorColor(
     return when (mode) {
         HistoryIndicatorColorMode.Neutral -> MaterialTheme.colorScheme.outline
         HistoryIndicatorColorMode.Emphasized -> emphasizedColor
+    }
+}
+
+@Composable
+internal fun HistoryEntryCardItem(
+    entry: MedicationLogEntry,
+    timeFormatter: DateTimeFormatter,
+    groupColorKey: MedicationGroupColorKey?,
+    isFromArchivedGroup: Boolean,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
+    index: Int = 0,
+    count: Int = 1,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onSelectionClick: () -> Unit
+) {
+    key(entry.uuid) {
+        HistoryEntryCard(
+            entry = entry,
+            timeFormatter = timeFormatter,
+            groupColorKey = groupColorKey,
+            isFromArchivedGroup = isFromArchivedGroup,
+            isSelected = isSelected,
+            isSelectionMode = isSelectionMode,
+            index = index,
+            count = count,
+            onClick = onClick,
+            onLongClick = onLongClick,
+            onSelectionClick = onSelectionClick
+        )
     }
 }
 
