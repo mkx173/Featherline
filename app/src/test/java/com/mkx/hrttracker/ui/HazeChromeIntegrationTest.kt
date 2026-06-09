@@ -292,6 +292,82 @@ class HazeChromeIntegrationTest {
     }
 
     @Test
+    fun dialogs_use_haze_chrome_and_translucent_haze_container_colors() {
+        val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
+        require(uiDir.isDirectory) {
+            "Expected UI source directory at ${uiDir.absolutePath}; unit tests must run with " +
+                    "the app module as the working directory."
+        }
+
+        val offenders = uiDir.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filterNot { file -> file.relativeTo(uiDir).invariantSeparatorsPath == "components/HazeChrome.kt" }
+            .mapNotNull { file ->
+                val text = file.readText()
+                val missing = buildList {
+                    if (DIRECT_MATERIAL_DIALOG_IMPORT.containsMatchIn(text)) {
+                        add("direct Material3 dialog import")
+                    }
+                    if (DIALOG_CALL.containsMatchIn(text)) {
+                        add("direct Material3 dialog call")
+                    }
+                }
+                if (missing.isEmpty()) {
+                    null
+                } else {
+                    "${file.relativeTo(uiDir)}: ${missing.joinToString("; ")}"
+                }
+            }
+            .toList()
+
+        assertTrue(
+            "Every Material3 dialog should render through the shared Haze " +
+                    "dialog wrappers:\n" + offenders.joinToString("\n"),
+            offenders.isEmpty(),
+        )
+
+        val hazeChromeText =
+            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
+
+        assertTrue(
+            "Dialog Haze should be provided by shared helpers so LocalHazeBlurEnabled " +
+                    "controls dialog blur and disabled blur falls back to Material3 colors.",
+            hazeChromeText.contains("fun HazeAlertDialog(") &&
+                    hazeChromeText.contains("fun HazeBasicAlertDialog(") &&
+                    hazeChromeText.contains("fun HazeDatePickerDialog(") &&
+                    hazeChromeText.contains("fun HazeTimePickerDialog(") &&
+                    hazeChromeText.contains("fun Modifier.hazeDialog(") &&
+                    hazeChromeText.contains("shape: Shape") &&
+                    hazeChromeText.contains(".clip(shape)") &&
+                    hazeChromeText.contains("blurredEdgeTreatment = BlurredEdgeTreatment(shape)") &&
+                    hazeChromeText.contains("fun hazeDialogContainerColor(") &&
+                    hazeChromeText.contains("fun hazeDatePickerColors(") &&
+                    hazeChromeText.contains("LocalHazeBlurEnabled.current") &&
+                    hazeChromeText.contains("LocalChromeHazeState.current != null") &&
+                    hazeChromeText.contains("copy(alpha = 0.2f)") &&
+                    hazeChromeText.contains("forceInvalidateOnPreDraw = true") &&
+                    hazeChromeText.contains("AlertDialogDefaults.containerColor"),
+        )
+
+        val materialPickerText =
+            File("src/main/java/com/mkx/hrttracker/ui/components/MaterialPickerDialogs.kt")
+                .readText()
+        val planBatchAddText =
+            File("src/main/java/com/mkx/hrttracker/ui/plan/PlanBatchAddScreen.kt").readText()
+
+        assertTrue(
+            "DatePicker and DateRangePicker draw their own container background, so picker " +
+                    "content must receive the same translucent Haze date picker colors as " +
+                    "the outer DatePickerDialog surface.",
+            materialPickerText.contains("val colors = hazeDatePickerColors()") &&
+                    materialPickerText.contains("DatePicker(state = datePickerState, colors = colors)") &&
+                    planBatchAddText.contains("val colors = hazeDatePickerColors()") &&
+                    planBatchAddText.contains("DateRangePicker(") &&
+                    planBatchAddText.contains("colors = colors"),
+        )
+    }
+
+    @Test
     fun bottom_sheet_haze_surface_owns_content_window_insets() {
         val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
         require(uiDir.isDirectory) {
@@ -418,5 +494,12 @@ class HazeChromeIntegrationTest {
     private companion object {
         private val TOP_APP_BAR_CALL = Regex("""\b(?:CenterAlignedTopAppBar|TopAppBar)\(""")
         private val BOTTOM_SHEET_CALL = Regex("""\bModalBottomSheet\(""")
+        private val DIALOG_CALL =
+            Regex("""\b(?:AlertDialog|BasicAlertDialog|DatePickerDialog|TimePickerDialog)\(""")
+        private val DIRECT_MATERIAL_DIALOG_IMPORT =
+            Regex(
+                """import androidx\.compose\.material3\.""" +
+                        """(?:AlertDialog|BasicAlertDialog|DatePickerDialog|TimePickerDialog)\b"""
+            )
     }
 }

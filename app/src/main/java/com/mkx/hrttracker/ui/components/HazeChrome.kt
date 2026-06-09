@@ -9,9 +9,18 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.AlertDialog as MaterialAlertDialog
+import androidx.compose.material3.BasicAlertDialog as MaterialBasicAlertDialog
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.DatePickerColors
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DatePickerDialog as MaterialDatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TimePickerDialog as MaterialTimePickerDialog
+import androidx.compose.material3.TimePickerDialogDefaults
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -24,7 +33,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.window.DialogProperties
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -88,6 +102,25 @@ fun Modifier.hazeBottomSheet(
 }
 
 @Composable
+fun Modifier.hazeDialog(
+    state: HazeState? = LocalChromeHazeState.current,
+    shape: Shape = AlertDialogDefaults.shape,
+): Modifier {
+    if (!LocalHazeBlurEnabled.current || state == null) return this
+
+    return this.clip(shape)
+        .hazeEffect(
+            state = state,
+            style = HazeMaterials.regular(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            ),
+        ) {
+            blurredEdgeTreatment = BlurredEdgeTreatment(shape)
+            forceInvalidateOnPreDraw = true
+        }
+}
+
+@Composable
 fun hazeBottomSheetContainerColor(
     enabled: Boolean = LocalHazeBlurEnabled.current,
 ): Color {
@@ -98,6 +131,27 @@ fun hazeBottomSheetContainerColor(
 }
 
 fun hazeBottomSheetContentWindowInsets(): WindowInsets = WindowInsets(0, 0, 0, 0)
+
+@Composable
+fun hazeDialogContainerColor(
+    enabled: Boolean = LocalHazeBlurEnabled.current && LocalChromeHazeState.current != null,
+    containerColor: Color = AlertDialogDefaults.containerColor,
+): Color {
+    if (!enabled) return containerColor
+
+    return containerColor.copy(alpha = 0.2f)
+}
+
+@Composable
+fun hazeDatePickerColors(
+    colors: DatePickerColors = DatePickerDefaults.colors(),
+): DatePickerColors {
+    return colors.copy(
+        containerColor = hazeDialogContainerColor(
+            containerColor = colors.containerColor,
+        ),
+    )
+}
 
 @Composable
 fun HazeBottomSheetSurface(
@@ -117,6 +171,130 @@ fun HazeBottomSheetSurface(
         dragHandle?.invoke()
         content()
     }
+}
+
+@Composable
+fun HazeAlertDialog(
+    onDismissRequest: () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    dismissButton: @Composable (() -> Unit)? = null,
+    icon: @Composable (() -> Unit)? = null,
+    title: @Composable (() -> Unit)? = null,
+    text: @Composable (() -> Unit)? = null,
+    shape: Shape = AlertDialogDefaults.shape,
+    containerColor: Color = hazeDialogContainerColor(),
+    iconContentColor: Color = AlertDialogDefaults.iconContentColor,
+    titleContentColor: Color = AlertDialogDefaults.titleContentColor,
+    textContentColor: Color = AlertDialogDefaults.textContentColor,
+    tonalElevation: Dp = AlertDialogDefaults.TonalElevation,
+    properties: DialogProperties = DialogProperties(),
+) {
+    MaterialAlertDialog(
+        onDismissRequest = onDismissRequest,
+        confirmButton = confirmButton,
+        modifier = modifier.hazeDialog(shape = shape),
+        dismissButton = dismissButton,
+        icon = icon,
+        title = title,
+        text = text,
+        shape = shape,
+        containerColor = containerColor,
+        iconContentColor = iconContentColor,
+        titleContentColor = titleContentColor,
+        textContentColor = textContentColor,
+        tonalElevation = tonalElevation,
+        properties = properties,
+    )
+}
+
+@Composable
+fun HazeBasicAlertDialog(
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    shape: Shape = AlertDialogDefaults.shape,
+    properties: DialogProperties = DialogProperties(),
+    content: @Composable () -> Unit,
+) {
+    MaterialBasicAlertDialog(
+        onDismissRequest = onDismissRequest,
+        modifier = modifier.hazeDialog(shape = shape),
+        properties = properties,
+        content = content,
+    )
+}
+
+@Composable
+fun HazeDialogSurface(
+    modifier: Modifier = Modifier,
+    shape: Shape = AlertDialogDefaults.shape,
+    color: Color = hazeDialogContainerColor(),
+    contentColor: Color = MaterialTheme.colorScheme.onSurface,
+    tonalElevation: Dp = AlertDialogDefaults.TonalElevation,
+    content: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = modifier,
+        shape = shape,
+        color = color,
+        contentColor = contentColor,
+        tonalElevation = tonalElevation,
+        content = content,
+    )
+}
+
+@Composable
+fun HazeDatePickerDialog(
+    onDismissRequest: () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    dismissButton: @Composable (() -> Unit)? = null,
+    shape: Shape = DatePickerDefaults.shape,
+    tonalElevation: Dp = DatePickerDefaults.TonalElevation,
+    colors: DatePickerColors = DatePickerDefaults.colors(),
+    properties: DialogProperties = DialogProperties(usePlatformDefaultWidth = false),
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val hazeColors = hazeDatePickerColors(colors)
+
+    MaterialDatePickerDialog(
+        onDismissRequest = onDismissRequest,
+        confirmButton = confirmButton,
+        modifier = modifier.hazeDialog(shape = shape),
+        dismissButton = dismissButton,
+        shape = shape,
+        tonalElevation = tonalElevation,
+        colors = hazeColors,
+        properties = properties,
+        content = content,
+    )
+}
+
+@Composable
+fun HazeTimePickerDialog(
+    onDismissRequest: () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    title: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    properties: DialogProperties = DialogProperties(usePlatformDefaultWidth = false),
+    modeToggleButton: @Composable (() -> Unit)? = null,
+    dismissButton: @Composable (() -> Unit)? = null,
+    shape: Shape = TimePickerDialogDefaults.shape,
+    containerColor: Color = TimePickerDialogDefaults.containerColor,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    MaterialTimePickerDialog(
+        onDismissRequest = onDismissRequest,
+        confirmButton = confirmButton,
+        title = title,
+        modifier = modifier.hazeDialog(shape = shape),
+        properties = properties,
+        modeToggleButton = modeToggleButton,
+        dismissButton = dismissButton,
+        shape = shape,
+        containerColor = hazeDialogContainerColor(containerColor = containerColor),
+        content = content,
+    )
 }
 
 @Composable

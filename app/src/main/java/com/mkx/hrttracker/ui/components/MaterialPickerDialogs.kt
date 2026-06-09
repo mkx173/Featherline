@@ -7,14 +7,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TimePickerDialog
 import androidx.compose.material3.TimePickerDialogDefaults
 import androidx.compose.material3.TimePickerDisplayMode
 import androidx.compose.material3.rememberDatePickerState
@@ -54,9 +52,11 @@ fun DatePickerModal(
         initialSelectedDate = initialSelectedDate,
         selectableDates = selectableDates,
     )
+    val colors = hazeDatePickerColors()
 
-    DatePickerDialog(
+    HazeDatePickerDialog(
         onDismissRequest = onDismiss,
+        colors = colors,
         confirmButton = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -98,7 +98,7 @@ fun DatePickerModal(
             }
         },
     ) {
-        DatePicker(state = datePickerState)
+        DatePicker(state = datePickerState, colors = colors)
     }
 }
 
@@ -136,7 +136,7 @@ fun TimePickerModal(
         is24Hour = is24Hour
     )
 
-    TimePickerDialog(
+    HazeTimePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             val confirmTime = {

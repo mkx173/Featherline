@@ -33,7 +33,6 @@ import androidx.compose.material.icons.rounded.FlipToBack
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.SelectAll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -109,6 +108,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
@@ -567,7 +567,7 @@ private fun HistoryScreenContent(
     }
 
     if (uiState.isDeleteConfirmationVisible) {
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 if (!uiState.isDeletingSelectedEntries) {
                     onDeleteDismiss()
@@ -605,7 +605,7 @@ private fun HistoryScreenContent(
     }
 
     if (isDeleteAllConfirmationVisible) {
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 if (!uiState.isDeletingAllEntries) {
                     isDeleteAllConfirmationVisible = false
@@ -1504,7 +1504,7 @@ private fun HistoryMonthPickerDialog(
             }
     }
 
-    AlertDialog(
+    HazeAlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(text = stringResource(R.string.history_month_picker_title))

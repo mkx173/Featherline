@@ -38,7 +38,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -116,6 +115,7 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
@@ -881,7 +881,7 @@ private fun MedicationGroupEditorScreenContent(
         } else {
             stringResource(R.string.delete_medication_group_confirmation)
         }
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 if (!uiState.isDeleting) {
                     onDeleteDismiss()
@@ -994,7 +994,7 @@ private fun MedicationGroupEditorScreenContent(
                 resetButtonText = stringResource(R.string.archive_medication_group_reset_to_now),
             )
         }
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 if (!isArchiveActionInProgress) {
                     onArchiveDismiss()
@@ -1150,7 +1150,7 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     if (uiState.isDeleteRelatedEntriesConfirmationVisible) {
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 if (!uiState.isDeletingRelatedEntries) {
                     onDeleteRelatedEntriesDismiss()
@@ -1193,7 +1193,7 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     if (isMasterReminderRecoveryDialogVisible) {
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = { isMasterReminderRecoveryDialogVisible = false },
             title = {
                 Text(text = stringResource(R.string.group_notifications_reenable_title))
@@ -1222,7 +1222,7 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     pendingMedicationRemoval?.let { removalRequest ->
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = { pendingMedicationRemoval = null },
             title = {
                 Text(text = stringResource(R.string.delete_group_medication_title))

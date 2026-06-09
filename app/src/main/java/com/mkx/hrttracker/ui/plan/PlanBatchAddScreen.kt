@@ -20,9 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePickerDefaults
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.DateRangePickerDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -69,6 +67,8 @@ import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
+import com.mkx.hrttracker.ui.components.HazeDatePickerDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtSection
@@ -79,6 +79,7 @@ import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.datePickerSelectableDates
 import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.hazeDatePickerColors
 import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.topAppBarHazeEnabled
@@ -619,9 +620,11 @@ private fun PlanBatchDateRangePickerDialog(
         initialSelectedEndDate = endDate,
         selectableDates = selectableDates,
     )
+    val colors = hazeDatePickerColors()
 
-    DatePickerDialog(
+    HazeDatePickerDialog(
         onDismissRequest = onDismiss,
+        colors = colors,
         confirmButton = {
             TextButton(
                 enabled = state.getSelectedStartDate() != null &&
@@ -655,6 +658,7 @@ private fun PlanBatchDateRangePickerDialog(
             DateRangePicker(
                 state = state,
                 modifier = Modifier.fillMaxWidth(),
+                colors = colors,
                 title = {
                     DateRangePickerDefaults.DateRangePickerTitle(
                         displayMode = state.displayMode,
@@ -688,7 +692,7 @@ private fun PlanBatchAddConfirmationDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    AlertDialog(
+    HazeAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.plan_batch_add_confirm_title)) },
         text = {

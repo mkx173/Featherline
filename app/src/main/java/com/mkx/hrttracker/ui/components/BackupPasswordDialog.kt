@@ -15,13 +15,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.AlertDialogDefaults
-import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -102,19 +100,18 @@ fun BackupPasswordDialog(
         null
     }
 
-    BasicAlertDialog(
+    HazeBasicAlertDialog(
         modifier = modifier,
         // Block outside-tap / back-press while a restore is mid-flight —
         // dismissing would let the surrounding screen wipe the encrypted
         // bytes that the in-progress restore is still decrypting from.
         onDismissRequest = { if (!isInProgress) onDismiss() },
     ) {
-        Surface(
+        HazeDialogSurface(
             modifier = Modifier
                 .wrapContentWidth()
                 .wrapContentHeight(),
             shape = AlertDialogDefaults.shape,
-            color = AlertDialogDefaults.containerColor,
             tonalElevation = AlertDialogDefaults.TonalElevation,
         ) {
             Column(

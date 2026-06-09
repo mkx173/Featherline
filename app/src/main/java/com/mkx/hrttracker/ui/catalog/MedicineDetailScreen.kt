@@ -25,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Label
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -94,6 +93,7 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicationCard
@@ -616,7 +616,7 @@ private fun MedicineDetailScreenContent(
     }
 
     if (uiState.showDisableConfirmation) {
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = onCloseDisableConfirmation,
             title = { Text(stringResource(R.string.stock_disable_title)) },
             text = { Text(stringResource(R.string.stock_disable_body)) },
@@ -657,7 +657,7 @@ private fun MedicineDetailScreenContent(
     }
 
     if (archiveConfirmOpen) {
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = { archiveConfirmOpen = false },
             title = { Text(text = stringResource(R.string.medicine_archive_confirm_title)) },
             text = { Text(text = stringResource(R.string.medicine_archive_confirm_message)) },

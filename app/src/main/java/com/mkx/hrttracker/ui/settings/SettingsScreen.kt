@@ -39,7 +39,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -103,6 +102,7 @@ import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.BackupPasswordDialog
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
@@ -649,7 +649,7 @@ internal fun WidgetAppearanceDialog(
     }
     var localDarkModeOption by remember { mutableStateOf(darkModeOption) }
     var isDarkModeMenuExpanded by remember { mutableStateOf(false) }
-    AlertDialog(
+    HazeAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.settings_widget_appearance)) },
         text = {
@@ -1647,7 +1647,7 @@ internal fun SettingsScreenContent(
             showFeedbackEmailDialog -> R.string.settings_about_feedback
             else -> null
         } ?: R.string.settings_about_open_link_title
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 pendingExternalUrl = null
                 pendingExternalLinkTitleRes = null
