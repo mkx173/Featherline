@@ -109,6 +109,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
+import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
@@ -682,112 +683,114 @@ private fun HistoryScreenContent(
             }
         },
         topBar = {
-            TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToItem(0)
-                }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
-                title = {
-                    FlipSlot(
-                        flipped = uiState.isSelectionMode,
-                        contentAlignment = Alignment.CenterStart,
-                        front = {
-                            val title = stringResource(R.string.tab_history)
-                            Text(
-                                text = title,
-                                modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
-                            )
-                        },
-                        back = {
-                            val title = pluralStringResource(
-                                R.plurals.history_selected_entries_title,
-                                displayedSelectedEntryCount.value,
-                                displayedSelectedEntryCount.value,
-                            )
-                            Text(
-                                text = title,
-                                modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
-                            )
-                        },
-                    )
-                },
-                navigationIcon = {
-                    FlipSlot(
-                        flipped = uiState.isSelectionMode,
-                        front = {
-                            if (onNavigateBack != null) {
-                                IconButton(onClick = onNavigateBack) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                        contentDescription = stringResource(R.string.navigate_back),
-                                    )
-                                }
-                            }
-                        },
-                        back = {
-                            IconButton(onClick = onCancelEntrySelectionClick) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = stringResource(R.string.history_cancel_selection),
+            HazeTopAppBarColorReset {
+                TopAppBar(
+                    modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
+                        listState.animateScrollToItem(0)
+                    }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
+                    title = {
+                        FlipSlot(
+                            flipped = uiState.isSelectionMode,
+                            contentAlignment = Alignment.CenterStart,
+                            front = {
+                                val title = stringResource(R.string.tab_history)
+                                Text(
+                                    text = title,
+                                    modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                                 )
-                            }
-                        },
-                    )
-                },
-                actions = {
-                    FlipSlot(
-                        flipped = uiState.isSelectionMode,
-                        contentAlignment = Alignment.CenterEnd,
-                        front = {
-                            Box {
-                                IconButton(onClick = { isActionMenuExpanded = true }) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.MoreVert,
-                                        contentDescription = stringResource(R.string.plan_more_options),
-                                    )
-                                }
-                                HrtDropdownMenu(
-                                    expanded = isActionMenuExpanded,
-                                    onDismissRequest = { isActionMenuExpanded = false },
-                                    items = listOf(
-                                        HrtDropdownMenuItem(
-                                            text = stringResource(R.string.history_delete_all_entries),
-                                            enabled = uiState.allEntryCount > 0 &&
-                                                    !uiState.isDeletingAllEntries,
-                                            onClick = {
-                                                isDeleteAllConfirmationVisible = true
-                                            },
+                            },
+                            back = {
+                                val title = pluralStringResource(
+                                    R.plurals.history_selected_entries_title,
+                                    displayedSelectedEntryCount.value,
+                                    displayedSelectedEntryCount.value,
+                                )
+                                Text(
+                                    text = title,
+                                    modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                                )
+                            },
+                        )
+                    },
+                    navigationIcon = {
+                        FlipSlot(
+                            flipped = uiState.isSelectionMode,
+                            front = {
+                                if (onNavigateBack != null) {
+                                    IconButton(onClick = onNavigateBack) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                            contentDescription = stringResource(R.string.navigate_back),
                                         )
-                                    ),
-                                )
-                            }
-                        },
-                        back = {
-                            Row {
-                                IconButton(
-                                    enabled = selectAllEnabled.value,
-                                    onClick = { onSelectAllEntriesClick(visibleEntryIds) }
-                                ) {
+                                    }
+                                }
+                            },
+                            back = {
+                                IconButton(onClick = onCancelEntrySelectionClick) {
                                     Icon(
-                                        imageVector = Icons.Rounded.SelectAll,
-                                        contentDescription = stringResource(R.string.history_select_all),
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.history_cancel_selection),
                                     )
                                 }
-                                IconButton(
-                                    enabled = visibleEntryIds.isNotEmpty(),
-                                    onClick = { onReverseEntrySelectionClick(visibleEntryIds) }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.FlipToBack,
-                                        contentDescription = stringResource(R.string.history_reverse_selection),
+                            },
+                        )
+                    },
+                    actions = {
+                        FlipSlot(
+                            flipped = uiState.isSelectionMode,
+                            contentAlignment = Alignment.CenterEnd,
+                            front = {
+                                Box {
+                                    IconButton(onClick = { isActionMenuExpanded = true }) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.MoreVert,
+                                            contentDescription = stringResource(R.string.plan_more_options),
+                                        )
+                                    }
+                                    HrtDropdownMenu(
+                                        expanded = isActionMenuExpanded,
+                                        onDismissRequest = { isActionMenuExpanded = false },
+                                        items = listOf(
+                                            HrtDropdownMenuItem(
+                                                text = stringResource(R.string.history_delete_all_entries),
+                                                enabled = uiState.allEntryCount > 0 &&
+                                                        !uiState.isDeletingAllEntries,
+                                                onClick = {
+                                                    isDeleteAllConfirmationVisible = true
+                                                },
+                                            )
+                                        ),
                                     )
                                 }
-                            }
-                        },
-                    )
-                },
-                colors = hazeTopAppBarColors(),
-                scrollBehavior = scrollBehavior
-            )
+                            },
+                            back = {
+                                Row {
+                                    IconButton(
+                                        enabled = selectAllEnabled.value,
+                                        onClick = { onSelectAllEntriesClick(visibleEntryIds) }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.SelectAll,
+                                            contentDescription = stringResource(R.string.history_select_all),
+                                        )
+                                    }
+                                    IconButton(
+                                        enabled = visibleEntryIds.isNotEmpty(),
+                                        onClick = { onReverseEntrySelectionClick(visibleEntryIds) }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.FlipToBack,
+                                            contentDescription = stringResource(R.string.history_reverse_selection),
+                                        )
+                                    }
+                                }
+                            },
+                        )
+                    },
+                    colors = hazeTopAppBarColors(),
+                    scrollBehavior = scrollBehavior
+                )
+            }
         }
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {

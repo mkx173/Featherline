@@ -38,6 +38,61 @@ class HazeChromeIntegrationTest {
     }
 
     @Test
+    fun top_app_bar_haze_transparent_colors_preserve_theme_rgb_channels() {
+        val hazeChromeText =
+            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
+
+        assertTrue(
+            "Top app bar Haze colors should keep the default theme RGB channels and only " +
+                    "clear alpha. Animating from Color.Transparent uses transparent black, " +
+                    "which can flash black when blur is toggled off.",
+            hazeChromeText.contains("copy(alpha = 0f)") &&
+                    !hazeChromeText.contains("containerColor = Color.Transparent") &&
+                    !hazeChromeText.contains("scrolledContainerColor = Color.Transparent"),
+        )
+    }
+
+    @Test
+    fun top_app_bars_reset_material_color_animation_when_haze_setting_changes() {
+        val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
+        require(uiDir.isDirectory) {
+            "Expected UI source directory at ${uiDir.absolutePath}; unit tests must run with " +
+                    "the app module as the working directory."
+        }
+
+        val hazeChromeText =
+            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
+        assertTrue(
+            "Haze top app bars need a keyed wrapper because Material3 animates the " +
+                    "container color internally. Without resetting that animation on blur " +
+                    "setting changes, on -> off can animate up from transparent after the " +
+                    "Haze effect has been removed.",
+            hazeChromeText.contains("fun HazeTopAppBarColorReset(") &&
+                    hazeChromeText.contains("key(LocalHazeBlurEnabled.current)"),
+        )
+
+        val offenders = uiDir.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { file -> TOP_APP_BAR_CALL.containsMatchIn(file.readText()) }
+            .mapNotNull { file ->
+                val text = file.readText()
+                if (text.contains("HazeTopAppBarColorReset {")) {
+                    null
+                } else {
+                    "${file.relativeTo(uiDir)} missing HazeTopAppBarColorReset wrapper"
+                }
+            }
+            .toList()
+
+        assertTrue(
+            "Every Haze TopAppBar/CenterAlignedTopAppBar should reset its Material " +
+                    "container color animation when the blur setting changes:\n" +
+                    offenders.joinToString("\n"),
+            offenders.isEmpty(),
+        )
+    }
+
+    @Test
     fun top_app_bar_blur_follows_default_scrolled_overlap_state() {
         val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
         require(uiDir.isDirectory) {

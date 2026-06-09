@@ -49,6 +49,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.calibration.calibrationAllowedUnitsFor
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.hazeChrome
@@ -199,33 +200,35 @@ fun MainScreen(
             .fillMaxSize()
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            CenterAlignedTopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    scrollState.animateScrollTo(0)
-                }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
-                title = {
-                    val title = stringResource(R.string.tab_main)
-                    Text(
-                        text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
-                    )
-                },
-                actions = {
-                    IconButton(onClick = onAddEntryClick) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_edit_square_alt),
-                            contentDescription = stringResource(R.string.fab_add_entry),
-                            modifier = Modifier.size(22.dp),
+            HazeTopAppBarColorReset {
+                CenterAlignedTopAppBar(
+                    modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
+                        scrollState.animateScrollTo(0)
+                    }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
+                    title = {
+                        val title = stringResource(R.string.tab_main)
+                        Text(
+                            text = title,
+                            modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                         )
-                    }
-                    HomeMoreOptionsMenu(
-                        selectedUnit = uiState.homeE2DisplayUnit,
-                        onUnitSelected = viewModel::setHomeE2DisplayUnit,
-                    )
-                },
-                colors = hazeTopAppBarColors(),
-                scrollBehavior = scrollBehavior
-            )
+                    },
+                    actions = {
+                        IconButton(onClick = onAddEntryClick) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_edit_square_alt),
+                                contentDescription = stringResource(R.string.fab_add_entry),
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                        HomeMoreOptionsMenu(
+                            selectedUnit = uiState.homeE2DisplayUnit,
+                            onUnitSelected = viewModel::setHomeE2DisplayUnit,
+                        )
+                    },
+                    colors = hazeTopAppBarColors(),
+                    scrollBehavior = scrollBehavior
+                )
+            }
         }
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {

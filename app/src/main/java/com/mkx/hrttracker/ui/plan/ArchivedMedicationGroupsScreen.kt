@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
@@ -93,28 +94,30 @@ private fun ArchivedMedicationGroupsScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToItem(0)
-                }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
-                title = {
-                    val title = stringResource(R.string.plan_archived_groups)
-                    Text(
-                        text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.navigate_back)
+            HazeTopAppBarColorReset {
+                TopAppBar(
+                    modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
+                        listState.animateScrollToItem(0)
+                    }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
+                    title = {
+                        val title = stringResource(R.string.plan_archived_groups)
+                        Text(
+                            text = title,
+                            modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                         )
-                    }
-                },
-                colors = hazeTopAppBarColors(),
-                scrollBehavior = scrollBehavior,
-            )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(R.string.navigate_back)
+                            )
+                        }
+                    },
+                    colors = hazeTopAppBarColors(),
+                    scrollBehavior = scrollBehavior,
+                )
+            }
         }
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {

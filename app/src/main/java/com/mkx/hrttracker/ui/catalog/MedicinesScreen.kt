@@ -73,6 +73,7 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
@@ -574,56 +575,58 @@ private fun MedicinesScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToItem(0)
-                }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
-                title = {
-                    val title = stringResource(titleRes)
-                    Text(
-                        text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.navigate_back),
+            HazeTopAppBarColorReset {
+                TopAppBar(
+                    modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
+                        listState.animateScrollToItem(0)
+                    }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
+                    title = {
+                        val title = stringResource(titleRes)
+                        Text(
+                            text = title,
+                            modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                         )
-                    }
-                },
-                colors = hazeTopAppBarColors(),
-                actions = {
-                    if (showStockNudgeMenu) {
-                        Box {
-                            IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.MoreVert,
-                                    contentDescription = stringResource(R.string.main_more_options),
-                                )
-                            }
-                            HrtDropdownMenu(
-                                expanded = showOverflowMenu,
-                                onDismissRequest = { showOverflowMenu = false },
-                                items = listOf(
-                                    HrtDropdownMenuItem(
-                                        text = stringResource(R.string.stock_nudge_menu_label),
-                                        onClick = { onSetStockNudgeEnabled(!stockNudgeEnabled) },
-                                        trailingIcon = {
-                                            Checkbox(
-                                                checked = stockNudgeEnabled,
-                                                onCheckedChange = null,
-                                            )
-                                        },
-                                    ),
-                                ),
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(R.string.navigate_back),
                             )
                         }
-                    }
-                },
-                scrollBehavior = scrollBehavior,
-            )
+                    },
+                    colors = hazeTopAppBarColors(),
+                    actions = {
+                        if (showStockNudgeMenu) {
+                            Box {
+                                IconButton(onClick = { showOverflowMenu = true }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.MoreVert,
+                                        contentDescription = stringResource(R.string.main_more_options),
+                                    )
+                                }
+                                HrtDropdownMenu(
+                                    expanded = showOverflowMenu,
+                                    onDismissRequest = { showOverflowMenu = false },
+                                    items = listOf(
+                                        HrtDropdownMenuItem(
+                                            text = stringResource(R.string.stock_nudge_menu_label),
+                                            onClick = { onSetStockNudgeEnabled(!stockNudgeEnabled) },
+                                            trailingIcon = {
+                                                Checkbox(
+                                                    checked = stockNudgeEnabled,
+                                                    onCheckedChange = null,
+                                                )
+                                            },
+                                        ),
+                                    ),
+                                )
+                            }
+                        }
+                    },
+                    scrollBehavior = scrollBehavior,
+                )
+            }
         },
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {

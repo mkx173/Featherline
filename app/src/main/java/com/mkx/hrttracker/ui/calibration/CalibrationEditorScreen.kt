@@ -66,6 +66,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.DatePickerModal
+import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
@@ -338,45 +339,47 @@ private fun CalibrationEditorScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    scrollState.animateScrollTo(0)
-                }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
-                title = {
-                    val title = stringResource(
-                        if (uiState.isEditing) {
-                            R.string.settings_calibration_edit_result
-                        } else {
-                            R.string.settings_calibration_add_result
-                        }
-                    )
-                    Text(
-                        text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
-                    )
-                },
-                colors = hazeTopAppBarColors(),
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.cancel),
+            HazeTopAppBarColorReset {
+                TopAppBar(
+                    modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
+                        scrollState.animateScrollTo(0)
+                    }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
+                    title = {
+                        val title = stringResource(
+                            if (uiState.isEditing) {
+                                R.string.settings_calibration_edit_result
+                            } else {
+                                R.string.settings_calibration_add_result
+                            }
                         )
-                    }
-                },
-                actions = {
-                    HrtButton(
-                        text = stringResource(R.string.save),
-                        onClick = {
-                            if (isCalibrationEditorBusy(uiState)) return@HrtButton
-                            onSaveClick(notesDraft)
-                        },
-                        enabled = canSave,
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
-                },
-                scrollBehavior = scrollBehavior
-            )
+                        Text(
+                            text = title,
+                            modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                        )
+                    },
+                    colors = hazeTopAppBarColors(),
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(R.string.cancel),
+                            )
+                        }
+                    },
+                    actions = {
+                        HrtButton(
+                            text = stringResource(R.string.save),
+                            onClick = {
+                                if (isCalibrationEditorBusy(uiState)) return@HrtButton
+                                onSaveClick(notesDraft)
+                            },
+                            enabled = canSave,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                    },
+                    scrollBehavior = scrollBehavior
+                )
+            }
         },
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {

@@ -11,6 +11,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -69,12 +70,23 @@ fun topAppBarHazeEnabled(scrollBehavior: TopAppBarScrollBehavior): Boolean {
 }
 
 @Composable
-fun hazeTopAppBarColors(enabled: Boolean = LocalHazeBlurEnabled.current): TopAppBarColors {
-    if (!enabled) return TopAppBarDefaults.topAppBarColors()
+fun HazeTopAppBarColorReset(content: @Composable () -> Unit) {
+    // Material3 animates top app bar container colors internally. When Haze is toggled off,
+    // recreate only the app bar so the new opaque target color is used immediately instead of
+    // animating up from the previous transparent Haze color.
+    key(LocalHazeBlurEnabled.current) {
+        content()
+    }
+}
 
-    return TopAppBarDefaults.topAppBarColors(
-        containerColor = Color.Transparent,
-        scrolledContainerColor = Color.Transparent,
+@Composable
+fun hazeTopAppBarColors(enabled: Boolean = LocalHazeBlurEnabled.current): TopAppBarColors {
+    val defaultColors = TopAppBarDefaults.topAppBarColors()
+    if (!enabled) return defaultColors
+
+    return defaultColors.copy(
+        containerColor = defaultColors.containerColor.copy(alpha = 0f),
+        scrolledContainerColor = defaultColors.scrolledContainerColor.copy(alpha = 0f),
     )
 }
 

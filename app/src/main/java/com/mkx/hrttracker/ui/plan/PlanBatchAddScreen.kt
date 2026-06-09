@@ -69,6 +69,7 @@ import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
+import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicationCard
@@ -267,41 +268,43 @@ private fun PlanBatchAddScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToItem(0)
-                }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
-                title = {
-                    val title = stringResource(R.string.plan_batch_add_title)
-                    Text(
-                        text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
-                    )
-                },
-                navigationIcon = {
-                    FlipSlot(
-                        flipped = shouldDeselectOnBack,
-                        front = {
-                            IconButton(onClick = onNavigateBack) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                    contentDescription = stringResource(R.string.navigate_back),
-                                )
-                            }
-                        },
-                        back = {
-                            IconButton(onClick = { clearSelectionAndDismissDialogs() }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = stringResource(R.string.history_cancel_selection),
-                                )
-                            }
-                        },
-                    )
-                },
-                colors = hazeTopAppBarColors(),
-                scrollBehavior = scrollBehavior,
-            )
+            HazeTopAppBarColorReset {
+                TopAppBar(
+                    modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
+                        listState.animateScrollToItem(0)
+                    }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
+                    title = {
+                        val title = stringResource(R.string.plan_batch_add_title)
+                        Text(
+                            text = title,
+                            modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                        )
+                    },
+                    navigationIcon = {
+                        FlipSlot(
+                            flipped = shouldDeselectOnBack,
+                            front = {
+                                IconButton(onClick = onNavigateBack) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                        contentDescription = stringResource(R.string.navigate_back),
+                                    )
+                                }
+                            },
+                            back = {
+                                IconButton(onClick = { clearSelectionAndDismissDialogs() }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.history_cancel_selection),
+                                    )
+                                }
+                            },
+                        )
+                    },
+                    colors = hazeTopAppBarColors(),
+                    scrollBehavior = scrollBehavior,
+                )
+            }
         }
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
