@@ -1284,29 +1284,6 @@ internal fun SettingsScreenContent(
                         )
                     }
 
-                    if (shouldShowHazeBlurToggle()) {
-                        item {
-                            SettingsSegmentedListItem(
-                                title = stringResource(R.string.settings_haze_blur),
-                                supportingText = stringResource(R.string.settings_haze_blur_summary),
-                                onClick = {
-                                    onHazeBlurEnabledChange(!settingsState.hazeBlurEnabled)
-                                },
-                                leadingContent = {
-                                    SettingsLeadingIconSlot(
-                                        painter = painterResource(R.drawable.ic_contrast)
-                                    )
-                                },
-                                trailingContent = {
-                                    Switch(
-                                        checked = settingsState.hazeBlurEnabled,
-                                        onCheckedChange = onHazeBlurEnabledChange
-                                    )
-                                }
-                            )
-                        }
-                    }
-
                     if (shouldShowAdaptiveColor()) {
                         item {
                             SettingsSegmentedListItem(
@@ -1329,6 +1306,28 @@ internal fun SettingsScreenContent(
                                     Switch(
                                         checked = settingsState.adaptiveColorEnabled,
                                         onCheckedChange = onAdaptiveColorEnabledChange
+                                    )
+                                }
+                            )
+                        }
+                    }
+
+                    if (shouldShowHazeBlurToggle()) {
+                        item {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_haze_blur),
+                                onClick = {
+                                    onHazeBlurEnabledChange(!settingsState.hazeBlurEnabled)
+                                },
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_blur_on)
+                                    )
+                                },
+                                trailingContent = {
+                                    Switch(
+                                        checked = settingsState.hazeBlurEnabled,
+                                        onCheckedChange = onHazeBlurEnabledChange
                                     )
                                 }
                             )
