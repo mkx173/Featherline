@@ -39,6 +39,7 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
+import com.mkx.hrttracker.ui.components.topAppBarHazeEnabled
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -95,7 +96,7 @@ private fun ArchivedMedicationGroupsScreenContent(
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     listState.animateScrollToItem(0)
-                }.hazeChrome(),
+                }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
                 title = {
                     val title = stringResource(R.string.plan_archived_groups)
                     Text(

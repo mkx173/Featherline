@@ -38,6 +38,55 @@ class HazeChromeIntegrationTest {
     }
 
     @Test
+    fun top_app_bar_blur_follows_default_scrolled_overlap_state() {
+        val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
+        require(uiDir.isDirectory) {
+            "Expected UI source directory at ${uiDir.absolutePath}; unit tests must run with " +
+                    "the app module as the working directory."
+        }
+
+        val offenders = uiDir.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { file -> TOP_APP_BAR_CALL.containsMatchIn(file.readText()) }
+            .mapNotNull { file ->
+                val text = file.readText()
+                val missing = buildList {
+                    if (!text.contains(".hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior))")) {
+                        add("Haze blur is not gated by topAppBarHazeEnabled(scrollBehavior)")
+                    }
+                    if (
+                        text.contains("val scrollState = rememberScrollState()") &&
+                        text.contains("TopAppBarDefaults.pinnedScrollBehavior(") &&
+                        !text.contains("scrollState = scrollState")
+                    ) {
+                        add("ScrollState-backed top app bar is not using pinnedScrollBehavior(scrollState = ...)")
+                    }
+                }
+                if (missing.isEmpty()) {
+                    null
+                } else {
+                    "${file.relativeTo(uiDir)}: ${missing.joinToString("; ")}"
+                }
+            }
+            .toList()
+
+        val hazeChromeText =
+            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
+        assertTrue(
+            "Haze top app bars should use Material3's default scrolled threshold.",
+            hazeChromeText.contains("TopAppBarScrolledOverlapThreshold = 0.01f") &&
+                    hazeChromeText.contains(
+                        "scrollBehavior.state.overlappedFraction > TopAppBarScrolledOverlapThreshold"
+                    ),
+        )
+        assertTrue(
+            "Top app bar blur should remain disabled until content actually scrolls:\n" +
+                    offenders.joinToString("\n"),
+            offenders.isEmpty(),
+        )
+    }
+
+    @Test
     fun top_app_bar_backdrop_content_draws_behind_top_chrome() {
         val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
         val contentContainerFile =

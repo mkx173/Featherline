@@ -113,6 +113,7 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
+import com.mkx.hrttracker.ui.components.topAppBarHazeEnabled
 import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
@@ -877,7 +878,7 @@ internal fun SettingsScreenContent(
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     scrollState.animateScrollTo(0)
-                }.hazeChrome(),
+                }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
                 title = {
                     val title = stringResource(R.string.tab_settings)
                     Text(

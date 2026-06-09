@@ -103,6 +103,7 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
+import com.mkx.hrttracker.ui.components.topAppBarHazeEnabled
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.LocalSheetDismissFocusRequester
@@ -340,7 +341,7 @@ private fun MedicineDetailScreenContent(
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     listState.animateScrollToItem(0)
-                }.hazeChrome(),
+                }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
                 title = {
                     val title = stringResource(R.string.medicine_detail_title)
                     Text(

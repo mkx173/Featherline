@@ -54,6 +54,7 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
+import com.mkx.hrttracker.ui.components.topAppBarHazeEnabled
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.util.calibrationUnitLabel
 import kotlinx.coroutines.delay
@@ -180,6 +181,7 @@ fun MainScreen(
     }
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
+        scrollState = scrollState,
         state = topAppBarState
     )
     val initialScrollToTopSignal = remember { scrollToTopSignal }
@@ -200,7 +202,7 @@ fun MainScreen(
             CenterAlignedTopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     scrollState.animateScrollTo(0)
-                }.hazeChrome(),
+                }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
                 title = {
                     val title = stringResource(R.string.tab_main)
                     Text(

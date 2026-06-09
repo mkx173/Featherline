@@ -78,6 +78,7 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
+import com.mkx.hrttracker.ui.components.topAppBarHazeEnabled
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -331,6 +332,7 @@ private fun CalibrationEditorScreenContent(
     val contentFocusManager = LocalFocusManager.current
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
+        scrollState = scrollState,
         state = topAppBarState
     )
     Scaffold(
@@ -339,7 +341,7 @@ private fun CalibrationEditorScreenContent(
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     scrollState.animateScrollTo(0)
-                }.hazeChrome(),
+                }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
                 title = {
                     val title = stringResource(
                         if (uiState.isEditing) {
