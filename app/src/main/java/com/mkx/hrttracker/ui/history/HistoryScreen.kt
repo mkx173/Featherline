@@ -802,45 +802,62 @@ private fun HistoryScreenContent(
                 contentPadding = appContentPaddingValues(),
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
             ) {
-                item(key = "history-header") {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
-                    ) {
-                        HistoryMonthSummaryStrip(summary = monthSummary)
-                        HistoryMonthCalendar(
-                            calendarState = calendarState,
-                            displayedMonth = displayedMonth.yearMonth,
-                            settledDisplayedMonth = settledDisplayedMonth.yearMonth,
-                            today = today,
-                            firstDayOfWeek = uiState.calendarFirstDayOfWeek,
-                            dayStates = monthDayStates,
-                            appLocale = appLocale,
-                            selectedDate = calendarSelectedDate,
-                            hasResettableSelection = uiState.selectedDate != null &&
-                                    pendingSelectionResetTargetMonth.value == null,
-                            onDayClick = { date ->
-                                pendingSelectionResetTargetMonth.value = null
-                                val selectedMonth = YearMonth.from(date)
-                                if (selectedMonth == settledDisplayedMonth.yearMonth) {
-                                    pendingSelectedDate.value = null
-                                    onDayClick(date)
-                                } else {
-                                    calendarNavigationMonth = selectedMonth
-                                    pendingSelectedDate.value = date
-                                }
-                            },
-                            onSelectionReset = { targetMonth ->
+                item(
+                    key = "history-summary",
+                    contentType = "history-summary"
+                ) {
+                    HistoryMonthSummaryStrip(summary = monthSummary)
+                }
+
+                item(
+                    key = "history-calendar",
+                    contentType = "history-calendar"
+                ) {
+                    HistoryMonthCalendar(
+                        calendarState = calendarState,
+                        displayedMonth = displayedMonth.yearMonth,
+                        settledDisplayedMonth = settledDisplayedMonth.yearMonth,
+                        today = today,
+                        firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+                        dayStates = monthDayStates,
+                        appLocale = appLocale,
+                        selectedDate = calendarSelectedDate,
+                        hasResettableSelection = uiState.selectedDate != null &&
+                                pendingSelectionResetTargetMonth.value == null,
+                        onDayClick = { date ->
+                            pendingSelectionResetTargetMonth.value = null
+                            val selectedMonth = YearMonth.from(date)
+                            if (selectedMonth == settledDisplayedMonth.yearMonth) {
                                 pendingSelectedDate.value = null
-                                if (uiState.selectedDate != null) {
-                                    pendingSelectionResetTargetMonth.value = targetMonth
-                                }
-                            },
-                            onDeferredDaySelectionRequested = {
-                                pendingSelectionResetTargetMonth.value = null
-                                pendingSelectedDate.value = it
-                            },
-                            onNavigationMonthChange = { calendarNavigationMonth = it },
+                                onDayClick(date)
+                            } else {
+                                calendarNavigationMonth = selectedMonth
+                                pendingSelectedDate.value = date
+                            }
+                        },
+                        onSelectionReset = { targetMonth ->
+                            pendingSelectedDate.value = null
+                            if (uiState.selectedDate != null) {
+                                pendingSelectionResetTargetMonth.value = targetMonth
+                            }
+                        },
+                        onDeferredDaySelectionRequested = {
+                            pendingSelectionResetTargetMonth.value = null
+                            pendingSelectedDate.value = it
+                        },
+                        onNavigationMonthChange = { calendarNavigationMonth = it },
+                    )
+                }
+
+                item(
+                    key = "history-entry-title",
+                    contentType = "history-entry-title"
+                ) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(
+                            dimensionResource(R.dimen.padding_xsmall)
                         )
+                    ) {
                         HorizontalDivider(
                             modifier = Modifier.padding(top = 4.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)

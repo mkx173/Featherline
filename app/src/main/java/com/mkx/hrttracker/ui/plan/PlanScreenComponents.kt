@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -99,21 +101,7 @@ internal fun SelectedDaySection(
     onUnplannedClick: (MedicationLogEntry) -> Unit
 ) {
     val rows = remember(daySchedule) {
-        buildList<SelectedDayRowModel> {
-            addAll(
-                daySchedule.scheduledEntries.map { entry ->
-                    SelectedDayRowModel.Scheduled(entry)
-                }
-            )
-            addAll(
-                daySchedule.unplannedEntries.map { entry ->
-                    SelectedDayRowModel.Unplanned(
-                        entry = entry,
-                        sortTime = entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalTime()
-                    )
-                }
-            )
-        }.sortedWith(selectedDayRowComparator)
+        selectedDayRows(daySchedule)
     }
     val scheduledCount = daySchedule.scheduledEntries.size
     val completedScheduledCount = daySchedule.scheduledEntries.count { it.isFulfilled }
@@ -150,6 +138,109 @@ internal fun SelectedDaySection(
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
             ) {
                 rows.forEachIndexed { index, row ->
+                    when (row) {
+                        is SelectedDayRowModel.Scheduled -> {
+                            SelectedDayRow(
+                                date = date,
+                                today = today,
+                                row = row,
+                                index = index,
+                                itemCount = rows.size,
+                                timeFormatter = timeFormatter,
+                                isFromArchivedGroup = row.entry.groupUuid in archivedGroupUuids,
+                                onClick = { onScheduledClick(row.entry) }
+                            )
+                        }
+
+                        is SelectedDayRowModel.Unplanned -> {
+                            SelectedDayRow(
+                                date = date,
+                                today = today,
+                                row = row,
+                                index = index,
+                                itemCount = rows.size,
+                                timeFormatter = timeFormatter,
+                                isFromArchivedGroup = row.entry.sourceGroupUuid != null &&
+                                        row.entry.sourceGroupUuid in archivedGroupUuids,
+                                onClick = { onUnplannedClick(row.entry) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal fun LazyListScope.selectedDaySectionItems(
+    date: LocalDate,
+    today: LocalDate,
+    overallStatus: PlanCalendarDayStatus,
+    daySchedule: PlanDaySchedule,
+    appLocale: Locale,
+    timeFormatter: DateTimeFormatter,
+    archivedGroupUuids: Set<UUID>,
+    onScheduledClick: (PlanDayScheduleEntry) -> Unit,
+    onUnplannedClick: (MedicationLogEntry) -> Unit
+) {
+    val rows = selectedDayRows(daySchedule)
+    val scheduledCount = daySchedule.scheduledEntries.size
+    val completedScheduledCount = daySchedule.scheduledEntries.count { it.isFulfilled }
+    val offPlanCount = daySchedule.unplannedEntries.size
+    val countLabel = selectedDayHeaderCountLabel(
+        date = date,
+        today = today,
+        completedScheduledCount = completedScheduledCount,
+        scheduledCount = scheduledCount,
+        offPlanCount = offPlanCount
+    )
+
+    item(
+        key = "selected-day-header",
+        contentType = "selected-day-header"
+    ) {
+        HistoryEntryGroupHeader(
+            date = date,
+            today = today,
+            dayStatus = overallStatus,
+            hasOffPlanRecord = offPlanCount > 0,
+            countLabel = countLabel,
+            appLocale = appLocale,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+    }
+
+    if (rows.isEmpty()) {
+        item(
+            key = "selected-day-empty",
+            contentType = "selected-day-empty"
+        ) {
+            Column {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
+                SupportMessageListItem(
+                    text = stringResource(R.string.plan_selected_day_records_empty),
+                    painter = painterResource(R.drawable.ic_info),
+                )
+            }
+        }
+    } else {
+        rows.forEachIndexed { index, row ->
+            item(
+                key = selectedDayRowKey(row),
+                contentType = "selected-day-row"
+            ) {
+                Column {
+                    Spacer(
+                        modifier = Modifier.height(
+                            dimensionResource(
+                                if (index == 0) {
+                                    R.dimen.padding_xsmall
+                                } else {
+                                    R.dimen.list_segment_gap
+                                }
+                            )
+                        )
+                    )
                     when (row) {
                         is SelectedDayRowModel.Scheduled -> {
                             SelectedDayRow(
@@ -407,6 +498,38 @@ private fun SelectedDayRow(
                 }
             }
         }
+    }
+}
+
+private fun selectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowModel> {
+    return buildList {
+        addAll(
+            daySchedule.scheduledEntries.map { entry ->
+                SelectedDayRowModel.Scheduled(entry)
+            }
+        )
+        addAll(
+            daySchedule.unplannedEntries.map { entry ->
+                SelectedDayRowModel.Unplanned(
+                    entry = entry,
+                    sortTime = entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalTime()
+                )
+            }
+        )
+    }.sortedWith(selectedDayRowComparator)
+}
+
+private fun selectedDayRowKey(row: SelectedDayRowModel): String {
+    return when (row) {
+        is SelectedDayRowModel.Scheduled -> {
+            "selected-day-scheduled-" +
+                    "${row.entry.groupUuid}-" +
+                    "${row.entry.scheduleTimeUuid}-" +
+                    "${row.entry.scheduledFor}-" +
+                    "${row.entry.medication.uuid}"
+        }
+
+        is SelectedDayRowModel.Unplanned -> "selected-day-unplanned-${row.entry.uuid}"
     }
 }
 

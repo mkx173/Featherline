@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -90,8 +91,10 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
-import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.HrtSectionHeader
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.LocalSegmentPosition
+import com.mkx.hrttracker.ui.components.SegmentPosition
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -428,62 +431,52 @@ private fun PlanScreenContent(
                     }
                 }
 
-                item(key = "selected-day") {
-                    Column(modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp)) {
-                        SelectedDaySection(
-                            date = displayedDate,
-                            today = uiState.today,
-                            overallStatus = uiState.calendarDays[displayedDate]?.status
-                                ?: PlanCalendarDayStatus.NONE,
-                            daySchedule = daySchedule,
-                            appLocale = appLocale,
-                            timeFormatter = timeFormatter,
-                            archivedGroupUuids = archivedGroupUuids,
-                            onScheduledClick = { scheduled ->
-                                val editingEntryIds = plannedEntryEditorIds(scheduled)
-                                if (
-                                    editingEntryIds.isNotEmpty() &&
-                                    (scheduled.isFulfilled || scheduled.hasOutsideScheduleWindowEntry)
-                                ) {
-                                    onEntryClick(editingEntryIds)
-                                } else {
-                                    onQuickLogClick(
-                                        scheduled.groupUuid,
-                                        scheduled.scheduleTimeUuid,
-                                        scheduled.scheduledFor,
-                                        scheduled.medication,
-                                        remainingQuickLogCount(
-                                            totalCount = scheduled.medication.count,
-                                            fulfilledCount = scheduled.loggedCount
-                                        )
-                                    )
-                                }
-                            },
-                            onUnplannedClick = { entry ->
-                                onEntryClick(unplannedEntryEditorIds(entry))
-                            }
-                        )
+                selectedDaySectionItems(
+                    date = displayedDate,
+                    today = uiState.today,
+                    overallStatus = uiState.calendarDays[displayedDate]?.status
+                        ?: PlanCalendarDayStatus.NONE,
+                    daySchedule = daySchedule,
+                    appLocale = appLocale,
+                    timeFormatter = timeFormatter,
+                    archivedGroupUuids = archivedGroupUuids,
+                    onScheduledClick = { scheduled ->
+                        val editingEntryIds = plannedEntryEditorIds(scheduled)
+                        if (
+                            editingEntryIds.isNotEmpty() &&
+                            (scheduled.isFulfilled || scheduled.hasOutsideScheduleWindowEntry)
+                        ) {
+                            onEntryClick(editingEntryIds)
+                        } else {
+                            onQuickLogClick(
+                                scheduled.groupUuid,
+                                scheduled.scheduleTimeUuid,
+                                scheduled.scheduledFor,
+                                scheduled.medication,
+                                remainingQuickLogCount(
+                                    totalCount = scheduled.medication.count,
+                                    fulfilledCount = scheduled.loggedCount
+                                )
+                            )
+                        }
+                    },
+                    onUnplannedClick = { entry ->
+                        onEntryClick(unplannedEntryEditorIds(entry))
                     }
-                }
+                )
 
-                item(key = "regimen-section") {
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-
-                    RegimenSection(
-                        groups = uiState.medicationGroups,
-                        remindersEnabled = uiState.remindersEnabled,
-                        hasNotificationAccess = hasNotificationAccess,
-                        appLocale = appLocale,
-                        dateFormatter = dateFormatter,
-                        timeFormatter = timeFormatter,
-                        nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
-                        today = uiState.today,
-                        firstDayOfWeek = uiState.calendarFirstDayOfWeek,
-                        onGroupClick = onGroupClick
-                    )
-                }
+                regimenSectionItems(
+                    groups = uiState.medicationGroups,
+                    remindersEnabled = uiState.remindersEnabled,
+                    hasNotificationAccess = hasNotificationAccess,
+                    appLocale = appLocale,
+                    dateFormatter = dateFormatter,
+                    timeFormatter = timeFormatter,
+                    nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
+                    today = uiState.today,
+                    firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+                    onGroupClick = onGroupClick
+                )
 
                 item(key = "add-group-button") {
                     HrtButton(
@@ -678,8 +671,7 @@ private fun PlanWeekPageIndicator(pageProgress: Float) {
     }
 }
 
-@Composable
-private fun RegimenSection(
+private fun LazyListScope.regimenSectionItems(
     groups: List<MedicationGroup>,
     remindersEnabled: Boolean,
     hasNotificationAccess: Boolean,
@@ -691,78 +683,101 @@ private fun RegimenSection(
     firstDayOfWeek: DayOfWeek,
     onGroupClick: (UUID) -> Unit
 ) {
-    val dailyCount = remember(groups) {
-        groups.count { it.schedule.type == MedicationGroupScheduleType.DAILY }
-    }
-    val weeklyCount = groups.size - dailyCount
-    val regimenSummary = if (groups.isEmpty()) {
-        null
-    } else {
-        listOfNotNull(
-            pluralStringResource(
-                R.plurals.plan_regimen_group_count,
-                groups.size,
-                groups.size
-            ),
-            if (dailyCount > 0) {
+    item(
+        key = "regimen-header",
+        contentType = "regimen-header"
+    ) {
+        val dailyCount = remember(groups) {
+            groups.count { it.schedule.type == MedicationGroupScheduleType.DAILY }
+        }
+        val weeklyCount = groups.size - dailyCount
+        val regimenSummary = if (groups.isEmpty()) {
+            null
+        } else {
+            listOfNotNull(
                 pluralStringResource(
-                    R.plurals.plan_regimen_daily_count,
-                    dailyCount,
-                    dailyCount
-                )
-            } else {
-                null
-            },
-            if (weeklyCount > 0) {
-                pluralStringResource(
-                    R.plurals.plan_regimen_weekly_count,
-                    weeklyCount,
-                    weeklyCount
-                )
-            } else {
-                null
-            }
-        ).joinToString(" · ")
+                    R.plurals.plan_regimen_group_count,
+                    groups.size,
+                    groups.size
+                ),
+                if (dailyCount > 0) {
+                    pluralStringResource(
+                        R.plurals.plan_regimen_daily_count,
+                        dailyCount,
+                        dailyCount
+                    )
+                } else {
+                    null
+                },
+                if (weeklyCount > 0) {
+                    pluralStringResource(
+                        R.plurals.plan_regimen_weekly_count,
+                        weeklyCount,
+                        weeklyCount
+                    )
+                } else {
+                    null
+                }
+            ).joinToString(" · ")
+        }
+
+        Column {
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+            HrtSectionHeader(
+                text = stringResource(R.string.plan_regimen_title),
+                trailingAlignByBaseline = true,
+                trailing = if (regimenSummary != null) {
+                    {
+                        Text(
+                            text = regimenSummary.uppercase(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.alignByBaseline(),
+                        )
+                    }
+                } else {
+                    null
+                },
+            )
+        }
     }
 
-    HrtSection(
-        title = stringResource(R.string.plan_regimen_title),
-        headerTrailingAlignByBaseline = true,
-        headerTrailing = if (regimenSummary != null) {
-            {
-                Text(
-                    text = regimenSummary.uppercase(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.alignByBaseline(),
-                )
-            }
-        } else {
-            null
-        },
-    ) {
-        if (groups.isEmpty()) {
-            item {
-                SupportMessageListItem(
-                    text = stringResource(R.string.plan_empty_state),
-                    painter = painterResource(R.drawable.ic_info),
-                )
-            }
-        } else {
-            groups.forEach { group ->
-                item {
-                    RegimenGroupCard(
-                        group = group,
-                        remindersEnabled = remindersEnabled,
-                        hasNotificationAccess = hasNotificationAccess,
-                        appLocale = appLocale,
-                        dateFormatter = dateFormatter,
-                        timeFormatter = timeFormatter,
-                        upcomingOccurrences = nextOccurrencesByGroup[group.uuid].orEmpty(),
-                        today = today,
-                        onClick = { onGroupClick(group.uuid) },
-                        firstDayOfWeek = firstDayOfWeek,
-                    )
+    if (groups.isEmpty()) {
+        item(
+            key = "regimen-empty",
+            contentType = "regimen-empty"
+        ) {
+            SupportMessageListItem(
+                text = stringResource(R.string.plan_empty_state),
+                painter = painterResource(R.drawable.ic_info),
+            )
+        }
+    } else {
+        groups.forEachIndexed { index, group ->
+            item(
+                key = "regimen-${group.uuid}",
+                contentType = "regimen-row"
+            ) {
+                Column {
+                    if (index > 0) {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+                    }
+                    CompositionLocalProvider(
+                        LocalSegmentPosition provides SegmentPosition(index, groups.size)
+                    ) {
+                        RegimenGroupCard(
+                            group = group,
+                            remindersEnabled = remindersEnabled,
+                            hasNotificationAccess = hasNotificationAccess,
+                            appLocale = appLocale,
+                            dateFormatter = dateFormatter,
+                            timeFormatter = timeFormatter,
+                            upcomingOccurrences = nextOccurrencesByGroup[group.uuid].orEmpty(),
+                            today = today,
+                            onClick = { onGroupClick(group.uuid) },
+                            firstDayOfWeek = firstDayOfWeek,
+                        )
+                    }
                 }
             }
         }
