@@ -7,15 +7,12 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,6 +41,7 @@ import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.hazeBottomSheetContainerColor
+import com.mkx.hrttracker.ui.components.hazeBottomSheetContentWindowInsets
 
 /**
  * Non-text focus anchor for the current editor sheet, used to dismiss the IME.
@@ -88,7 +86,7 @@ internal fun MedicationEditorSheetScaffold(
         sheetState = sheetState,
         containerColor = hazeBottomSheetContainerColor(),
         dragHandle = null,
-        contentWindowInsets = { WindowInsets.systemBars.only(WindowInsetsSides.Top) },
+        contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
     ) {
         HazeBottomSheetSurface {
             // On API 26 the ModalBottomSheet window forces focus onto the first

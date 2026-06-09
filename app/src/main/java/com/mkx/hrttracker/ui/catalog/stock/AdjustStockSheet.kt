@@ -11,15 +11,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -82,6 +79,7 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.hazeBottomSheetContainerColor
+import com.mkx.hrttracker.ui.components.hazeBottomSheetContentWindowInsets
 import com.mkx.hrttracker.ui.components.stockCountPluralQuantity
 import com.mkx.hrttracker.ui.components.stockUnitNounPluralRes
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -125,7 +123,7 @@ fun AdjustStockSheet(
         modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
         containerColor = hazeBottomSheetContainerColor(),
         dragHandle = null,
-        contentWindowInsets = { WindowInsets.systemBars.only(WindowInsetsSides.Top) },
+        contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
     ) {
         HazeBottomSheetSurface {
             Column(

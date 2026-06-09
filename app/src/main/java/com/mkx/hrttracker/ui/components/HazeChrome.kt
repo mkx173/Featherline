@@ -6,7 +6,9 @@ import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarColors
@@ -90,9 +92,12 @@ fun hazeBottomSheetContainerColor(
     return defaultColor.copy(alpha = 0f)
 }
 
+fun hazeBottomSheetContentWindowInsets(): WindowInsets = WindowInsets(0, 0, 0, 0)
+
 @Composable
 fun HazeBottomSheetSurface(
     modifier: Modifier = Modifier,
+    contentWindowInsets: @Composable () -> WindowInsets = { BottomSheetDefaults.modalWindowInsets },
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -100,7 +105,8 @@ fun HazeBottomSheetSurface(
         modifier = modifier
             .fillMaxWidth()
             .hazeBottomSheet()
-            .background(hazeBottomSheetContainerColor()),
+            .background(hazeBottomSheetContainerColor())
+            .windowInsetsPadding(contentWindowInsets()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         dragHandle?.invoke()

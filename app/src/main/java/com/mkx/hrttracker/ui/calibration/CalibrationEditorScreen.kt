@@ -78,6 +78,7 @@ import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.hazeBottomSheetContainerColor
+import com.mkx.hrttracker.ui.components.hazeBottomSheetContentWindowInsets
 import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
@@ -583,6 +584,7 @@ internal fun CalibrationAddAnalyteSheet(
         sheetState = sheetState,
         containerColor = hazeBottomSheetContainerColor(),
         dragHandle = null,
+        contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
     ) {
         HazeBottomSheetSurface {
             CalibrationAddAnalyteSheetContent(

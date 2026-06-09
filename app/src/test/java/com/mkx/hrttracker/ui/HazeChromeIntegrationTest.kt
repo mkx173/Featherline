@@ -292,6 +292,52 @@ class HazeChromeIntegrationTest {
     }
 
     @Test
+    fun bottom_sheet_haze_surface_owns_content_window_insets() {
+        val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
+        require(uiDir.isDirectory) {
+            "Expected UI source directory at ${uiDir.absolutePath}; unit tests must run with " +
+                    "the app module as the working directory."
+        }
+
+        val offenders = uiDir.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { file -> BOTTOM_SHEET_CALL.containsMatchIn(file.readText()) }
+            .mapNotNull { file ->
+                val text = file.readText()
+                if (text.contains("contentWindowInsets = { hazeBottomSheetContentWindowInsets() }")) {
+                    null
+                } else {
+                    "${file.relativeTo(uiDir)} lets Material3 pad outside the Haze surface"
+                }
+            }
+            .toList()
+
+        assertTrue(
+            "Haze bottom sheets should make the Material3 content slot edge-to-edge and " +
+                    "apply modal content insets inside HazeBottomSheetSurface so the haze " +
+                    "background extends behind the status bar:\n" +
+                    offenders.joinToString("\n"),
+            offenders.isEmpty(),
+        )
+
+        val hazeChromeText =
+            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
+
+        assertTrue(
+            "HazeBottomSheetSurface should apply Material3 modal content insets after its " +
+                    "haze/background modifiers, while ModalBottomSheet receives zero outer " +
+                    "content insets.",
+            hazeChromeText.contains(
+                "contentWindowInsets: @Composable () -> WindowInsets = " +
+                        "{ BottomSheetDefaults.modalWindowInsets }"
+            ) &&
+                    hazeChromeText.contains(".windowInsetsPadding(contentWindowInsets())") &&
+                    hazeChromeText.contains("fun hazeBottomSheetContentWindowInsets()") &&
+                    hazeChromeText.contains("WindowInsets(0, 0, 0, 0)"),
+        )
+    }
+
+    @Test
     fun onboarding_bottom_sheets_receive_app_wide_haze_setting_and_source() {
         val mainActivityText =
             File("src/main/java/com/mkx/hrttracker/MainActivity.kt").readText()
