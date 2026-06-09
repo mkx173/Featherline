@@ -4,13 +4,8 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -56,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -208,7 +204,7 @@ fun HistoryScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun HistoryScreenContent(
     modifier: Modifier = Modifier,
@@ -644,23 +640,22 @@ private fun HistoryScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         floatingActionButton = {
-            AnimatedVisibility(
-                // The page now paints edge-to-edge behind the bottom navigation bar, so the
-                // Scaffold-positioned FAB must clear it by the same inset the body content uses
-                // (the bar height in compact, the gesture inset beside the wide rail).
-                modifier = Modifier.padding(bottom = LocalAppContentBottomInset.current),
-                visible = uiState.isSelectionMode && isSelectionFabVisible,
-                enter = fadeIn() + scaleIn(),
-                exit = fadeOut() + scaleOut(),
-            ) {
-                FloatingActionButton(
-                    onClick = onDeleteSelectedClick,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Delete,
-                        contentDescription = stringResource(R.string.delete_entries_fab)
+            FloatingActionButton(
+                onClick = onDeleteSelectedClick,
+                modifier = Modifier
+                    .animateFloatingActionButton(
+                        visible = uiState.isSelectionMode && isSelectionFabVisible,
+                        alignment = Alignment.BottomEnd,
                     )
-                }
+                    // The page now paints edge-to-edge behind the bottom navigation bar, so the
+                    // Scaffold-positioned FAB must clear it by the same inset the body content uses
+                    // (the bar height in compact, the gesture inset beside the wide rail).
+                    .padding(bottom = LocalAppContentBottomInset.current),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = stringResource(R.string.delete_entries_fab)
+                )
             }
         },
         topBar = {
