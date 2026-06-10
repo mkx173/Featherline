@@ -48,6 +48,7 @@ import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.zoneDisplayName
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
 import java.util.Locale
 import java.util.UUID
 
@@ -57,6 +58,8 @@ fun MainContent(
     modifier: Modifier = Modifier,
     uiState: MainUiState,
     scrollState: ScrollState,
+    // See MainViewModel.e2ChartModelProducer; the remembered default keeps previews working.
+    e2ChartModelProducer: CartesianChartModelProducer = remember { CartesianChartModelProducer() },
     highlightRequest: DoseRowHighlightRequest? = null,
     highlightEffectsEnabled: Boolean = true,
     highlightFlashReady: Boolean = true,
@@ -144,6 +147,7 @@ fun MainContent(
                 displayUnit = uiState.homeE2DisplayUnit,
                 targetRangeLow = uiState.e2Hero.targetMin,
                 targetRangeHigh = uiState.e2Hero.targetMax,
+                modelProducer = e2ChartModelProducer,
                 trendReady = uiState.e2TrendReady,
                 hideReferenceRanges = uiState.hideReferenceRanges,
                 onChartWindowOptionSelected = onE2ChartWindowOptionSelected,
