@@ -70,7 +70,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.withResumed
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
@@ -151,9 +153,15 @@ fun MedicineDetailScreen(
         viewModel.clearSaveResult()
     }
 
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(uiState.archiveResult) {
         when (uiState.archiveResult) {
             MedicineArchiveResult.SUCCESS -> {
+                // The exit pop is silently dropped if it races an in-flight
+                // navigation (popBackStackSafely only pops a RESUMED entry),
+                // so wait for RESUMED before clearing the result; the retained
+                // result re-runs this effect if the page is restored first.
+                lifecycle.withResumed { }
                 viewModel.clearArchiveResult()
                 onNavigateBack()
             }

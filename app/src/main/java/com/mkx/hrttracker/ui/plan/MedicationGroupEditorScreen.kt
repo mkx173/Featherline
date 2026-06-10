@@ -96,7 +96,9 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.withResumed
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -161,7 +163,6 @@ fun MedicationGroupEditorScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentMinute by viewModel.currentMinute.collectAsStateWithLifecycle()
-    val latestUiState by rememberUpdatedState(uiState)
     val context = LocalContext.current
     val activity = LocalActivity.current
     val reminderCapabilityReconciler = rememberReminderCapabilityReconciler()
@@ -284,20 +285,18 @@ fun MedicationGroupEditorScreen(
         }
     }
 
-    LaunchedEffect(viewModel, openedFromArchivedGroupsPage) {
-        viewModel.events.collect { event ->
-            when (event) {
-                MedicationGroupEditorEvent.SaveCompleted -> {
-                    val target = resolveMedicationGroupEditorSaveNavigationTarget(
-                        uiState = latestUiState,
-                        openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
-                    )
-                    navigateAfterSave(target)
-                }
-
-                MedicationGroupEditorEvent.DeleteOrArchiveCompleted -> onGroupSaved()
-            }
-        }
+    val exitNavigationTarget = resolveMedicationGroupEditorExitNavigationTarget(
+        uiState = uiState,
+        openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+    )
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(exitNavigationTarget) {
+        val target = exitNavigationTarget ?: return@LaunchedEffect
+        // Wait until this entry is RESUMED again so the pop can't be dropped
+        // mid-transition; if the editor is disposed first, the retained
+        // finishing flags re-trigger this effect when it is restored.
+        lifecycle.withResumed { }
+        navigateAfterSave(target)
     }
 
     LaunchedEffect(hasNotificationAccess) {
@@ -1870,6 +1869,25 @@ internal fun resolveMedicationGroupEditorSaveNavigationTarget(
     } else {
         MedicationGroupEditorSaveNavigationTarget.BACK
     }
+}
+
+// Exit navigation is derived from the retained finishing flags rather than a
+// one-shot completion event: a pop is silently dropped when it races an
+// in-flight navigation (popBackStackSafely only pops a RESUMED entry), and a
+// dropped one-shot event left the editor busy-locked forever on a deleted
+// group. The flags survive in the retained ViewModel, so the navigation
+// effect re-fires when the editor is restored and the exit self-heals.
+internal fun resolveMedicationGroupEditorExitNavigationTarget(
+    uiState: MedicationGroupEditorUiState,
+    openedFromArchivedGroupsPage: Boolean,
+): MedicationGroupEditorSaveNavigationTarget? = when {
+    uiState.isFinishingAfterDeleteOrArchive -> MedicationGroupEditorSaveNavigationTarget.BACK
+    uiState.isFinishingAfterSave -> resolveMedicationGroupEditorSaveNavigationTarget(
+        uiState = uiState,
+        openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+    )
+
+    else -> null
 }
 
 private fun showCreatePastScheduledSlotRecordsToast(

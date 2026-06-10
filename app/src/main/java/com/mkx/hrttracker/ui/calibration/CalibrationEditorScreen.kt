@@ -55,7 +55,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.withResumed
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
@@ -137,8 +139,14 @@ fun CalibrationEditorScreen(
         viewModel.consumeCrossZoneToast()
     }
 
+    // The exit pop is silently dropped if it races an in-flight navigation
+    // (popBackStackSafely only pops a RESUMED entry), so wait for RESUMED
+    // before consuming the completion flag; the retained flag re-runs these
+    // effects if the editor is restored before the pop landed.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
+            lifecycle.withResumed { }
             viewModel.consumeSavedState()
             onSaved()
         }
@@ -146,6 +154,7 @@ fun CalibrationEditorScreen(
 
     LaunchedEffect(uiState.isDeleted) {
         if (uiState.isDeleted) {
+            lifecycle.withResumed { }
             viewModel.consumeDeletedState()
             onSaved()
         }

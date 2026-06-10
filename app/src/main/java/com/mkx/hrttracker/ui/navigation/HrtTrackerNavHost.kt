@@ -43,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.withResumed
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -972,6 +973,19 @@ fun HrtTrackerNavHost(
                             slotResultKey = slotResultKey,
                             manualLogResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
                         )
+                        // Sheet-completion pops below fire after the sheet's
+                        // hide animation and can race an in-flight navigation,
+                        // which silently drops the pop and strands the user on
+                        // this screen. Wait for the entry to be RESUMED; if the
+                        // user actually navigated elsewhere this scope is
+                        // disposed with the route and the pop is abandoned.
+                        val sheetCompletionPopScope = rememberCoroutineScope()
+                        val popBackStackWhenResumed: () -> Unit = {
+                            sheetCompletionPopScope.launch {
+                                backStackEntry.lifecycle.withResumed { }
+                                navController.popBackStackSafely()
+                            }
+                        }
                         MedicinesScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
@@ -997,10 +1011,10 @@ fun HrtTrackerNavHost(
                                 navController.previousBackStackEntry
                                     ?.savedStateHandle
                                     ?.set(groupSlotMode.resultKey, slotResult.toBundle())
-                                navController.popBackStackSafely()
+                                popBackStackWhenResumed()
                             },
                             onManualLogSaved = { warning ->
-                                navController.popBackStackSafely()
+                                popBackStackWhenResumed()
                                 warning?.let(showPostLogStockWarning)
                             },
                             onNewMedicineCreated = stockNudgeViewModel::onNewMedicineCreated,
