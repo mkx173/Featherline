@@ -31,6 +31,7 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -54,6 +55,13 @@ import dev.chrisbanes.haze.rememberHazeState
 
 val LocalHazeBlurEnabled = staticCompositionLocalOf { isHazeBlurSupported() }
 val LocalChromeHazeState = staticCompositionLocalOf<HazeState?> { null }
+
+/**
+ * True while composing inside a [HazeBottomSheetSurface]. Components whose default
+ * container color blends into the translucent sheet material (e.g. connected button
+ * groups) use this to lift their container to a higher-contrast tone.
+ */
+val LocalHazeBottomSheet = staticCompositionLocalOf { false }
 
 internal const val TopAppBarScrolledOverlapThreshold = 0.01f
 
@@ -219,16 +227,18 @@ fun HazeBottomSheetSurface(
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .hazeBottomSheet()
-            .background(hazeBottomSheetContainerColor())
-            .windowInsetsPadding(contentWindowInsets()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        dragHandle?.invoke()
-        content()
+    CompositionLocalProvider(LocalHazeBottomSheet provides true) {
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .hazeBottomSheet()
+                .background(hazeBottomSheetContainerColor())
+                .windowInsetsPadding(contentWindowInsets()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            dragHandle?.invoke()
+            content()
+        }
     }
 }
 
