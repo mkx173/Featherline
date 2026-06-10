@@ -16,7 +16,7 @@ import org.junit.runner.RunWith
  * calls `ReportDrawnWhen` (the home screen's `splashReady`), `timeToFullDisplayMs`.
  *
  * Run on a connected device:
- * `./gradlew :benchmark:connectedPlayBenchmarkAndroidTest`
+ * `./gradlew :benchmark:connectedBenchmarkAndroidTest`
  *
  * The target is the id-suffixed `com.mkx.hrttracker.benchmark` install, so a
  * production install on the same device is untouched. For numbers representative of

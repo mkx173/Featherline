@@ -54,7 +54,6 @@ import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
-import com.mkx.hrttracker.ui.components.topAppBarWindowInsetsWithStartupFallback
 import com.mkx.hrttracker.util.calibrationUnitLabel
 import kotlinx.coroutines.delay
 import java.util.UUID
@@ -216,9 +215,6 @@ fun MainScreen(
                         onUnitSelected = viewModel::setHomeE2DisplayUnit,
                     )
                 },
-                // Home is the screen on screen at cold start; see the helper's KDoc
-                // for the first-frame insets gap this compensates for.
-                windowInsets = topAppBarWindowInsetsWithStartupFallback(),
                 scrollBehavior = scrollBehavior
             )
         }

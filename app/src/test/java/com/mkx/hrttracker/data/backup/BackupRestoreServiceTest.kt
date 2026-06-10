@@ -473,6 +473,54 @@ class BackupRestoreServiceTest {
     }
 
     @Test
+    fun restoreBackupBytes_withoutHazeBlurEnabledField_restoresTrue() = runTest {
+        val capturedValues = mutableListOf<Boolean>()
+        coEvery {
+            settingsRepository.restoreSettings(
+                darkModeOption = any(),
+                adaptiveColorEnabled = any(),
+                pureBlackEnabled = any(),
+                cjkTextOffsetEnabled = any(),
+                hazeBlurEnabled = capture(capturedValues),
+                remindersEnabled = any(),
+                showArchivedGroupRecords = any(),
+                hideReferenceRanges = any(),
+                appLockGracePeriodOption = any(),
+                hideScreenContentEnabled = any(),
+                onboardingCompleted = any(),
+                appLanguageOption = any(),
+                calibrationDefaultUnits = any(),
+                homeE2DisplayUnit = any(),
+                homeE2ChartWindowOption = any(),
+                lastSeenTimeZoneId = any(),
+                hideMedicationDetails = any(),
+                widgetContentScale = any(),
+                widgetBackgroundAlpha = any(),
+                widgetDarkModeOption = any(),
+                groupNameCounter = any(),
+                firstDayOfWeekOption = any(),
+                stockNudgeEnabled = any(),
+                stockNudgeUserEnabled = any(),
+            )
+        } just Runs
+        // Backups written before the haze blur setting existed have no
+        // hazeBlurEnabled field; restoring one must fall back to the default
+        // (enabled) rather than failing or turning blur off.
+        val json = BackupSnapshotJsonCodec.encode(emptySnapshot())
+            .replace(",\"hazeBlurEnabled\":true", "")
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = json,
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        assertEquals(listOf(true), capturedValues)
+    }
+
+    @Test
     fun restoreBackupBytes_withoutStockNudgeEnabledField_restoresTrue() = runTest {
         val capturedValues = mutableListOf<Boolean>()
         coEvery {

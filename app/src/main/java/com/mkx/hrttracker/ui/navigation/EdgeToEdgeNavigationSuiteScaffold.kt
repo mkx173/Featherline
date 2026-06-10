@@ -71,7 +71,7 @@ fun EdgeToEdgeNavigationSuiteScaffold(
                 Box(navigationModifier) {
                     NavigationSuite(
                         layoutType = navigationSuiteType,
-                        colors = hazeNavigationSuiteColors(),
+                        colors = hazeNavigationSuiteColors(navigationChromeHazeState),
                         content = navigationSuiteItems,
                     )
                 }

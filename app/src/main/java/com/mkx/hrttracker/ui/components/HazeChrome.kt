@@ -120,10 +120,17 @@ fun rememberChromeHazeState(): HazeState = rememberHazeState(
  * no startup delay; once the live inset arrives the union resolves to the same
  * value, so nothing moves. Below API 30 this is a no-op, which is fine: blur — and
  * with it the transparent bar that makes the artifact visible — requires API 31+.
+ *
+ * This is the default insets for every [HazeTopAppBar]: cold start puts the home
+ * screen on screen, but process-death restore recomposes whichever tab was active
+ * with the same first-frame gap.
  */
 @Composable
-fun topAppBarWindowInsetsWithStartupFallback(): WindowInsets {
+private fun topAppBarWindowInsetsWithStartupFallback(): WindowInsets {
     val context = LocalContext.current
+    // remember(context) is invalidated on rotation despite android:configChanges:
+    // MainActivity provides a configuration-keyed ContextWrapper as LocalContext,
+    // so a stale pre-rotation status-bar height is never served from this cache.
     val fallbackStatusBarTop = remember(context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             statusBarHeightFromWindowMetrics(context)
@@ -234,7 +241,6 @@ fun Modifier.hazeBottomSheet(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     )
     return hazeEffect(state = state) {
-        forceInvalidateOnPreDraw = true
         blurEffect {
             this.style = style
         }
@@ -253,7 +259,6 @@ fun Modifier.hazeDialog(
     )
     return this.clip(shape)
         .hazeEffect(state = state) {
-            forceInvalidateOnPreDraw = true
             blurEffect {
                 this.style = style
                 blurredEdgeTreatment = BlurredEdgeTreatment(shape)
@@ -289,7 +294,6 @@ fun Modifier.hazeSheetSurface(
     val style = HazeMaterials.thick(containerColor = containerColor)
     return this.clip(shape)
         .hazeEffect(state = state) {
-            forceInvalidateOnPreDraw = true
             blurEffect {
                 this.style = style
                 blurredEdgeTreatment = BlurredEdgeTreatment(shape)
@@ -559,7 +563,7 @@ fun HazeTopAppBar(
     modifier: Modifier = Modifier,
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
-    windowInsets: WindowInsets = TopAppBarDefaults.windowInsets,
+    windowInsets: WindowInsets = topAppBarWindowInsetsWithStartupFallback(),
 ) {
     MaterialTopAppBar(
         title = title,
@@ -580,7 +584,7 @@ fun HazeCenterAlignedTopAppBar(
     modifier: Modifier = Modifier,
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
-    windowInsets: WindowInsets = TopAppBarDefaults.windowInsets,
+    windowInsets: WindowInsets = topAppBarWindowInsetsWithStartupFallback(),
 ) {
     MaterialCenterAlignedTopAppBar(
         title = title,
@@ -607,7 +611,10 @@ private fun hazeTopAppBarColors(): TopAppBarColors {
 
 @Composable
 fun hazeNavigationSuiteColors(
-    enabled: Boolean = LocalHazeBlurEnabled.current,
+    // Gated on the state like the sheet/dialog containers: hazeChrome(null)
+    // no-ops, and a transparent bar without chrome behind it is invisible.
+    state: HazeState?,
+    enabled: Boolean = LocalHazeBlurEnabled.current && state != null,
 ): NavigationSuiteColors {
     if (!enabled) return NavigationSuiteDefaults.colors()
 

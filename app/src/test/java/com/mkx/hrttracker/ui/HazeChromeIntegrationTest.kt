@@ -243,8 +243,10 @@ class HazeChromeIntegrationTest {
             text.contains(".hazeChrome("),
         )
         assertTrue(
-            "Bottom navigation scaffold should make navigation containers transparent for Haze.",
-            text.contains("hazeNavigationSuiteColors()"),
+            "Bottom navigation scaffold should make navigation containers transparent for " +
+                    "Haze, gated on the same state the chrome blur uses so the bar can " +
+                    "never go transparent while hazeChrome(null) no-ops.",
+            text.contains("hazeNavigationSuiteColors(navigationChromeHazeState)"),
         )
         assertTrue(
             "Bottom navigation chrome needs a stable route-level Haze source so page " +
