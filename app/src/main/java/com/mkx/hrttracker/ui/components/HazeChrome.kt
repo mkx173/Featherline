@@ -40,8 +40,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.DialogProperties
@@ -64,6 +66,17 @@ val LocalChromeHazeState = staticCompositionLocalOf<HazeState?> { null }
 val LocalHazeBottomSheet = staticCompositionLocalOf { false }
 
 internal const val TopAppBarScrolledOverlapThreshold = 0.01f
+
+/**
+ * Maps the bar's content overlap to chrome opacity. The raw fraction is the
+ * scrolled distance over the bar height; doubling it reaches full chrome once half
+ * the bar is covered, so a slow scroll reads as a deliberate fade instead of a
+ * barely-there ramp, while still tracking the content exactly (never lagging a
+ * fast fling the way a time-based fade does).
+ */
+internal fun topAppBarOverlapAlpha(overlappedFraction: Float): Float {
+    return (overlappedFraction * 2f).coerceIn(0f, 1f)
+}
 
 @Composable
 fun rememberChromeHazeState(): HazeState = rememberHazeState(
@@ -137,6 +150,7 @@ fun Modifier.hazeSourceArea(state: HazeState?): Modifier {
 fun Modifier.hazeChrome(
     state: HazeState? = LocalChromeHazeState.current,
     enabled: Boolean = true,
+    alpha: (() -> Float)? = null,
 ): Modifier {
     if (!LocalHazeBlurEnabled.current || !enabled || state == null) return this
 
@@ -146,7 +160,55 @@ fun Modifier.hazeChrome(
     return hazeEffect(state = state) {
         blurEffect {
             this.style = style
+            if (alpha != null) {
+                this.alpha = alpha().coerceIn(0f, 1f)
+            }
         }
+    }
+}
+
+/**
+ * Top app bar chrome that tracks the content actually covering the bar.
+ *
+ * [TopAppBarState.overlappedFraction] is the scrolled distance over the bar height
+ * — exactly the portion of the bar the content overlaps — so driving the chrome
+ * from it (through [topAppBarOverlapAlpha]) fades it in lockstep with the content
+ * sliding underneath: a slow scroll ramps it gradually, and a fast fling reaches
+ * full chrome in the same frames the content arrives, with no unstyled flash (a
+ * time-based fade lags the content there).
+ *
+ * With blur enabled this is the blur's opacity, read inside the effect block which
+ * haze re-evaluates on snapshot changes; the effect node attaches only once the bar
+ * is overlapped at all. With blur disabled the same overlap drives a draw-time lerp
+ * between the vanilla container and scrolled-container colors, replacing M3's
+ * threshold-triggered time-based crossfade (the Material containers stay
+ * transparent via [hazeTopAppBarColors] in both modes). Either way, per-scroll-frame
+ * updates skip recomposition.
+ */
+@Composable
+fun Modifier.hazeTopAppBar(
+    scrollBehavior: TopAppBarScrollBehavior,
+    state: HazeState? = LocalChromeHazeState.current,
+): Modifier {
+    if (LocalHazeBlurEnabled.current && state != null) {
+        return hazeChrome(
+            state = state,
+            enabled = topAppBarHazeEnabled(scrollBehavior),
+            alpha = { topAppBarOverlapAlpha(scrollBehavior.state.overlappedFraction) },
+        )
+    }
+
+    val defaultColors = TopAppBarDefaults.topAppBarColors()
+    val containerColor = defaultColors.containerColor
+    val scrolledContainerColor = defaultColors.scrolledContainerColor
+    return drawBehind {
+        drawRect(
+            lerp(
+                containerColor,
+                scrolledContainerColor,
+                topAppBarOverlapAlpha(scrollBehavior.state.overlappedFraction),
+            )
+        )
     }
 }
 
@@ -422,10 +484,11 @@ fun HazeTopAppBarColorReset(content: @Composable () -> Unit) {
 }
 
 @Composable
-fun hazeTopAppBarColors(enabled: Boolean = LocalHazeBlurEnabled.current): TopAppBarColors {
+fun hazeTopAppBarColors(): TopAppBarColors {
+    // The Material containers stay transparent in both blur modes: hazeTopAppBar
+    // draws the bar background itself (blur, or the overlap-tracking color lerp),
+    // so M3's internal threshold-triggered crossfade must never paint over it.
     val defaultColors = TopAppBarDefaults.topAppBarColors()
-    if (!enabled) return defaultColors
-
     return defaultColors.copy(
         containerColor = defaultColors.containerColor.copy(alpha = 0f),
         scrolledContainerColor = defaultColors.scrolledContainerColor.copy(alpha = 0f),

@@ -58,7 +58,6 @@ import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.rememberTopAppBarState
@@ -126,10 +125,10 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
-import com.mkx.hrttracker.ui.components.topAppBarHazeEnabled
+import com.mkx.hrttracker.ui.components.hazeTopAppBar
+import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -1262,7 +1261,7 @@ private fun MedicationGroupEditorScreenContent(
 
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
+    val scrollBehavior = pinnedTopAppBarScrollBehavior(
         lazyListState = listState,
         state = topAppBarState
     )
@@ -1292,7 +1291,7 @@ private fun MedicationGroupEditorScreenContent(
                 TopAppBar(
                     modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                         listState.animateScrollToItem(0)
-                    }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
+                    }.hazeTopAppBar(scrollBehavior),
                     title = {
                         val title = stringResource(
                             if (shouldUseArchivedPresentation) {

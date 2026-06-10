@@ -19,7 +19,7 @@ class HazeChromeIntegrationTest {
             .mapNotNull { file ->
                 val text = file.readText()
                 val missing = buildList {
-                    if (!text.contains(".hazeChrome(")) add("hazeChrome modifier")
+                    if (!text.contains(".hazeTopAppBar(")) add("hazeTopAppBar modifier")
                     if (!text.contains("hazeTopAppBarColors()")) add("transparent haze colors")
                 }
                 if (missing.isEmpty()) {
@@ -106,15 +106,22 @@ class HazeChromeIntegrationTest {
             .mapNotNull { file ->
                 val text = file.readText()
                 val missing = buildList {
-                    if (!text.contains(".hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior))")) {
-                        add("Haze blur is not gated by topAppBarHazeEnabled(scrollBehavior)")
+                    if (!text.contains(".hazeTopAppBar(scrollBehavior)")) {
+                        add("Haze blur does not track the scroll overlap via hazeTopAppBar(scrollBehavior)")
+                    }
+                    if (text.contains("TopAppBarDefaults.pinnedScrollBehavior(")) {
+                        add(
+                            "pinned scroll behavior bypasses pinnedTopAppBarScrollBehavior, " +
+                                    "losing the content-offset reset when content shrinks back " +
+                                    "to its start"
+                        )
                     }
                     if (
                         text.contains("val scrollState = rememberScrollState()") &&
-                        text.contains("TopAppBarDefaults.pinnedScrollBehavior(") &&
+                        text.contains("pinnedTopAppBarScrollBehavior(") &&
                         !text.contains("scrollState = scrollState")
                     ) {
-                        add("ScrollState-backed top app bar is not using pinnedScrollBehavior(scrollState = ...)")
+                        add("ScrollState-backed top app bar is not using pinnedTopAppBarScrollBehavior(scrollState = ...)")
                     }
                 }
                 if (missing.isEmpty()) {
@@ -128,11 +135,19 @@ class HazeChromeIntegrationTest {
         val hazeChromeText =
             File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
         assertTrue(
-            "Haze top app bars should use Material3's default scrolled threshold.",
+            "Haze top app bars should use Material3's default scrolled threshold and fade " +
+                    "their chrome with the actual overlap (blur opacity when blur is on, a " +
+                    "container-color lerp when off) so fast flings never show unstyled " +
+                    "content behind the bar.",
             hazeChromeText.contains("TopAppBarScrolledOverlapThreshold = 0.01f") &&
                     hazeChromeText.contains(
                         "scrollBehavior.state.overlappedFraction > TopAppBarScrolledOverlapThreshold"
-                    ),
+                    ) &&
+                    hazeChromeText.contains(
+                        "alpha = { topAppBarOverlapAlpha(scrollBehavior.state.overlappedFraction) }"
+                    ) &&
+                    hazeChromeText.contains("fun topAppBarOverlapAlpha(") &&
+                    hazeChromeText.contains("topAppBarOverlapAlpha(scrollBehavior.state.overlappedFraction),"),
         )
         assertTrue(
             "Top app bar blur should remain disabled until content actually scrolls:\n" +

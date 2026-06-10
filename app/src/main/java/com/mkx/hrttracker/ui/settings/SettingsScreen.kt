@@ -49,7 +49,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -111,11 +110,11 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
-import com.mkx.hrttracker.ui.components.topAppBarHazeEnabled
+import com.mkx.hrttracker.ui.components.hazeTopAppBar
 import com.mkx.hrttracker.ui.components.shortLabelRes
+import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
@@ -865,7 +864,7 @@ internal fun SettingsScreenContent(
     val appLanguageOption = AppLanguageOption.fromLocale(rememberAppLocale())
 
     val topAppBarState = rememberTopAppBarState()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
+    val scrollBehavior = pinnedTopAppBarScrollBehavior(
         scrollState = scrollState,
         state = topAppBarState
     )
@@ -886,7 +885,7 @@ internal fun SettingsScreenContent(
                 TopAppBar(
                     modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                         scrollState.animateScrollTo(0)
-                    }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
+                    }.hazeTopAppBar(scrollBehavior),
                     title = {
                         val title = stringResource(R.string.tab_settings)
                         Text(

@@ -33,7 +33,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.getSelectedEndDate
 import androidx.compose.material3.getSelectedStartDate
 import androidx.compose.material3.rememberDateRangePickerState
@@ -78,11 +77,11 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.datePickerSelectableDates
-import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeDatePickerColors
 import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
-import com.mkx.hrttracker.ui.components.topAppBarHazeEnabled
+import com.mkx.hrttracker.ui.components.hazeTopAppBar
+import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
@@ -143,7 +142,7 @@ private fun PlanBatchAddScreenContent(
     val hasNotificationAccess = reminderCapabilityState.hasNotificationAccess
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
+    val scrollBehavior = pinnedTopAppBarScrollBehavior(
         lazyListState = listState,
         state = topAppBarState
     )
@@ -273,7 +272,7 @@ private fun PlanBatchAddScreenContent(
                 TopAppBar(
                     modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                         listState.animateScrollToItem(0)
-                    }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
+                    }.hazeTopAppBar(scrollBehavior),
                     title = {
                         val title = stringResource(R.string.plan_batch_add_title)
                         Text(

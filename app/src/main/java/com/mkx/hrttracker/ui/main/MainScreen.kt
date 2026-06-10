@@ -24,7 +24,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -52,10 +51,10 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
-import com.mkx.hrttracker.ui.components.topAppBarHazeEnabled
+import com.mkx.hrttracker.ui.components.hazeTopAppBar
+import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.components.topAppBarWindowInsetsWithStartupFallback
 import com.mkx.hrttracker.util.calibrationUnitLabel
@@ -182,7 +181,7 @@ fun MainScreen(
         }
     }
     val topAppBarState = rememberTopAppBarState()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
+    val scrollBehavior = pinnedTopAppBarScrollBehavior(
         scrollState = scrollState,
         state = topAppBarState
     )
@@ -205,7 +204,7 @@ fun MainScreen(
                 CenterAlignedTopAppBar(
                     modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                         scrollState.animateScrollTo(0)
-                    }.hazeChrome(enabled = topAppBarHazeEnabled(scrollBehavior)),
+                    }.hazeTopAppBar(scrollBehavior),
                     title = {
                         val title = stringResource(R.string.tab_main)
                         Text(
