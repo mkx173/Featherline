@@ -57,6 +57,10 @@ class PlanViewModelTest {
             SettingsState(firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY)
         )
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        // The uiState initial value seeds from the repositories' caches; a null
+        // cache reproduces the pre-seeding "starts loading" state the tests assume.
+        every { medicationGroupRepository.getCachedGroups() } returns null
+        every { medicationLogRepository.getCachedEntries() } returns null
     }
 
     @After

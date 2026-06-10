@@ -14,6 +14,7 @@ import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.components.hazeBlinkProbeLog
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
@@ -51,6 +52,39 @@ class PlanViewModel @Inject constructor(
         selectedDate,
         currentDateTime
     ) { groupsOrNull, entriesOrNull, settingsState, selection, now ->
+        buildUiState(
+            groupsOrNull = groupsOrNull,
+            entriesOrNull = entriesOrNull,
+            settingsState = settingsState,
+            selection = selection,
+            now = now,
+        )
+    }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
+            // Seed from the repositories' hot caches (both are Eagerly-shared
+            // StateFlows loaded at app start) so the first frame after this
+            // ViewModel is created renders real data. A bare loading default
+            // flashed the loading indicator for the few frames until the
+            // combine's first emission — previously hidden by the top-level
+            // navigation transition, visible once that transition was removed.
+            initialValue = buildUiState(
+                groupsOrNull = medicationGroupRepository.getCachedGroups(),
+                entriesOrNull = medicationLogRepository.getCachedEntries(),
+                settingsState = settingsRepository.settingsState.value,
+                selection = selectedDate.value,
+                now = currentDateTime.value,
+            ),
+        )
+
+    private fun buildUiState(
+        groupsOrNull: List<MedicationGroup>?,
+        entriesOrNull: List<MedicationLogEntry>?,
+        settingsState: SettingsState,
+        selection: LocalDate?,
+        now: LocalDateTime,
+    ): PlanUiState {
         val isLoading = groupsOrNull == null || entriesOrNull == null
         val allGroups = sortPlanMedicationGroups(groupsOrNull.orEmpty())
         val activeGroups = allGroups.filter(MedicationGroup::isActive)
@@ -81,7 +115,7 @@ class PlanViewModel @Inject constructor(
             limit = UPCOMING_OCCURRENCES_LIMIT
         )
 
-        PlanUiState(
+        return PlanUiState(
             isLoading = isLoading,
             now = now,
             today = today,
@@ -106,11 +140,6 @@ class PlanViewModel @Inject constructor(
             nextOccurrencesByGroup = nextOccurrencesByGroup
         )
     }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
-            initialValue = PlanUiState(today = currentDateTime.value.toLocalDate())
-        )
 
     fun toggleSelectedDate(date: LocalDate) {
         selectedDate.value = if (date == uiState.value.today || selectedDate.value == date) {
