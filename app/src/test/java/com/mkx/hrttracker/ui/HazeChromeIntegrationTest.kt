@@ -116,6 +116,14 @@ class HazeChromeIntegrationTest {
                                     "to its start"
                         )
                     }
+                    if (text.contains("contentOffset = 0f")) {
+                        add(
+                            "manually zeroes TopAppBarState.contentOffset, snapping the " +
+                                    "overlap-driven bar chrome off in one frame; " +
+                                    "pinnedTopAppBarScrollBehavior settles stale offsets " +
+                                    "with an eased fade instead"
+                        )
+                    }
                     if (
                         text.contains("val scrollState = rememberScrollState()") &&
                         text.contains("pinnedTopAppBarScrollBehavior(") &&

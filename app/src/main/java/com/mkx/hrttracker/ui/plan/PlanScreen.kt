@@ -287,8 +287,6 @@ private fun PlanScreenContent(
     LaunchedEffect(scrollToTopSignal) {
         if (scrollToTopSignal != initialScrollToTopSignal) {
             listState.animateScrollToItem(0)
-            topAppBarState.contentOffset = 0f
-            topAppBarState.heightOffset = 0f
         }
     }
 

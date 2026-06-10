@@ -24,9 +24,12 @@ fun Modifier.topAppBarScrollToTop(
         detectTapGestures(
             onDoubleTap = {
                 scope.launch {
+                    // No offset reset here: programmatic scrolls dispatch no
+                    // nested-scroll deltas, but pinnedTopAppBarScrollBehavior settles
+                    // the stale contentOffset once the content lands at the start —
+                    // eased, so the overlap-driven bar chrome dissolves instead of
+                    // snapping off.
                     currentOnScrollToTop()
-                    scrollBehavior.state.contentOffset = 0f
-                    scrollBehavior.state.heightOffset = 0f
                 }
             }
         )

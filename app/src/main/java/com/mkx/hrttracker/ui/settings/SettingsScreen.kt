@@ -873,8 +873,6 @@ internal fun SettingsScreenContent(
     LaunchedEffect(scrollToTopSignal) {
         if (scrollToTopSignal != initialScrollToTopSignal) {
             scrollState.animateScrollTo(0)
-            topAppBarState.contentOffset = 0f
-            topAppBarState.heightOffset = 0f
         }
     }
 

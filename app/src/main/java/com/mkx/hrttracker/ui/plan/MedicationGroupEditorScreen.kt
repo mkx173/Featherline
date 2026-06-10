@@ -1268,8 +1268,6 @@ private fun MedicationGroupEditorScreenContent(
     LaunchedEffect(uiState.scrollToTopRequestVersion) {
         if (uiState.scrollToTopRequestVersion > 0) {
             listState.animateScrollToItem(0)
-            topAppBarState.heightOffset = 0f
-            topAppBarState.contentOffset = 0f
         }
     }
     val contentPadding = dimensionResource(R.dimen.padding_medium)
