@@ -80,7 +80,14 @@ internal fun handleReminderRescheduleBroadcast(
     )
     appScope.launch {
         runCatching {
-            reminderCapabilityReconciler.reconcile(reason = "receiver_$action")
+            // Force the reschedule: boot drops all alarms, and time / time-zone
+            // / package-replaced events leave the scheduled alarms stale even
+            // though the notification/exact-alarm capability itself is unchanged,
+            // so the capability short-circuit must not skip them here.
+            reminderCapabilityReconciler.reconcile(
+                reason = "receiver_$action",
+                forceReschedule = true,
+            )
             // Force a full refresh for events that leave the snapshot stale or invalid:
             // - TZ/time change: stored zoneId mismatches the new wall clock
             // - Boot: projection may have expired while the device was off
