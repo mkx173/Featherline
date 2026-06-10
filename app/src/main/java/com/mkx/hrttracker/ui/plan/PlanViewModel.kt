@@ -14,6 +14,7 @@ import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
+import com.mkx.hrttracker.ui.components.hazeBlinkProbeLog
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,6 +38,11 @@ class PlanViewModel @Inject constructor(
 ) : ViewModel() {
     private val selectedDate = MutableStateFlow<LocalDate?>(null)
     private val currentDateTime = appTimeSource.currentMinute
+
+    init {
+        // TODO(haze-blink): remove probe once the loading-flash regression is fixed.
+        hazeBlinkProbeLog { "PlanViewModel created ${System.identityHashCode(this)}" }
+    }
 
     val uiState: StateFlow<PlanUiState> = combine(
         medicationGroupRepository.observeGroups(),
