@@ -166,7 +166,6 @@ fun HistoryScreen(
     modifier: Modifier = Modifier,
     onEntryClick: (Set<UUID>) -> Unit,
     onNavigateBack: (() -> Unit)? = null,
-    scrollToTopSignal: Int = 0,
     viewModel: HistoryViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
     )
@@ -206,7 +205,6 @@ fun HistoryScreen(
             viewModel.setDisplayedMonth(month, clearSelection)
         },
         onNavigateBack = onNavigateBack,
-        scrollToTopSignal = scrollToTopSignal,
         modifier = modifier
     )
 }
@@ -230,7 +228,6 @@ private fun HistoryScreenContent(
     onDeleteAllResultConsumed: () -> Unit,
     onDisplayedMonthChange: (YearMonth, Boolean) -> Unit,
     onNavigateBack: (() -> Unit)? = null,
-    scrollToTopSignal: Int = 0,
 ) {
     val appLocale = rememberAppLocale()
     val context = LocalContext.current
@@ -249,9 +246,9 @@ private fun HistoryScreenContent(
         lazyListState = listState,
         state = topAppBarState
     )
-    var selectionFabScrollState by remember {
-        mutableStateOf(HistorySelectionFabScrollState(visible = true))
-    }
+    // Only the visibility flag lives in compose state: the scroll accumulators change on
+    // every scrolled frame and would recompose the FAB slot per frame if published.
+    var isSelectionFabVisible by remember { mutableStateOf(true) }
     val selectionFabHideScrollThresholdPx = with(density) {
         HistorySelectionFabHideScrollThreshold.roundToPx()
     }
@@ -369,13 +366,6 @@ private fun HistoryScreenContent(
         }
     }
 
-    val initialScrollToTopSignal = remember { scrollToTopSignal }
-    LaunchedEffect(scrollToTopSignal) {
-        if (scrollToTopSignal != initialScrollToTopSignal) {
-            listState.animateScrollToItem(0)
-        }
-    }
-
     LaunchedEffect(
         listState,
         uiState.isSelectionMode,
@@ -383,12 +373,12 @@ private fun HistoryScreenContent(
         selectionFabShowScrollThresholdPx,
     ) {
         if (!uiState.isSelectionMode) {
-            selectionFabScrollState = HistorySelectionFabScrollState(visible = true)
+            isSelectionFabVisible = true
             return@LaunchedEffect
         }
 
         var currentFabScrollState = HistorySelectionFabScrollState(visible = true)
-        selectionFabScrollState = currentFabScrollState
+        isSelectionFabVisible = true
         var previousIndex = listState.firstVisibleItemIndex
         var previousOffset = listState.firstVisibleItemScrollOffset
 
@@ -397,16 +387,22 @@ private fun HistoryScreenContent(
         }
             .distinctUntilChanged()
             .collect { (index, offset) ->
+                val visibleItems = listState.layoutInfo.visibleItemsInfo
                 currentFabScrollState = updateHistorySelectionFabScrollState(
                     state = currentFabScrollState,
                     previousIndex = previousIndex,
                     previousOffset = previousOffset,
                     index = index,
                     offset = offset,
+                    estimatedItemSizePx = if (visibleItems.isEmpty()) {
+                        0
+                    } else {
+                        visibleItems.sumOf { it.size } / visibleItems.size
+                    },
                     hideThresholdPx = selectionFabHideScrollThresholdPx,
                     showThresholdPx = selectionFabShowScrollThresholdPx,
                 )
-                selectionFabScrollState = currentFabScrollState
+                isSelectionFabVisible = currentFabScrollState.visible
 
                 previousIndex = index
                 previousOffset = offset
@@ -664,14 +660,16 @@ private fun HistoryScreenContent(
             FloatingActionButton(
                 onClick = onDeleteSelectedClick,
                 modifier = Modifier
-                    .animateFloatingActionButton(
-                        visible = uiState.isSelectionMode && selectionFabScrollState.visible,
-                        alignment = Alignment.BottomEnd,
-                    )
                     // The page now paints edge-to-edge behind the bottom navigation bar, so the
                     // Scaffold-positioned FAB must clear it by the same inset the body content uses
-                    // (the bar height in compact, the gesture inset beside the wide rail).
-                    .padding(bottom = LocalAppContentBottomInset.current),
+                    // (the bar height in compact, the gesture inset beside the wide rail). The
+                    // padding must sit outside animateFloatingActionButton or it inflates the
+                    // bounds the BottomEnd scale pivot is computed on.
+                    .padding(bottom = LocalAppContentBottomInset.current)
+                    .animateFloatingActionButton(
+                        visible = uiState.isSelectionMode && isSelectionFabVisible,
+                        alignment = Alignment.BottomEnd,
+                    ),
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Delete,
@@ -682,9 +680,9 @@ private fun HistoryScreenContent(
         topBar = {
             HazeTopAppBarColorReset {
                 TopAppBar(
-                    modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                        listState.animateScrollToItem(0)
-                    }.hazeTopAppBar(scrollBehavior),
+                    modifier = Modifier
+                        .topAppBarScrollToTop(scrollBehavior, listState)
+                        .hazeTopAppBar(scrollBehavior),
                     title = {
                         FlipSlot(
                             flipped = uiState.isSelectionMode,
@@ -805,13 +803,20 @@ private fun HistoryScreenContent(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
             ) {
-                item(key = "history-header") {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
-                    ) {
-                        HistoryMonthSummaryStrip(summary = monthSummary)
+                item(
+                    key = "history-summary",
+                    contentType = "history-summary"
+                ) {
+                    HistoryMonthSummaryStrip(summary = monthSummary)
+                }
+
+                item(
+                    key = "history-calendar",
+                    contentType = "history-calendar"
+                ) {
+                    Column {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
                         HistoryMonthCalendar(
                             calendarState = calendarState,
                             displayedMonth = displayedMonth.yearMonth,
@@ -846,10 +851,20 @@ private fun HistoryScreenContent(
                             },
                             onNavigationMonthChange = { calendarNavigationMonth = it },
                         )
+                    }
+                }
+
+                item(
+                    key = "history-entry-title",
+                    contentType = "history-entry-title"
+                ) {
+                    Column {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
                         HorizontalDivider(
                             modifier = Modifier.padding(top = 4.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                         )
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
                         Text(
                             text = entryListTitle.uppercase(),
                             style = MaterialTheme.typography.titleMedium,
@@ -861,39 +876,63 @@ private fun HistoryScreenContent(
                 }
 
                 if (visibleEntries.isEmpty()) {
-                    item(key = "empty-state") {
-                        HistoryEmptyStateCard(
-                            text = stringResource(
-                                if (effectiveSelectedDate != null) {
-                                    R.string.history_selected_day_empty_state
-                                } else if (uiState.entries.isEmpty()) {
-                                    R.string.history_empty_state
-                                } else {
-                                    R.string.history_month_empty_state
-                                }
-                            ),
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
+                    item(
+                        key = "empty-state",
+                        contentType = "history-empty-state"
+                    ) {
+                        Column {
+                            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
+                            HistoryEmptyStateCard(
+                                text = stringResource(
+                                    if (effectiveSelectedDate != null) {
+                                        R.string.history_selected_day_empty_state
+                                    } else if (uiState.entries.isEmpty()) {
+                                        R.string.history_empty_state
+                                    } else {
+                                        R.string.history_month_empty_state
+                                    }
+                                ),
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
                     }
                 } else {
                     groupedEntries.entries.forEachIndexed { groupIndex, (date, dateEntries) ->
-                        item(key = "header-$date") {
-                            HistoryEntryGroupHeader(
-                                date = date,
-                                today = today,
-                                dayStatus = monthDayStates[date]?.status
-                                    ?: PlanCalendarDayStatus.NONE,
-                                hasOffPlanRecord = monthDayStates[date]?.hasOffPlanRecord == true,
-                                countLabel = dateEntries.size.toString(),
-                                appLocale = appLocale
-                            )
+                        item(
+                            key = "header-$date",
+                            contentType = "history-entry-header"
+                        ) {
+                            Column {
+                                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
+                                HistoryEntryGroupHeader(
+                                    date = date,
+                                    today = today,
+                                    dayStatus = monthDayStates[date]?.status
+                                        ?: PlanCalendarDayStatus.NONE,
+                                    hasOffPlanRecord = monthDayStates[date]?.hasOffPlanRecord == true,
+                                    countLabel = dateEntries.size.toString(),
+                                    appLocale = appLocale
+                                )
+                            }
                         }
 
-                        item(key = "entries-$date") {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+                        dateEntries.forEachIndexed { index, entry ->
+                            item(
+                                key = "entry-${entry.uuid}",
+                                contentType = "history-entry"
                             ) {
-                                dateEntries.forEachIndexed { index, entry ->
+                                Column {
+                                    Spacer(
+                                        modifier = Modifier.height(
+                                            dimensionResource(
+                                                if (index == 0) {
+                                                    R.dimen.padding_xsmall
+                                                } else {
+                                                    R.dimen.list_segment_gap
+                                                }
+                                            )
+                                        )
+                                    )
                                     HistoryEntryCardItem(
                                         entry = entry,
                                         timeFormatter = timeFormatter,
@@ -908,13 +947,16 @@ private fun HistoryScreenContent(
                                         onLongClick = { onEntryLongClick(entry) },
                                         onSelectionClick = { onEntryLongClick(entry) }
                                     )
-                                }
-                                if (groupIndex < groupedEntries.size - 1) {
-                                    Spacer(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(4.dp)
-                                    )
+                                    if (
+                                        index == dateEntries.lastIndex &&
+                                        groupIndex < groupedEntries.size - 1
+                                    ) {
+                                        Spacer(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -922,32 +964,38 @@ private fun HistoryScreenContent(
                 }
 
                 if (effectiveSelectedDate != null) {
-                    item(key = "clear-selection") {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 12.dp),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            HrtOutlinedButton(
-                                text = stringResource(R.string.history_clear_selection),
-                                onClick = {
-                                    val selectedDate = uiState.selectedDate
-                                    pendingSelectedDate.value = null
-                                    pendingSelectionResetTargetMonth.value = null
-                                    if (selectedDate != null) {
-                                        onDayClick(selectedDate)
-                                    }
-                                },
-                                icon = Icons.Rounded.Close,
-                                iconModifier = Modifier.size(14.dp),
-                                iconSpacing = 6.dp,
-                                compact = true,
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.primary,
+                    item(
+                        key = "clear-selection",
+                        contentType = "history-clear-selection"
+                    ) {
+                        Column {
+                            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                HrtOutlinedButton(
+                                    text = stringResource(R.string.history_clear_selection),
+                                    onClick = {
+                                        val selectedDate = uiState.selectedDate
+                                        pendingSelectedDate.value = null
+                                        pendingSelectionResetTargetMonth.value = null
+                                        if (selectedDate != null) {
+                                            onDayClick(selectedDate)
+                                        }
+                                    },
+                                    icon = Icons.Rounded.Close,
+                                    iconModifier = Modifier.size(14.dp),
+                                    iconSpacing = 6.dp,
+                                    compact = true,
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary,
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
                 }

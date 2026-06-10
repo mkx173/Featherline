@@ -20,7 +20,6 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -603,32 +602,16 @@ fun HrtTrackerNavHost(
 
     val navigationSuiteType =
         NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfoV2())
-    val isBottomBar = navigationSuiteType != NavigationSuiteType.WideNavigationRailCollapsed
-    val rawNavigationBarBottomInset = with(density) {
-        WindowInsets.navigationBars.getBottom(this).toDp()
-    }
-    // The NavHost now paints edge-to-edge behind the bottom bar (see
-    // EdgeToEdgeNavigationSuiteScaffold), so the body must reserve the bar's full height as bottom
-    // padding — it was 0.dp when content sat above the bar. The bar reports its measured height
-    // here; in the wide-rail layout content sits beside the rail and only needs to clear the system
-    // gesture inset, as before.
-    var navigationBarHeightPx by remember { mutableIntStateOf(0) }
-    val navigationBarHeight =
-        if (isBottomBar) with(density) { navigationBarHeightPx.toDp() } else 0.dp
-    val appContentBottomInset =
-        if (isBottomBar) navigationBarHeight else rawNavigationBarBottomInset
     val navigationChromeHazeState = rememberChromeHazeState()
     val hazeBlurEnabled = effectiveHazeBlurEnabled(settingsState.hazeBlurEnabled)
 
     CompositionLocalProvider(
-        LocalAppContentBottomInset provides appContentBottomInset,
         LocalHazeBlurEnabled provides hazeBlurEnabled,
     ) {
         EdgeToEdgeNavigationSuiteScaffold(
             modifier = modifier,
             navigationSuiteType = navigationSuiteType,
             navigationChromeHazeState = navigationChromeHazeState,
-            onNavigationBarSizeChanged = { navigationBarHeightPx = it },
             navigationSuiteItems = {
                 topLevelNavigationItems.forEach { navItem ->
                     item(
@@ -1151,9 +1134,9 @@ fun HrtTrackerNavHost(
                         .align(Alignment.BottomCenter)
                         .imePadding()
                         // Content now extends behind the bottom bar, so lift the snackbar by the
-                        // bar's height to keep it riding above the bar (0.dp in the wide-rail
-                        // layout, where there is no bottom bar).
-                        .padding(bottom = navigationBarHeight),
+                        // scaffold-provided inset to keep it riding above the bar (the gesture
+                        // inset in the wide-rail layout, where there is no bottom bar).
+                        .padding(bottom = LocalAppContentBottomInset.current),
                     snackbar = { snackbarData -> HrtSnackbar(snackbarData) },
                 )
                 optInTarget?.let { projection ->

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -90,7 +91,8 @@ import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
-import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.HrtSectionHeader
+import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -98,6 +100,7 @@ import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.hazeTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
+import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
@@ -253,6 +256,7 @@ private fun PlanScreenContent(
         uiState.daySchedule
     }
     val displayedDate = daySchedule.date
+    val selectedDayRowModels = rememberSelectedDayRows(daySchedule)
     val archivedGroupUuids = remember(uiState.scheduleMedicationGroups) {
         uiState.scheduleMedicationGroups
             .filter(MedicationGroup::isArchived)
@@ -283,21 +287,20 @@ private fun PlanScreenContent(
         }
     }
 
-    val initialScrollToTopSignal = remember { scrollToTopSignal }
-    LaunchedEffect(scrollToTopSignal) {
-        if (scrollToTopSignal != initialScrollToTopSignal) {
-            listState.animateScrollToItem(0)
-        }
-    }
+    ScrollToTopSignalEffect(
+        signal = scrollToTopSignal,
+        topAppBarState = topAppBarState,
+        listState = listState,
+    )
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             HazeTopAppBarColorReset {
                 TopAppBar(
-                    modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                        listState.animateScrollToItem(0)
-                    }.hazeTopAppBar(scrollBehavior),
+                    modifier = Modifier
+                        .topAppBarScrollToTop(scrollBehavior, listState)
+                        .hazeTopAppBar(scrollBehavior),
                     title = {
                         val title = stringResource(R.string.tab_plan)
                         Text(
@@ -430,62 +433,52 @@ private fun PlanScreenContent(
                     }
                 }
 
-                item(key = "selected-day") {
-                    Column(modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp)) {
-                        SelectedDaySection(
-                            date = displayedDate,
-                            today = uiState.today,
-                            overallStatus = uiState.calendarDays[displayedDate]?.status
-                                ?: PlanCalendarDayStatus.NONE,
-                            daySchedule = daySchedule,
-                            appLocale = appLocale,
-                            timeFormatter = timeFormatter,
-                            archivedGroupUuids = archivedGroupUuids,
-                            onScheduledClick = { scheduled ->
-                                val editingEntryIds = plannedEntryEditorIds(scheduled)
-                                if (
-                                    editingEntryIds.isNotEmpty() &&
-                                    (scheduled.isFulfilled || scheduled.hasOutsideScheduleWindowEntry)
-                                ) {
-                                    onEntryClick(editingEntryIds)
-                                } else {
-                                    onQuickLogClick(
-                                        scheduled.groupUuid,
-                                        scheduled.scheduleTimeUuid,
-                                        scheduled.scheduledFor,
-                                        scheduled.medication,
-                                        remainingQuickLogCount(
-                                            totalCount = scheduled.medication.count,
-                                            fulfilledCount = scheduled.loggedCount
-                                        )
-                                    )
-                                }
-                            },
-                            onUnplannedClick = { entry ->
-                                onEntryClick(unplannedEntryEditorIds(entry))
-                            }
-                        )
+                selectedDaySectionItems(
+                    date = displayedDate,
+                    today = uiState.today,
+                    overallStatus = uiState.calendarDays[displayedDate]?.status
+                        ?: PlanCalendarDayStatus.NONE,
+                    rows = selectedDayRowModels,
+                    appLocale = appLocale,
+                    timeFormatter = timeFormatter,
+                    archivedGroupUuids = archivedGroupUuids,
+                    onScheduledClick = { scheduled ->
+                        val editingEntryIds = plannedEntryEditorIds(scheduled)
+                        if (
+                            editingEntryIds.isNotEmpty() &&
+                            (scheduled.isFulfilled || scheduled.hasOutsideScheduleWindowEntry)
+                        ) {
+                            onEntryClick(editingEntryIds)
+                        } else {
+                            onQuickLogClick(
+                                scheduled.groupUuid,
+                                scheduled.scheduleTimeUuid,
+                                scheduled.scheduledFor,
+                                scheduled.medication,
+                                remainingQuickLogCount(
+                                    totalCount = scheduled.medication.count,
+                                    fulfilledCount = scheduled.loggedCount
+                                )
+                            )
+                        }
+                    },
+                    onUnplannedClick = { entry ->
+                        onEntryClick(unplannedEntryEditorIds(entry))
                     }
-                }
+                )
 
-                item(key = "regimen-section") {
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-
-                    RegimenSection(
-                        groups = uiState.medicationGroups,
-                        remindersEnabled = uiState.remindersEnabled,
-                        hasNotificationAccess = hasNotificationAccess,
-                        appLocale = appLocale,
-                        dateFormatter = dateFormatter,
-                        timeFormatter = timeFormatter,
-                        nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
-                        today = uiState.today,
-                        firstDayOfWeek = uiState.calendarFirstDayOfWeek,
-                        onGroupClick = onGroupClick
-                    )
-                }
+                regimenSectionItems(
+                    groups = uiState.medicationGroups,
+                    remindersEnabled = uiState.remindersEnabled,
+                    hasNotificationAccess = hasNotificationAccess,
+                    appLocale = appLocale,
+                    dateFormatter = dateFormatter,
+                    timeFormatter = timeFormatter,
+                    nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
+                    today = uiState.today,
+                    firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+                    onGroupClick = onGroupClick
+                )
 
                 item(key = "add-group-button") {
                     HrtButton(
@@ -680,8 +673,7 @@ private fun PlanWeekPageIndicator(pageProgress: Float) {
     }
 }
 
-@Composable
-private fun RegimenSection(
+private fun LazyListScope.regimenSectionItems(
     groups: List<MedicationGroup>,
     remindersEnabled: Boolean,
     hasNotificationAccess: Boolean,
@@ -693,58 +685,66 @@ private fun RegimenSection(
     firstDayOfWeek: DayOfWeek,
     onGroupClick: (UUID) -> Unit
 ) {
-    val dailyCount = remember(groups) {
-        groups.count { it.schedule.type == MedicationGroupScheduleType.DAILY }
-    }
-    val weeklyCount = groups.size - dailyCount
-    val regimenSummary = if (groups.isEmpty()) {
-        null
-    } else {
-        listOfNotNull(
-            pluralStringResource(
-                R.plurals.plan_regimen_group_count,
-                groups.size,
-                groups.size
-            ),
-            if (dailyCount > 0) {
-                pluralStringResource(
-                    R.plurals.plan_regimen_daily_count,
-                    dailyCount,
-                    dailyCount
-                )
-            } else {
-                null
-            },
-            if (weeklyCount > 0) {
-                pluralStringResource(
-                    R.plurals.plan_regimen_weekly_count,
-                    weeklyCount,
-                    weeklyCount
-                )
-            } else {
-                null
+    hrtSection(
+        key = "regimen",
+        header = {
+            val dailyCount = remember(groups) {
+                groups.count { it.schedule.type == MedicationGroupScheduleType.DAILY }
             }
-        ).joinToString(" · ")
-    }
+            val weeklyCount = groups.size - dailyCount
+            val regimenSummary = if (groups.isEmpty()) {
+                null
+            } else {
+                listOfNotNull(
+                    pluralStringResource(
+                        R.plurals.plan_regimen_group_count,
+                        groups.size,
+                        groups.size
+                    ),
+                    if (dailyCount > 0) {
+                        pluralStringResource(
+                            R.plurals.plan_regimen_daily_count,
+                            dailyCount,
+                            dailyCount
+                        )
+                    } else {
+                        null
+                    },
+                    if (weeklyCount > 0) {
+                        pluralStringResource(
+                            R.plurals.plan_regimen_weekly_count,
+                            weeklyCount,
+                            weeklyCount
+                        )
+                    } else {
+                        null
+                    }
+                ).joinToString(" · ")
+            }
 
-    HrtSection(
-        title = stringResource(R.string.plan_regimen_title),
-        headerTrailingAlignByBaseline = true,
-        headerTrailing = if (regimenSummary != null) {
-            {
-                Text(
-                    text = regimenSummary.uppercase(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.alignByBaseline(),
+            Column {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                HrtSectionHeader(
+                    text = stringResource(R.string.plan_regimen_title),
+                    trailingAlignByBaseline = true,
+                    trailing = if (regimenSummary != null) {
+                        {
+                            Text(
+                                text = regimenSummary.uppercase(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.alignByBaseline(),
+                            )
+                        }
+                    } else {
+                        null
+                    },
                 )
             }
-        } else {
-            null
         },
     ) {
         if (groups.isEmpty()) {
-            item {
+            item("regimen-empty", contentType = "regimen-empty") {
                 SupportMessageListItem(
                     text = stringResource(R.string.plan_empty_state),
                     painter = painterResource(R.drawable.ic_info),
@@ -752,7 +752,7 @@ private fun RegimenSection(
             }
         } else {
             groups.forEach { group ->
-                item {
+                item("regimen-${group.uuid}", contentType = "regimen-row") {
                     RegimenGroupCard(
                         group = group,
                         remindersEnabled = remindersEnabled,

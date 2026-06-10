@@ -129,6 +129,7 @@ import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.hazeTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
+import com.mkx.hrttracker.ui.components.scrollToTop
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -1267,7 +1268,7 @@ private fun MedicationGroupEditorScreenContent(
     )
     LaunchedEffect(uiState.scrollToTopRequestVersion) {
         if (uiState.scrollToTopRequestVersion > 0) {
-            listState.animateScrollToItem(0)
+            topAppBarState.scrollToTop(listState)
         }
     }
     val contentPadding = dimensionResource(R.dimen.padding_medium)
@@ -1287,9 +1288,9 @@ private fun MedicationGroupEditorScreenContent(
         topBar = {
             HazeTopAppBarColorReset {
                 TopAppBar(
-                    modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                        listState.animateScrollToItem(0)
-                    }.hazeTopAppBar(scrollBehavior),
+                    modifier = Modifier
+                        .topAppBarScrollToTop(scrollBehavior, listState)
+                        .hazeTopAppBar(scrollBehavior),
                     title = {
                         val title = stringResource(
                             if (shouldUseArchivedPresentation) {

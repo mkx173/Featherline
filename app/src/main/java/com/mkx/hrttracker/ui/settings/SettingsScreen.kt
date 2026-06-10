@@ -115,6 +115,7 @@ import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.hazeTopAppBar
 import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
+import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
@@ -869,21 +870,20 @@ internal fun SettingsScreenContent(
         state = topAppBarState
     )
 
-    val initialScrollToTopSignal = remember { scrollToTopSignal }
-    LaunchedEffect(scrollToTopSignal) {
-        if (scrollToTopSignal != initialScrollToTopSignal) {
-            scrollState.animateScrollTo(0)
-        }
-    }
+    ScrollToTopSignalEffect(
+        signal = scrollToTopSignal,
+        topAppBarState = topAppBarState,
+        scrollState = scrollState,
+    )
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             HazeTopAppBarColorReset {
                 TopAppBar(
-                    modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                        scrollState.animateScrollTo(0)
-                    }.hazeTopAppBar(scrollBehavior),
+                    modifier = Modifier
+                        .topAppBarScrollToTop(scrollBehavior, scrollState)
+                        .hazeTopAppBar(scrollBehavior),
                     title = {
                         val title = stringResource(R.string.tab_settings)
                         Text(

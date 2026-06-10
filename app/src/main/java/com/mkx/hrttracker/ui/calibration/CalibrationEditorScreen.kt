@@ -343,9 +343,9 @@ private fun CalibrationEditorScreenContent(
         topBar = {
             HazeTopAppBarColorReset {
                 TopAppBar(
-                    modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                        scrollState.animateScrollTo(0)
-                    }.hazeTopAppBar(scrollBehavior),
+                    modifier = Modifier
+                        .topAppBarScrollToTop(scrollBehavior, scrollState)
+                        .hazeTopAppBar(scrollBehavior),
                     title = {
                         val title = stringResource(
                             if (uiState.isEditing) {

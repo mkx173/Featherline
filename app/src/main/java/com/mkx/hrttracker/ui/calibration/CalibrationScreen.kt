@@ -213,9 +213,9 @@ private fun CalibrationScreenContent(
         topBar = {
             HazeTopAppBarColorReset {
                 TopAppBar(
-                    modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                        listState.animateScrollToItem(0)
-                    }.hazeTopAppBar(scrollBehavior),
+                    modifier = Modifier
+                        .topAppBarScrollToTop(scrollBehavior, listState)
+                        .hazeTopAppBar(scrollBehavior),
                     title = {
                         val title = stringResource(R.string.settings_personalization_calibration)
                         Text(

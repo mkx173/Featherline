@@ -258,7 +258,11 @@ Shared sub-packages:
 - [`ui/components`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/components) — Compose primitives reused across
   features: buttons, dropdowns, dialogs, segmented list items, the
   medication card (with its embedded `MedicationStockSubcard`), the
-  `StockStatusIndicator` state badge, the medical-disclaimer banner.
+  `StockStatusIndicator` state badge, the medical-disclaimer banner,
+  the `hrtSection` lazy-list section builder (flattens a section into
+  per-row keyed items so long lists compose incrementally), and the
+  shared scroll-to-top helpers behind every screen's double-tap and
+  tab-retap animation.
 - [`ui/navigation`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/navigation) — the `HrtTrackerNavHost`, the
   `Screen` sealed class, and the navigation-transition specs. See
   the section below.
@@ -310,9 +314,15 @@ destinations, grouped by feature area: `Main`, `Plan` (plus
 pair `Medicines` and `MedicineDetail` (the medicine manager opens
 its "Create medicine" form as a bottom sheet rather than its own
 destination). The host wraps
-the `NavHost` in `NavigationSuiteScaffold`, which adapts its navigation
-component to the current window width class so the layout works across
-phones and tablets. The
+the `NavHost` in
+[`EdgeToEdgeNavigationSuiteScaffold`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/ui/navigation/EdgeToEdgeNavigationSuiteScaffold.kt),
+a `NavigationSuiteScaffold` variant that adapts its navigation
+component to the current window width class and paints content
+full-height behind the bottom bar; screens pad their scrollable region
+above the bar via `LocalAppContentBottomInset`. Layout configuration
+changes (rotation, fold posture, window resize) are declared in
+`configChanges` and handled in place by recomposition rather than
+activity recreation. The
 suite surfaces three of the destinations (Main, Plan, Settings) from
 the `topLevelNavigationItems` list; the rest are reached via in-screen
 actions and tracked back to their top-level parent via the
