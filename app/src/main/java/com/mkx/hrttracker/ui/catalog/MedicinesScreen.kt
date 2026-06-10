@@ -73,7 +73,8 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
-import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.HrtSectionHeader
+import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
@@ -571,9 +572,7 @@ private fun MedicinesScreenContent(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToItem(0)
-                },
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 title = {
                     val title = stringResource(titleRes)
                     Text(
@@ -661,20 +660,23 @@ private fun MedicinesScreenContent(
                 }
 
                 uiState.activeSections.forEachIndexed { sectionIndex, section ->
-                    item(key = "section-${section.category.name}") {
-                        MedicineManagerSectionTopSpacing(sectionIndex = sectionIndex)
-                        HrtSection(
-                            title = stringResource(section.category.labelRes),
-                            topPadding = sectionIndex != 0,
-                        ) {
-                            section.medicines.forEach { medicineItem ->
-                                item {
-                                    MedicineRow(
-                                        item = medicineItem,
-                                        onClick = { onMedicineClick(medicineItem.medicine.uuid) },
-                                        showOnboardingChevron = showOnboardingBanner,
-                                    )
-                                }
+                    hrtSection(
+                        key = "section-${section.category.name}",
+                        header = {
+                            MedicineManagerSectionTopSpacing(sectionIndex = sectionIndex)
+                            HrtSectionHeader(
+                                text = stringResource(section.category.labelRes),
+                                topPadding = sectionIndex != 0,
+                            )
+                        },
+                    ) {
+                        section.medicines.forEach { medicineItem ->
+                            item("medicine-${medicineItem.medicine.uuid}") {
+                                MedicineRow(
+                                    item = medicineItem,
+                                    onClick = { onMedicineClick(medicineItem.medicine.uuid) },
+                                    showOnboardingChevron = showOnboardingBanner,
+                                )
                             }
                         }
                     }

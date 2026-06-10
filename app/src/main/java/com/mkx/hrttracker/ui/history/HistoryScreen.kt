@@ -4,13 +4,8 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -56,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -79,6 +75,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -119,6 +116,7 @@ import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
+import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -156,13 +154,14 @@ import java.util.Locale
 import java.util.UUID
 
 private const val HistoryCalendarNavigationSettleTimeoutMillis = 500L
+private val HistorySelectionFabHideScrollThreshold = 48.dp
+private val HistorySelectionFabShowScrollThreshold = 24.dp
 
 @Composable
 fun HistoryScreen(
     modifier: Modifier = Modifier,
     onEntryClick: (Set<UUID>) -> Unit,
     onNavigateBack: (() -> Unit)? = null,
-    scrollToTopSignal: Int = 0,
     viewModel: HistoryViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
     )
@@ -202,12 +201,11 @@ fun HistoryScreen(
             viewModel.setDisplayedMonth(month, clearSelection)
         },
         onNavigateBack = onNavigateBack,
-        scrollToTopSignal = scrollToTopSignal,
         modifier = modifier
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun HistoryScreenContent(
     modifier: Modifier = Modifier,
@@ -226,10 +224,10 @@ private fun HistoryScreenContent(
     onDeleteAllResultConsumed: () -> Unit,
     onDisplayedMonthChange: (YearMonth, Boolean) -> Unit,
     onNavigateBack: (() -> Unit)? = null,
-    scrollToTopSignal: Int = 0,
 ) {
     val appLocale = rememberAppLocale()
     val context = LocalContext.current
+    val density = LocalDensity.current
     val today = uiState.today
     val dateFormatter = remember(appLocale, today) {
         dateLabelFormatter(appLocale, today)
@@ -244,7 +242,15 @@ private fun HistoryScreenContent(
         lazyListState = listState,
         state = topAppBarState
     )
+    // Only the visibility flag lives in compose state: the scroll accumulators change on
+    // every scrolled frame and would recompose the FAB slot per frame if published.
     var isSelectionFabVisible by remember { mutableStateOf(true) }
+    val selectionFabHideScrollThresholdPx = with(density) {
+        HistorySelectionFabHideScrollThreshold.roundToPx()
+    }
+    val selectionFabShowScrollThresholdPx = with(density) {
+        HistorySelectionFabShowScrollThreshold.roundToPx()
+    }
     val calendarState = key(
         uiState.calendarStartMonth,
         uiState.calendarEndMonth,
@@ -356,21 +362,18 @@ private fun HistoryScreenContent(
         }
     }
 
-    val initialScrollToTopSignal = remember { scrollToTopSignal }
-    LaunchedEffect(scrollToTopSignal) {
-        if (scrollToTopSignal != initialScrollToTopSignal) {
-            listState.animateScrollToItem(0)
-            topAppBarState.contentOffset = 0f
-            topAppBarState.heightOffset = 0f
-        }
-    }
-
-    LaunchedEffect(listState, uiState.isSelectionMode) {
+    LaunchedEffect(
+        listState,
+        uiState.isSelectionMode,
+        selectionFabHideScrollThresholdPx,
+        selectionFabShowScrollThresholdPx,
+    ) {
         if (!uiState.isSelectionMode) {
             isSelectionFabVisible = true
             return@LaunchedEffect
         }
 
+        var currentFabScrollState = HistorySelectionFabScrollState(visible = true)
         isSelectionFabVisible = true
         var previousIndex = listState.firstVisibleItemIndex
         var previousOffset = listState.firstVisibleItemScrollOffset
@@ -380,15 +383,22 @@ private fun HistoryScreenContent(
         }
             .distinctUntilChanged()
             .collect { (index, offset) ->
-                val isScrollingDown = index > previousIndex ||
-                        (index == previousIndex && offset > previousOffset)
-                val isScrollingUp = index < previousIndex ||
-                        (index == previousIndex && offset < previousOffset)
-
-                when {
-                    isScrollingDown -> isSelectionFabVisible = false
-                    isScrollingUp -> isSelectionFabVisible = true
-                }
+                val visibleItems = listState.layoutInfo.visibleItemsInfo
+                currentFabScrollState = updateHistorySelectionFabScrollState(
+                    state = currentFabScrollState,
+                    previousIndex = previousIndex,
+                    previousOffset = previousOffset,
+                    index = index,
+                    offset = offset,
+                    estimatedItemSizePx = if (visibleItems.isEmpty()) {
+                        0
+                    } else {
+                        visibleItems.sumOf { it.size } / visibleItems.size
+                    },
+                    hideThresholdPx = selectionFabHideScrollThresholdPx,
+                    showThresholdPx = selectionFabShowScrollThresholdPx,
+                )
+                isSelectionFabVisible = currentFabScrollState.visible
 
                 previousIndex = index
                 previousOffset = offset
@@ -643,26 +653,29 @@ private fun HistoryScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         floatingActionButton = {
-            AnimatedVisibility(
-                visible = uiState.isSelectionMode && isSelectionFabVisible,
-                enter = fadeIn() + scaleIn(),
-                exit = fadeOut() + scaleOut(),
+            FloatingActionButton(
+                onClick = onDeleteSelectedClick,
+                modifier = Modifier
+                    // The page now paints edge-to-edge behind the bottom navigation bar, so the
+                    // Scaffold-positioned FAB must clear it by the same inset the body content uses
+                    // (the bar height in compact, the gesture inset beside the wide rail). The
+                    // padding must sit outside animateFloatingActionButton or it inflates the
+                    // bounds the BottomEnd scale pivot is computed on.
+                    .padding(bottom = LocalAppContentBottomInset.current)
+                    .animateFloatingActionButton(
+                        visible = uiState.isSelectionMode && isSelectionFabVisible,
+                        alignment = Alignment.BottomEnd,
+                    ),
             ) {
-                FloatingActionButton(
-                    onClick = onDeleteSelectedClick,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Delete,
-                        contentDescription = stringResource(R.string.delete_entries_fab)
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = stringResource(R.string.delete_entries_fab)
+                )
             }
         },
         topBar = {
             TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToItem(0)
-                },
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 title = {
                     FlipSlot(
                         flipped = uiState.isSelectionMode,
@@ -781,13 +794,20 @@ private fun HistoryScreenContent(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValues(),
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
             ) {
-                item(key = "history-header") {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
-                    ) {
-                        HistoryMonthSummaryStrip(summary = monthSummary)
+                item(
+                    key = "history-summary",
+                    contentType = "history-summary"
+                ) {
+                    HistoryMonthSummaryStrip(summary = monthSummary)
+                }
+
+                item(
+                    key = "history-calendar",
+                    contentType = "history-calendar"
+                ) {
+                    Column {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
                         HistoryMonthCalendar(
                             calendarState = calendarState,
                             displayedMonth = displayedMonth.yearMonth,
@@ -822,10 +842,20 @@ private fun HistoryScreenContent(
                             },
                             onNavigationMonthChange = { calendarNavigationMonth = it },
                         )
+                    }
+                }
+
+                item(
+                    key = "history-entry-title",
+                    contentType = "history-entry-title"
+                ) {
+                    Column {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
                         HorizontalDivider(
                             modifier = Modifier.padding(top = 4.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                         )
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
                         Text(
                             text = entryListTitle.uppercase(),
                             style = MaterialTheme.typography.titleMedium,
@@ -837,40 +867,64 @@ private fun HistoryScreenContent(
                 }
 
                 if (visibleEntries.isEmpty()) {
-                    item(key = "empty-state") {
-                        HistoryEmptyStateCard(
-                            text = stringResource(
-                                if (effectiveSelectedDate != null) {
-                                    R.string.history_selected_day_empty_state
-                                } else if (uiState.entries.isEmpty()) {
-                                    R.string.history_empty_state
-                                } else {
-                                    R.string.history_month_empty_state
-                                }
-                            ),
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
+                    item(
+                        key = "empty-state",
+                        contentType = "history-empty-state"
+                    ) {
+                        Column {
+                            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
+                            HistoryEmptyStateCard(
+                                text = stringResource(
+                                    if (effectiveSelectedDate != null) {
+                                        R.string.history_selected_day_empty_state
+                                    } else if (uiState.entries.isEmpty()) {
+                                        R.string.history_empty_state
+                                    } else {
+                                        R.string.history_month_empty_state
+                                    }
+                                ),
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
                     }
                 } else {
                     groupedEntries.entries.forEachIndexed { groupIndex, (date, dateEntries) ->
-                        item(key = "header-$date") {
-                            HistoryEntryGroupHeader(
-                                date = date,
-                                today = today,
-                                dayStatus = monthDayStates[date]?.status
-                                    ?: PlanCalendarDayStatus.NONE,
-                                hasOffPlanRecord = monthDayStates[date]?.hasOffPlanRecord == true,
-                                countLabel = dateEntries.size.toString(),
-                                appLocale = appLocale
-                            )
+                        item(
+                            key = "header-$date",
+                            contentType = "history-entry-header"
+                        ) {
+                            Column {
+                                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
+                                HistoryEntryGroupHeader(
+                                    date = date,
+                                    today = today,
+                                    dayStatus = monthDayStates[date]?.status
+                                        ?: PlanCalendarDayStatus.NONE,
+                                    hasOffPlanRecord = monthDayStates[date]?.hasOffPlanRecord == true,
+                                    countLabel = dateEntries.size.toString(),
+                                    appLocale = appLocale
+                                )
+                            }
                         }
 
-                        item {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+                        dateEntries.forEachIndexed { index, entry ->
+                            item(
+                                key = "entry-${entry.uuid}",
+                                contentType = "history-entry"
                             ) {
-                                dateEntries.forEachIndexed { index, entry ->
-                                    HistoryEntryCard(
+                                Column {
+                                    Spacer(
+                                        modifier = Modifier.height(
+                                            dimensionResource(
+                                                if (index == 0) {
+                                                    R.dimen.padding_xsmall
+                                                } else {
+                                                    R.dimen.list_segment_gap
+                                                }
+                                            )
+                                        )
+                                    )
+                                    HistoryEntryCardItem(
                                         entry = entry,
                                         timeFormatter = timeFormatter,
                                         groupColorKey = entry.sourceGroupUuid?.let(groupColorsById::get),
@@ -884,13 +938,16 @@ private fun HistoryScreenContent(
                                         onLongClick = { onEntryLongClick(entry) },
                                         onSelectionClick = { onEntryLongClick(entry) }
                                     )
-                                }
-                                if (groupIndex < groupedEntries.size - 1) {
-                                    Spacer(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(4.dp)
-                                    )
+                                    if (
+                                        index == dateEntries.lastIndex &&
+                                        groupIndex < groupedEntries.size - 1
+                                    ) {
+                                        Spacer(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -898,32 +955,38 @@ private fun HistoryScreenContent(
                 }
 
                 if (effectiveSelectedDate != null) {
-                    item(key = "clear-selection") {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 12.dp),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            HrtOutlinedButton(
-                                text = stringResource(R.string.history_clear_selection),
-                                onClick = {
-                                    val selectedDate = uiState.selectedDate
-                                    pendingSelectedDate.value = null
-                                    pendingSelectionResetTargetMonth.value = null
-                                    if (selectedDate != null) {
-                                        onDayClick(selectedDate)
-                                    }
-                                },
-                                icon = Icons.Rounded.Close,
-                                iconModifier = Modifier.size(14.dp),
-                                iconSpacing = 6.dp,
-                                compact = true,
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.primary,
+                    item(
+                        key = "clear-selection",
+                        contentType = "history-clear-selection"
+                    ) {
+                        Column {
+                            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                HrtOutlinedButton(
+                                    text = stringResource(R.string.history_clear_selection),
+                                    onClick = {
+                                        val selectedDate = uiState.selectedDate
+                                        pendingSelectedDate.value = null
+                                        pendingSelectionResetTargetMonth.value = null
+                                        if (selectedDate != null) {
+                                            onDayClick(selectedDate)
+                                        }
+                                    },
+                                    icon = Icons.Rounded.Close,
+                                    iconModifier = Modifier.size(14.dp),
+                                    iconSpacing = 6.dp,
+                                    compact = true,
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary,
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
                 }
@@ -2050,6 +2113,37 @@ private fun historyIndicatorColor(
     return when (mode) {
         HistoryIndicatorColorMode.Neutral -> MaterialTheme.colorScheme.outline
         HistoryIndicatorColorMode.Emphasized -> emphasizedColor
+    }
+}
+
+@Composable
+internal fun HistoryEntryCardItem(
+    entry: MedicationLogEntry,
+    timeFormatter: DateTimeFormatter,
+    groupColorKey: MedicationGroupColorKey?,
+    isFromArchivedGroup: Boolean,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
+    index: Int = 0,
+    count: Int = 1,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onSelectionClick: () -> Unit
+) {
+    key(entry.uuid) {
+        HistoryEntryCard(
+            entry = entry,
+            timeFormatter = timeFormatter,
+            groupColorKey = groupColorKey,
+            isFromArchivedGroup = isFromArchivedGroup,
+            isSelected = isSelected,
+            isSelectionMode = isSelectionMode,
+            index = index,
+            count = count,
+            onClick = onClick,
+            onLongClick = onLongClick,
+            onSelectionClick = onSelectionClick
+        )
     }
 }
 

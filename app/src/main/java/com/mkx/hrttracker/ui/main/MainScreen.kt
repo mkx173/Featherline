@@ -50,6 +50,7 @@ import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.calibration.calibrationAllowedUnitsFor
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.util.calibrationUnitLabel
 import kotlinx.coroutines.delay
@@ -178,15 +179,11 @@ fun MainScreen(
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
         state = topAppBarState
     )
-    val initialScrollToTopSignal = remember { scrollToTopSignal }
-
-    LaunchedEffect(scrollToTopSignal) {
-        if (scrollToTopSignal != initialScrollToTopSignal) {
-            scrollState.animateScrollTo(0)
-            topAppBarState.contentOffset = 0f
-            topAppBarState.heightOffset = 0f
-        }
-    }
+    ScrollToTopSignalEffect(
+        signal = scrollToTopSignal,
+        topAppBarState = topAppBarState,
+        scrollState = scrollState,
+    )
 
     Scaffold(
         modifier = modifier
@@ -194,9 +191,7 @@ fun MainScreen(
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             CenterAlignedTopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    scrollState.animateScrollTo(0)
-                },
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, scrollState),
                 title = {
                     val title = stringResource(R.string.tab_main)
                     Text(

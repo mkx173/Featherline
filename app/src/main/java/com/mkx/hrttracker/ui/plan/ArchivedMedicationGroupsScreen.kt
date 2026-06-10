@@ -32,7 +32,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.ui.components.AppContentContainer
-import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.HrtSectionHeader
+import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -90,9 +91,7 @@ private fun ArchivedMedicationGroupsScreenContent(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToItem(0)
-                },
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 title = {
                     val title = stringResource(R.string.plan_archived_groups)
                     Text(
@@ -131,31 +130,34 @@ private fun ArchivedMedicationGroupsScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValues(),
             ) {
-                item(key = "archived-groups") {
-                    HrtSection(
-                        title = stringResource(R.string.plan_archived_groups),
-                        topPadding = false,
-                    ) {
-                        if (uiState.groups.isEmpty()) {
-                            item {
-                                SupportMessageListItem(
-                                    text = stringResource(R.string.plan_archived_groups_empty),
-                                    painter = painterResource(R.drawable.ic_info),
+                hrtSection(
+                    key = "archived-groups",
+                    header = {
+                        HrtSectionHeader(
+                            text = stringResource(R.string.plan_archived_groups),
+                            topPadding = false,
+                        )
+                    },
+                ) {
+                    if (uiState.groups.isEmpty()) {
+                        item("archived-groups-empty") {
+                            SupportMessageListItem(
+                                text = stringResource(R.string.plan_archived_groups_empty),
+                                painter = painterResource(R.drawable.ic_info),
+                            )
+                        }
+                    } else {
+                        uiState.groups.forEach { group ->
+                            item("archived-group-${group.uuid}") {
+                                ArchivedMedicationGroupCard(
+                                    group = group,
+                                    appLocale = appLocale,
+                                    dateFormatter = dateFormatter,
+                                    timeFormatter = timeFormatter,
+                                    today = uiState.today,
+                                    firstDayOfWeek = uiState.firstDayOfWeek,
+                                    onClick = { onGroupClick(group.uuid) },
                                 )
-                            }
-                        } else {
-                            uiState.groups.forEach { group ->
-                                item {
-                                    ArchivedMedicationGroupCard(
-                                        group = group,
-                                        appLocale = appLocale,
-                                        dateFormatter = dateFormatter,
-                                        timeFormatter = timeFormatter,
-                                        today = uiState.today,
-                                        firstDayOfWeek = uiState.firstDayOfWeek,
-                                        onClick = { onGroupClick(group.uuid) },
-                                    )
-                                }
                             }
                         }
                     }

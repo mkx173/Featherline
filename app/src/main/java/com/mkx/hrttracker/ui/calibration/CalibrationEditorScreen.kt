@@ -334,9 +334,7 @@ private fun CalibrationEditorScreenContent(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    scrollState.animateScrollTo(0)
-                },
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, scrollState),
                 title = {
                     val title = stringResource(
                         if (uiState.isEditing) {

@@ -111,6 +111,7 @@ import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.shortLabelRes
+import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
@@ -859,22 +860,17 @@ internal fun SettingsScreenContent(
         state = topAppBarState
     )
 
-    val initialScrollToTopSignal = remember { scrollToTopSignal }
-    LaunchedEffect(scrollToTopSignal) {
-        if (scrollToTopSignal != initialScrollToTopSignal) {
-            scrollState.animateScrollTo(0)
-            topAppBarState.contentOffset = 0f
-            topAppBarState.heightOffset = 0f
-        }
-    }
+    ScrollToTopSignalEffect(
+        signal = scrollToTopSignal,
+        topAppBarState = topAppBarState,
+        scrollState = scrollState,
+    )
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    scrollState.animateScrollTo(0)
-                },
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, scrollState),
                 title = {
                     val title = stringResource(R.string.tab_settings)
                     Text(
