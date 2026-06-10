@@ -71,6 +71,8 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.HrtSectionHeader
+import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
@@ -317,38 +319,41 @@ private fun PlanBatchAddScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValues(),
             ) {
-                item(key = "group-section") {
-                    HrtSection(
-                        title = stringResource(R.string.plan_batch_add_select_group),
-                        topPadding = false,
-                    ) {
-                        if (uiState.groups.isEmpty()) {
-                            item {
-                                SupportMessageListItem(
-                                    text = stringResource(R.string.plan_empty_state),
-                                    painter = painterResource(R.drawable.ic_info),
+                hrtSection(
+                    key = "group-section",
+                    header = {
+                        HrtSectionHeader(
+                            text = stringResource(R.string.plan_batch_add_select_group),
+                            topPadding = false,
+                        )
+                    },
+                ) {
+                    if (uiState.groups.isEmpty()) {
+                        item("group-section-empty") {
+                            SupportMessageListItem(
+                                text = stringResource(R.string.plan_empty_state),
+                                painter = painterResource(R.drawable.ic_info),
+                            )
+                        }
+                    } else {
+                        uiState.groups.forEach { group ->
+                            item("group-${group.uuid}") {
+                                RegimenGroupCard(
+                                    group = group,
+                                    remindersEnabled = uiState.remindersEnabled,
+                                    hasNotificationAccess = hasNotificationAccess,
+                                    appLocale = appLocale,
+                                    dateFormatter = dateFormatter,
+                                    timeFormatter = timeFormatter,
+                                    upcomingOccurrences = uiState.nextOccurrencesByGroup[group.uuid].orEmpty(),
+                                    today = uiState.today,
+                                    onClick = { onGroupSelected(group.uuid) },
+                                    selected = group.uuid == uiState.selectedGroupUuid,
+                                    showNotificationIcon = false,
+                                    showChevron = false,
+                                    showUpcomingSection = false,
+                                    firstDayOfWeek = uiState.firstDayOfWeek,
                                 )
-                            }
-                        } else {
-                            uiState.groups.forEach { group ->
-                                item {
-                                    RegimenGroupCard(
-                                        group = group,
-                                        remindersEnabled = uiState.remindersEnabled,
-                                        hasNotificationAccess = hasNotificationAccess,
-                                        appLocale = appLocale,
-                                        dateFormatter = dateFormatter,
-                                        timeFormatter = timeFormatter,
-                                        upcomingOccurrences = uiState.nextOccurrencesByGroup[group.uuid].orEmpty(),
-                                        today = uiState.today,
-                                        onClick = { onGroupSelected(group.uuid) },
-                                        selected = group.uuid == uiState.selectedGroupUuid,
-                                        showNotificationIcon = false,
-                                        showChevron = false,
-                                        showUpcomingSection = false,
-                                        firstDayOfWeek = uiState.firstDayOfWeek,
-                                    )
-                                }
                             }
                         }
                     }
