@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.navigation
 
 import androidx.compose.runtime.saveable.SaverScope
+import androidx.lifecycle.Lifecycle
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -419,6 +420,20 @@ class HrtTrackerNavHostTest {
         )
 
         assertEquals(request, roundTrip(request))
+    }
+
+    @Test
+    fun canOpenOverlaySheetFrom_allowsTapsFromResumedOrigin() {
+        assertTrue(canOpenOverlaySheetFrom(Lifecycle.State.RESUMED))
+    }
+
+    @Test
+    fun canOpenOverlaySheetFrom_dropsTapsOnceNavigationHasStarted() {
+        // Compose Navigation demotes the outgoing entry to STARTED the moment a
+        // navigation begins, so a row tap racing that navigation must not open
+        // the NavHost-hosted log sheet over the destination page.
+        assertFalse(canOpenOverlaySheetFrom(Lifecycle.State.STARTED))
+        assertFalse(canOpenOverlaySheetFrom(Lifecycle.State.CREATED))
     }
 
     private val scope = SaverScope { true }

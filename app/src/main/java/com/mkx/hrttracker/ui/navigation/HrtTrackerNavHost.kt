@@ -669,17 +669,19 @@ fun HrtTrackerNavHost(
                 popEnterTransition = { hrtNavHostPopEnterTransition(density, layoutDirection) },
                 popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
             ) {
-                composable(Screen.Main.route) {
+                composable(Screen.Main.route) { backStackEntry ->
                     RoutedTopChromeHazeProvider {
                         MainScreen(
                             modifier,
                             scrollToTopSignal = mainScrollToTopSignal,
                             highlightEffectsEnabled = homeDeepLinkHighlightEffectsEnabled,
                             onEntryClick = { request ->
-                                medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                    entryIds = request.entryUuids.map(UUID::toString),
-                                    editSnapshot = request.toMedicationLogEntryEditSnapshot(),
-                                )
+                                if (canOpenOverlaySheetFrom(backStackEntry.lifecycle.currentState)) {
+                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                        entryIds = request.entryUuids.map(UUID::toString),
+                                        editSnapshot = request.toMedicationLogEntryEditSnapshot(),
+                                    )
+                                }
                             },
                             onMedicineDetailClick = { medicineId ->
                                 // Root the detail under the current tab (Home) so the
@@ -703,7 +705,10 @@ fun HrtTrackerNavHost(
                                 )
                             },
                             onQuickLogDoseClick = { request ->
-                                if (request.medicationCount > 0) {
+                                if (
+                                    request.medicationCount > 0 &&
+                                    canOpenOverlaySheetFrom(backStackEntry.lifecycle.currentState)
+                                ) {
                                     medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
                                         quickLogRequest = MedicationLogEntryQuickLogRequest(
                                             groupId = request.groupUuid,
@@ -725,7 +730,7 @@ fun HrtTrackerNavHost(
                         )
                     }
                 }
-                composable(Screen.Plan.route) {
+                composable(Screen.Plan.route) { backStackEntry ->
                     RoutedTopChromeHazeProvider {
                         PlanScreen(
                             modifier = modifier,
@@ -739,12 +744,17 @@ fun HrtTrackerNavHost(
                                 )
                             },
                             onEntryClick = { entryIds ->
-                                medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                    entryIds = entryIds.map(UUID::toString)
-                                )
+                                if (canOpenOverlaySheetFrom(backStackEntry.lifecycle.currentState)) {
+                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                        entryIds = entryIds.map(UUID::toString)
+                                    )
+                                }
                             },
                             onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medication, medicationCount ->
-                                if (medicationCount > 0) {
+                                if (
+                                    medicationCount > 0 &&
+                                    canOpenOverlaySheetFrom(backStackEntry.lifecycle.currentState)
+                                ) {
                                     medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
                                         quickLogRequest = MedicationLogEntryQuickLogRequest(
                                             groupId = groupId,
@@ -838,15 +848,17 @@ fun HrtTrackerNavHost(
                             defaultValue = Screen.Plan.route
                         }
                     )
-                ) {
+                ) { backStackEntry ->
                     RoutedTopChromeHazeProvider {
                         HistoryScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
                             onEntryClick = { entryIds ->
-                                medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                    entryIds = entryIds.map(UUID::toString)
-                                )
+                                if (canOpenOverlaySheetFrom(backStackEntry.lifecycle.currentState)) {
+                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                        entryIds = entryIds.map(UUID::toString)
+                                    )
+                                }
                             }
                         )
                     }
@@ -1199,6 +1211,14 @@ private fun NavHostController.popBackStackSafely(
     }
     return popBackStack(route = route, inclusive = inclusive)
 }
+
+// Tap-debounced overlay-sheet open, mirroring popBackStackSafely: a row tap can
+// race a simultaneous navigation tap, and the NavHost-hosted log sheet would
+// then open over the destination page. Compose Navigation drops the outgoing
+// entry's lifecycle to STARTED the moment navigation starts, so sheet requests
+// from a non-RESUMED origin are dropped.
+internal fun canOpenOverlaySheetFrom(originState: androidx.lifecycle.Lifecycle.State): Boolean =
+    originState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
 
 private fun NavHostController.navigateToTopLevelScreen(
     targetScreen: Screen,
