@@ -81,6 +81,7 @@ import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
+import com.mkx.hrttracker.ui.components.LocalNavigationLock
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.rememberChromeHazeState
@@ -394,6 +395,7 @@ fun HrtTrackerNavHost(
     var medicationLogEntrySheetRequest by rememberSaveable(stateSaver = MedicationLogEntrySheetRequestSaver) {
         mutableStateOf<MedicationLogEntrySheetRequest?>(null)
     }
+    val navigationLock = LocalNavigationLock.current
     var mainScrollToTopSignal by remember { mutableIntStateOf(0) }
     var planScrollToTopSignal by remember { mutableIntStateOf(0) }
     var settingsScrollToTopSignal by remember { mutableIntStateOf(0) }
@@ -597,6 +599,19 @@ fun HrtTrackerNavHost(
         )
     }
 
+    val topLevelNavigationChromeLocked = isTopLevelNavigationChromeLocked(
+        isNavigationLockHeld = navigationLock.isLocked,
+        hasPendingLogEntrySheetRequest = medicationLogEntrySheetRequest != null,
+        hasPendingStockOptInSheet = optInTarget != null,
+    )
+    // Swallow back while navigation is locked. Open modal windows dispatch
+    // back to their own window (this handler never sees it), so this only
+    // absorbs back during the in-flight mutation windows — e.g. between a
+    // delete-confirm dialog closing and the editor's exit pop — where a pop
+    // would race the pending work. Composed after the navigate-home handler
+    // above so the lock takes precedence over it.
+    BackHandler(enabled = topLevelNavigationChromeLocked) { }
+
     val navigationSuiteType =
         NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfoV2())
     val navigationChromeHazeState = rememberChromeHazeState()
@@ -610,13 +625,25 @@ fun HrtTrackerNavHost(
                 item(
                     selected = selectedBottomScreen == navItem.screen,
                     onClick = {
-                        when (
+                        // Re-evaluated at tap time (not captured at composition)
+                        // so a row tap that just requested a sheet in this same
+                        // frame already locks the chrome.
+                        val chromeLocked = isTopLevelNavigationChromeLocked(
+                            isNavigationLockHeld = navigationLock.isLocked,
+                            hasPendingLogEntrySheetRequest =
+                                medicationLogEntrySheetRequest != null,
+                            hasPendingStockOptInSheet = optInTarget != null,
+                        )
+                        val tapAction = if (chromeLocked) {
+                            TopLevelNavigationTapAction.NONE
+                        } else {
                             topLevelNavigationTapAction(
                                 tappedScreen = navItem.screen,
                                 selectedBottomScreen = selectedBottomScreen,
                                 currentRoute = currentRoute,
                             )
-                        ) {
+                        }
+                        when (tapAction) {
                             TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
                                 navController.popBackStackSafely(
                                     navItem.screen.route,
@@ -1225,6 +1252,19 @@ private fun NavHostController.popBackStackSafely(
     }
     return popBackStack(route = route, inclusive = inclusive)
 }
+
+// Top-level chrome (nav bar/rail taps, back during in-flight work) is ignored
+// while a modal is open or a mutation is being written. The NavHost-hosted
+// sheet requests are checked directly rather than through the
+// composition-reported lock: they become non-null synchronously inside the row
+// tap that opens the sheet, before the sheet's window exists to block chrome
+// taps itself.
+internal fun isTopLevelNavigationChromeLocked(
+    isNavigationLockHeld: Boolean,
+    hasPendingLogEntrySheetRequest: Boolean,
+    hasPendingStockOptInSheet: Boolean,
+): Boolean =
+    isNavigationLockHeld || hasPendingLogEntrySheetRequest || hasPendingStockOptInSheet
 
 // Tap-debounced overlay-sheet open, mirroring popBackStackSafely: a row tap can
 // race a simultaneous navigation tap, and the NavHost-hosted log sheet would

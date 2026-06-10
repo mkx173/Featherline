@@ -423,6 +423,50 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
+    fun chromeUnlocked_whenNoModalSheetOrMutationIsPending() {
+        assertFalse(
+            isTopLevelNavigationChromeLocked(
+                isNavigationLockHeld = false,
+                hasPendingLogEntrySheetRequest = false,
+                hasPendingStockOptInSheet = false,
+            )
+        )
+    }
+
+    @Test
+    fun chromeLocked_whileModalOrMutationLockIsHeld() {
+        assertTrue(
+            isTopLevelNavigationChromeLocked(
+                isNavigationLockHeld = true,
+                hasPendingLogEntrySheetRequest = false,
+                hasPendingStockOptInSheet = false,
+            )
+        )
+    }
+
+    @Test
+    fun chromeLocked_theInstantAHostedSheetRequestIsSet() {
+        // The NavHost-hosted sheet requests are checked directly rather than
+        // through the composition-reported lock: they become non-null
+        // synchronously inside the row tap that opens the sheet, before the
+        // sheet's window exists to block chrome taps itself.
+        assertTrue(
+            isTopLevelNavigationChromeLocked(
+                isNavigationLockHeld = false,
+                hasPendingLogEntrySheetRequest = true,
+                hasPendingStockOptInSheet = false,
+            )
+        )
+        assertTrue(
+            isTopLevelNavigationChromeLocked(
+                isNavigationLockHeld = false,
+                hasPendingLogEntrySheetRequest = false,
+                hasPendingStockOptInSheet = true,
+            )
+        )
+    }
+
+    @Test
     fun canOpenOverlaySheetFrom_allowsTapsFromResumedOrigin() {
         assertTrue(canOpenOverlaySheetFrom(Lifecycle.State.RESUMED))
     }

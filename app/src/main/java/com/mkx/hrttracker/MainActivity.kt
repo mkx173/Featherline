@@ -55,6 +55,8 @@ import com.mkx.hrttracker.ui.HrtTrackerApp
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalCjkTextOffsetEnabled
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
+import com.mkx.hrttracker.ui.components.LocalNavigationLock
+import com.mkx.hrttracker.ui.components.NavigationLockState
 import com.mkx.hrttracker.ui.components.effectiveHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.hazeSourceArea
 import com.mkx.hrttracker.ui.components.rememberChromeHazeState
@@ -214,6 +216,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            val navigationLock = remember { NavigationLockState() }
             CompositionLocalProvider(
                 LocalContext provides localizedContext,
                 LocalConfiguration provides localizedContext.resources.configuration,
@@ -222,6 +225,7 @@ class MainActivity : AppCompatActivity() {
                 LocalActivity provides this@MainActivity,
                 LocalCjkTextOffsetEnabled provides settingsState.cjkTextOffsetEnabled,
                 LocalHazeBlurEnabled provides appHazeBlurEnabled,
+                LocalNavigationLock provides navigationLock,
             ) {
                 HrtTrackerTheme(
                     darkTheme = isDarkTheme,

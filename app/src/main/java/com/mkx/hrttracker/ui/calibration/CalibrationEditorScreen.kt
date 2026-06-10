@@ -67,6 +67,7 @@ import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
+import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
@@ -138,6 +139,13 @@ fun CalibrationEditorScreen(
         ).show()
         viewModel.consumeCrossZoneToast()
     }
+
+    // Locks top-level navigation chrome while a save/delete is being written
+    // and until the exit pop fires. Loading deliberately does not lock.
+    NavigationLockEffect(
+        active = uiState.isSaving || uiState.isDeleting ||
+                uiState.isSaved || uiState.isDeleted,
+    )
 
     // The exit pop is silently dropped if it races an in-flight navigation
     // (popBackStackSafely only pops a RESUMED entry), so wait for RESUMED

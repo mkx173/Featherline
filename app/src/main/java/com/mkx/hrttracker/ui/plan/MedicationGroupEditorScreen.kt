@@ -113,6 +113,7 @@ import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
+import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
@@ -298,6 +299,8 @@ fun MedicationGroupEditorScreen(
         lifecycle.withResumed { }
         navigateAfterSave(target)
     }
+
+    NavigationLockEffect(active = isMedicationGroupEditorNavigationLocked(uiState))
 
     LaunchedEffect(hasNotificationAccess) {
         if (!hasNotificationAccess) {
@@ -1877,6 +1880,24 @@ internal fun resolveMedicationGroupEditorSaveNavigationTarget(
 // dropped one-shot event left the editor busy-locked forever on a deleted
 // group. The flags survive in the retained ViewModel, so the navigation
 // effect re-fires when the editor is restored and the exit self-heals.
+// Locks top-level navigation chrome from the moment a mutation starts until
+// the exit navigation fires, so a chrome tap landing right after a confirm
+// dialog closes cannot navigate away mid-write. Initial load deliberately
+// does not lock: a slow group load must not trap the user on the editor.
+internal fun isMedicationGroupEditorNavigationLocked(
+    uiState: MedicationGroupEditorUiState,
+): Boolean {
+    return uiState.isSaving ||
+            uiState.isDeleting ||
+            uiState.isArchiving ||
+            uiState.isRecreatingAfterArchive ||
+            uiState.isDeletingRelatedEntries ||
+            uiState.isSaved ||
+            uiState.isFinishingAfterSave ||
+            uiState.isDeleted ||
+            uiState.isFinishingAfterDeleteOrArchive
+}
+
 internal fun resolveMedicationGroupEditorExitNavigationTarget(
     uiState: MedicationGroupEditorUiState,
     openedFromArchivedGroupsPage: Boolean,

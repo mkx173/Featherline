@@ -67,6 +67,7 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeDatePickerDialog
+import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtSection
@@ -217,6 +218,10 @@ private fun PlanBatchAddScreenContent(
             null -> Unit
         }
     }
+
+    // Locks top-level navigation chrome while the batch save is being written
+    // so a chrome tap can't navigate away mid-write.
+    NavigationLockEffect(active = uiState.isSaving)
 
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {

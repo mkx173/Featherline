@@ -1,7 +1,9 @@
 package com.mkx.hrttracker.ui.plan
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -65,6 +67,45 @@ class MedicationGroupEditorExitNavigationTest {
                 ),
                 openedFromArchivedGroupsPage = false,
             )
+        )
+    }
+
+    @Test
+    fun navigationLocked_fromMutationStart_untilExitFires() {
+        // The lock must hold continuously from the moment the user confirms a
+        // mutation until the exit pop fires, so a chrome tap landing right
+        // after the confirm dialog closes cannot navigate away mid-delete.
+        assertTrue(
+            isMedicationGroupEditorNavigationLocked(
+                MedicationGroupEditorUiState(isDeleting = true)
+            )
+        )
+        assertTrue(
+            isMedicationGroupEditorNavigationLocked(
+                MedicationGroupEditorUiState(
+                    isDeleted = true,
+                    isFinishingAfterDeleteOrArchive = true,
+                )
+            )
+        )
+        assertTrue(
+            isMedicationGroupEditorNavigationLocked(
+                MedicationGroupEditorUiState(isSaving = true)
+            )
+        )
+    }
+
+    @Test
+    fun navigationNotLocked_whileMerelyLoadingOrEditing() {
+        // Initial load deliberately does not lock: a slow group load must not
+        // trap the user on the editor.
+        assertFalse(
+            isMedicationGroupEditorNavigationLocked(
+                MedicationGroupEditorUiState(isLoadingGroupForEditing = true)
+            )
+        )
+        assertFalse(
+            isMedicationGroupEditorNavigationLocked(MedicationGroupEditorUiState())
         )
     }
 

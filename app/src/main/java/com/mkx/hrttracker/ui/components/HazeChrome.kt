@@ -353,6 +353,10 @@ fun HazeModalBottomSheet(
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    // Every modal window locks top-level navigation for its whole composition,
+    // covering the appear/disappear frames where the window doesn't yet (or no
+    // longer) blocks chrome taps itself.
+    NavigationLockEffect(active = true)
     MaterialModalBottomSheet(
         onDismissRequest = onDismissRequest,
         modifier = modifier,
@@ -432,6 +436,7 @@ fun HazeAlertDialog(
     tonalElevation: Dp = AlertDialogDefaults.TonalElevation,
     properties: DialogProperties = DialogProperties(),
 ) {
+    NavigationLockEffect(active = true)
     MaterialAlertDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,
@@ -458,6 +463,7 @@ fun HazeBasicAlertDialog(
     properties: DialogProperties = DialogProperties(),
     content: @Composable () -> Unit,
 ) {
+    NavigationLockEffect(active = true)
     MaterialBasicAlertDialog(
         onDismissRequest = onDismissRequest,
         modifier = modifier.hazeDialog(shape = shape),
@@ -499,6 +505,7 @@ fun HazeDatePickerDialog(
 ) {
     val hazeColors = hazeDatePickerColors(colors)
 
+    NavigationLockEffect(active = true)
     MaterialDatePickerDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,
@@ -525,6 +532,7 @@ fun HazeTimePickerDialog(
     containerColor: Color = TimePickerDialogDefaults.containerColor,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    NavigationLockEffect(active = true)
     MaterialTimePickerDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,
