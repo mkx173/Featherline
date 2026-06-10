@@ -97,6 +97,7 @@ import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicationCard
+import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
@@ -138,6 +139,12 @@ fun MedicineDetailScreen(
     val archiveBlockedMessage = stringResource(R.string.medicine_archive_blocked_by_groups)
     val archiveFailureMessage = stringResource(R.string.medicine_archive_failure)
     val stockMutationFailureMessage = stringResource(R.string.medicine_stock_update_failure)
+
+    // Hold the navigation lock while the archive write is in flight. The confirm
+    // dialog closes (releasing its own lock) before the write runs, so without
+    // this a back press or same-tab chrome tap would destroy this entry and
+    // cancel the user-confirmed archive mid-write.
+    NavigationLockEffect(active = uiState.archiveInProgress)
 
     LaunchedEffect(uiState.saveResult) {
         val result = uiState.saveResult ?: return@LaunchedEffect

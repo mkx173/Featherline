@@ -7,12 +7,14 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.settings.SettingsState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -55,12 +57,16 @@ class CalibrationViewModel @Inject constructor(
 
         viewModelScope.launch {
             isDeletingAllEntries.value = true
-            val result = runCatching {
-                bloodTestRepository.deleteAllPanels()
-            }.fold(
-                onSuccess = { CalibrationDeleteAllEntriesResult.SUCCESS },
-                onFailure = { CalibrationDeleteAllEntriesResult.FAILURE },
-            )
+            // Must complete even if the coroutine is cancelled mid-write — a
+            // partially applied delete-all leaves calibration panels stranded.
+            val result = withContext(NonCancellable) {
+                runCatching {
+                    bloodTestRepository.deleteAllPanels()
+                }.fold(
+                    onSuccess = { CalibrationDeleteAllEntriesResult.SUCCESS },
+                    onFailure = { CalibrationDeleteAllEntriesResult.FAILURE },
+                )
+            }
             isDeletingAllEntries.value = false
             deleteAllEntriesResult.value = result
         }

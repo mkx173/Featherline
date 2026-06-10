@@ -467,17 +467,47 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
-    fun canOpenOverlaySheetFrom_allowsTapsFromResumedOrigin() {
-        assertTrue(canOpenOverlaySheetFrom(Lifecycle.State.RESUMED))
+    fun canOpenOverlaySheetFrom_allowsTapsFromResumedCurrentDestination() {
+        assertTrue(
+            canOpenOverlaySheetFrom(
+                originState = Lifecycle.State.RESUMED,
+                isCurrentDestination = true,
+            )
+        )
     }
 
     @Test
-    fun canOpenOverlaySheetFrom_dropsTapsOnceNavigationHasStarted() {
+    fun canOpenOverlaySheetFrom_allowsTapsWhileTheCurrentEntryIsStillAnimatingIn() {
+        // A freshly pushed (or pop-restored) entry sits at STARTED for its whole
+        // ~300 ms enter transition while its content is already composed and
+        // tappable. It is still the current destination, so a row tap there is
+        // legitimate and must open the sheet rather than being silently dropped.
+        assertTrue(
+            canOpenOverlaySheetFrom(
+                originState = Lifecycle.State.STARTED,
+                isCurrentDestination = true,
+            )
+        )
+    }
+
+    @Test
+    fun canOpenOverlaySheetFrom_dropsTapsFromAnEntryThatIsNoLongerCurrent() {
         // Compose Navigation demotes the outgoing entry to STARTED the moment a
-        // navigation begins, so a row tap racing that navigation must not open
-        // the NavHost-hosted log sheet over the destination page.
-        assertFalse(canOpenOverlaySheetFrom(Lifecycle.State.STARTED))
-        assertFalse(canOpenOverlaySheetFrom(Lifecycle.State.CREATED))
+        // navigation begins, and the back queue makes the destination current at
+        // once — so a row tap racing that navigation is no longer the current
+        // destination and must not open the sheet over the destination page.
+        assertFalse(
+            canOpenOverlaySheetFrom(
+                originState = Lifecycle.State.STARTED,
+                isCurrentDestination = false,
+            )
+        )
+        assertFalse(
+            canOpenOverlaySheetFrom(
+                originState = Lifecycle.State.CREATED,
+                isCurrentDestination = true,
+            )
+        )
     }
 
     private val scope = SaverScope { true }

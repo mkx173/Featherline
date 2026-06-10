@@ -332,6 +332,19 @@ fun MedicationGroupEditorScreen(
         )
     }
 
+    // "+ Add medication" and the slot editor's "change medicine" both navigate
+    // forward to the picker. Drop those taps while the editor is finishing a
+    // save (or otherwise busy): a mid-save jump to the picker returns to an
+    // editor whose retained finishing flags immediately re-fire the exit pop,
+    // and saveGroup then rejects every further save — so the just-picked slot is
+    // silently discarded. The chrome NavigationLock cannot cover this because
+    // the picker is a forward navigation from screen content, not a chrome tap.
+    val openMedicinePickerWhenIdle: (String) -> Unit = { localId ->
+        if (!isMedicationGroupEditorBusy(uiState)) {
+            onOpenMedicinePicker(localId)
+        }
+    }
+
     MedicationGroupEditorScreenContent(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
@@ -407,7 +420,7 @@ fun MedicationGroupEditorScreen(
         // generates a fresh slot localId per tap so the result wiring is unique.
         // The editor sheet is opened pre-filled when the picker returns, via
         // beginAddMedicationWithMedicine(localId, uuid) — see HrtTrackerNavHost.
-        onAddMedication = { onOpenMedicinePicker(UUID.randomUUID().toString()) },
+        onAddMedication = { openMedicinePickerWhenIdle(UUID.randomUUID().toString()) },
         onMedicationClick = viewModel::showMedicationEditor,
         onRemoveMedication = viewModel::removeMedication,
         onDismissMedicationEditor = viewModel::dismissMedicationEditor,
@@ -415,7 +428,7 @@ fun MedicationGroupEditorScreen(
         onConsumeMedicationEditorInfoMessage = viewModel::consumeMedicationEditorInfoMessage,
         onMedicineDraftChange = viewModel::updateEditingMedicineDraft,
         onDoseInstructionDraftChange = viewModel::updateEditingDoseInstructionDraft,
-        onOpenMedicinePicker = onOpenMedicinePicker,
+        onOpenMedicinePicker = openMedicinePickerWhenIdle,
         onEditingMedicationCountTextChange = viewModel::updateEditingMedicationCountText,
         onDecreaseEditingMedicationCount = viewModel::decreaseEditingMedicationCount,
         onIncreaseEditingMedicationCount = viewModel::increaseEditingMedicationCount,

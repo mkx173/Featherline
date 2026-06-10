@@ -41,6 +41,16 @@ class StockTrackingNudgeViewModel @Inject constructor(
     private val _optInTarget = MutableStateFlow<MedicineStockProjection?>(null)
     val optInTarget: StateFlow<MedicineStockProjection?> = _optInTarget.asStateFlow()
 
+    // True from the moment the nudge action is tapped until its projection
+    // either resolves into [optInTarget] or is abandoned. The projection fetch
+    // runs in a coroutine for up to STOCK_NUDGE_PROJECTION_WAIT_MILLIS, so
+    // without this flag a navigation tap in that window would move the page out
+    // from under the opt-in sheet and it would later open over the destination.
+    // The NavHost folds this into its chrome lock so navigation is held back for
+    // the resolve, exactly as optInTarget itself holds it once the sheet is up.
+    private val _optInResolving = MutableStateFlow(false)
+    val optInResolving: StateFlow<Boolean> = _optInResolving.asStateFlow()
+
     val enabled: Flow<Boolean> = gate.enabled
 
     private val _autoDisabledEvents = Channel<Unit>(Channel.BUFFERED)
@@ -75,17 +85,28 @@ class StockTrackingNudgeViewModel @Inject constructor(
     fun onNudgeActionTapped() {
         val medicineId = _pendingNudge.value?.uuid ?: return
         _pendingNudge.value = null
+        // Set synchronously, before the launch, so the chrome lock is held the
+        // instant the tap returns — a navigation tap in the same frame already
+        // sees the lock and cannot move the page out from under the sheet.
+        _optInResolving.value = true
         viewModelScope.launch {
-            val projection = stockRepository.getCachedProjection(medicineId)
-                ?: withTimeoutOrNull(STOCK_NUDGE_PROJECTION_WAIT_MILLIS) {
-                    stockRepository.observeProjections()
-                        .mapNotNull { projections ->
-                            projections.firstOrNull { it.medicine.uuid == medicineId }
-                        }
-                        .first()
-                }
-                ?: return@launch
-            _optInTarget.value = projection
+            try {
+                val projection = stockRepository.getCachedProjection(medicineId)
+                    ?: withTimeoutOrNull(STOCK_NUDGE_PROJECTION_WAIT_MILLIS) {
+                        stockRepository.observeProjections()
+                            .mapNotNull { projections ->
+                                projections.firstOrNull { it.medicine.uuid == medicineId }
+                            }
+                            .first()
+                    }
+                    ?: return@launch
+                _optInTarget.value = projection
+            } finally {
+                // optInTarget, once set above, carries the lock from here on; if
+                // the projection never resolved this releases the lock with no
+                // sheet to show.
+                _optInResolving.value = false
+            }
         }
     }
 

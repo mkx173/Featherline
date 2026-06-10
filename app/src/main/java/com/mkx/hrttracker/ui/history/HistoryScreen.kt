@@ -115,6 +115,7 @@ import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
+import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
@@ -168,6 +169,14 @@ fun HistoryScreen(
     )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Hold the navigation lock while a bulk delete runs. The confirm dialog
+    // closes before the delete + reminder reschedule do, so without this a back
+    // press or chrome tap would cancel viewModelScope mid-write, leaving entries
+    // half-deleted and reminders inconsistent.
+    NavigationLockEffect(
+        active = uiState.isDeletingSelectedEntries || uiState.isDeletingAllEntries,
+    )
 
     DisposableEffect(viewModel) {
         onDispose {

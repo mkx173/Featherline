@@ -49,6 +49,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.mkx.hrttracker.R
@@ -422,10 +423,20 @@ fun HrtTrackerNavHost(
         .collectAsStateWithLifecycle(initialValue = true)
     val pendingNudge by stockNudgeViewModel.pendingNudge.collectAsStateWithLifecycle()
     val optInTarget by stockNudgeViewModel.optInTarget.collectAsStateWithLifecycle()
+    val optInResolving by stockNudgeViewModel.optInResolving.collectAsStateWithLifecycle()
     val layoutDirection = LocalLayoutDirection.current
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
+    // Whether a NavHost-hosted overlay sheet may open from [entry] right now —
+    // see canOpenOverlaySheetFrom. Captured once so the five row/quick-log call
+    // sites stay in lockstep and none skips the current-destination check.
+    val canOpenOverlaySheet: (NavBackStackEntry) -> Boolean = { entry ->
+        canOpenOverlaySheetFrom(
+            originState = entry.lifecycle.currentState,
+            isCurrentDestination = entry == currentBackStackEntry,
+        )
+    }
     val explicitParentRoute = currentBackStackEntry?.arguments?.getString(TOP_LEVEL_PARENT_ARG)
     val selectedBottomScreen =
         Screen.topLevelScreenForRoute(explicitParentRoute)
@@ -602,15 +613,8 @@ fun HrtTrackerNavHost(
     val topLevelNavigationChromeLocked = isTopLevelNavigationChromeLocked(
         isNavigationLockHeld = navigationLock.isLocked,
         hasPendingLogEntrySheetRequest = medicationLogEntrySheetRequest != null,
-        hasPendingStockOptInSheet = optInTarget != null,
+        hasPendingStockOptInSheet = optInTarget != null || optInResolving,
     )
-    // Swallow back while navigation is locked. Open modal windows dispatch
-    // back to their own window (this handler never sees it), so this only
-    // absorbs back during the in-flight mutation windows — e.g. between a
-    // delete-confirm dialog closing and the editor's exit pop — where a pop
-    // would race the pending work. Composed after the navigate-home handler
-    // above so the lock takes precedence over it.
-    BackHandler(enabled = topLevelNavigationChromeLocked) { }
 
     val navigationSuiteType =
         NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfoV2())
@@ -632,7 +636,7 @@ fun HrtTrackerNavHost(
                             isNavigationLockHeld = navigationLock.isLocked,
                             hasPendingLogEntrySheetRequest =
                                 medicationLogEntrySheetRequest != null,
-                            hasPendingStockOptInSheet = optInTarget != null,
+                            hasPendingStockOptInSheet = optInTarget != null || optInResolving,
                         )
                         val tapAction = if (chromeLocked) {
                             TopLevelNavigationTapAction.NONE
@@ -704,7 +708,7 @@ fun HrtTrackerNavHost(
                             scrollToTopSignal = mainScrollToTopSignal,
                             highlightEffectsEnabled = homeDeepLinkHighlightEffectsEnabled,
                             onEntryClick = { request ->
-                                if (canOpenOverlaySheetFrom(backStackEntry.lifecycle.currentState)) {
+                                if (canOpenOverlaySheet(backStackEntry)) {
                                     medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
                                         entryIds = request.entryUuids.map(UUID::toString),
                                         editSnapshot = request.toMedicationLogEntryEditSnapshot(),
@@ -735,7 +739,7 @@ fun HrtTrackerNavHost(
                             onQuickLogDoseClick = { request ->
                                 if (
                                     request.medicationCount > 0 &&
-                                    canOpenOverlaySheetFrom(backStackEntry.lifecycle.currentState)
+                                    canOpenOverlaySheet(backStackEntry)
                                 ) {
                                     medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
                                         quickLogRequest = MedicationLogEntryQuickLogRequest(
@@ -772,7 +776,7 @@ fun HrtTrackerNavHost(
                                 )
                             },
                             onEntryClick = { entryIds ->
-                                if (canOpenOverlaySheetFrom(backStackEntry.lifecycle.currentState)) {
+                                if (canOpenOverlaySheet(backStackEntry)) {
                                     medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
                                         entryIds = entryIds.map(UUID::toString)
                                     )
@@ -781,7 +785,7 @@ fun HrtTrackerNavHost(
                             onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medication, medicationCount ->
                                 if (
                                     medicationCount > 0 &&
-                                    canOpenOverlaySheetFrom(backStackEntry.lifecycle.currentState)
+                                    canOpenOverlaySheet(backStackEntry)
                                 ) {
                                     medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
                                         quickLogRequest = MedicationLogEntryQuickLogRequest(
@@ -882,7 +886,7 @@ fun HrtTrackerNavHost(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
                             onEntryClick = { entryIds ->
-                                if (canOpenOverlaySheetFrom(backStackEntry.lifecycle.currentState)) {
+                                if (canOpenOverlaySheet(backStackEntry)) {
                                     medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
                                         entryIds = entryIds.map(UUID::toString)
                                     )
@@ -1225,6 +1229,16 @@ fun HrtTrackerNavHost(
                     )
                 }
             }
+            // Swallow back while navigation is locked. Open modal windows
+            // dispatch back to their own window (this handler never sees it), so
+            // this only absorbs back during the in-flight mutation windows —
+            // e.g. between a delete-confirm dialog closing and the editor's exit
+            // pop — where a pop would race the pending work. Registered as the
+            // last child inside the NavHost's Box so its OnBackPressedCallback is
+            // added after NavHost's own PredictiveBackHandler and therefore wins
+            // dispatch precedence; placed at the shell level it lost to that
+            // handler on every pushed route (backstack > 1) and was dead there.
+            BackHandler(enabled = topLevelNavigationChromeLocked) { }
         }
     }
 }
@@ -1268,11 +1282,20 @@ internal fun isTopLevelNavigationChromeLocked(
 
 // Tap-debounced overlay-sheet open, mirroring popBackStackSafely: a row tap can
 // race a simultaneous navigation tap, and the NavHost-hosted log sheet would
-// then open over the destination page. Compose Navigation drops the outgoing
-// entry's lifecycle to STARTED the moment navigation starts, so sheet requests
-// from a non-RESUMED origin are dropped.
-internal fun canOpenOverlaySheetFrom(originState: androidx.lifecycle.Lifecycle.State): Boolean =
-    originState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+// then open over the destination page. Compose Navigation drops an entry's
+// lifecycle to STARTED both while it animates *out* (the racing navigation —
+// drop the sheet) and while a freshly pushed entry animates *in* (still
+// settling, but a legitimate place to open a sheet). Keying off RESUMED alone
+// conflated the two and silently dropped taps for the whole ~300 ms enter
+// transition. They are told apart by whether the entry is still the current
+// back-stack destination: navigate() updates the back queue synchronously, so
+// an outgoing entry stops being current the instant the race is lost, while an
+// incoming entry is current from the first frame of its transition.
+internal fun canOpenOverlaySheetFrom(
+    originState: androidx.lifecycle.Lifecycle.State,
+    isCurrentDestination: Boolean,
+): Boolean =
+    isCurrentDestination && originState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
 
 private fun NavHostController.navigateToTopLevelScreen(
     targetScreen: Screen,
