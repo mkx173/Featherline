@@ -120,7 +120,6 @@ import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.scrollToTop
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -163,7 +162,6 @@ fun HistoryScreen(
     modifier: Modifier = Modifier,
     onEntryClick: (Set<UUID>) -> Unit,
     onNavigateBack: (() -> Unit)? = null,
-    scrollToTopSignal: Int = 0,
     viewModel: HistoryViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
     )
@@ -203,7 +201,6 @@ fun HistoryScreen(
             viewModel.setDisplayedMonth(month, clearSelection)
         },
         onNavigateBack = onNavigateBack,
-        scrollToTopSignal = scrollToTopSignal,
         modifier = modifier
     )
 }
@@ -227,7 +224,6 @@ private fun HistoryScreenContent(
     onDeleteAllResultConsumed: () -> Unit,
     onDisplayedMonthChange: (YearMonth, Boolean) -> Unit,
     onNavigateBack: (() -> Unit)? = null,
-    scrollToTopSignal: Int = 0,
 ) {
     val appLocale = rememberAppLocale()
     val context = LocalContext.current
@@ -363,13 +359,6 @@ private fun HistoryScreenContent(
     LaunchedEffect(uiState.selectedDate, pendingSelectionResetTargetMonth.value) {
         if (uiState.selectedDate == null) {
             pendingSelectionResetTargetMonth.value = null
-        }
-    }
-
-    val initialScrollToTopSignal = remember { scrollToTopSignal }
-    LaunchedEffect(scrollToTopSignal) {
-        if (scrollToTopSignal != initialScrollToTopSignal) {
-            topAppBarState.scrollToTop(listState)
         }
     }
 
