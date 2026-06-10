@@ -29,12 +29,13 @@ suspend fun LazyListState.animateScrollToTop(
         val scrollScope = LazyLayoutScrollScope(this@animateScrollToTop, this)
 
         // From very far down, gliding the whole way would be a blur that composes every
-        // item in between. Snap to within a few viewports of the top and animate the rest.
-        val maxAnimatedDistance =
-            layoutInfo.viewportSize.height.toFloat() * MAX_ANIMATED_VIEWPORTS
-        if (-scrollScope.calculateDistanceTo(0) > maxAnimatedDistance) {
-            scrollScope.snapToItem(index = 0, offset = 0)
-            scrollBy(maxAnimatedDistance)
+        // item in between. Snap to within a few viewports' worth of items of the top and
+        // animate the rest. Snapping by item index — not by the pixel estimate, which can
+        // overshoot the real position when the visible items are larger than the ones
+        // above — guarantees the snap only ever moves the list closer to the top.
+        val maxAnimatedItems = layoutInfo.visibleItemsInfo.size * MAX_ANIMATED_VIEWPORTS
+        if (firstVisibleItemIndex > maxAnimatedItems) {
+            scrollScope.snapToItem(index = maxAnimatedItems, offset = 0)
         }
 
         var previousProgress = 0f

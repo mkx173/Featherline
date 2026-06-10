@@ -118,9 +118,9 @@ import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import com.mkx.hrttracker.ui.components.animateScrollToTop
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.scrollToTop
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -246,9 +246,9 @@ private fun HistoryScreenContent(
         lazyListState = listState,
         state = topAppBarState
     )
-    var selectionFabScrollState by remember {
-        mutableStateOf(HistorySelectionFabScrollState(visible = true))
-    }
+    // Only the visibility flag lives in compose state: the scroll accumulators change on
+    // every scrolled frame and would recompose the FAB slot per frame if published.
+    var isSelectionFabVisible by remember { mutableStateOf(true) }
     val selectionFabHideScrollThresholdPx = with(density) {
         HistorySelectionFabHideScrollThreshold.roundToPx()
     }
@@ -369,9 +369,7 @@ private fun HistoryScreenContent(
     val initialScrollToTopSignal = remember { scrollToTopSignal }
     LaunchedEffect(scrollToTopSignal) {
         if (scrollToTopSignal != initialScrollToTopSignal) {
-            listState.animateScrollToTop()
-            topAppBarState.contentOffset = 0f
-            topAppBarState.heightOffset = 0f
+            topAppBarState.scrollToTop(listState)
         }
     }
 
@@ -382,12 +380,12 @@ private fun HistoryScreenContent(
         selectionFabShowScrollThresholdPx,
     ) {
         if (!uiState.isSelectionMode) {
-            selectionFabScrollState = HistorySelectionFabScrollState(visible = true)
+            isSelectionFabVisible = true
             return@LaunchedEffect
         }
 
         var currentFabScrollState = HistorySelectionFabScrollState(visible = true)
-        selectionFabScrollState = currentFabScrollState
+        isSelectionFabVisible = true
         var previousIndex = listState.firstVisibleItemIndex
         var previousOffset = listState.firstVisibleItemScrollOffset
 
@@ -396,16 +394,22 @@ private fun HistoryScreenContent(
         }
             .distinctUntilChanged()
             .collect { (index, offset) ->
+                val visibleItems = listState.layoutInfo.visibleItemsInfo
                 currentFabScrollState = updateHistorySelectionFabScrollState(
                     state = currentFabScrollState,
                     previousIndex = previousIndex,
                     previousOffset = previousOffset,
                     index = index,
                     offset = offset,
+                    estimatedItemSizePx = if (visibleItems.isEmpty()) {
+                        0
+                    } else {
+                        visibleItems.sumOf { it.size } / visibleItems.size
+                    },
                     hideThresholdPx = selectionFabHideScrollThresholdPx,
                     showThresholdPx = selectionFabShowScrollThresholdPx,
                 )
-                selectionFabScrollState = currentFabScrollState
+                isSelectionFabVisible = currentFabScrollState.visible
 
                 previousIndex = index
                 previousOffset = offset
@@ -663,14 +667,16 @@ private fun HistoryScreenContent(
             FloatingActionButton(
                 onClick = onDeleteSelectedClick,
                 modifier = Modifier
-                    .animateFloatingActionButton(
-                        visible = uiState.isSelectionMode && selectionFabScrollState.visible,
-                        alignment = Alignment.BottomEnd,
-                    )
                     // The page now paints edge-to-edge behind the bottom navigation bar, so the
                     // Scaffold-positioned FAB must clear it by the same inset the body content uses
-                    // (the bar height in compact, the gesture inset beside the wide rail).
-                    .padding(bottom = LocalAppContentBottomInset.current),
+                    // (the bar height in compact, the gesture inset beside the wide rail). The
+                    // padding must sit outside animateFloatingActionButton or it inflates the
+                    // bounds the BottomEnd scale pivot is computed on.
+                    .padding(bottom = LocalAppContentBottomInset.current)
+                    .animateFloatingActionButton(
+                        visible = uiState.isSelectionMode && isSelectionFabVisible,
+                        alignment = Alignment.BottomEnd,
+                    ),
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Delete,
@@ -680,9 +686,7 @@ private fun HistoryScreenContent(
         },
         topBar = {
             TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToTop()
-                },
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 title = {
                     FlipSlot(
                         flipped = uiState.isSelectionMode,

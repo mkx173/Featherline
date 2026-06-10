@@ -72,7 +72,6 @@ import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
-import com.mkx.hrttracker.ui.components.animateScrollToTop
 import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -267,9 +266,7 @@ private fun PlanBatchAddScreenContent(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToTop()
-                },
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 title = {
                     val title = stringResource(R.string.plan_batch_add_title)
                     Text(

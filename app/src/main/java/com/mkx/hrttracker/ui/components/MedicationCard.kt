@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -274,7 +275,12 @@ internal fun MedicationCard(
     index: Int? = null,
     itemCount: Int? = null,
     embeddedContent: (@Composable () -> Unit)? = null,
-) {
+    // Animation state (palette fade, icon crossfade) must restart when the card is reused
+    // for a different entity — e.g. a lazy node recycled for another entry — or the colors
+    // lerp from the previous entity's palette. Keying on the displayed identity here makes
+    // every caller correct without per-call-site key() wrappers; isSelected stays out of
+    // the key so selection transitions still animate.
+) = key(medicine?.uuid, applicationType, groupColorKey) {
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = groupColorKey)
     val applicationTypeLabel = stringResource(applicationType.labelRes)
     val medicationName = medicationEntryTitle(medicine, applicationType)

@@ -464,6 +464,7 @@ internal fun updateHistorySelectionFabScrollState(
     previousOffset: Int,
     index: Int,
     offset: Int,
+    estimatedItemSizePx: Int,
     hideThresholdPx: Int,
     showThresholdPx: Int,
 ): HistorySelectionFabScrollState {
@@ -474,8 +475,7 @@ internal fun updateHistorySelectionFabScrollState(
         previousOffset = previousOffset,
         index = index,
         offset = offset,
-        hideThresholdPx = resolvedHideThresholdPx,
-        showThresholdPx = resolvedShowThresholdPx,
+        estimatedItemSizePx = estimatedItemSizePx,
     )
 
     return when {
@@ -522,12 +522,17 @@ private fun historySelectionFabScrollDeltaPx(
     previousOffset: Int,
     index: Int,
     offset: Int,
-    hideThresholdPx: Int,
-    showThresholdPx: Int,
+    estimatedItemSizePx: Int,
 ): Int {
+    // Crossing an item boundary doesn't say how far the user scrolled — a 3px nudge can
+    // increment the index. Estimate the real pixel delta from the average item size, but
+    // clamp it to the direction the index change proves, so a wrong estimate (item sizes
+    // vary a lot around the calendar) can never flip a small scroll's direction or let a
+    // single boundary cross instantly satisfy the accumulation thresholds.
+    val estimatedDeltaPx = (index - previousIndex) * estimatedItemSizePx + (offset - previousOffset)
     return when {
-        index > previousIndex -> hideThresholdPx
-        index < previousIndex -> -showThresholdPx
-        else -> offset - previousOffset
+        index > previousIndex -> estimatedDeltaPx.coerceAtLeast(1)
+        index < previousIndex -> estimatedDeltaPx.coerceAtMost(-1)
+        else -> estimatedDeltaPx
     }
 }

@@ -45,7 +45,7 @@ class AnimateScrollToTopTest {
         composeRule.setContent {
             listState = rememberLazyListState()
             scope = rememberCoroutineScope()
-            LazyColumn(modifier = Modifier.height(300.dp)) {
+            LazyColumn(state = listState, modifier = Modifier.height(300.dp)) {
                 item(key = "huge") { Box(Modifier.fillMaxWidth().height(900.dp)) }
                 repeat(smallItemCount) { index ->
                     item(key = "small-$index") { Box(Modifier.fillMaxWidth().height(40.dp)) }
@@ -62,6 +62,53 @@ class AnimateScrollToTopTest {
         composeRule.waitForIdle()
 
         composeRule.runOnIdle { scope.launch { listState.animateScrollToTop() } }
+        composeRule.waitForIdle()
+
+        assertEquals(0, listState.firstVisibleItemIndex)
+        assertEquals(0, listState.firstVisibleItemScrollOffset)
+    }
+
+    @Test
+    fun overestimatedDistanceNeverMovesAwayFromTop() {
+        // The inverse skew: small items above, huge items visible. The average-visible-size
+        // estimate then wildly OVERestimates the distance to the top; a snap based on that
+        // pixel estimate would teleport the list to four viewports from the top — farther
+        // down than the user actually was — before tweening back up. Scroll-to-top must
+        // only ever move the list closer to the top, on every frame.
+        composeRule.setContent {
+            listState = rememberLazyListState()
+            scope = rememberCoroutineScope()
+            LazyColumn(state = listState, modifier = Modifier.height(300.dp)) {
+                repeat(13) { index ->
+                    item(key = "small-$index") { Box(Modifier.fillMaxWidth().height(28.dp)) }
+                }
+                repeat(5) { index ->
+                    item(key = "huge-$index") { Box(Modifier.fillMaxWidth().height(250.dp)) }
+                }
+            }
+        }
+
+        composeRule.runOnIdle { scope.launch { listState.scrollToItem(13) } }
+        composeRule.waitForIdle()
+
+        composeRule.mainClock.autoAdvance = false
+        // Capture the baseline before launching: the coroutine runs eagerly up to its
+        // first frame suspension, which is exactly where the old code teleported backward.
+        var previous = listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+        composeRule.runOnIdle { scope.launch { listState.animateScrollToTop() } }
+        repeat(60) {
+            composeRule.waitForIdle()
+            val current = listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+            val movedAwayFromTop = current.first > previous.first ||
+                    (current.first == previous.first && current.second > previous.second)
+            org.junit.Assert.assertFalse(
+                "scroll-to-top moved away from the top: $previous -> $current",
+                movedAwayFromTop
+            )
+            previous = current
+            composeRule.mainClock.advanceTimeByFrame()
+        }
+        composeRule.mainClock.autoAdvance = true
         composeRule.waitForIdle()
 
         assertEquals(0, listState.firstVisibleItemIndex)
@@ -104,7 +151,7 @@ class AnimateScrollToTopTest {
         composeRule.setContent {
             listState = rememberLazyListState()
             scope = rememberCoroutineScope()
-            LazyColumn(modifier = Modifier.height(300.dp)) {}
+            LazyColumn(state = listState, modifier = Modifier.height(300.dp)) {}
         }
 
         composeRule.runOnIdle { scope.launch { listState.animateScrollToTop() } }

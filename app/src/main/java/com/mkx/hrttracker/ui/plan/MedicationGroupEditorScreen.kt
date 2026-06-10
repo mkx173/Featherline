@@ -123,9 +123,9 @@ import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
-import com.mkx.hrttracker.ui.components.animateScrollToTop
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.scrollToTop
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -1264,9 +1264,7 @@ private fun MedicationGroupEditorScreenContent(
     )
     LaunchedEffect(uiState.scrollToTopRequestVersion) {
         if (uiState.scrollToTopRequestVersion > 0) {
-            listState.animateScrollToTop()
-            topAppBarState.heightOffset = 0f
-            topAppBarState.contentOffset = 0f
+            topAppBarState.scrollToTop(listState)
         }
     }
     val contentPadding = dimensionResource(R.dimen.padding_medium)
@@ -1285,9 +1283,7 @@ private fun MedicationGroupEditorScreenContent(
         },
         topBar = {
             TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToTop()
-                },
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 title = {
                     val title = stringResource(
                         if (shouldUseArchivedPresentation) {

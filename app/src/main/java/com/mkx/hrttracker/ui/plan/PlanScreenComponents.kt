@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -88,105 +89,32 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.UUID
 
+/**
+ * Memoizes the sorted selected-day rows: building them does a per-unplanned-entry
+ * time-zone conversion plus a sort, and the lazy interval builder below re-executes on
+ * every recomposition of the host LazyColumn's content, not just when the schedule
+ * changes — so callers compute the rows here, in composable scope, and pass them in.
+ */
 @Composable
-internal fun SelectedDaySection(
-    date: LocalDate,
-    today: LocalDate,
-    overallStatus: PlanCalendarDayStatus,
-    daySchedule: PlanDaySchedule,
-    appLocale: Locale,
-    timeFormatter: DateTimeFormatter,
-    archivedGroupUuids: Set<UUID>,
-    onScheduledClick: (PlanDayScheduleEntry) -> Unit,
-    onUnplannedClick: (MedicationLogEntry) -> Unit
-) {
-    val rows = remember(daySchedule) {
-        selectedDayRows(daySchedule)
-    }
-    val scheduledCount = daySchedule.scheduledEntries.size
-    val completedScheduledCount = daySchedule.scheduledEntries.count { it.isFulfilled }
-    val offPlanCount = daySchedule.unplannedEntries.size
-    val countLabel = selectedDayHeaderCountLabel(
-        date = date,
-        today = today,
-        completedScheduledCount = completedScheduledCount,
-        scheduledCount = scheduledCount,
-        offPlanCount = offPlanCount
-    )
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
-    ) {
-        HistoryEntryGroupHeader(
-            date = date,
-            today = today,
-            dayStatus = overallStatus,
-            hasOffPlanRecord = offPlanCount > 0,
-            countLabel = countLabel,
-            appLocale = appLocale
-        )
-
-        if (rows.isEmpty()) {
-            SupportMessageListItem(
-                text = stringResource(R.string.plan_selected_day_records_empty),
-                painter = painterResource(R.drawable.ic_info),
-            )
-        } else {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
-            ) {
-                rows.forEachIndexed { index, row ->
-                    when (row) {
-                        is SelectedDayRowModel.Scheduled -> {
-                            SelectedDayRow(
-                                date = date,
-                                today = today,
-                                row = row,
-                                index = index,
-                                itemCount = rows.size,
-                                timeFormatter = timeFormatter,
-                                isFromArchivedGroup = row.entry.groupUuid in archivedGroupUuids,
-                                onClick = { onScheduledClick(row.entry) }
-                            )
-                        }
-
-                        is SelectedDayRowModel.Unplanned -> {
-                            SelectedDayRow(
-                                date = date,
-                                today = today,
-                                row = row,
-                                index = index,
-                                itemCount = rows.size,
-                                timeFormatter = timeFormatter,
-                                isFromArchivedGroup = row.entry.sourceGroupUuid != null &&
-                                        row.entry.sourceGroupUuid in archivedGroupUuids,
-                                onClick = { onUnplannedClick(row.entry) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
+internal fun rememberSelectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowModel> {
+    return remember(daySchedule) { selectedDayRows(daySchedule) }
 }
 
 internal fun LazyListScope.selectedDaySectionItems(
     date: LocalDate,
     today: LocalDate,
     overallStatus: PlanCalendarDayStatus,
-    daySchedule: PlanDaySchedule,
+    rows: List<SelectedDayRowModel>,
     appLocale: Locale,
     timeFormatter: DateTimeFormatter,
     archivedGroupUuids: Set<UUID>,
     onScheduledClick: (PlanDayScheduleEntry) -> Unit,
     onUnplannedClick: (MedicationLogEntry) -> Unit
 ) {
-    val rows = selectedDayRows(daySchedule)
-    val scheduledCount = daySchedule.scheduledEntries.size
-    val completedScheduledCount = daySchedule.scheduledEntries.count { it.isFulfilled }
-    val offPlanCount = daySchedule.unplannedEntries.size
+    val scheduledRows = rows.filterIsInstance<SelectedDayRowModel.Scheduled>()
+    val scheduledCount = scheduledRows.size
+    val completedScheduledCount = scheduledRows.count { it.entry.isFulfilled }
+    val offPlanCount = rows.size - scheduledCount
     val countLabel = selectedDayHeaderCountLabel(
         date = date,
         today = today,
@@ -1100,7 +1028,7 @@ private fun UpcomingOccurrenceChip(
     }
 }
 
-private sealed interface SelectedDayRowModel {
+internal sealed interface SelectedDayRowModel {
     val sortTime: LocalTime
 
     // PATCH_OFF rows carry no medicine; null medicine suppresses the dose line.
@@ -1161,19 +1089,24 @@ private fun SelectedDaySectionPreview() {
     val appLocale = Locale.US
     val timeFormatter = localizedShortTimeFormatter(appLocale, uses24HourFormat = false)
 
+    // Renders through the same lazy builder production uses so the preview cannot
+    // drift from the real section.
     PlanScreenComponentPreviewContainer {
-        SelectedDaySection(
-            date = uiState.daySchedule.date,
-            today = uiState.today,
-            overallStatus = uiState.calendarDays[uiState.daySchedule.date]?.status
-                ?: PlanCalendarDayStatus.NONE,
-            daySchedule = uiState.daySchedule,
-            appLocale = appLocale,
-            timeFormatter = timeFormatter,
-            archivedGroupUuids = emptySet(),
-            onScheduledClick = { },
-            onUnplannedClick = { }
-        )
+        val rows = rememberSelectedDayRows(uiState.daySchedule)
+        LazyColumn {
+            selectedDaySectionItems(
+                date = uiState.daySchedule.date,
+                today = uiState.today,
+                overallStatus = uiState.calendarDays[uiState.daySchedule.date]?.status
+                    ?: PlanCalendarDayStatus.NONE,
+                rows = rows,
+                appLocale = appLocale,
+                timeFormatter = timeFormatter,
+                archivedGroupUuids = emptySet(),
+                onScheduledClick = { },
+                onUnplannedClick = { }
+            )
+        }
     }
 }
 

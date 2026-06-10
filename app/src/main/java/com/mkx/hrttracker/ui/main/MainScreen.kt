@@ -49,8 +49,8 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.calibration.calibrationAllowedUnitsFor
 import com.mkx.hrttracker.ui.components.AppContentContainer
-import com.mkx.hrttracker.ui.components.animateScrollToTop
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.scrollToTop
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.util.calibrationUnitLabel
 import kotlinx.coroutines.delay
@@ -183,9 +183,7 @@ fun MainScreen(
 
     LaunchedEffect(scrollToTopSignal) {
         if (scrollToTopSignal != initialScrollToTopSignal) {
-            scrollState.animateScrollToTop()
-            topAppBarState.contentOffset = 0f
-            topAppBarState.heightOffset = 0f
+            topAppBarState.scrollToTop(scrollState)
         }
     }
 
@@ -195,9 +193,7 @@ fun MainScreen(
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             CenterAlignedTopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    scrollState.animateScrollToTop()
-                },
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, scrollState),
                 title = {
                     val title = stringResource(R.string.tab_main)
                     Text(

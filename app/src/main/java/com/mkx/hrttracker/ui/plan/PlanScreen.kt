@@ -92,11 +92,11 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
-import com.mkx.hrttracker.ui.components.animateScrollToTop
 import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.scrollToTop
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
@@ -252,6 +252,7 @@ private fun PlanScreenContent(
         uiState.daySchedule
     }
     val displayedDate = daySchedule.date
+    val selectedDayRowModels = rememberSelectedDayRows(daySchedule)
     val archivedGroupUuids = remember(uiState.scheduleMedicationGroups) {
         uiState.scheduleMedicationGroups
             .filter(MedicationGroup::isArchived)
@@ -285,9 +286,7 @@ private fun PlanScreenContent(
     val initialScrollToTopSignal = remember { scrollToTopSignal }
     LaunchedEffect(scrollToTopSignal) {
         if (scrollToTopSignal != initialScrollToTopSignal) {
-            listState.animateScrollToTop()
-            topAppBarState.contentOffset = 0f
-            topAppBarState.heightOffset = 0f
+            topAppBarState.scrollToTop(listState)
         }
     }
 
@@ -295,9 +294,7 @@ private fun PlanScreenContent(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToTop()
-                },
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 title = {
                     val title = stringResource(R.string.tab_plan)
                     Text(
@@ -436,7 +433,7 @@ private fun PlanScreenContent(
                     today = uiState.today,
                     overallStatus = uiState.calendarDays[displayedDate]?.status
                         ?: PlanCalendarDayStatus.NONE,
-                    daySchedule = daySchedule,
+                    rows = selectedDayRowModels,
                     appLocale = appLocale,
                     timeFormatter = timeFormatter,
                     archivedGroupUuids = archivedGroupUuids,

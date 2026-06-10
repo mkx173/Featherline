@@ -4,13 +4,21 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyScopeMarker
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import com.mkx.hrttracker.R
 
-/** Recorder for [hrtSection] rows. Mirrors [HrtSectionScope] but emits real lazy items. */
+/**
+ * Recorder for [hrtSection] rows. Mirrors [HrtSectionScope] but emits real lazy items.
+ *
+ * Shares [LazyScopeMarker] with [LazyListScope] so an unkeyed `item { }` inside a section
+ * is a compile error instead of silently resolving to the outer scope (which would emit
+ * the row before the section header).
+ */
+@LazyScopeMarker
 interface LazyHrtSectionScope {
     fun item(key: String, contentType: Any? = "hrt-section-row", content: @Composable () -> Unit)
 }

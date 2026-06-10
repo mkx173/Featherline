@@ -1148,6 +1148,7 @@ class HistoryUiModelsTest {
             previousOffset = 0,
             index = 0,
             offset = 24,
+            estimatedItemSizePx = 100,
             hideThresholdPx = 48,
             showThresholdPx = 24,
         )
@@ -1157,6 +1158,7 @@ class HistoryUiModelsTest {
             previousOffset = 24,
             index = 0,
             offset = 48,
+            estimatedItemSizePx = 100,
             hideThresholdPx = 48,
             showThresholdPx = 24,
         )
@@ -1173,6 +1175,7 @@ class HistoryUiModelsTest {
             previousOffset = 100,
             index = 0,
             offset = 88,
+            estimatedItemSizePx = 100,
             hideThresholdPx = 48,
             showThresholdPx = 24,
         )
@@ -1182,6 +1185,7 @@ class HistoryUiModelsTest {
             previousOffset = 88,
             index = 0,
             offset = 76,
+            estimatedItemSizePx = 100,
             hideThresholdPx = 48,
             showThresholdPx = 24,
         )
@@ -1198,6 +1202,7 @@ class HistoryUiModelsTest {
             previousOffset = 0,
             index = 0,
             offset = 32,
+            estimatedItemSizePx = 100,
             hideThresholdPx = 48,
             showThresholdPx = 24,
         )
@@ -1207,6 +1212,7 @@ class HistoryUiModelsTest {
             previousOffset = 32,
             index = 0,
             offset = 24,
+            estimatedItemSizePx = 100,
             hideThresholdPx = 48,
             showThresholdPx = 24,
         )
@@ -1216,6 +1222,7 @@ class HistoryUiModelsTest {
             previousOffset = 24,
             index = 0,
             offset = 44,
+            estimatedItemSizePx = 100,
             hideThresholdPx = 48,
             showThresholdPx = 24,
         )
@@ -1223,6 +1230,56 @@ class HistoryUiModelsTest {
         assertEquals(true, afterDownScroll.visible)
         assertEquals(true, afterDirectionChange.visible)
         assertEquals(true, afterSecondDownScroll.visible)
+    }
+
+    @Test
+    fun historySelectionFabScrollState_itemBoundaryCrossKeepsHysteresis() {
+        // Crossing an item boundary can happen on an arbitrarily small drag (the first
+        // visible item was already almost scrolled off), so a boundary cross must feed the
+        // estimated real delta into the accumulator — not instantly satisfy the threshold —
+        // or the FAB flickers on every wobble near a boundary.
+        val afterTinyDownCross = updateHistorySelectionFabScrollState(
+            state = HistorySelectionFabScrollState(visible = true),
+            previousIndex = 0,
+            previousOffset = 95,
+            index = 1,
+            offset = 0,
+            estimatedItemSizePx = 100,
+            hideThresholdPx = 48,
+            showThresholdPx = 24,
+        )
+        val afterTinyUpCross = updateHistorySelectionFabScrollState(
+            state = HistorySelectionFabScrollState(visible = false),
+            previousIndex = 1,
+            previousOffset = 0,
+            index = 0,
+            offset = 95,
+            estimatedItemSizePx = 100,
+            hideThresholdPx = 48,
+            showThresholdPx = 24,
+        )
+
+        // 5px of real movement either way: neither threshold is met.
+        assertEquals(true, afterTinyDownCross.visible)
+        assertEquals(false, afterTinyUpCross.visible)
+    }
+
+    @Test
+    fun historySelectionFabScrollState_flingAcrossItemsStillHides() {
+        // A fling that jumps whole items in one frame must still hide the FAB: the index
+        // change contributes the estimated item sizes to the accumulator.
+        val afterFling = updateHistorySelectionFabScrollState(
+            state = HistorySelectionFabScrollState(visible = true),
+            previousIndex = 0,
+            previousOffset = 0,
+            index = 2,
+            offset = 10,
+            estimatedItemSizePx = 100,
+            hideThresholdPx = 48,
+            showThresholdPx = 24,
+        )
+
+        assertEquals(false, afterFling.visible)
     }
 
     @Test
