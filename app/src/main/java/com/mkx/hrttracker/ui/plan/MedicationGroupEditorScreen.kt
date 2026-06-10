@@ -96,9 +96,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.withResumed
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -290,13 +288,13 @@ fun MedicationGroupEditorScreen(
         uiState = uiState,
         openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
     )
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(exitNavigationTarget) {
         val target = exitNavigationTarget ?: return@LaunchedEffect
-        // Wait until this entry is RESUMED again so the pop can't be dropped
-        // mid-transition; if the editor is disposed first, the retained
-        // finishing flags re-trigger this effect when it is restored.
-        lifecycle.withResumed { }
+        // The exit pop fires unconditionally: the nav lock below holds through
+        // the whole finishing window, so no competing navigation can be in
+        // flight, and NavController pops safely below RESUMED. If the editor
+        // is disposed first, the retained finishing flags re-trigger this
+        // effect when it is restored.
         navigateAfterSave(target)
     }
 

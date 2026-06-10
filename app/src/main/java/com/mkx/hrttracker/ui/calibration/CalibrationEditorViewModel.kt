@@ -25,6 +25,7 @@ import com.squareup.moshi.Moshi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +35,7 @@ import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -328,14 +330,19 @@ class CalibrationEditorViewModel @Inject constructor(
             val resultInputs = buildResultInputs(latestState)
 
             runCatching {
-                bloodTestRepository.savePanel(
-                    uuid = editingPanelUuid,
-                    collectedAt = collectedAt,
-                    collectedAtTimeZoneId = latestState.collectedZoneId.id,
-                    notes = latestState.notes,
-                    results = resultInputs,
-                    now = Instant.now(),
-                )
+                // The user already confirmed the save; entry teardown (back
+                // press racing the 1-frame nav-lock gap) must not tear the
+                // write in half.
+                withContext(NonCancellable) {
+                    bloodTestRepository.savePanel(
+                        uuid = editingPanelUuid,
+                        collectedAt = collectedAt,
+                        collectedAtTimeZoneId = latestState.collectedZoneId.id,
+                        notes = latestState.notes,
+                        results = resultInputs,
+                        now = Instant.now(),
+                    )
+                }
             }.onSuccess { savedPanelUuid ->
                 // Cancel before the state update below so the collector is torn down before
                 // it can observe the saved emission and the cleared snapshot stays cleared.
@@ -382,7 +389,9 @@ class CalibrationEditorViewModel @Inject constructor(
 
         viewModelScope.launch {
             val deleteResult = runCatching {
-                bloodTestRepository.deletePanel(panelUuid)
+                withContext(NonCancellable) {
+                    bloodTestRepository.deletePanel(panelUuid)
+                }
             }.fold(
                 onSuccess = { null },
                 onFailure = { CalibrationDeleteEntryResult.FAILURE },

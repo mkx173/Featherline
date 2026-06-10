@@ -1000,7 +1000,11 @@ fun HrtTrackerNavHost(
                         CalibrationEditorScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
-                            onSaved = { navController.popBackStackSafely() }
+                            // Raw pop, not popBackStackSafely: the RESUMED gate
+                            // exists to debounce rapid double-back taps, which
+                            // can't apply to a one-shot programmatic pop fired
+                            // off a consumed flag under the held nav lock.
+                            onSaved = { navController.popBackStack() }
                         )
                     }
                 }
@@ -1034,11 +1038,17 @@ fun HrtTrackerNavHost(
                         // this screen. Wait for the entry to be RESUMED; if the
                         // user actually navigated elsewhere this scope is
                         // disposed with the route and the pop is abandoned.
+                        // A resume can be followed by an immediate pause that
+                        // drops the pop on the re-dispatch hop (the entry dips
+                        // below RESUMED between withResumed firing and the pop
+                        // running), so retry on the next resume instead of
+                        // silently giving up.
                         val sheetCompletionPopScope = rememberCoroutineScope()
                         val popBackStackWhenResumed: () -> Unit = {
                             sheetCompletionPopScope.launch {
-                                backStackEntry.lifecycle.withResumed { }
-                                navController.popBackStackSafely()
+                                do {
+                                    backStackEntry.lifecycle.withResumed { }
+                                } while (!navController.popBackStackSafely())
                             }
                         }
                         MedicinesScreen(
@@ -1098,6 +1108,10 @@ fun HrtTrackerNavHost(
                         MedicineDetailScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
+                            // Raw pop for the post-archive exit: a one-shot
+                            // programmatic pop under the held nav lock needs no
+                            // double-tap debounce, and must not be droppable.
+                            onArchiveExit = { navController.popBackStack() },
                             onGroupClick = { groupId ->
                                 navController.navigate(
                                     Screen.EditMedicationGroup.createRoute(
@@ -1168,9 +1182,12 @@ fun HrtTrackerNavHost(
                         MedicationGroupEditorScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
-                            onGroupSaved = { navController.popBackStackSafely() },
+                            // Raw pops for the finishing exits: one-shot
+                            // programmatic pops under the held nav lock need no
+                            // double-tap debounce, and must not be droppable.
+                            onGroupSaved = { navController.popBackStack() },
                             onGroupSavedToPlan = {
-                                if (!navController.popBackStackSafely(
+                                if (!navController.popBackStack(
                                         Screen.Plan.route,
                                         inclusive = false
                                     )

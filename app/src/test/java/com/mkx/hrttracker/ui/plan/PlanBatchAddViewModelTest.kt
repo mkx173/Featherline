@@ -27,18 +27,23 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.DayOfWeek
@@ -747,6 +752,68 @@ class PlanBatchAddViewModelTest {
         coVerify(exactly = 0) {
             medicineStockRepository.projectAllOnce(any())
         }
+    }
+
+    @Test
+    fun saveSelectedRange_writeCompletes_evenWhenViewModelScopeIsCancelledMidWrite() = runTest {
+        // Entry teardown (back press racing the 1-frame nav-lock gap) cancels
+        // viewModelScope mid-write; a confirmed batch save must not be torn in
+        // half (PR #60 finding 11).
+        val medicine = estradiolMedicine()
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = medicine)),
+        )
+        val medicationGroupRepository = mockk<MedicationGroupRepository>()
+        val medicationLogRepository = mockk<MedicationLogRepository>()
+        val settingsRepository = mockk<SettingsRepository>()
+        val medicineStockRepository = mockk<MedicineStockRepository>()
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { settingsRepository.settingsState } returns MutableStateFlow(
+            SettingsState(
+                remindersEnabled = true
+            )
+        )
+        every { medicineStockRepository.getCachedProjections() } returns emptyList()
+        every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
+        val writeGate = CompletableDeferred<Unit>()
+        var writeCompleted = false
+        coEvery {
+            medicationLogRepository.saveBackfillEntries(any(), deductStock = false)
+        } coAnswers {
+            writeGate.await()
+            writeCompleted = true
+        }
+
+        val viewModel = PlanBatchAddViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = mockk<MedicationReminderScheduler>(relaxed = true),
+            settingsRepository = settingsRepository,
+            medicineStockRepository = medicineStockRepository,
+            appTimeSource = FakeAppTimeSource(initialMinute = LocalDateTime.of(2026, 4, 10, 12, 0)),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectGroup(group.uuid)
+        advanceUntilIdle()
+
+        viewModel.saveSelectedRange()
+        runCurrent()
+
+        viewModel.viewModelScope.cancel()
+        writeGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(writeCompleted)
     }
 
     @Test

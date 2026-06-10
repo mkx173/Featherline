@@ -26,17 +26,21 @@ import com.mkx.hrttracker.ui.calibration.CalibrationSaveEntryResult
 import com.mkx.hrttracker.ui.calibration.calibrationAddAnalyteOptions
 import com.mkx.hrttracker.ui.calibration.calibrationAnalyteOptions
 import com.mkx.hrttracker.ui.calibration.canSaveCalibrationEditorState
+import androidx.lifecycle.viewModelScope
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -593,6 +597,88 @@ class CalibrationEditorViewModelTest {
                 now = any()
             )
         }
+    }
+
+    @Test
+    fun save_writeCompletes_evenWhenViewModelScopeIsCancelledMidWrite() = runTest {
+        // Entry teardown (back press racing the 1-frame nav-lock gap) cancels
+        // viewModelScope mid-write; a user-confirmed save must not be torn in
+        // half (PR #60 finding 11).
+        val writeGate = CompletableDeferred<Unit>()
+        var writeCompleted = false
+        coEvery {
+            repository.savePanel(
+                uuid = null,
+                collectedAt = any(),
+                collectedAtTimeZoneId = any(),
+                notes = any(),
+                results = any(),
+                now = any()
+            )
+        } coAnswers {
+            writeGate.await()
+            writeCompleted = true
+            UUID.randomUUID()
+        }
+
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle()
+        )
+        advanceUntilIdle()
+        viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
+        viewModel.updateAnalyteUnit(BloodAnalyteKey.E2, BloodUnitKey.PMOL_L)
+        viewModel.updateAnalyteValue(BloodAnalyteKey.T, "31.7")
+        viewModel.updateAnalyteUnit(BloodAnalyteKey.T, BloodUnitKey.NMOL_L)
+
+        viewModel.save()
+        runCurrent()
+
+        viewModel.viewModelScope.cancel()
+        writeGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(writeCompleted)
+    }
+
+    @Test
+    fun delete_writeCompletes_evenWhenViewModelScopeIsCancelledMidWrite() = runTest {
+        val panelUuid = UUID.fromString("2a45018d-864f-402f-9376-1cd167a46ab6")
+        val panel = testBloodTestPanel(
+            uuid = panelUuid,
+            collectedAt = Instant.parse("2026-04-24T00:30:00Z"),
+            notes = "",
+            timeSinceLastEstradiolDoseMillis = null,
+        )
+        every { repository.getCachedPanel(panelUuid) } returns panel
+        coEvery { repository.getPanel(panelUuid) } returns panel
+        val writeGate = CompletableDeferred<Unit>()
+        var writeCompleted = false
+        coEvery { repository.deletePanel(panelUuid) } coAnswers {
+            writeGate.await()
+            writeCompleted = true
+        }
+
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle(
+                mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
+            )
+        )
+        advanceUntilIdle()
+
+        viewModel.delete()
+        runCurrent()
+
+        viewModel.viewModelScope.cancel()
+        writeGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(writeCompleted)
     }
 
     @Test

@@ -70,9 +70,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.withResumed
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
@@ -126,6 +124,9 @@ private val WARN_AT_OPTIONS = listOf(0, 7, 14, 21, 28)
 @Composable
 fun MedicineDetailScreen(
     onNavigateBack: () -> Unit,
+    // Pops the page after a confirmed archive; returns whether the pop landed
+    // (the retained archive result is cleared only on true).
+    onArchiveExit: () -> Boolean,
     onGroupClick: (UUID) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: MedicineDetailViewModel = hiltViewModel(),
@@ -160,17 +161,18 @@ fun MedicineDetailScreen(
         viewModel.clearSaveResult()
     }
 
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(uiState.archiveResult) {
         when (uiState.archiveResult) {
             MedicineArchiveResult.SUCCESS -> {
-                // The exit pop is silently dropped if it races an in-flight
-                // navigation (popBackStackSafely only pops a RESUMED entry),
-                // so wait for RESUMED before clearing the result; the retained
-                // result re-runs this effect if the page is restored first.
-                lifecycle.withResumed { }
-                viewModel.clearArchiveResult()
-                onNavigateBack()
+                // The finishing pop fires unconditionally: the nav lock above
+                // holds through the archive write, so no competing navigation
+                // can be in flight, and NavController pops safely below
+                // RESUMED. The retained result is cleared only after a
+                // confirmed pop, so the empty-stack edge re-fires on restore
+                // instead of stranding the page.
+                if (onArchiveExit()) {
+                    viewModel.clearArchiveResult()
+                }
             }
 
             MedicineArchiveResult.FAILURE_REFERENCED_BY_ACTIVE_GROUP -> {

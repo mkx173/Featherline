@@ -55,9 +55,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.withResumed
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
@@ -103,7 +101,9 @@ import java.util.UUID
 @Composable
 fun CalibrationEditorScreen(
     onNavigateBack: () -> Unit,
-    onSaved: () -> Unit,
+    // Pops the editor after a confirmed save/delete; returns whether the pop
+    // landed (the flag that triggered it is consumed only on true).
+    onSaved: () -> Boolean,
     modifier: Modifier = Modifier,
     viewModel: CalibrationEditorViewModel = hiltViewModel(),
 ) {
@@ -147,24 +147,21 @@ fun CalibrationEditorScreen(
                 uiState.isSaved || uiState.isDeleted,
     )
 
-    // The exit pop is silently dropped if it races an in-flight navigation
-    // (popBackStackSafely only pops a RESUMED entry), so wait for RESUMED
-    // before consuming the completion flag; the retained flag re-runs these
-    // effects if the editor is restored before the pop landed.
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    // The finishing pop fires unconditionally: the nav lock above holds
+    // through isSaved/isDeleted, so no competing navigation can be in flight,
+    // and NavController pops safely below RESUMED (e.g. the activity paused
+    // behind a system dialog) with the UI catching up on restart. The flag is
+    // consumed only after a confirmed pop, so the empty-stack edge re-fires
+    // on restore instead of stranding the editor with the lock held.
     LaunchedEffect(uiState.isSaved) {
-        if (uiState.isSaved) {
-            lifecycle.withResumed { }
+        if (uiState.isSaved && onSaved()) {
             viewModel.consumeSavedState()
-            onSaved()
         }
     }
 
     LaunchedEffect(uiState.isDeleted) {
-        if (uiState.isDeleted) {
-            lifecycle.withResumed { }
+        if (uiState.isDeleted && onSaved()) {
             viewModel.consumeDeletedState()
-            onSaved()
         }
     }
 
