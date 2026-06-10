@@ -86,7 +86,6 @@ import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.effectiveHazeBlurEnabled
-import com.mkx.hrttracker.ui.components.hazeBlinkProbeLog
 import com.mkx.hrttracker.ui.components.rememberChromeHazeState
 import com.mkx.hrttracker.ui.components.stockInventoryCountText
 import com.mkx.hrttracker.ui.history.HistoryScreen
@@ -382,11 +381,6 @@ internal fun homeDeepLinkHighlightEffectsEnabled(
 @Composable
 private fun RoutedTopChromeHazeProvider(content: @Composable () -> Unit) {
     val routeTopChromeHazeState = rememberChromeHazeState()
-    // TODO(haze-blink): remove probe once the blink root cause is fixed.
-    remember(routeTopChromeHazeState) {
-        hazeBlinkProbeLog { "RoutedTopChromeHazeProvider created state=${routeTopChromeHazeState.hashCode()}" }
-        routeTopChromeHazeState
-    }
     CompositionLocalProvider(LocalChromeHazeState provides routeTopChromeHazeState) {
         content()
     }
@@ -434,10 +428,6 @@ fun HrtTrackerNavHost(
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
-    // TODO(haze-blink): remove probe once the blink root cause is fixed.
-    LaunchedEffect(currentRoute) {
-        hazeBlinkProbeLog { "route -> $currentRoute" }
-    }
     val explicitParentRoute = currentBackStackEntry?.arguments?.getString(TOP_LEVEL_PARENT_ARG)
     val selectedBottomScreen =
         Screen.topLevelScreenForRoute(explicitParentRoute)

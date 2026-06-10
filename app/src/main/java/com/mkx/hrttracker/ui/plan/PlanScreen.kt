@@ -87,7 +87,6 @@ import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.ui.components.AppContentContainer
-import com.mkx.hrttracker.ui.components.HazeBlinkChangeProbe
 import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
@@ -139,12 +138,6 @@ fun PlanScreen(
     )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    // TODO(haze-blink): remove probe once the loading-flash regression is fixed.
-    HazeBlinkChangeProbe(
-        "plan.isLoading vm=${System.identityHashCode(viewModel)}",
-        uiState.isLoading,
-    )
 
     PlanScreenContent(
         uiState = uiState,
