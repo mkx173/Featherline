@@ -109,6 +109,18 @@ android {
             )
         }
 
+        // Release-equivalent build for :benchmark macrobenchmarks: debug-signed so it
+        // installs without the release keystore, profileable so the benchmark harness
+        // can trace it, and id-suffixed so it can never collide with (or overwrite the
+        // data of) an installed production build on a personal device.
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            isProfileable = true
+            applicationIdSuffix = ".benchmark"
+            versionNameSuffix = "-benchmark"
+        }
     }
 
     compileOptions {
