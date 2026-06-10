@@ -431,10 +431,19 @@ fun HrtTrackerNavHost(
     // Whether a NavHost-hosted overlay sheet may open from [entry] right now —
     // see canOpenOverlaySheetFrom. Captured once so the five row/quick-log call
     // sites stay in lockstep and none skips the current-destination check.
+    //
+    // is-current must read the *live* back queue, not the captured
+    // currentBackStackEntry State: navigate() drops the outgoing entry's
+    // lifecycle to STARTED synchronously (NavControllerImpl.updateBackStackLifecycle)
+    // but currentBackStackEntryAsState() only catches up a frame later via its
+    // collector. Using the State here would leave a one-frame window where the
+    // outgoing entry reads stale-current AND already-STARTED — re-opening the
+    // sheet over the destination, the exact race this guard closes. The live
+    // getter moves in lockstep with that lifecycle drop, so the window is gone.
     val canOpenOverlaySheet: (NavBackStackEntry) -> Boolean = { entry ->
         canOpenOverlaySheetFrom(
             originState = entry.lifecycle.currentState,
-            isCurrentDestination = entry == currentBackStackEntry,
+            isCurrentDestination = entry == navController.currentBackStackEntry,
         )
     }
     val explicitParentRoute = currentBackStackEntry?.arguments?.getString(TOP_LEVEL_PARENT_ARG)
