@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.union
@@ -19,14 +20,17 @@ import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.AlertDialog as MaterialAlertDialog
 import androidx.compose.material3.BasicAlertDialog as MaterialBasicAlertDialog
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar as MaterialCenterAlignedTopAppBar
 import androidx.compose.material3.DatePickerColors
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog as MaterialDatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet as MaterialModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TimePickerDialog as MaterialTimePickerDialog
+import androidx.compose.material3.TopAppBar as MaterialTopAppBar
 import androidx.compose.material3.TimePickerDialogDefaults
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
@@ -36,7 +40,6 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaul
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -195,7 +198,7 @@ fun Modifier.hazeChrome(
  * updates skip recomposition.
  */
 @Composable
-fun Modifier.hazeTopAppBar(
+private fun Modifier.hazeTopAppBar(
     scrollBehavior: TopAppBarScrollBehavior,
     state: HazeState? = LocalChromeHazeState.current,
 ): Modifier {
@@ -295,7 +298,7 @@ fun Modifier.hazeSheetSurface(
 }
 
 @Composable
-fun hazeBottomSheetContainerColor(
+private fun hazeBottomSheetContainerColor(
     // Like the dialog gate below, require an actual haze state before going
     // transparent: hazeBottomSheet() no-ops on a null state, so a transparent
     // container without it renders the sheet invisible.
@@ -307,7 +310,7 @@ fun hazeBottomSheetContainerColor(
     return defaultColor.copy(alpha = 0f)
 }
 
-fun hazeBottomSheetContentWindowInsets(): WindowInsets = WindowInsets(0, 0, 0, 0)
+private fun hazeBottomSheetContentWindowInsets(): WindowInsets = WindowInsets(0, 0, 0, 0)
 
 @Composable
 fun hazeDialogContainerColor(
@@ -330,8 +333,41 @@ fun hazeDatePickerColors(
     )
 }
 
+/**
+ * Modal bottom sheet with the haze chrome wiring applied: the Material sheet's
+ * own container is transparent and inset-free, and the [HazeBottomSheetSurface]
+ * inside draws the blur (or the opaque fallback container), the modal content
+ * insets, and an accessible drag handle. Screens must use this wrapper instead
+ * of Material3's ModalBottomSheet; hand-assembling the pieces at every call
+ * site is how transparent-sheet bugs slip in.
+ */
 @Composable
-fun HazeBottomSheetSurface(
+fun HazeModalBottomSheet(
+    onDismissRequest: () -> Unit,
+    sheetState: SheetState,
+    modifier: Modifier = Modifier,
+    dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    MaterialModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        sheetState = sheetState,
+        containerColor = hazeBottomSheetContainerColor(),
+        dragHandle = null,
+        contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
+    ) {
+        HazeBottomSheetSurface(
+            sheetState = sheetState,
+            onDismissRequest = onDismissRequest,
+            dragHandle = dragHandle,
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun HazeBottomSheetSurface(
     sheetState: SheetState,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
@@ -500,7 +536,7 @@ fun HazeTimePickerDialog(
 }
 
 @Composable
-fun topAppBarHazeEnabled(scrollBehavior: TopAppBarScrollBehavior): Boolean {
+private fun topAppBarHazeEnabled(scrollBehavior: TopAppBarScrollBehavior): Boolean {
     return remember(scrollBehavior) {
         derivedStateOf {
             scrollBehavior.state.overlappedFraction > TopAppBarScrolledOverlapThreshold
@@ -508,18 +544,57 @@ fun topAppBarHazeEnabled(scrollBehavior: TopAppBarScrollBehavior): Boolean {
     }.value
 }
 
+/**
+ * The app's top app bar: Material3's bar with the haze chrome wiring applied —
+ * [hazeTopAppBarColors] keeps the Material containers transparent and
+ * [hazeTopAppBar] draws the bar background (blur, or the overlap-tracking color
+ * lerp) from the scroll overlap. Screens must use these wrappers instead of the
+ * Material bars; hand-assembling the pieces at every call site is how
+ * transparent-bar bugs slip in.
+ */
 @Composable
-fun HazeTopAppBarColorReset(content: @Composable () -> Unit) {
-    // Material3 animates top app bar container colors internally. When Haze is toggled off,
-    // recreate only the app bar so the new opaque target color is used immediately instead of
-    // animating up from the previous transparent Haze color.
-    key(LocalHazeBlurEnabled.current) {
-        content()
-    }
+fun HazeTopAppBar(
+    title: @Composable () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior,
+    modifier: Modifier = Modifier,
+    navigationIcon: @Composable () -> Unit = {},
+    actions: @Composable RowScope.() -> Unit = {},
+    windowInsets: WindowInsets = TopAppBarDefaults.windowInsets,
+) {
+    MaterialTopAppBar(
+        title = title,
+        modifier = modifier.hazeTopAppBar(scrollBehavior),
+        navigationIcon = navigationIcon,
+        actions = actions,
+        windowInsets = windowInsets,
+        colors = hazeTopAppBarColors(),
+        scrollBehavior = scrollBehavior,
+    )
+}
+
+/** [HazeTopAppBar] variant of Material3's CenterAlignedTopAppBar. */
+@Composable
+fun HazeCenterAlignedTopAppBar(
+    title: @Composable () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior,
+    modifier: Modifier = Modifier,
+    navigationIcon: @Composable () -> Unit = {},
+    actions: @Composable RowScope.() -> Unit = {},
+    windowInsets: WindowInsets = TopAppBarDefaults.windowInsets,
+) {
+    MaterialCenterAlignedTopAppBar(
+        title = title,
+        modifier = modifier.hazeTopAppBar(scrollBehavior),
+        navigationIcon = navigationIcon,
+        actions = actions,
+        windowInsets = windowInsets,
+        colors = hazeTopAppBarColors(),
+        scrollBehavior = scrollBehavior,
+    )
 }
 
 @Composable
-fun hazeTopAppBarColors(): TopAppBarColors {
+private fun hazeTopAppBarColors(): TopAppBarColors {
     // The Material containers stay transparent in both blur modes: hazeTopAppBar
     // draws the bar background itself (blur, or the overlap-tracking color lerp),
     // so M3's internal threshold-triggered crossfade must never paint over it.

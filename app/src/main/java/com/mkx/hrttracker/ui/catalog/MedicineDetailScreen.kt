@@ -41,7 +41,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.rememberTopAppBarState
@@ -93,16 +92,14 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
-import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
+import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
-import com.mkx.hrttracker.ui.components.hazeTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -338,30 +335,25 @@ private fun MedicineDetailScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            HazeTopAppBarColorReset {
-                TopAppBar(
-                    modifier = Modifier
-                        .topAppBarScrollToTop(scrollBehavior, listState)
-                        .hazeTopAppBar(scrollBehavior),
-                    title = {
-                        val title = stringResource(R.string.medicine_detail_title)
-                        Text(
-                            text = title,
-                            modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+            HazeTopAppBar(
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
+                title = {
+                    val title = stringResource(R.string.medicine_detail_title)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.navigate_back),
                         )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = stringResource(R.string.navigate_back),
-                            )
-                        }
-                    },
-                    colors = hazeTopAppBarColors(),
-                    scrollBehavior = scrollBehavior,
-                )
-            }
+                    }
+                },
+                scrollBehavior = scrollBehavior,
+            )
         },
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {

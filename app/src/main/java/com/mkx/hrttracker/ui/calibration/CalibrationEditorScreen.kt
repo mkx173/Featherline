@@ -29,12 +29,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
@@ -65,8 +63,8 @@ import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
-import com.mkx.hrttracker.ui.components.HazeBottomSheetSurface
-import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
+import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
+import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
@@ -76,11 +74,7 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.hazeBottomSheetContainerColor
-import com.mkx.hrttracker.ui.components.hazeBottomSheetContentWindowInsets
-import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
-import com.mkx.hrttracker.ui.components.hazeTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRun
@@ -341,47 +335,42 @@ private fun CalibrationEditorScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            HazeTopAppBarColorReset {
-                TopAppBar(
-                    modifier = Modifier
-                        .topAppBarScrollToTop(scrollBehavior, scrollState)
-                        .hazeTopAppBar(scrollBehavior),
-                    title = {
-                        val title = stringResource(
-                            if (uiState.isEditing) {
-                                R.string.settings_calibration_edit_result
-                            } else {
-                                R.string.settings_calibration_add_result
-                            }
-                        )
-                        Text(
-                            text = title,
-                            modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
-                        )
-                    },
-                    colors = hazeTopAppBarColors(),
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = stringResource(R.string.cancel),
-                            )
+            HazeTopAppBar(
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, scrollState),
+                title = {
+                    val title = stringResource(
+                        if (uiState.isEditing) {
+                            R.string.settings_calibration_edit_result
+                        } else {
+                            R.string.settings_calibration_add_result
                         }
-                    },
-                    actions = {
-                        HrtButton(
-                            text = stringResource(R.string.save),
-                            onClick = {
-                                if (isCalibrationEditorBusy(uiState)) return@HrtButton
-                                onSaveClick(notesDraft)
-                            },
-                            enabled = canSave,
-                            modifier = Modifier.padding(end = 8.dp),
+                    )
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.cancel),
                         )
-                    },
-                    scrollBehavior = scrollBehavior
-                )
-            }
+                    }
+                },
+                actions = {
+                    HrtButton(
+                        text = stringResource(R.string.save),
+                        onClick = {
+                            if (isCalibrationEditorBusy(uiState)) return@HrtButton
+                            onSaveClick(notesDraft)
+                        },
+                        enabled = canSave,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                },
+                scrollBehavior = scrollBehavior
+            )
         },
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
@@ -578,28 +567,20 @@ internal fun CalibrationAddAnalyteSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
 
-    ModalBottomSheet(
+    HazeModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = hazeBottomSheetContainerColor(),
-        dragHandle = null,
-        contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
     ) {
-        HazeBottomSheetSurface(
-            sheetState = sheetState,
-            onDismissRequest = onDismissRequest,
-        ) {
-            CalibrationAddAnalyteSheetContent(
-                availableAnalytes = availableAnalytes,
-                onDismissRequest = {
-                    hideBottomSheet(scope, sheetState, onDismissRequest)
-                },
-                onAnalyteClick = { option ->
-                    onAnalyteClick(option)
-                    hideBottomSheet(scope, sheetState, onDismissRequest)
-                },
-            )
-        }
+        CalibrationAddAnalyteSheetContent(
+            availableAnalytes = availableAnalytes,
+            onDismissRequest = {
+                hideBottomSheet(scope, sheetState, onDismissRequest)
+            },
+            onAnalyteClick = { option ->
+                onAnalyteClick(option)
+                hideBottomSheet(scope, sheetState, onDismissRequest)
+            },
+        )
     }
 }
 

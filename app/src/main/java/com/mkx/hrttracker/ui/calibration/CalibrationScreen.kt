@@ -35,7 +35,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
@@ -78,7 +77,7 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
-import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
+import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtPill
@@ -86,9 +85,7 @@ import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
-import com.mkx.hrttracker.ui.components.hazeTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -211,65 +208,60 @@ private fun CalibrationScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            HazeTopAppBarColorReset {
-                TopAppBar(
-                    modifier = Modifier
-                        .topAppBarScrollToTop(scrollBehavior, listState)
-                        .hazeTopAppBar(scrollBehavior),
-                    title = {
-                        val title = stringResource(R.string.settings_personalization_calibration)
-                        Text(
-                            text = title,
-                            modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+            HazeTopAppBar(
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
+                title = {
+                    val title = stringResource(R.string.settings_personalization_calibration)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.cancel),
                         )
-                    },
-                    colors = hazeTopAppBarColors(),
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onAddClick) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = stringResource(R.string.settings_calibration_add_result),
+                        )
+                    }
+                    IconButton(onClick = onUnitsClick) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_tune),
+                            contentDescription = stringResource(
+                                R.string.settings_calibration_settings
+                            ),
+                        )
+                    }
+                    Box {
+                        IconButton(onClick = { isActionMenuExpanded = true }) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = stringResource(R.string.cancel),
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = stringResource(R.string.plan_more_options),
                             )
                         }
-                    },
-                    actions = {
-                        IconButton(onClick = onAddClick) {
-                            Icon(
-                                imageVector = Icons.Rounded.Add,
-                                contentDescription = stringResource(R.string.settings_calibration_add_result),
-                            )
-                        }
-                        IconButton(onClick = onUnitsClick) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_tune),
-                                contentDescription = stringResource(
-                                    R.string.settings_calibration_settings
-                                ),
-                            )
-                        }
-                        Box {
-                            IconButton(onClick = { isActionMenuExpanded = true }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.MoreVert,
-                                    contentDescription = stringResource(R.string.plan_more_options),
+                        HrtDropdownMenu(
+                            expanded = isActionMenuExpanded,
+                            onDismissRequest = { isActionMenuExpanded = false },
+                            items = listOf(
+                                HrtDropdownMenuItem(
+                                    text = stringResource(R.string.settings_calibration_delete_all_entries),
+                                    enabled = uiState.panels.isNotEmpty() && !uiState.isDeletingAllEntries,
+                                    onClick = { isDeleteAllEntriesConfirmationVisible = true },
                                 )
-                            }
-                            HrtDropdownMenu(
-                                expanded = isActionMenuExpanded,
-                                onDismissRequest = { isActionMenuExpanded = false },
-                                items = listOf(
-                                    HrtDropdownMenuItem(
-                                        text = stringResource(R.string.settings_calibration_delete_all_entries),
-                                        enabled = uiState.panels.isNotEmpty() && !uiState.isDeletingAllEntries,
-                                        onClick = { isDeleteAllEntriesConfirmationVisible = true },
-                                    )
-                                ),
-                            )
-                        }
-                    },
-                    scrollBehavior = scrollBehavior
-                )
-            }
+                            ),
+                        )
+                    }
+                },
+                scrollBehavior = scrollBehavior
+            )
         }
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {

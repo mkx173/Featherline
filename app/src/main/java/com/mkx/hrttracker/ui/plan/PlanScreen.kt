@@ -33,7 +33,6 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -87,7 +86,7 @@ import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.ui.components.AppContentContainer
-import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
+import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
@@ -96,9 +95,7 @@ import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
-import com.mkx.hrttracker.ui.components.hazeTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -296,63 +293,58 @@ private fun PlanScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            HazeTopAppBarColorReset {
-                TopAppBar(
-                    modifier = Modifier
-                        .topAppBarScrollToTop(scrollBehavior, listState)
-                        .hazeTopAppBar(scrollBehavior),
-                    title = {
-                        val title = stringResource(R.string.tab_plan)
-                        Text(
-                            text = title,
-                            modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+            HazeTopAppBar(
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
+                title = {
+                    val title = stringResource(R.string.tab_plan)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
+                scrollBehavior = scrollBehavior,
+                actions = {
+                    IconButton(onClick = onMedicinesClick) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_medication),
+                            contentDescription = stringResource(R.string.medicines_title),
                         )
-                    },
-                    colors = hazeTopAppBarColors(),
-                    scrollBehavior = scrollBehavior,
-                    actions = {
-                        IconButton(onClick = onMedicinesClick) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_medication),
-                                contentDescription = stringResource(R.string.medicines_title),
-                            )
-                        }
-                        IconButton(onClick = onHistoryClick) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_history),
-                                contentDescription = stringResource(R.string.plan_open_history)
-                            )
-                        }
-                        Box {
-                            IconButton(onClick = { isActionMenuExpanded = true }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.MoreVert,
-                                    contentDescription = stringResource(R.string.plan_more_options)
-                                )
-                            }
-                            val menuItems = buildList {
-                                add(
-                                    HrtDropdownMenuItem(
-                                        text = stringResource(R.string.plan_archived_groups),
-                                        onClick = onArchivedGroupsClick,
-                                    )
-                                )
-                                add(
-                                    HrtDropdownMenuItem(
-                                        text = stringResource(R.string.plan_batch_add_from_plan),
-                                        onClick = onBatchAddClick,
-                                    )
-                                )
-                            }
-                            HrtDropdownMenu(
-                                expanded = isActionMenuExpanded,
-                                onDismissRequest = { isActionMenuExpanded = false },
-                                items = menuItems,
-                            )
-                        }
                     }
-                )
-            }
+                    IconButton(onClick = onHistoryClick) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_history),
+                            contentDescription = stringResource(R.string.plan_open_history)
+                        )
+                    }
+                    Box {
+                        IconButton(onClick = { isActionMenuExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = stringResource(R.string.plan_more_options)
+                            )
+                        }
+                        val menuItems = buildList {
+                            add(
+                                HrtDropdownMenuItem(
+                                    text = stringResource(R.string.plan_archived_groups),
+                                    onClick = onArchivedGroupsClick,
+                                )
+                            )
+                            add(
+                                HrtDropdownMenuItem(
+                                    text = stringResource(R.string.plan_batch_add_from_plan),
+                                    onClick = onBatchAddClick,
+                                )
+                            )
+                        }
+                        HrtDropdownMenu(
+                            expanded = isActionMenuExpanded,
+                            onDismissRequest = { isActionMenuExpanded = false },
+                            items = menuItems,
+                        )
+                    }
+                }
+            )
         }
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {

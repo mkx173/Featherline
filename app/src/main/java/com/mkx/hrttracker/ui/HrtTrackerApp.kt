@@ -5,7 +5,6 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicineStockState
-import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.navigation.HrtTrackerNavHost
 import com.mkx.hrttracker.ui.navigation.Screen
@@ -16,7 +15,6 @@ fun HrtTrackerApp(
     navController: NavHostController,
     homeDeepLinkSignal: Int,
     highlightEffectsEnabled: Boolean,
-    settingsState: SettingsState,
 ) {
     // The post-log stock snackbar is hosted inside HrtTrackerNavHost so it sits
     // above the app's bottom navigation bar rather than overlapping it.
@@ -24,7 +22,6 @@ fun HrtTrackerApp(
         navController = navController,
         homeDeepLinkSignal = homeDeepLinkSignal,
         highlightEffectsEnabled = highlightEffectsEnabled,
-        settingsState = settingsState,
     )
 }
 

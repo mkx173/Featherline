@@ -48,7 +48,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -102,7 +101,7 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.BackupPasswordDialog
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
-import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
+import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtSection
@@ -110,9 +109,8 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
+import com.mkx.hrttracker.ui.components.isHazeBlurSupported
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
-import com.mkx.hrttracker.ui.components.hazeTopAppBar
 import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
@@ -615,10 +613,6 @@ fun SettingsScreen(
 // this the slider saves its raw continuous position while the label rounds for display.
 private fun snapToWholePercent(value: Float): Float = (value * 100).roundToInt() / 100f
 
-internal fun shouldShowHazeBlurToggle(sdkInt: Int = Build.VERSION.SDK_INT): Boolean {
-    return sdkInt >= Build.VERSION_CODES.S
-}
-
 @Composable
 internal fun WidgetAppearanceDialog(
     contentScale: Float,
@@ -879,22 +873,17 @@ internal fun SettingsScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            HazeTopAppBarColorReset {
-                TopAppBar(
-                    modifier = Modifier
-                        .topAppBarScrollToTop(scrollBehavior, scrollState)
-                        .hazeTopAppBar(scrollBehavior),
-                    title = {
-                        val title = stringResource(R.string.tab_settings)
-                        Text(
-                            text = title,
-                            modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
-                        )
-                    },
-                    colors = hazeTopAppBarColors(),
-                    scrollBehavior = scrollBehavior
-                )
-            }
+            HazeTopAppBar(
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, scrollState),
+                title = {
+                    val title = stringResource(R.string.tab_settings)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
+                scrollBehavior = scrollBehavior
+            )
         }
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
@@ -1309,7 +1298,7 @@ internal fun SettingsScreenContent(
                         }
                     }
 
-                    if (shouldShowHazeBlurToggle()) {
+                    if (isHazeBlurSupported()) {
                         item {
                             SettingsSegmentedListItem(
                                 title = stringResource(R.string.settings_haze_blur),

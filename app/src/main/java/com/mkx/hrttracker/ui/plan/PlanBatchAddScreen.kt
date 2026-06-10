@@ -32,7 +32,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.getSelectedEndDate
 import androidx.compose.material3.getSelectedStartDate
 import androidx.compose.material3.rememberDateRangePickerState
@@ -68,7 +67,7 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeDatePickerDialog
-import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
+import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
@@ -80,9 +79,7 @@ import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.datePickerSelectableDates
 import com.mkx.hrttracker.ui.components.hazeDatePickerColors
-import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
-import com.mkx.hrttracker.ui.components.hazeTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -270,43 +267,38 @@ private fun PlanBatchAddScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            HazeTopAppBarColorReset {
-                TopAppBar(
-                    modifier = Modifier
-                        .topAppBarScrollToTop(scrollBehavior, listState)
-                        .hazeTopAppBar(scrollBehavior),
-                    title = {
-                        val title = stringResource(R.string.plan_batch_add_title)
-                        Text(
-                            text = title,
-                            modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
-                        )
-                    },
-                    navigationIcon = {
-                        FlipSlot(
-                            flipped = shouldDeselectOnBack,
-                            front = {
-                                IconButton(onClick = onNavigateBack) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                        contentDescription = stringResource(R.string.navigate_back),
-                                    )
-                                }
-                            },
-                            back = {
-                                IconButton(onClick = { clearSelectionAndDismissDialogs() }) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Close,
-                                        contentDescription = stringResource(R.string.history_cancel_selection),
-                                    )
-                                }
-                            },
-                        )
-                    },
-                    colors = hazeTopAppBarColors(),
-                    scrollBehavior = scrollBehavior,
-                )
-            }
+            HazeTopAppBar(
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
+                title = {
+                    val title = stringResource(R.string.plan_batch_add_title)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
+                navigationIcon = {
+                    FlipSlot(
+                        flipped = shouldDeselectOnBack,
+                        front = {
+                            IconButton(onClick = onNavigateBack) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = stringResource(R.string.navigate_back),
+                                )
+                            }
+                        },
+                        back = {
+                            IconButton(onClick = { clearSelectionAndDismissDialogs() }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = stringResource(R.string.history_cancel_selection),
+                                )
+                            }
+                        },
+                    )
+                },
+                scrollBehavior = scrollBehavior,
+            )
         }
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {

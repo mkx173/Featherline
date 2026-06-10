@@ -4,43 +4,96 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
+/**
+ * Structural checks for the haze chrome integration.
+ *
+ * The bulk of the haze wiring is enforced at compile time: the shared wrappers in
+ * HazeChrome.kt (HazeTopAppBar, HazeModalBottomSheet, HazeAlertDialog, ...) own the
+ * transparent containers, blur modifiers and accessibility affordances, and their
+ * building blocks are private to that file. What's left for these tests is the part
+ * the compiler can't see: that screens actually use the wrappers instead of the raw
+ * Material3 components, and the cross-file CompositionLocal wiring.
+ */
 class HazeChromeIntegrationTest {
     @Test
-    fun top_app_bars_use_haze_chrome_and_transparent_haze_colors() {
-        val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
-        require(uiDir.isDirectory) {
-            "Expected UI source directory at ${uiDir.absolutePath}; unit tests must run with " +
-                    "the app module as the working directory."
-        }
-
-        val offenders = uiDir.walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .filter { file -> TOP_APP_BAR_CALL.containsMatchIn(file.readText()) }
+    fun material_chrome_renders_through_shared_haze_wrappers() {
+        val offenders = uiSourceFiles()
+            .filterNot { file ->
+                file.relativeTo(uiDir()).invariantSeparatorsPath == "components/HazeChrome.kt"
+            }
             .mapNotNull { file ->
                 val text = file.readText()
                 val missing = buildList {
-                    if (!text.contains(".hazeTopAppBar(")) add("hazeTopAppBar modifier")
-                    if (!text.contains("hazeTopAppBarColors()")) add("transparent haze colors")
+                    if (DIRECT_MATERIAL_CHROME_IMPORT.containsMatchIn(text)) {
+                        add("direct Material3 chrome import")
+                    }
+                    if (DIRECT_MATERIAL_CHROME_CALL.containsMatchIn(text)) {
+                        add("direct Material3 chrome call")
+                    }
                 }
                 if (missing.isEmpty()) {
                     null
                 } else {
-                    "${file.relativeTo(uiDir)} missing ${missing.joinToString(" and ")}"
+                    "${file.relativeTo(uiDir())}: ${missing.joinToString("; ")}"
                 }
             }
             .toList()
 
         assertTrue(
-            "Every TopAppBar/CenterAlignedTopAppBar should render with Haze chrome:\n" +
+            "Top app bars, modal bottom sheets and dialogs must render through the " +
+                    "shared Haze wrappers in HazeChrome.kt (HazeTopAppBar, " +
+                    "HazeModalBottomSheet, HazeAlertDialog, ...); hand-assembling the " +
+                    "chrome at call sites is how transparent-surface bugs slip in:\n" +
                     offenders.joinToString("\n"),
             offenders.isEmpty(),
         )
     }
 
     @Test
+    fun haze_chrome_keeps_wrapper_building_blocks() {
+        val hazeChromeText = hazeChromeText()
+
+        assertTrue(
+            "Haze wrappers should keep the shared building blocks so one " +
+                    "LocalHazeBlurEnabled switch controls all chrome.",
+            hazeChromeText.contains("fun HazeTopAppBar(") &&
+                    hazeChromeText.contains("fun HazeCenterAlignedTopAppBar(") &&
+                    hazeChromeText.contains("fun HazeModalBottomSheet(") &&
+                    hazeChromeText.contains("fun Modifier.hazeBottomSheet(") &&
+                    hazeChromeText.contains("fun HazeBottomSheetSurface(") &&
+                    hazeChromeText.contains("fun hazeBottomSheetContainerColor(") &&
+                    hazeChromeText.contains("LocalHazeBlurEnabled.current") &&
+                    hazeChromeText.contains("BottomSheetDefaults.ContainerColor") &&
+                    hazeChromeText.contains("copy(alpha = 0f)"),
+        )
+
+        assertTrue(
+            "Sheet and dialog containers must only go transparent when a haze state is " +
+                    "actually present; a transparent container without a blur behind it " +
+                    "renders the surface invisible.",
+            hazeChromeText.contains("LocalChromeHazeState.current != null"),
+        )
+
+        assertTrue(
+            "Dialog Haze should be provided by shared helpers so LocalHazeBlurEnabled " +
+                    "controls dialog blur and disabled blur falls back to Material3 colors.",
+            hazeChromeText.contains("fun HazeAlertDialog(") &&
+                    hazeChromeText.contains("fun HazeBasicAlertDialog(") &&
+                    hazeChromeText.contains("fun HazeDatePickerDialog(") &&
+                    hazeChromeText.contains("fun HazeTimePickerDialog(") &&
+                    hazeChromeText.contains("fun Modifier.hazeDialog(") &&
+                    hazeChromeText.contains(".clip(shape)") &&
+                    hazeChromeText.contains("blurredEdgeTreatment = BlurredEdgeTreatment(shape)") &&
+                    hazeChromeText.contains("fun hazeDialogContainerColor(") &&
+                    hazeChromeText.contains("fun hazeDatePickerColors(") &&
+                    hazeChromeText.contains("copy(alpha = 0.2f)") &&
+                    hazeChromeText.contains("AlertDialogDefaults.containerColor"),
+        )
+    }
+
+    @Test
     fun top_app_bar_haze_transparent_colors_preserve_theme_rgb_channels() {
-        val hazeChromeText =
-            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
+        val hazeChromeText = hazeChromeText()
 
         assertTrue(
             "Top app bar Haze colors should keep the default theme RGB channels and only " +
@@ -53,62 +106,15 @@ class HazeChromeIntegrationTest {
     }
 
     @Test
-    fun top_app_bars_reset_material_color_animation_when_haze_setting_changes() {
-        val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
-        require(uiDir.isDirectory) {
-            "Expected UI source directory at ${uiDir.absolutePath}; unit tests must run with " +
-                    "the app module as the working directory."
-        }
-
-        val hazeChromeText =
-            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
-        assertTrue(
-            "Haze top app bars need a keyed wrapper because Material3 animates the " +
-                    "container color internally. Without resetting that animation on blur " +
-                    "setting changes, on -> off can animate up from transparent after the " +
-                    "Haze effect has been removed.",
-            hazeChromeText.contains("fun HazeTopAppBarColorReset(") &&
-                    hazeChromeText.contains("key(LocalHazeBlurEnabled.current)"),
-        )
-
-        val offenders = uiDir.walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .filter { file -> TOP_APP_BAR_CALL.containsMatchIn(file.readText()) }
-            .mapNotNull { file ->
-                val text = file.readText()
-                if (text.contains("HazeTopAppBarColorReset {")) {
-                    null
-                } else {
-                    "${file.relativeTo(uiDir)} missing HazeTopAppBarColorReset wrapper"
-                }
-            }
-            .toList()
-
-        assertTrue(
-            "Every Haze TopAppBar/CenterAlignedTopAppBar should reset its Material " +
-                    "container color animation when the blur setting changes:\n" +
-                    offenders.joinToString("\n"),
-            offenders.isEmpty(),
-        )
-    }
-
-    @Test
     fun top_app_bar_blur_follows_default_scrolled_overlap_state() {
-        val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
-        require(uiDir.isDirectory) {
-            "Expected UI source directory at ${uiDir.absolutePath}; unit tests must run with " +
-                    "the app module as the working directory."
-        }
-
-        val offenders = uiDir.walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .filter { file -> TOP_APP_BAR_CALL.containsMatchIn(file.readText()) }
+        val offenders = uiSourceFiles()
+            .filterNot { file ->
+                file.relativeTo(uiDir()).invariantSeparatorsPath ==
+                        "components/PinnedTopAppBarScrollBehavior.kt"
+            }
             .mapNotNull { file ->
                 val text = file.readText()
                 val missing = buildList {
-                    if (!text.contains(".hazeTopAppBar(scrollBehavior)")) {
-                        add("Haze blur does not track the scroll overlap via hazeTopAppBar(scrollBehavior)")
-                    }
                     if (text.contains("TopAppBarDefaults.pinnedScrollBehavior(")) {
                         add(
                             "pinned scroll behavior bypasses pinnedTopAppBarScrollBehavior, " +
@@ -135,13 +141,12 @@ class HazeChromeIntegrationTest {
                 if (missing.isEmpty()) {
                     null
                 } else {
-                    "${file.relativeTo(uiDir)}: ${missing.joinToString("; ")}"
+                    "${file.relativeTo(uiDir())}: ${missing.joinToString("; ")}"
                 }
             }
             .toList()
 
-        val hazeChromeText =
-            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
+        val hazeChromeText = hazeChromeText()
         assertTrue(
             "Haze top app bars should use Material3's default scrolled threshold and fade " +
                     "their chrome with the actual overlap (blur opacity when blur is on, a " +
@@ -166,7 +171,6 @@ class HazeChromeIntegrationTest {
 
     @Test
     fun top_app_bar_backdrop_content_draws_behind_top_chrome() {
-        val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
         val contentContainerFile =
             File("src/main/java/com/mkx/hrttracker/ui/components/AppContentContainer.kt")
         val navigationScaffoldFile =
@@ -182,8 +186,7 @@ class HazeChromeIntegrationTest {
                     "not become a child of the same Haze source it samples.",
             !navigationScaffoldFile.readText().contains("hazeSourceArea(LocalChromeHazeState.current)"),
         )
-        val navHostText =
-            File("src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt").readText()
+        val navHostText = navHostText()
         assertTrue(
             "Top app bars need per-destination Haze state. A single top chrome state around " +
                     "the whole NavHost lets outgoing and incoming pages register source layers " +
@@ -199,9 +202,8 @@ class HazeChromeIntegrationTest {
                     Regex("""RoutedTopChromeHazeProvider \{""").findAll(navHostText).count(),
         )
 
-        val offenders = uiDir.walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .filter { file -> TOP_APP_BAR_CALL.containsMatchIn(file.readText()) }
+        val offenders = uiSourceFiles()
+            .filter { file -> HAZE_TOP_APP_BAR_CALL.containsMatchIn(file.readText()) }
             .mapNotNull { file ->
                 val text = file.readText()
                 val missing = buildList {
@@ -217,7 +219,7 @@ class HazeChromeIntegrationTest {
                 if (missing.isEmpty()) {
                     null
                 } else {
-                    "${file.relativeTo(uiDir)}: ${missing.joinToString("; ")}"
+                    "${file.relativeTo(uiDir())}: ${missing.joinToString("; ")}"
                 }
             }
             .toList()
@@ -233,10 +235,8 @@ class HazeChromeIntegrationTest {
     fun bottom_navigation_bar_uses_haze_chrome_and_transparent_haze_colors() {
         val scaffoldFile =
             File("src/main/java/com/mkx/hrttracker/ui/navigation/EdgeToEdgeNavigationSuiteScaffold.kt")
-        val navHostFile =
-            File("src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt")
         val text = scaffoldFile.readText()
-        val navHostText = navHostFile.readText()
+        val navHostText = navHostText()
 
         assertTrue(
             "Bottom navigation scaffold should apply the Haze chrome modifier.",
@@ -259,180 +259,18 @@ class HazeChromeIntegrationTest {
     }
 
     @Test
-    fun bottom_sheets_use_haze_chrome_and_transparent_haze_container_colors() {
-        val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
-        require(uiDir.isDirectory) {
-            "Expected UI source directory at ${uiDir.absolutePath}; unit tests must run with " +
-                    "the app module as the working directory."
-        }
-
-        val offenders = uiDir.walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .filter { file -> BOTTOM_SHEET_CALL.containsMatchIn(file.readText()) }
-            .mapNotNull { file ->
-                val text = file.readText()
-                val missing = buildList {
-                    if (!text.contains("HazeBottomSheetSurface(")) {
-                        add("inner HazeBottomSheetSurface")
-                    }
-                    if (!text.contains("dragHandle = null")) {
-                        add("default drag handle disabled for inner Haze surface")
-                    }
-                    if (!text.contains("hazeBottomSheetContainerColor()")) {
-                        add("transparent Haze container color")
-                    }
-                }
-                if (missing.isEmpty()) {
-                    null
-                } else {
-                    "${file.relativeTo(uiDir)} missing ${missing.joinToString(" and ")}"
-                }
-            }
-            .toList()
+    fun navhost_hosted_sheets_receive_navigation_haze_setting_and_source() {
+        val navHostText = navHostText()
 
         assertTrue(
-            "Every ModalBottomSheet should render with Haze chrome:\n" +
-                    offenders.joinToString("\n"),
-            offenders.isEmpty(),
-        )
-    }
-
-    @Test
-    fun bottom_sheet_blur_follows_app_wide_haze_setting() {
-        val hazeChromeText =
-            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
-
-        assertTrue(
-            "Bottom sheet Haze should be provided by shared helpers so the same " +
-                    "LocalHazeBlurEnabled switch controls sheet blur and other chrome.",
-            hazeChromeText.contains("fun Modifier.hazeBottomSheet(") &&
-                    hazeChromeText.contains("fun HazeBottomSheetSurface(") &&
-                    hazeChromeText.contains("fun hazeBottomSheetContainerColor(") &&
-                    hazeChromeText.contains("LocalHazeBlurEnabled.current") &&
-                    hazeChromeText.contains("BottomSheetDefaults.ContainerColor") &&
-                    hazeChromeText.contains("copy(alpha = 0f)"),
-        )
-    }
-
-    @Test
-    fun dialogs_use_haze_chrome_and_translucent_haze_container_colors() {
-        val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
-        require(uiDir.isDirectory) {
-            "Expected UI source directory at ${uiDir.absolutePath}; unit tests must run with " +
-                    "the app module as the working directory."
-        }
-
-        val offenders = uiDir.walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .filterNot { file -> file.relativeTo(uiDir).invariantSeparatorsPath == "components/HazeChrome.kt" }
-            .mapNotNull { file ->
-                val text = file.readText()
-                val missing = buildList {
-                    if (DIRECT_MATERIAL_DIALOG_IMPORT.containsMatchIn(text)) {
-                        add("direct Material3 dialog import")
-                    }
-                    if (DIALOG_CALL.containsMatchIn(text)) {
-                        add("direct Material3 dialog call")
-                    }
-                }
-                if (missing.isEmpty()) {
-                    null
-                } else {
-                    "${file.relativeTo(uiDir)}: ${missing.joinToString("; ")}"
-                }
-            }
-            .toList()
-
-        assertTrue(
-            "Every Material3 dialog should render through the shared Haze " +
-                    "dialog wrappers:\n" + offenders.joinToString("\n"),
-            offenders.isEmpty(),
-        )
-
-        val hazeChromeText =
-            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
-
-        assertTrue(
-            "Dialog Haze should be provided by shared helpers so LocalHazeBlurEnabled " +
-                    "controls dialog blur and disabled blur falls back to Material3 colors.",
-            hazeChromeText.contains("fun HazeAlertDialog(") &&
-                    hazeChromeText.contains("fun HazeBasicAlertDialog(") &&
-                    hazeChromeText.contains("fun HazeDatePickerDialog(") &&
-                    hazeChromeText.contains("fun HazeTimePickerDialog(") &&
-                    hazeChromeText.contains("fun Modifier.hazeDialog(") &&
-                    hazeChromeText.contains("shape: Shape") &&
-                    hazeChromeText.contains(".clip(shape)") &&
-                    hazeChromeText.contains("blurredEdgeTreatment = BlurredEdgeTreatment(shape)") &&
-                    hazeChromeText.contains("fun hazeDialogContainerColor(") &&
-                    hazeChromeText.contains("fun hazeDatePickerColors(") &&
-                    hazeChromeText.contains("LocalHazeBlurEnabled.current") &&
-                    hazeChromeText.contains("LocalChromeHazeState.current != null") &&
-                    hazeChromeText.contains("copy(alpha = 0.2f)") &&
-                    hazeChromeText.contains("forceInvalidateOnPreDraw = true") &&
-                    hazeChromeText.contains("AlertDialogDefaults.containerColor"),
-        )
-
-        val materialPickerText =
-            File("src/main/java/com/mkx/hrttracker/ui/components/MaterialPickerDialogs.kt")
-                .readText()
-        val planBatchAddText =
-            File("src/main/java/com/mkx/hrttracker/ui/plan/PlanBatchAddScreen.kt").readText()
-
-        assertTrue(
-            "DatePicker and DateRangePicker draw their own container background, so picker " +
-                    "content must receive the same translucent Haze date picker colors as " +
-                    "the outer DatePickerDialog surface.",
-            materialPickerText.contains("val colors = hazeDatePickerColors()") &&
-                    materialPickerText.contains("DatePicker(state = datePickerState, colors = colors)") &&
-                    planBatchAddText.contains("val colors = hazeDatePickerColors()") &&
-                    planBatchAddText.contains("DateRangePicker(") &&
-                    planBatchAddText.contains("colors = colors"),
-        )
-    }
-
-    @Test
-    fun bottom_sheet_haze_surface_owns_content_window_insets() {
-        val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
-        require(uiDir.isDirectory) {
-            "Expected UI source directory at ${uiDir.absolutePath}; unit tests must run with " +
-                    "the app module as the working directory."
-        }
-
-        val offenders = uiDir.walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .filter { file -> BOTTOM_SHEET_CALL.containsMatchIn(file.readText()) }
-            .mapNotNull { file ->
-                val text = file.readText()
-                if (text.contains("contentWindowInsets = { hazeBottomSheetContentWindowInsets() }")) {
-                    null
-                } else {
-                    "${file.relativeTo(uiDir)} lets Material3 pad outside the Haze surface"
-                }
-            }
-            .toList()
-
-        assertTrue(
-            "Haze bottom sheets should make the Material3 content slot edge-to-edge and " +
-                    "apply modal content insets inside HazeBottomSheetSurface so the haze " +
-                    "background extends behind the status bar:\n" +
-                    offenders.joinToString("\n"),
-            offenders.isEmpty(),
-        )
-
-        val hazeChromeText =
-            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
-
-        assertTrue(
-            "HazeBottomSheetSurface should apply Material3 modal content insets after its " +
-                    "haze/background modifiers, while ModalBottomSheet receives zero outer " +
-                    "content insets.",
-            hazeChromeText.contains(
-                "contentWindowInsets: @Composable () -> WindowInsets = " +
-                        "{ BottomSheetDefaults.modalWindowInsets }"
-            ) &&
-                    hazeChromeText.contains(".windowInsetsPadding(contentWindowInsets())") &&
-                    hazeChromeText.contains("fun hazeBottomSheetContentWindowInsets()") &&
-                    hazeChromeText.contains("WindowInsets(0, 0, 0, 0)"),
+            "The log entry editor and the stock-nudge opt-in sheet are hosted by " +
+                    "HrtTrackerNavHost rather than a route. Both must receive the navigation " +
+                    "Haze state whose source wraps the routed content; composing either one " +
+                    "outside the provider made its transparent container fully invisible.",
+            navHostText.contains("MedicationLogEntryScreen(") &&
+                    navHostText.contains("AdjustStockSheet(") &&
+                    Regex("""LocalChromeHazeState provides navigationChromeHazeState""")
+                        .findAll(navHostText).count() == 2,
         )
     }
 
@@ -459,29 +297,9 @@ class HazeChromeIntegrationTest {
     }
 
     @Test
-    fun log_entry_bottom_sheet_receives_navigation_haze_setting_and_source() {
-        val navHostText =
-            File("src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt").readText()
-
-        assertTrue(
-            "The log entry editor is hosted by HrtTrackerNavHost rather than a route. It must " +
-                    "stay inside the app-wide haze setting provider and receive the navigation " +
-                    "Haze state whose source wraps the routed home/plan/history content.",
-            navHostText.contains("LocalHazeBlurEnabled provides hazeBlurEnabled") &&
-                    navHostText.contains("navigationChromeHazeState = navigationChromeHazeState") &&
-                    navHostText.contains(
-                        "LocalChromeHazeState provides navigationChromeHazeState"
-                    ) &&
-                    navHostText.contains("MedicationLogEntryScreen("),
-        )
-    }
-
-    @Test
     fun haze_blur_is_controlled_by_app_wide_platform_gated_setting() {
-        val hazeChromeText =
-            File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
-        val navHostText =
-            File("src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt").readText()
+        val hazeChromeText = hazeChromeText()
+        val navHostText = navHostText()
         val mainActivityText =
             File("src/main/java/com/mkx/hrttracker/MainActivity.kt").readText()
         val settingsScreenText =
@@ -497,32 +315,75 @@ class HazeChromeIntegrationTest {
                     hazeChromeText.contains("hazeNavigationSuiteColors("),
         )
         assertTrue(
-            "The NavHost should publish the effective value from SettingsState, with the " +
-                    "Android 12+ platform gate applied before it reaches screen chrome.",
+            "MainActivity publishes the effective value from SettingsState (with the " +
+                    "Android 12+ platform gate applied) for the whole app; the NavHost must " +
+                    "not re-derive or re-provide it — the duplicate provider invalidated the " +
+                    "NavHost on every settings change and defaulted blur on when the " +
+                    "parameter was omitted.",
             mainActivityText.contains("settingsRepository.settingsState.collectAsStateWithLifecycle()") &&
-                    mainActivityText.contains("settingsState = settingsState") &&
-                    navHostText.contains("effectiveHazeBlurEnabled(") &&
-                    navHostText.contains("settingsState.hazeBlurEnabled") &&
-                    navHostText.contains("LocalHazeBlurEnabled provides"),
+                    mainActivityText.contains("LocalHazeBlurEnabled provides appHazeBlurEnabled") &&
+                    !navHostText.contains("LocalHazeBlurEnabled provides"),
         )
         assertTrue(
-            "Settings should expose the haze switch only through an Android 12+ gate.",
-            settingsScreenText.contains("shouldShowHazeBlurToggle(") &&
-                    settingsScreenText.contains("Build.VERSION_CODES.S") &&
+            "Settings should expose the haze switch only through an Android 12+ gate, " +
+                    "reusing the shared isHazeBlurSupported check.",
+            settingsScreenText.contains("if (isHazeBlurSupported())") &&
                     settingsScreenText.contains("onHazeBlurEnabledChange") &&
                     settingsScreenText.contains("settingsState.hazeBlurEnabled"),
         )
     }
 
+    @Test
+    fun date_pickers_receive_translucent_haze_colors() {
+        val materialPickerText =
+            File("src/main/java/com/mkx/hrttracker/ui/components/MaterialPickerDialogs.kt")
+                .readText()
+        val planBatchAddText =
+            File("src/main/java/com/mkx/hrttracker/ui/plan/PlanBatchAddScreen.kt").readText()
+
+        assertTrue(
+            "DatePicker and DateRangePicker draw their own container background, so picker " +
+                    "content must receive the same translucent Haze date picker colors as " +
+                    "the outer DatePickerDialog surface.",
+            materialPickerText.contains("val colors = hazeDatePickerColors()") &&
+                    materialPickerText.contains("DatePicker(state = datePickerState, colors = colors)") &&
+                    planBatchAddText.contains("val colors = hazeDatePickerColors()") &&
+                    planBatchAddText.contains("DateRangePicker(") &&
+                    planBatchAddText.contains("colors = colors"),
+        )
+    }
+
+    private fun uiDir(): File {
+        val uiDir = File("src/main/java/com/mkx/hrttracker/ui")
+        require(uiDir.isDirectory) {
+            "Expected UI source directory at ${uiDir.absolutePath}; unit tests must run with " +
+                    "the app module as the working directory."
+        }
+        return uiDir
+    }
+
+    private fun uiSourceFiles(): Sequence<File> = uiDir().walkTopDown()
+        .filter { it.isFile && it.extension == "kt" }
+
+    private fun hazeChromeText(): String =
+        File("src/main/java/com/mkx/hrttracker/ui/components/HazeChrome.kt").readText()
+
+    private fun navHostText(): String =
+        File("src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt").readText()
+
     private companion object {
-        private val TOP_APP_BAR_CALL = Regex("""\b(?:CenterAlignedTopAppBar|TopAppBar)\(""")
-        private val BOTTOM_SHEET_CALL = Regex("""\bModalBottomSheet\(""")
-        private val DIALOG_CALL =
-            Regex("""\b(?:AlertDialog|BasicAlertDialog|DatePickerDialog|TimePickerDialog)\(""")
-        private val DIRECT_MATERIAL_DIALOG_IMPORT =
+        private val HAZE_TOP_APP_BAR_CALL =
+            Regex("""\bHaze(?:CenterAligned)?TopAppBar\(""")
+        private val DIRECT_MATERIAL_CHROME_CALL =
+            Regex(
+                """\b(?:CenterAlignedTopAppBar|TopAppBar|ModalBottomSheet|AlertDialog|""" +
+                        """BasicAlertDialog|DatePickerDialog|TimePickerDialog)\("""
+            )
+        private val DIRECT_MATERIAL_CHROME_IMPORT =
             Regex(
                 """import androidx\.compose\.material3\.""" +
-                        """(?:AlertDialog|BasicAlertDialog|DatePickerDialog|TimePickerDialog)\b"""
+                        """(?:CenterAlignedTopAppBar|TopAppBar|ModalBottomSheet|AlertDialog|""" +
+                        """BasicAlertDialog|DatePickerDialog|TimePickerDialog)\b"""
             )
     }
 }

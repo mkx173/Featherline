@@ -57,7 +57,6 @@ import androidx.compose.material3.TextFieldLabelPosition
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.rememberTopAppBarState
@@ -115,7 +114,7 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
-import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
+import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
@@ -125,9 +124,7 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
-import com.mkx.hrttracker.ui.components.hazeTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.scrollToTop
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -1286,54 +1283,49 @@ private fun MedicationGroupEditorScreenContent(
             ScaffoldDefaults.contentWindowInsets
         },
         topBar = {
-            HazeTopAppBarColorReset {
-                TopAppBar(
-                    modifier = Modifier
-                        .topAppBarScrollToTop(scrollBehavior, listState)
-                        .hazeTopAppBar(scrollBehavior),
-                    title = {
-                        val title = stringResource(
-                            if (shouldUseArchivedPresentation) {
-                                R.string.archived_medication_group
-                            } else if (shouldRenderAsEditing) {
-                                R.string.edit_medication_group
-                            } else {
-                                R.string.add_medication_group
-                            }
-                        )
-                        Text(
-                            text = title,
-                            modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
-                        )
-                    },
-                    colors = hazeTopAppBarColors(),
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = stringResource(R.string.cancel)
-                            )
+            HazeTopAppBar(
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
+                title = {
+                    val title = stringResource(
+                        if (shouldUseArchivedPresentation) {
+                            R.string.archived_medication_group
+                        } else if (shouldRenderAsEditing) {
+                            R.string.edit_medication_group
+                        } else {
+                            R.string.add_medication_group
                         }
-                    },
-                    actions = {
-                        if (!shouldUseArchivedPresentation) {
-                            HrtButton(
-                                text = stringResource(R.string.save),
-                                onClick = {
-                                    if (shouldDisableMedicationGroupEditorSaveAction(
-                                            uiState = uiState,
-                                        )
-                                    ) return@HrtButton
-                                    onSaveClick()
-                                },
-                                enabled = canSave,
-                                modifier = Modifier.padding(end = 8.dp),
-                            )
-                        }
-                    },
-                    scrollBehavior = scrollBehavior
-                )
-            }
+                    )
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.cancel)
+                        )
+                    }
+                },
+                actions = {
+                    if (!shouldUseArchivedPresentation) {
+                        HrtButton(
+                            text = stringResource(R.string.save),
+                            onClick = {
+                                if (shouldDisableMedicationGroupEditorSaveAction(
+                                        uiState = uiState,
+                                    )
+                                ) return@HrtButton
+                                onSaveClick()
+                            },
+                            enabled = canSave,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                    }
+                },
+                scrollBehavior = scrollBehavior
+            )
         }
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {

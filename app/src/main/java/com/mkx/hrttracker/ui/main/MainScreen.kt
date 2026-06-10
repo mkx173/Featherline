@@ -12,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenuPopup
@@ -48,12 +47,10 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.calibration.calibrationAllowedUnitsFor
 import com.mkx.hrttracker.ui.components.AppContentContainer
-import com.mkx.hrttracker.ui.components.HazeTopAppBarColorReset
+import com.mkx.hrttracker.ui.components.HazeCenterAlignedTopAppBar
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
-import com.mkx.hrttracker.ui.components.hazeTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -197,38 +194,33 @@ fun MainScreen(
             .fillMaxSize()
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            HazeTopAppBarColorReset {
-                CenterAlignedTopAppBar(
-                    modifier = Modifier
-                        .topAppBarScrollToTop(scrollBehavior, scrollState)
-                        .hazeTopAppBar(scrollBehavior),
-                    title = {
-                        val title = stringResource(R.string.tab_main)
-                        Text(
-                            text = title,
-                            modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+            HazeCenterAlignedTopAppBar(
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, scrollState),
+                title = {
+                    val title = stringResource(R.string.tab_main)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
+                actions = {
+                    IconButton(onClick = onAddEntryClick) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_edit_square_alt),
+                            contentDescription = stringResource(R.string.fab_add_entry),
+                            modifier = Modifier.size(22.dp),
                         )
-                    },
-                    actions = {
-                        IconButton(onClick = onAddEntryClick) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_edit_square_alt),
-                                contentDescription = stringResource(R.string.fab_add_entry),
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
-                        HomeMoreOptionsMenu(
-                            selectedUnit = uiState.homeE2DisplayUnit,
-                            onUnitSelected = viewModel::setHomeE2DisplayUnit,
-                        )
-                    },
-                    colors = hazeTopAppBarColors(),
-                    // Home is the screen on screen at cold start; see the helper's KDoc
-                    // for the first-frame insets gap this compensates for.
-                    windowInsets = topAppBarWindowInsetsWithStartupFallback(),
-                    scrollBehavior = scrollBehavior
-                )
-            }
+                    }
+                    HomeMoreOptionsMenu(
+                        selectedUnit = uiState.homeE2DisplayUnit,
+                        onUnitSelected = viewModel::setHomeE2DisplayUnit,
+                    )
+                },
+                // Home is the screen on screen at cold start; see the helper's KDoc
+                // for the first-frame insets gap this compensates for.
+                windowInsets = topAppBarWindowInsetsWithStartupFallback(),
+                scrollBehavior = scrollBehavior
+            )
         }
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {

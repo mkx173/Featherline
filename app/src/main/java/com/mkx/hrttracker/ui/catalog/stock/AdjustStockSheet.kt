@@ -32,7 +32,6 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -74,12 +73,10 @@ import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
-import com.mkx.hrttracker.ui.components.HazeBottomSheetSurface
+import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
-import com.mkx.hrttracker.ui.components.hazeBottomSheetContainerColor
-import com.mkx.hrttracker.ui.components.hazeBottomSheetContentWindowInsets
 import com.mkx.hrttracker.ui.components.stockCountPluralQuantity
 import com.mkx.hrttracker.ui.components.stockUnitNounPluralRes
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -117,102 +114,94 @@ fun AdjustStockSheet(
         WindowInsets.navigationBars.getBottom(this).toDp()
     }
 
-    ModalBottomSheet(
+    HazeModalBottomSheet(
         sheetState = sheetState,
         onDismissRequest = onDismissRequest,
         modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
-        containerColor = hazeBottomSheetContainerColor(),
-        dragHandle = null,
-        contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
     ) {
-        HazeBottomSheetSurface(
-            sheetState = sheetState,
-            onDismissRequest = onDismissRequest,
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    start = dimensionResource(R.dimen.padding_large),
+                    end = dimensionResource(R.dimen.padding_large),
+                    bottom =
+                        dimensionResource(R.dimen.padding_large) + navigationBarBottomPadding,
+                ),
         ) {
-            Column(
+            // On API 26 the ModalBottomSheet window auto-focuses the first text
+            // field, opening the IME on entry; a field's IME action then clears
+            // focus and the window re-grants it to that same field, so the
+            // keyboard won't dismiss. Parking focus on this non-text anchor —
+            // requested on entry, and reused for IME dismissal via
+            // LocalSheetDismissFocusRequester — avoids both.
+            val dismissFocusAnchor = remember { FocusRequester() }
+            LaunchedEffect(Unit) { dismissFocusAnchor.requestFocus() }
+            Spacer(
+                // Decorative dismiss anchor: focusable for the IME workaround
+                // but kept out of the a11y/traversal tree so TalkBack and
+                // keyboard navigation don't land on an empty stop.
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(
-                        start = dimensionResource(R.dimen.padding_large),
-                        end = dimensionResource(R.dimen.padding_large),
-                        bottom =
-                            dimensionResource(R.dimen.padding_large) + navigationBarBottomPadding,
-                    ),
+                    .clearAndSetSemantics {}
+                    .focusRequester(dismissFocusAnchor)
+                    .focusable(),
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                // On API 26 the ModalBottomSheet window auto-focuses the first text
-                // field, opening the IME on entry; a field's IME action then clears
-                // focus and the window re-grants it to that same field, so the
-                // keyboard won't dismiss. Parking focus on this non-text anchor —
-                // requested on entry, and reused for IME dismissal via
-                // LocalSheetDismissFocusRequester — avoids both.
-                val dismissFocusAnchor = remember { FocusRequester() }
-                LaunchedEffect(Unit) { dismissFocusAnchor.requestFocus() }
-                Spacer(
-                    // Decorative dismiss anchor: focusable for the IME workaround
-                    // but kept out of the a11y/traversal tree so TalkBack and
-                    // keyboard navigation don't land on an empty stop.
-                    modifier = Modifier
-                        .clearAndSetSemantics {}
-                        .focusRequester(dismissFocusAnchor)
-                        .focusable(),
+                Text(
+                    text = stringResource(R.string.stock_adjust_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 10.dp, top = 4.dp),
                 )
+                HrtFilledTonalButton(
+                    text = stringResource(R.string.stock_cancel),
+                    onClick = resolvedOnCloseClick,
+                )
+            }
 
-                Row(
+            Spacer(Modifier.height(dimensionResource(R.dimen.padding_small)))
+
+            CompositionLocalProvider(
+                LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+            ) {
+                ConnectedButtonGroup(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(R.string.stock_adjust_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(bottom = 10.dp, top = 4.dp),
+                    options = AdjustSheetTab.entries,
+                    selectedOption = activeTab,
+                    optionLabel = { tab -> stringResource(tab.labelRes) },
+                    onOptionSelected = { tab -> activeTab = tab },
+                    enabled = !receivedOnly,
+                    layout = ConnectedButtonGroupLayout.ROW,
+                    expandOptions = true,
+                )
+            }
+
+            Spacer(Modifier.height(dimensionResource(R.dimen.padding_small)))
+
+            CompositionLocalProvider(
+                LocalSheetDismissFocusRequester provides dismissFocusAnchor,
+            ) {
+                when (activeTab) {
+                    AdjustSheetTab.RECOUNT -> RecountForm(
+                        projection = projection,
+                        isContainer = isContainer,
+                        locale = appLocale,
+                        previewRunway = previewRunway,
+                        onSubmit = onRecount,
                     )
-                    HrtFilledTonalButton(
-                        text = stringResource(R.string.stock_cancel),
-                        onClick = resolvedOnCloseClick,
+
+                    AdjustSheetTab.RECEIVED -> ReceivedForm(
+                        projection = projection,
+                        isContainer = isContainer,
+                        locale = appLocale,
+                        previewRunway = previewRunway,
+                        onSubmit = onReceived,
                     )
-                }
-
-                Spacer(Modifier.height(dimensionResource(R.dimen.padding_small)))
-
-                CompositionLocalProvider(
-                    LocalMinimumInteractiveComponentSize provides Dp.Unspecified
-                ) {
-                    ConnectedButtonGroup(
-                        modifier = Modifier.fillMaxWidth(),
-                        options = AdjustSheetTab.entries,
-                        selectedOption = activeTab,
-                        optionLabel = { tab -> stringResource(tab.labelRes) },
-                        onOptionSelected = { tab -> activeTab = tab },
-                        enabled = !receivedOnly,
-                        layout = ConnectedButtonGroupLayout.ROW,
-                        expandOptions = true,
-                    )
-                }
-
-                Spacer(Modifier.height(dimensionResource(R.dimen.padding_small)))
-
-                CompositionLocalProvider(
-                    LocalSheetDismissFocusRequester provides dismissFocusAnchor,
-                ) {
-                    when (activeTab) {
-                        AdjustSheetTab.RECOUNT -> RecountForm(
-                            projection = projection,
-                            isContainer = isContainer,
-                            locale = appLocale,
-                            previewRunway = previewRunway,
-                            onSubmit = onRecount,
-                        )
-
-                        AdjustSheetTab.RECEIVED -> ReceivedForm(
-                            projection = projection,
-                            isContainer = isContainer,
-                            locale = appLocale,
-                            previewRunway = previewRunway,
-                            onSubmit = onReceived,
-                        )
-                    }
                 }
             }
         }
