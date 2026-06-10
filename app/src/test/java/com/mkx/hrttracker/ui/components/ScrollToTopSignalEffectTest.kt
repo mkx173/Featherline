@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TopAppBarState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -44,15 +45,17 @@ class ScrollToTopSignalEffectTest {
 
     private var signal by mutableIntStateOf(0)
     private lateinit var listState: LazyListState
+    private lateinit var topAppBarState: TopAppBarState
     private lateinit var scope: CoroutineScope
 
     private fun setListWithEffect() {
         composeRule.setContent {
             listState = rememberLazyListState()
+            topAppBarState = rememberTopAppBarState()
             scope = rememberCoroutineScope()
             ScrollToTopSignalEffect(
                 signal = signal,
-                topAppBarState = rememberTopAppBarState(),
+                topAppBarState = topAppBarState,
                 listState = listState,
             )
             LazyColumn(state = listState, modifier = Modifier.height(300.dp)) {
@@ -79,6 +82,56 @@ class ScrollToTopSignalEffectTest {
         // …a second tap lands. If it restarted the tween, finishing would need another
         // full 300ms (~19 frames); absorption finishes on the original schedule.
         composeRule.runOnIdle { signal++ }
+        repeat(12) {
+            composeRule.waitForIdle()
+            composeRule.mainClock.advanceTimeByFrame()
+        }
+        composeRule.waitForIdle()
+
+        assertEquals(0, listState.firstVisibleItemIndex)
+        assertEquals(0, listState.firstVisibleItemScrollOffset)
+    }
+
+    @Test
+    fun navSignalDuringAppBarDoubleTapScrollIsAbsorbed() {
+        // The double-tap modifier and the signal effect are independent coroutines that
+        // both funnel into TopAppBarState.scrollToTop; a nav-bar tap landing while the
+        // double-tap animation runs must not preempt it through the scroll mutex.
+        setListWithEffect()
+        composeRule.runOnIdle { scope.launch { listState.scrollToItem(30) } }
+        composeRule.waitForIdle()
+
+        composeRule.mainClock.autoAdvance = false
+        // Simulates the app bar double-tap path: a direct launch of the shared helper.
+        composeRule.runOnIdle { scope.launch { topAppBarState.scrollToTop(listState) } }
+        repeat(12) {
+            composeRule.waitForIdle()
+            composeRule.mainClock.advanceTimeByFrame()
+        }
+        composeRule.runOnIdle { signal++ }
+        repeat(12) {
+            composeRule.waitForIdle()
+            composeRule.mainClock.advanceTimeByFrame()
+        }
+        composeRule.waitForIdle()
+
+        assertEquals(0, listState.firstVisibleItemIndex)
+        assertEquals(0, listState.firstVisibleItemScrollOffset)
+    }
+
+    @Test
+    fun appBarDoubleTapDuringNavSignalScrollIsAbsorbed() {
+        setListWithEffect()
+        composeRule.runOnIdle { scope.launch { listState.scrollToItem(30) } }
+        composeRule.waitForIdle()
+
+        composeRule.mainClock.autoAdvance = false
+        composeRule.runOnIdle { signal++ }
+        repeat(12) {
+            composeRule.waitForIdle()
+            composeRule.mainClock.advanceTimeByFrame()
+        }
+        composeRule.runOnIdle { scope.launch { topAppBarState.scrollToTop(listState) } }
         repeat(12) {
             composeRule.waitForIdle()
             composeRule.mainClock.advanceTimeByFrame()

@@ -18,25 +18,47 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import java.util.Collections
+import java.util.WeakHashMap
+
+/**
+ * One scroll-to-top may run per app bar at a time. The double-tap modifier and the
+ * navigation signal effect are independent coroutines, so without this guard a tap on
+ * one entry point mid-flight would preempt the other's animation through the scroll
+ * mutex and restart the tween — the jerk-then-crawl this file exists to prevent.
+ * Weak keys let abandoned states be collected.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+private val scrollToTopInFlight: MutableSet<TopAppBarState> =
+    Collections.newSetFromMap(WeakHashMap())
 
 /**
  * The one home for "scroll back to the top and re-pin the top app bar": the shared
  * 300ms tween plus the contentOffset/heightOffset reset. Every entry point (app bar
  * double-tap, navigation scroll-to-top signal) must go through these so the animation
- * and the app bar reset cannot drift apart per screen.
+ * and the app bar reset cannot drift apart per screen. A call while a scroll-to-top is
+ * already running for this app bar is absorbed: the in-flight animation finishes.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 suspend fun TopAppBarState.scrollToTop(listState: LazyListState) {
-    listState.animateScrollToTop()
-    contentOffset = 0f
-    heightOffset = 0f
+    scrollToTopGuarded { listState.animateScrollToTop() }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 suspend fun TopAppBarState.scrollToTop(scrollState: ScrollState) {
-    scrollState.animateScrollToTop()
-    contentOffset = 0f
-    heightOffset = 0f
+    scrollToTopGuarded { scrollState.animateScrollToTop() }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+private suspend fun TopAppBarState.scrollToTopGuarded(animate: suspend () -> Unit) {
+    if (!scrollToTopInFlight.add(this)) return
+    try {
+        animate()
+        contentOffset = 0f
+        heightOffset = 0f
+    } finally {
+        scrollToTopInFlight.remove(this)
+    }
 }
 
 /**
