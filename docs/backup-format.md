@@ -121,7 +121,8 @@ flattened into the parent's JSON.
   backup identity (`com.mkx.hrttracker`), and restore rejects other app
   identities.
 - `BackupSettingsSnapshot` — flat DataStore values (dark mode,
-  adaptive color, AMOLED pure-black, `cjkTextOffsetEnabled`, reminders,
+  adaptive color, AMOLED pure-black, `hazeBlurEnabled`,
+  `cjkTextOffsetEnabled`, reminders,
   archived-record visibility,
   reference-range visibility, app-lock grace period, hide-screen-content,
   onboarding, language, `firstDayOfWeekOption`, home E2 display unit,
