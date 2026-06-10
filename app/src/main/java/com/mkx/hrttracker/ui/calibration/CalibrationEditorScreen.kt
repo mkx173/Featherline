@@ -585,7 +585,10 @@ internal fun CalibrationAddAnalyteSheet(
         dragHandle = null,
         contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
     ) {
-        HazeBottomSheetSurface {
+        HazeBottomSheetSurface(
+            sheetState = sheetState,
+            onDismissRequest = onDismissRequest,
+        ) {
             CalibrationAddAnalyteSheetContent(
                 availableAnalytes = availableAnalytes,
                 onDismissRequest = {

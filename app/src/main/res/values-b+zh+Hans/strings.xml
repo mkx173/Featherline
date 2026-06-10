@@ -5,6 +5,7 @@
     <string name="tab_history">历史</string>
     <string name="tab_settings">设置</string>
     <string name="navigate_back">返回</string>
+    <string name="bottom_sheet_dismiss">关闭底部动作条</string>
     <string name="add_entry">添加记录</string>
     <string name="edit_entry">编辑记录</string>
     <string name="add_medication_group">添加分组</string>

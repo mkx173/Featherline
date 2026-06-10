@@ -125,7 +125,10 @@ fun AdjustStockSheet(
         dragHandle = null,
         contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
     ) {
-        HazeBottomSheetSurface {
+        HazeBottomSheetSurface(
+            sheetState = sheetState,
+            onDismissRequest = onDismissRequest,
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()

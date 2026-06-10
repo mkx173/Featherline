@@ -1140,25 +1140,29 @@ fun HrtTrackerNavHost(
                     snackbar = { snackbarData -> HrtSnackbar(snackbarData) },
                 )
                 optInTarget?.let { projection ->
-                    AdjustStockSheet(
-                        projection = projection,
-                        initialTab = AdjustSheetTab.RECEIVED,
-                        receivedOnly = true,
-                        previewRunway = { hypothetical ->
-                            stockNudgeViewModel.previewRunway(
-                                medicineId = projection.medicine.uuid,
-                                hypotheticalStock = hypothetical,
-                            )
-                        },
-                        onRecount = { },
-                        onReceived = { received ->
-                            stockNudgeViewModel.submitOptInReceived(
-                                medicineId = projection.medicine.uuid,
-                                unitsReceived = received.unitsReceived,
-                            )
-                        },
-                        onDismissRequest = stockNudgeViewModel::dismissOptInSheet,
-                    )
+                    CompositionLocalProvider(
+                        LocalChromeHazeState provides navigationChromeHazeState
+                    ) {
+                        AdjustStockSheet(
+                            projection = projection,
+                            initialTab = AdjustSheetTab.RECEIVED,
+                            receivedOnly = true,
+                            previewRunway = { hypothetical ->
+                                stockNudgeViewModel.previewRunway(
+                                    medicineId = projection.medicine.uuid,
+                                    hypotheticalStock = hypothetical,
+                                )
+                            },
+                            onRecount = { },
+                            onReceived = { received ->
+                                stockNudgeViewModel.submitOptInReceived(
+                                    medicineId = projection.medicine.uuid,
+                                    unitsReceived = received.unitsReceived,
+                                )
+                            },
+                            onDismissRequest = stockNudgeViewModel::dismissOptInSheet,
+                        )
+                    }
                 }
                 medicationLogEntrySheetRequest?.let { request ->
                     CompositionLocalProvider(

@@ -272,7 +272,7 @@ class HazeChromeIntegrationTest {
             .mapNotNull { file ->
                 val text = file.readText()
                 val missing = buildList {
-                    if (!text.contains("HazeBottomSheetSurface {")) {
+                    if (!text.contains("HazeBottomSheetSurface(")) {
                         add("inner HazeBottomSheetSurface")
                     }
                     if (!text.contains("dragHandle = null")) {

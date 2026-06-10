@@ -7,6 +7,8 @@ import android.os.Build
 import android.view.WindowManager
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
@@ -22,6 +24,7 @@ import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog as MaterialDatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TimePickerDialog as MaterialTimePickerDialog
 import androidx.compose.material3.TimePickerDialogDefaults
@@ -35,6 +38,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,8 +49,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.dismiss
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.DialogProperties
+import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.hideBottomSheet
 import dev.chrisbanes.haze.HazePositionStrategy
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.blurEffect
@@ -287,7 +296,10 @@ fun Modifier.hazeSheetSurface(
 
 @Composable
 fun hazeBottomSheetContainerColor(
-    enabled: Boolean = LocalHazeBlurEnabled.current,
+    // Like the dialog gate below, require an actual haze state before going
+    // transparent: hazeBottomSheet() no-ops on a null state, so a transparent
+    // container without it renders the sheet invisible.
+    enabled: Boolean = LocalHazeBlurEnabled.current && LocalChromeHazeState.current != null,
 ): Color {
     val defaultColor = BottomSheetDefaults.ContainerColor
     if (!enabled) return defaultColor
@@ -320,6 +332,8 @@ fun hazeDatePickerColors(
 
 @Composable
 fun HazeBottomSheetSurface(
+    sheetState: SheetState,
+    onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     contentWindowInsets: @Composable () -> WindowInsets = { BottomSheetDefaults.modalWindowInsets },
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
@@ -334,7 +348,28 @@ fun HazeBottomSheetSurface(
                 .windowInsetsPadding(contentWindowInsets()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            dragHandle?.invoke()
+            if (dragHandle != null) {
+                // The ModalBottomSheet dragHandle slot stays null (the handle must
+                // render inside this surface, on top of the blur), but Material3 only
+                // attaches tap-to-dismiss and the TalkBack dismiss action when that
+                // slot is non-null — so re-add them here. All haze sheets skip the
+                // partially-expanded state, so dismiss is the only M3 handle
+                // affordance that applies.
+                val scope = rememberCoroutineScope()
+                val dismissLabel = stringResource(R.string.bottom_sheet_dismiss)
+                Box(
+                    modifier = Modifier
+                        .clickable { hideBottomSheet(scope, sheetState, onDismissRequest) }
+                        .semantics(mergeDescendants = true) {
+                            dismiss(dismissLabel) {
+                                hideBottomSheet(scope, sheetState, onDismissRequest)
+                                true
+                            }
+                        },
+                ) {
+                    dragHandle()
+                }
+            }
             content()
         }
     }

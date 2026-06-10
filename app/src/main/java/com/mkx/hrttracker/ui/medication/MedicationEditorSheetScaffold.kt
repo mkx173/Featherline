@@ -88,7 +88,10 @@ internal fun MedicationEditorSheetScaffold(
         dragHandle = null,
         contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
     ) {
-        HazeBottomSheetSurface {
+        HazeBottomSheetSurface(
+            sheetState = sheetState,
+            onDismissRequest = onDismissRequest,
+        ) {
             // On API 26 the ModalBottomSheet window forces focus onto the first
             // focusable text field: it auto-opens the IME on entry, and when a
             // field's IME action clears focus the window re-grants focus to that

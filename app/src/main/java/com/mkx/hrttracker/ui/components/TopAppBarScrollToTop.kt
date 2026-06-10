@@ -34,10 +34,15 @@ private val scrollToTopInFlight: MutableSet<TopAppBarState> =
 
 /**
  * The one home for "scroll back to the top and re-pin the top app bar": the shared
- * 300ms tween plus the contentOffset/heightOffset reset. Every entry point (app bar
- * double-tap, navigation scroll-to-top signal) must go through these so the animation
- * and the app bar reset cannot drift apart per screen. A call while a scroll-to-top is
+ * 300ms tween plus the heightOffset reset. Every entry point (app bar double-tap,
+ * navigation scroll-to-top signal) must go through these so the animation and the
+ * app bar reset cannot drift apart per screen. A call while a scroll-to-top is
  * already running for this app bar is absorbed: the in-flight animation finishes.
+ *
+ * contentOffset is deliberately not reset here: pinnedTopAppBarScrollBehavior eases
+ * the stale offset home once the content lands at the start, and a hard assignment
+ * to 0 would suppress that settle (its trigger requires contentOffset != 0f),
+ * snapping the overlap-driven bar chrome off in one frame.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 suspend fun TopAppBarState.scrollToTop(listState: LazyListState) {
@@ -54,7 +59,6 @@ private suspend fun TopAppBarState.scrollToTopGuarded(animate: suspend () -> Uni
     if (!scrollToTopInFlight.add(this)) return
     try {
         animate()
-        contentOffset = 0f
         heightOffset = 0f
     } finally {
         scrollToTopInFlight.remove(this)

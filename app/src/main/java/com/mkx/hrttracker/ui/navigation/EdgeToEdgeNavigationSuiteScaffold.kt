@@ -81,12 +81,12 @@ fun EdgeToEdgeNavigationSuiteScaffold(
             val appContentBottomInset =
                 if (isBottomBar) navigationPlaceable.height.toDp() else railContentBottomInset
             val contentPlaceable = subcompose(EdgeToEdgeScaffoldSlot.Content) {
-                val contentModifier = if (isBottomBar) {
-                    Modifier.hazeSourceArea(navigationChromeHazeState)
-                } else {
-                    Modifier
-                }
-                Box(contentModifier) {
+                // The source area is attached in every layout, not just behind the
+                // bottom bar: sheets and dialogs blur through this same state, and
+                // Haze draws nothing at all (leaving their transparent containers
+                // invisible) when the state has no source areas — as the wide rail
+                // layout otherwise would.
+                Box(Modifier.hazeSourceArea(navigationChromeHazeState)) {
                     CompositionLocalProvider(
                         LocalAppContentBottomInset provides appContentBottomInset
                     ) {
