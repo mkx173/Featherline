@@ -98,6 +98,7 @@ import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.animateScrollToTop
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -336,7 +337,7 @@ private fun MedicineDetailScreenContent(
         topBar = {
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToItem(0)
+                    listState.animateScrollToTop()
                 },
                 title = {
                     val title = stringResource(R.string.medicine_detail_title)

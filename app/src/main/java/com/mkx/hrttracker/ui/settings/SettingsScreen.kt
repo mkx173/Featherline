@@ -108,6 +108,7 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
+import com.mkx.hrttracker.ui.components.animateScrollToTop
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.shortLabelRes
@@ -862,7 +863,7 @@ internal fun SettingsScreenContent(
     val initialScrollToTopSignal = remember { scrollToTopSignal }
     LaunchedEffect(scrollToTopSignal) {
         if (scrollToTopSignal != initialScrollToTopSignal) {
-            scrollState.animateScrollTo(0)
+            scrollState.animateScrollToTop()
             topAppBarState.contentOffset = 0f
             topAppBarState.heightOffset = 0f
         }
@@ -873,7 +874,7 @@ internal fun SettingsScreenContent(
         topBar = {
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    scrollState.animateScrollTo(0)
+                    scrollState.animateScrollToTop()
                 },
                 title = {
                     val title = stringResource(R.string.tab_settings)

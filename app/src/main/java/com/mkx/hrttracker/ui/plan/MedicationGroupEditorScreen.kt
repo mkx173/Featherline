@@ -123,6 +123,7 @@ import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
+import com.mkx.hrttracker.ui.components.animateScrollToTop
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -1263,7 +1264,7 @@ private fun MedicationGroupEditorScreenContent(
     )
     LaunchedEffect(uiState.scrollToTopRequestVersion) {
         if (uiState.scrollToTopRequestVersion > 0) {
-            listState.animateScrollToItem(0)
+            listState.animateScrollToTop()
             topAppBarState.heightOffset = 0f
             topAppBarState.contentOffset = 0f
         }
@@ -1285,7 +1286,7 @@ private fun MedicationGroupEditorScreenContent(
         topBar = {
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToItem(0)
+                    listState.animateScrollToTop()
                 },
                 title = {
                     val title = stringResource(

@@ -118,6 +118,7 @@ import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.animateScrollToTop
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -368,7 +369,7 @@ private fun HistoryScreenContent(
     val initialScrollToTopSignal = remember { scrollToTopSignal }
     LaunchedEffect(scrollToTopSignal) {
         if (scrollToTopSignal != initialScrollToTopSignal) {
-            listState.animateScrollToItem(0)
+            listState.animateScrollToTop()
             topAppBarState.contentOffset = 0f
             topAppBarState.heightOffset = 0f
         }
@@ -680,7 +681,7 @@ private fun HistoryScreenContent(
         topBar = {
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToItem(0)
+                    listState.animateScrollToTop()
                 },
                 title = {
                     FlipSlot(

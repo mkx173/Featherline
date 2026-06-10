@@ -49,6 +49,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.calibration.calibrationAllowedUnitsFor
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.animateScrollToTop
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.util.calibrationUnitLabel
@@ -182,7 +183,7 @@ fun MainScreen(
 
     LaunchedEffect(scrollToTopSignal) {
         if (scrollToTopSignal != initialScrollToTopSignal) {
-            scrollState.animateScrollTo(0)
+            scrollState.animateScrollToTop()
             topAppBarState.contentOffset = 0f
             topAppBarState.heightOffset = 0f
         }
@@ -195,7 +196,7 @@ fun MainScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    scrollState.animateScrollTo(0)
+                    scrollState.animateScrollToTop()
                 },
                 title = {
                     val title = stringResource(R.string.tab_main)
