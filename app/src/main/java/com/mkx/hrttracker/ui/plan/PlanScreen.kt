@@ -92,9 +92,8 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
+import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import com.mkx.hrttracker.ui.components.LocalSegmentPosition
-import com.mkx.hrttracker.ui.components.SegmentPosition
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -683,101 +682,86 @@ private fun LazyListScope.regimenSectionItems(
     firstDayOfWeek: DayOfWeek,
     onGroupClick: (UUID) -> Unit
 ) {
-    item(
-        key = "regimen-header",
-        contentType = "regimen-header"
+    hrtSection(
+        key = "regimen",
+        header = {
+            val dailyCount = remember(groups) {
+                groups.count { it.schedule.type == MedicationGroupScheduleType.DAILY }
+            }
+            val weeklyCount = groups.size - dailyCount
+            val regimenSummary = if (groups.isEmpty()) {
+                null
+            } else {
+                listOfNotNull(
+                    pluralStringResource(
+                        R.plurals.plan_regimen_group_count,
+                        groups.size,
+                        groups.size
+                    ),
+                    if (dailyCount > 0) {
+                        pluralStringResource(
+                            R.plurals.plan_regimen_daily_count,
+                            dailyCount,
+                            dailyCount
+                        )
+                    } else {
+                        null
+                    },
+                    if (weeklyCount > 0) {
+                        pluralStringResource(
+                            R.plurals.plan_regimen_weekly_count,
+                            weeklyCount,
+                            weeklyCount
+                        )
+                    } else {
+                        null
+                    }
+                ).joinToString(" · ")
+            }
+
+            Column {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                HrtSectionHeader(
+                    text = stringResource(R.string.plan_regimen_title),
+                    trailingAlignByBaseline = true,
+                    trailing = if (regimenSummary != null) {
+                        {
+                            Text(
+                                text = regimenSummary.uppercase(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.alignByBaseline(),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                )
+            }
+        },
     ) {
-        val dailyCount = remember(groups) {
-            groups.count { it.schedule.type == MedicationGroupScheduleType.DAILY }
-        }
-        val weeklyCount = groups.size - dailyCount
-        val regimenSummary = if (groups.isEmpty()) {
-            null
+        if (groups.isEmpty()) {
+            item("regimen-empty", contentType = "regimen-empty") {
+                SupportMessageListItem(
+                    text = stringResource(R.string.plan_empty_state),
+                    painter = painterResource(R.drawable.ic_info),
+                )
+            }
         } else {
-            listOfNotNull(
-                pluralStringResource(
-                    R.plurals.plan_regimen_group_count,
-                    groups.size,
-                    groups.size
-                ),
-                if (dailyCount > 0) {
-                    pluralStringResource(
-                        R.plurals.plan_regimen_daily_count,
-                        dailyCount,
-                        dailyCount
+            groups.forEach { group ->
+                item("regimen-${group.uuid}", contentType = "regimen-row") {
+                    RegimenGroupCard(
+                        group = group,
+                        remindersEnabled = remindersEnabled,
+                        hasNotificationAccess = hasNotificationAccess,
+                        appLocale = appLocale,
+                        dateFormatter = dateFormatter,
+                        timeFormatter = timeFormatter,
+                        upcomingOccurrences = nextOccurrencesByGroup[group.uuid].orEmpty(),
+                        today = today,
+                        onClick = { onGroupClick(group.uuid) },
+                        firstDayOfWeek = firstDayOfWeek,
                     )
-                } else {
-                    null
-                },
-                if (weeklyCount > 0) {
-                    pluralStringResource(
-                        R.plurals.plan_regimen_weekly_count,
-                        weeklyCount,
-                        weeklyCount
-                    )
-                } else {
-                    null
-                }
-            ).joinToString(" · ")
-        }
-
-        Column {
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-            HrtSectionHeader(
-                text = stringResource(R.string.plan_regimen_title),
-                trailingAlignByBaseline = true,
-                trailing = if (regimenSummary != null) {
-                    {
-                        Text(
-                            text = regimenSummary.uppercase(),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.alignByBaseline(),
-                        )
-                    }
-                } else {
-                    null
-                },
-            )
-        }
-    }
-
-    if (groups.isEmpty()) {
-        item(
-            key = "regimen-empty",
-            contentType = "regimen-empty"
-        ) {
-            SupportMessageListItem(
-                text = stringResource(R.string.plan_empty_state),
-                painter = painterResource(R.drawable.ic_info),
-            )
-        }
-    } else {
-        groups.forEachIndexed { index, group ->
-            item(
-                key = "regimen-${group.uuid}",
-                contentType = "regimen-row"
-            ) {
-                Column {
-                    if (index > 0) {
-                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-                    }
-                    CompositionLocalProvider(
-                        LocalSegmentPosition provides SegmentPosition(index, groups.size)
-                    ) {
-                        RegimenGroupCard(
-                            group = group,
-                            remindersEnabled = remindersEnabled,
-                            hasNotificationAccess = hasNotificationAccess,
-                            appLocale = appLocale,
-                            dateFormatter = dateFormatter,
-                            timeFormatter = timeFormatter,
-                            upcomingOccurrences = nextOccurrencesByGroup[group.uuid].orEmpty(),
-                            today = today,
-                            onClick = { onGroupClick(group.uuid) },
-                            firstDayOfWeek = firstDayOfWeek,
-                        )
-                    }
                 }
             }
         }
