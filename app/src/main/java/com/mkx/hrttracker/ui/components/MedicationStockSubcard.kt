@@ -226,9 +226,14 @@ internal fun MedicationStockSubcard(
         secondaryContainer = MaterialTheme.colorScheme.secondaryContainer,
     )
 
+    // On a haze bottom sheet keep the container color as the tint of a thick blur
+    // and draw the actual surface transparent so the blur shows through.
+    val hazeSheet = hazeSheetBlurActive()
     Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = containerColor,
+        modifier = modifier
+            .fillMaxWidth()
+            .hazeSheetSurface(containerColor = containerColor, shape = shape),
+        color = if (hazeSheet) Color.Transparent else containerColor,
         shape = shape,
     ) {
         Column(

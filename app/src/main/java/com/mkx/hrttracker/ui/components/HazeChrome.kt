@@ -187,6 +187,42 @@ fun Modifier.hazeDialog(
         }
 }
 
+/**
+ * Whether components inside a [HazeBottomSheetSurface] should swap their opaque
+ * containers for a blur treatment: we're composing on a haze sheet and chrome
+ * blur is actually active.
+ */
+@Composable
+fun hazeSheetBlurActive(): Boolean {
+    return LocalHazeBottomSheet.current &&
+        LocalHazeBlurEnabled.current &&
+        LocalChromeHazeState.current != null
+}
+
+/**
+ * Thick blur for a surface sitting on a haze bottom sheet, tinted with the
+ * surface's own [containerColor]. The caller draws its actual container
+ * transparent so the blur shows through; gate both on [hazeSheetBlurActive].
+ */
+@Composable
+fun Modifier.hazeSheetSurface(
+    containerColor: Color,
+    shape: Shape,
+    state: HazeState? = LocalChromeHazeState.current,
+): Modifier {
+    if (!hazeSheetBlurActive() || state == null) return this
+
+    val style = HazeMaterials.thick(containerColor = containerColor)
+    return this.clip(shape)
+        .hazeEffect(state = state) {
+            forceInvalidateOnPreDraw = true
+            blurEffect {
+                this.style = style
+                blurredEdgeTreatment = BlurredEdgeTreatment(shape)
+            }
+        }
+}
+
 @Composable
 fun hazeBottomSheetContainerColor(
     enabled: Boolean = LocalHazeBlurEnabled.current,

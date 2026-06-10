@@ -34,7 +34,27 @@ fun EditorSegmentedListItem(
     content: @Composable () -> Unit,
 ) {
     val position = currentSegmentPosition(explicitSegmentPosition(index, count))
-    val taggedModifier = modifier.segmentPositionSemantics(position)
+    val shapes = segmentedListItemShapes(
+        index = position.index,
+        count = position.count,
+        cornerShape = cornerShape,
+        pressedShape = pressedShape,
+    )
+    // On a haze bottom sheet the row keeps its container color as the tint of a
+    // thick blur (clipped to the resting segmented shape) and draws its actual
+    // container transparent so the blur shows through.
+    val hazeSheet = hazeSheetBlurActive()
+    val taggedModifier = modifier
+        .then(
+            if (hazeSheet) {
+                Modifier.hazeSheetSurface(containerColor = containerColor, shape = shapes.shape)
+            } else {
+                Modifier
+            }
+        )
+        .segmentPositionSemantics(position)
+    val resolvedContainerColor = if (hazeSheet) Color.Transparent else containerColor
+    val resolvedDisabledContainerColor = if (hazeSheet) Color.Transparent else disabledContainerColor
 
     // A null onClick is a static, non-interactive row. Route it through the same
     // SegmentedListItem as clickable rows — but disabled, so it never ripples —
@@ -45,13 +65,13 @@ fun EditorSegmentedListItem(
     val isClickable = onClick != null
     val colors = if (isClickable) {
         ListItemDefaults.colors(
-            containerColor = containerColor,
-            disabledContainerColor = disabledContainerColor,
+            containerColor = resolvedContainerColor,
+            disabledContainerColor = resolvedDisabledContainerColor,
         )
     } else {
         ListItemDefaults.colors(
-            containerColor = containerColor,
-            disabledContainerColor = containerColor,
+            containerColor = resolvedContainerColor,
+            disabledContainerColor = resolvedContainerColor,
             disabledContentColor = MaterialTheme.colorScheme.onSurface,
             disabledLeadingContentColor = MaterialTheme.colorScheme.onSurface,
             disabledTrailingContentColor = MaterialTheme.colorScheme.onSurface,
@@ -65,12 +85,7 @@ fun EditorSegmentedListItem(
         onClick = onClick ?: {},
         onLongClick = onLongClick,
         colors = colors,
-        shapes = segmentedListItemShapes(
-            index = position.index,
-            count = position.count,
-            cornerShape = cornerShape,
-            pressedShape = pressedShape,
-        ),
+        shapes = shapes,
         leadingContent = leadingContent,
         trailingContent = trailingContent,
         supportingContent = supportingContent,
