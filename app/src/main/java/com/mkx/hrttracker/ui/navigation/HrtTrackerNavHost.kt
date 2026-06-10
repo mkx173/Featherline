@@ -82,6 +82,7 @@ import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
+import com.mkx.hrttracker.ui.components.LocalModalHostIsCurrentDestination
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -378,9 +379,23 @@ internal fun homeDeepLinkHighlightEffectsEnabled(
     shellHighlightEffectsEnabled && homeDeepLinkSignal <= readyHomeDeepLinkHighlightSignal
 
 @Composable
-private fun RoutedTopChromeHazeProvider(content: @Composable () -> Unit) {
+private fun RoutedTopChromeHazeProvider(
+    navController: NavHostController,
+    backStackEntry: NavBackStackEntry,
+    content: @Composable () -> Unit,
+) {
     val routeTopChromeHazeState = rememberChromeHazeState()
-    CompositionLocalProvider(LocalChromeHazeState provides routeTopChromeHazeState) {
+    // Live back-queue read, not currentBackStackEntryAsState(): the State lags
+    // navigate()'s synchronous lifecycle drop by a frame (see
+    // canOpenOverlaySheetFrom), which is exactly the window the modal gate's
+    // drop-on-leave decision needs to see.
+    val isCurrentDestination = remember(navController, backStackEntry) {
+        { navController.currentBackStackEntry == backStackEntry }
+    }
+    CompositionLocalProvider(
+        LocalChromeHazeState provides routeTopChromeHazeState,
+        LocalModalHostIsCurrentDestination provides isCurrentDestination,
+    ) {
         content()
     }
 }
@@ -711,7 +726,7 @@ fun HrtTrackerNavHost(
                 popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
             ) {
                 composable(Screen.Main.route) { backStackEntry ->
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
                         MainScreen(
                             modifier,
                             scrollToTopSignal = mainScrollToTopSignal,
@@ -772,7 +787,7 @@ fun HrtTrackerNavHost(
                     }
                 }
                 composable(Screen.Plan.route) { backStackEntry ->
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
                         PlanScreen(
                             modifier = modifier,
                             scrollToTopSignal = planScrollToTopSignal,
@@ -848,7 +863,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 ) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         PlanBatchAddScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
@@ -865,7 +880,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 ) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         ArchivedMedicationGroupsScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
@@ -890,7 +905,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 ) { backStackEntry ->
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
                         HistoryScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
@@ -905,7 +920,7 @@ fun HrtTrackerNavHost(
                     }
                 }
                 composable(Screen.Settings.route) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         SettingsScreen(
                             modifier = modifier,
                             scrollToTopSignal = settingsScrollToTopSignal,
@@ -926,7 +941,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 ) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         CalibrationScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
@@ -960,7 +975,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 ) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         CalibrationUnitsScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
@@ -981,7 +996,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 ) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         CalibrationEditorScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
@@ -1003,7 +1018,7 @@ fun HrtTrackerNavHost(
                         },
                     ),
                 ) { backStackEntry ->
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
                         val topLevelParentRoute =
                             backStackEntry.arguments?.getString(TOP_LEVEL_PARENT_ARG)
                                 ?: Screen.Plan.route
@@ -1079,7 +1094,7 @@ fun HrtTrackerNavHost(
                         },
                     ),
                 ) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         MedicineDetailScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
@@ -1112,7 +1127,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 ) { backStackEntry ->
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
                         val openedFromArchivedGroupsPage =
                             backStackEntry.arguments?.getString(MEDICATION_GROUP_EDITOR_SOURCE_ARG) ==
                                     MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS

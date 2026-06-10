@@ -39,12 +39,14 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -344,25 +346,64 @@ fun hazeDatePickerColors(
     )
 }
 
+// Whether the route hosting a modal is still the current back-stack
+// destination, provided per-route by the NavHost. Must be backed by a live
+// navController.currentBackStackEntry read — currentBackStackEntryAsState()
+// lags navigate()'s synchronous lifecycle drop by a frame. A custom local
+// (unlike LocalLifecycleOwner, which dialog/popup windows re-provide as the
+// Activity's) propagates into nested modal windows, so date/time pickers
+// inside sheets get the same gate. Null outside the NavHost (previews,
+// onboarding, NavHost-level hosts): treated as still-current.
+internal val LocalModalHostIsCurrentDestination =
+    staticCompositionLocalOf<(() -> Boolean)?> { null }
+
 // Route content stays composed and interactive while its exit transition
 // runs, so a tap can open a dialog/sheet after navigation has already begun.
 // The modal window renders above everything — it would blink over the
 // destination page and vanish when the outgoing route is disposed. Hold a
 // modal back when it is first composed while its host lifecycle is below
-// RESUMED: if the host is disposed the window never appears; if the host
-// comes back (or the activity resumes) the modal shows then. Once shown, a
-// modal stays shown through later lifecycle dips (e.g. the activity pausing
-// behind a system dialog).
+// RESUMED. Whether the host route is still the current back-stack destination
+// then decides drop vs show:
+//  - no longer current: the open raced a navigation the user already won —
+//    clear the open state (onDismissRequest) so the modal doesn't re-present
+//    "out of nowhere" on the next return to this page. Checked again when a
+//    still-held gate is disposed, because a navigation that wins mid-hold
+//    disposes the route at the end of its exit transition without any
+//    lifecycle event the hold could observe.
+//  - still current: settling in (tab return, config change, paused
+//    activity) — show when the host resumes, as before.
+// Once shown, a modal stays shown through later lifecycle dips (e.g. the
+// activity pausing behind a system dialog).
 @Composable
-internal fun rememberModalWindowAllowed(): Boolean {
+internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val isHostCurrentDestination = LocalModalHostIsCurrentDestination.current
     var allowed by remember {
         mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
     }
     if (!allowed) {
-        LaunchedEffect(lifecycle) {
-            lifecycle.withResumed { }
-            allowed = true
+        val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
+        // One drop per held window, whichever of the two checks fires first.
+        val dropped = remember { mutableStateOf(false) }
+        val leaving = isHostCurrentDestination?.invoke() == false
+        LaunchedEffect(leaving) {
+            if (leaving) {
+                if (!dropped.value) {
+                    dropped.value = true
+                    currentOnDismissRequest()
+                }
+            } else {
+                lifecycle.withResumed { }
+                allowed = true
+            }
+        }
+        DisposableEffect(Unit) {
+            onDispose {
+                if (!dropped.value && isHostCurrentDestination?.invoke() == false) {
+                    dropped.value = true
+                    currentOnDismissRequest()
+                }
+            }
         }
     }
     return allowed
@@ -384,7 +425,7 @@ fun HazeModalBottomSheet(
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    if (!rememberModalWindowAllowed()) {
+    if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
         return
     }
     // Every modal window locks top-level navigation for its whole composition,
@@ -470,7 +511,7 @@ fun HazeAlertDialog(
     tonalElevation: Dp = AlertDialogDefaults.TonalElevation,
     properties: DialogProperties = DialogProperties(),
 ) {
-    if (!rememberModalWindowAllowed()) {
+    if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
         return
     }
     NavigationLockEffect(active = true)
@@ -500,7 +541,7 @@ fun HazeBasicAlertDialog(
     properties: DialogProperties = DialogProperties(),
     content: @Composable () -> Unit,
 ) {
-    if (!rememberModalWindowAllowed()) {
+    if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
         return
     }
     NavigationLockEffect(active = true)
@@ -545,7 +586,7 @@ fun HazeDatePickerDialog(
 ) {
     val hazeColors = hazeDatePickerColors(colors)
 
-    if (!rememberModalWindowAllowed()) {
+    if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
         return
     }
     NavigationLockEffect(active = true)
@@ -575,7 +616,7 @@ fun HazeTimePickerDialog(
     containerColor: Color = TimePickerDialogDefaults.containerColor,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    if (!rememberModalWindowAllowed()) {
+    if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
         return
     }
     NavigationLockEffect(active = true)

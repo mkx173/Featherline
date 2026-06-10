@@ -30,7 +30,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -283,11 +282,13 @@ internal fun HomeMoreOptionsMenuState.toHomeMoreOptionsMenuExpansion(): HomeMore
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun HomeMoreOptionsMenu(
+internal fun HomeMoreOptionsMenu(
     selectedUnit: BloodUnitKey,
     onUnitSelected: (BloodUnitKey) -> Unit,
 ) {
-    var menuState by rememberSaveable { mutableStateOf(HomeMoreOptionsMenuState.CLOSED) }
+    // Deliberately not rememberSaveable: the menu is transient chrome and must
+    // not re-present on tab return / restoration (PR #60 finding 10).
+    var menuState by remember { mutableStateOf(HomeMoreOptionsMenuState.CLOSED) }
     val menuExpansion = menuState.toHomeMoreOptionsMenuExpansion()
     // Apply the picked unit only after the submenu has finished dismissing. Switching it
     // immediately re-renders the chart underneath the menu on the same frame, which
