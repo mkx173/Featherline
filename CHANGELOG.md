@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Smoother scrolling through long lists on the plan, history, and medicines screens.
 - The delete button shown while selecting history entries no longer flickers during slow scrolls.
 - History entries no longer play a stray icon crossfade while scrolling.
+- Opening a sheet or dialog at the same moment as navigating no longer flashes it over the wrong screen or makes it reappear unexpectedly when returning to the page.
+- Saving, deleting, or archiving can no longer be cut short by navigating away at the same moment, and a deleted group's editor no longer stays on screen after quick navigation.
+- Notification permission changes are now picked up reliably when returning to the app, and reminders are rebuilt only when permissions actually change instead of on every return.
 
 ## [1.1.4] - 2026-06-09
 

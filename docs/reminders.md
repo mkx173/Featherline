@@ -138,10 +138,12 @@ Each calls `goAsync()` and launches work on the application-scope
   `Intent.ACTION_TIME_CHANGED`), `TIMEZONE_CHANGED`, and
   `SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED`. Exported (system
   broadcasts require it). It always delegates to
-  `ReminderCapabilityReconciler.reconcile(reason = "receiver_$action")`
-  rather than calling the scheduler directly — the reconciler is the
-  single funnel that re-derives capability state and then triggers a
-  full reschedule.
+  `ReminderCapabilityReconciler.reconcile(reason = "receiver_$action",
+  forceReschedule = true)` rather than calling the scheduler directly —
+  the reconciler is the single funnel that re-derives capability state
+  and then triggers a full reschedule. The force flag matters: boot and
+  APK replacement lose every alarm without changing any capability, so
+  these events must rebuild even when the snapshot is unchanged.
 
 ### Act
 
@@ -317,8 +319,14 @@ notification-post permission and exact-alarm permission.
   the master `remindersEnabled` setting off if notification access is
   gone (and clears all snoozes if so), then calls
   `medicationReminderScheduler.rescheduleAll()` and
-  `medicationReminderSnoozeScheduler.rescheduleAll()`. Every receiver
-  and every settings-screen capability action funnels here.
+  `medicationReminderSnoozeScheduler.rescheduleAll()`. Runs are
+  serialized by a `Mutex`, and the heavy reschedule pass is skipped
+  when the capability snapshot is unchanged since the last run, unless
+  the caller sets `forceReschedule` (the broadcast receiver does).
+  Every receiver, every settings-screen capability action, and
+  `MainActivity.onResume` funnel here — resume-time reconciliation
+  self-heals the state after a permission dialog whose result callback
+  was lost to navigation.
 - [`ReminderCapabilityCompose.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/reminder/ReminderCapabilityCompose.kt)
   is a Hilt `EntryPoint` plus `rememberReminderCapabilityReconciler`
   `@Composable`. It's the seam that lets settings screens grab the

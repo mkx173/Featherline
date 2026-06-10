@@ -337,6 +337,19 @@ stays full-width — only the scrollable content centers within the cap.
 This avoids scroll-elevation color seams at the top-bar edges while
 keeping cards and charts at a comfortable reading width on tablets.
 
+Navigation races are closed by a shared lock rather than per-screen
+fixes. [`NavigationLock`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/ui/components/NavigationLock.kt)
+counts reasons the top-level chrome must ignore taps — an open modal
+window or an in-flight mutation — and the NavHost also swallows system
+back while it is held; editor exits fire from retained ViewModel flags
+(consumed only after a confirmed pop), not one-shot events, so a pop
+that races a transition re-fires instead of stranding the screen. The
+`HazeChrome` modal wrappers additionally gate their windows: a modal
+opened while its route is animating out is held back, and if the route
+is no longer the current back-stack destination its open state is
+cleared via `onDismissRequest` (per-route signal provided by the
+NavHost) so it cannot reappear on the next visit.
+
 Transition motion is centralized in
 [`NavigationTransitions`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/ui/navigation/NavigationTransitions.kt).
 The four `NavHost` transition slots
