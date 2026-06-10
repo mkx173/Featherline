@@ -448,7 +448,16 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         diagnosticsLogger.info(TAG, "main_activity_on_start")
         appLockViewModel.onForegrounded()
-        reminderCapabilityReconciler.requestReconcile("main_activity_on_start")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Reconcile on resume rather than start: the POST_NOTIFICATIONS dialog
+        // only pauses (never stops) the activity, and a screen-scoped
+        // permission launcher loses its result callback when its composable is
+        // disposed before the result arrives. Resume-time reconciliation
+        // self-heals the capability state no matter which screen asked.
+        reminderCapabilityReconciler.requestReconcile("main_activity_on_resume")
     }
 
     override fun onStop() {
