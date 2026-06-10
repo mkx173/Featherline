@@ -96,7 +96,7 @@ import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.scrollToTop
+import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
@@ -283,12 +283,11 @@ private fun PlanScreenContent(
         }
     }
 
-    val initialScrollToTopSignal = remember { scrollToTopSignal }
-    LaunchedEffect(scrollToTopSignal) {
-        if (scrollToTopSignal != initialScrollToTopSignal) {
-            topAppBarState.scrollToTop(listState)
-        }
-    }
+    ScrollToTopSignalEffect(
+        signal = scrollToTopSignal,
+        topAppBarState = topAppBarState,
+        listState = listState,
+    )
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),

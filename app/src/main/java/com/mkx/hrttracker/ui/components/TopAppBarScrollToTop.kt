@@ -7,11 +7,16 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.TopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 
 /**
@@ -32,6 +37,59 @@ suspend fun TopAppBarState.scrollToTop(scrollState: ScrollState) {
     scrollState.animateScrollToTop()
     contentOffset = 0f
     heightOffset = 0f
+}
+
+/**
+ * Runs [TopAppBarState.scrollToTop] whenever [signal] changes after initial composition.
+ *
+ * Deliberately NOT a `LaunchedEffect(signal)`: re-keying on the signal cancels the
+ * in-flight animation and restarts the fixed 300ms tween over the few pixels that
+ * remain, so a second tap on the navigation bar made the scroll jerk and then crawl.
+ * Watching the signal from a stable effect instead lets a tap that lands mid-flight be
+ * absorbed by the animation already running toward the top.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ScrollToTopSignalEffect(
+    signal: Int,
+    topAppBarState: TopAppBarState,
+    listState: LazyListState,
+) {
+    ScrollToTopSignalEffect(signal) { topAppBarState.scrollToTop(listState) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ScrollToTopSignalEffect(
+    signal: Int,
+    topAppBarState: TopAppBarState,
+    scrollState: ScrollState,
+) {
+    ScrollToTopSignalEffect(signal) { topAppBarState.scrollToTop(scrollState) }
+}
+
+@Composable
+private fun ScrollToTopSignalEffect(
+    signal: Int,
+    onScrollToTop: suspend () -> Unit,
+) {
+    val currentSignal by rememberUpdatedState(signal)
+    val currentOnScrollToTop by rememberUpdatedState(onScrollToTop)
+    LaunchedEffect(Unit) {
+        var handledSignal = currentSignal
+        snapshotFlow { currentSignal }.collect { tapped ->
+            if (tapped == handledSignal) return@collect
+            try {
+                currentOnScrollToTop()
+            } catch (cause: CancellationException) {
+                // A user drag preempted the scroll mutex; the effect itself is still
+                // alive, so keep listening. Rethrows if the effect really was cancelled.
+                currentCoroutineContext().ensureActive()
+            }
+            // Taps that landed while the animation ran were satisfied by it.
+            handledSignal = currentSignal
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

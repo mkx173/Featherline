@@ -50,7 +50,7 @@ import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.calibration.calibrationAllowedUnitsFor
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.scrollToTop
+import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.util.calibrationUnitLabel
 import kotlinx.coroutines.delay
@@ -179,13 +179,11 @@ fun MainScreen(
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
         state = topAppBarState
     )
-    val initialScrollToTopSignal = remember { scrollToTopSignal }
-
-    LaunchedEffect(scrollToTopSignal) {
-        if (scrollToTopSignal != initialScrollToTopSignal) {
-            topAppBarState.scrollToTop(scrollState)
-        }
-    }
+    ScrollToTopSignalEffect(
+        signal = scrollToTopSignal,
+        topAppBarState = topAppBarState,
+        scrollState = scrollState,
+    )
 
     Scaffold(
         modifier = modifier
