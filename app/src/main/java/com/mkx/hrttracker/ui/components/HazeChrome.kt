@@ -2,12 +2,16 @@
 
 package com.mkx.hrttracker.ui.components
 
+import android.content.Context
 import android.os.Build
+import android.view.WindowManager
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.AlertDialog as MaterialAlertDialog
@@ -37,6 +41,7 @@ import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.DialogProperties
 import dev.chrisbanes.haze.HazePositionStrategy
@@ -64,6 +69,45 @@ fun rememberChromeHazeState(): HazeState = rememberHazeState(
     // matches Haze 1.x behavior on Android.
     positionStrategy = HazePositionStrategy.Screen,
 )
+
+/**
+ * Top app bar window insets with a synchronously measured status-bar fallback.
+ *
+ * Compose's first frame is laid out before the window-insets dispatch reaches the
+ * composition: the initial composition runs pre-attach with all insets at zero, and
+ * the corrected values only land on the next frame (a long-standing toolkit gap —
+ * see https://github.com/google/accompanist/issues/155, which still applies to
+ * foundation's WindowInsets on cold start). Frame #0 therefore lays the bar out a
+ * status-bar-height too short. Pre-haze the opaque bar camouflaged that frame; with
+ * content drawn behind a transparent bar it shows as content overlapping the bar,
+ * then jumping down — and a fast cold start puts exactly that frame on screen.
+ *
+ * Unioning with the window-metrics height (API 30+; reports the bar's geometry
+ * synchronously, even while it is hidden) makes frame #0 match the final layout with
+ * no startup delay; once the live inset arrives the union resolves to the same
+ * value, so nothing moves. Below API 30 this is a no-op, which is fine: blur — and
+ * with it the transparent bar that makes the artifact visible — requires API 31+.
+ */
+@Composable
+fun topAppBarWindowInsetsWithStartupFallback(): WindowInsets {
+    val context = LocalContext.current
+    val fallbackStatusBarTop = remember(context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            statusBarHeightFromWindowMetrics(context)
+        } else {
+            0
+        }
+    }
+    return TopAppBarDefaults.windowInsets.union(WindowInsets(top = fallbackStatusBarTop))
+}
+
+@RequiresApi(Build.VERSION_CODES.R)
+private fun statusBarHeightFromWindowMetrics(context: Context): Int {
+    val windowManager = context.getSystemService(WindowManager::class.java) ?: return 0
+    return windowManager.currentWindowMetrics.windowInsets
+        .getInsetsIgnoringVisibility(android.view.WindowInsets.Type.statusBars())
+        .top
+}
 
 fun isHazeBlurSupported(sdkInt: Int = Build.VERSION.SDK_INT): Boolean {
     return sdkInt >= Build.VERSION_CODES.S

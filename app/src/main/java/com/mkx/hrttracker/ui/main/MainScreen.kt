@@ -57,6 +57,7 @@ import com.mkx.hrttracker.ui.components.hazeTopAppBarColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.topAppBarHazeEnabled
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.ui.components.topAppBarWindowInsetsWithStartupFallback
 import com.mkx.hrttracker.util.calibrationUnitLabel
 import kotlinx.coroutines.delay
 import java.util.UUID
@@ -226,6 +227,9 @@ fun MainScreen(
                         )
                     },
                     colors = hazeTopAppBarColors(),
+                    // Home is the screen on screen at cold start; see the helper's KDoc
+                    // for the first-frame insets gap this compensates for.
+                    windowInsets = topAppBarWindowInsetsWithStartupFallback(),
                     scrollBehavior = scrollBehavior
                 )
             }
