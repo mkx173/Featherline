@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+
+- App content now draws edge-to-edge behind the bottom navigation bar, so lists scroll under it instead of stopping above it.
+- Scrolling to the top (double-tapping the top app bar, or re-tapping the current tab) now plays the same smooth animation on every screen, and extra taps while it is running no longer restart it.
+- Rotating, folding, or resizing the window now updates the layout in place instead of recreating the screen.
+
+### Fixed
+
+- Smoother scrolling through long lists on the plan, history, and medicines screens.
+- The delete button shown while selecting history entries no longer flickers during slow scrolls.
+- History entries no longer play a stray icon crossfade while scrolling.
 
 ## [1.1.4] - 2026-06-09
 
