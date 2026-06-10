@@ -2,7 +2,6 @@ package com.mkx.hrttracker.ui.log
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SheetState
@@ -31,6 +30,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationLogEntryEditorSheet
@@ -339,7 +339,7 @@ private fun MedicationLogEntryScreenBody(
     )
 
     if (isDeleteConfirmationVisible) {
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 if (!uiState.isDeleting) {
                     isDeleteConfirmationVisible = false
@@ -379,7 +379,7 @@ private fun MedicationLogEntryScreenBody(
     }
 
     if (uiState.isScheduleFulfillmentWarningVisible) {
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 if (!uiState.isSaving) {
                     onScheduleFulfillmentWarningDismiss()

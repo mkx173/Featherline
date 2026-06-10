@@ -110,6 +110,8 @@ class MedicationLogRepository @Inject internal constructor(
 
     fun observeEntries(): Flow<List<MedicationLogEntry>?> = entriesFlow
 
+    fun getCachedEntries(): List<MedicationLogEntry>? = entriesFlow.value
+
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeScheduledEntriesInWindow(
         scheduledStartIso: String,

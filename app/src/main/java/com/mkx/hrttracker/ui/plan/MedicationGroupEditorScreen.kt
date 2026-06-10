@@ -38,7 +38,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -58,8 +57,6 @@ import androidx.compose.material3.TextFieldLabelPosition
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.rememberTopAppBarState
@@ -116,6 +113,8 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
+import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
@@ -123,8 +122,10 @@ import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
-import com.mkx.hrttracker.ui.components.appContentPaddingValues
+import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
+import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.scrollToTop
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRun
@@ -877,7 +878,7 @@ private fun MedicationGroupEditorScreenContent(
         } else {
             stringResource(R.string.delete_medication_group_confirmation)
         }
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 if (!uiState.isDeleting) {
                     onDeleteDismiss()
@@ -990,7 +991,7 @@ private fun MedicationGroupEditorScreenContent(
                 resetButtonText = stringResource(R.string.archive_medication_group_reset_to_now),
             )
         }
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 if (!isArchiveActionInProgress) {
                     onArchiveDismiss()
@@ -1146,7 +1147,7 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     if (uiState.isDeleteRelatedEntriesConfirmationVisible) {
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 if (!uiState.isDeletingRelatedEntries) {
                     onDeleteRelatedEntriesDismiss()
@@ -1189,7 +1190,7 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     if (isMasterReminderRecoveryDialogVisible) {
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = { isMasterReminderRecoveryDialogVisible = false },
             title = {
                 Text(text = stringResource(R.string.group_notifications_reenable_title))
@@ -1218,7 +1219,7 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     pendingMedicationRemoval?.let { removalRequest ->
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = { pendingMedicationRemoval = null },
             title = {
                 Text(text = stringResource(R.string.delete_group_medication_title))
@@ -1258,7 +1259,7 @@ private fun MedicationGroupEditorScreenContent(
 
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
+    val scrollBehavior = pinnedTopAppBarScrollBehavior(
         lazyListState = listState,
         state = topAppBarState
     )
@@ -1282,7 +1283,7 @@ private fun MedicationGroupEditorScreenContent(
             ScaffoldDefaults.contentWindowInsets
         },
         topBar = {
-            TopAppBar(
+            HazeTopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 title = {
                     val title = stringResource(
@@ -1299,9 +1300,6 @@ private fun MedicationGroupEditorScreenContent(
                         modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -1330,7 +1328,7 @@ private fun MedicationGroupEditorScreenContent(
             )
         }
     ) { innerPadding ->
-        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+        AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
             if (uiState.isLoadingGroupForEditing) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -1346,7 +1344,8 @@ private fun MedicationGroupEditorScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .imePadding(),
-                contentPadding = appContentPaddingValues(
+                contentPadding = appContentPaddingValuesBehindTopAppBar(
+                    innerPadding = innerPadding,
                     bottom = contentPadding + navigationBarBottomPadding,
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)

@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -21,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import java.math.BigDecimal
 
@@ -63,7 +63,7 @@ fun OpenContainerEditDialog(
         ?.toFloat()
         ?: 0f
 
-    AlertDialog(
+    HazeAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(titleRes)) },
         text = {

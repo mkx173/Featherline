@@ -21,6 +21,7 @@ import com.mkx.hrttracker.util.AppTimeSnapshot
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -54,6 +55,13 @@ class MainViewModel @Inject constructor(
 ) : ViewModel() {
     private val currentSnapshot = appTimeSource.currentSnapshot
     private var lastHomeSnapshotRefreshKey: HomeSnapshotRefreshKey? = null
+
+    // Vico model producer for the home E2 chart. Owned by the ViewModel so it survives
+    // navigation away from Home: CartesianChartHost restores a reused producer's cached
+    // model synchronously on the first composition frame, whereas a freshly remembered
+    // producer renders the empty placeholder until the async runTransaction completes —
+    // which showed up as the chart staying blank for a few frames after navigating home.
+    val e2ChartModelProducer = CartesianChartModelProducer()
 
     // Re-subscribe the home inputs flow only on local date or zone changes.
     // Room query windows are date+zone-derived, while per-minute and explicit

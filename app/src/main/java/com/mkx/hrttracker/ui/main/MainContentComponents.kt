@@ -760,6 +760,10 @@ internal fun MainE2ChartCard(
     targetRangeLow: Double,
     targetRangeHigh: Double,
     modifier: Modifier = Modifier,
+    // The screen-level producer lives in MainViewModel so it survives navigation and the
+    // chart restores its model on the first frame (see MainViewModel.e2ChartModelProducer).
+    // The remembered default keeps previews and tests self-contained.
+    modelProducer: CartesianChartModelProducer = remember { CartesianChartModelProducer() },
     trendReady: Boolean = true,
     hideReferenceRanges: Boolean = false,
     onChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
@@ -840,7 +844,6 @@ internal fun MainE2ChartCard(
         }
         return
     }
-    val modelProducer = remember { CartesianChartModelProducer() }
     val chartAnimationsEnabled = remember {
         mutableStateOf(!mainE2ChartInitialAnimationConsumed)
     }

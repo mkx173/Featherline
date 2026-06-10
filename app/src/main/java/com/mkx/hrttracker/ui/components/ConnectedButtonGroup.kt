@@ -128,6 +128,16 @@ private fun <T> ConnectedButtonGroup(
         textStyle
     }
 
+    // On a haze bottom sheet the default surfaceContainer container is only one tonal
+    // step above the sheet's translucent surfaceContainerLow material and blends in;
+    // lift unchecked buttons to surfaceContainerHigh for legible contrast.
+    val hazeSheet = hazeSheetBlurActive()
+    val resolvedColors = if (hazeSheet) {
+        colors.copy(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+    } else {
+        colors
+    }
+
     when (layout) {
         ConnectedButtonGroupLayout.FLOW_ROW -> {
             FlowRow(
@@ -149,7 +159,7 @@ private fun <T> ConnectedButtonGroup(
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
                         applyCjkTextOffset = applyCjkTextOffset,
-                        colors = colors,
+                        colors = resolvedColors,
                         textStyle = localTextStyle,
                     )
                 }
@@ -186,7 +196,7 @@ private fun <T> ConnectedButtonGroup(
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
                         applyCjkTextOffset = applyCjkTextOffset,
-                        colors = colors,
+                        colors = resolvedColors,
                         textStyle = localTextStyle,
                     )
                 }

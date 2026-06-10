@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Featherline"
 include(":app")
+include(":benchmark")

@@ -5,7 +5,6 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import com.materialkolor.ktx.darken
 import com.materialkolor.ktx.harmonize
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 
@@ -75,13 +74,13 @@ internal val MedicationGroupPalettes: Map<MedicationGroupColorKey?, HuePalette> 
         darkOnContainer = Color(0xFFFFE0C2),
     ),
     MedicationGroupColorKey.AMBER to HuePalette(
-        // yellow · L4/11/12 D3/9/12
-        lightContainer = Color(0xFFFFF394),
-        lightAccent = Color(0xFFA06E00),
-        lightOnContainer = Color(0xFF473B1F),
-        darkContainer = Color(0xFF2C2305),
-        darkAccent = Color(0xFFFFEA00).darken(1.35f),
-        darkOnContainer = Color(0xFFF6EEB4),
+        // amber · L4/11/12 D3/9/12
+        lightContainer = Color(0xFFFFEE9C),
+        lightAccent = Color(0xFFAD6200),
+        lightOnContainer = Color(0xFF4F3422),
+        darkContainer = Color(0xFF302008),
+        darkAccent = Color(0xFFFFC100),
+        darkOnContainer = Color(0xFFFFE7B3),
     ),
     MedicationGroupColorKey.CITRON to HuePalette(
         // lime · L4/11/12 D3/9/12
@@ -93,13 +92,13 @@ internal val MedicationGroupPalettes: Map<MedicationGroupColorKey?, HuePalette> 
         darkOnContainer = Color(0xFFE3F7BA),
     ),
     MedicationGroupColorKey.SAGE to HuePalette(
-        // green · L4/11/12 D3/11/12
-        lightContainer = Color(0xFFD6F1DF),
-        lightAccent = Color(0xFF00824D),
-        lightOnContainer = Color(0xFF193B2D),
-        darkContainer = Color(0xFF132D21),
-        darkAccent = Color(0xFF3DD68C),
-        darkOnContainer = Color(0xFFB1F1CB),
+        // grass · L4/11/12 D3/11/12
+        lightContainer = Color(0xFFDAF0DB),
+        lightAccent = Color(0xFF2A7E3B),
+        lightOnContainer = Color(0xFF203C25),
+        darkContainer = Color(0xFF1B2A1E),
+        darkAccent = Color(0xFF71D083),
+        darkOnContainer = Color(0xFFC2F0C2),
     ),
     MedicationGroupColorKey.TEAL to HuePalette(
         // teal · L4/11/12 D3/11/12

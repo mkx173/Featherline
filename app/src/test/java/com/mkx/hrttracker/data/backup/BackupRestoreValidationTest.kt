@@ -53,6 +53,7 @@ class BackupRestoreValidationTest {
                 widgetContentScale = 0.8f,
                 widgetBackgroundAlpha = 0.6f,
                 cjkTextOffsetEnabled = true,
+                hazeBlurEnabled = false,
             ),
             userProfile = BackupUserProfileSnapshot(
                 weightKg = 52.16312255,
@@ -177,6 +178,7 @@ class BackupRestoreValidationTest {
             validatedSnapshot.settings.appLanguageOption
         )
         assertEquals(true, validatedSnapshot.settings.cjkTextOffsetEnabled)
+        assertEquals(false, validatedSnapshot.settings.hazeBlurEnabled)
         assertEquals(
             AllowedAnalyteUnit.of(BloodAnalyteKey.E2, BloodUnitKey.NG_DL),
             validatedSnapshot.settings.homeE2DisplayUnit,

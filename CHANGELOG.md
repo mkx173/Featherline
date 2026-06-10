@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- On Android 12+, the top app bar, bottom navigation bar, bottom sheets, and dialogs now show a translucent blur of the content behind them, with an appearance setting ("Background blur") to turn it off.
+
 ### Changed
 
 - App content now draws edge-to-edge behind the bottom navigation bar, so lists scroll under it instead of stopping above it.
+- The top app bar's background now fades in as content scrolls beneath it, instead of switching color at a threshold.
 - Scrolling to the top (double-tapping the top app bar, or re-tapping the current tab) now plays the same smooth animation on every screen, and extra taps while it is running no longer restart it.
+- Switching between the Home, Plan, and Settings tabs is now instant instead of cross-fading.
 - Rotating, folding, or resizing the window now updates the layout in place instead of recreating the screen.
 
 ### Fixed

@@ -33,7 +33,6 @@ import androidx.compose.material.icons.rounded.FlipToBack
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.SelectAll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,8 +48,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
@@ -109,6 +106,8 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
+import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
@@ -118,8 +117,10 @@ import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import com.mkx.hrttracker.ui.components.appContentPaddingValues
+import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
+import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -238,7 +239,7 @@ private fun HistoryScreenContent(
     }
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
+    val scrollBehavior = pinnedTopAppBarScrollBehavior(
         lazyListState = listState,
         state = topAppBarState
     )
@@ -556,7 +557,7 @@ private fun HistoryScreenContent(
     }
 
     if (uiState.isDeleteConfirmationVisible) {
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 if (!uiState.isDeletingSelectedEntries) {
                     onDeleteDismiss()
@@ -594,7 +595,7 @@ private fun HistoryScreenContent(
     }
 
     if (isDeleteAllConfirmationVisible) {
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 if (!uiState.isDeletingAllEntries) {
                     isDeleteAllConfirmationVisible = false
@@ -674,7 +675,7 @@ private fun HistoryScreenContent(
             }
         },
         topBar = {
-            TopAppBar(
+            HazeTopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 title = {
                     FlipSlot(
@@ -779,7 +780,7 @@ private fun HistoryScreenContent(
             )
         }
     ) { innerPadding ->
-        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+        AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
             if (uiState.isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -793,7 +794,7 @@ private fun HistoryScreenContent(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = appContentPaddingValues(),
+                contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
                 item(
                     key = "history-summary",
@@ -1540,7 +1541,7 @@ private fun HistoryMonthPickerDialog(
             }
     }
 
-    AlertDialog(
+    HazeAlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(text = stringResource(R.string.history_month_picker_title))

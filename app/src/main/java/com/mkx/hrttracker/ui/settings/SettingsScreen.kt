@@ -39,7 +39,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -49,8 +48,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -103,14 +100,19 @@ import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.BackupPasswordDialog
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
+import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
-import com.mkx.hrttracker.ui.components.appContentPaddingValues
+import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.isHazeBlurSupported
+import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.shortLabelRes
+import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
@@ -485,6 +487,7 @@ fun SettingsScreen(
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
         onPureBlackEnabledChange = viewModel::setPureBlackEnabled,
         onCjkTextOffsetEnabledChange = viewModel::setCjkTextOffsetEnabled,
+        onHazeBlurEnabledChange = viewModel::setHazeBlurEnabled,
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
         onHideMedicationDetailsChange = viewModel::setHideMedicationDetails,
@@ -640,7 +643,7 @@ internal fun WidgetAppearanceDialog(
     }
     var localDarkModeOption by remember { mutableStateOf(darkModeOption) }
     var isDarkModeMenuExpanded by remember { mutableStateOf(false) }
-    AlertDialog(
+    HazeAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.settings_widget_appearance)) },
         text = {
@@ -775,6 +778,7 @@ internal fun SettingsScreenContent(
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
     onPureBlackEnabledChange: (Boolean) -> Unit,
     onCjkTextOffsetEnabledChange: (Boolean) -> Unit,
+    onHazeBlurEnabledChange: (Boolean) -> Unit,
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
@@ -855,7 +859,7 @@ internal fun SettingsScreenContent(
     val appLanguageOption = AppLanguageOption.fromLocale(rememberAppLocale())
 
     val topAppBarState = rememberTopAppBarState()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
+    val scrollBehavior = pinnedTopAppBarScrollBehavior(
         scrollState = scrollState,
         state = topAppBarState
     )
@@ -869,7 +873,7 @@ internal fun SettingsScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
+            HazeTopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior, scrollState),
                 title = {
                     val title = stringResource(R.string.tab_settings)
@@ -882,11 +886,11 @@ internal fun SettingsScreenContent(
             )
         }
     ) { innerPadding ->
-        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+        AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
             Column(
                 modifier = Modifier
                     .verticalScroll(scrollState)
-                    .padding(appContentPaddingValues()),
+                    .padding(appContentPaddingValuesBehindTopAppBar(innerPadding)),
             ) {
                 HrtSection(
                     title = stringResource(R.string.settings_personalization),
@@ -1294,6 +1298,28 @@ internal fun SettingsScreenContent(
                         }
                     }
 
+                    if (isHazeBlurSupported()) {
+                        item {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_haze_blur),
+                                onClick = {
+                                    onHazeBlurEnabledChange(!settingsState.hazeBlurEnabled)
+                                },
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_blur_on)
+                                    )
+                                },
+                                trailingContent = {
+                                    Switch(
+                                        checked = settingsState.hazeBlurEnabled,
+                                        onCheckedChange = onHazeBlurEnabledChange
+                                    )
+                                }
+                            )
+                        }
+                    }
+
                     if (shouldShowCjkTextOffset(appLanguageOption)) {
                         item {
                             SettingsSegmentedListItem(
@@ -1607,7 +1633,7 @@ internal fun SettingsScreenContent(
             showFeedbackEmailDialog -> R.string.settings_about_feedback
             else -> null
         } ?: R.string.settings_about_open_link_title
-        AlertDialog(
+        HazeAlertDialog(
             onDismissRequest = {
                 pendingExternalUrl = null
                 pendingExternalLinkTitleRes = null
@@ -1985,6 +2011,7 @@ private fun SettingsScreenPreview() {
             onAdaptiveColorEnabledChange = { },
             onPureBlackEnabledChange = { },
             onCjkTextOffsetEnabledChange = { },
+            onHazeBlurEnabledChange = { },
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },

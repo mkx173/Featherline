@@ -5,6 +5,7 @@
     <string name="tab_history">History</string>
     <string name="tab_settings">Settings</string>
     <string name="navigate_back">Navigate back</string>
+    <string name="bottom_sheet_dismiss">Dismiss bottom sheet</string>
     <string name="add_entry">Add record</string>
     <string name="edit_entry">Edit record</string>
     <string name="add_medication_group">Add group</string>
@@ -480,6 +481,7 @@
     <string name="settings_dark_mode">Dark mode</string>
     <string name="settings_adaptive_color">Adaptive color</string>
     <string name="settings_amoled_black">Pure black dark theme</string>
+    <string name="settings_haze_blur">Background blur</string>
     <string name="settings_widget_appearance">Widgets</string>
     <string name="settings_widget_content_scale">Content scale</string>
     <string name="settings_widget_background_opacity">Background opacity</string>

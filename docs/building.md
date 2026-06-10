@@ -29,6 +29,7 @@ Build types ([`app/build.gradle.kts:95-110`](https://github.com/mkx173/Featherli
 
 - `debug` — `applicationIdSuffix = ".debug"`, `versionNameSuffix = "-<short-sha>"`; uses AGP's debug signing config and the debug-only app name `Featherline Debug`.
 - `release` — `isMinifyEnabled = true`, `isShrinkResources = true`, ProGuard rules applied.
+- `benchmark` — release-equivalent (`initWith(release)`) but debug-signed, profileable, and `applicationIdSuffix = ".benchmark"`; the target the `:benchmark` macrobenchmark module (cold-start timing) runs against, installable alongside a production build without release keys.
 
 Useful Gradle tasks:
 

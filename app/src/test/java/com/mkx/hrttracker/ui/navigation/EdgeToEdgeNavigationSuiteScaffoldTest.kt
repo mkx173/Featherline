@@ -42,6 +42,7 @@ class EdgeToEdgeNavigationSuiteScaffoldTest {
         composeRule.setContent {
             EdgeToEdgeNavigationSuiteScaffold(
                 navigationSuiteType = suiteType,
+                navigationChromeHazeState = null,
                 navigationSuiteItems = {
                     item(
                         selected = true,

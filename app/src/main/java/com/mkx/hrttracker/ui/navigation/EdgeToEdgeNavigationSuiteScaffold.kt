@@ -14,6 +14,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalDensity
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
+import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.hazeNavigationSuiteColors
+import com.mkx.hrttracker.ui.components.hazeSourceArea
+import dev.chrisbanes.haze.HazeState
 
 private enum class EdgeToEdgeScaffoldSlot { Navigation, Content }
 
@@ -23,11 +27,8 @@ private enum class EdgeToEdgeScaffoldSlot { Navigation, Content }
  * the space above the bar.
  *
  * The stock scaffold measures content at `height - navigationBarHeight` and stacks the bar below
- * it, so the content's bottom edge sits exactly at the bar's top. During the top-level fade-through
- * transition the incoming page scales in (see [topLevelEnterTransition]), lifting that bottom edge
- * upward and briefly revealing the scaffold's container color as a white strip above the bar.
- * Painting content full-height keeps the scaled page's bottom edge hidden beneath the bar, so no
- * strip appears.
+ * it, so the content's bottom edge sits exactly at the bar's top. Painting content full-height lets
+ * bottom-bar chrome float over the routed content instead.
  *
  * Body content must pad its scrollable region above the bar itself; the scaffold provides the
  * required padding via [LocalAppContentBottomInset]. The bar is measured *before* content is
@@ -37,10 +38,15 @@ private enum class EdgeToEdgeScaffoldSlot { Navigation, Content }
  * Only the bottom-bar layouts (compact / medium) draw content behind the bar; the wide rail keeps
  * the stock side-by-side placement, where content already fills the full height beside the rail
  * and only needs to clear the system gesture inset.
+ *
+ * @param navigationChromeHazeState stable Haze state used by bottom navigation chrome. The source
+ *   is attached above the routed content so navigation transitions are captured after NavHost has
+ *   composited outgoing and incoming destinations.
  */
 @Composable
 fun EdgeToEdgeNavigationSuiteScaffold(
     navigationSuiteType: NavigationSuiteType,
+    navigationChromeHazeState: HazeState?,
     modifier: Modifier = Modifier,
     navigationSuiteItems: NavigationSuiteScope.() -> Unit,
     content: @Composable () -> Unit,
@@ -57,9 +63,15 @@ fun EdgeToEdgeNavigationSuiteScaffold(
         SubcomposeLayout { constraints ->
             val looseConstraints = constraints.copy(minWidth = 0, minHeight = 0)
             val navigationPlaceable = subcompose(EdgeToEdgeScaffoldSlot.Navigation) {
-                Box {
+                val navigationModifier = if (isBottomBar) {
+                    Modifier.hazeChrome(navigationChromeHazeState)
+                } else {
+                    Modifier
+                }
+                Box(navigationModifier) {
                     NavigationSuite(
                         layoutType = navigationSuiteType,
+                        colors = hazeNavigationSuiteColors(navigationChromeHazeState),
                         content = navigationSuiteItems,
                     )
                 }
@@ -69,7 +81,12 @@ fun EdgeToEdgeNavigationSuiteScaffold(
             val appContentBottomInset =
                 if (isBottomBar) navigationPlaceable.height.toDp() else railContentBottomInset
             val contentPlaceable = subcompose(EdgeToEdgeScaffoldSlot.Content) {
-                Box {
+                // The source area is attached in every layout, not just behind the
+                // bottom bar: sheets and dialogs blur through this same state, and
+                // Haze draws nothing at all (leaving their transparent containers
+                // invisible) when the state has no source areas — as the wide rail
+                // layout otherwise would.
+                Box(Modifier.hazeSourceArea(navigationChromeHazeState)) {
                     CompositionLocalProvider(
                         LocalAppContentBottomInset provides appContentBottomInset
                     ) {

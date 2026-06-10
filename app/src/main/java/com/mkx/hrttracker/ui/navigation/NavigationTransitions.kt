@@ -8,7 +8,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.ui.unit.Density
@@ -16,14 +15,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavBackStackEntry
-
-// Bottom-tab Fade Through duration. Matches Material's motionDurationLong1 default;
-// raise/lower to tune section-swap speed.
-internal const val topLevelTransitionDurationMillis = 300
-
-// Bottom-tab Fade Through secondary scale. Lower values make incoming sections feel
-// farther away before settling.
-internal const val topLevelFadeThroughInitialScale = 0.92f
 
 // Nested Shared Axis duration. Matches MaterialSharedAxis motionDurationLong1; tune
 // together with slide distance.
@@ -45,9 +36,6 @@ internal val sharedAxisXExitFadeEasing = Easing { fraction ->
 }
 
 internal val sharedAxisXSlideEasing: Easing = FastOutSlowInEasing
-internal val topLevelFadeThroughEnterEasing: Easing = sharedAxisXEnterFadeEasing
-internal val topLevelFadeThroughExitEasing: Easing = sharedAxisXExitFadeEasing
-internal val topLevelFadeThroughScaleEasing: Easing = FastOutSlowInEasing
 
 private data class NavigationRouteContext(
     val topLevelScreen: Screen,
@@ -55,7 +43,6 @@ private data class NavigationRouteContext(
 
 internal enum class NavigationMotionPattern {
     NONE,
-    TOP_LEVEL,
     NESTED_FORWARD,
     NESTED_BACKWARD,
 }
@@ -87,7 +74,7 @@ internal fun resolveNavigationMotionPattern(
         ?: return NavigationMotionPattern.NONE
 
     if (initialContext.topLevelScreen != targetContext.topLevelScreen) {
-        return NavigationMotionPattern.TOP_LEVEL
+        return NavigationMotionPattern.NONE
     }
 
     return if (isPop) {
@@ -110,7 +97,6 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostEnterTr
             targetTopLevelParentRoute = targetState.topLevelParentRoute,
         )
     ) {
-        NavigationMotionPattern.TOP_LEVEL -> topLevelEnterTransition()
         NavigationMotionPattern.NESTED_FORWARD -> sharedAxisXEnterTransition(
             density = density,
             layoutDirection = layoutDirection,
@@ -134,7 +120,6 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostExitTra
             targetTopLevelParentRoute = targetState.topLevelParentRoute,
         )
     ) {
-        NavigationMotionPattern.TOP_LEVEL -> topLevelExitTransition()
         NavigationMotionPattern.NESTED_FORWARD -> sharedAxisXExitTransition(
             density = density,
             layoutDirection = layoutDirection,
@@ -158,7 +143,6 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostPopEnte
             targetTopLevelParentRoute = targetState.topLevelParentRoute,
         )
     ) {
-        NavigationMotionPattern.TOP_LEVEL -> topLevelEnterTransition()
         NavigationMotionPattern.NESTED_BACKWARD -> sharedAxisXEnterTransition(
             density = density,
             layoutDirection = layoutDirection,
@@ -182,7 +166,6 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostPopExit
             targetTopLevelParentRoute = targetState.topLevelParentRoute,
         )
     ) {
-        NavigationMotionPattern.TOP_LEVEL -> topLevelExitTransition()
         NavigationMotionPattern.NESTED_BACKWARD -> sharedAxisXExitTransition(
             density = density,
             layoutDirection = layoutDirection,
@@ -304,31 +287,6 @@ private fun navigationRouteContextFor(
         Screen.SettingsCalibrationEntry.baseRoute -> childContext(defaultTopLevelScreen = Screen.Settings)
         else -> null
     }
-}
-
-// Switching sections should not imply a spatial relationship, so use a fade through.
-internal fun topLevelEnterTransition(): EnterTransition {
-    return fadeIn(
-        animationSpec = tween(
-            durationMillis = topLevelTransitionDurationMillis,
-            easing = topLevelFadeThroughEnterEasing,
-        )
-    ) + scaleIn(
-        initialScale = topLevelFadeThroughInitialScale,
-        animationSpec = tween(
-            durationMillis = topLevelTransitionDurationMillis,
-            easing = topLevelFadeThroughScaleEasing,
-        )
-    )
-}
-
-internal fun topLevelExitTransition(): ExitTransition {
-    return fadeOut(
-        animationSpec = tween(
-            durationMillis = topLevelTransitionDurationMillis,
-            easing = topLevelFadeThroughExitEasing,
-        )
-    )
 }
 
 // Child pages within one section use directional motion to reinforce forward/back navigation.

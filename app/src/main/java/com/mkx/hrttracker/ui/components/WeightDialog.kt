@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -57,7 +56,7 @@ fun WeightDialog(
     // Controls stay visually enabled while the weight save is in flight; the
     // submit/onClear/onDismiss callbacks no-op so a second tap can't double-
     // fire while we wait for the profile write to settle.
-    AlertDialog(
+    HazeAlertDialog(
         modifier = modifier,
         onDismissRequest = { if (!isInProgress) onDismiss() },
         title = { Text(text = stringResource(R.string.personalization_weight_dialog_title)) },

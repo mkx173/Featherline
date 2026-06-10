@@ -260,9 +260,11 @@ Shared sub-packages:
   medication card (with its embedded `MedicationStockSubcard`), the
   `StockStatusIndicator` state badge, the medical-disclaimer banner,
   the `hrtSection` lazy-list section builder (flattens a section into
-  per-row keyed items so long lists compose incrementally), and the
+  per-row keyed items so long lists compose incrementally), the
   shared scroll-to-top helpers behind every screen's double-tap and
-  tab-retap animation.
+  tab-retap animation, and the `HazeChrome` helpers that draw the
+  translucent blur behind app bars, bottom sheets, and dialogs
+  (Android 12+, off below that or via the "Background blur" setting).
 - [`ui/navigation`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/navigation) — the `HrtTrackerNavHost`, the
   `Screen` sealed class, and the navigation-transition specs. See
   the section below.
@@ -339,12 +341,12 @@ Transition motion is centralized in
 [`NavigationTransitions`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/ui/navigation/NavigationTransitions.kt).
 The four `NavHost` transition slots
 (`enterTransition`, `exitTransition`, `popEnterTransition`,
-`popExitTransition`) and the `sizeTransform` are wired once at the
+`popExitTransition`) are wired once at the
 host. Each call resolves a motion pattern from the initial and target
-routes — `TOP_LEVEL` (Material fade-through, used when switching
-between Main / Plan / Settings sections) or `NESTED_FORWARD` /
-`NESTED_BACKWARD` (Material shared-axis X, used for in-section
-forward and pop navigation) — and applies the matching spec.
+routes — `NESTED_FORWARD` / `NESTED_BACKWARD` (Material shared-axis X,
+used for in-section forward and pop navigation) or `NONE` (switching
+between Main / Plan / Settings sections is instant) — and applies the
+matching spec.
 Features do not redefine transitions.
 
 ## How the layers connect

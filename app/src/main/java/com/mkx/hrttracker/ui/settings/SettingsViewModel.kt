@@ -173,6 +173,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setHazeBlurEnabled(enabled: Boolean) {
+        launchSettingsMutation {
+            settingsRepository.setHazeBlurEnabled(enabled)
+        }
+    }
+
     fun setShowArchivedGroupRecords(enabled: Boolean) {
         launchSettingsMutation {
             settingsRepository.setShowArchivedGroupRecords(enabled)

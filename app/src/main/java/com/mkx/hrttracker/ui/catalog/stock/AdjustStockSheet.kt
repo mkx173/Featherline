@@ -11,15 +11,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -35,7 +32,6 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -77,6 +73,7 @@ import com.mkx.hrttracker.ui.catalog.AdjustSheetTab
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -117,11 +114,10 @@ fun AdjustStockSheet(
         WindowInsets.navigationBars.getBottom(this).toDp()
     }
 
-    ModalBottomSheet(
+    HazeModalBottomSheet(
         sheetState = sheetState,
         onDismissRequest = onDismissRequest,
         modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
-        contentWindowInsets = { WindowInsets.systemBars.only(WindowInsetsSides.Top) },
     ) {
         Column(
             modifier = Modifier
@@ -130,7 +126,8 @@ fun AdjustStockSheet(
                 .padding(
                     start = dimensionResource(R.dimen.padding_large),
                     end = dimensionResource(R.dimen.padding_large),
-                    bottom = dimensionResource(R.dimen.padding_large) + navigationBarBottomPadding,
+                    bottom =
+                        dimensionResource(R.dimen.padding_large) + navigationBarBottomPadding,
                 ),
         ) {
             // On API 26 the ModalBottomSheet window auto-focuses the first text
