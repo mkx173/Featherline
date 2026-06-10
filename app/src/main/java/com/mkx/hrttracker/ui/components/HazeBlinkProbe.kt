@@ -47,7 +47,7 @@ internal fun Modifier.hazeBlinkDrawProbe(label: String, state: HazeState?): Modi
                 "draw $label state=${state?.hashCode()} " +
                     "areas=${areas.size} " +
                     areas.joinToString(prefix = "[", postfix = "]") { area ->
-                        "pos=${area.positionOnScreen} size=${area.size} " +
+                        "pos=${area.position} size=${area.size} " +
                             "layer=${if (area.contentLayer == null) "null" else "set"}"
                     }
             }

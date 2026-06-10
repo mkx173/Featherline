@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalHazeMaterialsApi::class, ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.mkx.hrttracker.ui.components
 
@@ -39,11 +39,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.DialogProperties
+import dev.chrisbanes.haze.HazePositionStrategy
 import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.blur.blurEffect
+import dev.chrisbanes.haze.blur.materials.HazeMaterials
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
-import dev.chrisbanes.haze.materials.HazeMaterials
 import dev.chrisbanes.haze.rememberHazeState
 
 val LocalHazeBlurEnabled = staticCompositionLocalOf { isHazeBlurSupported() }
@@ -52,7 +53,17 @@ val LocalChromeHazeState = staticCompositionLocalOf<HazeState?> { null }
 internal const val TopAppBarScrolledOverlapThreshold = 0.01f
 
 @Composable
-fun rememberChromeHazeState(): HazeState = rememberHazeState()
+fun rememberChromeHazeState(): HazeState = rememberHazeState(
+    // Chrome haze states are consumed by effects in different windows: the in-window
+    // top/bottom bars plus bottom sheets and dialogs, which live in their own windows
+    // and sample the app window's content. Haze 2.0's Auto strategy resolves per
+    // effect node but stores the result in the shared HazeState.resolvedStrategy, so
+    // a same-window and a cross-window effect on one state overwrite each other in an
+    // endless snapshot loop, freezing the UI (seen on the medication log entry sheet).
+    // Pinning Screen coordinates keeps every consumer in one coordinate system and
+    // matches Haze 1.x behavior on Android.
+    positionStrategy = HazePositionStrategy.Screen,
+)
 
 fun isHazeBlurSupported(sdkInt: Int = Build.VERSION.SDK_INT): Boolean {
     return sdkInt >= Build.VERSION_CODES.S
@@ -81,13 +92,15 @@ fun Modifier.hazeChrome(
     HazeBlinkChangeProbe("hazeChrome.enabled state=${state?.hashCode()}", enabled)
     if (!LocalHazeBlurEnabled.current || !enabled || state == null) return this
 
+    val style = HazeMaterials.thin(
+        containerColor = MaterialTheme.colorScheme.surfaceContainer
+    )
     return hazeBlinkDrawProbe("hazeChrome", state)
-        .hazeEffect(
-            state = state,
-            style = HazeMaterials.thin(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-        )
+        .hazeEffect(state = state) {
+            blurEffect {
+                this.style = style
+            }
+        }
 }
 
 @Composable
@@ -96,13 +109,14 @@ fun Modifier.hazeBottomSheet(
 ): Modifier {
     if (!LocalHazeBlurEnabled.current || state == null) return this
 
-    return hazeEffect(
-        state = state,
-        style = HazeMaterials.regular(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-    ) {
+    val style = HazeMaterials.regular(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+    )
+    return hazeEffect(state = state) {
         forceInvalidateOnPreDraw = true
+        blurEffect {
+            this.style = style
+        }
     }
 }
 
@@ -113,15 +127,16 @@ fun Modifier.hazeDialog(
 ): Modifier {
     if (!LocalHazeBlurEnabled.current || state == null) return this
 
+    val style = HazeMaterials.regular(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    )
     return this.clip(shape)
-        .hazeEffect(
-            state = state,
-            style = HazeMaterials.regular(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-            ),
-        ) {
-            blurredEdgeTreatment = BlurredEdgeTreatment(shape)
+        .hazeEffect(state = state) {
             forceInvalidateOnPreDraw = true
+            blurEffect {
+                this.style = style
+                blurredEdgeTreatment = BlurredEdgeTreatment(shape)
+            }
         }
 }
 
