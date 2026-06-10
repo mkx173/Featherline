@@ -74,6 +74,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -122,6 +123,8 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
+import com.mkx.hrttracker.ui.components.hazeBlinkProbeEnabled
+import com.mkx.hrttracker.ui.components.hazeBlinkProbeLog
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
@@ -840,7 +843,11 @@ internal fun MainE2ChartCard(
         }
         return
     }
-    val modelProducer = remember { CartesianChartModelProducer() }
+    // TODO(haze-blink): remove probe once the blank-first-frame root cause is fixed.
+    val modelProducer = remember {
+        hazeBlinkProbeLog { "e2chart: new CartesianChartModelProducer (fresh composition)" }
+        CartesianChartModelProducer()
+    }
     val chartAnimationsEnabled = remember {
         mutableStateOf(!mainE2ChartInitialAnimationConsumed)
     }
@@ -1078,6 +1085,8 @@ internal fun MainE2ChartCard(
         section.pastDays,
         now,
     ) {
+        // TODO(haze-blink): remove probe once the blank-first-frame root cause is fixed.
+        hazeBlinkProbeLog { "e2chart: runTransaction start" }
         modelProducer.runTransaction {
             lineSeries {
                 // Solid line: window start → today midnight (with area fill).
@@ -1137,6 +1146,8 @@ internal fun MainE2ChartCard(
                 )
             }
         }
+        // TODO(haze-blink): remove probe once the blank-first-frame root cause is fixed.
+        hazeBlinkProbeLog { "e2chart: runTransaction committed" }
     }
 
     Surface(
@@ -1375,6 +1386,24 @@ internal fun MainE2ChartCard(
                                 animateIn = chartAnimationsEnabled.value,
                                 scrollState = chartScrollState,
                                 zoomState = chartZoomState,
+                                placeholder = {
+                                    // TODO(haze-blink): remove probe once the
+                                    //  blank-first-frame root cause is fixed. Vico shows
+                                    //  this slot on frames where the producer has not yet
+                                    //  delivered a model — i.e. the suspected blank frames.
+                                    if (hazeBlinkProbeEnabled) {
+                                        Box(
+                                            modifier = Modifier
+                                                .matchParentSize()
+                                                .drawWithContent {
+                                                    hazeBlinkProbeLog {
+                                                        "e2chart: placeholder draw (model == null)"
+                                                    }
+                                                    drawContent()
+                                                }
+                                        )
+                                    }
+                                },
                             )
                         }
                     }

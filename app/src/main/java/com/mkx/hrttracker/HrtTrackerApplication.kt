@@ -20,6 +20,7 @@ import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import com.mkx.hrttracker.util.ToastManager
 import com.mkx.hrttracker.widget.HomeWidgetManager
 import dagger.hilt.android.HiltAndroidApp
+import dev.chrisbanes.haze.HazeLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -54,6 +55,13 @@ class HrtTrackerApplication : Application() {
 
         super.onCreate()
         diagnosticsLogger.info(TAG, "application_on_create_start")
+
+        // TODO(haze-blink): remove once the top-app-bar blink root cause is fixed.
+        // Per-frame haze internals under logcat tags HazeSource / HazeEffect; correlate
+        // with the app-side HazeBlinkProbe tag.
+        if (BuildConfig.DEBUG) {
+            HazeLogger.enabled = true
+        }
 
         val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 

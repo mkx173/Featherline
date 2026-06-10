@@ -67,7 +67,9 @@ fun effectiveHazeBlurEnabled(
 
 @Composable
 fun Modifier.hazeSourceArea(state: HazeState?): Modifier {
-    return if (!LocalHazeBlurEnabled.current || state == null) this else hazeSource(state)
+    if (!LocalHazeBlurEnabled.current || state == null) return this
+    // TODO(haze-blink): remove probe once the blink root cause is fixed.
+    return hazeBlinkDrawProbe("hazeSourceArea", state).hazeSource(state)
 }
 
 @Composable
@@ -75,14 +77,17 @@ fun Modifier.hazeChrome(
     state: HazeState? = LocalChromeHazeState.current,
     enabled: Boolean = true,
 ): Modifier {
+    // TODO(haze-blink): remove probes once the blink root cause is fixed.
+    HazeBlinkChangeProbe("hazeChrome.enabled state=${state?.hashCode()}", enabled)
     if (!LocalHazeBlurEnabled.current || !enabled || state == null) return this
 
-    return hazeEffect(
-        state = state,
-        style = HazeMaterials.thin(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        ),
-    )
+    return hazeBlinkDrawProbe("hazeChrome", state)
+        .hazeEffect(
+            state = state,
+            style = HazeMaterials.thin(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ),
+        )
 }
 
 @Composable
