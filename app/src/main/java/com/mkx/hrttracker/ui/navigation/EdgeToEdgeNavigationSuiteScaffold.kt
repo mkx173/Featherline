@@ -1,20 +1,21 @@
 package com.mkx.hrttracker.ui.navigation
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material3.Surface
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuite
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.layoutId
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.util.fastFirst
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.platform.LocalDensity
+import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 
-private const val NavigationLayoutId = "navigation"
-private const val ContentLayoutId = "content"
+private enum class EdgeToEdgeScaffoldSlot { Navigation, Content }
 
 /**
  * A [androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold] variant that
@@ -28,62 +29,63 @@ private const val ContentLayoutId = "content"
  * Painting content full-height keeps the scaled page's bottom edge hidden beneath the bar, so no
  * strip appears.
  *
- * Body content must pad its scrollable region above the bar itself: the measured bar height is
- * reported through [onNavigationBarSizeChanged] so the caller can publish it via
- * [com.mkx.hrttracker.ui.components.LocalAppContentBottomInset].
+ * Body content must pad its scrollable region above the bar itself; the scaffold provides the
+ * required padding via [LocalAppContentBottomInset]. The bar is measured *before* content is
+ * subcomposed, so the inset is exact in the same frame — no first-frame underlap and no stale
+ * value when the navigation-suite type changes in place (fold, rotation, window resize).
  *
  * Only the bottom-bar layouts (compact / medium) draw content behind the bar; the wide rail keeps
- * the stock side-by-side placement, where content already fills the full height beside the rail.
- *
- * @param onNavigationBarSizeChanged invoked with the navigation component's measured height in
- *   pixels. In the wide-rail layout this is the rail's (full-screen) height; callers gate on
- *   [navigationSuiteType] and ignore it there.
+ * the stock side-by-side placement, where content already fills the full height beside the rail
+ * and only needs to clear the system gesture inset.
  */
 @Composable
 fun EdgeToEdgeNavigationSuiteScaffold(
     navigationSuiteType: NavigationSuiteType,
-    onNavigationBarSizeChanged: (heightPx: Int) -> Unit,
     modifier: Modifier = Modifier,
     navigationSuiteItems: NavigationSuiteScope.() -> Unit,
     content: @Composable () -> Unit,
 ) {
     val isBottomBar = navigationSuiteType != NavigationSuiteType.WideNavigationRailCollapsed
+    val railContentBottomInset = with(LocalDensity.current) {
+        WindowInsets.navigationBars.getBottom(this).toDp()
+    }
     Surface(
         modifier = modifier,
         color = NavigationSuiteScaffoldDefaults.containerColor,
         contentColor = NavigationSuiteScaffoldDefaults.contentColor,
     ) {
-        Layout(
-            content = {
-                Box(
-                    Modifier
-                        .layoutId(NavigationLayoutId)
-                        .onSizeChanged { onNavigationBarSizeChanged(it.height) }
-                ) {
+        SubcomposeLayout { constraints ->
+            val looseConstraints = constraints.copy(minWidth = 0, minHeight = 0)
+            val navigationPlaceable = subcompose(EdgeToEdgeScaffoldSlot.Navigation) {
+                Box {
                     NavigationSuite(
                         layoutType = navigationSuiteType,
                         content = navigationSuiteItems,
                     )
                 }
-                Box(Modifier.layoutId(ContentLayoutId)) { content() }
-            },
-        ) { measurables, constraints ->
-            val looseConstraints = constraints.copy(minWidth = 0, minHeight = 0)
-            val navigationPlaceable =
-                measurables.fastFirst { it.layoutId == NavigationLayoutId }.measure(looseConstraints)
+            }.first().measure(looseConstraints)
             val layoutWidth = constraints.maxWidth
             val layoutHeight = constraints.maxHeight
-            val contentPlaceable =
-                measurables.fastFirst { it.layoutId == ContentLayoutId }.measure(
-                    if (isBottomBar) {
-                        // Full height: content paints behind the bar, which is overlaid below.
-                        constraints.copy(minHeight = layoutHeight, maxHeight = layoutHeight)
-                    } else {
-                        // Wide rail: content fills the width beside the rail (stock behavior).
-                        val contentWidth = layoutWidth - navigationPlaceable.width
-                        constraints.copy(minWidth = contentWidth, maxWidth = contentWidth)
+            val appContentBottomInset =
+                if (isBottomBar) navigationPlaceable.height.toDp() else railContentBottomInset
+            val contentPlaceable = subcompose(EdgeToEdgeScaffoldSlot.Content) {
+                Box {
+                    CompositionLocalProvider(
+                        LocalAppContentBottomInset provides appContentBottomInset
+                    ) {
+                        content()
                     }
-                )
+                }
+            }.first().measure(
+                if (isBottomBar) {
+                    // Full height: content paints behind the bar, which is overlaid below.
+                    constraints.copy(minHeight = layoutHeight, maxHeight = layoutHeight)
+                } else {
+                    // Wide rail: content fills the width beside the rail (stock behavior).
+                    val contentWidth = layoutWidth - navigationPlaceable.width
+                    constraints.copy(minWidth = contentWidth, maxWidth = contentWidth)
+                }
+            )
             layout(layoutWidth, layoutHeight) {
                 if (isBottomBar) {
                     contentPlaceable.placeRelative(0, 0)
