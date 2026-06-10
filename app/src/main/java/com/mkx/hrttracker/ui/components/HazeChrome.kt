@@ -39,9 +39,13 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +61,9 @@ import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.withResumed
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.hideBottomSheet
 import dev.chrisbanes.haze.HazePositionStrategy
@@ -337,6 +344,30 @@ fun hazeDatePickerColors(
     )
 }
 
+// Route content stays composed and interactive while its exit transition
+// runs, so a tap can open a dialog/sheet after navigation has already begun.
+// The modal window renders above everything — it would blink over the
+// destination page and vanish when the outgoing route is disposed. Hold a
+// modal back when it is first composed while its host lifecycle is below
+// RESUMED: if the host is disposed the window never appears; if the host
+// comes back (or the activity resumes) the modal shows then. Once shown, a
+// modal stays shown through later lifecycle dips (e.g. the activity pausing
+// behind a system dialog).
+@Composable
+internal fun rememberModalWindowAllowed(): Boolean {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var allowed by remember {
+        mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+    if (!allowed) {
+        LaunchedEffect(lifecycle) {
+            lifecycle.withResumed { }
+            allowed = true
+        }
+    }
+    return allowed
+}
+
 /**
  * Modal bottom sheet with the haze chrome wiring applied: the Material sheet's
  * own container is transparent and inset-free, and the [HazeBottomSheetSurface]
@@ -353,6 +384,9 @@ fun HazeModalBottomSheet(
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    if (!rememberModalWindowAllowed()) {
+        return
+    }
     // Every modal window locks top-level navigation for its whole composition,
     // covering the appear/disappear frames where the window doesn't yet (or no
     // longer) blocks chrome taps itself.
@@ -436,6 +470,9 @@ fun HazeAlertDialog(
     tonalElevation: Dp = AlertDialogDefaults.TonalElevation,
     properties: DialogProperties = DialogProperties(),
 ) {
+    if (!rememberModalWindowAllowed()) {
+        return
+    }
     NavigationLockEffect(active = true)
     MaterialAlertDialog(
         onDismissRequest = onDismissRequest,
@@ -463,6 +500,9 @@ fun HazeBasicAlertDialog(
     properties: DialogProperties = DialogProperties(),
     content: @Composable () -> Unit,
 ) {
+    if (!rememberModalWindowAllowed()) {
+        return
+    }
     NavigationLockEffect(active = true)
     MaterialBasicAlertDialog(
         onDismissRequest = onDismissRequest,
@@ -505,6 +545,9 @@ fun HazeDatePickerDialog(
 ) {
     val hazeColors = hazeDatePickerColors(colors)
 
+    if (!rememberModalWindowAllowed()) {
+        return
+    }
     NavigationLockEffect(active = true)
     MaterialDatePickerDialog(
         onDismissRequest = onDismissRequest,
@@ -532,6 +575,9 @@ fun HazeTimePickerDialog(
     containerColor: Color = TimePickerDialogDefaults.containerColor,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    if (!rememberModalWindowAllowed()) {
+        return
+    }
     NavigationLockEffect(active = true)
     MaterialTimePickerDialog(
         onDismissRequest = onDismissRequest,
