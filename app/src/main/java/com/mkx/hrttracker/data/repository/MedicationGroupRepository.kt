@@ -85,8 +85,12 @@ class MedicationGroupRepository @Inject constructor(
                             // resolveMedicinesForGroups() suspends, so cancellation
                             // surfaces here as a CancellationException. runCatching would
                             // swallow it (unlike the Flow .catch this replaced); rethrow so
-                            // flatMapLatest/scope cancellation is honoured.
+                            // flatMapLatest/scope cancellation is honoured. Rethrow
+                            // non-Exception Throwables (Errors) too: only genuine
+                            // recoverable failures may be suppressed; an Error must keep
+                            // failing loud.
                             if (error is CancellationException) throw error
+                            if (error !is Exception) throw error
                             diagnosticsLogger.warning(
                                 TAG,
                                 "groups_flow_suppressed count=${groups.size}",
@@ -99,12 +103,16 @@ class MedicationGroupRepository @Inject constructor(
                         // Per-emission runCatching above recovers from transform
                         // failures; this terminal catch separately guards the Room
                         // flows themselves failing (DB corruption / I/O error). Without
-                        // it an upstream error would reach the Eagerly, app-scoped
-                        // stateIn collector and crash the process — appScope is a
-                        // SupervisorJob with no CoroutineExceptionHandler. Transform
-                        // throws are caught above and never reach here, so the
-                        // transient-restore freeze does not return.
+                        // it a recoverable upstream error would reach the Eagerly,
+                        // app-scoped stateIn collector and crash the process — appScope
+                        // is a SupervisorJob with no CoroutineExceptionHandler.
+                        // Exception transform throws are caught above and never reach
+                        // here, so the transient-restore freeze does not return; rethrow
+                        // CancellationException and non-Exception Throwables (Errors) so
+                        // only genuine recoverable failures degrade to an empty list.
                         .catch { error ->
+                            if (error is CancellationException) throw error
+                            if (error !is Exception) throw error
                             diagnosticsLogger.warning(TAG, "groups_flow_room_error", error)
                             emit(emptyList())
                         }

@@ -52,18 +52,28 @@ class UserProfileRepository @Inject constructor(
                                     // cancellation can't surface here — but rethrow it
                                     // anyway so runCatching never silently swallows
                                     // cancellation if a suspend call is added later.
+                                    // Rethrow non-Exception Throwables (Errors) too:
+                                    // only genuine recoverable failures may be
+                                    // suppressed; an Error must keep failing loud.
                                     if (error is CancellationException) throw error
+                                    if (error !is Exception) throw error
                                     null
                                 }
                         }
                         .filterNotNull()
                         // Per-emission runCatching above recovers from a transform
                         // failure; this terminal catch separately guards the Room flow
-                        // itself failing (DB corruption / I/O error). Without it an
-                        // upstream error would reach the Eagerly, app-scoped stateIn
-                        // collector and crash the process — appScope is a SupervisorJob
-                        // with no CoroutineExceptionHandler.
-                        .catch { emit(UserProfile()) }
+                        // itself failing (DB corruption / I/O error). Without it a
+                        // recoverable upstream error would reach the Eagerly, app-scoped
+                        // stateIn collector and crash the process — appScope is a
+                        // SupervisorJob with no CoroutineExceptionHandler. Rethrow
+                        // CancellationException and non-Exception Throwables (Errors) so
+                        // only genuine recoverable failures degrade to the default.
+                        .catch { error ->
+                            if (error is CancellationException) throw error
+                            if (error !is Exception) throw error
+                            emit(UserProfile())
+                        }
                 }
             }
             // Seed the flow from the home snapshot cache so screens that bind the

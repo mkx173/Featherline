@@ -29,6 +29,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -585,6 +586,55 @@ class MedicationLogRepositoryTest {
                     "unresolved-medicine failure during restore",
             listOf(newEntry.uuid),
             emissions.last().map { it.uuid.toString() },
+        )
+    }
+
+    // The suppression guard exists for recoverable cross-table races; JVM
+    // Errors (OOM, linkage failures) must keep failing loud instead of being
+    // logged away as a suppressed emission that silently degrades data views.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun observeScheduledEntriesInWindow_propagatesErrorsInsteadOfSuppressing() = runTest {
+        val entry = testMedicationLogEntryEntity(
+            uuid = "11111111-0000-0000-0000-0000000000a1",
+            appliedAt = Instant.parse("2026-05-06T08:00:00Z"),
+            medicineUuid = "ffffffff-0000-0000-0000-0000000000a3",
+        )
+        // Anonymous subclass: no (String) copy constructor, so coroutine
+        // stacktrace recovery can't clone it and assertSame stays meaningful.
+        val vmError = object : Error("simulated vm error") {}
+        every { databaseHolder.databaseFlow } returns MutableStateFlow<HrtTrackerDatabase?>(database)
+        every { database.medicationLogDao() } returns dao
+        every { database.medicineDao() } returns medicineDao
+        every { dao.observeScheduledEntriesInWindow(any(), any()) } returns MutableStateFlow(
+            listOf(entry)
+        )
+        coEvery { medicineDao.getByUuids(any()) } throws vmError
+
+        val repository = MedicationLogRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(StandardTestDispatcher(testScheduler)),
+        )
+
+        var caught: Throwable? = null
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            try {
+                repository.observeScheduledEntriesInWindow(
+                    scheduledStartIso = "2026-05-05T00:00",
+                    scheduledEndIso = "2026-08-04T23:59:59",
+                ).collect { }
+            } catch (error: Throwable) {
+                caught = error
+            }
+        }
+        advanceUntilIdle()
+
+        assertSame(
+            "Errors must propagate to the collector, not be absorbed as a suppression",
+            vmError,
+            caught,
         )
     }
 
