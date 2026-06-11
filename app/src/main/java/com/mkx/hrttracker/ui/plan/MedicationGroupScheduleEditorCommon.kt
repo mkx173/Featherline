@@ -337,12 +337,16 @@ internal fun NotificationsCard(
         } else {
             null
         },
+        titleColor = if (toggleEnabled) {
+            MaterialTheme.colorScheme.onSurface
+        } else {
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        },
         leadingContent = {
             Icon(
                 painter = painterResource(R.drawable.ic_notifications),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.alpha(if (toggleEnabled) 1f else 0.72f)
             )
         },
         trailingContent = {

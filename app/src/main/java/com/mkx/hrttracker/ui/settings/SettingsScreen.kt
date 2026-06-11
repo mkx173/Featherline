@@ -510,7 +510,6 @@ fun SettingsScreen(
                 }
             }
         },
-        isBackupActionBlocked = isBackupActionBlocked,
         showDiagnosticsExport = BuildConfig.DEBUG,
         isDiagnosticsExportInProgress = isDiagnosticsExportInProgress,
         onExportDiagnosticLogsClick = {
@@ -785,7 +784,6 @@ internal fun SettingsScreenContent(
     onWidgetAppearanceChange: (Float, Float, DarkModeOption) -> Unit,
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
-    isBackupActionBlocked: Boolean,
     showDiagnosticsExport: Boolean,
     isDiagnosticsExportInProgress: Boolean,
     onExportDiagnosticLogsClick: () -> Unit,
@@ -941,6 +939,15 @@ internal fun SettingsScreenContent(
                             title = stringResource(R.string.settings_reminders),
                             supportingText = stringResource(R.string.settings_reminders_summary),
                             enabled = hasNotificationAccess,
+                            // Pin the title color to the enabled/disabled value directly instead of
+                            // letting it ride the list-item's animated content color. The switch's
+                            // enabled state snaps when access is granted, but the animated title
+                            // faded in a frame behind it; an explicit color keeps the two in lockstep.
+                            titleColor = if (hasNotificationAccess) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            },
                             onClick = {
                                 if (hasNotificationAccess) {
                                     onRemindersEnabledChange(!settingsState.remindersEnabled)
@@ -1350,7 +1357,6 @@ internal fun SettingsScreenContent(
                     item {
                         SettingsSegmentedListItem(
                             title = stringResource(R.string.settings_backup_to_file),
-                            enabled = !isBackupActionBlocked,
                             onClick = onBackupToFileClick,
                             leadingContent = {
                                 SettingsLeadingIconSlot(
@@ -1366,7 +1372,6 @@ internal fun SettingsScreenContent(
                     item {
                         SettingsSegmentedListItem(
                             title = stringResource(R.string.settings_restore_from_file),
-                            enabled = !isBackupActionBlocked,
                             onClick = onRestoreFromFileClick,
                             leadingContent = {
                                 SettingsLeadingIconSlot(
@@ -2018,7 +2023,6 @@ private fun SettingsScreenPreview() {
             onWidgetAppearanceChange = { _, _, _ -> },
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
-            isBackupActionBlocked = false,
             showDiagnosticsExport = true,
             isDiagnosticsExportInProgress = false,
             onExportDiagnosticLogsClick = { },
