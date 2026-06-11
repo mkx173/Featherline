@@ -55,9 +55,7 @@ class SettingsScreenWeightRowTest {
                     onWidgetAppearanceChange = { _, _, _ -> },
                     onBackupToFileClick = {},
                     onRestoreFromFileClick = {},
-                    isBackupActionBlocked = false,
                     showDiagnosticsExport = false,
-                    isDiagnosticsExportInProgress = false,
                     onExportDiagnosticLogsClick = {},
                     onCalibrationClick = {},
                 )

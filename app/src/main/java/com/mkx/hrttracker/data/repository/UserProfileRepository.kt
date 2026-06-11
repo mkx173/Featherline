@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -41,24 +42,38 @@ class UserProfileRepository @Inject constructor(
                             // Eagerly, app-scoped flow — and the Settings weight — until
                             // the database (app process) is rebuilt. toModel() can't
                             // currently throw, so this is defensive parity with the
-                            // medication/medicine flows that share this shape.
+                            // medication/medicine flows that share this shape. Suppress
+                            // (null -> filterNotNull below) rather than emit a default:
+                            // a fabricated default profile would flash for one frame
+                            // before the next consistent emission lands.
                             runCatching { entity?.toModel() ?: UserProfile() }
                                 .getOrElse { error ->
                                     // No suspension point inside the block today, so
                                     // cancellation can't surface here — but rethrow it
                                     // anyway so runCatching never silently swallows
                                     // cancellation if a suspend call is added later.
+                                    // Rethrow non-Exception Throwables (Errors) too:
+                                    // only genuine recoverable failures may be
+                                    // suppressed; an Error must keep failing loud.
                                     if (error is CancellationException) throw error
-                                    UserProfile()
+                                    if (error !is Exception) throw error
+                                    null
                                 }
                         }
+                        .filterNotNull()
                         // Per-emission runCatching above recovers from a transform
                         // failure; this terminal catch separately guards the Room flow
-                        // itself failing (DB corruption / I/O error). Without it an
-                        // upstream error would reach the Eagerly, app-scoped stateIn
-                        // collector and crash the process — appScope is a SupervisorJob
-                        // with no CoroutineExceptionHandler.
-                        .catch { emit(UserProfile()) }
+                        // itself failing (DB corruption / I/O error). Without it a
+                        // recoverable upstream error would reach the Eagerly, app-scoped
+                        // stateIn collector and crash the process — appScope is a
+                        // SupervisorJob with no CoroutineExceptionHandler. Rethrow
+                        // CancellationException and non-Exception Throwables (Errors) so
+                        // only genuine recoverable failures degrade to the default.
+                        .catch { error ->
+                            if (error is CancellationException) throw error
+                            if (error !is Exception) throw error
+                            emit(UserProfile())
+                        }
                 }
             }
             // Seed the flow from the home snapshot cache so screens that bind the

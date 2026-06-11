@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.planCalendarDate
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
@@ -43,6 +45,7 @@ class MedicationGroupRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotRepository: HomeSnapshotRepository,
     @AppScope appScope: CoroutineScope,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
     private val groupsFlow: StateFlow<List<MedicationGroup>?> =
@@ -66,11 +69,15 @@ class MedicationGroupRepository @Inject constructor(
                         // medicine UUID in one transaction). The separate point-in-time
                         // resolveMedicinesForGroups() then can't resolve the old UUID and
                         // toMedicationGroupModel()'s checkNotNull(medicine) throws. Handle
-                        // it HERE, per emission, so the failure degrades a single (stale)
-                        // emission instead of cancelling the upstream Room observation —
-                        // the next, consistent emission recovers. A terminal `.catch`
-                        // outside flatMapLatest would instead freeze this flow until the
-                        // database (and thus the app process) is rebuilt.
+                        // it HERE, per emission, so the failure SUPPRESSES the single
+                        // (stale) emission instead of cancelling the upstream Room
+                        // observation — the next, consistent emission recovers. A terminal
+                        // `.catch` outside flatMapLatest would instead freeze this flow
+                        // until the database (and thus the app process) is rebuilt.
+                        // Suppress (null -> filterNotNull below) rather than emit a
+                        // fallback: a fabricated empty list reaches the Plan combine and
+                        // renders a one-frame empty/stale mixture before the consistent
+                        // emission lands.
                         runCatching {
                             val medicinesByUuid = database.resolveMedicinesForGroups(groups)
                             groups.map { it.toMedicationGroupModel(medicinesByUuid) }
@@ -78,20 +85,37 @@ class MedicationGroupRepository @Inject constructor(
                             // resolveMedicinesForGroups() suspends, so cancellation
                             // surfaces here as a CancellationException. runCatching would
                             // swallow it (unlike the Flow .catch this replaced); rethrow so
-                            // flatMapLatest/scope cancellation is honoured.
+                            // flatMapLatest/scope cancellation is honoured. Rethrow
+                            // non-Exception Throwables (Errors) too: only genuine
+                            // recoverable failures may be suppressed; an Error must keep
+                            // failing loud.
                             if (error is CancellationException) throw error
-                            emptyList()
+                            if (error !is Exception) throw error
+                            diagnosticsLogger.warning(
+                                TAG,
+                                "groups_flow_suppressed count=${groups.size}",
+                                error,
+                            )
+                            null
                         }
                     }
+                        .filterNotNull()
                         // Per-emission runCatching above recovers from transform
                         // failures; this terminal catch separately guards the Room
                         // flows themselves failing (DB corruption / I/O error). Without
-                        // it an upstream error would reach the Eagerly, app-scoped
-                        // stateIn collector and crash the process — appScope is a
-                        // SupervisorJob with no CoroutineExceptionHandler. Transform
-                        // throws are caught above and never reach here, so the
-                        // transient-restore freeze does not return.
-                        .catch { emit(emptyList()) }
+                        // it a recoverable upstream error would reach the Eagerly,
+                        // app-scoped stateIn collector and crash the process — appScope
+                        // is a SupervisorJob with no CoroutineExceptionHandler.
+                        // Exception transform throws are caught above and never reach
+                        // here, so the transient-restore freeze does not return; rethrow
+                        // CancellationException and non-Exception Throwables (Errors) so
+                        // only genuine recoverable failures degrade to an empty list.
+                        .catch { error ->
+                            if (error is CancellationException) throw error
+                            if (error !is Exception) throw error
+                            diagnosticsLogger.warning(TAG, "groups_flow_room_error", error)
+                            emit(emptyList())
+                        }
                 }
             }
             .stateIn(
@@ -612,3 +636,5 @@ data class MedicationGroupScheduleTimeInput(
 private fun Instant.toLocalDateTime(
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): LocalDateTime = atZone(zoneId).toLocalDateTime().truncatedTo(ChronoUnit.MINUTES)
+
+private const val TAG = "MedicationGroupRepository"

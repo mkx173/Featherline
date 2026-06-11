@@ -69,6 +69,7 @@ class MedicineDetailScreenPatchOffTest {
             HrtTrackerTheme(dynamicColor = false) {
                 MedicineDetailScreen(
                     onNavigateBack = { },
+                    onArchiveExit = { true },
                     onGroupClick = { },
                     viewModel = viewModel,
                 )

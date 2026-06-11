@@ -21,13 +21,13 @@ import com.mkx.hrttracker.util.AppTimeSnapshot
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
-import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
+import com.mkx.hrttracker.util.tickWhileSubscribed
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -35,7 +35,6 @@ import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -56,20 +55,46 @@ class MainViewModel @Inject constructor(
     private val currentSnapshot = appTimeSource.currentSnapshot
     private var lastHomeSnapshotRefreshKey: HomeSnapshotRefreshKey? = null
 
-    // Vico model producer for the home E2 chart. Owned by the ViewModel so it survives
-    // navigation away from Home: CartesianChartHost restores a reused producer's cached
-    // model synchronously on the first composition frame, whereas a freshly remembered
-    // producer renders the empty placeholder until the async runTransaction completes —
-    // which showed up as the chart staying blank for a few frames after navigating home.
-    val e2ChartModelProducer = CartesianChartModelProducer()
+    private val _uiState = MutableStateFlow(
+        MainUiState(
+            homeDataReady = false,
+            now = currentSnapshot.value.minute,
+        )
+    )
+
+    // The ui-state combine below stays collected for the ViewModel's whole
+    // (activity-scoped) lifetime: a stop-timeout would let data mutated while
+    // away (e.g. a backup restore) flash one stale frame on re-entry, so data
+    // emissions must keep rebuilding the retained value in the background.
+    // The time inputs, however, are gated on this state's own subscriber
+    // count: a live minute tick would otherwise rebuild the ui state — PK
+    // simulation fallbacks included — every minute for the activity's whole
+    // lifetime, including backgrounded. While unsubscribed only date/zone
+    // changes pass through, keeping the midnight/timezone re-anchor.
+    val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
+
+    private val gatedSnapshot: StateFlow<AppTimeSnapshot> =
+        currentSnapshot.tickWhileSubscribed(_uiState.subscriptionCount) { snapshot ->
+            snapshot.minute.toLocalDate() to snapshot.zone
+        }
+    private val gatedMinute: StateFlow<LocalDateTime> =
+        appTimeSource.currentMinute.tickWhileSubscribed(_uiState.subscriptionCount) { minute ->
+            minute.toLocalDate()
+        }
+
+    init {
+        viewModelScope.launch {
+            buildUiStateFlow().collect { state -> _uiState.value = state }
+        }
+    }
 
     // Re-subscribe the home inputs flow only on local date or zone changes.
     // Room query windows are date+zone-derived, while per-minute and explicit
     // wall-clock refreshes are fed to HomeRepository as a combine input so
     // now-sensitive projections re-anchor without tearing down the Room flows.
     @OptIn(ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<MainUiState> = combine(
-        currentSnapshot
+    private fun buildUiStateFlow(): Flow<MainUiState> = combine(
+        gatedSnapshot
             .map { snapshot ->
                 HomeTimeKey(
                     now = snapshot.minute,
@@ -82,12 +107,12 @@ class MainViewModel @Inject constructor(
                 refreshHomeSnapshotForDateIfNeeded(key.now, key.zoneId)
                 homeRepository.observeHomeInputs(
                     date = key.date,
-                    nowFlow = appTimeSource.currentMinute,
+                    nowFlow = gatedMinute,
                     zoneId = key.zoneId,
                 )
                     .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
             },
-        currentSnapshot,
+        gatedSnapshot,
         timeZoneChangeNoticeController.notice,
         settingsRepository.homeLowStockSectionExpandedFlow,
         settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
@@ -127,14 +152,6 @@ class MainViewModel @Inject constructor(
         }
     }
         .filterNotNull()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
-            initialValue = MainUiState(
-                homeDataReady = false,
-                now = currentSnapshot.value.minute,
-            )
-        )
 
     private val _highlightRequest = MutableStateFlow<DoseRowHighlightRequest?>(null)
     val highlightRequest: StateFlow<DoseRowHighlightRequest?> = _highlightRequest.asStateFlow()
@@ -155,6 +172,28 @@ class MainViewModel @Inject constructor(
         // consume (tab switch) must not clobber a newer request that arrived
         // from a fresh deep link.
         _highlightRequest.compareAndSet(request, null)
+    }
+
+    // Once-per-process view concern owned here (this ViewModel is activity-
+    // scoped in a single-activity app) rather than as a file-level static: a
+    // static is invisible to tests, replays only on process death anyway, and
+    // is racy across simultaneous Home compositions — the loser would read the
+    // pre-claim value but never consume it, sticking on the intro render path
+    // forever.
+    private var homeE2ChartIntroAnimationClaimed = false
+
+    /**
+     * Claims the once-per-ViewModel-lifetime E2 chart intro animation.
+     * Returns true for exactly one caller; that composition plays the intro,
+     * every other (and later) composition renders the synchronous-model path
+     * directly.
+     */
+    fun claimHomeE2ChartIntroAnimation(): Boolean {
+        if (homeE2ChartIntroAnimationClaimed) {
+            return false
+        }
+        homeE2ChartIntroAnimationClaimed = true
+        return true
     }
 
     fun dismissTimeZoneChangeNotice() {
@@ -377,7 +416,6 @@ class MainViewModel @Inject constructor(
 
     private companion object {
         const val TAG = "MainViewModel"
-        const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
     }
 }
 

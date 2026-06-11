@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.isCompatibleWith
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,9 +22,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
 import java.time.Instant
 import java.time.LocalDateTime
@@ -38,6 +41,7 @@ class MedicationLogRepository @Inject internal constructor(
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val stockMutator: MedicineStockMutator,
     @AppScope appScope: CoroutineScope,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
     private val entriesFlow: StateFlow<List<MedicationLogEntry>?> =
@@ -61,11 +65,15 @@ class MedicationLogRepository @Inject internal constructor(
                         // medicine UUID in one transaction). The separate point-in-time
                         // resolveMedicinesForEntries() then can't resolve the old UUID and
                         // toMedicationLogEntryModel()'s checkNotNull(medicine) throws.
-                        // Handle it HERE, per emission, so the failure degrades a single
-                        // (stale) emission instead of cancelling the upstream Room
+                        // Handle it HERE, per emission, so the failure SUPPRESSES the
+                        // single (stale) emission instead of cancelling the upstream Room
                         // observation — the next, consistent emission recovers. A terminal
                         // `.catch` outside flatMapLatest would instead freeze this flow
                         // until the database (and thus the app process) is rebuilt.
+                        // Suppress (null -> filterNotNull below) rather than emit a
+                        // fallback: a fabricated empty list reaches the Plan combine and
+                        // renders a one-frame empty/stale mixture before the consistent
+                        // emission lands.
                         runCatching {
                             val medicinesByUuid = database.resolveMedicinesForEntries(entries)
                             entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
@@ -73,20 +81,37 @@ class MedicationLogRepository @Inject internal constructor(
                             // resolveMedicinesForEntries() suspends, so cancellation
                             // surfaces here as a CancellationException. runCatching would
                             // swallow it (unlike the Flow .catch this replaced); rethrow so
-                            // flatMapLatest/scope cancellation is honoured.
+                            // flatMapLatest/scope cancellation is honoured. Rethrow
+                            // non-Exception Throwables (Errors) too: only genuine
+                            // recoverable failures may be suppressed; an Error must keep
+                            // failing loud.
                             if (error is CancellationException) throw error
-                            emptyList()
+                            if (error !is Exception) throw error
+                            diagnosticsLogger.warning(
+                                TAG,
+                                "entries_flow_suppressed count=${entries.size}",
+                                error,
+                            )
+                            null
                         }
                     }
+                        .filterNotNull()
                         // Per-emission runCatching above recovers from transform
                         // failures; this terminal catch separately guards the Room
                         // flows themselves failing (DB corruption / I/O error). Without
-                        // it an upstream error would reach the Eagerly, app-scoped
-                        // stateIn collector and crash the process — appScope is a
-                        // SupervisorJob with no CoroutineExceptionHandler. Transform
-                        // throws are caught above and never reach here, so the
-                        // transient-restore freeze does not return.
-                        .catch { emit(emptyList()) }
+                        // it a recoverable upstream error would reach the Eagerly,
+                        // app-scoped stateIn collector and crash the process — appScope
+                        // is a SupervisorJob with no CoroutineExceptionHandler.
+                        // Exception transform throws are caught above and never reach
+                        // here, so the transient-restore freeze does not return; rethrow
+                        // CancellationException and non-Exception Throwables (Errors) so
+                        // only genuine recoverable failures degrade to an empty list.
+                        .catch { error ->
+                            if (error is CancellationException) throw error
+                            if (error !is Exception) throw error
+                            diagnosticsLogger.warning(TAG, "entries_flow_room_error", error)
+                            emit(emptyList())
+                        }
                 }
             }
             .stateIn(
@@ -124,7 +149,7 @@ class MedicationLogRepository @Inject internal constructor(
                         scheduledStartIso = scheduledStartIso,
                         scheduledEndIso = scheduledEndIso,
                     )
-                    .map { entities ->
+                    .mapNotNull { entities ->
                         // Same restore race as entriesFlow: a backup restore swaps every
                         // medicine UUID in one transaction, so this point-in-time
                         // resolveMedicinesForEntries() can pair a still-stale entry list
@@ -134,8 +159,10 @@ class MedicationLogRepository @Inject internal constructor(
                         // observeHomeRoomInputs' combine, so the throw bypasses that
                         // combine's per-emission guard and would hit Home's terminal
                         // `.catch`, completing the observation and freezing Home until an
-                        // app restart. Degrade the single stale emission here so the next,
-                        // consistent Room invalidation recovers.
+                        // app restart. Suppress the single stale emission here (null ->
+                        // mapNotNull) so the next, consistent Room invalidation recovers;
+                        // a fabricated empty list would render a one-frame wrong stock
+                        // state on Home before the consistent emission lands.
                         runCatching {
                             val medicinesByUuid = it.resolveMedicinesForEntries(entities)
                             entities.map { entity ->
@@ -144,14 +171,25 @@ class MedicationLogRepository @Inject internal constructor(
                                 )
                             }
                         }.getOrElse { error ->
+                            // Rethrow cancellation (resolveMedicinesForEntries suspends)
+                            // and non-Exception Throwables (Errors): only genuine
+                            // recoverable failures may be suppressed; an Error must keep
+                            // failing loud.
                             if (error is CancellationException) throw error
-                            emptyList()
+                            if (error !is Exception) throw error
+                            diagnosticsLogger.warning(
+                                TAG,
+                                "scheduled_window_suppressed count=${entities.size}",
+                                error,
+                            )
+                            null
                         }
                     }
-                    // Guards the Room flow itself failing (DB corruption / I/O); transform
-                    // throws are caught per-emission above and never reach here. Rethrow
-                    // CancellationException and non-Exception Throwables (Errors) so only
-                    // genuine recoverable failures degrade to an empty list.
+                    // Guards the Room flow itself failing (DB corruption / I/O);
+                    // Exception transform throws are caught per-emission above and never
+                    // reach here. Rethrow CancellationException and non-Exception
+                    // Throwables (Errors) so only genuine recoverable failures degrade
+                    // to an empty list.
                     .catch { error ->
                         if (error is CancellationException) throw error
                         if (error !is Exception) throw error
@@ -589,3 +627,5 @@ data class MedicationLogEntryInput(
         }
     }
 }
+
+private const val TAG = "MedicationLogRepository"

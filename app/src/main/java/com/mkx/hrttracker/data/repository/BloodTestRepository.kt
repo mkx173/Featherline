@@ -16,10 +16,12 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodTestTrendPoint
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.model.medication.timeSinceEntryMillis
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
@@ -31,6 +33,7 @@ import javax.inject.Singleton
 class BloodTestRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val medicationLogRepository: MedicationLogRepository,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     @Volatile
     private var cachedPanels: List<BloodTestPanel> = emptyList()
@@ -50,14 +53,30 @@ class BloodTestRepository @Inject constructor(
     fun observePanels(): Flow<List<BloodTestPanel>> {
         val dao = databaseHolder.get().bloodTestDao()
         return dao.observePanels()
-            .map { panels ->
-                recoverBloodTestObservation(defaultValue = cachedPanelFallback()) {
+            .mapNotNull { panels ->
+                // A restore committing between the panel query and the
+                // custom-analyte resolve pairs a stale panel list with the
+                // already-swapped custom_analytes table and mapPanels() throws.
+                // Suppress that single inconsistent emission (null -> mapNotNull)
+                // instead of replaying the warm cache: a replayed pre-restore
+                // list re-renders stale panels for one frame before the
+                // consistent emission lands.
+                try {
                     cachePanels(mapPanels(panels = panels, dao = dao))
+                } catch (error: Exception) {
+                    if (error is CancellationException) throw error
+                    diagnosticsLogger.warning(
+                        TAG,
+                        "panels_flow_suppressed count=${panels.size}",
+                        error,
+                    )
+                    null
                 }
             }
             .catch { error ->
                 if (error is CancellationException) throw error
                 if (error !is Exception) throw error
+                diagnosticsLogger.warning(TAG, "panels_flow_room_error", error)
                 emit(cachedPanelFallback())
             }
     }
@@ -313,18 +332,6 @@ class BloodTestRepository @Inject constructor(
         return cachedPanels.takeIf { hasCachedPanelList } ?: emptyList()
     }
 
-    private suspend fun <T> recoverBloodTestObservation(
-        defaultValue: T,
-        block: suspend () -> T,
-    ): T {
-        return try {
-            block()
-        } catch (error: Exception) {
-            if (error is CancellationException) throw error
-            defaultValue
-        }
-    }
-
     private fun cachePanel(panel: BloodTestPanel) {
         val updatedPanels =
             cachedPanels.filterNot { cachedPanel -> cachedPanel.uuid == panel.uuid } + panel
@@ -515,3 +522,5 @@ class BloodTestRepository @Inject constructor(
         )
     }
 }
+
+private const val TAG = "BloodTestRepository"

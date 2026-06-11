@@ -2,24 +2,33 @@ package com.mkx.hrttracker.ui.plan
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
 internal data class PastScheduleSelectorUiState(
     val selectedOption: PastScheduleOption,
@@ -27,6 +36,12 @@ internal data class PastScheduleSelectorUiState(
     val enabled: Boolean,
     val interactive: Boolean = enabled,
     val lockedMessage: String? = null,
+    // The checkbox renders the ViewModel-retained sub-choice rather than
+    // deriving from selectedOption, so it survives a "Do not show" detour and
+    // holds its state through the row's collapse animation — without UI-side
+    // memory whose lifetime would mismatch the ViewModel's.
+    val generateRecordsChecked: Boolean =
+        selectedOption == PastScheduleOption.SHOW_AND_GENERATE_RECORDS,
 )
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -34,7 +49,8 @@ internal data class PastScheduleSelectorUiState(
 internal fun PastScheduleSelectorCard(
     modifier: Modifier = Modifier,
     state: PastScheduleSelectorUiState,
-    onOptionSelected: (PastScheduleOption) -> Unit,
+    onShowPastChange: (Boolean) -> Unit,
+    onGenerateRecordsChange: (Boolean) -> Unit,
     index: Int = 0,
     count: Int = 1,
 ) {
@@ -55,7 +71,8 @@ internal fun PastScheduleSelectorCard(
             )
             PastScheduleSelectorRows(
                 state = state,
-                onOptionSelected = onOptionSelected,
+                onShowPastChange = onShowPastChange,
+                onGenerateRecordsChange = onGenerateRecordsChange,
             )
         }
     }
@@ -64,7 +81,8 @@ internal fun PastScheduleSelectorCard(
 @Composable
 private fun PastScheduleSelectorRows(
     state: PastScheduleSelectorUiState,
-    onOptionSelected: (PastScheduleOption) -> Unit,
+    onShowPastChange: (Boolean) -> Unit,
+    onGenerateRecordsChange: (Boolean) -> Unit,
 ) {
     val lockedMessage = state.lockedMessage
     if (lockedMessage != null) {
@@ -76,52 +94,82 @@ private fun PastScheduleSelectorRows(
         return
     }
 
-    val optionLabels = buildList {
-        add(PastScheduleOption.DO_NOT_SHOW to R.string.group_past_schedule_do_not_show)
-        add(PastScheduleOption.SHOW to R.string.group_past_schedule_show)
-        if (state.showGeneratePastRecordsOption) {
-            add(
-                PastScheduleOption.SHOW_AND_GENERATE_RECORDS to
-                        R.string.group_past_schedule_show_and_generate_records
+    // "Do not show" and "Show past" are the mutually exclusive radio choices;
+    // "also generate records" is a checkbox sub-choice that stacks on top of
+    // "Show past" (so that radio stays selected while it's checked). The checkbox
+    // row animates in/out (reflowing the segment shapes of the rows above it) as
+    // state.showGeneratePastRecordsOption toggles. That flag already requires the
+    // card to be interactive (see resolvePastScheduleSelectorState), so the row
+    // never appears for locked/archived groups. HrtSection owns the per-row
+    // segment positions, so the rows omit index/count and inherit them.
+    val showsPast = state.selectedOption == PastScheduleOption.SHOW ||
+            state.selectedOption == PastScheduleOption.SHOW_AND_GENERATE_RECORDS
+    HrtSection(title = null) {
+        item {
+            PastScheduleOptionRow(
+                title = stringResource(R.string.group_past_schedule_do_not_show),
+                option = PastScheduleOption.DO_NOT_SHOW,
+                selected = state.selectedOption == PastScheduleOption.DO_NOT_SHOW,
+                asCheckbox = false,
+                enabled = state.enabled,
+                interactive = state.interactive,
+                onToggle = { onShowPastChange(false) },
+            )
+        }
+        item {
+            PastScheduleOptionRow(
+                title = stringResource(R.string.group_past_schedule_show),
+                option = PastScheduleOption.SHOW,
+                selected = showsPast,
+                asCheckbox = false,
+                enabled = state.enabled,
+                interactive = state.interactive,
+                // The ViewModel retains the generate-records sub-choice while
+                // past is hidden, so re-selecting "Show past" restores it.
+                onToggle = { onShowPastChange(true) },
+            )
+        }
+        animatedItem(visible = state.showGeneratePastRecordsOption) {
+            PastScheduleOptionRow(
+                title = stringResource(R.string.group_past_schedule_show_and_generate_records),
+                option = PastScheduleOption.SHOW_AND_GENERATE_RECORDS,
+                // The ViewModel-retained value holds through the row's collapse
+                // animation when "Do not show" is picked instead of visibly
+                // unchecking mid-exit.
+                selected = state.generateRecordsChecked,
+                asCheckbox = true,
+                enabled = state.enabled,
+                // Gate on the row offering a live choice, not just on card
+                // interactivity: AnimatedVisibility keeps the collapsing row
+                // hit-testable during its exit, and a tap mid-exit would flip
+                // the retained sub-choice after "Do not show" was picked.
+                interactive = state.interactive && state.showGeneratePastRecordsOption,
+                onToggle = { onGenerateRecordsChange(!state.generateRecordsChecked) },
             )
         }
     }
-    optionLabels.forEachIndexed { optionIndex, (option, labelRes) ->
-        PastScheduleOptionRow(
-            title = stringResource(labelRes),
-            option = option,
-            selectedOption = state.selectedOption,
-            enabled = state.enabled,
-            interactive = state.interactive,
-            index = optionIndex,
-            count = optionLabels.size,
-            onOptionSelected = onOptionSelected,
-        )
-    }
 }
+
+// RadioButton's intrinsic layout footprint (RadioButtonTokens.IconSize 20.dp +
+// 2.dp padding per side) when LocalMinimumInteractiveComponentSize is disabled.
+// The checkbox is pinned to this so it aligns with the radio rows above it.
+private val PastScheduleControlFootprint = 24.dp
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun PastScheduleOptionRow(
     title: String,
     option: PastScheduleOption,
-    selectedOption: PastScheduleOption,
+    selected: Boolean,
+    asCheckbox: Boolean,
     enabled: Boolean,
     interactive: Boolean,
-    index: Int,
-    count: Int,
-    onOptionSelected: (PastScheduleOption) -> Unit,
+    onToggle: () -> Unit,
 ) {
     EditorSegmentedListItem(
-        index = index,
-        count = count,
         cornerShape = MaterialTheme.shapes.medium,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        onClick = if (interactive) {
-            { onOptionSelected(option) }
-        } else {
-            null
-        },
+        onClick = if (interactive) onToggle else null,
         leadingContent = {
             Icon(
                 painter = painterResource(pastScheduleOptionIconRes(option)),
@@ -131,15 +179,34 @@ private fun PastScheduleOptionRow(
             )
         },
         trailingContent = {
-            RadioButton(
-                selected = selectedOption == option,
-                onClick = if (interactive) {
-                    { onOptionSelected(option) }
-                } else {
-                    null
-                },
-                enabled = enabled,
-            )
+            if (asCheckbox) {
+                // This editor disables LocalMinimumInteractiveComponentSize, so
+                // there's no 48.dp touch-target box to center controls within and
+                // each control lays out at its intrinsic size: RadioButton at
+                // 24.dp (20.dp icon + 2.dp padding), Checkbox at only 18.dp. Pin
+                // the checkbox into the radios' 24.dp footprint so it lines up
+                // with the radio rows above it.
+                Box(
+                    modifier = Modifier.size(PastScheduleControlFootprint),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Checkbox(
+                        checked = selected,
+                        onCheckedChange = if (interactive) {
+                            { onToggle() }
+                        } else {
+                            null
+                        },
+                        enabled = enabled,
+                    )
+                }
+            } else {
+                RadioButton(
+                    selected = selected,
+                    onClick = if (interactive) onToggle else null,
+                    enabled = enabled,
+                )
+            }
         },
     ) {
         Text(
@@ -189,5 +256,68 @@ private fun PastScheduleLockedRow(
             fontWeight = FontWeight.Normal,
             modifier = Modifier.cjkTextOffset(text)
         )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 420)
+@Composable
+private fun PastScheduleSelectorCardPreview() {
+    // The editor renders this card with LocalMinimumInteractiveComponentSize
+    // disabled (no 48.dp touch-target box). Reproduce that here so the preview
+    // matches the device's control sizing/alignment instead of hiding it.
+    HrtTrackerTheme(dynamicColor = false) {
+        CompositionLocalProvider(
+            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.padding(16.dp),
+            ) {
+                // Show past selected: generate-records checkbox visible but unchecked.
+                PastScheduleSelectorCard(
+                    state = PastScheduleSelectorUiState(
+                        selectedOption = PastScheduleOption.SHOW,
+                        showGeneratePastRecordsOption = true,
+                        enabled = true,
+                    ),
+                    onShowPastChange = {},
+                    onGenerateRecordsChange = {},
+                )
+                // Show and generate selected: checkbox checked.
+                PastScheduleSelectorCard(
+                    state = PastScheduleSelectorUiState(
+                        selectedOption = PastScheduleOption.SHOW_AND_GENERATE_RECORDS,
+                        showGeneratePastRecordsOption = true,
+                        enabled = true,
+                    ),
+                    onShowPastChange = {},
+                    onGenerateRecordsChange = {},
+                )
+                // Do not show: the generate-records row is hidden entirely.
+                PastScheduleSelectorCard(
+                    state = PastScheduleSelectorUiState(
+                        selectedOption = PastScheduleOption.DO_NOT_SHOW,
+                        showGeneratePastRecordsOption = false,
+                        enabled = true,
+                    ),
+                    onShowPastChange = {},
+                    onGenerateRecordsChange = {},
+                )
+                // Locked (e.g. viewing a group whose past schedule can't be edited).
+                PastScheduleSelectorCard(
+                    state = PastScheduleSelectorUiState(
+                        selectedOption = PastScheduleOption.SHOW,
+                        showGeneratePastRecordsOption = false,
+                        enabled = false,
+                        interactive = false,
+                        lockedMessage = stringResource(
+                            R.string.group_past_schedule_recreated_locked_note
+                        ),
+                    ),
+                    onShowPastChange = {},
+                    onGenerateRecordsChange = {},
+                )
+            }
+        }
     }
 }

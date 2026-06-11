@@ -27,6 +27,7 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -38,6 +39,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -2029,6 +2031,16 @@ class MedicationGroupRepositoryTest {
         medicineChangeVersion.value += 1
         advanceUntilIdle()
 
+        // The inconsistent pairing must be SUPPRESSED, not degraded to a
+        // fabricated empty list: an empty emission propagates to the Plan
+        // combine and renders a one-frame empty/stale mixture before the
+        // consistent emission lands.
+        assertEquals(
+            "the inconsistent emission must be suppressed, not degraded to an empty list",
+            oldGroupUuid,
+            emissions.last()?.singleOrNull()?.uuid,
+        )
+
         // The groups flow finally catches up with the restored group set.
         groupsSource.value =
             listOf(testGroupWithItem(newGroupUuid, newItemUuid, newMedicineUuid))
@@ -2041,6 +2053,56 @@ class MedicationGroupRepositoryTest {
             "observeGroups() must recover after a transient unresolved-medicine failure during restore",
             newGroupUuid,
             emissions.last()?.singleOrNull()?.uuid,
+        )
+    }
+
+    // The suppression guard exists for recoverable cross-table races; JVM
+    // Errors (OOM, linkage failures) must keep failing loud — propagating to
+    // the app scope — instead of being logged away as a suppression or
+    // degraded into the terminal catch's empty-list fallback.
+    @Test
+    fun groupsFlow_propagatesErrorsInsteadOfSuppressingOrDegrading() = runTest {
+        val medicationGroupDao = mockk<MedicationGroupDao>()
+        val medicineDao = mockk<MedicineDao>()
+        // Anonymous subclass: no (String) copy constructor, so coroutine
+        // stacktrace recovery can't clone it and assertSame stays meaningful.
+        val vmError = object : Error("simulated vm error") {}
+        var escapedToAppScope: Throwable? = null
+
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { database.medicationGroupDao() } returns medicationGroupDao
+        every { database.medicineDao() } returns medicineDao
+        every { medicationGroupDao.observeGroups() } returns MutableStateFlow(
+            listOf(
+                testGroupWithItem(
+                    UUID.fromString("dddddddd-0000-0000-0000-0000000000a1"),
+                    UUID.fromString("eeeeeeee-0000-0000-0000-0000000000a2"),
+                    UUID.fromString("ffffffff-0000-0000-0000-0000000000a3"),
+                )
+            )
+        )
+        every { medicineDao.observeMedicineChangeVersion() } returns MutableStateFlow(0)
+        coEvery { medicineDao.getByUuids(any()) } throws vmError
+
+        val freshRepository = MedicationGroupRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            appScope = CoroutineScope(
+                StandardTestDispatcher(testScheduler) +
+                        CoroutineExceptionHandler { _, error -> escapedToAppScope = error }
+            ),
+        )
+        advanceUntilIdle()
+
+        assertSame(
+            "Errors must escape to the app scope, not be absorbed as a suppression",
+            vmError,
+            escapedToAppScope,
+        )
+        assertEquals(
+            "an Error must not degrade the groups cache to a fabricated fallback",
+            null,
+            freshRepository.getCachedGroups(),
         )
     }
 }

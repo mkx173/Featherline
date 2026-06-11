@@ -222,7 +222,6 @@ fun MainScreen(
             MainContent(
                 uiState = uiState,
                 scrollState = scrollState,
-                e2ChartModelProducer = viewModel.e2ChartModelProducer,
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
                 highlightRequest = highlightRequest,
                 highlightEffectsEnabled = highlightEffectsEnabled,
@@ -233,6 +232,7 @@ fun MainScreen(
                 onDismissTimeZoneChangeNotice = viewModel::dismissTimeZoneChangeNotice,
                 onE2ChartWindowOptionSelected = viewModel::setHomeE2ChartWindowOption,
                 onLowStockSectionExpandedChange = viewModel::setLowStockSectionExpanded,
+                claimE2ChartIntroAnimation = viewModel::claimHomeE2ChartIntroAnimation,
                 modifier = Modifier.fillMaxSize(),
             )
         }

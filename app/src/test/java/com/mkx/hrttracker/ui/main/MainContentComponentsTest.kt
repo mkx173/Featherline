@@ -4,6 +4,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.patrykandpatrick.vico.compose.cartesian.data.LineCartesianLayerModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -480,6 +481,97 @@ class MainContentComponentsTest {
             1e-9,
         )
     }
+
+    @Test
+    fun buildMainE2ChartModel_attachesViewSpecToModelExtraStore() {
+        // The bottom-axis formatter, x-range provider, item placers, and the
+        // current-time decoration all read the view spec from the model's
+        // ExtraStore so their output always matches the series being drawn.
+        // If the synchronous build path dropped the spec, axis labels would
+        // silently render blank and the x-range would fall back to the raw
+        // data max instead of the chart window.
+        val spec = testMainE2ChartViewSpec()
+        val model = buildMainE2ChartModel(
+            splitChartSeries = testSplitChartSeries(),
+            currentTimeXHours = 1.0,
+            currentTimeConcentration = 20f,
+            doseMarkerLoggedXHours = emptyList(),
+            doseMarkerLoggedConcentrations = emptyList(),
+            doseMarkerPlannedXHours = emptyList(),
+            doseMarkerPlannedConcentrations = emptyList(),
+            viewSpec = spec,
+        )
+
+        assertEquals(spec, model.extraStore.getOrNull(MainE2ChartViewSpecKey))
+    }
+
+    @Test
+    fun buildMainE2ChartModel_emitsOnlyLineSlotsWhenNoMarkersExist() {
+        // Vico rejects empty series, so the marker slots must be omitted
+        // entirely — not emitted empty — when there are no markers at all.
+        // Slots 0-2 (observed line, predicted line, "you are here" dot) are
+        // unconditional so the LineProvider's index-based styling stays
+        // aligned.
+        val split = testSplitChartSeries()
+        val model = buildMainE2ChartModel(
+            splitChartSeries = split,
+            currentTimeXHours = 1.0,
+            currentTimeConcentration = 20f,
+            doseMarkerLoggedXHours = emptyList(),
+            doseMarkerLoggedConcentrations = emptyList(),
+            doseMarkerPlannedXHours = emptyList(),
+            doseMarkerPlannedConcentrations = emptyList(),
+            viewSpec = testMainE2ChartViewSpec(),
+        )
+
+        val layer = model.models.single() as LineCartesianLayerModel
+        assertEquals(3, layer.series.size)
+        assertEquals(split.observedXHours, layer.series[0].map { it.x })
+        assertEquals(split.predictedXHours, layer.series[1].map { it.x })
+        assertEquals(listOf(1.0), layer.series[2].map { it.x })
+    }
+
+    @Test
+    fun buildMainE2ChartModel_padsEmptyMarkerBucketWithOffAxisSentinel() {
+        // Logged (slot 3) and planned (slot 4) markers get different point
+        // styles via the LineProvider's index-based mapping. When only one
+        // bucket has data, the other must still occupy its slot — padded with
+        // an off-axis sentinel point — or the present bucket would silently
+        // shift into the wrong slot and render with the wrong style.
+        val model = buildMainE2ChartModel(
+            splitChartSeries = testSplitChartSeries(),
+            currentTimeXHours = 1.0,
+            currentTimeConcentration = 20f,
+            doseMarkerLoggedXHours = listOf(0.5),
+            doseMarkerLoggedConcentrations = listOf(15f),
+            doseMarkerPlannedXHours = emptyList(),
+            doseMarkerPlannedConcentrations = emptyList(),
+            viewSpec = testMainE2ChartViewSpec(),
+        )
+
+        val layer = model.models.single() as LineCartesianLayerModel
+        assertEquals(5, layer.series.size)
+        assertEquals(listOf(0.5), layer.series[3].map { it.x })
+        val plannedSentinel = layer.series[4].single()
+        assertEquals(-1.0, plannedSentinel.x, 0.0)
+        assertEquals(-1_000_000.0, plannedSentinel.y, 0.0)
+    }
+
+    private fun testSplitChartSeries(): MainE2SplitChartSeries = MainE2SplitChartSeries(
+        observedXHours = listOf(0.0, 1.0),
+        observedPoints = listOf(10f, 20f),
+        predictedXHours = listOf(1.0, 2.0),
+        predictedPoints = listOf(20f, 30f),
+    )
+
+    private fun testMainE2ChartViewSpec(): MainE2ChartViewSpec = MainE2ChartViewSpec(
+        chartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+        chartWindowStart = LocalDateTime.of(2026, 6, 4, 0, 0),
+        chartWindowHours = 168,
+        currentTimeXHours = 120.0,
+        pastDays = 6L,
+        now = LocalDateTime.of(2026, 6, 10, 12, 0),
+    )
 
     private fun scheduledTodayRow(
         groupUuid: UUID,

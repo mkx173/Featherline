@@ -246,7 +246,7 @@
     <string name="group_schedule_recreated_start_date_past_note">重新创建的分组不能将开始日期设在过去</string>
     <string name="group_past_schedule_do_not_show">不显示</string>
     <string name="group_past_schedule_show">显示</string>
-    <string name="group_past_schedule_show_and_generate_records">显示并按计划生成记录</string>
+    <string name="group_past_schedule_show_and_generate_records">同时按计划生成记录</string>
     <string name="group_past_schedule_recreated_locked_note">重新创建的分组不会显示过去的计划</string>
     <string name="group_schedule_backfill_records_empty">未添加记录</string>
     <string name="group_schedule_backfill_records_failure">分组已保存，但无法添加记录</string>
