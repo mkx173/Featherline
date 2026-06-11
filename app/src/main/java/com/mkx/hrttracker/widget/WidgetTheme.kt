@@ -3,6 +3,9 @@ package com.mkx.hrttracker.widget
 import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.graphics.ColorUtils.M3HCTToColor
+import androidx.core.graphics.ColorUtils.colorToM3HCT
 import androidx.glance.unit.ColorProvider
 import com.materialkolor.dynamicColorScheme
 import com.materialkolor.dynamiccolor.ColorSpec
@@ -20,12 +23,10 @@ internal data class WidgetColorScheme(
     val onSecondary: ColorProvider,
     val secondaryContainer: ColorProvider,
     val onSecondaryContainer: ColorProvider,
-    val tertiaryContainer: ColorProvider,
-    val onTertiaryContainer: ColorProvider,
-    val surfaceVariant: ColorProvider,
+    val widgetControl: ColorProvider,
     val onSurfaceVariant: ColorProvider,
-    val surfaceContainerLow: ColorProvider,
-    val surface: ColorProvider,
+    val widgetContainer: ColorProvider,
+    val widgetBackground: ColorProvider,
     val onSurface: ColorProvider,
     val outline: ColorProvider,
     val outlineVariant: ColorProvider,
@@ -51,6 +52,46 @@ private fun colorProvider(light: Color, dark: Color, forcedDark: Boolean?): Colo
         null -> DayNightColorProvider(light, dark)
     }
 
+// Widget shell & card colors follow the launcher convention Google's own widgets use (verified
+// against Gmail): both are cuts of the secondary palette rather than the neutral surface family,
+// so the widget reads as wallpaper-tinted next to other widgets. Tones are adjusted in M3 HCT
+// space, matching Glance's widgetBackground derivation in androidx.glance.material3 exactly.
+private fun adjustSecondaryContainerTone(
+    input: Color,
+    lightAdjustment: Float,
+    darkAdjustment: Float,
+): Color {
+    val hct = floatArrayOf(0f, 0f, 0f)
+    colorToM3HCT(input.toArgb(), hct)
+    val adjustment = if (hct[2] > 50) lightAdjustment else darkAdjustment
+    val tone = (hct[2] + adjustment).coerceIn(0f, 100f)
+    return Color(M3HCTToColor(hct[0], hct[1], tone))
+}
+
+// Gmail uses tone 95/20 for the shell and 90/40 for cards, but that puts the tint contrast in
+// opposite directions per mode: a near-white shell with tinted rows in light, a tinted shell
+// with grey-washed rows in dark. We keep both layers visibly tinted instead, with the cards one
+// subtle step away from the shell in each mode.
+// Shell: secondaryContainer at tone 94 (light) / tone 20 (dark).
+private fun widgetBackgroundColor(secondaryContainer: Color): Color =
+    adjustSecondaryContainerTone(secondaryContainer, lightAdjustment = 4f, darkAdjustment = -10f)
+
+// Cards: tone 90 (light) / tone 30, i.e. secondaryContainer as-is with its full chroma.
+private fun widgetContainerColor(secondaryContainer: Color): Color =
+    adjustSecondaryContainerTone(secondaryContainer, lightAdjustment = 0f, darkAdjustment = 0f)
+
+// Trailing-button pills sit on the tone-90 cards, where the M3 light surfaceVariant (also tone
+// 90, neutral) disappears; use a tone-84 cut of the secondary palette instead. The dark M3
+// surfaceVariant already reads fine against the tone-30 cards and is used as-is.
+private fun widgetControlColor(secondaryContainer: Color): Color =
+    adjustSecondaryContainerTone(secondaryContainer, lightAdjustment = -6f, darkAdjustment = 0f)
+
+// Cards stack on top of the shell, so at the same alpha they occlude the wallpaper twice and
+// read more "solid" than the background around them. Drawing them at 85% of the user alpha
+// compensates, letting cards wash toward the wallpaper at a rate closer to the shell's. At
+// full alpha the visible card color is 0.85·card + 0.15·shell — within a tone of the target.
+private const val CONTAINER_ALPHA_FACTOR = 0.85f
+
 // Builds the widget's day/night ColorProvider scheme from explicit light & dark Material 3
 // schemes. The source is chosen upstream: the live system palette (mirrors AndroidX) on API
 // 31+ with adaptive color on, or a DefaultSeedColor MaterialKolor scheme otherwise. Widgets
@@ -72,15 +113,21 @@ internal fun widgetColorScheme(
         onSecondary = provider(light.onSecondary, dark.onSecondary),
         secondaryContainer = provider(light.secondaryContainer, dark.secondaryContainer),
         onSecondaryContainer = provider(light.onSecondaryContainer, dark.onSecondaryContainer),
-        tertiaryContainer = provider(light.tertiaryContainer, dark.tertiaryContainer),
-        onTertiaryContainer = provider(light.onTertiaryContainer, dark.onTertiaryContainer),
-        surfaceVariant = provider(light.surfaceVariant, dark.surfaceVariant),
-        onSurfaceVariant = provider(light.onSurfaceVariant, dark.onSurfaceVariant),
-        surfaceContainerLow = provider(
-            light.surfaceContainerLow.copy(alpha = alpha * 0.85f),
-            dark.surfaceContainerLow.copy(alpha = alpha * 0.85f),
+        widgetControl = provider(
+            widgetControlColor(light.secondaryContainer),
+            dark.surfaceVariant,
         ),
-        surface = provider(light.surface.copy(alpha = alpha), dark.surface.copy(alpha = alpha)),
+        onSurfaceVariant = provider(light.onSurfaceVariant, dark.onSurfaceVariant),
+        widgetContainer = provider(
+            widgetContainerColor(light.secondaryContainer)
+                .copy(alpha = alpha * CONTAINER_ALPHA_FACTOR),
+            widgetContainerColor(dark.secondaryContainer)
+                .copy(alpha = alpha * CONTAINER_ALPHA_FACTOR),
+        ),
+        widgetBackground = provider(
+            widgetBackgroundColor(light.secondaryContainer).copy(alpha = alpha),
+            widgetBackgroundColor(dark.secondaryContainer).copy(alpha = alpha),
+        ),
         onSurface = provider(light.onSurface, dark.onSurface),
         outline = provider(light.outline, dark.outline),
         outlineVariant = provider(light.outlineVariant, dark.outlineVariant),
