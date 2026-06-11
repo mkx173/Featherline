@@ -349,11 +349,16 @@ fun hazeDatePickerColors(
 // Whether the route hosting a modal is still the current back-stack
 // destination, provided per-route by the NavHost. Must be backed by a live
 // navController.currentBackStackEntry read — currentBackStackEntryAsState()
-// lags navigate()'s synchronous lifecycle drop by a frame. A custom local
-// (unlike LocalLifecycleOwner, which dialog/popup windows re-provide as the
-// Activity's) propagates into nested modal windows, so date/time pickers
-// inside sheets get the same gate. Null outside the NavHost (previews,
-// onboarding, NavHost-level hosts): treated as still-current.
+// lags navigate()'s synchronous lifecycle drop by a frame. The custom local
+// does propagate into nested dialog/popup windows, but the gate below never
+// engages there in practice: those windows re-provide LocalLifecycleOwner as
+// the Activity's, which sits at RESUMED whenever the app is foregrounded, so
+// a nested modal (a picker opened from inside a sheet or dialog) composes
+// with allowed = true and is neither held nor dropped. Only route-level
+// modals get the gate; the nested gap is reachable only through the
+// deep-link lock bypass and is accepted (see pr60-review.md, finding 9).
+// Null outside the NavHost (previews, onboarding, NavHost-level hosts):
+// treated as still-current.
 internal val LocalModalHostIsCurrentDestination =
     staticCompositionLocalOf<(() -> Boolean)?> { null }
 

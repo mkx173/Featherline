@@ -1587,6 +1587,19 @@ class MedicationGroupEditorViewModel @Inject constructor(
         _uiState.update { it.copy(archiveAndRecreateMedicationGroupResult = null) }
     }
 
+    // Called only after the exit navigation has been confirmed by the host
+    // (the pop or onboarding dismissal actually happened). A failed exit must
+    // leave the finishing flags retained so the exit effect re-fires when the
+    // editor is restored.
+    fun consumeExitNavigation() {
+        _uiState.update {
+            it.copy(
+                isFinishingAfterSave = false,
+                isFinishingAfterDeleteOrArchive = false,
+            )
+        }
+    }
+
     private fun loadGroupForEditing(uuid: UUID) {
         viewModelScope.launch {
             val group = medicationGroupRepository.getGroup(uuid)

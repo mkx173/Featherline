@@ -26,6 +26,11 @@ class NavigationLockState {
     }
 
     fun release() {
+        // An unmatched release would drive the count negative and silently
+        // disarm the lock for the rest of the session; fail loud instead.
+        check(lockCount.intValue > 0) {
+            "NavigationLockState.release() called without a matching acquire()"
+        }
         lockCount.intValue -= 1
     }
 }

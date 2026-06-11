@@ -153,8 +153,8 @@ import java.util.UUID
 fun MedicationGroupEditorScreen(
     modifier: Modifier = Modifier,
     onNavigateBack: () -> Unit,
-    onGroupSaved: () -> Unit,
-    onGroupSavedToPlan: () -> Unit = onGroupSaved,
+    onGroupSaved: () -> Boolean,
+    onGroupSavedToPlan: () -> Boolean = onGroupSaved,
     openedFromArchivedGroupsPage: Boolean = false,
     drawBehindNavigationBar: Boolean = false,
     viewModel: MedicationGroupEditorViewModel = hiltViewModel(),
@@ -277,8 +277,8 @@ fun MedicationGroupEditorScreen(
         }
     }
 
-    fun navigateAfterSave(target: MedicationGroupEditorSaveNavigationTarget) {
-        when (target) {
+    fun navigateAfterSave(target: MedicationGroupEditorSaveNavigationTarget): Boolean {
+        return when (target) {
             MedicationGroupEditorSaveNavigationTarget.BACK -> onGroupSaved()
             MedicationGroupEditorSaveNavigationTarget.PLAN -> onGroupSavedToPlan()
         }
@@ -292,10 +292,13 @@ fun MedicationGroupEditorScreen(
         val target = exitNavigationTarget ?: return@LaunchedEffect
         // The exit pop fires unconditionally: the nav lock below holds through
         // the whole finishing window, so no competing navigation can be in
-        // flight, and NavController pops safely below RESUMED. If the editor
-        // is disposed first, the retained finishing flags re-trigger this
-        // effect when it is restored.
-        navigateAfterSave(target)
+        // flight, and NavController pops safely below RESUMED. The finishing
+        // flags are consumed only after a confirmed exit, so a failed pop
+        // leaves them retained and this effect re-fires when the editor is
+        // restored.
+        if (navigateAfterSave(target)) {
+            viewModel.consumeExitNavigation()
+        }
     }
 
     NavigationLockEffect(active = isMedicationGroupEditorNavigationLocked(uiState))

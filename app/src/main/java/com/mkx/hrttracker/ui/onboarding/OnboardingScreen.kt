@@ -574,7 +574,10 @@ fun OnboardingScreen(
         ) {
             MedicationGroupEditorScreen(
                 onNavigateBack = { showGroupEditor = false },
-                onGroupSaved = { showGroupEditor = false },
+                onGroupSaved = {
+                    showGroupEditor = false
+                    true
+                },
                 drawBehindNavigationBar = true,
                 viewModel = editorViewModel,
                 // Onboarding has no medicine catalog yet, so we skip the

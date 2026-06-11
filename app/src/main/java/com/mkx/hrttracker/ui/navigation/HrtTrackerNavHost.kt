@@ -1185,6 +1185,9 @@ fun HrtTrackerNavHost(
                             // Raw pops for the finishing exits: one-shot
                             // programmatic pops under the held nav lock need no
                             // double-tap debounce, and must not be droppable.
+                            // Returning whether the exit happened lets the
+                            // screen consume its finishing flags only after a
+                            // confirmed pop.
                             onGroupSaved = { navController.popBackStack() },
                             onGroupSavedToPlan = {
                                 if (!navController.popBackStack(
@@ -1196,6 +1199,7 @@ fun HrtTrackerNavHost(
                                         launchSingleTop = true
                                     }
                                 }
+                                true
                             },
                             openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
                             viewModel = groupEditorViewModel,
