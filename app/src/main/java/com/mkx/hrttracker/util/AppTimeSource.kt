@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -133,6 +134,61 @@ private class AppTimeSnapshotProjectionStateFlow<T>(
         source
             .map { transform(it) }
             .distinctUntilChanged()
+            .collect(collector)
+        error("StateFlow collection completed unexpectedly")
+    }
+}
+
+/**
+ * Returns a [StateFlow] view of this flow whose collection follows the live
+ * upstream only while [subscriptions] reports active subscribers. While
+ * unsubscribed, only emissions whose [backgroundKey] changes pass through.
+ *
+ * Built for ViewModels whose ui-state combine stays collected for the
+ * ViewModel's whole lifetime (started Lazily so re-entry renders fresh data):
+ * feeding such a combine a live minute tick would rebuild the ui state every
+ * minute in the background. Gating the tick on the ui state's own
+ * subscriptionCount stops that treadmill, while the [backgroundKey]
+ * pass-through (date/zone) keeps the midnight and timezone re-anchors riding
+ * through so the first frame after re-entry across a date boundary is
+ * anchored to the right day. [value] always reads the live upstream so
+ * subscription-time anchors (e.g. nowFlow.value) never see a stale value.
+ */
+fun <T> StateFlow<T>.tickWhileSubscribed(
+    subscriptions: StateFlow<Int>,
+    backgroundKey: (T) -> Any?,
+): StateFlow<T> {
+    return SubscriberGatedStateFlow(
+        source = this,
+        subscriptions = subscriptions,
+        backgroundKey = backgroundKey,
+    )
+}
+
+@OptIn(ExperimentalForInheritanceCoroutinesApi::class)
+private class SubscriberGatedStateFlow<T>(
+    private val source: StateFlow<T>,
+    private val subscriptions: StateFlow<Int>,
+    private val backgroundKey: (T) -> Any?,
+) : StateFlow<T> {
+    override val value: T
+        get() = source.value
+
+    override val replayCache: List<T>
+        get() = listOf(value)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override suspend fun collect(collector: FlowCollector<T>): Nothing {
+        subscriptions
+            .map { count -> count > 0 }
+            .distinctUntilChanged()
+            .flatMapLatest { subscribed ->
+                if (subscribed) {
+                    source
+                } else {
+                    source.distinctUntilChangedBy(backgroundKey)
+                }
+            }
             .collect(collector)
         error("StateFlow collection completed unexpectedly")
     }

@@ -21,12 +21,13 @@ import com.mkx.hrttracker.util.AppTimeSnapshot
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
+import com.mkx.hrttracker.util.tickWhileSubscribed
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -34,7 +35,6 @@ import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -55,13 +55,46 @@ class MainViewModel @Inject constructor(
     private val currentSnapshot = appTimeSource.currentSnapshot
     private var lastHomeSnapshotRefreshKey: HomeSnapshotRefreshKey? = null
 
+    private val _uiState = MutableStateFlow(
+        MainUiState(
+            homeDataReady = false,
+            now = currentSnapshot.value.minute,
+        )
+    )
+
+    // The ui-state combine below stays collected for the ViewModel's whole
+    // (activity-scoped) lifetime: a stop-timeout would let data mutated while
+    // away (e.g. a backup restore) flash one stale frame on re-entry, so data
+    // emissions must keep rebuilding the retained value in the background.
+    // The time inputs, however, are gated on this state's own subscriber
+    // count: a live minute tick would otherwise rebuild the ui state — PK
+    // simulation fallbacks included — every minute for the activity's whole
+    // lifetime, including backgrounded. While unsubscribed only date/zone
+    // changes pass through, keeping the midnight/timezone re-anchor.
+    val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
+
+    private val gatedSnapshot: StateFlow<AppTimeSnapshot> =
+        currentSnapshot.tickWhileSubscribed(_uiState.subscriptionCount) { snapshot ->
+            snapshot.minute.toLocalDate() to snapshot.zone
+        }
+    private val gatedMinute: StateFlow<LocalDateTime> =
+        appTimeSource.currentMinute.tickWhileSubscribed(_uiState.subscriptionCount) { minute ->
+            minute.toLocalDate()
+        }
+
+    init {
+        viewModelScope.launch {
+            buildUiStateFlow().collect { state -> _uiState.value = state }
+        }
+    }
+
     // Re-subscribe the home inputs flow only on local date or zone changes.
     // Room query windows are date+zone-derived, while per-minute and explicit
     // wall-clock refreshes are fed to HomeRepository as a combine input so
     // now-sensitive projections re-anchor without tearing down the Room flows.
     @OptIn(ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<MainUiState> = combine(
-        currentSnapshot
+    private fun buildUiStateFlow(): Flow<MainUiState> = combine(
+        gatedSnapshot
             .map { snapshot ->
                 HomeTimeKey(
                     now = snapshot.minute,
@@ -74,12 +107,12 @@ class MainViewModel @Inject constructor(
                 refreshHomeSnapshotForDateIfNeeded(key.now, key.zoneId)
                 homeRepository.observeHomeInputs(
                     date = key.date,
-                    nowFlow = appTimeSource.currentMinute,
+                    nowFlow = gatedMinute,
                     zoneId = key.zoneId,
                 )
                     .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
             },
-        currentSnapshot,
+        gatedSnapshot,
         timeZoneChangeNoticeController.notice,
         settingsRepository.homeLowStockSectionExpandedFlow,
         settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
@@ -119,22 +152,6 @@ class MainViewModel @Inject constructor(
         }
     }
         .filterNotNull()
-        .stateIn(
-            scope = viewModelScope,
-            // Lazily, not WhileSubscribed: the first frame after a subscriber
-            // returns renders the retained StateFlow value before collection
-            // restarts, so a stop-timeout lets data mutated while away (e.g. a
-            // backup restore) flash one stale frame on re-entry. The repository
-            // flows are hot (Eagerly, app-scoped) regardless; staying collected
-            // only adds the ui-state rebuild work. Date/zone re-anchoring rides
-            // the currentSnapshot tick, not subscription restarts, so it is
-            // unaffected.
-            started = SharingStarted.Lazily,
-            initialValue = MainUiState(
-                homeDataReady = false,
-                now = currentSnapshot.value.minute,
-            )
-        )
 
     private val _highlightRequest = MutableStateFlow<DoseRowHighlightRequest?>(null)
     val highlightRequest: StateFlow<DoseRowHighlightRequest?> = _highlightRequest.asStateFlow()

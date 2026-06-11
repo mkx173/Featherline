@@ -18,11 +18,12 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.mkx.hrttracker.util.tickWhileSubscribed
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -37,46 +38,58 @@ class PlanViewModel @Inject constructor(
     appTimeSource: AppTimeSource
 ) : ViewModel() {
     private val selectedDate = MutableStateFlow<LocalDate?>(null)
-    private val currentDateTime = appTimeSource.currentMinute
 
-    val uiState: StateFlow<PlanUiState> = combine(
-        medicationGroupRepository.observeGroups(),
-        medicationLogRepository.observeEntries(),
-        settingsRepository.settingsState,
-        selectedDate,
-        currentDateTime
-    ) { groupsOrNull, entriesOrNull, settingsState, selection, now ->
+    private val _uiState = MutableStateFlow(
+        // Seed from the repositories' hot caches (both are Eagerly-shared
+        // StateFlows loaded at app start) so the first frame after this
+        // ViewModel is created renders real data. A bare loading default
+        // flashed the loading indicator for the few frames until the
+        // combine's first emission — previously hidden by the top-level
+        // navigation transition, visible once that transition was removed.
         buildUiState(
-            groupsOrNull = groupsOrNull,
-            entriesOrNull = entriesOrNull,
-            settingsState = settingsState,
-            selection = selection,
-            now = now,
+            groupsOrNull = medicationGroupRepository.getCachedGroups(),
+            entriesOrNull = medicationLogRepository.getCachedEntries(),
+            settingsState = settingsRepository.settingsState.value,
+            selection = null,
+            now = appTimeSource.currentMinute.value,
         )
+    )
+
+    // The ui-state combine below stays collected for the ViewModel's whole
+    // (activity-scoped) lifetime: a stop-timeout would let data mutated while
+    // away (e.g. a backup restore) flash one stale frame on re-entry, so data
+    // emissions must keep rebuilding the retained value in the background.
+    // The time input, however, is gated on this state's own subscriber count:
+    // a live minute tick would otherwise rebuild the ui state every minute for
+    // the activity's whole lifetime, including backgrounded. While
+    // unsubscribed only date changes pass through, keeping the midnight
+    // re-anchor.
+    val uiState: StateFlow<PlanUiState> = _uiState.asStateFlow()
+
+    private val currentDateTime =
+        appTimeSource.currentMinute.tickWhileSubscribed(_uiState.subscriptionCount) { minute ->
+            minute.toLocalDate()
+        }
+
+    init {
+        viewModelScope.launch {
+            combine(
+                medicationGroupRepository.observeGroups(),
+                medicationLogRepository.observeEntries(),
+                settingsRepository.settingsState,
+                selectedDate,
+                currentDateTime
+            ) { groupsOrNull, entriesOrNull, settingsState, selection, now ->
+                buildUiState(
+                    groupsOrNull = groupsOrNull,
+                    entriesOrNull = entriesOrNull,
+                    settingsState = settingsState,
+                    selection = selection,
+                    now = now,
+                )
+            }.collect { state -> _uiState.value = state }
+        }
     }
-        .stateIn(
-            scope = viewModelScope,
-            // Lazily, not WhileSubscribed: the first frame after a subscriber
-            // returns renders the retained StateFlow value before collection
-            // restarts, so a stop-timeout lets data mutated while away (e.g. a
-            // backup restore) flash one stale frame on re-entry. The repository
-            // flows are hot (Eagerly, app-scoped) regardless; staying collected
-            // only adds the ui-state rebuild work.
-            started = SharingStarted.Lazily,
-            // Seed from the repositories' hot caches (both are Eagerly-shared
-            // StateFlows loaded at app start) so the first frame after this
-            // ViewModel is created renders real data. A bare loading default
-            // flashed the loading indicator for the few frames until the
-            // combine's first emission — previously hidden by the top-level
-            // navigation transition, visible once that transition was removed.
-            initialValue = buildUiState(
-                groupsOrNull = medicationGroupRepository.getCachedGroups(),
-                entriesOrNull = medicationLogRepository.getCachedEntries(),
-                settingsState = settingsRepository.settingsState.value,
-                selection = selectedDate.value,
-                now = currentDateTime.value,
-            ),
-        )
 
     private fun buildUiState(
         groupsOrNull: List<MedicationGroup>?,

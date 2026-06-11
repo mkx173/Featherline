@@ -106,7 +106,7 @@ class MainViewModelTest {
         verify(exactly = 1) {
             homeRepository.observeHomeInputs(
                 firstMinute.toLocalDate(),
-                appTimeSource.currentMinute,
+                any(),
                 ZoneId.systemDefault(),
             )
         }
@@ -126,6 +126,51 @@ class MainViewModelTest {
         verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any(), any()) }
         verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) }
         assertEquals(firstMinute.plusMinutes(2), viewModel.uiState.value.now)
+    }
+
+    @Test
+    fun minuteTickWhileUiStateUnsubscribed_doesNotRebuildUiState() = runTest {
+        val firstMinute = LocalDateTime.of(2026, 4, 30, 9, 0)
+        val appTimeSource = FakeAppTimeSource(firstMinute)
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } answers {
+            flowOf(homeInputs(now = secondArg<StateFlow<LocalDateTime>>().value))
+        }
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        val subscription = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { }
+        }
+        advanceUntilIdle()
+        assertEquals(firstMinute, viewModel.uiState.value.now)
+
+        // The only subscriber leaves (backgrounded app / another tab). The
+        // ViewModel is activity-scoped, so its combine stays collected for the
+        // whole activity lifetime; same-day minute ticks must not keep
+        // rebuilding the ui state (PK fallbacks included) with nobody looking.
+        subscription.cancel()
+        advanceUntilIdle()
+        appTimeSource.setCurrentMinute(firstMinute.plusMinutes(1))
+        advanceUntilIdle()
+        assertEquals(
+            "minute ticks must not rebuild the ui state while unsubscribed",
+            firstMinute,
+            viewModel.uiState.value.now,
+        )
+
+        // Re-subscribing re-attaches the live tick and catches the state up.
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+        assertEquals(
+            "re-subscribing must re-anchor the ui state to the current minute",
+            firstMinute.plusMinutes(1),
+            viewModel.uiState.value.now,
+        )
     }
 
     @Test
@@ -156,7 +201,7 @@ class MainViewModelTest {
             verify(exactly = 1) {
                 homeRepository.observeHomeInputs(
                     firstMinute.toLocalDate(),
-                    appTimeSource.currentMinute,
+                    any(),
                     zoneId,
                 )
             }
@@ -1095,7 +1140,7 @@ class MainViewModelTest {
         verify(exactly = 1) {
             homeRepository.observeHomeInputs(
                 localMinute.toLocalDate(),
-                appTimeSource.currentMinute,
+                any(),
                 utc
             )
         }
@@ -1113,7 +1158,7 @@ class MainViewModelTest {
         verify(exactly = 1) {
             homeRepository.observeHomeInputs(
                 localMinute.toLocalDate(),
-                appTimeSource.currentMinute,
+                any(),
                 tokyo
             )
         }

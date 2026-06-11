@@ -418,6 +418,49 @@ class PlanViewModelTest {
     }
 
     @Test
+    fun minuteTickWhileUiStateUnsubscribed_doesNotRebuildUiState() = runTest {
+        val firstMinute = LocalDateTime.of(2026, 6, 11, 12, 0)
+        val appTimeSource = FakeAppTimeSource(firstMinute)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = PlanViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+        )
+        val subscription = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { }
+        }
+        advanceUntilIdle()
+        assertEquals(firstMinute, viewModel.uiState.value.now)
+
+        // The only subscriber leaves. The ViewModel is activity-scoped, so its
+        // combine stays collected for the whole activity lifetime; same-day
+        // minute ticks must not keep rebuilding the ui state with nobody looking.
+        subscription.cancel()
+        advanceUntilIdle()
+        appTimeSource.setCurrentMinute(firstMinute.plusMinutes(1))
+        advanceUntilIdle()
+        assertEquals(
+            "minute ticks must not rebuild the ui state while unsubscribed",
+            firstMinute,
+            viewModel.uiState.value.now,
+        )
+
+        // The midnight re-anchor must still ride through in the background so
+        // the first frame after re-entry across a date boundary shows the
+        // right "today".
+        appTimeSource.setCurrentMinute(firstMinute.plusDays(1))
+        advanceUntilIdle()
+        assertEquals(
+            "date changes must re-anchor the ui state while unsubscribed",
+            firstMinute.plusDays(1).toLocalDate(),
+            viewModel.uiState.value.today,
+        )
+    }
+
+    @Test
     fun fulfilledScheduleEntryCarriesActualDoseDeltaFromLog() = runTest {
         val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 18, 10, 0))
         val group = medicationGroup(times = listOf(LocalTime.of(8, 0)))

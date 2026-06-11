@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.util
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -382,6 +383,118 @@ class AppTimeSourceTest {
         )
 
         assertEquals(60_000L, millisUntilNextMinuteBoundary(clock))
+    }
+
+    @Test
+    fun tickWhileSubscribed_suppressesSameKeyTicksWhileUnsubscribed() = runTest {
+        val utcZone = ZoneId.of("UTC")
+        val source = MutableStateFlow(
+            AppTimeSnapshot(LocalDateTime.of(2026, 6, 11, 12, 0), utcZone)
+        )
+        val subscriptions = MutableStateFlow(0)
+        val gated = source.tickWhileSubscribed(subscriptions) { it.minute.toLocalDate() to it.zone }
+        val emissions = mutableListOf<AppTimeSnapshot>()
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            gated.collect { emissions += it }
+        }
+        runCurrent()
+        assertEquals(1, emissions.size)
+
+        // A minute tick with the same date/zone key must not propagate while the
+        // downstream state has no subscribers: this is the per-minute rebuild
+        // work the gate exists to stop in the background.
+        source.value = AppTimeSnapshot(LocalDateTime.of(2026, 6, 11, 12, 1), utcZone)
+        runCurrent()
+        assertEquals(
+            "same-date minute ticks must be suppressed while unsubscribed",
+            1,
+            emissions.size,
+        )
+
+        job.cancel()
+    }
+
+    @Test
+    fun tickWhileSubscribed_passesKeyChangesWhileUnsubscribed() = runTest {
+        val utcZone = ZoneId.of("UTC")
+        val source = MutableStateFlow(
+            AppTimeSnapshot(LocalDateTime.of(2026, 6, 11, 23, 59), utcZone)
+        )
+        val subscriptions = MutableStateFlow(0)
+        val gated = source.tickWhileSubscribed(subscriptions) { it.minute.toLocalDate() to it.zone }
+        val emissions = mutableListOf<AppTimeSnapshot>()
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            gated.collect { emissions += it }
+        }
+        runCurrent()
+
+        // The midnight (and zone-change) re-anchor must still ride through in
+        // the background so the first frame after re-entry across a date
+        // boundary is anchored to the right day.
+        source.value = AppTimeSnapshot(LocalDateTime.of(2026, 6, 12, 0, 0), utcZone)
+        runCurrent()
+        assertEquals(
+            "date-key changes must pass through while unsubscribed",
+            LocalDateTime.of(2026, 6, 12, 0, 0),
+            emissions.last().minute,
+        )
+
+        job.cancel()
+    }
+
+    @Test
+    fun tickWhileSubscribed_deliversLiveTicksWhileSubscribed() = runTest {
+        val utcZone = ZoneId.of("UTC")
+        val source = MutableStateFlow(
+            AppTimeSnapshot(LocalDateTime.of(2026, 6, 11, 12, 0), utcZone)
+        )
+        val subscriptions = MutableStateFlow(1)
+        val gated = source.tickWhileSubscribed(subscriptions) { it.minute.toLocalDate() to it.zone }
+        val emissions = mutableListOf<AppTimeSnapshot>()
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            gated.collect { emissions += it }
+        }
+        runCurrent()
+
+        source.value = AppTimeSnapshot(LocalDateTime.of(2026, 6, 11, 12, 1), utcZone)
+        runCurrent()
+        assertEquals(
+            "minute ticks must flow live while subscribed",
+            LocalDateTime.of(2026, 6, 11, 12, 1),
+            emissions.last().minute,
+        )
+
+        // Subscribers leave, a tick is suppressed, subscribers return: the
+        // switch back to the live source must immediately deliver the current
+        // value so the UI re-anchors without waiting for the next tick.
+        subscriptions.value = 0
+        runCurrent()
+        source.value = AppTimeSnapshot(LocalDateTime.of(2026, 6, 11, 12, 2), utcZone)
+        runCurrent()
+        subscriptions.value = 1
+        runCurrent()
+        assertEquals(
+            "resubscribing must deliver the current value immediately",
+            LocalDateTime.of(2026, 6, 11, 12, 2),
+            emissions.last().minute,
+        )
+
+        job.cancel()
+    }
+
+    @Test
+    fun tickWhileSubscribed_valueReadsLiveSourceWithoutCollection() {
+        val utcZone = ZoneId.of("UTC")
+        val source = MutableStateFlow(
+            AppTimeSnapshot(LocalDateTime.of(2026, 6, 11, 12, 0), utcZone)
+        )
+        val gated = source.tickWhileSubscribed(MutableStateFlow(0)) { it.minute.toLocalDate() }
+
+        source.value = AppTimeSnapshot(LocalDateTime.of(2026, 6, 11, 12, 5), utcZone)
+
+        // Consumers (e.g. HomeRepository) anchor queries on nowFlow.value at
+        // subscription time; the gate must never serve a stale value there.
+        assertEquals(LocalDateTime.of(2026, 6, 11, 12, 5), gated.value.minute)
     }
 }
 
