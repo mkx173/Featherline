@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Notification permission changes are now picked up reliably when returning to the app, and reminders are rebuilt only when permissions actually change instead of on every return.
 - Returning to a tab after data changed elsewhere (such as restoring a backup) no longer shows the old data for a brief moment before updating.
 - The home estradiol chart now updates in the same frame as the rest of the screen after a change, such as deleting a plan or the date rolling over, instead of briefly keeping the old curve.
+- The home estradiol chart's opening animation no longer gets cut short on slow app starts, and no longer interrupts a touch in progress when it finishes.
+- Per-minute screen updates now pause while the app is in the background instead of running continuously; date and time zone changes are still picked up immediately.
 - Disabled rows in settings and editors now gray out their labels in step with their switches instead of a moment behind.
 
 ## [1.1.4] - 2026-06-09
