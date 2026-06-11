@@ -511,7 +511,6 @@ fun SettingsScreen(
             }
         },
         showDiagnosticsExport = BuildConfig.DEBUG,
-        isDiagnosticsExportInProgress = isDiagnosticsExportInProgress,
         onExportDiagnosticLogsClick = {
             if (!isDiagnosticsExportInProgress && BuildConfig.DEBUG) {
                 try {
@@ -785,7 +784,6 @@ internal fun SettingsScreenContent(
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
     showDiagnosticsExport: Boolean,
-    isDiagnosticsExportInProgress: Boolean,
     onExportDiagnosticLogsClick: () -> Unit,
     onCalibrationClick: () -> Unit,
     scrollToTopSignal: Int = 0,
@@ -1392,7 +1390,6 @@ internal fun SettingsScreenContent(
                         item {
                             SettingsSegmentedListItem(
                                 title = stringResource(R.string.settings_diagnostics_export_logs),
-                                enabled = !isDiagnosticsExportInProgress,
                                 onClick = onExportDiagnosticLogsClick,
                                 leadingContent = {
                                     SettingsLeadingIconSlot(
@@ -2024,7 +2021,6 @@ private fun SettingsScreenPreview() {
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
             showDiagnosticsExport = true,
-            isDiagnosticsExportInProgress = false,
             onExportDiagnosticLogsClick = { },
             onCalibrationClick = { },
         )
