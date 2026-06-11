@@ -147,6 +147,7 @@ import com.patrykandpatrick.vico.compose.cartesian.Zoom
 import com.patrykandpatrick.vico.compose.cartesian.axis.Axis
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModel
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
@@ -165,6 +166,7 @@ import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.component.ShapeComponent
 import com.patrykandpatrick.vico.compose.common.data.CartesianLayerDrawingModelInterpolator
 import com.patrykandpatrick.vico.compose.common.data.ExtraStore
+import com.patrykandpatrick.vico.compose.common.data.MutableExtraStore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -760,9 +762,9 @@ internal fun MainE2ChartCard(
     targetRangeLow: Double,
     targetRangeHigh: Double,
     modifier: Modifier = Modifier,
-    // The screen-level producer lives in MainViewModel so it survives navigation and the
-    // chart restores its model on the first frame (see MainViewModel.e2ChartModelProducer).
-    // The remembered default keeps previews and tests self-contained.
+    // Drives the chart only while the once-per-process intro animation runs;
+    // afterwards the chart renders a synchronously built model, so navigation
+    // re-entry and data changes paint the current data on the first frame.
     modelProducer: CartesianChartModelProducer = remember { CartesianChartModelProducer() },
     trendReady: Boolean = true,
     hideReferenceRanges: Boolean = false,
@@ -1067,7 +1069,62 @@ internal fun MainE2ChartCard(
         }
     }
 
-    LaunchedEffect(
+    val chartViewSpec = remember(
+        section.chartWindowOption,
+        chartWindowStart,
+        chartWindowHours,
+        currentTimeXHours,
+        section.pastDays,
+        now,
+    ) {
+        MainE2ChartViewSpec(
+            chartWindowOption = section.chartWindowOption,
+            chartWindowStart = chartWindowStart,
+            chartWindowHours = chartWindowHours,
+            currentTimeXHours = currentTimeXHours,
+            pastDays = section.pastDays,
+            now = now,
+        )
+    }
+    // While the once-per-process intro animation is live, the chart renders
+    // through the async model producer so Vico can animate the series in.
+    // Producer updates land a frame (or more) after the uiState recomposition —
+    // runTransaction and the host's transform both hop dispatchers — which is
+    // acceptable only during the intro. Afterwards the chart switches to the
+    // synchronously remembered model below, so a data change (e.g. a plan
+    // deletion) or a foreground date change repaints the chart in the same
+    // frame as the rest of the screen instead of flashing one frame of stale
+    // chart pixels.
+    if (chartAnimationsEnabled.value) {
+        LaunchedEffect(
+            splitChartSeries,
+            doseMarkerLoggedXHours,
+            doseMarkerLoggedConcentrations,
+            doseMarkerPlannedXHours,
+            doseMarkerPlannedConcentrations,
+            currentTimeXHours,
+            currentTimeConcentration,
+            chartViewSpec,
+        ) {
+            modelProducer.runTransaction {
+                lineSeries {
+                    mainE2ChartLineSeries(
+                        splitChartSeries = splitChartSeries,
+                        currentTimeXHours = currentTimeXHours,
+                        currentTimeConcentration = currentTimeConcentration,
+                        doseMarkerLoggedXHours = doseMarkerLoggedXHours,
+                        doseMarkerLoggedConcentrations = doseMarkerLoggedConcentrations,
+                        doseMarkerPlannedXHours = doseMarkerPlannedXHours,
+                        doseMarkerPlannedConcentrations = doseMarkerPlannedConcentrations,
+                    )
+                }
+                extras { extraStore ->
+                    extraStore[MainE2ChartViewSpecKey] = chartViewSpec
+                }
+            }
+        }
+    }
+    val chartModel = remember(
         splitChartSeries,
         doseMarkerLoggedXHours,
         doseMarkerLoggedConcentrations,
@@ -1075,71 +1132,18 @@ internal fun MainE2ChartCard(
         doseMarkerPlannedConcentrations,
         currentTimeXHours,
         currentTimeConcentration,
-        section.chartWindowOption,
-        chartWindowStart,
-        chartWindowHours,
-        section.pastDays,
-        now,
+        chartViewSpec,
     ) {
-        modelProducer.runTransaction {
-            lineSeries {
-                // Solid line: window start → today midnight (with area fill).
-                series(
-                    x = splitChartSeries.observedXHours,
-                    y = splitChartSeries.observedPoints,
-                )
-                // Dashed line: today midnight → window end (no area fill).
-                series(
-                    x = splitChartSeries.predictedXHours,
-                    y = splitChartSeries.predictedPoints,
-                )
-                // "You are here" dot — a one-point series so it animates in
-                // alongside the dose markers instead of popping in flat. Sits
-                // in slot 3 (unconditional) because Vico matches series to
-                // LineProvider entries by index and rejects empty series, so
-                // any conditional series has to come last.
-                series(
-                    x = listOf(currentTimeXHours),
-                    y = listOf(currentTimeConcentration),
-                )
-                // Logged dose markers (primary color) and planned ones
-                // (secondary color) live in separate slots so they can use
-                // different point styles. Both series are emitted whenever
-                // there is at least one marker — the absent one is padded with
-                // an out-of-axis sentinel point so the LineProvider's
-                // index-based style mapping stays stable.
-                val hasAnyMarker = doseMarkerLoggedXHours.isNotEmpty() ||
-                        doseMarkerPlannedXHours.isNotEmpty()
-                if (hasAnyMarker) {
-                    series(
-                        x = doseMarkerLoggedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
-                        y = doseMarkerLoggedConcentrations.ifEmpty {
-                            listOf(
-                                OffAxisDoseMarkerSentinelConcentration
-                            )
-                        },
-                    )
-                    series(
-                        x = doseMarkerPlannedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
-                        y = doseMarkerPlannedConcentrations.ifEmpty {
-                            listOf(
-                                OffAxisDoseMarkerSentinelConcentration
-                            )
-                        },
-                    )
-                }
-            }
-            extras { extraStore ->
-                extraStore[MainE2ChartViewSpecKey] = MainE2ChartViewSpec(
-                    chartWindowOption = section.chartWindowOption,
-                    chartWindowStart = chartWindowStart,
-                    chartWindowHours = chartWindowHours,
-                    currentTimeXHours = currentTimeXHours,
-                    pastDays = section.pastDays,
-                    now = now,
-                )
-            }
-        }
+        buildMainE2ChartModel(
+            splitChartSeries = splitChartSeries,
+            currentTimeXHours = currentTimeXHours,
+            currentTimeConcentration = currentTimeConcentration,
+            doseMarkerLoggedXHours = doseMarkerLoggedXHours,
+            doseMarkerLoggedConcentrations = doseMarkerLoggedConcentrations,
+            doseMarkerPlannedXHours = doseMarkerPlannedXHours,
+            doseMarkerPlannedConcentrations = doseMarkerPlannedConcentrations,
+            viewSpec = chartViewSpec,
+        )
     }
 
     Surface(
@@ -1290,8 +1294,7 @@ internal fun MainE2ChartCard(
                                     )
                                 }
                         ) {
-                            CartesianChartHost(
-                                chart = rememberCartesianChart(
+                            val chart = rememberCartesianChart(
                                     rememberEdgeAlignedLineCartesianLayer(
                                         lineProvider =
                                             LineCartesianLayer.LineProvider.series(
@@ -1371,14 +1374,34 @@ internal fun MainE2ChartCard(
                                         itemPlacer = bottomAxisItemPlacer,
                                     ),
                                     getXStep = { 1.0 },
-                                ),
-                                modelProducer = modelProducer,
-                                modifier = Modifier.matchParentSize(),
-                                animationSpec = chartAnimationSpec,
-                                animateIn = chartAnimationsEnabled.value,
-                                scrollState = chartScrollState,
-                                zoomState = chartZoomState,
-                            )
+                                )
+                            // Intro phase: async producer host so the series
+                            // animate in. Afterwards: the synchronous model
+                            // overload, which computes ranges in composition,
+                            // so the drawn chart can never trail the uiState
+                            // that produced it. The swap happens at rest —
+                            // chartAnimationsEnabled flips only after the
+                            // intro animation has settled — and both hosts
+                            // share scroll/zoom state, so it is pixel-neutral.
+                            if (chartAnimationsEnabled.value) {
+                                CartesianChartHost(
+                                    chart = chart,
+                                    modelProducer = modelProducer,
+                                    modifier = Modifier.matchParentSize(),
+                                    animationSpec = chartAnimationSpec,
+                                    animateIn = true,
+                                    scrollState = chartScrollState,
+                                    zoomState = chartZoomState,
+                                )
+                            } else {
+                                CartesianChartHost(
+                                    chart = chart,
+                                    model = chartModel,
+                                    modifier = Modifier.matchParentSize(),
+                                    scrollState = chartScrollState,
+                                    zoomState = chartZoomState,
+                                )
+                            }
                         }
                     }
 
@@ -1525,7 +1548,7 @@ private data class MainE2ChartViewportSnapshot(
 // data Vico is currently drawing. Without this, composition state changes
 // (e.g. on chart-window toggle) race ahead of Vico's model update and the
 // view spec lands one frame too early on the old data.
-private data class MainE2ChartViewSpec(
+internal data class MainE2ChartViewSpec(
     val chartWindowOption: HomeE2ChartWindowOption,
     val chartWindowStart: LocalDateTime,
     val chartWindowHours: Int,
@@ -1534,7 +1557,100 @@ private data class MainE2ChartViewSpec(
     val now: LocalDateTime,
 )
 
-private val MainE2ChartViewSpecKey = ExtraStore.Key<MainE2ChartViewSpec>()
+internal val MainE2ChartViewSpecKey = ExtraStore.Key<MainE2ChartViewSpec>()
+
+// Shared by the intro-phase producer transaction and the post-intro
+// synchronous model build so both render paths emit identical series and the
+// host swap between them is pixel-neutral.
+private fun LineCartesianLayerModel.BuilderScope.mainE2ChartLineSeries(
+    splitChartSeries: MainE2SplitChartSeries,
+    currentTimeXHours: Double,
+    currentTimeConcentration: Float,
+    doseMarkerLoggedXHours: List<Double>,
+    doseMarkerLoggedConcentrations: List<Float>,
+    doseMarkerPlannedXHours: List<Double>,
+    doseMarkerPlannedConcentrations: List<Float>,
+) {
+    // Solid line: window start → today midnight (with area fill).
+    series(
+        x = splitChartSeries.observedXHours,
+        y = splitChartSeries.observedPoints,
+    )
+    // Dashed line: today midnight → window end (no area fill).
+    series(
+        x = splitChartSeries.predictedXHours,
+        y = splitChartSeries.predictedPoints,
+    )
+    // "You are here" dot — a one-point series so it animates in
+    // alongside the dose markers instead of popping in flat. Sits
+    // in slot 3 (unconditional) because Vico matches series to
+    // LineProvider entries by index and rejects empty series, so
+    // any conditional series has to come last.
+    series(
+        x = listOf(currentTimeXHours),
+        y = listOf(currentTimeConcentration),
+    )
+    // Logged dose markers (primary color) and planned ones
+    // (secondary color) live in separate slots so they can use
+    // different point styles. Both series are emitted whenever
+    // there is at least one marker — the absent one is padded with
+    // an out-of-axis sentinel point so the LineProvider's
+    // index-based style mapping stays stable.
+    val hasAnyMarker = doseMarkerLoggedXHours.isNotEmpty() ||
+            doseMarkerPlannedXHours.isNotEmpty()
+    if (hasAnyMarker) {
+        series(
+            x = doseMarkerLoggedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
+            y = doseMarkerLoggedConcentrations.ifEmpty {
+                listOf(
+                    OffAxisDoseMarkerSentinelConcentration
+                )
+            },
+        )
+        series(
+            x = doseMarkerPlannedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
+            y = doseMarkerPlannedConcentrations.ifEmpty {
+                listOf(
+                    OffAxisDoseMarkerSentinelConcentration
+                )
+            },
+        )
+    }
+}
+
+// Builds the chart model synchronously for the post-intro render path. The
+// view spec rides in the model's ExtraStore — exactly like the producer
+// transaction's extras — so axis formatters, the range provider, and
+// decorations keep reading it from `context.model.extraStore` and stay in
+// lockstep with the drawn series.
+internal fun buildMainE2ChartModel(
+    splitChartSeries: MainE2SplitChartSeries,
+    currentTimeXHours: Double,
+    currentTimeConcentration: Float,
+    doseMarkerLoggedXHours: List<Double>,
+    doseMarkerLoggedConcentrations: List<Float>,
+    doseMarkerPlannedXHours: List<Double>,
+    doseMarkerPlannedConcentrations: List<Float>,
+    viewSpec: MainE2ChartViewSpec,
+): CartesianChartModel {
+    return CartesianChartModel(
+        LineCartesianLayerModel.build {
+            mainE2ChartLineSeries(
+                splitChartSeries = splitChartSeries,
+                currentTimeXHours = currentTimeXHours,
+                currentTimeConcentration = currentTimeConcentration,
+                doseMarkerLoggedXHours = doseMarkerLoggedXHours,
+                doseMarkerLoggedConcentrations = doseMarkerLoggedConcentrations,
+                doseMarkerPlannedXHours = doseMarkerPlannedXHours,
+                doseMarkerPlannedConcentrations = doseMarkerPlannedConcentrations,
+            )
+        }
+    ).copy(
+        MutableExtraStore().apply {
+            this[MainE2ChartViewSpecKey] = viewSpec
+        }
+    )
+}
 
 // Vico's AreaFill.single uses a path intersection over the panned Catmull-Rom
 // segment; on some visible windows that can fill the ceiling side of the curve.

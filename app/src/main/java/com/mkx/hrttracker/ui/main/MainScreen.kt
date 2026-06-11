@@ -222,7 +222,6 @@ fun MainScreen(
             MainContent(
                 uiState = uiState,
                 scrollState = scrollState,
-                e2ChartModelProducer = viewModel.e2ChartModelProducer,
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
                 highlightRequest = highlightRequest,
                 highlightEffectsEnabled = highlightEffectsEnabled,
