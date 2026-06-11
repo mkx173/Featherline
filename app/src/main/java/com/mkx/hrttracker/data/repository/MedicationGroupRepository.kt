@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
@@ -66,11 +67,15 @@ class MedicationGroupRepository @Inject constructor(
                         // medicine UUID in one transaction). The separate point-in-time
                         // resolveMedicinesForGroups() then can't resolve the old UUID and
                         // toMedicationGroupModel()'s checkNotNull(medicine) throws. Handle
-                        // it HERE, per emission, so the failure degrades a single (stale)
-                        // emission instead of cancelling the upstream Room observation —
-                        // the next, consistent emission recovers. A terminal `.catch`
-                        // outside flatMapLatest would instead freeze this flow until the
-                        // database (and thus the app process) is rebuilt.
+                        // it HERE, per emission, so the failure SUPPRESSES the single
+                        // (stale) emission instead of cancelling the upstream Room
+                        // observation — the next, consistent emission recovers. A terminal
+                        // `.catch` outside flatMapLatest would instead freeze this flow
+                        // until the database (and thus the app process) is rebuilt.
+                        // Suppress (null -> filterNotNull below) rather than emit a
+                        // fallback: a fabricated empty list reaches the Plan combine and
+                        // renders a one-frame empty/stale mixture before the consistent
+                        // emission lands.
                         runCatching {
                             val medicinesByUuid = database.resolveMedicinesForGroups(groups)
                             groups.map { it.toMedicationGroupModel(medicinesByUuid) }
@@ -80,9 +85,10 @@ class MedicationGroupRepository @Inject constructor(
                             // swallow it (unlike the Flow .catch this replaced); rethrow so
                             // flatMapLatest/scope cancellation is honoured.
                             if (error is CancellationException) throw error
-                            emptyList()
+                            null
                         }
                     }
+                        .filterNotNull()
                         // Per-emission runCatching above recovers from transform
                         // failures; this terminal catch separately guards the Room
                         // flows themselves failing (DB corruption / I/O error). Without

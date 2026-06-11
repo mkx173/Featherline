@@ -21,9 +21,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
 import java.time.Instant
 import java.time.LocalDateTime
@@ -61,11 +63,15 @@ class MedicationLogRepository @Inject internal constructor(
                         // medicine UUID in one transaction). The separate point-in-time
                         // resolveMedicinesForEntries() then can't resolve the old UUID and
                         // toMedicationLogEntryModel()'s checkNotNull(medicine) throws.
-                        // Handle it HERE, per emission, so the failure degrades a single
-                        // (stale) emission instead of cancelling the upstream Room
+                        // Handle it HERE, per emission, so the failure SUPPRESSES the
+                        // single (stale) emission instead of cancelling the upstream Room
                         // observation — the next, consistent emission recovers. A terminal
                         // `.catch` outside flatMapLatest would instead freeze this flow
                         // until the database (and thus the app process) is rebuilt.
+                        // Suppress (null -> filterNotNull below) rather than emit a
+                        // fallback: a fabricated empty list reaches the Plan combine and
+                        // renders a one-frame empty/stale mixture before the consistent
+                        // emission lands.
                         runCatching {
                             val medicinesByUuid = database.resolveMedicinesForEntries(entries)
                             entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
@@ -75,9 +81,10 @@ class MedicationLogRepository @Inject internal constructor(
                             // swallow it (unlike the Flow .catch this replaced); rethrow so
                             // flatMapLatest/scope cancellation is honoured.
                             if (error is CancellationException) throw error
-                            emptyList()
+                            null
                         }
                     }
+                        .filterNotNull()
                         // Per-emission runCatching above recovers from transform
                         // failures; this terminal catch separately guards the Room
                         // flows themselves failing (DB corruption / I/O error). Without
@@ -124,7 +131,7 @@ class MedicationLogRepository @Inject internal constructor(
                         scheduledStartIso = scheduledStartIso,
                         scheduledEndIso = scheduledEndIso,
                     )
-                    .map { entities ->
+                    .mapNotNull { entities ->
                         // Same restore race as entriesFlow: a backup restore swaps every
                         // medicine UUID in one transaction, so this point-in-time
                         // resolveMedicinesForEntries() can pair a still-stale entry list
@@ -134,8 +141,10 @@ class MedicationLogRepository @Inject internal constructor(
                         // observeHomeRoomInputs' combine, so the throw bypasses that
                         // combine's per-emission guard and would hit Home's terminal
                         // `.catch`, completing the observation and freezing Home until an
-                        // app restart. Degrade the single stale emission here so the next,
-                        // consistent Room invalidation recovers.
+                        // app restart. Suppress the single stale emission here (null ->
+                        // mapNotNull) so the next, consistent Room invalidation recovers;
+                        // a fabricated empty list would render a one-frame wrong stock
+                        // state on Home before the consistent emission lands.
                         runCatching {
                             val medicinesByUuid = it.resolveMedicinesForEntries(entities)
                             entities.map { entity ->
@@ -145,7 +154,7 @@ class MedicationLogRepository @Inject internal constructor(
                             }
                         }.getOrElse { error ->
                             if (error is CancellationException) throw error
-                            emptyList()
+                            null
                         }
                     }
                     // Guards the Room flow itself failing (DB corruption / I/O); transform

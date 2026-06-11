@@ -2029,6 +2029,16 @@ class MedicationGroupRepositoryTest {
         medicineChangeVersion.value += 1
         advanceUntilIdle()
 
+        // The inconsistent pairing must be SUPPRESSED, not degraded to a
+        // fabricated empty list: an empty emission propagates to the Plan
+        // combine and renders a one-frame empty/stale mixture before the
+        // consistent emission lands.
+        assertEquals(
+            "the inconsistent emission must be suppressed, not degraded to an empty list",
+            oldGroupUuid,
+            emissions.last()?.singleOrNull()?.uuid,
+        )
+
         // The groups flow finally catches up with the restored group set.
         groupsSource.value =
             listOf(testGroupWithItem(newGroupUuid, newItemUuid, newMedicineUuid))

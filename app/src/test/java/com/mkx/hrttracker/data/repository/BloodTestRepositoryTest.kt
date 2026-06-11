@@ -327,6 +327,7 @@ class BloodTestRepositoryTest {
             emissions.last().single().results.single().analyte,
         )
 
+        val emissionCountBeforeRestoreRace = emissions.size
         resolvableAnalyteUuid = restoredAnalyteUuid
         panelsSource.value = listOf(
             bloodTestPanelWithCustomResult(
@@ -336,6 +337,15 @@ class BloodTestRepositoryTest {
             )
         )
         advanceUntilIdle()
+
+        // The inconsistent pairing must be SUPPRESSED, not replayed from the
+        // warm cache: a replayed pre-restore list re-renders stale panels for
+        // one frame before the consistent emission lands.
+        assertEquals(
+            "the inconsistent emission must be suppressed, not replayed from the cache",
+            emissionCountBeforeRestoreRace,
+            emissions.size,
+        )
 
         panelsSource.value = listOf(
             bloodTestPanelWithCustomResult(

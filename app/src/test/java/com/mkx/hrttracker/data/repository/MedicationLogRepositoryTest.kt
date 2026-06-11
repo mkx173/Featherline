@@ -564,6 +564,16 @@ class MedicationLogRepositoryTest {
         entriesSource.value = listOf(oldEntry, staleExtraEntry)
         advanceUntilIdle()
 
+        // The inconsistent pairing must be SUPPRESSED, not degraded to a
+        // fabricated empty list: this flow feeds Home's stock inputs, so an
+        // empty emission renders a one-frame wrong stock state before the
+        // consistent emission lands.
+        assertEquals(
+            "the inconsistent emission must be suppressed, not degraded to an empty list",
+            listOf(oldEntry.uuid),
+            emissions.last().map { it.uuid.toString() },
+        )
+
         // The window query catches up with the restored entries.
         entriesSource.value = listOf(newEntry)
         advanceUntilIdle()

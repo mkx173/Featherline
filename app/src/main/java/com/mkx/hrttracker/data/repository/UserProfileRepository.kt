@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -41,7 +42,10 @@ class UserProfileRepository @Inject constructor(
                             // Eagerly, app-scoped flow — and the Settings weight — until
                             // the database (app process) is rebuilt. toModel() can't
                             // currently throw, so this is defensive parity with the
-                            // medication/medicine flows that share this shape.
+                            // medication/medicine flows that share this shape. Suppress
+                            // (null -> filterNotNull below) rather than emit a default:
+                            // a fabricated default profile would flash for one frame
+                            // before the next consistent emission lands.
                             runCatching { entity?.toModel() ?: UserProfile() }
                                 .getOrElse { error ->
                                     // No suspension point inside the block today, so
@@ -49,9 +53,10 @@ class UserProfileRepository @Inject constructor(
                                     // anyway so runCatching never silently swallows
                                     // cancellation if a suspend call is added later.
                                     if (error is CancellationException) throw error
-                                    UserProfile()
+                                    null
                                 }
                         }
+                        .filterNotNull()
                         // Per-emission runCatching above recovers from a transform
                         // failure; this terminal catch separately guards the Room flow
                         // itself failing (DB corruption / I/O error). Without it an

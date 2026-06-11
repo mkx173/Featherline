@@ -20,6 +20,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
@@ -50,8 +51,15 @@ class BloodTestRepository @Inject constructor(
     fun observePanels(): Flow<List<BloodTestPanel>> {
         val dao = databaseHolder.get().bloodTestDao()
         return dao.observePanels()
-            .map { panels ->
-                recoverBloodTestObservation(defaultValue = cachedPanelFallback()) {
+            .mapNotNull { panels ->
+                // A restore committing between the panel query and the
+                // custom-analyte resolve pairs a stale panel list with the
+                // already-swapped custom_analytes table and mapPanels() throws.
+                // Suppress that single inconsistent emission (null -> mapNotNull)
+                // instead of replaying the warm cache: a replayed pre-restore
+                // list re-renders stale panels for one frame before the
+                // consistent emission lands.
+                recoverBloodTestObservation(defaultValue = null) {
                     cachePanels(mapPanels(panels = panels, dao = dao))
                 }
             }
