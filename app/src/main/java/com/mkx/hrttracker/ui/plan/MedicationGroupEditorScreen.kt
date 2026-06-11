@@ -2050,13 +2050,21 @@ internal fun resolvePastScheduleSelectorState(
     val selectedPastScheduleOption = resolvePastScheduleOption(uiState)
     val pastScheduleOptionsEnabled = lockedMessage == null &&
             uiState.canEditBackfillOption
-    val showGeneratePastRecordsOption =
-        shouldShowGeneratePastScheduledSlotRecordsOption(
-            uiState = uiState,
-            isNewGroupCreationFlow = isNewGroupCreationFlow,
-            isFinishingAfterSave = uiState.isFinishingAfterSave,
-        ) ||
+    // The generate-records option is a sub-choice of "show past": only offer it
+    // while the card is interactive (so it never appears for locked/archived
+    // groups) and past slots are actually being shown. The card animates it
+    // in/out as this flag changes (see PastScheduleSelectorCard). SHOW_AND_
+    // GENERATE_RECORDS counts as showing past so the row stays put when selected.
+    val includePastScheduleSelected =
+        selectedPastScheduleOption == PastScheduleOption.SHOW ||
                 selectedPastScheduleOption == PastScheduleOption.SHOW_AND_GENERATE_RECORDS
+    val showGeneratePastRecordsOption = pastScheduleOptionsEnabled &&
+            shouldShowGeneratePastScheduledSlotRecordsOption(
+                uiState = uiState,
+                isNewGroupCreationFlow = isNewGroupCreationFlow,
+                isFinishingAfterSave = uiState.isFinishingAfterSave,
+            ) &&
+            includePastScheduleSelected
 
     return PastScheduleSelectorUiState(
         selectedOption = selectedPastScheduleOption,
