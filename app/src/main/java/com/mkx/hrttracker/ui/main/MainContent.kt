@@ -66,6 +66,7 @@ fun MainContent(
     onDismissTimeZoneChangeNotice: () -> Unit = { },
     onE2ChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
     onLowStockSectionExpandedChange: (Boolean) -> Unit = { },
+    claimE2ChartIntroAnimation: () -> Boolean = { false },
     contentPadding: PaddingValues? = null,
 ) {
     val appLocale = rememberAppLocale()
@@ -147,6 +148,7 @@ fun MainContent(
                 trendReady = uiState.e2TrendReady,
                 hideReferenceRanges = uiState.hideReferenceRanges,
                 onChartWindowOptionSelected = onE2ChartWindowOptionSelected,
+                claimIntroAnimation = claimE2ChartIntroAnimation,
             )
 
             if (uiState.antiandrogenCards.isNotEmpty()) {

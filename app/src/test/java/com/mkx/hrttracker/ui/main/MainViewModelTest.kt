@@ -50,6 +50,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -126,6 +127,28 @@ class MainViewModelTest {
         verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any(), any()) }
         verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) }
         assertEquals(firstMinute.plusMinutes(2), viewModel.uiState.value.now)
+    }
+
+    // The intro animation is claimed atomically so that with two simultaneous
+    // Home compositions exactly one plays the intro — the old file-level
+    // static let the second instance read the pre-claim value but never
+    // consume it, sticking it on the producer render path forever.
+    @Test
+    fun claimHomeE2ChartIntroAnimation_grantsExactlyOneClaim() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 30, 9, 0))
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } answers {
+            flowOf(homeInputs(now = secondArg<StateFlow<LocalDateTime>>().value))
+        }
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+
+        assertTrue(viewModel.claimHomeE2ChartIntroAnimation())
+        assertFalse(viewModel.claimHomeE2ChartIntroAnimation())
     }
 
     @Test

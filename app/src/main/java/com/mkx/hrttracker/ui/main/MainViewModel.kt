@@ -174,6 +174,28 @@ class MainViewModel @Inject constructor(
         _highlightRequest.compareAndSet(request, null)
     }
 
+    // Once-per-process view concern owned here (this ViewModel is activity-
+    // scoped in a single-activity app) rather than as a file-level static: a
+    // static is invisible to tests, replays only on process death anyway, and
+    // is racy across simultaneous Home compositions — the loser would read the
+    // pre-claim value but never consume it, sticking on the intro render path
+    // forever.
+    private var homeE2ChartIntroAnimationClaimed = false
+
+    /**
+     * Claims the once-per-ViewModel-lifetime E2 chart intro animation.
+     * Returns true for exactly one caller; that composition plays the intro,
+     * every other (and later) composition renders the synchronous-model path
+     * directly.
+     */
+    fun claimHomeE2ChartIntroAnimation(): Boolean {
+        if (homeE2ChartIntroAnimationClaimed) {
+            return false
+        }
+        homeE2ChartIntroAnimationClaimed = true
+        return true
+    }
+
     fun dismissTimeZoneChangeNotice() {
         timeZoneChangeNoticeController.dismiss()
     }

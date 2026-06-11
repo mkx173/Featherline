@@ -67,6 +67,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -168,6 +169,7 @@ import com.patrykandpatrick.vico.compose.common.data.CartesianLayerDrawingModelI
 import com.patrykandpatrick.vico.compose.common.data.ExtraStore
 import com.patrykandpatrick.vico.compose.common.data.MutableExtraStore
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -196,11 +198,6 @@ private const val MainScheduleGraceMinutes = 60L
 private val MainScheduleGracePeriod = Duration.ofMinutes(MainScheduleGraceMinutes)
 private const val MainE2ChartInitialAnimationMillis = 500
 private const val MainE2ChartAnimationSettleDelayMillis = 50L
-
-// Process-scoped so the chart's initial fade-in plays exactly once per
-// app launch, not on every re-composition (tab switch, scroll re-entry,
-// etc.) that would otherwise re-arm a rememberSaveable flag.
-private var mainE2ChartInitialAnimationConsumed = false
 
 // SEVEN_DAYS keeps the original fixed 48 h floor — 2 d on a phone-width
 // chart, derived empirically from the 0.1 h sampler. THIRTY_DAYS instead
@@ -769,6 +766,10 @@ internal fun MainE2ChartCard(
     trendReady: Boolean = true,
     hideReferenceRanges: Boolean = false,
     onChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
+    // Atomically claims the once-per-process intro animation (owned by
+    // MainViewModel); the claiming composition plays the intro, every other
+    // composition renders the synchronous-model path from its first frame.
+    claimIntroAnimation: () -> Boolean = { false },
 ) {
     if (!trendReady) {
         Surface(
@@ -847,7 +848,7 @@ internal fun MainE2ChartCard(
         return
     }
     val chartAnimationsEnabled = remember {
-        mutableStateOf(!mainE2ChartInitialAnimationConsumed)
+        mutableStateOf(claimIntroAnimation())
     }
     val pointXHours = remember(section.points, section.pointXHours) {
         section.pointXHours
@@ -918,6 +919,10 @@ internal fun MainE2ChartCard(
         )
     }
     val interactiveMarkerXHours = remember { mutableStateOf<Double?>(null) }
+    // True while a finger is down anywhere on the plot box (marker long-press
+    // or a scroll/zoom gesture handled by the chart host). Used to defer the
+    // intro host swap so it never cancels an in-flight gesture.
+    val chartTouchActive = remember { mutableStateOf(false) }
     val interactiveMarkerXHoursValue = interactiveMarkerXHours.value
     // The touch marker's x is captured in whatever coord space was active
     // when the user tapped, so it has no meaningful position after the
@@ -1055,19 +1060,6 @@ internal fun MainE2ChartCard(
         )
     }
     val chartCoroutineScope = rememberCoroutineScope()
-    val chartAnimationSpec = if (chartAnimationsEnabled.value) {
-        tween<Float>(durationMillis = MainE2ChartInitialAnimationMillis)
-    } else {
-        null
-    }
-
-    LaunchedEffect(Unit) {
-        if (!mainE2ChartInitialAnimationConsumed) {
-            mainE2ChartInitialAnimationConsumed = true
-            delay(MainE2ChartInitialAnimationMillis + MainE2ChartAnimationSettleDelayMillis)
-            chartAnimationsEnabled.value = false
-        }
-    }
 
     val chartViewSpec = remember(
         section.chartWindowOption,
@@ -1122,28 +1114,20 @@ internal fun MainE2ChartCard(
                     extraStore[MainE2ChartViewSpecKey] = chartViewSpec
                 }
             }
+            // runTransaction resumes once the model has landed and the intro
+            // tween has (re)started, so this countdown tracks the animation
+            // actually being drawn rather than composition wall-clock: a late
+            // model on a busy cold start is no longer cut off at the host
+            // swap, and a mid-intro uiState emission — which restarts the
+            // full tween via this effect restarting — re-arms the countdown.
+            delay(MainE2ChartInitialAnimationMillis + MainE2ChartAnimationSettleDelayMillis)
+            // Swap hosts only with no finger on the plot: disposing the
+            // producer host cancels Vico's in-flight scroll/zoom pointer
+            // handling (the hoisted scroll/zoom values survive, the gesture
+            // does not).
+            snapshotFlow { chartTouchActive.value }.first { touched -> !touched }
+            chartAnimationsEnabled.value = false
         }
-    }
-    val chartModel = remember(
-        splitChartSeries,
-        doseMarkerLoggedXHours,
-        doseMarkerLoggedConcentrations,
-        doseMarkerPlannedXHours,
-        doseMarkerPlannedConcentrations,
-        currentTimeXHours,
-        currentTimeConcentration,
-        chartViewSpec,
-    ) {
-        buildMainE2ChartModel(
-            splitChartSeries = splitChartSeries,
-            currentTimeXHours = currentTimeXHours,
-            currentTimeConcentration = currentTimeConcentration,
-            doseMarkerLoggedXHours = doseMarkerLoggedXHours,
-            doseMarkerLoggedConcentrations = doseMarkerLoggedConcentrations,
-            doseMarkerPlannedXHours = doseMarkerPlannedXHours,
-            doseMarkerPlannedConcentrations = doseMarkerPlannedConcentrations,
-            viewSpec = chartViewSpec,
-        )
     }
 
     Surface(
@@ -1291,6 +1275,9 @@ internal fun MainE2ChartCard(
                                         onMarkerXChanged = { xHours ->
                                             interactiveMarkerXHours.value = xHours
                                         },
+                                        onTouchActiveChange = { active ->
+                                            chartTouchActive.value = active
+                                        },
                                     )
                                 }
                         ) {
@@ -1381,19 +1368,48 @@ internal fun MainE2ChartCard(
                             // so the drawn chart can never trail the uiState
                             // that produced it. The swap happens at rest —
                             // chartAnimationsEnabled flips only after the
-                            // intro animation has settled — and both hosts
-                            // share scroll/zoom state, so it is pixel-neutral.
+                            // last intro model has landed, its tween has
+                            // settled, and no gesture is in flight — and both
+                            // hosts share scroll/zoom state, so it is
+                            // pixel-neutral.
                             if (chartAnimationsEnabled.value) {
                                 CartesianChartHost(
                                     chart = chart,
                                     modelProducer = modelProducer,
                                     modifier = Modifier.matchParentSize(),
-                                    animationSpec = chartAnimationSpec,
+                                    animationSpec = tween(
+                                        durationMillis = MainE2ChartInitialAnimationMillis,
+                                    ),
                                     animateIn = true,
                                     scrollState = chartScrollState,
                                     zoomState = chartZoomState,
                                 )
                             } else {
+                                // Built only on the post-intro path: during
+                                // the intro the producer host owns rendering,
+                                // and building this in parallel would run the
+                                // full series build twice per emission.
+                                val chartModel = remember(
+                                    splitChartSeries,
+                                    doseMarkerLoggedXHours,
+                                    doseMarkerLoggedConcentrations,
+                                    doseMarkerPlannedXHours,
+                                    doseMarkerPlannedConcentrations,
+                                    currentTimeXHours,
+                                    currentTimeConcentration,
+                                    chartViewSpec,
+                                ) {
+                                    buildMainE2ChartModel(
+                                        splitChartSeries = splitChartSeries,
+                                        currentTimeXHours = currentTimeXHours,
+                                        currentTimeConcentration = currentTimeConcentration,
+                                        doseMarkerLoggedXHours = doseMarkerLoggedXHours,
+                                        doseMarkerLoggedConcentrations = doseMarkerLoggedConcentrations,
+                                        doseMarkerPlannedXHours = doseMarkerPlannedXHours,
+                                        doseMarkerPlannedConcentrations = doseMarkerPlannedConcentrations,
+                                        viewSpec = chartViewSpec,
+                                    )
+                                }
                                 CartesianChartHost(
                                     chart = chart,
                                     model = chartModel,
@@ -2429,6 +2445,7 @@ private suspend fun PointerInputScope.detectMainE2ChartMarkerGestures(
     coordinateMapper: MainE2ChartCoordinateMapper,
     chartWindowHours: Int,
     onMarkerXChanged: (Double?) -> Unit,
+    onTouchActiveChange: (Boolean) -> Unit = {},
 ) {
     fun markerXFor(pointerX: Float): Double {
         val fallbackX = if (size.width > 0) {
@@ -2442,26 +2459,38 @@ private suspend fun PointerInputScope.detectMainE2ChartMarkerGestures(
 
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
-        val longPress = awaitLongPressOrCancellation(down.id)
-        if (longPress == null) {
-            onMarkerXChanged(null)
-            return@awaitEachGesture
-        }
-
-        longPress.consume()
-        onMarkerXChanged(markerXFor(longPress.position.x))
-
-        while (true) {
-            val event = awaitPointerEvent(PointerEventPass.Initial)
-            val change = event.changes.firstOrNull { change -> change.id == down.id }
-                ?: event.changes.firstOrNull()
-                ?: continue
-            change.consume()
-            if (!change.pressed) {
+        onTouchActiveChange(true)
+        try {
+            val longPress = awaitLongPressOrCancellation(down.id)
+            if (longPress == null) {
                 onMarkerXChanged(null)
-                break
+                // Not a marker gesture (tap, scroll or zoom — handled by the
+                // chart host); passively observe on the Final pass until every
+                // pointer lifts so the touch-active signal spans the whole
+                // finger-down window.
+                while (currentEvent.changes.any { change -> change.pressed }) {
+                    awaitPointerEvent(PointerEventPass.Final)
+                }
+                return@awaitEachGesture
             }
-            onMarkerXChanged(markerXFor(change.position.x))
+
+            longPress.consume()
+            onMarkerXChanged(markerXFor(longPress.position.x))
+
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val change = event.changes.firstOrNull { change -> change.id == down.id }
+                    ?: event.changes.firstOrNull()
+                    ?: continue
+                change.consume()
+                if (!change.pressed) {
+                    onMarkerXChanged(null)
+                    break
+                }
+                onMarkerXChanged(markerXFor(change.position.x))
+            }
+        } finally {
+            onTouchActiveChange(false)
         }
     }
 }

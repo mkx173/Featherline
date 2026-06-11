@@ -232,6 +232,7 @@ fun MainScreen(
                 onDismissTimeZoneChangeNotice = viewModel::dismissTimeZoneChangeNotice,
                 onE2ChartWindowOptionSelected = viewModel::setHomeE2ChartWindowOption,
                 onLowStockSectionExpandedChange = viewModel::setLowStockSectionExpanded,
+                claimE2ChartIntroAnimation = viewModel::claimHomeE2ChartIntroAnimation,
                 modifier = Modifier.fillMaxSize(),
             )
         }
