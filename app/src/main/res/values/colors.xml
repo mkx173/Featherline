@@ -3,18 +3,21 @@
     <!-- Tokens used by the static appwidget-provider previewLayout on Android
          12–14 (API 31–34). API 35+ uses the Compose-rendered providePreview()
          path and never references these. Values mirror the light variant of
-         the widget's default MaterialKolor seed scheme. -->
-    <color name="widget_preview_surface">#FAF8FE</color>
-    <color name="widget_preview_surface_container_low">#F4F3FA</color>
+         the widget's default MaterialKolor seed scheme as derived in
+         WidgetTheme.kt (background/card/control are the secondary-palette
+         cuts; card is pre-composited at the 0.85 card alpha over the shell).
+         Regenerate with a probe against widgetBackgroundColor /
+         widgetContainerColor / widgetControlColor when derivations change. -->
+    <color name="widget_preview_background">#E9EDFF</color>
+    <color name="widget_preview_card">#DEE4FA</color>
     <color name="widget_preview_on_surface">#30323A</color>
     <color name="widget_preview_on_surface_variant">#5D5F68</color>
     <color name="widget_preview_outline_variant">#B0B1BC</color>
     <color name="widget_preview_primary">#4C5E8B</color>
+    <color name="widget_preview_on_primary">#F9F8FF</color>
     <color name="widget_preview_primary_container">#B9CBFF</color>
     <color name="widget_preview_on_primary_container">#30436E</color>
-    <color name="widget_preview_tertiary_container">#E7CDFE</color>
-    <color name="widget_preview_on_tertiary_container">#56436A</color>
-    <color name="widget_preview_surface_variant">#E1E2ED</color>
+    <color name="widget_preview_control">#CBD1E8</color>
     <color name="widget_preview_accent_rose">#CE2C31</color>
     <color name="widget_preview_accent_teal">#00826D</color>
     <color name="widget_preview_accent_indigo">#3A5BC7</color>

@@ -73,17 +73,17 @@ private fun adjustSecondaryContainerTone(
 // with grey-washed rows in dark. We keep both layers visibly tinted instead, with the cards one
 // subtle step away from the shell in each mode.
 // Shell: secondaryContainer at tone 94 (light) / tone 20 (dark).
-private fun widgetBackgroundColor(secondaryContainer: Color): Color =
+internal fun widgetBackgroundColor(secondaryContainer: Color): Color =
     adjustSecondaryContainerTone(secondaryContainer, lightAdjustment = 4f, darkAdjustment = -10f)
 
 // Cards: tone 90 (light) / tone 30, i.e. secondaryContainer as-is with its full chroma.
-private fun widgetContainerColor(secondaryContainer: Color): Color =
+internal fun widgetContainerColor(secondaryContainer: Color): Color =
     adjustSecondaryContainerTone(secondaryContainer, lightAdjustment = 0f, darkAdjustment = 0f)
 
 // Trailing-button pills sit on the tone-90 cards, where the M3 light surfaceVariant (also tone
 // 90, neutral) disappears; use a tone-84 cut of the secondary palette instead. The dark M3
 // surfaceVariant already reads fine against the tone-30 cards and is used as-is.
-private fun widgetControlColor(secondaryContainer: Color): Color =
+internal fun widgetControlColor(secondaryContainer: Color): Color =
     adjustSecondaryContainerTone(secondaryContainer, lightAdjustment = -6f, darkAdjustment = 0f)
 
 // Cards stack on top of the shell, so at the same alpha they occlude the wallpaper twice and
