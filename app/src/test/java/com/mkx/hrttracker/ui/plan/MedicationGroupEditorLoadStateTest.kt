@@ -599,7 +599,10 @@ class MedicationGroupEditorLoadStateTest {
 
         assertEquals(false, viewModel.uiState.value.includePastScheduledSlots)
         assertFalse(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
-        assertFalse(viewModel.uiState.value.createPastScheduledSlotRecords)
+        // The raw sub-choice is retained as the ViewModel-owned memory of the
+        // checkbox; effective generation stays gated on
+        // canCreatePastScheduledSlotRecords above.
+        assertTrue(viewModel.uiState.value.createPastScheduledSlotRecords)
 
         viewModel.updateSinceDate(LocalDate.of(2026, 3, 31))
 
@@ -608,6 +611,60 @@ class MedicationGroupEditorLoadStateTest {
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 20))
 
         assertEquals(LocalDate.of(2026, 4, 20), viewModel.uiState.value.sinceDate)
+    }
+
+    // The generate-records checkbox promises to come back as the user left it
+    // after a "Do not show" detour. That memory must live in the ViewModel —
+    // not in UI rememberSaveable state, whose lifetime mismatches in both
+    // directions (survives process death while the ViewModel resets; dies on
+    // composition restructure while the choice should persist).
+    @Test
+    fun includePastSlotsDetour_retainsGenerateRecordsChoiceInViewModel() = runTest {
+        val groupUuid = UUID.fromString("512e3056-d3dc-4972-a62d-4a3d3150fe48")
+        val group = testMedicationGroup(
+            groupUuid = groupUuid,
+            includePastScheduledSlots = false,
+        )
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.updateIncludePastScheduledSlots(true)
+        viewModel.updateCreatePastScheduledSlotRecords(true)
+        assertEquals(
+            PastScheduleOption.SHOW_AND_GENERATE_RECORDS,
+            resolvePastScheduleOption(viewModel.uiState.value),
+        )
+
+        viewModel.updateIncludePastScheduledSlots(false)
+        // The selector renders "Do not show" and no records can be generated...
+        assertEquals(
+            PastScheduleOption.DO_NOT_SHOW,
+            resolvePastScheduleOption(viewModel.uiState.value),
+        )
+        assertFalse(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
+
+        // ...but re-enabling "Show past" restores the remembered sub-choice.
+        viewModel.updateIncludePastScheduledSlots(true)
+        assertEquals(
+            "re-enabling \"Show past\" must restore the remembered generate-records choice",
+            PastScheduleOption.SHOW_AND_GENERATE_RECORDS,
+            resolvePastScheduleOption(viewModel.uiState.value),
+        )
     }
 
     @Test
@@ -920,7 +977,7 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
-    fun newGroup_createPastRecordsOption_defaultsOffAndResetsWhenBackfillDisabled() = runTest {
+    fun newGroup_createPastRecordsOption_defaultsOffAndIsRetainedAcrossBackfillDetour() = runTest {
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
 
         val viewModel = MedicationGroupEditorViewModel(
@@ -947,14 +1004,17 @@ class MedicationGroupEditorLoadStateTest {
         viewModel.updateIncludePastScheduledSlots(false)
 
         assertFalse(viewModel.uiState.value.includePastScheduledSlots)
+        // Effective generation is impossible while past slots are hidden...
         assertFalse(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
-        assertFalse(viewModel.uiState.value.createPastScheduledSlotRecords)
+        // ...but the checkbox choice is retained as ViewModel-owned memory.
+        assertTrue(viewModel.uiState.value.createPastScheduledSlotRecords)
 
         viewModel.updateIncludePastScheduledSlots(true)
 
         assertTrue(viewModel.uiState.value.includePastScheduledSlots)
         assertTrue(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
-        assertFalse(viewModel.uiState.value.createPastScheduledSlotRecords)
+        // Re-enabling "Show past" restores the remembered choice.
+        assertTrue(viewModel.uiState.value.createPastScheduledSlotRecords)
     }
 
     @Test

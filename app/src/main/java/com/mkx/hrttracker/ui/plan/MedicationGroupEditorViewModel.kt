@@ -423,14 +423,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (!it.canEditBackfillOption) {
                 it
             } else {
-                it.copy(
-                    includePastScheduledSlots = includePastScheduledSlots,
-                    createPastScheduledSlotRecords = if (includePastScheduledSlots) {
-                        it.createPastScheduledSlotRecords
-                    } else {
-                        false
-                    },
-                )
+                // createPastScheduledSlotRecords is deliberately left untouched
+                // when past slots are hidden: it is the ViewModel-owned memory of
+                // the generate-records checkbox, so re-enabling "Show past"
+                // restores the user's previous choice. Effective generation is
+                // derived at the consumers via canCreatePastScheduledSlotRecords,
+                // which requires includePastScheduledSlots.
+                it.copy(includePastScheduledSlots = includePastScheduledSlots)
             }
         }
     }

@@ -54,7 +54,8 @@ internal fun DailyScheduleEditor(
     onAddTime: () -> Unit,
     onTimeClick: (String, LocalTime) -> Unit,
     pastScheduleSelectorState: PastScheduleSelectorUiState? = null,
-    onPastScheduleOptionSelected: (PastScheduleOption) -> Unit = {},
+    onPastScheduleShowPastChange: (Boolean) -> Unit = {},
+    onPastScheduleGenerateRecordsChange: (Boolean) -> Unit = {},
     sinceEnabled: Boolean = true,
     intervalEnabled: Boolean = true,
     addRemoveTimeEnabled: Boolean = true,
@@ -125,7 +126,8 @@ internal fun DailyScheduleEditor(
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
             PastScheduleSelectorCard(
                 state = selectorState,
-                onOptionSelected = onPastScheduleOptionSelected,
+                onShowPastChange = onPastScheduleShowPastChange,
+                onGenerateRecordsChange = onPastScheduleGenerateRecordsChange,
                 index = itemIndex,
                 count = totalCount,
             )

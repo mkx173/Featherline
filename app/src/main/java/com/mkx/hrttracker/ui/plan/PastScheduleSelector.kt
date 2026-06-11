@@ -15,10 +15,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
@@ -40,6 +36,12 @@ internal data class PastScheduleSelectorUiState(
     val enabled: Boolean,
     val interactive: Boolean = enabled,
     val lockedMessage: String? = null,
+    // The checkbox renders the ViewModel-retained sub-choice rather than
+    // deriving from selectedOption, so it survives a "Do not show" detour and
+    // holds its state through the row's collapse animation — without UI-side
+    // memory whose lifetime would mismatch the ViewModel's.
+    val generateRecordsChecked: Boolean =
+        selectedOption == PastScheduleOption.SHOW_AND_GENERATE_RECORDS,
 )
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -47,7 +49,8 @@ internal data class PastScheduleSelectorUiState(
 internal fun PastScheduleSelectorCard(
     modifier: Modifier = Modifier,
     state: PastScheduleSelectorUiState,
-    onOptionSelected: (PastScheduleOption) -> Unit,
+    onShowPastChange: (Boolean) -> Unit,
+    onGenerateRecordsChange: (Boolean) -> Unit,
     index: Int = 0,
     count: Int = 1,
 ) {
@@ -68,7 +71,8 @@ internal fun PastScheduleSelectorCard(
             )
             PastScheduleSelectorRows(
                 state = state,
-                onOptionSelected = onOptionSelected,
+                onShowPastChange = onShowPastChange,
+                onGenerateRecordsChange = onGenerateRecordsChange,
             )
         }
     }
@@ -77,17 +81,9 @@ internal fun PastScheduleSelectorCard(
 @Composable
 private fun PastScheduleSelectorRows(
     state: PastScheduleSelectorUiState,
-    onOptionSelected: (PastScheduleOption) -> Unit,
+    onShowPastChange: (Boolean) -> Unit,
+    onGenerateRecordsChange: (Boolean) -> Unit,
 ) {
-    // Remember the generate-records choice across a "Do not show" detour.
-    // Switching to "Do not show" clears the underlying create flag (it can't
-    // generate records for past slots that aren't shown), so without this the
-    // checkbox would come back unchecked when the user re-enables "Show past".
-    // Latched only while past is shown — see below.
-    var rememberedGenerateRecords by rememberSaveable {
-        mutableStateOf(state.selectedOption == PastScheduleOption.SHOW_AND_GENERATE_RECORDS)
-    }
-
     val lockedMessage = state.lockedMessage
     if (lockedMessage != null) {
         PastScheduleLockedRow(
@@ -108,10 +104,6 @@ private fun PastScheduleSelectorRows(
     // segment positions, so the rows omit index/count and inherit them.
     val showsPast = state.selectedOption == PastScheduleOption.SHOW ||
             state.selectedOption == PastScheduleOption.SHOW_AND_GENERATE_RECORDS
-    val generatesRecords = state.selectedOption == PastScheduleOption.SHOW_AND_GENERATE_RECORDS
-    // The checkbox reflects a real choice only while past is shown; latch it then
-    // and leave it untouched under "Do not show" so re-enabling restores it.
-    if (showsPast) rememberedGenerateRecords = generatesRecords
     HrtSection(title = null) {
         item {
             PastScheduleOptionRow(
@@ -121,7 +113,7 @@ private fun PastScheduleSelectorRows(
                 asCheckbox = false,
                 enabled = state.enabled,
                 interactive = state.interactive,
-                onToggle = { onOptionSelected(PastScheduleOption.DO_NOT_SHOW) },
+                onToggle = { onShowPastChange(false) },
             )
         }
         item {
@@ -132,42 +124,27 @@ private fun PastScheduleSelectorRows(
                 asCheckbox = false,
                 enabled = state.enabled,
                 interactive = state.interactive,
-                // Selecting "Show past" restores the remembered generate-records
-                // choice (so it survives a "Do not show" detour); re-selecting it
-                // while already on is a no-op for the same reason.
-                onToggle = {
-                    onOptionSelected(
-                        if (rememberedGenerateRecords) {
-                            PastScheduleOption.SHOW_AND_GENERATE_RECORDS
-                        } else {
-                            PastScheduleOption.SHOW
-                        }
-                    )
-                },
+                // The ViewModel retains the generate-records sub-choice while
+                // past is hidden, so re-selecting "Show past" restores it.
+                onToggle = { onShowPastChange(true) },
             )
         }
         animatedItem(visible = state.showGeneratePastRecordsOption) {
             PastScheduleOptionRow(
                 title = stringResource(R.string.group_past_schedule_show_and_generate_records),
                 option = PastScheduleOption.SHOW_AND_GENERATE_RECORDS,
-                // Drive the checkbox from the latched value, not the live option,
-                // so it holds its state through the row's collapse animation when
-                // "Do not show" is picked instead of visibly unchecking mid-exit.
-                selected = rememberedGenerateRecords,
+                // The ViewModel-retained value holds through the row's collapse
+                // animation when "Do not show" is picked instead of visibly
+                // unchecking mid-exit.
+                selected = state.generateRecordsChecked,
                 asCheckbox = true,
                 enabled = state.enabled,
-                interactive = state.interactive,
-                // Toggling the checkbox flips between showing past slots with and
-                // without generated records, keeping past slots shown either way.
-                onToggle = {
-                    onOptionSelected(
-                        if (rememberedGenerateRecords) {
-                            PastScheduleOption.SHOW
-                        } else {
-                            PastScheduleOption.SHOW_AND_GENERATE_RECORDS
-                        }
-                    )
-                },
+                // Gate on the row offering a live choice, not just on card
+                // interactivity: AnimatedVisibility keeps the collapsing row
+                // hit-testable during its exit, and a tap mid-exit would flip
+                // the retained sub-choice after "Do not show" was picked.
+                interactive = state.interactive && state.showGeneratePastRecordsOption,
+                onToggle = { onGenerateRecordsChange(!state.generateRecordsChecked) },
             )
         }
     }
@@ -303,7 +280,8 @@ private fun PastScheduleSelectorCardPreview() {
                         showGeneratePastRecordsOption = true,
                         enabled = true,
                     ),
-                    onOptionSelected = {},
+                    onShowPastChange = {},
+                    onGenerateRecordsChange = {},
                 )
                 // Show and generate selected: checkbox checked.
                 PastScheduleSelectorCard(
@@ -312,7 +290,8 @@ private fun PastScheduleSelectorCardPreview() {
                         showGeneratePastRecordsOption = true,
                         enabled = true,
                     ),
-                    onOptionSelected = {},
+                    onShowPastChange = {},
+                    onGenerateRecordsChange = {},
                 )
                 // Do not show: the generate-records row is hidden entirely.
                 PastScheduleSelectorCard(
@@ -321,7 +300,8 @@ private fun PastScheduleSelectorCardPreview() {
                         showGeneratePastRecordsOption = false,
                         enabled = true,
                     ),
-                    onOptionSelected = {},
+                    onShowPastChange = {},
+                    onGenerateRecordsChange = {},
                 )
                 // Locked (e.g. viewing a group whose past schedule can't be edited).
                 PastScheduleSelectorCard(
@@ -334,7 +314,8 @@ private fun PastScheduleSelectorCardPreview() {
                             R.string.group_past_schedule_recreated_locked_note
                         ),
                     ),
-                    onOptionSelected = {},
+                    onShowPastChange = {},
+                    onGenerateRecordsChange = {},
                 )
             }
         }

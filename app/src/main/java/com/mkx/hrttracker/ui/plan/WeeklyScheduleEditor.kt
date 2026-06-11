@@ -64,7 +64,8 @@ internal fun WeeklyScheduleEditor(
     onResetDaysOfWeek: () -> Unit,
     onTimeChange: (LocalTime) -> Unit,
     pastScheduleSelectorState: PastScheduleSelectorUiState? = null,
-    onPastScheduleOptionSelected: (PastScheduleOption) -> Unit = {},
+    onPastScheduleShowPastChange: (Boolean) -> Unit = {},
+    onPastScheduleGenerateRecordsChange: (Boolean) -> Unit = {},
     sinceEnabled: Boolean = true,
     intervalEnabled: Boolean = true,
     daySelectionEnabled: Boolean = true,
@@ -183,7 +184,8 @@ internal fun WeeklyScheduleEditor(
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
             PastScheduleSelectorCard(
                 state = selectorState,
-                onOptionSelected = onPastScheduleOptionSelected,
+                onShowPastChange = onPastScheduleShowPastChange,
+                onGenerateRecordsChange = onPastScheduleGenerateRecordsChange,
                 index = itemIndex,
                 count = totalCount,
             )

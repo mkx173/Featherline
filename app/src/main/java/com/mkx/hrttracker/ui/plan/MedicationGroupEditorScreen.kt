@@ -1505,14 +1505,14 @@ private fun MedicationGroupEditorScreenContent(
                         } else {
                             null
                         }
-                    val onPastScheduleOptionSelected: (PastScheduleOption) -> Unit = { option ->
+                    val onPastScheduleShowPastChange: (Boolean) -> Unit = { showPast ->
                         if (pastScheduleSelectorState?.interactive == true) {
-                            applyPastScheduleOption(
-                                option = option,
-                                onIncludePastScheduledSlotsChange = onIncludePastScheduledSlotsChange,
-                                onCreatePastScheduledSlotRecordsChange =
-                                    onCreatePastScheduledSlotRecordsChange,
-                            )
+                            onIncludePastScheduledSlotsChange(showPast)
+                        }
+                    }
+                    val onPastScheduleGenerateRecordsChange: (Boolean) -> Unit = { generate ->
+                        if (pastScheduleSelectorState?.interactive == true) {
+                            onCreatePastScheduledSlotRecordsChange(generate)
                         }
                     }
                     val showRecreatedStartDatePastLimitMessage =
@@ -1581,7 +1581,8 @@ private fun MedicationGroupEditorScreenContent(
                                 onResetDaysOfWeek = onWeeklyResetDaysOfWeek,
                                 onTimeChange = { currentTime -> pendingWeeklyTime = currentTime },
                                 pastScheduleSelectorState = pastScheduleSelectorState,
-                                onPastScheduleOptionSelected = onPastScheduleOptionSelected,
+                                onPastScheduleShowPastChange = onPastScheduleShowPastChange,
+                                onPastScheduleGenerateRecordsChange = onPastScheduleGenerateRecordsChange,
                                 sinceEnabled = !areFieldsRenderedLocked &&
                                         !uiState.isScheduleStartDateLocked,
                                 intervalEnabled = !areFieldsRenderedLocked,
@@ -1615,7 +1616,8 @@ private fun MedicationGroupEditorScreenContent(
                                     )
                                 },
                                 pastScheduleSelectorState = pastScheduleSelectorState,
-                                onPastScheduleOptionSelected = onPastScheduleOptionSelected,
+                                onPastScheduleShowPastChange = onPastScheduleShowPastChange,
+                                onPastScheduleGenerateRecordsChange = onPastScheduleGenerateRecordsChange,
                                 sinceEnabled = !areFieldsRenderedLocked &&
                                         !uiState.isScheduleStartDateLocked,
                                 intervalEnabled = !areFieldsRenderedLocked,
@@ -2001,8 +2003,17 @@ internal fun shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistor
     uiState: MedicationGroupEditorUiState,
     isNewGroupCreationFlow: Boolean,
 ): Boolean {
+    // createPastScheduledSlotRecords alone is the retained checkbox memory; a
+    // save only generates history when past slots are also shown, so classify
+    // the save by the effective pair.
     return (uiState.isSaving || uiState.isSaved || uiState.isFinishingAfterSave) &&
-            (isNewGroupCreationFlow || uiState.createPastScheduledSlotRecords)
+            (
+                    isNewGroupCreationFlow ||
+                            (
+                                    uiState.includePastScheduledSlots &&
+                                            uiState.createPastScheduledSlotRecords
+                                    )
+                    )
 }
 
 internal fun shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
@@ -2072,6 +2083,10 @@ internal fun resolvePastScheduleSelectorState(
         enabled = pastScheduleOptionsEnabled,
         interactive = pastScheduleOptionsEnabled,
         lockedMessage = lockedMessage,
+        // The raw ViewModel field, not a selectedOption derivation: it carries
+        // the remembered checkbox choice across a "Do not show" detour and
+        // through the row's collapse animation.
+        generateRecordsChecked = uiState.createPastScheduledSlotRecords,
     )
 }
 
@@ -2133,29 +2148,6 @@ internal fun firstPlannedDoseOnScheduleStartDate(
         }
     }
     return firstTime?.let { time -> LocalDateTime.of(uiState.sinceDate, time) }
-}
-
-private fun applyPastScheduleOption(
-    option: PastScheduleOption,
-    onIncludePastScheduledSlotsChange: (Boolean) -> Unit,
-    onCreatePastScheduledSlotRecordsChange: (Boolean) -> Unit,
-) {
-    when (option) {
-        PastScheduleOption.DO_NOT_SHOW -> {
-            onCreatePastScheduledSlotRecordsChange(false)
-            onIncludePastScheduledSlotsChange(false)
-        }
-
-        PastScheduleOption.SHOW -> {
-            onCreatePastScheduledSlotRecordsChange(false)
-            onIncludePastScheduledSlotsChange(true)
-        }
-
-        PastScheduleOption.SHOW_AND_GENERATE_RECORDS -> {
-            onIncludePastScheduledSlotsChange(true)
-            onCreatePastScheduledSlotRecordsChange(true)
-        }
-    }
 }
 
 private data class DailyTimeEditRequest(
