@@ -27,6 +27,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +35,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.util.UUID
 import javax.inject.Inject
@@ -453,17 +455,23 @@ class MedicineDetailViewModel @Inject constructor(
         }
         _uiState.update { it.copy(archiveInProgress = true) }
         return viewModelScope.launch {
-            runCatching { medicineRepository.archive(medicineUuid) }
-                .onSuccess { archiveResultFlow.value = MedicineArchiveResult.SUCCESS }
-                .onFailure { error ->
-                    _uiState.update { it.copy(archiveInProgress = false) }
-                    archiveResultFlow.value = when (error) {
-                        is MedicineReferencedByActiveGroupException ->
-                            MedicineArchiveResult.FAILURE_REFERENCED_BY_ACTIVE_GROUP
+            // The archive is irreversible; complete it and publish its result
+            // even if the entry is torn down mid-write. The nav lock already
+            // blocks the back/chrome teardown vectors on this pushed route, so
+            // this is belt-and-suspenders matching the bulk-delete convention.
+            withContext(NonCancellable) {
+                runCatching { medicineRepository.archive(medicineUuid) }
+                    .onSuccess { archiveResultFlow.value = MedicineArchiveResult.SUCCESS }
+                    .onFailure { error ->
+                        _uiState.update { it.copy(archiveInProgress = false) }
+                        archiveResultFlow.value = when (error) {
+                            is MedicineReferencedByActiveGroupException ->
+                                MedicineArchiveResult.FAILURE_REFERENCED_BY_ACTIVE_GROUP
 
-                        else -> MedicineArchiveResult.FAILURE_OTHER
+                            else -> MedicineArchiveResult.FAILURE_OTHER
+                        }
                     }
-                }
+            }
         }
     }
 

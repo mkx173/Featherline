@@ -82,6 +82,7 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
+import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -122,6 +123,12 @@ fun CalibrationScreen(
     viewModel: CalibrationViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Hold the navigation lock while the delete-all runs. The confirm dialog
+    // closes before the delete does, so without this a back press (this is a
+    // pushed route) or chrome tap would cancel viewModelScope mid-write.
+    NavigationLockEffect(active = uiState.isDeletingAllEntries)
+
     val appLocale = rememberAppLocale()
     val uses24HourFormat = rememberUses24HourTimeFormat()
     val today = remember { LocalDate.now() }

@@ -31,6 +31,7 @@ import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -38,6 +39,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -320,10 +322,18 @@ class PlanBatchAddViewModel @Inject constructor(
                 emptyMap()
             }
             val saveResult = runCatching {
-                medicationLogRepository.saveBackfillEntries(
-                    entries = entriesToSave,
-                    deductStock = shouldDeductStock,
-                )
+                // The user already confirmed the batch; entry teardown (back
+                // press racing the 1-frame nav-lock gap) must not tear the
+                // write in half — and reminders must track a write that just
+                // landed, so the reschedule rides the same NonCancellable
+                // block (the finding-4 convention in HistoryViewModel).
+                withContext(NonCancellable) {
+                    medicationLogRepository.saveBackfillEntries(
+                        entries = entriesToSave,
+                        deductStock = shouldDeductStock,
+                    )
+                    runCatching { medicationReminderScheduler.rescheduleAll() }
+                }
             }.fold(
                 onSuccess = { null },
                 onFailure = { PlanBatchAddSaveResult.FAILURE },
@@ -344,9 +354,6 @@ class PlanBatchAddViewModel @Inject constructor(
                 } else {
                     null
                 }
-            if (isSaved) {
-                runCatching { medicationReminderScheduler.rescheduleAll() }
-            }
             selectionState.update { state ->
                 if (isSaved) {
                     state.copy(

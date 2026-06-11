@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.navigation
 
 import androidx.compose.runtime.saveable.SaverScope
+import androidx.lifecycle.Lifecycle
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -419,6 +420,94 @@ class HrtTrackerNavHostTest {
         )
 
         assertEquals(request, roundTrip(request))
+    }
+
+    @Test
+    fun chromeUnlocked_whenNoModalSheetOrMutationIsPending() {
+        assertFalse(
+            isTopLevelNavigationChromeLocked(
+                isNavigationLockHeld = false,
+                hasPendingLogEntrySheetRequest = false,
+                hasPendingStockOptInSheet = false,
+            )
+        )
+    }
+
+    @Test
+    fun chromeLocked_whileModalOrMutationLockIsHeld() {
+        assertTrue(
+            isTopLevelNavigationChromeLocked(
+                isNavigationLockHeld = true,
+                hasPendingLogEntrySheetRequest = false,
+                hasPendingStockOptInSheet = false,
+            )
+        )
+    }
+
+    @Test
+    fun chromeLocked_theInstantAHostedSheetRequestIsSet() {
+        // The NavHost-hosted sheet requests are checked directly rather than
+        // through the composition-reported lock: they become non-null
+        // synchronously inside the row tap that opens the sheet, before the
+        // sheet's window exists to block chrome taps itself.
+        assertTrue(
+            isTopLevelNavigationChromeLocked(
+                isNavigationLockHeld = false,
+                hasPendingLogEntrySheetRequest = true,
+                hasPendingStockOptInSheet = false,
+            )
+        )
+        assertTrue(
+            isTopLevelNavigationChromeLocked(
+                isNavigationLockHeld = false,
+                hasPendingLogEntrySheetRequest = false,
+                hasPendingStockOptInSheet = true,
+            )
+        )
+    }
+
+    @Test
+    fun canOpenOverlaySheetFrom_allowsTapsFromResumedCurrentDestination() {
+        assertTrue(
+            canOpenOverlaySheetFrom(
+                originState = Lifecycle.State.RESUMED,
+                isCurrentDestination = true,
+            )
+        )
+    }
+
+    @Test
+    fun canOpenOverlaySheetFrom_allowsTapsWhileTheCurrentEntryIsStillAnimatingIn() {
+        // A freshly pushed (or pop-restored) entry sits at STARTED for its whole
+        // ~300 ms enter transition while its content is already composed and
+        // tappable. It is still the current destination, so a row tap there is
+        // legitimate and must open the sheet rather than being silently dropped.
+        assertTrue(
+            canOpenOverlaySheetFrom(
+                originState = Lifecycle.State.STARTED,
+                isCurrentDestination = true,
+            )
+        )
+    }
+
+    @Test
+    fun canOpenOverlaySheetFrom_dropsTapsFromAnEntryThatIsNoLongerCurrent() {
+        // Compose Navigation demotes the outgoing entry to STARTED the moment a
+        // navigation begins, and the back queue makes the destination current at
+        // once — so a row tap racing that navigation is no longer the current
+        // destination and must not open the sheet over the destination page.
+        assertFalse(
+            canOpenOverlaySheetFrom(
+                originState = Lifecycle.State.STARTED,
+                isCurrentDestination = false,
+            )
+        )
+        assertFalse(
+            canOpenOverlaySheetFrom(
+                originState = Lifecycle.State.CREATED,
+                isCurrentDestination = true,
+            )
+        )
     }
 
     private val scope = SaverScope { true }

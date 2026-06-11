@@ -199,7 +199,8 @@ class HazeChromeIntegrationTest {
         assertTrue(
             "Every NavHost destination should be wrapped in RoutedTopChromeHazeProvider.",
             Regex("""\bcomposable\(""").findAll(navHostText).count() ==
-                    Regex("""RoutedTopChromeHazeProvider \{""").findAll(navHostText).count(),
+                    Regex("""RoutedTopChromeHazeProvider\(navController, """)
+                        .findAll(navHostText).count(),
         )
 
         val offenders = uiSourceFiles()

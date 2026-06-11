@@ -95,6 +95,7 @@ import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicationCard
+import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
@@ -123,6 +124,9 @@ private val WARN_AT_OPTIONS = listOf(0, 7, 14, 21, 28)
 @Composable
 fun MedicineDetailScreen(
     onNavigateBack: () -> Unit,
+    // Pops the page after a confirmed archive; returns whether the pop landed
+    // (the retained archive result is cleared only on true).
+    onArchiveExit: () -> Boolean,
     onGroupClick: (UUID) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: MedicineDetailViewModel = hiltViewModel(),
@@ -136,6 +140,12 @@ fun MedicineDetailScreen(
     val archiveBlockedMessage = stringResource(R.string.medicine_archive_blocked_by_groups)
     val archiveFailureMessage = stringResource(R.string.medicine_archive_failure)
     val stockMutationFailureMessage = stringResource(R.string.medicine_stock_update_failure)
+
+    // Hold the navigation lock while the archive write is in flight. The confirm
+    // dialog closes (releasing its own lock) before the write runs, so without
+    // this a back press or same-tab chrome tap would destroy this entry and
+    // cancel the user-confirmed archive mid-write.
+    NavigationLockEffect(active = uiState.archiveInProgress)
 
     LaunchedEffect(uiState.saveResult) {
         val result = uiState.saveResult ?: return@LaunchedEffect
@@ -154,8 +164,15 @@ fun MedicineDetailScreen(
     LaunchedEffect(uiState.archiveResult) {
         when (uiState.archiveResult) {
             MedicineArchiveResult.SUCCESS -> {
-                viewModel.clearArchiveResult()
-                onNavigateBack()
+                // The finishing pop fires unconditionally: the nav lock above
+                // holds through the archive write, so no competing navigation
+                // can be in flight, and NavController pops safely below
+                // RESUMED. The retained result is cleared only after a
+                // confirmed pop, so the empty-stack edge re-fires on restore
+                // instead of stranding the page.
+                if (onArchiveExit()) {
+                    viewModel.clearArchiveResult()
+                }
             }
 
             MedicineArchiveResult.FAILURE_REFERENCED_BY_ACTIVE_GROUP -> {

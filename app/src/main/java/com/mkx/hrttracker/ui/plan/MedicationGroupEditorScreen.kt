@@ -111,6 +111,7 @@ import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
+import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
@@ -152,8 +153,8 @@ import java.util.UUID
 fun MedicationGroupEditorScreen(
     modifier: Modifier = Modifier,
     onNavigateBack: () -> Unit,
-    onGroupSaved: () -> Unit,
-    onGroupSavedToPlan: () -> Unit = onGroupSaved,
+    onGroupSaved: () -> Boolean,
+    onGroupSavedToPlan: () -> Boolean = onGroupSaved,
     openedFromArchivedGroupsPage: Boolean = false,
     drawBehindNavigationBar: Boolean = false,
     viewModel: MedicationGroupEditorViewModel = hiltViewModel(),
@@ -161,7 +162,6 @@ fun MedicationGroupEditorScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentMinute by viewModel.currentMinute.collectAsStateWithLifecycle()
-    val latestUiState by rememberUpdatedState(uiState)
     val context = LocalContext.current
     val activity = LocalActivity.current
     val reminderCapabilityReconciler = rememberReminderCapabilityReconciler()
@@ -277,28 +277,31 @@ fun MedicationGroupEditorScreen(
         }
     }
 
-    fun navigateAfterSave(target: MedicationGroupEditorSaveNavigationTarget) {
-        when (target) {
+    fun navigateAfterSave(target: MedicationGroupEditorSaveNavigationTarget): Boolean {
+        return when (target) {
             MedicationGroupEditorSaveNavigationTarget.BACK -> onGroupSaved()
             MedicationGroupEditorSaveNavigationTarget.PLAN -> onGroupSavedToPlan()
         }
     }
 
-    LaunchedEffect(viewModel, openedFromArchivedGroupsPage) {
-        viewModel.events.collect { event ->
-            when (event) {
-                MedicationGroupEditorEvent.SaveCompleted -> {
-                    val target = resolveMedicationGroupEditorSaveNavigationTarget(
-                        uiState = latestUiState,
-                        openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
-                    )
-                    navigateAfterSave(target)
-                }
-
-                MedicationGroupEditorEvent.DeleteOrArchiveCompleted -> onGroupSaved()
-            }
+    val exitNavigationTarget = resolveMedicationGroupEditorExitNavigationTarget(
+        uiState = uiState,
+        openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+    )
+    LaunchedEffect(exitNavigationTarget) {
+        val target = exitNavigationTarget ?: return@LaunchedEffect
+        // The exit pop fires unconditionally: the nav lock below holds through
+        // the whole finishing window, so no competing navigation can be in
+        // flight, and NavController pops safely below RESUMED. The finishing
+        // flags are consumed only after a confirmed exit, so a failed pop
+        // leaves them retained and this effect re-fires when the editor is
+        // restored.
+        if (navigateAfterSave(target)) {
+            viewModel.consumeExitNavigation()
         }
     }
+
+    NavigationLockEffect(active = isMedicationGroupEditorNavigationLocked(uiState))
 
     LaunchedEffect(hasNotificationAccess) {
         if (!hasNotificationAccess) {
@@ -328,6 +331,19 @@ fun MedicationGroupEditorScreen(
                 showInexactReminderWarning = true
             }
         )
+    }
+
+    // "+ Add medication" and the slot editor's "change medicine" both navigate
+    // forward to the picker. Drop those taps while the editor is finishing a
+    // save (or otherwise busy): a mid-save jump to the picker returns to an
+    // editor whose retained finishing flags immediately re-fire the exit pop,
+    // and saveGroup then rejects every further save — so the just-picked slot is
+    // silently discarded. The chrome NavigationLock cannot cover this because
+    // the picker is a forward navigation from screen content, not a chrome tap.
+    val openMedicinePickerWhenIdle: (String) -> Unit = { localId ->
+        if (!isMedicationGroupEditorBusy(uiState)) {
+            onOpenMedicinePicker(localId)
+        }
     }
 
     MedicationGroupEditorScreenContent(
@@ -405,7 +421,7 @@ fun MedicationGroupEditorScreen(
         // generates a fresh slot localId per tap so the result wiring is unique.
         // The editor sheet is opened pre-filled when the picker returns, via
         // beginAddMedicationWithMedicine(localId, uuid) — see HrtTrackerNavHost.
-        onAddMedication = { onOpenMedicinePicker(UUID.randomUUID().toString()) },
+        onAddMedication = { openMedicinePickerWhenIdle(UUID.randomUUID().toString()) },
         onMedicationClick = viewModel::showMedicationEditor,
         onRemoveMedication = viewModel::removeMedication,
         onDismissMedicationEditor = viewModel::dismissMedicationEditor,
@@ -413,7 +429,7 @@ fun MedicationGroupEditorScreen(
         onConsumeMedicationEditorInfoMessage = viewModel::consumeMedicationEditorInfoMessage,
         onMedicineDraftChange = viewModel::updateEditingMedicineDraft,
         onDoseInstructionDraftChange = viewModel::updateEditingDoseInstructionDraft,
-        onOpenMedicinePicker = onOpenMedicinePicker,
+        onOpenMedicinePicker = openMedicinePickerWhenIdle,
         onEditingMedicationCountTextChange = viewModel::updateEditingMedicationCountText,
         onDecreaseEditingMedicationCount = viewModel::decreaseEditingMedicationCount,
         onIncreaseEditingMedicationCount = viewModel::increaseEditingMedicationCount,
@@ -1870,6 +1886,43 @@ internal fun resolveMedicationGroupEditorSaveNavigationTarget(
     } else {
         MedicationGroupEditorSaveNavigationTarget.BACK
     }
+}
+
+// Exit navigation is derived from the retained finishing flags rather than a
+// one-shot completion event: a pop is silently dropped when it races an
+// in-flight navigation (popBackStackSafely only pops a RESUMED entry), and a
+// dropped one-shot event left the editor busy-locked forever on a deleted
+// group. The flags survive in the retained ViewModel, so the navigation
+// effect re-fires when the editor is restored and the exit self-heals.
+// Locks top-level navigation chrome from the moment a mutation starts until
+// the exit navigation fires, so a chrome tap landing right after a confirm
+// dialog closes cannot navigate away mid-write. Initial load deliberately
+// does not lock: a slow group load must not trap the user on the editor.
+internal fun isMedicationGroupEditorNavigationLocked(
+    uiState: MedicationGroupEditorUiState,
+): Boolean {
+    return uiState.isSaving ||
+            uiState.isDeleting ||
+            uiState.isArchiving ||
+            uiState.isRecreatingAfterArchive ||
+            uiState.isDeletingRelatedEntries ||
+            uiState.isSaved ||
+            uiState.isFinishingAfterSave ||
+            uiState.isDeleted ||
+            uiState.isFinishingAfterDeleteOrArchive
+}
+
+internal fun resolveMedicationGroupEditorExitNavigationTarget(
+    uiState: MedicationGroupEditorUiState,
+    openedFromArchivedGroupsPage: Boolean,
+): MedicationGroupEditorSaveNavigationTarget? = when {
+    uiState.isFinishingAfterDeleteOrArchive -> MedicationGroupEditorSaveNavigationTarget.BACK
+    uiState.isFinishingAfterSave -> resolveMedicationGroupEditorSaveNavigationTarget(
+        uiState = uiState,
+        openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+    )
+
+    else -> null
 }
 
 private fun showCreatePastScheduledSlotRecordsToast(

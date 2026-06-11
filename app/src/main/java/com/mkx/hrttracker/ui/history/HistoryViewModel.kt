@@ -14,6 +14,7 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -264,19 +266,25 @@ class HistoryViewModel @Inject constructor(
             isDeleteConfirmationVisible.value = false
             deleteSelectedEntriesResult.value = null
 
-            val result = runCatching {
-                medicationLogRepository.deleteEntries(entryIdsToDelete)
-            }.fold(
-                onSuccess = {
-                    HistoryDeleteSelectedEntriesResult.Success(
-                        deletedEntryCount = entryIdsToDelete.size,
-                    )
-                },
-                onFailure = { HistoryDeleteSelectedEntriesResult.Failure },
-            )
+            // The delete and the reminder reschedule it implies must complete
+            // even if the coroutine is cancelled (e.g. the screen is torn down):
+            // a half-applied bulk delete strands entries and leaves reminders
+            // pointing at rows that no longer exist.
+            val result = withContext(NonCancellable) {
+                runCatching {
+                    medicationLogRepository.deleteEntries(entryIdsToDelete)
+                }.fold(
+                    onSuccess = {
+                        runCatching { medicationReminderScheduler.rescheduleAll() }
+                        HistoryDeleteSelectedEntriesResult.Success(
+                            deletedEntryCount = entryIdsToDelete.size,
+                        )
+                    },
+                    onFailure = { HistoryDeleteSelectedEntriesResult.Failure },
+                )
+            }
 
             if (result is HistoryDeleteSelectedEntriesResult.Success) {
-                runCatching { medicationReminderScheduler.rescheduleAll() }
                 selectedEntryIds.value = emptySet()
             }
             isDeletingSelectedEntries.value = false
@@ -294,14 +302,16 @@ class HistoryViewModel @Inject constructor(
 
         viewModelScope.launch {
             isDeletingAllEntries.value = true
-            val result = runCatching {
-                medicationLogRepository.deleteAllEntries()
-            }.fold(
-                onSuccess = { HistoryDeleteAllEntriesResult.SUCCESS },
-                onFailure = { HistoryDeleteAllEntriesResult.FAILURE },
-            )
-            if (result == HistoryDeleteAllEntriesResult.SUCCESS) {
-                runCatching { medicationReminderScheduler.rescheduleAll() }
+            val result = withContext(NonCancellable) {
+                runCatching {
+                    medicationLogRepository.deleteAllEntries()
+                }.fold(
+                    onSuccess = {
+                        runCatching { medicationReminderScheduler.rescheduleAll() }
+                        HistoryDeleteAllEntriesResult.SUCCESS
+                    },
+                    onFailure = { HistoryDeleteAllEntriesResult.FAILURE },
+                )
             }
             isDeletingAllEntries.value = false
             deleteAllEntriesResult.value = result

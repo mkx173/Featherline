@@ -65,6 +65,7 @@ import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
+import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
@@ -100,7 +101,9 @@ import java.util.UUID
 @Composable
 fun CalibrationEditorScreen(
     onNavigateBack: () -> Unit,
-    onSaved: () -> Unit,
+    // Pops the editor after a confirmed save/delete; returns whether the pop
+    // landed (the flag that triggered it is consumed only on true).
+    onSaved: () -> Boolean,
     modifier: Modifier = Modifier,
     viewModel: CalibrationEditorViewModel = hiltViewModel(),
 ) {
@@ -137,17 +140,28 @@ fun CalibrationEditorScreen(
         viewModel.consumeCrossZoneToast()
     }
 
+    // Locks top-level navigation chrome while a save/delete is being written
+    // and until the exit pop fires. Loading deliberately does not lock.
+    NavigationLockEffect(
+        active = uiState.isSaving || uiState.isDeleting ||
+                uiState.isSaved || uiState.isDeleted,
+    )
+
+    // The finishing pop fires unconditionally: the nav lock above holds
+    // through isSaved/isDeleted, so no competing navigation can be in flight,
+    // and NavController pops safely below RESUMED (e.g. the activity paused
+    // behind a system dialog) with the UI catching up on restart. The flag is
+    // consumed only after a confirmed pop, so the empty-stack edge re-fires
+    // on restore instead of stranding the editor with the lock held.
     LaunchedEffect(uiState.isSaved) {
-        if (uiState.isSaved) {
+        if (uiState.isSaved && onSaved()) {
             viewModel.consumeSavedState()
-            onSaved()
         }
     }
 
     LaunchedEffect(uiState.isDeleted) {
-        if (uiState.isDeleted) {
+        if (uiState.isDeleted && onSaved()) {
             viewModel.consumeDeletedState()
-            onSaved()
         }
     }
 

@@ -39,9 +39,15 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +63,9 @@ import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.withResumed
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.hideBottomSheet
 import dev.chrisbanes.haze.HazePositionStrategy
@@ -337,6 +346,74 @@ fun hazeDatePickerColors(
     )
 }
 
+// Whether the route hosting a modal is still the current back-stack
+// destination, provided per-route by the NavHost. Must be backed by a live
+// navController.currentBackStackEntry read — currentBackStackEntryAsState()
+// lags navigate()'s synchronous lifecycle drop by a frame. The custom local
+// does propagate into nested dialog/popup windows, but the gate below never
+// engages there in practice: those windows re-provide LocalLifecycleOwner as
+// the Activity's, which sits at RESUMED whenever the app is foregrounded, so
+// a nested modal (a picker opened from inside a sheet or dialog) composes
+// with allowed = true and is neither held nor dropped. Only route-level
+// modals get the gate; the nested gap is reachable only through the
+// deep-link lock bypass and is accepted (see pr60-review.md, finding 9).
+// Null outside the NavHost (previews, onboarding, NavHost-level hosts):
+// treated as still-current.
+internal val LocalModalHostIsCurrentDestination =
+    staticCompositionLocalOf<(() -> Boolean)?> { null }
+
+// Route content stays composed and interactive while its exit transition
+// runs, so a tap can open a dialog/sheet after navigation has already begun.
+// The modal window renders above everything — it would blink over the
+// destination page and vanish when the outgoing route is disposed. Hold a
+// modal back when it is first composed while its host lifecycle is below
+// RESUMED. Whether the host route is still the current back-stack destination
+// then decides drop vs show:
+//  - no longer current: the open raced a navigation the user already won —
+//    clear the open state (onDismissRequest) so the modal doesn't re-present
+//    "out of nowhere" on the next return to this page. Checked again when a
+//    still-held gate is disposed, because a navigation that wins mid-hold
+//    disposes the route at the end of its exit transition without any
+//    lifecycle event the hold could observe.
+//  - still current: settling in (tab return, config change, paused
+//    activity) — show when the host resumes, as before.
+// Once shown, a modal stays shown through later lifecycle dips (e.g. the
+// activity pausing behind a system dialog).
+@Composable
+internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val isHostCurrentDestination = LocalModalHostIsCurrentDestination.current
+    var allowed by remember {
+        mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+    if (!allowed) {
+        val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
+        // One drop per held window, whichever of the two checks fires first.
+        val dropped = remember { mutableStateOf(false) }
+        val leaving = isHostCurrentDestination?.invoke() == false
+        LaunchedEffect(leaving) {
+            if (leaving) {
+                if (!dropped.value) {
+                    dropped.value = true
+                    currentOnDismissRequest()
+                }
+            } else {
+                lifecycle.withResumed { }
+                allowed = true
+            }
+        }
+        DisposableEffect(Unit) {
+            onDispose {
+                if (!dropped.value && isHostCurrentDestination?.invoke() == false) {
+                    dropped.value = true
+                    currentOnDismissRequest()
+                }
+            }
+        }
+    }
+    return allowed
+}
+
 /**
  * Modal bottom sheet with the haze chrome wiring applied: the Material sheet's
  * own container is transparent and inset-free, and the [HazeBottomSheetSurface]
@@ -353,6 +430,13 @@ fun HazeModalBottomSheet(
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
+        return
+    }
+    // Every modal window locks top-level navigation for its whole composition,
+    // covering the appear/disappear frames where the window doesn't yet (or no
+    // longer) blocks chrome taps itself.
+    NavigationLockEffect(active = true)
     MaterialModalBottomSheet(
         onDismissRequest = onDismissRequest,
         modifier = modifier,
@@ -432,6 +516,10 @@ fun HazeAlertDialog(
     tonalElevation: Dp = AlertDialogDefaults.TonalElevation,
     properties: DialogProperties = DialogProperties(),
 ) {
+    if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
+        return
+    }
+    NavigationLockEffect(active = true)
     MaterialAlertDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,
@@ -458,6 +546,10 @@ fun HazeBasicAlertDialog(
     properties: DialogProperties = DialogProperties(),
     content: @Composable () -> Unit,
 ) {
+    if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
+        return
+    }
+    NavigationLockEffect(active = true)
     MaterialBasicAlertDialog(
         onDismissRequest = onDismissRequest,
         modifier = modifier.hazeDialog(shape = shape),
@@ -499,6 +591,10 @@ fun HazeDatePickerDialog(
 ) {
     val hazeColors = hazeDatePickerColors(colors)
 
+    if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
+        return
+    }
+    NavigationLockEffect(active = true)
     MaterialDatePickerDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,
@@ -525,6 +621,10 @@ fun HazeTimePickerDialog(
     containerColor: Color = TimePickerDialogDefaults.containerColor,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
+        return
+    }
+    NavigationLockEffect(active = true)
     MaterialTimePickerDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,

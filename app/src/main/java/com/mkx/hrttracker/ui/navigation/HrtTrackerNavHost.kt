@@ -43,11 +43,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.withResumed
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.mkx.hrttracker.R
@@ -80,6 +82,8 @@ import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
+import com.mkx.hrttracker.ui.components.LocalModalHostIsCurrentDestination
+import com.mkx.hrttracker.ui.components.LocalNavigationLock
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.rememberChromeHazeState
@@ -375,9 +379,23 @@ internal fun homeDeepLinkHighlightEffectsEnabled(
     shellHighlightEffectsEnabled && homeDeepLinkSignal <= readyHomeDeepLinkHighlightSignal
 
 @Composable
-private fun RoutedTopChromeHazeProvider(content: @Composable () -> Unit) {
+private fun RoutedTopChromeHazeProvider(
+    navController: NavHostController,
+    backStackEntry: NavBackStackEntry,
+    content: @Composable () -> Unit,
+) {
     val routeTopChromeHazeState = rememberChromeHazeState()
-    CompositionLocalProvider(LocalChromeHazeState provides routeTopChromeHazeState) {
+    // Live back-queue read, not currentBackStackEntryAsState(): the State lags
+    // navigate()'s synchronous lifecycle drop by a frame (see
+    // canOpenOverlaySheetFrom), which is exactly the window the modal gate's
+    // drop-on-leave decision needs to see.
+    val isCurrentDestination = remember(navController, backStackEntry) {
+        { navController.currentBackStackEntry == backStackEntry }
+    }
+    CompositionLocalProvider(
+        LocalChromeHazeState provides routeTopChromeHazeState,
+        LocalModalHostIsCurrentDestination provides isCurrentDestination,
+    ) {
         content()
     }
 }
@@ -393,6 +411,7 @@ fun HrtTrackerNavHost(
     var medicationLogEntrySheetRequest by rememberSaveable(stateSaver = MedicationLogEntrySheetRequestSaver) {
         mutableStateOf<MedicationLogEntrySheetRequest?>(null)
     }
+    val navigationLock = LocalNavigationLock.current
     var mainScrollToTopSignal by remember { mutableIntStateOf(0) }
     var planScrollToTopSignal by remember { mutableIntStateOf(0) }
     var settingsScrollToTopSignal by remember { mutableIntStateOf(0) }
@@ -419,10 +438,29 @@ fun HrtTrackerNavHost(
         .collectAsStateWithLifecycle(initialValue = true)
     val pendingNudge by stockNudgeViewModel.pendingNudge.collectAsStateWithLifecycle()
     val optInTarget by stockNudgeViewModel.optInTarget.collectAsStateWithLifecycle()
+    val optInResolving by stockNudgeViewModel.optInResolving.collectAsStateWithLifecycle()
     val layoutDirection = LocalLayoutDirection.current
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
+    // Whether a NavHost-hosted overlay sheet may open from [entry] right now —
+    // see canOpenOverlaySheetFrom. Captured once so the five row/quick-log call
+    // sites stay in lockstep and none skips the current-destination check.
+    //
+    // is-current must read the *live* back queue, not the captured
+    // currentBackStackEntry State: navigate() drops the outgoing entry's
+    // lifecycle to STARTED synchronously (NavControllerImpl.updateBackStackLifecycle)
+    // but currentBackStackEntryAsState() only catches up a frame later via its
+    // collector. Using the State here would leave a one-frame window where the
+    // outgoing entry reads stale-current AND already-STARTED — re-opening the
+    // sheet over the destination, the exact race this guard closes. The live
+    // getter moves in lockstep with that lifecycle drop, so the window is gone.
+    val canOpenOverlaySheet: (NavBackStackEntry) -> Boolean = { entry ->
+        canOpenOverlaySheetFrom(
+            originState = entry.lifecycle.currentState,
+            isCurrentDestination = entry == navController.currentBackStackEntry,
+        )
+    }
     val explicitParentRoute = currentBackStackEntry?.arguments?.getString(TOP_LEVEL_PARENT_ARG)
     val selectedBottomScreen =
         Screen.topLevelScreenForRoute(explicitParentRoute)
@@ -596,6 +634,12 @@ fun HrtTrackerNavHost(
         )
     }
 
+    val topLevelNavigationChromeLocked = isTopLevelNavigationChromeLocked(
+        isNavigationLockHeld = navigationLock.isLocked,
+        hasPendingLogEntrySheetRequest = medicationLogEntrySheetRequest != null,
+        hasPendingStockOptInSheet = optInTarget != null || optInResolving,
+    )
+
     val navigationSuiteType =
         NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfoV2())
     val navigationChromeHazeState = rememberChromeHazeState()
@@ -609,13 +653,25 @@ fun HrtTrackerNavHost(
                 item(
                     selected = selectedBottomScreen == navItem.screen,
                     onClick = {
-                        when (
+                        // Re-evaluated at tap time (not captured at composition)
+                        // so a row tap that just requested a sheet in this same
+                        // frame already locks the chrome.
+                        val chromeLocked = isTopLevelNavigationChromeLocked(
+                            isNavigationLockHeld = navigationLock.isLocked,
+                            hasPendingLogEntrySheetRequest =
+                                medicationLogEntrySheetRequest != null,
+                            hasPendingStockOptInSheet = optInTarget != null || optInResolving,
+                        )
+                        val tapAction = if (chromeLocked) {
+                            TopLevelNavigationTapAction.NONE
+                        } else {
                             topLevelNavigationTapAction(
                                 tappedScreen = navItem.screen,
                                 selectedBottomScreen = selectedBottomScreen,
                                 currentRoute = currentRoute,
                             )
-                        ) {
+                        }
+                        when (tapAction) {
                             TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
                                 navController.popBackStackSafely(
                                     navItem.screen.route,
@@ -669,17 +725,19 @@ fun HrtTrackerNavHost(
                 popEnterTransition = { hrtNavHostPopEnterTransition(density, layoutDirection) },
                 popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
             ) {
-                composable(Screen.Main.route) {
-                    RoutedTopChromeHazeProvider {
+                composable(Screen.Main.route) { backStackEntry ->
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
                         MainScreen(
                             modifier,
                             scrollToTopSignal = mainScrollToTopSignal,
                             highlightEffectsEnabled = homeDeepLinkHighlightEffectsEnabled,
                             onEntryClick = { request ->
-                                medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                    entryIds = request.entryUuids.map(UUID::toString),
-                                    editSnapshot = request.toMedicationLogEntryEditSnapshot(),
-                                )
+                                if (canOpenOverlaySheet(backStackEntry)) {
+                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                        entryIds = request.entryUuids.map(UUID::toString),
+                                        editSnapshot = request.toMedicationLogEntryEditSnapshot(),
+                                    )
+                                }
                             },
                             onMedicineDetailClick = { medicineId ->
                                 // Root the detail under the current tab (Home) so the
@@ -703,7 +761,10 @@ fun HrtTrackerNavHost(
                                 )
                             },
                             onQuickLogDoseClick = { request ->
-                                if (request.medicationCount > 0) {
+                                if (
+                                    request.medicationCount > 0 &&
+                                    canOpenOverlaySheet(backStackEntry)
+                                ) {
                                     medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
                                         quickLogRequest = MedicationLogEntryQuickLogRequest(
                                             groupId = request.groupUuid,
@@ -725,8 +786,8 @@ fun HrtTrackerNavHost(
                         )
                     }
                 }
-                composable(Screen.Plan.route) {
-                    RoutedTopChromeHazeProvider {
+                composable(Screen.Plan.route) { backStackEntry ->
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
                         PlanScreen(
                             modifier = modifier,
                             scrollToTopSignal = planScrollToTopSignal,
@@ -739,12 +800,17 @@ fun HrtTrackerNavHost(
                                 )
                             },
                             onEntryClick = { entryIds ->
-                                medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                    entryIds = entryIds.map(UUID::toString)
-                                )
+                                if (canOpenOverlaySheet(backStackEntry)) {
+                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                        entryIds = entryIds.map(UUID::toString)
+                                    )
+                                }
                             },
                             onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medication, medicationCount ->
-                                if (medicationCount > 0) {
+                                if (
+                                    medicationCount > 0 &&
+                                    canOpenOverlaySheet(backStackEntry)
+                                ) {
                                     medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
                                         quickLogRequest = MedicationLogEntryQuickLogRequest(
                                             groupId = groupId,
@@ -797,7 +863,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 ) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         PlanBatchAddScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
@@ -814,7 +880,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 ) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         ArchivedMedicationGroupsScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
@@ -838,21 +904,23 @@ fun HrtTrackerNavHost(
                             defaultValue = Screen.Plan.route
                         }
                     )
-                ) {
-                    RoutedTopChromeHazeProvider {
+                ) { backStackEntry ->
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
                         HistoryScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
                             onEntryClick = { entryIds ->
-                                medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                    entryIds = entryIds.map(UUID::toString)
-                                )
+                                if (canOpenOverlaySheet(backStackEntry)) {
+                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                        entryIds = entryIds.map(UUID::toString)
+                                    )
+                                }
                             }
                         )
                     }
                 }
                 composable(Screen.Settings.route) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         SettingsScreen(
                             modifier = modifier,
                             scrollToTopSignal = settingsScrollToTopSignal,
@@ -873,7 +941,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 ) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         CalibrationScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
@@ -907,7 +975,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 ) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         CalibrationUnitsScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
@@ -928,11 +996,15 @@ fun HrtTrackerNavHost(
                         }
                     )
                 ) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         CalibrationEditorScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
-                            onSaved = { navController.popBackStackSafely() }
+                            // Raw pop, not popBackStackSafely: the RESUMED gate
+                            // exists to debounce rapid double-back taps, which
+                            // can't apply to a one-shot programmatic pop fired
+                            // off a consumed flag under the held nav lock.
+                            onSaved = { navController.popBackStack() }
                         )
                     }
                 }
@@ -950,7 +1022,7 @@ fun HrtTrackerNavHost(
                         },
                     ),
                 ) { backStackEntry ->
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
                         val topLevelParentRoute =
                             backStackEntry.arguments?.getString(TOP_LEVEL_PARENT_ARG)
                                 ?: Screen.Plan.route
@@ -960,6 +1032,25 @@ fun HrtTrackerNavHost(
                             slotResultKey = slotResultKey,
                             manualLogResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
                         )
+                        // Sheet-completion pops below fire after the sheet's
+                        // hide animation and can race an in-flight navigation,
+                        // which silently drops the pop and strands the user on
+                        // this screen. Wait for the entry to be RESUMED; if the
+                        // user actually navigated elsewhere this scope is
+                        // disposed with the route and the pop is abandoned.
+                        // A resume can be followed by an immediate pause that
+                        // drops the pop on the re-dispatch hop (the entry dips
+                        // below RESUMED between withResumed firing and the pop
+                        // running), so retry on the next resume instead of
+                        // silently giving up.
+                        val sheetCompletionPopScope = rememberCoroutineScope()
+                        val popBackStackWhenResumed: () -> Unit = {
+                            sheetCompletionPopScope.launch {
+                                do {
+                                    backStackEntry.lifecycle.withResumed { }
+                                } while (!navController.popBackStackSafely())
+                            }
+                        }
                         MedicinesScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
@@ -985,10 +1076,10 @@ fun HrtTrackerNavHost(
                                 navController.previousBackStackEntry
                                     ?.savedStateHandle
                                     ?.set(groupSlotMode.resultKey, slotResult.toBundle())
-                                navController.popBackStackSafely()
+                                popBackStackWhenResumed()
                             },
                             onManualLogSaved = { warning ->
-                                navController.popBackStackSafely()
+                                popBackStackWhenResumed()
                                 warning?.let(showPostLogStockWarning)
                             },
                             onNewMedicineCreated = stockNudgeViewModel::onNewMedicineCreated,
@@ -1013,10 +1104,14 @@ fun HrtTrackerNavHost(
                         },
                     ),
                 ) {
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, it) {
                         MedicineDetailScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
+                            // Raw pop for the post-archive exit: a one-shot
+                            // programmatic pop under the held nav lock needs no
+                            // double-tap debounce, and must not be droppable.
+                            onArchiveExit = { navController.popBackStack() },
                             onGroupClick = { groupId ->
                                 navController.navigate(
                                     Screen.EditMedicationGroup.createRoute(
@@ -1046,7 +1141,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 ) { backStackEntry ->
-                    RoutedTopChromeHazeProvider {
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
                         val openedFromArchivedGroupsPage =
                             backStackEntry.arguments?.getString(MEDICATION_GROUP_EDITOR_SOURCE_ARG) ==
                                     MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS
@@ -1087,9 +1182,15 @@ fun HrtTrackerNavHost(
                         MedicationGroupEditorScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
-                            onGroupSaved = { navController.popBackStackSafely() },
+                            // Raw pops for the finishing exits: one-shot
+                            // programmatic pops under the held nav lock need no
+                            // double-tap debounce, and must not be droppable.
+                            // Returning whether the exit happened lets the
+                            // screen consume its finishing flags only after a
+                            // confirmed pop.
+                            onGroupSaved = { navController.popBackStack() },
                             onGroupSavedToPlan = {
-                                if (!navController.popBackStackSafely(
+                                if (!navController.popBackStack(
                                         Screen.Plan.route,
                                         inclusive = false
                                     )
@@ -1098,6 +1199,7 @@ fun HrtTrackerNavHost(
                                         launchSingleTop = true
                                     }
                                 }
+                                true
                             },
                             openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
                             viewModel = groupEditorViewModel,
@@ -1172,6 +1274,16 @@ fun HrtTrackerNavHost(
                     )
                 }
             }
+            // Swallow back while navigation is locked. Open modal windows
+            // dispatch back to their own window (this handler never sees it), so
+            // this only absorbs back during the in-flight mutation windows —
+            // e.g. between a delete-confirm dialog closing and the editor's exit
+            // pop — where a pop would race the pending work. Registered as the
+            // last child inside the NavHost's Box so its OnBackPressedCallback is
+            // added after NavHost's own PredictiveBackHandler and therefore wins
+            // dispatch precedence; placed at the shell level it lost to that
+            // handler on every pushed route (backstack > 1) and was dead there.
+            BackHandler(enabled = topLevelNavigationChromeLocked) { }
         }
     }
 }
@@ -1199,6 +1311,36 @@ private fun NavHostController.popBackStackSafely(
     }
     return popBackStack(route = route, inclusive = inclusive)
 }
+
+// Top-level chrome (nav bar/rail taps, back during in-flight work) is ignored
+// while a modal is open or a mutation is being written. The NavHost-hosted
+// sheet requests are checked directly rather than through the
+// composition-reported lock: they become non-null synchronously inside the row
+// tap that opens the sheet, before the sheet's window exists to block chrome
+// taps itself.
+internal fun isTopLevelNavigationChromeLocked(
+    isNavigationLockHeld: Boolean,
+    hasPendingLogEntrySheetRequest: Boolean,
+    hasPendingStockOptInSheet: Boolean,
+): Boolean =
+    isNavigationLockHeld || hasPendingLogEntrySheetRequest || hasPendingStockOptInSheet
+
+// Tap-debounced overlay-sheet open, mirroring popBackStackSafely: a row tap can
+// race a simultaneous navigation tap, and the NavHost-hosted log sheet would
+// then open over the destination page. Compose Navigation drops an entry's
+// lifecycle to STARTED both while it animates *out* (the racing navigation —
+// drop the sheet) and while a freshly pushed entry animates *in* (still
+// settling, but a legitimate place to open a sheet). Keying off RESUMED alone
+// conflated the two and silently dropped taps for the whole ~300 ms enter
+// transition. They are told apart by whether the entry is still the current
+// back-stack destination: navigate() updates the back queue synchronously, so
+// an outgoing entry stops being current the instant the race is lost, while an
+// incoming entry is current from the first frame of its transition.
+internal fun canOpenOverlaySheetFrom(
+    originState: androidx.lifecycle.Lifecycle.State,
+    isCurrentDestination: Boolean,
+): Boolean =
+    isCurrentDestination && originState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
 
 private fun NavHostController.navigateToTopLevelScreen(
     targetScreen: Screen,

@@ -109,16 +109,61 @@ class ReminderCapabilityReconcilerTest {
     }
 
     @Test
-    fun reconcile_alwaysReschedulesEvenWhenCapabilityUnchanged() = runTest {
+    fun reconcile_reschedulesOnFirstRunEvenWhenCapabilityMatchesSeed() = runTest {
+        // The first reconcile of a process always applies once, so a fresh
+        // process self-heals even if capability matches the construction seed.
         givenCapabilities(notification = true, exactAlarm = true)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+
+        val reconciler = createReconciler()
+        reconciler.reconcile()
+
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun reconcile_skipsAllWorkWhenCapabilityUnchangedSinceLastReconcile() = runTest {
+        // Resume fires this on every foreground; once a snapshot has been
+        // applied, an unchanged repeat must do no AlarmManager or DataStore work.
+        givenCapabilities(notification = false, exactAlarm = true)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
 
         val reconciler = createReconciler()
         reconciler.reconcile()
         reconciler.reconcile()
 
+        coVerify(exactly = 1) { settingsRepository.getCurrentSettings() }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun reconcile_reschedulesAgainWhenCapabilityChanges() = runTest {
+        givenCapabilities(notification = true, exactAlarm = true)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+
+        val reconciler = createReconciler()
+        reconciler.reconcile()
+
+        givenCapabilities(notification = true, exactAlarm = false)
+        reconciler.reconcile()
+
         coVerify(exactly = 2) { medicationReminderScheduler.rescheduleAll(any()) }
-        coVerify(exactly = 2) { medicationReminderSnoozeScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun reconcile_forceReschedulesEvenWhenCapabilityUnchanged() = runTest {
+        // The boot / time-change receiver path forces a reschedule because those
+        // events invalidate the scheduled alarms without flipping capability.
+        givenCapabilities(notification = true, exactAlarm = true)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+
+        val reconciler = createReconciler()
+        reconciler.reconcile()
+        reconciler.reconcile(forceReschedule = true)
+
+        coVerify(exactly = 2) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
     @Test

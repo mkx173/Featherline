@@ -70,37 +70,41 @@ class MedicationReminderRescheduleReceiverTest {
 
     @Test
     fun bootCompleted_delegatesReconcileAndFinishesPendingResult() = runTest {
-        coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
+        coEvery { reminderCapabilityReconciler.reconcile(any(), any()) } returns Unit
 
         handle(action = Intent.ACTION_BOOT_COMPLETED)
 
-        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any()) }
+        // System events drop or stale the scheduled alarms, so the receiver must
+        // force the reschedule past the capability short-circuit.
+        coVerify(exactly = 1) {
+            reminderCapabilityReconciler.reconcile(reason = any(), forceReschedule = true)
+        }
         verify(exactly = 1) { pendingResult.finish() }
     }
 
     @Test
     fun packageReplaced_delegatesReconcileAndFinishesPendingResult() = runTest {
-        coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
+        coEvery { reminderCapabilityReconciler.reconcile(any(), any()) } returns Unit
 
         handle(action = Intent.ACTION_MY_PACKAGE_REPLACED)
 
-        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any()) }
+        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any()) }
         verify(exactly = 1) { pendingResult.finish() }
     }
 
     @Test
     fun exactAlarmPermissionStateChanged_delegatesReconcileAndFinishesPendingResult() = runTest {
-        coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
+        coEvery { reminderCapabilityReconciler.reconcile(any(), any()) } returns Unit
 
         handle(action = AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED)
 
-        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any()) }
+        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any()) }
         verify(exactly = 1) { pendingResult.finish() }
     }
 
     @Test
     fun timezoneChange_forcesHomeSnapshotRefresh() = runTest {
-        coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
+        coEvery { reminderCapabilityReconciler.reconcile(any(), any()) } returns Unit
 
         handle(action = Intent.ACTION_TIMEZONE_CHANGED)
 
@@ -111,7 +115,7 @@ class MedicationReminderRescheduleReceiverTest {
 
     @Test
     fun timeChange_forcesHomeSnapshotRefresh() = runTest {
-        coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
+        coEvery { reminderCapabilityReconciler.reconcile(any(), any()) } returns Unit
 
         handle(action = Intent.ACTION_TIME_CHANGED)
 
@@ -122,7 +126,7 @@ class MedicationReminderRescheduleReceiverTest {
 
     @Test
     fun bootCompleted_forcesHomeSnapshotRefresh() = runTest {
-        coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
+        coEvery { reminderCapabilityReconciler.reconcile(any(), any()) } returns Unit
 
         handle(action = Intent.ACTION_BOOT_COMPLETED)
 
@@ -156,7 +160,7 @@ class MedicationReminderRescheduleReceiverTest {
 
     @Test
     fun delegatesAcrossAllAcceptedActions() = runTest {
-        coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
+        coEvery { reminderCapabilityReconciler.reconcile(any(), any()) } returns Unit
         val accepted = listOf(
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED,
@@ -166,7 +170,7 @@ class MedicationReminderRescheduleReceiverTest {
             handle(action = action)
         }
 
-        coVerify(exactly = accepted.size) { reminderCapabilityReconciler.reconcile(any()) }
+        coVerify(exactly = accepted.size) { reminderCapabilityReconciler.reconcile(any(), any()) }
         verify(exactly = accepted.size) { pendingResult.finish() }
     }
 
@@ -182,7 +186,7 @@ class MedicationReminderRescheduleReceiverTest {
             },
         )
 
-        coVerify(exactly = 0) { reminderCapabilityReconciler.reconcile(any()) }
+        coVerify(exactly = 0) { reminderCapabilityReconciler.reconcile(any(), any()) }
         verify(exactly = 0) { pendingResult.finish() }
         assertTrue(
             "Expected goAsync to be skipped for unrelated actions",
@@ -201,12 +205,12 @@ class MedicationReminderRescheduleReceiverTest {
     fun nullAction_isIgnored() = runTest {
         handle(action = null)
 
-        coVerify(exactly = 0) { reminderCapabilityReconciler.reconcile(any()) }
+        coVerify(exactly = 0) { reminderCapabilityReconciler.reconcile(any(), any()) }
     }
 
     @Test
     fun reconcileFailure_stillFinishesPendingResult() = runTest {
-        coEvery { reminderCapabilityReconciler.reconcile(any()) } throws
+        coEvery { reminderCapabilityReconciler.reconcile(any(), any()) } throws
                 RuntimeException("simulated failure")
 
         handle(action = Intent.ACTION_BOOT_COMPLETED)
