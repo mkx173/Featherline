@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -375,6 +376,45 @@ class PlanViewModelTest {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect { }
         }
+    }
+
+    @Test
+    fun uiStateKeepsUpdatingAfterSubscriberLeaves_soReturnRendersFreshData() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 6, 11, 12, 0))
+        val groupsSource = MutableStateFlow<List<MedicationGroup>?>(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns groupsSource
+
+        val viewModel = PlanViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+        )
+        val subscription = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { }
+        }
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.medicationGroups.isEmpty())
+
+        // Navigate away: the only subscriber leaves and stays away longer than
+        // any sharing stop-timeout.
+        subscription.cancel()
+        advanceTimeBy(60_000)
+
+        // A backup restore (or any mutation) commits while no screen subscribes.
+        groupsSource.value = listOf(medicationGroup(times = listOf(LocalTime.of(8, 0))))
+        advanceUntilIdle()
+
+        // Returning to Plan renders uiState.value on the FIRST frame, before a
+        // restarted collection can deliver anything. If the upstream combine
+        // stopped while unsubscribed, that frame shows pre-restore data for one
+        // frame. The retained value must therefore already reflect the change.
+        assertEquals(
+            "uiState must stay fresh while unsubscribed; the first frame after " +
+                    "returning renders the retained value",
+            1,
+            viewModel.uiState.value.medicationGroups.size,
+        )
     }
 
     @Test

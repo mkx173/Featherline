@@ -40,15 +40,17 @@ class ArchivedMedicationGroupsViewModel @Inject constructor(
     }
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
+            // Lazily, not WhileSubscribed: the first frame after a subscriber
+            // returns renders the retained StateFlow value before collection
+            // restarts, so a stop-timeout lets data mutated while away (e.g. a
+            // backup restore) flash one stale frame on re-entry. The repository
+            // flows are hot (Eagerly, app-scoped) regardless; staying collected
+            // only adds the ui-state rebuild work.
+            started = SharingStarted.Lazily,
             initialValue = ArchivedMedicationGroupsUiState(
                 today = currentDateTime.value.toLocalDate(),
             )
         )
-
-    private companion object {
-        const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
-    }
 }
 
 data class ArchivedMedicationGroupsUiState(

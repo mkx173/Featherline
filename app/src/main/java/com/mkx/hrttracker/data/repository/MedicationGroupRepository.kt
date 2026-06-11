@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.planCalendarDate
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -44,6 +45,7 @@ class MedicationGroupRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotRepository: HomeSnapshotRepository,
     @AppScope appScope: CoroutineScope,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
     private val groupsFlow: StateFlow<List<MedicationGroup>?> =
@@ -85,6 +87,11 @@ class MedicationGroupRepository @Inject constructor(
                             // swallow it (unlike the Flow .catch this replaced); rethrow so
                             // flatMapLatest/scope cancellation is honoured.
                             if (error is CancellationException) throw error
+                            diagnosticsLogger.warning(
+                                TAG,
+                                "groups_flow_suppressed count=${groups.size}",
+                                error,
+                            )
                             null
                         }
                     }
@@ -97,7 +104,10 @@ class MedicationGroupRepository @Inject constructor(
                         // SupervisorJob with no CoroutineExceptionHandler. Transform
                         // throws are caught above and never reach here, so the
                         // transient-restore freeze does not return.
-                        .catch { emit(emptyList()) }
+                        .catch { error ->
+                            diagnosticsLogger.warning(TAG, "groups_flow_room_error", error)
+                            emit(emptyList())
+                        }
                 }
             }
             .stateIn(
@@ -618,3 +628,5 @@ data class MedicationGroupScheduleTimeInput(
 private fun Instant.toLocalDateTime(
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): LocalDateTime = atZone(zoneId).toLocalDateTime().truncatedTo(ChronoUnit.MINUTES)
+
+private const val TAG = "MedicationGroupRepository"

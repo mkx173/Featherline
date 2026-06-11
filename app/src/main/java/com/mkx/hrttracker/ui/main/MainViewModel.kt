@@ -129,7 +129,15 @@ class MainViewModel @Inject constructor(
         .filterNotNull()
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
+            // Lazily, not WhileSubscribed: the first frame after a subscriber
+            // returns renders the retained StateFlow value before collection
+            // restarts, so a stop-timeout lets data mutated while away (e.g. a
+            // backup restore) flash one stale frame on re-entry. The repository
+            // flows are hot (Eagerly, app-scoped) regardless; staying collected
+            // only adds the ui-state rebuild work. Date/zone re-anchoring rides
+            // the currentSnapshot tick, not subscription restarts, so it is
+            // unaffected.
+            started = SharingStarted.Lazily,
             initialValue = MainUiState(
                 homeDataReady = false,
                 now = currentSnapshot.value.minute,
@@ -377,7 +385,6 @@ class MainViewModel @Inject constructor(
 
     private companion object {
         const val TAG = "MainViewModel"
-        const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
     }
 }
 

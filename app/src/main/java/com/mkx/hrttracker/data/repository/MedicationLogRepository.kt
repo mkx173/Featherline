@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.isCompatibleWith
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -40,6 +41,7 @@ class MedicationLogRepository @Inject internal constructor(
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val stockMutator: MedicineStockMutator,
     @AppScope appScope: CoroutineScope,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
     private val entriesFlow: StateFlow<List<MedicationLogEntry>?> =
@@ -81,6 +83,11 @@ class MedicationLogRepository @Inject internal constructor(
                             // swallow it (unlike the Flow .catch this replaced); rethrow so
                             // flatMapLatest/scope cancellation is honoured.
                             if (error is CancellationException) throw error
+                            diagnosticsLogger.warning(
+                                TAG,
+                                "entries_flow_suppressed count=${entries.size}",
+                                error,
+                            )
                             null
                         }
                     }
@@ -93,7 +100,10 @@ class MedicationLogRepository @Inject internal constructor(
                         // SupervisorJob with no CoroutineExceptionHandler. Transform
                         // throws are caught above and never reach here, so the
                         // transient-restore freeze does not return.
-                        .catch { emit(emptyList()) }
+                        .catch { error ->
+                            diagnosticsLogger.warning(TAG, "entries_flow_room_error", error)
+                            emit(emptyList())
+                        }
                 }
             }
             .stateIn(
@@ -154,6 +164,11 @@ class MedicationLogRepository @Inject internal constructor(
                             }
                         }.getOrElse { error ->
                             if (error is CancellationException) throw error
+                            diagnosticsLogger.warning(
+                                TAG,
+                                "scheduled_window_suppressed count=${entities.size}",
+                                error,
+                            )
                             null
                         }
                     }
@@ -598,3 +613,5 @@ data class MedicationLogEntryInput(
         }
     }
 }
+
+private const val TAG = "MedicationLogRepository"

@@ -56,7 +56,13 @@ class PlanViewModel @Inject constructor(
     }
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
+            // Lazily, not WhileSubscribed: the first frame after a subscriber
+            // returns renders the retained StateFlow value before collection
+            // restarts, so a stop-timeout lets data mutated while away (e.g. a
+            // backup restore) flash one stale frame on re-entry. The repository
+            // flows are hot (Eagerly, app-scoped) regardless; staying collected
+            // only adds the ui-state rebuild work.
+            started = SharingStarted.Lazily,
             // Seed from the repositories' hot caches (both are Eagerly-shared
             // StateFlows loaded at app start) so the first frame after this
             // ViewModel is created renders real data. A bare loading default
@@ -151,7 +157,6 @@ class PlanViewModel @Inject constructor(
 
     private companion object {
         const val UPCOMING_OCCURRENCES_LIMIT = 3
-        const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
     }
 }
 
