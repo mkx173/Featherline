@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Scrolling to the top (double-tapping the top app bar, or re-tapping the current tab) now plays the same smooth animation on every screen, and extra taps while it is running no longer restart it.
 - Switching between the Home, Plan, and Settings tabs is now instant instead of cross-fading.
 - Rotating, folding, or resizing the window now updates the layout in place instead of recreating the screen.
+- In the group schedule editor, "Also generate past records as planned" is now a checkbox shown while "Show" is selected, and it remembers its choice when switching to "Do not show" and back.
 
 ### Fixed
 
@@ -27,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Opening a sheet or dialog at the same moment as navigating no longer flashes it over the wrong screen or makes it reappear unexpectedly when returning to the page.
 - Saving, deleting, or archiving can no longer be cut short by navigating away at the same moment, and a deleted group's editor no longer stays on screen after quick navigation.
 - Notification permission changes are now picked up reliably when returning to the app, and reminders are rebuilt only when permissions actually change instead of on every return.
+- Returning to a tab after data changed elsewhere (such as restoring a backup) no longer shows the old data for a brief moment before updating.
+- The home estradiol chart now updates in the same frame as the rest of the screen after a change, such as deleting a plan or the date rolling over, instead of briefly keeping the old curve.
+- Disabled rows in settings and editors now gray out their labels in step with their switches instead of a moment behind.
 
 ## [1.1.4] - 2026-06-09
 
