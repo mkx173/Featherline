@@ -20,11 +20,11 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
@@ -187,7 +187,7 @@ class HomeRepository @Inject constructor(
             stockInputsFlow,
             nowFlow,
         ) { inputs, snapshot, option, stockInputs, now ->
-            recoverHomeEmission(defaultValue = null) {
+            suppressInconsistentHomeEmission("room_inputs") {
                 if (inputs.settings.homeE2ChartWindowOption != option) {
                     null
                 } else {
@@ -348,20 +348,20 @@ class HomeRepository @Inject constructor(
                         homeDao.observeActiveGroups(),
                         medicineChangeVersion,
                     ) { groups, _ ->
-                        recoverHomeEmission(defaultValue = emptyList()) {
+                        suppressInconsistentHomeEmission("active_groups") {
                             val medicinesByUuid = database.resolveMedicinesForGroups(groups)
                             groups.map { it.toMedicationGroupModel(medicinesByUuid) }
                         }
-                    }
+                    }.filterNotNull()
                     val archivedGroupsFlow = combine(
                         homeDao.observeArchivedGroups(),
                         medicineChangeVersion,
                     ) { groups, _ ->
-                        recoverHomeEmission(defaultValue = emptyList()) {
+                        suppressInconsistentHomeEmission("archived_groups") {
                             val medicinesByUuid = database.resolveMedicinesForGroups(groups)
                             groups.map { it.toMedicationGroupModel(medicinesByUuid) }
                         }
-                    }
+                    }.filterNotNull()
                     // Pair active + archived groups in a nested combine so the
                     // outer combine stays at five distinctly-typed flows; Kotlin
                     // only has typed combine overloads up to five flows (the
@@ -383,24 +383,24 @@ class HomeRepository @Inject constructor(
                             ),
                             medicineChangeVersion,
                         ) { entries, _ ->
-                            recoverHomeEmission(defaultValue = emptyList()) {
+                            suppressInconsistentHomeEmission("schedule_entries") {
                                 val medicinesByUuid = database.resolveMedicinesForEntries(entries)
                                 entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
                             }
-                        },
+                        }.filterNotNull(),
                         combine(
                             homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
                                 onOrBeforeEpochMillis = latestEntryCutoffEpochMillis,
                             ),
                             medicineChangeVersion,
                         ) { entries, _ ->
-                            recoverHomeEmission(defaultValue = emptyList()) {
+                            suppressInconsistentHomeEmission("antiandrogen_entries") {
                                 val medicinesByUuid = database.resolveMedicinesForEntries(entries)
                                 entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
                             }
-                        },
-                        homeDao.observeProfile().map { profile ->
-                            recoverHomeEmission(defaultValue = UserProfile()) {
+                        }.filterNotNull(),
+                        homeDao.observeProfile().mapNotNull { profile ->
+                            suppressInconsistentHomeEmission("profile") {
                                 profile?.toUserProfileModel() ?: UserProfile()
                             }
                         },
@@ -430,30 +430,32 @@ class HomeRepository @Inject constructor(
                                 ),
                                 medicineChangeVersion,
                             ) { entries, _ ->
-                                recoverHomeEmission(defaultValue = emptyList()) {
+                                suppressInconsistentHomeEmission("pk_entries") {
                                     val medicinesByUuid =
                                         database.resolveMedicinesForEntries(entries)
                                     entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
                                 }
-                            },
+                            }.filterNotNull(),
                             combine(
                                 homeDao.observeLatestEstradiolEntryOnOrBefore(
                                     onOrBeforeEpochMillis = latestEntryCutoffEpochMillis,
                                 ),
                                 medicineChangeVersion,
                             ) { entry, _ ->
-                                recoverHomeEmission(defaultValue = null) {
+                                suppressInconsistentHomeEmission("latest_estradiol_entry") {
                                     val medicinesByUuid = database.resolveMedicinesForEntries(
                                         listOfNotNull(entry)
                                     )
-                                    entry?.toMedicationLogEntryModel(medicinesByUuid)
+                                    LatestEstradiolEntryEmission(
+                                        entry?.toMedicationLogEntryModel(medicinesByUuid)
+                                    )
                                 }
-                            },
+                            }.filterNotNull(),
                         ) { basics, realPkEntries, latestEstradiolEntry ->
                             basics.copy(
                                 estradiolPkEntries = realPkEntries,
                                 estradiolPkPlannedEntries = emptyList(),
-                                latestEstradiolEntry = latestEstradiolEntry,
+                                latestEstradiolEntry = latestEstradiolEntry.entry,
                             )
                         }
                     )
@@ -485,6 +487,27 @@ class HomeRepository @Inject constructor(
         homeSnapshotRepository.refreshHomeSnapshotAsync(now = now, force = force, zoneId = zoneId)
     }
 
+    private suspend fun <T> suppressInconsistentHomeEmission(
+        site: String,
+        block: suspend () -> T,
+    ): T? {
+        return try {
+            block()
+        } catch (error: Exception) {
+            // During restore, Room can pair an old Home-table emission with an
+            // already changed medicine table. SUPPRESS that inconsistent emission
+            // (null -> filterNotNull/mapNotNull at the call site) so the next Room
+            // invalidation recovers — a fabricated default (empty list / blank
+            // profile) would reach the Home combine and render a one-frame wrong
+            // state before the consistent emission lands. Catch Exception (not
+            // Throwable) so Errors — and CancellationException — still propagate
+            // rather than being hidden as a suppression.
+            if (error is CancellationException) throw error
+            diagnosticsLogger.warning(TAG, "home_emission_suppressed site=$site", error)
+            null
+        }
+    }
+
     private companion object {
         const val TAG = "HomeRepository"
         const val HOME_SCHEDULE_LOOKAHEAD_DAYS = 90L
@@ -497,19 +520,10 @@ class HomeRepository @Inject constructor(
     }
 }
 
-private suspend fun <T> recoverHomeEmission(defaultValue: T, block: suspend () -> T): T {
-    return try {
-        block()
-    } catch (error: Exception) {
-        // During restore, Room can pair an old Home-table emission with an already
-        // changed medicine table. Drop only that inconsistent emission so the next
-        // Room invalidation can recover the home screen. Catch Exception (not
-        // Throwable) so Errors — and CancellationException — still propagate rather
-        // than being hidden as a fallback emission.
-        if (error is CancellationException) throw error
-        defaultValue
-    }
-}
+// Wrapper so the latest-estradiol-entry flow can distinguish a legitimate
+// "no entry" (entry == null) from a suppressed inconsistent emission
+// (the wrapper itself filtered out as null).
+private data class LatestEstradiolEntryEmission(val entry: MedicationLogEntry?)
 
 private fun List<MedicineStockProjection>.stockWarningsOnly(): List<MedicineStockProjection> {
     return filter { projection ->

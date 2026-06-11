@@ -31,6 +31,7 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.projectionFutureDays
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -294,7 +295,7 @@ class HomeRepositoryTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun observeHomeStartupInputs_recoversFromTransientRestoreMedicineMismatch() = runTest {
+    fun observeHomeStartupInputs_suppressesTransientRestoreMedicineMismatch() = runTest {
         val now = LocalDateTime.of(2026, 5, 6, 10, 15)
         val zoneId = ZoneId.systemDefault()
         val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.PG_ML)
@@ -322,8 +323,21 @@ class HomeRepositoryTest {
         // timeout; runTest's own timeout is the safety net) as the sibling flowOn(IO)
         // home tests do.
         val oldGroupObserved = CompletableDeferred<Unit>()
-        val staleFailureObserved = CompletableDeferred<Unit>()
+        // Completes with how the inconsistent restore pairing was handled:
+        // "suppressed" via the suppression diagnostic, or "fabricated" if an
+        // emission with fabricated empty groups reaches the collector. The
+        // diagnostic doubles as the deterministic signal that the stale pairing
+        // was actually processed BEFORE the groups flow catches up — otherwise
+        // StateFlow conflation across flowOn(IO) could skip the stale pairing
+        // and the test would never exercise the race.
+        val stalePairingHandled = CompletableDeferred<String>()
         val restoredGroupObserved = CompletableDeferred<Unit>()
+        val diagnosticsLogger = mockk<AppDiagnosticsLogger>(relaxed = true)
+        every { diagnosticsLogger.warning(any(), any(), any()) } answers {
+            if (secondArg<String>().contains("suppressed")) {
+                stalePairingHandled.complete("suppressed")
+            }
+        }
 
         every { databaseHolder.get() } returns database
         every { database.homeDao() } returns homeDao
@@ -352,6 +366,7 @@ class HomeRepositoryTest {
             medicineStockRepository = medicineStockRepository,
             medicineRepository = medicineRepository,
             medicationLogRepository = medicationLogRepository,
+            diagnosticsLogger = diagnosticsLogger,
         )
         val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             repository.observeHomeStartupInputs(now, zoneId).collect { inputs ->
@@ -360,9 +375,7 @@ class HomeRepositoryTest {
                 when {
                     oldGroupUuid in groupIds -> oldGroupObserved.complete(Unit)
                     newGroupUuid in groupIds -> restoredGroupObserved.complete(Unit)
-                    // The throw degrades activeGroups to empty (or, pre-fix, the terminal
-                    // catch emits the empty fallback before completing).
-                    else -> staleFailureObserved.complete(Unit)
+                    else -> stalePairingHandled.complete("fabricated")
                 }
             }
         }
@@ -373,13 +386,18 @@ class HomeRepositoryTest {
         // Restore commits: the medicines table is swapped to the NEW UUID set while
         // observeActiveGroups still holds the old group, so the combine re-resolves,
         // getByUuids can't find the old UUID, and toMedicationGroupModel()'s
-        // checkNotNull(medicine) throws. Await the degraded (empty-groups) emission so
-        // the transient failure is deterministically processed BEFORE the groups flow
-        // catches up — otherwise StateFlow conflation across flowOn(IO) could skip the
-        // stale pairing and the test would never exercise the freeze.
+        // checkNotNull(medicine) throws. The inconsistent pairing must be SUPPRESSED,
+        // not degraded to a fabricated empty default: a fabricated emission renders a
+        // one-frame wrong Home state before the consistent emission lands — the exact
+        // stale-frame class this PR eliminates in the other repositories.
         resolvableMedicineUuids = setOf(newMedicineUuid.toString())
         medicineVersion.value = 1
-        staleFailureObserved.await()
+        assertEquals(
+            "the inconsistent restore pairing must be suppressed, not degraded " +
+                    "to fabricated empty defaults",
+            "suppressed",
+            stalePairingHandled.await(),
+        )
 
         // The groups flow catches up with the restored set. Without the per-emission
         // guard the flow died at the throw above and never re-emits, so this await never
@@ -394,6 +412,10 @@ class HomeRepositoryTest {
         )
         restoredGroupObserved.await()
         assertEquals(newGroupUuid, emittedInputs.last().activeGroups.singleOrNull()?.uuid)
+        assertTrue(
+            "no emission may carry fabricated empty groups during the restore race",
+            emittedInputs.none { inputs -> inputs.activeGroups.isEmpty() },
+        )
         collectJob.cancel()
     }
 
