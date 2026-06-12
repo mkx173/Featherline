@@ -360,30 +360,6 @@ class SettingsRepository @Inject constructor(
         }
     }
 
-    suspend fun setWidgetContentScale(value: Float) {
-        activeDataStore().edit { preferences ->
-            preferences[widgetContentScaleKey] = value
-        }
-    }
-
-    suspend fun setWidgetBackgroundAlpha(value: Float) {
-        activeDataStore().edit { preferences ->
-            preferences[widgetBackgroundAlphaKey] = value.coerceIn(0.5f, 1.0f)
-        }
-    }
-
-    suspend fun setWidgetAppearance(
-        contentScale: Float,
-        backgroundAlpha: Float,
-        darkModeOption: DarkModeOption,
-    ) {
-        activeDataStore().edit { preferences ->
-            preferences[widgetContentScaleKey] = contentScale
-            preferences[widgetBackgroundAlphaKey] = backgroundAlpha.coerceIn(0.5f, 1.0f)
-            preferences[widgetDarkModeKey] = darkModeOption.name
-        }
-    }
-
     // Legacy widget-appearance keys, retained ONLY for the one-time migration into
     // WidgetAppearanceStore (WidgetAppearanceRepository.migrateFromLegacySettingsIfNeeded).
     // Returns null once the keys are gone, which ends the migration permanently.
@@ -452,9 +428,6 @@ class SettingsRepository @Inject constructor(
         homeE2ChartWindowOption: HomeE2ChartWindowOption,
         lastSeenTimeZoneId: String? = null,
         hideMedicationDetails: Boolean = false,
-        widgetContentScale: Float = 1.0f,
-        widgetBackgroundAlpha: Float = 1.0f,
-        widgetDarkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
         groupNameCounter: Int = 0,
         firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
         stockNudgeEnabled: Boolean = true,
@@ -503,9 +476,6 @@ class SettingsRepository @Inject constructor(
             }
 
             preferences[hideMedicationDetailsKey] = hideMedicationDetails
-            preferences[widgetContentScaleKey] = widgetContentScale
-            preferences[widgetBackgroundAlphaKey] = widgetBackgroundAlpha.coerceIn(0.5f, 1.0f)
-            preferences[widgetDarkModeKey] = widgetDarkModeOption.name
             preferences[groupNameCounterKey] = groupNameCounter
 
             if (firstDayOfWeekOption == FirstDayOfWeekOption.FOLLOW_SYSTEM) {
@@ -562,12 +532,6 @@ class SettingsRepository @Inject constructor(
             screenLockProtectionEnabled = preferences[screenLockProtectionKey] ?: false,
             lastSeenTimeZoneId = preferences[lastSeenTimeZoneIdKey],
             hideMedicationDetails = preferences[hideMedicationDetailsKey] ?: false,
-            widgetContentScale = preferences[widgetContentScaleKey] ?: 1.0f,
-            widgetBackgroundAlpha = (preferences[widgetBackgroundAlphaKey] ?: 1.0f).coerceIn(
-                0.5f,
-                1.0f
-            ),
-            widgetDarkModeOption = DarkModeOption.fromStorageValue(preferences[widgetDarkModeKey]),
             groupNameCounter = preferences[groupNameCounterKey] ?: 0,
             firstDayOfWeekOption = FirstDayOfWeekOption.fromStorageValue(preferences[firstDayOfWeekKey]),
         )

@@ -24,6 +24,8 @@ import com.mkx.hrttracker.ui.security.AuthenticationPromptRequest
 import com.mkx.hrttracker.util.AppDiagnosticsExportService
 import com.mkx.hrttracker.util.AppDiagnosticsExportedFile
 import com.mkx.hrttracker.util.AppLockSecurityManager
+import com.mkx.hrttracker.widget.WidgetAppearance
+import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -49,6 +51,7 @@ class SettingsViewModel @Inject constructor(
     private val backupExportService: BackupExportService,
     private val backupRestoreService: BackupRestoreService,
     private val diagnosticsExportService: AppDiagnosticsExportService,
+    private val widgetAppearanceRepository: WidgetAppearanceRepository,
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
 
@@ -197,25 +200,25 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setWidgetContentScale(value: Float) {
-        launchSettingsMutation {
-            settingsRepository.setWidgetContentScale(value)
-        }
-    }
-
-    fun setWidgetBackgroundAlpha(value: Float) {
-        launchSettingsMutation {
-            settingsRepository.setWidgetBackgroundAlpha(value)
-        }
-    }
+    val widgetAppearance: StateFlow<WidgetAppearance> = widgetAppearanceRepository
+        .effectiveFor(null)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WidgetAppearance.Default)
 
     fun setWidgetAppearance(
         contentScale: Float,
         backgroundAlpha: Float,
         darkModeOption: DarkModeOption,
     ) {
-        launchSettingsMutation {
-            settingsRepository.setWidgetAppearance(contentScale, backgroundAlpha, darkModeOption)
+        viewModelScope.launch {
+            // The in-app dialog edits only scale/alpha/darkMode; the theme params
+            // (hues, vibrancy) belong to WidgetConfigActivity and must survive untouched.
+            widgetAppearanceRepository.updateDefault {
+                it.copy(
+                    contentScale = contentScale,
+                    backgroundAlpha = backgroundAlpha,
+                    darkMode = darkModeOption,
+                )
+            }
         }
     }
 

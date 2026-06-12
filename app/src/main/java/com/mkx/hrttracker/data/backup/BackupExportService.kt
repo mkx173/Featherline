@@ -196,9 +196,10 @@ class BackupExportService @Inject constructor(
                     },
                 lastSeenTimeZoneId = settings.lastSeenTimeZoneId,
                 hideMedicationDetails = settings.hideMedicationDetails,
-                widgetContentScale = settings.widgetContentScale,
-                widgetBackgroundAlpha = settings.widgetBackgroundAlpha,
-                widgetDarkModeOption = settings.widgetDarkModeOption.name,
+                // interim: real appearance backup lands in the next commit
+                widgetContentScale = 1.0f,
+                widgetBackgroundAlpha = 1.0f,
+                widgetDarkModeOption = "FOLLOW_SYSTEM",
                 groupNameCounter = settings.groupNameCounter,
                 firstDayOfWeekOption = settings.firstDayOfWeekOption.name,
                 stockNudgeEnabled = stockNudgeEnabled,

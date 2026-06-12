@@ -119,6 +119,7 @@ import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.widget.WidgetAppearance
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -133,6 +134,7 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = uiState.settingsState
+    val widgetAppearance by viewModel.widgetAppearance.collectAsStateWithLifecycle()
     val context = LocalContext.current
     // The app swaps UI language in place via composition locals (see
     // MainActivity) without recreating the Activity, so LocalContext.current is
@@ -470,6 +472,7 @@ fun SettingsScreen(
 
     SettingsScreenContent(
         uiState = uiState,
+        widgetAppearance = widgetAppearance,
         hasNotificationAccess = hasNotificationAccess,
         reminderSupportState = reminderSupportState,
         onWeightSave = viewModel::setWeight,
@@ -761,6 +764,7 @@ internal fun WidgetAppearanceDialog(
 internal fun SettingsScreenContent(
     modifier: Modifier = Modifier,
     uiState: SettingsUiState,
+    widgetAppearance: WidgetAppearance,
     hasNotificationAccess: Boolean,
     reminderSupportState: SettingsReminderSupportState,
     onWeightSave: (Double, WeightUnit) -> Unit,
@@ -1620,9 +1624,9 @@ internal fun SettingsScreenContent(
 
     if (showWidgetAppearanceDialog) {
         WidgetAppearanceDialog(
-            contentScale = settingsState.widgetContentScale,
-            backgroundAlpha = settingsState.widgetBackgroundAlpha,
-            darkModeOption = settingsState.widgetDarkModeOption,
+            contentScale = widgetAppearance.contentScale,
+            backgroundAlpha = widgetAppearance.backgroundAlpha,
+            darkModeOption = widgetAppearance.darkMode,
             onAppearanceChange = onWidgetAppearanceChange,
             onDismiss = { showWidgetAppearanceDialog = false },
         )
@@ -1998,6 +2002,7 @@ private fun SettingsScreenPreview() {
                     weightOriginalUnit = WeightUnit.POUNDS,
                 )
             ),
+            widgetAppearance = WidgetAppearance.Default,
             hasNotificationAccess = true,
             reminderSupportState = SettingsReminderSupportState.EXACT_ALARM_OFF,
             onWeightSave = { _, _ -> },

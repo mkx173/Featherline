@@ -47,6 +47,9 @@ class WidgetConfigActivity : AppCompatActivity() {
     lateinit var settingsRepository: SettingsRepository
 
     @Inject
+    lateinit var widgetAppearanceRepository: WidgetAppearanceRepository
+
+    @Inject
     lateinit var widgetSnapshotStore: WidgetSnapshotStore
 
     // Persist must outlive the activity: the activity can be destroyed mid-write (system
@@ -90,6 +93,14 @@ class WidgetConfigActivity : AppCompatActivity() {
                 value = try {
                     LoadedConfigState(
                         settings = settingsRepository.getCurrentSettings(),
+                        // Unlike the settings read below (no safe placeholder -> finish), appearance HAS a
+                        // safe fallback: Default is exactly what a never-configured widget renders.
+                        appearance = runCatching {
+                            widgetAppearanceRepository.currentEffective(null)
+                        }.getOrElse { error ->
+                            if (error is CancellationException) throw error
+                            WidgetAppearance.Default
+                        },
                         snapshot = runCatching { widgetSnapshotStore.readSnapshot() }
                             .getOrNull(),
                     )
@@ -115,9 +126,9 @@ class WidgetConfigActivity : AppCompatActivity() {
                         LocalCjkTextOffsetEnabled provides loaded.settings.cjkTextOffsetEnabled,
                     ) {
                         WidgetConfigScreen(
-                            initialContentScale = loaded.settings.widgetContentScale,
-                            initialBackgroundAlpha = loaded.settings.widgetBackgroundAlpha,
-                            initialDarkModeOption = loaded.settings.widgetDarkModeOption,
+                            initialContentScale = loaded.appearance.contentScale,
+                            initialBackgroundAlpha = loaded.appearance.backgroundAlpha,
+                            initialDarkModeOption = loaded.appearance.darkMode,
                             isMediumWidget = isMediumWidget,
                             appWidgetId = appWidgetId,
                             snapshot = loaded.snapshot,
@@ -131,11 +142,13 @@ class WidgetConfigActivity : AppCompatActivity() {
                                 )
                                 appScope.launch {
                                     try {
-                                        settingsRepository.setWidgetAppearance(
-                                            scale,
-                                            alpha,
-                                            darkMode,
-                                        )
+                                        widgetAppearanceRepository.updateDefault {
+                                            it.copy(
+                                                contentScale = scale,
+                                                backgroundAlpha = alpha,
+                                                darkMode = darkMode,
+                                            )
+                                        }
                                     } finally {
                                         // Finish only after the write lands: RESULT_OK is
                                         // already reported, and finishing first would leave
@@ -174,6 +187,7 @@ class WidgetConfigActivity : AppCompatActivity() {
 // Both one-shot loads the screen seeds from, resolved together so the UI renders once.
 private data class LoadedConfigState(
     val settings: SettingsState,
+    val appearance: WidgetAppearance,
     val snapshot: WidgetSnapshotRecord?,
 )
 

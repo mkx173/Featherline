@@ -271,8 +271,6 @@ class BackupExportServiceTest {
             pureBlackEnabled = true,
             cjkTextOffsetEnabled = true,
             hazeBlurEnabled = false,
-            widgetContentScale = 0.8f,
-            widgetBackgroundAlpha = 0.6f,
         )
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile(
             weightKg = 52.2,

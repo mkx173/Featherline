@@ -287,9 +287,9 @@ class BackupRestoreService @Inject constructor(
             homeE2ChartWindowOption = validatedSnapshot.settings.homeE2ChartWindowOption,
             lastSeenTimeZoneId = validatedSnapshot.settings.lastSeenTimeZoneId,
             hideMedicationDetails = validatedSnapshot.settings.hideMedicationDetails,
-            widgetContentScale = validatedSnapshot.settings.widgetContentScale,
-            widgetBackgroundAlpha = validatedSnapshot.settings.widgetBackgroundAlpha,
-            widgetDarkModeOption = validatedSnapshot.settings.widgetDarkModeOption,
+            // interim: real appearance restore lands in the next commit. The legacy
+            // widget appearance fields are still validated below (kept in
+            // ValidatedBackupSettings) but no longer applied here.
             groupNameCounter = validatedSnapshot.settings.groupNameCounter,
             firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
             stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,

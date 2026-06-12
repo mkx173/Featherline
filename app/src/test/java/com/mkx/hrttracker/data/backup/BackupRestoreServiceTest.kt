@@ -95,8 +95,8 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(),
-                any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(),
             )
         } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
@@ -159,8 +159,8 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(),
-                any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(),
             )
         }
     }
@@ -290,37 +290,12 @@ class BackupRestoreServiceTest {
         // 0.5..1.5 and export copies it verbatim. The restore validator must
         // accept that same domain — a narrower range silently rejects a
         // legitimately-exported backup as "incompatible". Restoring at both
-        // extremes must succeed and preserve the stored value unchanged.
-        val capturedScales = mutableListOf<Float>()
-        coEvery {
-            settingsRepository.restoreSettings(
-                darkModeOption = any(),
-                adaptiveColorEnabled = any(),
-                pureBlackEnabled = any(),
-                cjkTextOffsetEnabled = any(),
-                hazeBlurEnabled = any(),
-                remindersEnabled = any(),
-                showArchivedGroupRecords = any(),
-                hideReferenceRanges = any(),
-                appLockGracePeriodOption = any(),
-                hideScreenContentEnabled = any(),
-                onboardingCompleted = any(),
-                appLanguageOption = any(),
-                calibrationDefaultUnits = any(),
-                homeE2DisplayUnit = any(),
-                homeE2ChartWindowOption = any(),
-                lastSeenTimeZoneId = any(),
-                hideMedicationDetails = any(),
-                widgetContentScale = capture(capturedScales),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
-                groupNameCounter = any(),
-                firstDayOfWeekOption = any(),
-                stockNudgeEnabled = any(),
-                stockNudgeUserEnabled = any(),
-            )
-        } just Runs
-
+        // extremes must succeed (the validator does not throw).
+        //
+        // interim: appearance no longer flows into restoreSettings (it is dropped
+        // until the next task wires WidgetAppearanceRepository into restore), so
+        // this only asserts the validator accepts the domain. The round-trip
+        // assertion returns once appearance restore lands.
         listOf(0.5f, 1.5f).forEach { scale ->
             service.restoreBackupBytes(
                 encryptedBytes = backupCrypto.encryptSnapshotJson(
@@ -331,7 +306,15 @@ class BackupRestoreServiceTest {
             )
         }
 
-        assertEquals(listOf(0.5f, 1.5f), capturedScales)
+        coVerify(exactly = 2) {
+            settingsRepository.restoreSettings(
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(),
+            )
+        }
     }
 
     @Test
@@ -356,9 +339,6 @@ class BackupRestoreServiceTest {
                 homeE2ChartWindowOption = any(),
                 lastSeenTimeZoneId = any(),
                 hideMedicationDetails = any(),
-                widgetContentScale = any(),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = any(),
@@ -402,9 +382,6 @@ class BackupRestoreServiceTest {
                 homeE2ChartWindowOption = any(),
                 lastSeenTimeZoneId = any(),
                 hideMedicationDetails = any(),
-                widgetContentScale = any(),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = any(),
@@ -448,9 +425,6 @@ class BackupRestoreServiceTest {
                 homeE2ChartWindowOption = any(),
                 lastSeenTimeZoneId = any(),
                 hideMedicationDetails = any(),
-                widgetContentScale = any(),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = any(),
@@ -494,9 +468,6 @@ class BackupRestoreServiceTest {
                 homeE2ChartWindowOption = any(),
                 lastSeenTimeZoneId = any(),
                 hideMedicationDetails = any(),
-                widgetContentScale = any(),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = any(),
@@ -542,9 +513,6 @@ class BackupRestoreServiceTest {
                 homeE2ChartWindowOption = any(),
                 lastSeenTimeZoneId = any(),
                 hideMedicationDetails = any(),
-                widgetContentScale = any(),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = capture(capturedValues),
@@ -587,9 +555,6 @@ class BackupRestoreServiceTest {
                 homeE2ChartWindowOption = any(),
                 lastSeenTimeZoneId = any(),
                 hideMedicationDetails = any(),
-                widgetContentScale = any(),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = capture(capturedValues),
