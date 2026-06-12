@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.widget
 
+import android.appwidget.AppWidgetManager
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
@@ -43,9 +45,13 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isFinite
 import androidx.compose.ui.viewinterop.AndroidView
@@ -58,7 +64,9 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.settings.labelRes
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.CancellationException
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -155,11 +163,13 @@ internal fun WidgetConfigScreen(
                     modifier = Modifier.padding(WIDGET_PREVIEW_WINDOW_INSET),
                 )
             }
+            Spacer(modifier = Modifier.height(16.dp))
             HrtSection(title = stringResource(R.string.settings_widget_appearance)) {
                 item {
                     SliderRow(
                         label = stringResource(R.string.settings_widget_content_scale),
-                        icon = painterResource(R.drawable.ic_zoom_in),
+                        icon = painterResource(R.drawable.ic_loupe),
+                        iconSize = 19.dp,
                         value = contentScale,
                         valueRange = 0.5f..1.5f,
                         onValueChange = { contentScale = snapToWholePercent(it) },
@@ -169,6 +179,7 @@ internal fun WidgetConfigScreen(
                     SliderRow(
                         label = stringResource(R.string.settings_widget_background_opacity),
                         icon = painterResource(R.drawable.ic_opacity),
+                        iconSize = 20.dp,
                         value = backgroundAlpha,
                         valueRange = 0.5f..1f,
                         onValueChange = { backgroundAlpha = snapToWholePercent(it) },
@@ -181,7 +192,7 @@ internal fun WidgetConfigScreen(
                             supportingText = stringResource(darkModeOption.labelRes),
                             onClick = { isDarkModeMenuExpanded = true },
                             leadingContent = {
-                                RowLeadingIcon(painterResource(R.drawable.ic_dark_mode))
+                                RowLeadingIcon(painterResource(R.drawable.ic_dark_mode), size = 24.dp)
                             },
                         )
                         HrtDropdownMenu(
@@ -228,6 +239,7 @@ internal fun WidgetConfigScreen(
 private fun SliderRow(
     label: String,
     icon: Painter,
+    iconSize: Dp = 22.dp,
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
     onValueChange: (Float) -> Unit,
@@ -238,16 +250,17 @@ private fun SliderRow(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                RowLeadingIcon(icon)
+                RowLeadingIcon(icon, size = iconSize)
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = label,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).cjkTextOffset(label),
                 )
                 Text(
                     text = "${(value * 100).roundToInt()}%",
                     style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.cjkTextOffset(label)
                 )
             }
             Slider(
@@ -261,12 +274,18 @@ private fun SliderRow(
 
 // Mirrors SettingsScreen's SettingsLeadingIconSlot (private there) for this screen's rows.
 @Composable
-private fun RowLeadingIcon(painter: Painter) {
-    Icon(
-        painter = painter,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+private fun RowLeadingIcon(painter: Painter, size: Dp) {
+    Box(
+        modifier = Modifier.size(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            painter = painter,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(size)
+        )
+    }
 }
 
 // Hosts the composed RemoteViews, fully inert: intercepted touches, blocked descendant
@@ -280,8 +299,11 @@ private fun WidgetPreview(
     render: WidgetConfigPreviewRender?,
     modifier: Modifier = Modifier,
 ) {
-    val sizeDp = render?.sizeDp ?: return
-    val remoteViews = render.remoteViews
+    // In @Preview (inspection mode) no RemoteViews render exists; reserve the medium
+    // reference footprint (306x276dp, mirroring the private MEDIUM_WIDGET_PREVIEW_SIZE)
+    // so the wallpaper window still lays out at a realistic size.
+    val sizeDp = render?.sizeDp
+        ?: if (LocalInspectionMode.current) DpSize(306.dp, 276.dp) else return
     BoxWithConstraints(modifier = modifier) {
         // Fit inside the constraints (the breathing-room inset is now this composable's outer
         // padding, so maxWidth/maxHeight already exclude it); never scale UP past the true
@@ -298,39 +320,44 @@ private fun WidgetPreview(
             modifier = Modifier.size(sizeDp.width * fit, sizeDp.height * fit),
             contentAlignment = Alignment.Center,
         ) {
-            AndroidView(
-                modifier = Modifier
-                    .requiredSize(sizeDp.width, sizeDp.height)
-                    .graphicsLayer {
-                        scaleX = fit
-                        scaleY = fit
+            if (render != null) {
+                val remoteViews = render.remoteViews
+                AndroidView(
+                    modifier = Modifier
+                        .requiredSize(sizeDp.width, sizeDp.height)
+                        .graphicsLayer {
+                            scaleX = fit
+                            scaleY = fit
+                        },
+                    factory = { viewContext ->
+                        object : FrameLayout(viewContext) {
+                            override fun onInterceptTouchEvent(ev: MotionEvent?) = true
+                        }.apply {
+                            descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+                            isFocusable = false
+                            importantForAccessibility =
+                                View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                        }
                     },
-                factory = { viewContext ->
-                    object : FrameLayout(viewContext) {
-                        override fun onInterceptTouchEvent(ev: MotionEvent?) = true
-                    }.apply {
-                        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
-                        isFocusable = false
-                        importantForAccessibility =
-                            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-                    }
-                },
-                update = { container ->
-                    // Skip no-op reapplies on unrelated recompositions: only rebuild when a new
-                    // RemoteViews instance arrives (every real preview change is a new instance).
-                    if (container.tag !== remoteViews) {
-                        container.tag = remoteViews
-                        container.removeAllViews()
-                        // Apply with the application context, NOT the activity context: the AppCompat
-                        // activity's LayoutInflater factory would inflate ImageView as AppCompatImageView,
-                        // whose setters lack @RemotableViewMethod, crashing RemoteViews actions. The
-                        // launcher applies these RemoteViews with a non-AppCompat context too.
-                        container.addView(
-                            remoteViews.apply(container.context.applicationContext, container)
-                        )
-                    }
-                },
-            )
+                    update = { container ->
+                        // Skip no-op reapplies on unrelated recompositions: only rebuild when a
+                        // new RemoteViews instance arrives (every real preview change is a new
+                        // instance).
+                        if (container.tag !== remoteViews) {
+                            container.tag = remoteViews
+                            container.removeAllViews()
+                            // Apply with the application context, NOT the activity context: the
+                            // AppCompat activity's LayoutInflater factory would inflate ImageView
+                            // as AppCompatImageView, whose setters lack @RemotableViewMethod,
+                            // crashing RemoteViews actions. The launcher applies these
+                            // RemoteViews with a non-AppCompat context too.
+                            container.addView(
+                                remoteViews.apply(container.context.applicationContext, container)
+                            )
+                        }
+                    },
+                )
+            }
         }
     }
 }
@@ -344,3 +371,27 @@ private const val WALLPAPER_WINDOW_CORNER_DP = 28
 // Breathing-room inset applied as the preview's outer padding, so the wallpaper window
 // (which hugs this composable) stands off the fit-scaled preview on every side.
 private val WIDGET_PREVIEW_WINDOW_INSET = 24.dp
+
+// The window region renders as an empty reference-size hole here: no RemoteViews can be
+// composed in inspection mode (and on-device the hole shows the wallpaper anyway).
+@Preview(
+    name = "Widget Config Screen",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 920,
+)
+@Composable
+private fun WidgetConfigScreenPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        WidgetConfigScreen(
+            initialContentScale = 1.0f,
+            initialBackgroundAlpha = 0.8f,
+            initialDarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
+            isMediumWidget = true,
+            appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID,
+            snapshot = null,
+            onSave = { _, _, _ -> },
+            onCancel = {},
+        )
+    }
+}
