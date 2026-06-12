@@ -284,11 +284,13 @@ private suspend fun pushHrtWidget(
         appWidgetManager.getAppWidgetIds(ComponentName(context, receiverClass))
     }.getOrElse { intArrayOf() }
     appWidgetIds.forEach { appWidgetId ->
-        // Read the launcher options once and derive both the compose size and the baseline
-        // height from the same bundle, rather than fetching options twice for one widget.
-        val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
-        val size = currentWidgetSizeDp(context, options, isMedium)
-        val deviceBaselineHeightDp = portraitBaselineHeightDp(options)
+        // One options read; size and baseline resolve through the same helper the
+        // config-screen preview uses.
+        val (size, deviceBaselineHeightDp) = resolveWidgetRenderSize(
+            context,
+            appWidgetManager.getAppWidgetOptions(appWidgetId),
+            isMedium,
+        )
         val result = runCatching {
             GlanceRemoteViews().compose(context = context, size = size) {
                 HrtWidgetThemed(context, record, deviceBaselineHeightDp) { snapshot ->
@@ -349,14 +351,10 @@ internal suspend fun composeWidgetPreviewRemoteViews(
             runCatching { AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId) }
                 .getOrNull()
         }
-    // Live options → actual size + the widget's real device baseline (resolve scale the
-    // same way the production push does). No options → fixed reference size + baseline.
-    val size = if (options != null) {
-        currentWidgetSizeDp(context, options, isMedium)
-    } else {
-        if (isMedium) MEDIUM_WIDGET_PREVIEW_SIZE else LARGE_WIDGET_PREVIEW_SIZE
-    }
-    val deviceBaselineHeightDp = options?.let { portraitBaselineHeightDp(it) }
+    // Live options → actual size + the widget's real device baseline, resolved through
+    // the same helper as the production push so the two paths cannot diverge. No
+    // options → fixed reference size + baseline.
+    val (size, deviceBaselineHeightDp) = resolveWidgetRenderSize(context, options, isMedium)
     val remoteViews = GlanceRemoteViews().compose(context = context, size = size) {
         HrtWidgetThemed(context, record, deviceBaselineHeightDp) { themed ->
             CompositionLocalProvider(
@@ -372,6 +370,33 @@ internal suspend fun composeWidgetPreviewRemoteViews(
         }
     }.remoteViews
     return WidgetConfigPreviewRender(remoteViews, size)
+}
+
+// The size a widget render composes at plus the device baseline that drives its content
+// scale. The production push and the config-screen preview BOTH resolve through
+// resolveWidgetRenderSize, so a change to the derivation cannot silently make the
+// preview diverge from the real widget.
+private data class WidgetRenderSize(
+    val sizeDp: DpSize,
+    val deviceBaselineHeightDp: Float?,
+)
+
+// Null options (a preview without live launcher options) fall back to the fixed
+// reference preview size with no device baseline.
+private fun resolveWidgetRenderSize(
+    context: Context,
+    options: Bundle?,
+    isMedium: Boolean,
+): WidgetRenderSize = if (options != null) {
+    WidgetRenderSize(
+        sizeDp = currentWidgetSizeDp(context, options, isMedium),
+        deviceBaselineHeightDp = portraitBaselineHeightDp(options),
+    )
+} else {
+    WidgetRenderSize(
+        sizeDp = if (isMedium) MEDIUM_WIDGET_PREVIEW_SIZE else LARGE_WIDGET_PREVIEW_SIZE,
+        deviceBaselineHeightDp = null,
+    )
 }
 
 // The widget size for the current orientation, derived from the launcher's options.

@@ -35,6 +35,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -69,6 +70,7 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.settings.labelRes
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.conflate
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -97,36 +99,48 @@ internal fun WidgetConfigScreen(
     var darkModeOption by rememberSaveable { mutableStateOf(initialDarkModeOption) }
     var isDarkModeMenuExpanded by rememberSaveable { mutableStateOf(false) }
 
-    // Same option→forcedDark mapping the snapshot builder bakes, so the preview shows
-    // exactly what the home-screen widget will render after Save.
-    val forcedDark = when (darkModeOption) {
-        DarkModeOption.LIGHT -> false
-        DarkModeOption.DARK -> true
-        DarkModeOption.FOLLOW_SYSTEM -> null
-    }
     val context = LocalContext.current
     val previewRender by produceState<WidgetConfigPreviewRender?>(
         initialValue = null,
-        contentScale, backgroundAlpha, forcedDark, isMediumWidget, appWidgetId, snapshot,
+        isMediumWidget, appWidgetId, snapshot,
     ) {
-        value = try {
-            composeWidgetPreviewRemoteViews(
-                context = context.applicationContext,
-                isMedium = isMediumWidget,
-                contentScale = contentScale,
-                backgroundAlpha = backgroundAlpha,
-                forcedDark = forcedDark,
-                snapshot = snapshot,
-                appWidgetId = appWidgetId,
-            )
-        } catch (cancellation: CancellationException) {
-            throw cancellation
-        } catch (_: Exception) {
-            // The compose helper deliberately propagates failures; for a live preview the
-            // right policy is graceful degradation — keep the last good render rather than
-            // crashing the config UI on a transient composition failure.
-            value
+        // Conflated live rendering: always render the LATEST control values, but never
+        // queue more than one render. While a render is in flight, slider ticks only
+        // overwrite the pending value, so a fast drag costs a few renders instead of one
+        // full widget composition per tick — and no in-flight render is ever cancelled,
+        // so the preview keeps updating continuously THROUGH the drag.
+        snapshotFlow {
+            // Same option→forcedDark mapping the snapshot builder bakes, so the preview
+            // shows exactly what the home-screen widget will render after Save.
+            val forcedDark = when (darkModeOption) {
+                DarkModeOption.LIGHT -> false
+                DarkModeOption.DARK -> true
+                DarkModeOption.FOLLOW_SYSTEM -> null
+            }
+            Triple(contentScale, backgroundAlpha, forcedDark)
         }
+            .conflate()
+            .collect { (scale, alpha, forcedDark) ->
+                value = try {
+                    composeWidgetPreviewRemoteViews(
+                        context = context.applicationContext,
+                        isMedium = isMediumWidget,
+                        contentScale = scale,
+                        backgroundAlpha = alpha,
+                        forcedDark = forcedDark,
+                        snapshot = snapshot,
+                        appWidgetId = appWidgetId,
+                    )
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (_: Exception) {
+                    // The compose helper deliberately propagates failures; for a live
+                    // preview the right policy is graceful degradation — keep the last
+                    // good render rather than crashing the config UI on a transient
+                    // composition failure.
+                    value
+                }
+            }
     }
 
     // Offscreen compositing so the wallpaper window's BlendMode.Clear punches a real
@@ -266,6 +280,9 @@ private fun SliderRow(
                 Text(
                     text = "${(value * 100).roundToInt()}%",
                     style = MaterialTheme.typography.bodyMedium,
+                    // Keyed on the label on purpose: the "NN%" text is always non-CJK, so
+                    // keying on its own text would never offset it — it must follow the
+                    // label's CJK offset to stay baseline-aligned with it.
                     modifier = Modifier.cjkTextOffset(label)
                 )
             }

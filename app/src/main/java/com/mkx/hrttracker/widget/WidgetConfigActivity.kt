@@ -22,7 +22,10 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 // Full-screen live-preview reconfigure UI, launched by the launcher's long-press
@@ -46,8 +49,8 @@ class WidgetConfigActivity : AppCompatActivity() {
     @Inject
     lateinit var widgetSnapshotStore: WidgetSnapshotStore
 
-    // Persist must outlive the activity: Save calls setWidgetAppearance then finish()
-    // synchronously, so a lifecycleScope write would be cancelled mid-edit.
+    // Persist must outlive the activity: the activity can be destroyed mid-write (system
+    // kill, config change), and a lifecycleScope write would be cancelled with it.
     @Inject
     @AppScope
     lateinit var appScope: CoroutineScope
@@ -127,13 +130,22 @@ class WidgetConfigActivity : AppCompatActivity() {
                                     ),
                                 )
                                 appScope.launch {
-                                    settingsRepository.setWidgetAppearance(
-                                        scale,
-                                        alpha,
-                                        darkMode,
-                                    )
+                                    try {
+                                        settingsRepository.setWidgetAppearance(
+                                            scale,
+                                            alpha,
+                                            darkMode,
+                                        )
+                                    } finally {
+                                        // Finish only after the write lands: RESULT_OK is
+                                        // already reported, and finishing first would leave
+                                        // a window where process death right after finish()
+                                        // loses the save the launcher believes succeeded.
+                                        withContext(NonCancellable + Dispatchers.Main) {
+                                            finish()
+                                        }
+                                    }
                                 }
-                                finish()
                             },
                             onCancel = { finish() },
                         )
