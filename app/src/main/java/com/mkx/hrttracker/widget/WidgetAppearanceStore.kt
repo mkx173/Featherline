@@ -8,10 +8,12 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,6 +29,9 @@ private val Context.widgetAppearanceDataStore by preferencesDataStore(
     corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
 )
 
+private const val IO_RETRY_ATTEMPTS = 3L
+private const val IO_RETRY_DELAY_MS = 250L
+
 private val DEFAULT_KEY = stringPreferencesKey("appearance_default")
 private fun overrideKey(appWidgetId: Int) = stringPreferencesKey("appearance_$appWidgetId")
 
@@ -35,12 +40,22 @@ class WidgetAppearanceStore @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) {
     // Transient IOException (low memory, EBUSY during fsync) would otherwise tear
-    // down the app-lifetime appearance collectors; emit empty (→ Default) instead,
-    // mirroring SettingsRepository's per-flow recovery.
+    // down the app-lifetime appearance collectors: `catch` completes the flow after
+    // its fallback emission, so a single transient failure would permanently kill
+    // them. Retry briefly first so transient failures resubscribe upstream; only
+    // then fall back to empty (→ Default) so one-shot readers (currentEffective)
+    // never hang under persistent I/O failure. Residual limitation: a persistent
+    // failure still completes the flow after the retries are exhausted.
     private fun safeData(): Flow<Preferences> =
-        context.widgetAppearanceDataStore.data.catch { cause ->
-            if (cause is IOException) emit(emptyPreferences()) else throw cause
-        }
+        context.widgetAppearanceDataStore.data
+            .retryWhen { cause, attempt ->
+                val retry = cause is IOException && attempt < IO_RETRY_ATTEMPTS
+                if (retry) delay(IO_RETRY_DELAY_MS)
+                retry
+            }
+            .catch { cause ->
+                if (cause is IOException) emit(emptyPreferences()) else throw cause
+            }
 
     internal fun observeEntry(appWidgetId: Int?): Flow<WidgetAppearance?> =
         safeData()

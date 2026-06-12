@@ -3,6 +3,7 @@ package com.mkx.hrttracker.widget
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -61,18 +62,22 @@ class WidgetAppearanceRepository @Inject constructor(
 
     // Seeds appearance_default from the legacy SettingsRepository keys exactly once,
     // then deletes them. Idempotent and safe to call on every app start. Returns
-    // true when legacy data existed: the caller must repaint widgets then, because
-    // the migration write lands as the change-observer's dropped initial emission
-    // and the async startup worker may have already pushed with Default appearance.
-    // If the process dies between the seed and the legacy-key clear, the next start
-    // re-runs harmlessly (seed no-ops) and the repaint happens then.
+    // true when legacy data existed (the store was seeded / appearance may have
+    // changed): the caller must repaint widgets then, because the migration write
+    // lands as the change-observer's dropped initial emission and the async startup
+    // worker may have already pushed with Default appearance. A failed legacy-key
+    // clear is non-fatal for the same reason a crash between seed and clear is: the
+    // surviving keys make the next start re-run harmlessly (seed no-ops) and retry
+    // the clear — but the seed DID land, so we still report true for the repaint.
     suspend fun migrateFromLegacySettingsIfNeeded(): Boolean {
         val legacy = settingsRepository.readLegacyWidgetAppearance() ?: return false
         val seeded = store.seedDefaultIfAbsent(
             legacyWidgetAppearance(legacy.contentScale, legacy.backgroundAlpha, legacy.darkMode)
         )
-        settingsRepository.clearLegacyWidgetAppearanceKeys()
-        diagnosticsLogger.info(TAG, "widget_appearance_migrated seeded=$seeded")
+        val cleared = runCatching { settingsRepository.clearLegacyWidgetAppearanceKeys() }
+            .onFailure { error -> if (error is CancellationException) throw error }
+            .isSuccess
+        diagnosticsLogger.info(TAG, "widget_appearance_migrated seeded=$seeded cleared=$cleared")
         return true
     }
 

@@ -100,6 +100,16 @@ class WidgetConfigActivity : AppCompatActivity() {
                         // Unlike the settings read below (no safe placeholder -> finish), appearance HAS a
                         // safe fallback: Default is exactly what a never-configured widget renders.
                         appearance = runCatching {
+                            // The read must not race the fire-and-forget startup migration
+                            // (HomeWidgetManager.start): seeding Defaults here would let Save
+                            // clobber the migrated values. Idempotent, so awaiting it is safe;
+                            // a failure leaves the legacy keys intact, so proceeding with
+                            // whatever the store holds is fine.
+                            runCatching {
+                                widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
+                            }.onFailure { error ->
+                                if (error is CancellationException) throw error
+                            }
                             widgetAppearanceRepository.currentEffective(null)
                         }.getOrElse { error ->
                             if (error is CancellationException) throw error
