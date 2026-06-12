@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.widget
 
 import android.appwidget.AppWidgetManager
+import android.content.res.Configuration
+import android.content.res.Resources
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -8,7 +10,6 @@ import android.widget.FrameLayout
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -108,7 +109,9 @@ internal fun WidgetConfigScreen(
     var saturation by rememberSaveable {
         mutableStateOf(snapToWholePercent(sanitizedInitial.saturation))
     }
-    var balance by rememberSaveable { mutableStateOf(sanitizedInitial.balance) }
+    var balance by rememberSaveable {
+        mutableStateOf(snapToWholePercent(sanitizedInitial.balance))
+    }
     var contentScale by rememberSaveable {
         mutableStateOf(snapToWholePercent(sanitizedInitial.contentScale))
     }
@@ -122,7 +125,14 @@ internal fun WidgetConfigScreen(
     // once from the system appearance at first composition; the saveable preserves the
     // user's flip across config changes. This NEVER touches darkModeOption / the saved
     // appearance — it only overrides the PREVIEW's resolved darkMode below.
-    val initialSystemDark = isSystemInDarkTheme()
+    // Deliberately NOT isSystemInDarkTheme(): this AppCompat activity's configuration is
+    // overridden by AppCompatDelegate.setDefaultNightMode() (the APP's dark-mode setting),
+    // while the home-screen widget under FOLLOW_SYSTEM tracks the SYSTEM appearance —
+    // which Resources.getSystem() reports unaffected by the per-activity override.
+    val initialSystemDark = remember {
+        Resources.getSystem().configuration.uiMode and
+            Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+    }
     var previewDark by rememberSaveable { mutableStateOf(initialSystemDark) }
 
     val liveAppearance = WidgetAppearance(
@@ -503,7 +513,9 @@ private fun HueSliderRow(
             Slider(
                 value = hue ?: restingHue,
                 onValueChange = onHueChange,
-                valueRange = 0f..360f,
+                // Ends at 359 so the canonical mod-360 stored value round-trips to the
+                // same thumb position (360 would alias to 0 and snap the handle far-left).
+                valueRange = 0f..359f,
             )
         }
     }

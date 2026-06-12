@@ -13,6 +13,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -103,8 +104,13 @@ private suspend fun GlanceAppWidget.provideHrtContent(
         }
         val state = currentState<WidgetSnapshotState>()
         val snapshot = state.record?.takeIf { it.schemaVersion == WIDGET_SNAPSHOT_SCHEMA_VERSION }
-        val appearance by appearanceRepository.effectiveFor(appWidgetId)
-            .collectAsState(initial = initialAppearance)
+        // Remembered: collectAsState keys on flow identity, so an unremembered
+        // effectiveFor() would build a fresh combine flow each recomposition and
+        // cancel/restart the underlying DataStore collections.
+        val appearanceFlow = remember(appWidgetId) {
+            appearanceRepository.effectiveFor(appWidgetId)
+        }
+        val appearance by appearanceFlow.collectAsState(initial = initialAppearance)
         HrtWidgetThemed(context, snapshot, appearance, deviceBaselineHeightDp) { content(it) }
     }
 }
