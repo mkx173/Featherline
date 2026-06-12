@@ -21,6 +21,8 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.util.backupFileNameTimestampFormatter
+import com.mkx.hrttracker.widget.WidgetAppearanceCodec
+import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -41,6 +43,7 @@ class BackupExportService @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
     private val bloodTestRepository: BloodTestRepository,
+    private val widgetAppearanceRepository: WidgetAppearanceRepository,
     private val backupCrypto: BackupCrypto,
 ) {
     internal suspend fun buildBackupSnapshotJson(
@@ -159,6 +162,7 @@ class BackupExportService @Inject constructor(
         val onboardingCompleted = settingsRepository.onboardingCompleted.first()
         val stockNudgeEnabled = settingsRepository.stockNudgeEnabledFlow.first()
         val stockNudgeUserEnabled = settingsRepository.stockNudgeUserEnabledFlow.first()
+        val defaultAppearance = widgetAppearanceRepository.currentEffective(null)
         val userProfile = userProfileRepository.getCurrentProfile()
         // Pulled before groups/logs so the importer can build its valid-medicine
         // set up front and reject any item or log that references a row absent
@@ -196,10 +200,12 @@ class BackupExportService @Inject constructor(
                     },
                 lastSeenTimeZoneId = settings.lastSeenTimeZoneId,
                 hideMedicationDetails = settings.hideMedicationDetails,
-                // interim: real appearance backup lands in the next commit
-                widgetContentScale = 1.0f,
-                widgetBackgroundAlpha = 1.0f,
-                widgetDarkModeOption = "FOLLOW_SYSTEM",
+                // legacy mirrors for forward-compat readers:
+                // Mirrors must stay derived from defaultAppearance — never set independently.
+                widgetContentScale = defaultAppearance.contentScale,
+                widgetBackgroundAlpha = defaultAppearance.backgroundAlpha,
+                widgetDarkModeOption = defaultAppearance.darkMode.name,
+                widgetAppearance = WidgetAppearanceCodec.encode(defaultAppearance),
                 groupNameCounter = settings.groupNameCounter,
                 firstDayOfWeekOption = settings.firstDayOfWeekOption.name,
                 stockNudgeEnabled = stockNudgeEnabled,

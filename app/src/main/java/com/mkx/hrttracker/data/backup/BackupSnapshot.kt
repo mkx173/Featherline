@@ -45,6 +45,11 @@ data class BackupSettingsSnapshot(
     val widgetContentScale: Float = 1.0f,
     val widgetBackgroundAlpha: Float = 1.0f,
     val widgetDarkModeOption: String = "FOLLOW_SYSTEM",
+    // Encoded WidgetAppearanceCodec string for the DEFAULT appearance entry. When
+    // present it wins over the three legacy widget* fields above, which remain only
+    // so pre-customization backups keep restoring (and old app versions can still
+    // read new backups' scale/alpha/darkMode).
+    val widgetAppearance: String? = null,
     val groupNameCounter: Int = 0,
     val firstDayOfWeekOption: String = "FOLLOW_SYSTEM",
     val stockNudgeEnabled: Boolean = true,

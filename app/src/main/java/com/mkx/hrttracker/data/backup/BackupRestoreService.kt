@@ -47,6 +47,10 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.widget.WidgetAppearance
+import com.mkx.hrttracker.widget.WidgetAppearanceCodec
+import com.mkx.hrttracker.widget.WidgetAppearanceRepository
+import com.mkx.hrttracker.widget.legacyWidgetAppearance
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +83,7 @@ class BackupRestoreService @Inject constructor(
     private val medicationReminderScheduler: MedicationReminderScheduler,
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val reminderNotificationManager: ReminderNotificationManager,
+    private val widgetAppearanceRepository: WidgetAppearanceRepository,
     private val backupCrypto: BackupCrypto,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
@@ -287,14 +292,38 @@ class BackupRestoreService @Inject constructor(
             homeE2ChartWindowOption = validatedSnapshot.settings.homeE2ChartWindowOption,
             lastSeenTimeZoneId = validatedSnapshot.settings.lastSeenTimeZoneId,
             hideMedicationDetails = validatedSnapshot.settings.hideMedicationDetails,
-            // interim: real appearance restore lands in the next commit. The legacy
-            // widget appearance fields are still validated below (kept in
-            // ValidatedBackupSettings) but no longer applied here.
             groupNameCounter = validatedSnapshot.settings.groupNameCounter,
             firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
             stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,
             stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
         )
+
+        // Restore REPLACES the default appearance wholesale, including hues and
+        // vibrancy from the backup (or Defaults via the legacy mirror for
+        // pre-customization backups). appWidgetIds are not stable across devices,
+        // so only the default entry travels in the backup.
+        //
+        // Validation already hard-failed any malformed appearance payload before
+        // the commit above; only the DataStore IO apply here is best-effort, so a
+        // write failure must not sink an otherwise-successful restore.
+        try {
+            widgetAppearanceRepository.setDefault(
+                validatedSnapshot.settings.widgetAppearance
+                    ?: legacyWidgetAppearance(
+                        contentScale = validatedSnapshot.settings.widgetContentScale,
+                        backgroundAlpha = validatedSnapshot.settings.widgetBackgroundAlpha,
+                        darkMode = validatedSnapshot.settings.widgetDarkModeOption,
+                    )
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            diagnosticsLogger.warning(
+                TAG,
+                "restore_widget_appearance_apply_failed",
+                error,
+            )
+        }
 
         // Reminder rescheduling is a best-effort side effect — the data is
         // already committed. Surfacing a failure here as a generic
@@ -841,6 +870,10 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         homeE2ChartWindow,
         "home E2 chart window",
     )
+    val widgetAppearance = widgetAppearance?.let { encoded ->
+        WidgetAppearanceCodec.decode(encoded)
+            ?: throw IllegalArgumentException("Invalid widget appearance payload.")
+    }
 
     return ValidatedBackupSettings(
         darkModeOption = darkModeOption,
@@ -866,6 +899,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
             "widget background opacity"
         ),
         widgetDarkModeOption = widgetDarkModeOption,
+        widgetAppearance = widgetAppearance,
         groupNameCounter = groupNameCounter,
         firstDayOfWeekOption = firstDayOfWeekOption,
         stockNudgeEnabled = stockNudgeEnabled,
@@ -1281,6 +1315,7 @@ internal data class ValidatedBackupSettings(
     val widgetContentScale: Float,
     val widgetBackgroundAlpha: Float,
     val widgetDarkModeOption: DarkModeOption,
+    val widgetAppearance: WidgetAppearance?,
     val groupNameCounter: Int,
     val firstDayOfWeekOption: FirstDayOfWeekOption,
     val stockNudgeEnabled: Boolean,
