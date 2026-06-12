@@ -33,11 +33,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -251,8 +253,8 @@ internal fun WidgetConfigScreen(
                             FilledTonalIconButton(
                                 onClick = { previewDark = !previewDark },
                                 modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(8.dp)
+                                    .align(Alignment.BottomEnd)
+                                    .padding(12.dp)
                                     .size(36.dp),
                             ) {
                                 Icon(
@@ -284,30 +286,6 @@ internal fun WidgetConfigScreen(
                     ) {
                         HrtSection(title = null) {
                             item {
-                                SliderRow(
-                                    label = stringResource(
-                                        R.string.settings_widget_content_scale,
-                                    ),
-                                    icon = painterResource(R.drawable.ic_loupe),
-                                    iconSize = 18.dp,
-                                    value = contentScale,
-                                    valueRange = 0.5f..1.5f,
-                                    onValueChange = { contentScale = snapToWholePercent(it) },
-                                )
-                            }
-                            item {
-                                SliderRow(
-                                    label = stringResource(
-                                        R.string.settings_widget_background_opacity,
-                                    ),
-                                    icon = painterResource(R.drawable.ic_blur_linear),
-                                    iconSize = 18.dp,
-                                    value = backgroundAlpha,
-                                    valueRange = 0.5f..1f,
-                                    onValueChange = { backgroundAlpha = snapToWholePercent(it) },
-                                )
-                            }
-                            item {
                                 Box {
                                     PreferenceSegmentedListItem(
                                         title = stringResource(
@@ -336,6 +314,30 @@ internal fun WidgetConfigScreen(
                                 }
                             }
                             item {
+                                SliderRow(
+                                    label = stringResource(
+                                        R.string.settings_widget_content_scale,
+                                    ),
+                                    icon = painterResource(R.drawable.ic_loupe),
+                                    iconSize = 18.dp,
+                                    value = contentScale,
+                                    valueRange = 0.5f..1.5f,
+                                    onValueChange = { contentScale = snapToWholePercent(it) },
+                                )
+                            }
+                            item {
+                                SliderRow(
+                                    label = stringResource(
+                                        R.string.settings_widget_background_opacity,
+                                    ),
+                                    icon = painterResource(R.drawable.ic_deblur),
+                                    iconSize = 18.dp,
+                                    value = backgroundAlpha,
+                                    valueRange = 0.5f..1f,
+                                    onValueChange = { backgroundAlpha = snapToWholePercent(it) },
+                                )
+                            }
+                            item {
                                 HueSliderRow(
                                     label = stringResource(R.string.widget_config_seed_hue),
                                     icon = painterResource(R.drawable.ic_palette),
@@ -351,7 +353,7 @@ internal fun WidgetConfigScreen(
                             item {
                                 SliderRow(
                                     label = stringResource(R.string.widget_config_saturation),
-                                    icon = painterResource(R.drawable.ic_invert_colors),
+                                    icon = painterResource(R.drawable.ic_colors),
                                     iconSize = 18.dp,
                                     value = saturation,
                                     valueRange = 0f..1f,
@@ -361,7 +363,7 @@ internal fun WidgetConfigScreen(
                             item {
                                 SliderRow(
                                     label = stringResource(R.string.widget_config_balance),
-                                    icon = painterResource(R.drawable.ic_contrast),
+                                    icon = painterResource(R.drawable.ic_contrast_circle),
                                     iconSize = 18.dp,
                                     value = balance,
                                     valueRange = 0f..1f,
@@ -457,7 +459,7 @@ private fun HueSliderRow(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                RowLeadingIcon(icon, size = 18.dp)
+                RowLeadingIcon(icon, size = 16.dp)
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = label,
@@ -474,16 +476,20 @@ private fun HueSliderRow(
                 // secondaryContainer accent. Tapping it while already selected is a
                 // no-op; tapping while an explicit hue is set resets back to Dynamic.
                 val dynamicSelected = hue == null
-                HrtPill(
-                    label = resetLabel,
-                    containerColor = if (dynamicSelected) {
-                        MaterialTheme.colorScheme.secondaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceContainer
-                    },
-                    size = HrtPillSize.Small,
-                    onClick = if (dynamicSelected) null else onReset,
-                )
+                CompositionLocalProvider(
+                    LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+                ) {
+                    HrtPill(
+                        label = resetLabel,
+                        containerColor = if (dynamicSelected) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainer
+                        },
+                        size = HrtPillSize.Small,
+                        onClick = if (dynamicSelected) null else onReset,
+                    )
+                }
             }
             Slider(
                 value = hue ?: restingHue,
