@@ -131,7 +131,6 @@ internal fun WidgetConfigScreen(
                 .windowInsetsPadding(WindowInsets.systemBars)
                 .padding(dimensionResource(R.dimen.padding_medium)),
         ) {
-            Spacer(modifier = Modifier.weight(1f))
             // The wallpaper window hugs the fitted preview height (preview + inset on every
             // side) rather than claiming all leftover space; animateContentSize smooths the
             // first-frame arrival when the preview composes (render goes null → sized).
@@ -153,7 +152,6 @@ internal fun WidgetConfigScreen(
                     modifier = Modifier.padding(WIDGET_PREVIEW_WINDOW_INSET),
                 )
             }
-            Spacer(modifier = Modifier.weight(1f))
             HrtSection(title = stringResource(R.string.settings_widget_appearance)) {
                 item {
                     SliderRow(
@@ -192,6 +190,7 @@ internal fun WidgetConfigScreen(
                     }
                 }
             }
+            Spacer(modifier = Modifier.weight(1f))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
