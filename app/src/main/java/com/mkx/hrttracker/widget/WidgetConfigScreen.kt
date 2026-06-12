@@ -5,7 +5,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,9 +16,11 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
@@ -28,7 +31,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -64,6 +69,7 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
+import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -154,99 +160,124 @@ internal fun WidgetConfigScreen(
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .background(MaterialTheme.colorScheme.background)
     ) {
-        AppContentContainer {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.systemBars)
-                    .padding(dimensionResource(R.dimen.padding_medium)),
-            ) {
-                // The wallpaper window hugs the fitted preview height (preview + inset on every
-                // side) rather than claiming all leftover space; animateContentSize smooths the
-                // first-frame arrival when the preview composes (render goes null → sized).
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .animateContentSize()
-                        .drawBehind {
-                            drawRoundRect(
-                                color = Color.Black,
-                                cornerRadius = CornerRadius(WALLPAPER_WINDOW_CORNER_DP.dp.toPx()),
-                                blendMode = BlendMode.Clear,
-                            )
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    WidgetPreview(
-                        render = previewRender,
-                        modifier = Modifier.padding(WIDGET_PREVIEW_WINDOW_INSET),
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Pinned behavior: nothing scrolls on this screen, the bar exists only for the
+            // title. It consumes the status-bar inset; the body below pads the remaining
+            // sides. Full-width on purpose — AppContentContainer caps only the body.
+            HazeTopAppBar(
+                title = {
+                    val title = stringResource(R.string.widget_config_title)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                HrtSection(title = stringResource(R.string.settings_widget_appearance)) {
-                    item {
-                        SliderRow(
-                            label = stringResource(R.string.settings_widget_content_scale),
-                            icon = painterResource(R.drawable.ic_loupe),
-                            iconSize = 18.dp,
-                            value = contentScale,
-                            valueRange = 0.5f..1.5f,
-                            onValueChange = { contentScale = snapToWholePercent(it) },
+                },
+                scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(),
+            )
+            AppContentContainer {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(
+                            WindowInsets.systemBars
+                                .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+                        )
+                        .padding(dimensionResource(R.dimen.padding_medium)),
+                ) {
+                    // The wallpaper window hugs the fitted preview height (preview + inset on
+                    // every side) rather than claiming all leftover space. No content-size
+                    // animation: the hole lands at its final size in one frame, and the widget
+                    // fades in inside it once the first render arrives (see WidgetPreview).
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .drawBehind {
+                                drawRoundRect(
+                                    color = Color.Black,
+                                    cornerRadius = CornerRadius(
+                                        WALLPAPER_WINDOW_CORNER_DP.dp.toPx(),
+                                    ),
+                                    blendMode = BlendMode.Clear,
+                                )
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        WidgetPreview(
+                            render = previewRender,
+                            modifier = Modifier.padding(WIDGET_PREVIEW_WINDOW_INSET),
                         )
                     }
-                    item {
-                        SliderRow(
-                            label = stringResource(R.string.settings_widget_background_opacity),
-                            icon = painterResource(R.drawable.ic_blur_linear),
-                            iconSize = 18.dp,
-                            value = backgroundAlpha,
-                            valueRange = 0.5f..1f,
-                            onValueChange = { backgroundAlpha = snapToWholePercent(it) },
-                        )
-                    }
-                    item {
-                        Box {
-                            PreferenceSegmentedListItem(
-                                title = stringResource(R.string.settings_widget_dark_mode),
-                                supportingText = stringResource(darkModeOption.labelRes),
-                                onClick = { isDarkModeMenuExpanded = true },
-                                leadingContent = {
-                                    RowLeadingIcon(painterResource(R.drawable.ic_dark_mode), size = 24.dp)
-                                },
-                            )
-                            HrtDropdownMenu(
-                                expanded = isDarkModeMenuExpanded,
-                                onDismissRequest = { isDarkModeMenuExpanded = false },
-                                modifier = Modifier.width(IntrinsicSize.Min),
-                                items = DarkModeOption.entries.map { option ->
-                                    HrtDropdownMenuItem(
-                                        text = stringResource(option.labelRes),
-                                        onClick = { darkModeOption = option },
-                                    )
-                                },
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HrtSection(title = null) {
+                        item {
+                            SliderRow(
+                                label = stringResource(R.string.settings_widget_content_scale),
+                                icon = painterResource(R.drawable.ic_loupe),
+                                iconSize = 18.dp,
+                                value = contentScale,
+                                valueRange = 0.5f..1.5f,
+                                onValueChange = { contentScale = snapToWholePercent(it) },
                             )
                         }
+                        item {
+                            SliderRow(
+                                label = stringResource(
+                                    R.string.settings_widget_background_opacity,
+                                ),
+                                icon = painterResource(R.drawable.ic_blur_linear),
+                                iconSize = 18.dp,
+                                value = backgroundAlpha,
+                                valueRange = 0.5f..1f,
+                                onValueChange = { backgroundAlpha = snapToWholePercent(it) },
+                            )
+                        }
+                        item {
+                            Box {
+                                PreferenceSegmentedListItem(
+                                    title = stringResource(R.string.settings_widget_dark_mode),
+                                    supportingText = stringResource(darkModeOption.labelRes),
+                                    onClick = { isDarkModeMenuExpanded = true },
+                                    leadingContent = {
+                                        RowLeadingIcon(
+                                            painterResource(R.drawable.ic_dark_mode),
+                                            size = 24.dp,
+                                        )
+                                    },
+                                )
+                                HrtDropdownMenu(
+                                    expanded = isDarkModeMenuExpanded,
+                                    onDismissRequest = { isDarkModeMenuExpanded = false },
+                                    modifier = Modifier.width(IntrinsicSize.Min),
+                                    items = DarkModeOption.entries.map { option ->
+                                        HrtDropdownMenuItem(
+                                            text = stringResource(option.labelRes),
+                                            onClick = { darkModeOption = option },
+                                        )
+                                    },
+                                )
+                            }
+                        }
                     }
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = dimensionResource(R.dimen.padding_medium)),
-                    horizontalArrangement = Arrangement.spacedBy(
-                        dimensionResource(R.dimen.padding_small),
-                    ),
-                ) {
-                    HrtFilledTonalButton(
-                        text = stringResource(R.string.cancel),
-                        onClick = onCancel,
-                        modifier = Modifier.weight(1f),
-                    )
-                    HrtButton(
-                        text = stringResource(R.string.save),
-                        onClick = { onSave(contentScale, backgroundAlpha, darkModeOption) },
-                        modifier = Modifier.weight(1f),
-                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = dimensionResource(R.dimen.padding_medium)),
+                        horizontalArrangement = Arrangement.spacedBy(
+                            dimensionResource(R.dimen.padding_small),
+                        ),
+                    ) {
+                        HrtFilledTonalButton(
+                            text = stringResource(R.string.cancel),
+                            onClick = onCancel,
+                            modifier = Modifier.weight(1f),
+                        )
+                        HrtButton(
+                            text = stringResource(R.string.save),
+                            onClick = { onSave(contentScale, backgroundAlpha, darkModeOption) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }
@@ -345,10 +376,17 @@ private fun WidgetPreview(
         ) {
             if (render != null) {
                 val remoteViews = render.remoteViews
+                // One-shot fade-in: this branch first composes when the FIRST render lands
+                // (until then the early return above keeps the whole tree out), so the alpha
+                // animates 0→1 exactly once; later re-renders swap views in place at full
+                // opacity.
+                val appearAlpha = remember { Animatable(0f) }
+                LaunchedEffect(Unit) { appearAlpha.animateTo(1f, tween()) }
                 AndroidView(
                     modifier = Modifier
                         .requiredSize(sizeDp.width, sizeDp.height)
                         .graphicsLayer {
+                            alpha = appearAlpha.value
                             scaleX = fit
                             scaleY = fit
                         },
