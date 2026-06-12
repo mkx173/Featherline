@@ -130,3 +130,10 @@ class WidgetConfigActivity : AppCompatActivity() {
         }
     }
 }
+
+// Resolves the launching widget's size from its provider class. Anything that is not
+// explicitly the large receiver — including a null provider from a malformed or direct
+// launch (the activity is exported and tolerates INVALID_APPWIDGET_ID) — falls back to
+// the medium preview rather than failing.
+internal fun isMediumWidgetProvider(providerClassName: String?): Boolean =
+    providerClassName != HrtWidgetLargeReceiver::class.java.name
