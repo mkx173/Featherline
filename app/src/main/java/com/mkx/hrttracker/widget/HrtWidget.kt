@@ -370,12 +370,7 @@ internal suspend fun composeWidgetPreviewRemoteViews(
         null
     }
     val record = snapshot ?: previewSnapshot(context)
-    val options = appWidgetId
-        .takeIf { it != AppWidgetManager.INVALID_APPWIDGET_ID }
-        ?.let { widgetId ->
-            runCatching { AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId) }
-                .getOrNull()
-        }
+    val options = widgetOptionsOrNull(context, appWidgetId)
     // Live options → actual size + the widget's real device baseline, resolved through
     // the same helper as the production push so the two paths cannot diverge. No
     // options → fixed reference size + baseline.
@@ -396,6 +391,20 @@ internal suspend fun composeWidgetPreviewRemoteViews(
     }.remoteViews
     return WidgetConfigPreviewRender(remoteViews, size)
 }
+
+private fun widgetOptionsOrNull(context: Context, appWidgetId: Int): Bundle? = appWidgetId
+    .takeIf { it != AppWidgetManager.INVALID_APPWIDGET_ID }
+    ?.let { widgetId ->
+        runCatching { AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId) }
+            .getOrNull()
+    }
+
+// The size the config preview will compose at, resolved synchronously through the same
+// path as the render itself, so the config screen can reserve the wallpaper window's
+// final footprint on its first frame instead of blinking in once the first async
+// render lands.
+internal fun widgetPreviewSizeDp(context: Context, isMedium: Boolean, appWidgetId: Int): DpSize =
+    resolveWidgetRenderSize(context, widgetOptionsOrNull(context, appWidgetId), isMedium).sizeDp
 
 // The size a widget render composes at plus the device baseline that drives its content
 // scale. The production push and the config-screen preview BOTH resolve through

@@ -58,7 +58,6 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -136,6 +135,12 @@ internal fun WidgetConfigScreen(
     )
 
     val context = LocalContext.current
+    // Resolved through the same path the render itself uses, so the wallpaper window
+    // can reserve the preview's final footprint on the first frame — before the first
+    // async render lands — without the two sizes ever diverging.
+    val previewPlaceholderSizeDp = remember(isMediumWidget, appWidgetId) {
+        widgetPreviewSizeDp(context, isMediumWidget, appWidgetId)
+    }
     val previewRender by produceState<WidgetConfigPreviewRender?>(
         initialValue = null,
         isMediumWidget, appWidgetId, snapshot,
@@ -225,8 +230,9 @@ internal fun WidgetConfigScreen(
                 ) {
                     // The wallpaper window hugs the fitted preview height (preview + inset on
                     // every side) rather than claiming all leftover space. No content-size
-                    // animation: the hole lands at its final size in one frame, and the widget
-                    // fades in inside it once the first render arrives (see WidgetPreview).
+                    // animation: WidgetPreview reserves its final footprint from the
+                    // placeholder size, so the hole lands at its final size on the FIRST
+                    // frame and the widget fades in inside it once the first render arrives.
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -243,6 +249,7 @@ internal fun WidgetConfigScreen(
                     ) {
                         WidgetPreview(
                             render = previewRender,
+                            placeholderSizeDp = previewPlaceholderSizeDp,
                             modifier = Modifier.padding(WIDGET_PREVIEW_WINDOW_INSET),
                         )
                         // Preview-only light/dark flip, only meaningful while the saved
@@ -526,18 +533,17 @@ private fun RowLeadingIcon(painter: Painter, size: Dp) {
 // focus, and hidden a11y descendants, so the widget's quick-log / navigation
 // PendingIntents can never fire from the preview (a touch overlay alone would still
 // leak d-pad and accessibility activations). Laid out at the composed widget size and
-// visually fit-scaled about its center so content renders at its real baseline. Renders
-// nothing until the first render lands (the window just shows wallpaper meanwhile).
+// visually fit-scaled about its center so content renders at its real baseline. Until
+// the first render lands it reserves the placeholder footprint but draws nothing (the
+// window just shows wallpaper meanwhile), so the wallpaper window is already at its
+// final size on the first frame instead of blinking in with the first render.
 @Composable
 private fun WidgetPreview(
     render: WidgetConfigPreviewRender?,
+    placeholderSizeDp: DpSize,
     modifier: Modifier = Modifier,
 ) {
-    // In @Preview (inspection mode) no RemoteViews render exists; reserve the medium
-    // reference footprint (306x276dp, mirroring the private MEDIUM_WIDGET_PREVIEW_SIZE)
-    // so the wallpaper window still lays out at a realistic size.
-    val sizeDp = render?.sizeDp
-        ?: if (LocalInspectionMode.current) DpSize(306.dp, 276.dp) else return
+    val sizeDp = render?.sizeDp ?: placeholderSizeDp
     BoxWithConstraints(modifier = modifier) {
         // Fit inside the constraints (the breathing-room inset is now this composable's outer
         // padding, so maxWidth/maxHeight already exclude it); never scale UP past the true
