@@ -22,7 +22,8 @@ class WidgetPreviewColorProbe {
             val s = deriveWidgetSurfaces(
                 scheme.secondaryContainer, scheme.onSurface, scheme.onSurfaceVariant,
                 scheme.outlineVariant,
-                backgroundHue = null, vibrancy = WidgetAppearance.DEFAULT_VIBRANCY, dark = isDark,
+                saturation = WidgetAppearance.DEFAULT_SATURATION,
+                vibrancy = WidgetAppearance.DEFAULT_VIBRANCY, dark = isDark,
             )
             println("[$mode] widget_preview_background=${hex(s.shell)}")
             println("[$mode] widget_preview_card=${hex(s.card)}")

@@ -326,7 +326,7 @@ class BackupRestoreServiceTest {
         // disagree — they exist only for older app versions reading this backup.
         val appearance = WidgetAppearance.Default.copy(
             seedHue = 200f,
-            backgroundHue = 120f,
+            saturation = 0.7f,
             vibrancy = 0.7f,
             contentScale = 1.3f,
             backgroundAlpha = 0.6f,
@@ -355,6 +355,39 @@ class BackupRestoreServiceTest {
         )
 
         assertEquals(appearance, appearanceSlot.captured)
+    }
+
+    @Test
+    fun restoreBackupBytes_appliesV1AppearancePayloadFromOldBackups() = runTest {
+        // Backups written before Round 3 carry a v1 appearance string whose slot 2
+        // was the now-removed backgroundHue. Restoring one must migrate transparently:
+        // the v1 string decodes (slot-2 dropped, saturation anchored at the default)
+        // and setDefault receives that migrated appearance rather than failing.
+        val snapshot = emptySnapshot().let { base ->
+            base.copy(
+                settings = base.settings.copy(
+                    widgetAppearance = "1|200.0|90.0|1.0|1.1|0.9|LIGHT",
+                )
+            )
+        }
+        val appearanceSlot = slot<WidgetAppearance>()
+        coEvery { widgetAppearanceRepository.setDefault(capture(appearanceSlot)) } just Runs
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        val restored = appearanceSlot.captured
+        assertEquals(200f, restored.seedHue!!, 1e-4f)
+        assertEquals(WidgetAppearance.DEFAULT_SATURATION, restored.saturation, 0f)
+        assertEquals(1.0f, restored.vibrancy, 0f)
+        assertEquals(1.1f, restored.contentScale, 0f)
+        assertEquals(0.9f, restored.backgroundAlpha, 0f)
+        assertEquals(DarkModeOption.LIGHT, restored.darkMode)
     }
 
     @Test

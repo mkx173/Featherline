@@ -473,9 +473,8 @@
     <string name="widget_config_title">小部件设置</string>
     <string name="widget_config_seed_hue">主题色</string>
     <string name="widget_config_seed_dynamic">动态</string>
-    <string name="widget_config_background_hue">背景色调</string>
-    <string name="widget_config_background_match">跟随主题色</string>
-    <string name="widget_config_vibrancy">鲜艳度</string>
+    <string name="widget_config_saturation">饱和度</string>
+    <string name="widget_config_vibrancy">自然饱和度</string>
     <string name="settings_display">显示</string>
     <string name="settings_hide_archived_group_records">隐藏已归档分组的记录</string>
     <string name="settings_hide_reference_ranges">隐藏参考范围</string>

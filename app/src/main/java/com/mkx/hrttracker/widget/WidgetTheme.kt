@@ -78,11 +78,11 @@ internal fun widgetColorScheme(
     val alpha = appearance.backgroundAlpha
     val lightSurfaces = deriveWidgetSurfaces(
         light.secondaryContainer, light.onSurface, light.onSurfaceVariant,
-        light.outlineVariant, appearance.backgroundHue, appearance.vibrancy, dark = false,
+        light.outlineVariant, appearance.saturation, appearance.vibrancy, dark = false,
     )
     val darkSurfaces = deriveWidgetSurfaces(
         dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant,
-        dark.outlineVariant, appearance.backgroundHue, appearance.vibrancy, dark = true,
+        dark.outlineVariant, appearance.saturation, appearance.vibrancy, dark = true,
     )
     fun provider(lightColor: Color, darkColor: Color) =
         colorProvider(lightColor, darkColor, forcedDark)
@@ -248,13 +248,19 @@ internal fun deriveWidgetSurfaces(
     onSurface: Color,
     onSurfaceVariant: Color,
     schemeOutlineVariant: Color,
-    backgroundHue: Float?,
+    saturation: Float,
     vibrancy: Float,
     dark: Boolean,
 ): WidgetSurfaces {
     val sc = Hct.fromInt(secondaryContainer.toArgb())
-    val hue = backgroundHue?.toDouble() ?: sc.hue
-    val chroma = vibrancyChroma(sc.chroma, vibrancy)
+    // One theme color: the background always follows the seed scheme's
+    // secondaryContainer hue (Round 3 dropped the separate background-hue pick).
+    val hue = sc.hue
+    // Saturation scales the BASE chroma before the vibrancy boost. The factor is
+    // written so saturation == DEFAULT_SATURATION is EXACTLY 1.0 (bit-identical
+    // anchor): division then multiplication by the same Float constant.
+    val saturationScale = (saturation / WidgetAppearance.DEFAULT_SATURATION).toDouble()
+    val chroma = vibrancyChroma(sc.chroma * saturationScale, vibrancy)
     val u = vibrancyRamp(vibrancy)
     val shellTone =
         if (dark) lerp(DARK_SHELL_BASE, DARK_SHELL_MAX, u)
@@ -315,16 +321,9 @@ private fun deriveOutlineVariant(
 internal fun seedColorFromHue(seedHue: Float): Color =
     Color(Hct.from(seedHue.toDouble(), 36.0, 50.0).toInt())
 
-// Where the config sliders rest while their value is null. Uses the seeded
+// Where the accent (seed) slider rests while its value is null. Uses the seeded
 // fallback scheme; on dynamic-palette devices the true resting hue is the
 // wallpaper's, but the preview shows ground truth and the handle position is
 // cosmetic.
 internal fun defaultSeedHue(): Float =
     Hct.fromInt(DefaultSeedColor.toArgb()).hue.toFloat()
-
-// Under TonalSpot the secondary palette carries the seed hue unrotated (verified
-// by the derivedBackgroundHue test: <=1.36deg across a full hue sweep, 0.61deg for
-// the null case), so the resting hue is just the seed hue — no scheme generation on
-// the slider's drag path. Null falls back to the default seed's own hue.
-internal fun derivedBackgroundHue(seedHue: Float?): Float =
-    seedHue?.mod(360f) ?: defaultSeedHue()

@@ -101,7 +101,9 @@ internal fun WidgetConfigScreen(
 ) {
     val sanitizedInitial = remember(initialAppearance) { initialAppearance.sanitized() }
     var seedHue by rememberSaveable { mutableStateOf(sanitizedInitial.seedHue) }
-    var backgroundHue by rememberSaveable { mutableStateOf(sanitizedInitial.backgroundHue) }
+    var saturation by rememberSaveable {
+        mutableStateOf(snapToWholePercent(sanitizedInitial.saturation))
+    }
     var vibrancy by rememberSaveable { mutableStateOf(sanitizedInitial.vibrancy) }
     var contentScale by rememberSaveable {
         mutableStateOf(snapToWholePercent(sanitizedInitial.contentScale))
@@ -114,7 +116,7 @@ internal fun WidgetConfigScreen(
 
     val liveAppearance = WidgetAppearance(
         seedHue = seedHue,
-        backgroundHue = backgroundHue,
+        saturation = saturation,
         vibrancy = vibrancy,
         contentScale = contentScale,
         backgroundAlpha = backgroundAlpha,
@@ -137,7 +139,7 @@ internal fun WidgetConfigScreen(
         snapshotFlow {
             WidgetAppearance(
                 seedHue = seedHue,
-                backgroundHue = backgroundHue,
+                saturation = saturation,
                 vibrancy = vibrancy,
                 contentScale = contentScale,
                 backgroundAlpha = backgroundAlpha,
@@ -251,18 +253,13 @@ internal fun WidgetConfigScreen(
                                 )
                             }
                             item {
-                                HueSliderRow(
-                                    label = stringResource(R.string.widget_config_background_hue),
+                                SliderRow(
+                                    label = stringResource(R.string.widget_config_saturation),
                                     icon = painterResource(R.drawable.ic_invert_colors),
-                                    hue = backgroundHue,
-                                    restingHue = remember(seedHue) {
-                                        derivedBackgroundHue(seedHue)
-                                    },
-                                    onHueChange = { backgroundHue = it },
-                                    resetLabel = stringResource(
-                                        R.string.widget_config_background_match,
-                                    ),
-                                    onReset = { backgroundHue = null },
+                                    iconSize = 18.dp,
+                                    value = saturation,
+                                    valueRange = 0f..1f,
+                                    onValueChange = { saturation = snapToWholePercent(it) },
                                 )
                             }
                             item {

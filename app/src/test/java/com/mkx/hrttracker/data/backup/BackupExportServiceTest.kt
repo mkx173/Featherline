@@ -135,7 +135,7 @@ class BackupExportServiceTest {
         // versions reading this backup still get a sensible widget configuration.
         val appearance = WidgetAppearance.Default.copy(
             seedHue = 200f,
-            backgroundHue = 120f,
+            saturation = 0.7f,
             vibrancy = 0.7f,
             contentScale = 1.3f,
             backgroundAlpha = 0.6f,

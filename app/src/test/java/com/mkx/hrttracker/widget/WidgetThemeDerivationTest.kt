@@ -50,7 +50,8 @@ class WidgetThemeDerivationTest {
                 secondaryContainer = light.secondaryContainer, onSurface = light.onSurface,
                 onSurfaceVariant = light.onSurfaceVariant,
                 schemeOutlineVariant = light.outlineVariant,
-                backgroundHue = null, vibrancy = WidgetAppearance.DEFAULT_VIBRANCY, dark = false,
+                saturation = WidgetAppearance.DEFAULT_SATURATION,
+                vibrancy = WidgetAppearance.DEFAULT_VIBRANCY, dark = false,
             )
             assertColorClose(legacyAdjust(light.secondaryContainer, 4.0, -10.0), l.shell)
             assertColorClose(legacyAdjust(light.secondaryContainer, 0.0, 0.0), l.card)
@@ -65,7 +66,8 @@ class WidgetThemeDerivationTest {
                 secondaryContainer = dark.secondaryContainer, onSurface = dark.onSurface,
                 onSurfaceVariant = dark.onSurfaceVariant,
                 schemeOutlineVariant = dark.outlineVariant,
-                backgroundHue = null, vibrancy = WidgetAppearance.DEFAULT_VIBRANCY, dark = true,
+                saturation = WidgetAppearance.DEFAULT_SATURATION,
+                vibrancy = WidgetAppearance.DEFAULT_VIBRANCY, dark = true,
             )
             assertColorClose(legacyAdjust(dark.secondaryContainer, 4.0, -10.0), d.shell)
             assertColorClose(legacyAdjust(dark.secondaryContainer, 0.0, 0.0), d.card)
@@ -79,7 +81,8 @@ class WidgetThemeDerivationTest {
     @Test
     fun `zero vibrancy is neutral and full vibrancy boosts chroma`() {
         val (light, dark) = seededWidgetColorSchemes(seeds[0])
-        val neutral = deriveWidgetSurfaces(light.secondaryContainer, light.onSurface, light.onSurfaceVariant, light.outlineVariant, null, 0f, dark = false)
+        val s = WidgetAppearance.DEFAULT_SATURATION
+        val neutral = deriveWidgetSurfaces(light.secondaryContainer, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, 0f, dark = false)
         // Tolerance 3.0: the HCT solver leaves a ~2.75 chroma residual at near-white
         // tones even for a requested chroma of 0 — solver noise, not derivation error.
         assertEquals(0.0, Hct.fromInt(neutral.shell.toArgb()).chroma, 3.0)
@@ -87,14 +90,14 @@ class WidgetThemeDerivationTest {
 
         // The 3.0 solver tolerance above can't distinguish "driven to 0" from "stuck
         // small" — assert the below-anchor ramp actually climbs between v=0 and v=0.2.
-        val lowV = deriveWidgetSurfaces(light.secondaryContainer, light.onSurface, light.onSurfaceVariant, light.outlineVariant, null, 0.2f, dark = false)
+        val lowV = deriveWidgetSurfaces(light.secondaryContainer, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, 0.2f, dark = false)
         assertTrue(
             "below-anchor chroma must climb with v",
             Hct.fromInt(lowV.shell.toArgb()).chroma > Hct.fromInt(neutral.shell.toArgb()).chroma + 2,
         )
 
-        val anchorD = deriveWidgetSurfaces(dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, null, WidgetAppearance.DEFAULT_VIBRANCY, dark = true)
-        val fullD = deriveWidgetSurfaces(dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, null, 1f, dark = true)
+        val anchorD = deriveWidgetSurfaces(dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, WidgetAppearance.DEFAULT_VIBRANCY, dark = true)
+        val fullD = deriveWidgetSurfaces(dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, 1f, dark = true)
         assertTrue(
             "v=1 chroma must exceed anchor chroma",
             Hct.fromInt(fullD.shell.toArgb()).chroma > Hct.fromInt(anchorD.shell.toArgb()).chroma + 5,
@@ -103,63 +106,97 @@ class WidgetThemeDerivationTest {
     }
 
     @Test
-    fun `contrast invariants hold across hue x vibrancy sweep`() {
+    fun `contrast invariants hold across hue x vibrancy x saturation sweep`() {
         // Encodes the spec's contrast guarantee (not specific hexes):
         //  - onSurface ΔTone >= 50 against shell and the COMPOSITED card, at all vibrancy
         //  - onSurfaceVariant ΔTone >= 50 at/below the anchor
         //  - accepted dark floors at v=1: >= 44 on cards, >= 36 on control pills
         //  - shell/card tone safe bands: light >= 78, dark <= 45
+        //
+        // Round 3 removed backgroundHue, so the hue axis can no longer be driven by a
+        // parameter. Instead we synthesize each hue's INPUT secondaryContainer directly
+        // — Hct(h, 16, 90) light / Hct(h, 16, 25) dark (chroma 16 ~ a typical TonalSpot
+        // secondaryContainer) — and keep onSurface/onSurfaceVariant/outlineVariant from
+        // the default scheme (their tones don't vary with hue, and every floor below is
+        // TONE-based; chroma never affects tone, so saturation can't move a floor).
         val (light, dark) = seededWidgetColorSchemes(seeds[0])
         val eps = 0.75
         for (hue in 0 until 360 step 15) {
+            val lightSc = Color(Hct.from(hue.toDouble(), 16.0, 90.0).toInt())
+            val darkSc = Color(Hct.from(hue.toDouble(), 16.0, 25.0).toInt())
             for (v in floatArrayOf(0f, 0.2f, 0.4f, 0.6f, 0.8f, 1f)) {
-                val l = deriveWidgetSurfaces(light.secondaryContainer, light.onSurface, light.onSurfaceVariant, light.outlineVariant, hue.toFloat(), v, dark = false)
-                val lCard = composite(l.card, l.shell, 0.85f)
-                assertTrue(abs(toneOf(l.onSurface) - toneOf(l.shell)) >= 50 - eps)
-                assertTrue(abs(toneOf(l.onSurface) - toneOf(lCard)) >= 50 - eps)
-                if (v <= WidgetAppearance.DEFAULT_VIBRANCY) {
-                    assertTrue(abs(toneOf(l.onSurfaceVariant) - toneOf(lCard)) >= 50 - eps)
-                } else {
-                    assertTrue(abs(toneOf(l.onSurfaceVariant) - toneOf(lCard)) >= 44 - eps)
-                }
-                assertTrue(toneOf(l.shell) >= 78 - eps && toneOf(lCard) >= 78 - 4 - eps)
-                // Round-2: light card-vs-shell separation (COMPOSITED) must be visible.
-                // Anchor value ≈3.4 (measured min across the grid ≈3.16); at v=1 the
-                // deeper −9 card delta lands ≈7.65 (measured ≈7.47). Floors are just
-                // under the observed minima.
-                val lightSep = abs(toneOf(lCard) - toneOf(l.shell))
-                assertTrue("light card-vs-shell sep $lightSep < 3 at v=$v hue=$hue", lightSep >= 3 - eps)
-                if (v == 1f) {
-                    assertTrue("light card-vs-shell sep $lightSep < 7 at v=1 hue=$hue", lightSep >= 7 - eps)
-                }
-                // Round-2: tinted outlineVariant must keep contrast vs shell. Measured
-                // light min ≈20.19 (near the anchor); floor 18 (just under, well above
-                // the never-weaken-below-12 guard).
-                val lightOutlineSep = abs(toneOf(l.outlineVariant) - toneOf(l.shell))
-                assertTrue("light outline-vs-shell $lightOutlineSep < 18 at v=$v hue=$hue", lightOutlineSep >= 18 - eps)
+                for (s in floatArrayOf(0f, 0.5f, 1f)) {
+                    val l = deriveWidgetSurfaces(lightSc, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, v, dark = false)
+                    val lCard = composite(l.card, l.shell, 0.85f)
+                    assertTrue(abs(toneOf(l.onSurface) - toneOf(l.shell)) >= 50 - eps)
+                    assertTrue(abs(toneOf(l.onSurface) - toneOf(lCard)) >= 50 - eps)
+                    if (v <= WidgetAppearance.DEFAULT_VIBRANCY) {
+                        assertTrue(abs(toneOf(l.onSurfaceVariant) - toneOf(lCard)) >= 50 - eps)
+                    } else {
+                        assertTrue(abs(toneOf(l.onSurfaceVariant) - toneOf(lCard)) >= 44 - eps)
+                    }
+                    assertTrue(toneOf(l.shell) >= 78 - eps && toneOf(lCard) >= 78 - 4 - eps)
+                    // Round-2: light card-vs-shell separation (COMPOSITED) must be visible.
+                    val lightSep = abs(toneOf(lCard) - toneOf(l.shell))
+                    assertTrue("light card-vs-shell sep $lightSep < 3 at v=$v s=$s hue=$hue", lightSep >= 3 - eps)
+                    if (v == 1f) {
+                        assertTrue("light card-vs-shell sep $lightSep < 7 at v=1 s=$s hue=$hue", lightSep >= 7 - eps)
+                    }
+                    // Round-2: tinted outlineVariant must keep contrast vs shell (tone-based,
+                    // so saturation-independent). Measured light min ≈20.19; floor 18.
+                    val lightOutlineSep = abs(toneOf(l.outlineVariant) - toneOf(l.shell))
+                    assertTrue("light outline-vs-shell $lightOutlineSep < 18 at v=$v s=$s hue=$hue", lightOutlineSep >= 18 - eps)
 
-                val d = deriveWidgetSurfaces(dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, hue.toFloat(), v, dark = true)
-                val dCard = composite(d.card, d.shell, 0.85f)
-                assertTrue(abs(toneOf(d.onSurface) - toneOf(d.shell)) >= 50 - eps)
-                assertTrue(abs(toneOf(d.onSurface) - toneOf(dCard)) >= 50 - eps)
-                assertTrue(toneOf(d.shell) <= 35 + eps && toneOf(dCard) <= 45 + eps)
-                // Round-2: tinted outlineVariant vs shell. Measured dark min ≈14.39
-                // (mid-ramp, where the ramp toward shellTone+26 crosses near the rising
-                // shell); floor 13 (just under, above the 12 guard).
-                val darkOutlineSep = abs(toneOf(d.outlineVariant) - toneOf(d.shell))
-                assertTrue("dark outline-vs-shell $darkOutlineSep < 13 at v=$v hue=$hue", darkOutlineSep >= 13 - eps)
-                if (v <= WidgetAppearance.DEFAULT_VIBRANCY) {
-                    // 45, not 50: SPEC_2025's dark onSurfaceVariant sits at tone ~70 (the 2021
-                    // spec the design doc's "ΔTone >= 50" assumed had ~80), so TODAY'S shipped
-                    // anchor gap is ~46. The contract is no-regression-vs-today, not the
-                    // aspirational 2021 number.
-                    assertTrue(abs(toneOf(d.onSurfaceVariant) - toneOf(dCard)) >= 45 - eps)
-                } else {
-                    assertTrue(abs(toneOf(d.onSurfaceVariant) - toneOf(dCard)) >= 44 - eps)
-                    assertTrue(abs(toneOf(d.onSurfaceVariant) - toneOf(d.control)) >= 36 - eps)
+                    val d = deriveWidgetSurfaces(darkSc, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, v, dark = true)
+                    val dCard = composite(d.card, d.shell, 0.85f)
+                    assertTrue(abs(toneOf(d.onSurface) - toneOf(d.shell)) >= 50 - eps)
+                    assertTrue(abs(toneOf(d.onSurface) - toneOf(dCard)) >= 50 - eps)
+                    assertTrue(toneOf(d.shell) <= 35 + eps && toneOf(dCard) <= 45 + eps)
+                    // Round-2: tinted outlineVariant vs shell (tone-based). Measured dark min ≈14.39; floor 13.
+                    val darkOutlineSep = abs(toneOf(d.outlineVariant) - toneOf(d.shell))
+                    assertTrue("dark outline-vs-shell $darkOutlineSep < 13 at v=$v s=$s hue=$hue", darkOutlineSep >= 13 - eps)
+                    if (v <= WidgetAppearance.DEFAULT_VIBRANCY) {
+                        // 45, not 50: SPEC_2025's dark onSurfaceVariant sits at tone ~70 (the 2021
+                        // spec the design doc's "ΔTone >= 50" assumed had ~80), so TODAY'S shipped
+                        // anchor gap is ~46. The contract is no-regression-vs-today, not the
+                        // aspirational 2021 number.
+                        assertTrue(abs(toneOf(d.onSurfaceVariant) - toneOf(dCard)) >= 45 - eps)
+                    } else {
+                        assertTrue(abs(toneOf(d.onSurfaceVariant) - toneOf(dCard)) >= 44 - eps)
+                        assertTrue(abs(toneOf(d.onSurfaceVariant) - toneOf(d.control)) >= 36 - eps)
+                    }
                 }
             }
         }
+    }
+
+    @Test
+    fun `saturation scales base chroma about the anchor`() {
+        // Saturation == DEFAULT_SATURATION is the anchor (verified bit-exact in the
+        // anchor test). At s=0 the base chroma is driven to ~0; at s=1 it doubles —
+        // both BEFORE the vibrancy boost, so measure at the anchor vibrancy where the
+        // boost contributes nothing.
+        val (_, dark) = seededWidgetColorSchemes(seeds[0])
+        fun shellChromaAt(scHue: Double, s: Float): Double {
+            val sc = Color(Hct.from(scHue, 16.0, 25.0).toInt())
+            val surfaces = deriveWidgetSurfaces(
+                sc, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant,
+                s, WidgetAppearance.DEFAULT_VIBRANCY, dark = true,
+            )
+            return Hct.fromInt(surfaces.shell.toArgb()).chroma
+        }
+        // s=0: shell chroma ~ 0 (tolerance 3 for the HCT solver's residual at the
+        // requested-zero-chroma point). Checked across hues.
+        for (hue in 0 until 360 step 30) {
+            assertEquals("s=0 chroma not ~0 at hue=$hue", 0.0, shellChromaAt(hue.toDouble(), 0f), 3.0)
+        }
+        // s=1 is exactly 2x s=0.5 before gamut clamping. Assert >= 1.5x at hue 270,
+        // where the dark t25 shell has ample chroma headroom (other hues can clamp the
+        // doubled chroma below 2x, so a robust single-hue assertion is used instead of
+        // a grid-wide 2x claim that gamut would falsify).
+        val half = shellChromaAt(270.0, 0.5f)
+        val full = shellChromaAt(270.0, 1f)
+        assertTrue("s=1 chroma $full should be >= 1.5x s=0.5 chroma $half at hue 270", full >= half * 1.5)
     }
 
     // Smallest absolute angular distance on the hue circle (handles 0/360 wraparound).
@@ -169,14 +206,14 @@ class WidgetThemeDerivationTest {
     }
 
     @Test
-    fun `derivedBackgroundHue equals seed hue under TonalSpot no-rotation`() {
-        // Guards the assumption that makes derivedBackgroundHue's no-scheme-gen fast
-        // path equivalent to what the widget actually renders: under TonalSpot the
-        // SPEC_2025 SCHEME's secondaryContainer carries the seed hue UNROTATED. We
-        // therefore measure the SCHEME's hue, not derivedBackgroundHue's (which is now
-        // literally h.mod(360) and would tautologically pass). The 2deg tolerance is
-        // the no-regression budget; if a MaterialKolor/spec change ever rotates the
-        // secondary palette this fails and the fast path must be revisited.
+    fun `background follows the seed scheme secondaryContainer hue unrotated`() {
+        // Round 3: the background always follows the seed scheme's secondaryContainer
+        // hue (the separate background-hue pick is gone). This guards that under
+        // TonalSpot the SPEC_2025 scheme's secondaryContainer carries the seed hue
+        // UNROTATED, so an accent pick drives the background hue 1:1. The 2deg
+        // tolerance is the no-regression budget; if a MaterialKolor/spec change ever
+        // rotates the secondary palette this fails and the relationship must be
+        // revisited.
         for (h in 0 until 360 step 30) {
             val schemeHue = Hct.fromInt(
                 seededWidgetColorSchemes(seedColorFromHue(h.toFloat()))
@@ -189,8 +226,9 @@ class WidgetThemeDerivationTest {
                 2f,
             )
         }
-        // The default resting hue must track the default seed's SCHEME secondaryContainer
-        // (same fast-path equivalence for the null case; the handle position is cosmetic).
+        // The accent slider's resting hue must track the default seed's SCHEME
+        // secondaryContainer (the handle position is cosmetic, but should match what
+        // actually renders for the dynamic/null case).
         val defaultSchemeHue = Hct.fromInt(
             seededWidgetColorSchemes(DefaultSeedColor).first.secondaryContainer.toArgb()
         ).hue.toFloat()

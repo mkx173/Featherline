@@ -28,7 +28,7 @@ class WidgetAppearanceMigrationTest {
             migrated,
         )
         assertNull(migrated.seedHue)
-        assertNull(migrated.backgroundHue)
+        assertEquals(WidgetAppearance.DEFAULT_SATURATION, migrated.saturation, 0f)
         assertEquals(WidgetAppearance.DEFAULT_VIBRANCY, migrated.vibrancy, 0f)
     }
 }

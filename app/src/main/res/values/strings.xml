@@ -489,8 +489,7 @@
     <string name="widget_config_title">Widget settings</string>
     <string name="widget_config_seed_hue">Accent color</string>
     <string name="widget_config_seed_dynamic">Dynamic</string>
-    <string name="widget_config_background_hue">Background tint</string>
-    <string name="widget_config_background_match">Match accent</string>
+    <string name="widget_config_saturation">Saturation</string>
     <string name="widget_config_vibrancy">Vibrancy</string>
     <string name="settings_display">Display</string>
     <string name="settings_hide_archived_group_records">Hide archived group records</string>
