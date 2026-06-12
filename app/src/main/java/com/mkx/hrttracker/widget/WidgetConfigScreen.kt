@@ -129,7 +129,19 @@ internal fun WidgetConfigScreen(
         // overwrite the pending value, so a fast drag costs a few renders instead of one
         // full widget composition per tick — and no in-flight render is ever cancelled,
         // so the preview keeps updating continuously THROUGH the drag.
-        snapshotFlow { liveAppearance }
+        // Read the state delegates INSIDE the lambda: snapshotFlow only re-emits for
+        // snapshot state read in its block — a captured composition-local value would
+        // freeze the preview at the first composition's appearance.
+        snapshotFlow {
+            WidgetAppearance(
+                seedHue = seedHue,
+                backgroundHue = backgroundHue,
+                vibrancy = vibrancy,
+                contentScale = contentScale,
+                backgroundAlpha = backgroundAlpha,
+                darkMode = darkModeOption,
+            )
+        }
             .conflate()
             .collect { appearance ->
                 value = try {
