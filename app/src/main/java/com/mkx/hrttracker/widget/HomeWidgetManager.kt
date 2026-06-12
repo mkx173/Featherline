@@ -226,7 +226,7 @@ class HomeWidgetManager @Inject constructor(
         private const val TAG = "HomeWidgetManager"
         private const val WORK_NAME = "widget_daily_refresh"
         private const val GENERATED_PREVIEW_PREFS = "hrt_widget_generated_previews"
-        private const val GENERATED_PREVIEW_VERSION = 3
+        private const val GENERATED_PREVIEW_VERSION = 4
         private val GENERATED_PREVIEW_RECEIVERS = listOf<Class<out GlanceAppWidgetReceiver>>(
             HrtWidgetMediumReceiver::class.java,
             HrtWidgetLargeReceiver::class.java,
