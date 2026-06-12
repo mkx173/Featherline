@@ -375,7 +375,7 @@ internal fun WidgetConfigScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = dimensionResource(R.dimen.padding_medium)),
+                            .padding(top = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(
                             dimensionResource(R.dimen.padding_small),
                         ),
@@ -384,11 +384,13 @@ internal fun WidgetConfigScreen(
                             text = stringResource(R.string.cancel),
                             onClick = onCancel,
                             modifier = Modifier.weight(1f),
+                            compact = true
                         )
                         HrtButton(
                             text = stringResource(R.string.save),
                             onClick = { onSave(liveAppearance) },
                             modifier = Modifier.weight(1f),
+                            compact = true
                         )
                     }
                 }
@@ -471,7 +473,7 @@ private fun HueSliderRow(
                         .size(16.dp)
                         .background(hueSwatchColor(hue ?: restingHue), CircleShape),
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 // SELECTED = Dynamic active (hue == null): the pill fills with the
                 // secondaryContainer accent. Tapping it while already selected is a
                 // no-op; tapping while an explicit hue is set resets back to Dynamic.
