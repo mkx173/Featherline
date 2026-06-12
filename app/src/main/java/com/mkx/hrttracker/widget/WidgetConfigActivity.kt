@@ -116,6 +116,7 @@ class WidgetConfigActivity : AppCompatActivity() {
                             initialBackgroundAlpha = loaded.settings.widgetBackgroundAlpha,
                             initialDarkModeOption = loaded.settings.widgetDarkModeOption,
                             isMediumWidget = isMediumWidget,
+                            appWidgetId = appWidgetId,
                             snapshot = loaded.snapshot,
                             onSave = { scale, alpha, darkMode ->
                                 setResult(

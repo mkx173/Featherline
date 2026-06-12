@@ -4,7 +4,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.RemoteViews
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,6 +67,7 @@ internal fun WidgetConfigScreen(
     initialBackgroundAlpha: Float,
     initialDarkModeOption: DarkModeOption,
     isMediumWidget: Boolean,
+    appWidgetId: Int,
     snapshot: WidgetSnapshotRecord?,
     onSave: (Float, Float, DarkModeOption) -> Unit,
     onCancel: () -> Unit,
@@ -89,9 +89,9 @@ internal fun WidgetConfigScreen(
         DarkModeOption.FOLLOW_SYSTEM -> null
     }
     val context = LocalContext.current
-    val previewRemoteViews by produceState<RemoteViews?>(
+    val previewRender by produceState<WidgetConfigPreviewRender?>(
         initialValue = null,
-        contentScale, backgroundAlpha, forcedDark, isMediumWidget, snapshot,
+        contentScale, backgroundAlpha, forcedDark, isMediumWidget, appWidgetId, snapshot,
     ) {
         value = try {
             composeWidgetPreviewRemoteViews(
@@ -101,6 +101,7 @@ internal fun WidgetConfigScreen(
                 backgroundAlpha = backgroundAlpha,
                 forcedDark = forcedDark,
                 snapshot = snapshot,
+                appWidgetId = appWidgetId,
             )
         } catch (cancellation: CancellationException) {
             throw cancellation
@@ -139,10 +140,7 @@ internal fun WidgetConfigScreen(
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                WidgetPreview(
-                    remoteViews = previewRemoteViews,
-                    isMediumWidget = isMediumWidget,
-                )
+                WidgetPreview(render = previewRender)
             }
             HrtSection(title = stringResource(R.string.settings_widget_appearance)) {
                 item {
@@ -235,17 +233,22 @@ private fun SliderRow(
 // Hosts the composed RemoteViews, fully inert: intercepted touches, blocked descendant
 // focus, and hidden a11y descendants, so the widget's quick-log / navigation
 // PendingIntents can never fire from the preview (a touch overlay alone would still
-// leak d-pad and accessibility activations). Laid out at the true preview size and
-// visually fit-scaled about its center so content renders at its real baseline.
+// leak d-pad and accessibility activations). Laid out at the composed widget size and
+// visually fit-scaled about its center so content renders at its real baseline. Renders
+// nothing until the first render lands (the window just shows wallpaper meanwhile).
 @Composable
 private fun WidgetPreview(
-    remoteViews: RemoteViews?,
-    isMediumWidget: Boolean,
+    render: WidgetConfigPreviewRender?,
     modifier: Modifier = Modifier,
 ) {
-    val sizeDp = widgetPreviewSizeDp(isMediumWidget)
+    val sizeDp = render?.sizeDp ?: return
+    val remoteViews = render.remoteViews
     BoxWithConstraints(modifier = modifier) {
-        val fit = min(1f, maxWidth / sizeDp.width)
+        // Fit both axes inside the wallpaper window and keep a breathing-room inset so the
+        // preview never touches the window edges; never scale UP past the true size.
+        val availableWidth = (maxWidth - WIDGET_PREVIEW_WINDOW_INSET * 2).coerceAtLeast(1.dp)
+        val availableHeight = (maxHeight - WIDGET_PREVIEW_WINDOW_INSET * 2).coerceAtLeast(1.dp)
+        val fit = min(1f, min(availableWidth / sizeDp.width, availableHeight / sizeDp.height))
         Box(
             modifier = Modifier.size(sizeDp.width * fit, sizeDp.height * fit),
             contentAlignment = Alignment.Center,
@@ -291,3 +294,7 @@ private fun WidgetPreview(
 private fun snapToWholePercent(value: Float): Float = (value * 100).roundToInt() / 100f
 
 private const val WALLPAPER_WINDOW_CORNER_DP = 28
+
+// Breathing-room inset kept on every side between the fit-scaled preview and the
+// wallpaper window edges, so the preview sits comfortably inside the window.
+private val WIDGET_PREVIEW_WINDOW_INSET = 24.dp
