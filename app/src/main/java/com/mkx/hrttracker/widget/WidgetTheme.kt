@@ -169,12 +169,18 @@ internal fun groupAccentColor(
 //    are UNCHANGED as functions of u; only u's source moved (now u = balance).
 private const val CHROMA_BOOST = 18.0
 private const val LIGHT_SHELL_BASE = 94.0
-private const val LIGHT_SHELL_MAX = 82.0
+// Round 5: the old endpoints (light 82 / dark 35) were the original prototype's
+// contrast LIMITS, not good-looking depths — the upper half of the slider drifted
+// toward mid-tone murk and carried all the accepted contrast-floor degradation. The
+// range is compressed (≈ today's 50% becomes the new maximum) to keep the whole
+// slider useful (notes/prototype-widget-theme-NOTES.md, Round 5).
+private const val LIGHT_SHELL_MAX = 88.0
 // SPEC_2025 dark secondaryContainer sits at tone ~25 (the 2021 spec the prototype
-// ran on had 30), so the legacy anchor output is 25 − 10 = 15. The v=1 ceiling
-// stays 35 — the dark ramp is simply longer than the prototype's.
+// ran on had 30), so the legacy anchor output is 25 − 10 = 15.
 private const val DARK_SHELL_BASE = 15.0
-private const val DARK_SHELL_MAX = 35.0 // ceiling; text lift keeps onSurface ΔTone >= 50 here
+// ceiling; with the compressed range the text lift keeps onSurface ΔTone >= 50 and
+// secondary-text contrast back to ≈Δ45+ across the whole slider (min at the anchor).
+private const val DARK_SHELL_MAX = 25.0
 // Light card delta ramps from the anchor (−4) to a deeper u=1 cut (−9): flat −4
 // composited (~3.4 tones) read too subtle at high balance (Round-2 tuner verdict,
 // notes/prototype-widget-theme-NOTES.md). Dark card stays flat +10.
@@ -195,8 +201,9 @@ private const val ON_SURFACE_LIFT_DARK = 6.0
 private const val ON_SURFACE_VARIANT_LIFT_LIGHT_ANCHOR = -8.0
 private const val ON_SURFACE_VARIANT_LIFT_LIGHT_V1 = -13.0
 // Sized so the SPEC_2025 dark onSurfaceVariant (tone ~70; the prototype's 2021
-// spec had ~80) lands at the prototype's locked v=1 endpoint of ~88, keeping the
-// secondary-text gap vs cards at the accepted ~44 floor instead of collapsing.
+// spec had ~80) lands at the locked v=1 endpoint of ~88. With the Round-5
+// compressed shell (ceiling 25), the secondary-text gap vs cards no longer
+// degrades with balance — its minimum is now at the anchor (~Δ46.5).
 private const val ON_SURFACE_VARIANT_LIFT_DARK = 18.0
 // outlineVariant tint: a static neutral outline loses contrast on tinted surfaces
 // at high balance (dark outline t30 sank BELOW the t35 shell at u=1). Tint it and
@@ -247,9 +254,9 @@ internal data class WidgetSurfaces(
 
 // One mode's background surfaces + balance-lifted text tones, built absolutely in
 // HCT. Invariants (encoded in WidgetThemeDerivationTest, not re-derived here):
-// onSurface keeps ΔTone >= 50 against every surface at all balance; secondary
-// text degrades gracefully above balance 0 (dark floors 44 cards / 36 pills at
-// balance 1).
+// onSurface keeps ΔTone >= 50 against every surface at all balance; with the
+// Round-5 compressed shell (light 88 / dark 25 ceiling) secondary text holds
+// ≈Δ45+ across the whole slider, its minimum now at the anchor.
 internal fun deriveWidgetSurfaces(
     secondaryContainer: Color,
     onSurface: Color,

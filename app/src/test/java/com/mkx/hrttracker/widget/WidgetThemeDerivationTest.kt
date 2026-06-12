@@ -81,19 +81,20 @@ class WidgetThemeDerivationTest {
     @Test
     fun `balance owns tone depth at fixed saturation`() {
         // Round 4: balance is pure tone depth. At balance 0 the shell holds at its base
-        // (light 94 / dark 15); at balance 1 it reaches the ceiling (light 82 / dark 35).
-        // Chroma is held constant by saturation, so this isolates the depth axis.
+        // (light 94 / dark 15); at balance 1 it reaches the ceiling. Chroma is held constant
+        // by saturation, so this isolates the depth axis.
+        // Round 5: the ceiling was compressed (light 82 -> 88, dark 35 -> 25).
         val (light, dark) = seededWidgetColorSchemes(seeds[0])
         val s = WidgetAppearance.DEFAULT_SATURATION
         val lAnchor = deriveWidgetSurfaces(light.secondaryContainer, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, 0f, dark = false)
         val lDeep = deriveWidgetSurfaces(light.secondaryContainer, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, 1f, dark = false)
         assertEquals(94.0, toneOf(lAnchor.shell), 0.6)
-        assertEquals(82.0, toneOf(lDeep.shell), 0.6)
+        assertEquals(88.0, toneOf(lDeep.shell), 0.6)
 
         val dAnchor = deriveWidgetSurfaces(dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, 0f, dark = true)
         val dDeep = deriveWidgetSurfaces(dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, 1f, dark = true)
         assertEquals(15.0, toneOf(dAnchor.shell), 0.6)
-        assertEquals(35.0, toneOf(dDeep.shell), 0.6) // dark ceiling
+        assertEquals(25.0, toneOf(dDeep.shell), 0.6) // dark ceiling (Round 5: 35 -> 25)
     }
 
     @Test
@@ -123,13 +124,18 @@ class WidgetThemeDerivationTest {
     fun `contrast invariants hold across hue x balance x saturation sweep`() {
         // Encodes the spec's contrast guarantee (not specific hexes):
         //  - onSurface ΔTone >= 50 against shell and the COMPOSITED card, at all balance
-        //  - onSurfaceVariant ΔTone >= 50 (light) / >= 45 (dark) at balance 0 (the anchor)
-        //  - accepted degraded floors for balance > 0: >= 44 on cards, >= 36 on pills
+        //  - onSurfaceVariant ΔTone >= 49 (light) / >= 45 (dark) on cards at ALL balance
+        //  - dark onSurfaceVariant-vs-control-pill >= 40 for balance > 0
         //  - shell/card tone safe bands: light >= 78, dark <= 45
         //
         // Round 4: the depth axis is `balance` (u = balance), re-anchored at 0 = today's
-        // tones / 1 = deepest. The "anchor floors" apply at balance 0 (no lift, tones
-        // held); the "degraded floors" apply for balance > 0 (lift active, tones moving).
+        // tones / 1 = deepest.
+        //
+        // Round 5: the shell endpoints were compressed (light 82->88, dark 35->25), which
+        // IMPROVES every deep-end contrast number — secondary text no longer degrades with
+        // balance, so the old split anchor/degraded floors collapse to unconditional floors
+        // whose minimum now sits at (or near) the anchor. Floors below are set just under
+        // the measured sweep minima; the measured value is quoted at each assert.
         //
         // Round 3 removed backgroundHue, so the hue axis can no longer be driven by a
         // parameter. Instead we synthesize each hue's INPUT secondaryContainer directly
@@ -148,16 +154,17 @@ class WidgetThemeDerivationTest {
                     val lCard = composite(l.card, l.shell, 0.85f)
                     assertTrue(abs(toneOf(l.onSurface) - toneOf(l.shell)) >= 50 - eps)
                     assertTrue(abs(toneOf(l.onSurface) - toneOf(lCard)) >= 50 - eps)
-                    if (balance == 0f) {
-                        assertTrue(abs(toneOf(l.onSurfaceVariant) - toneOf(lCard)) >= 50 - eps)
-                    } else {
-                        assertTrue(abs(toneOf(l.onSurfaceVariant) - toneOf(lCard)) >= 44 - eps)
-                    }
+                    // Round 5: light secondary text no longer degrades above the anchor;
+                    // unconditional floor (measured sweep min ≈49.61, at the anchor).
+                    assertTrue(abs(toneOf(l.onSurfaceVariant) - toneOf(lCard)) >= 49 - eps)
                     assertTrue(toneOf(l.shell) >= 78 - eps && toneOf(lCard) >= 78 - 4 - eps)
                     // Round-2: light card-vs-shell separation (COMPOSITED) must be visible.
                     val lightSep = abs(toneOf(lCard) - toneOf(l.shell))
                     assertTrue("light card-vs-shell sep $lightSep < 3 at balance=$balance s=$s hue=$hue", lightSep >= 3 - eps)
                     if (balance == 1f) {
+                        // Round 5: balance-1 shell rises 82->88, so the composited card sits
+                        // closer to it — separation shrinks but stays ~double the anchor's 3.4
+                        // (measured sweep min at balance 1 ≈7.31).
                         assertTrue("light card-vs-shell sep $lightSep < 7 at balance=1 s=$s hue=$hue", lightSep >= 7 - eps)
                     }
                     // Round-2: tinted outlineVariant must keep contrast vs shell (tone-based,
@@ -169,19 +176,21 @@ class WidgetThemeDerivationTest {
                     val dCard = composite(d.card, d.shell, 0.85f)
                     assertTrue(abs(toneOf(d.onSurface) - toneOf(d.shell)) >= 50 - eps)
                     assertTrue(abs(toneOf(d.onSurface) - toneOf(dCard)) >= 50 - eps)
-                    assertTrue(toneOf(d.shell) <= 35 + eps && toneOf(dCard) <= 45 + eps)
+                    // Round 5: dark shell ceiling compressed 35 -> 25 (measured sweep max ≈25.19).
+                    assertTrue(toneOf(d.shell) <= 25 + eps && toneOf(dCard) <= 45 + eps)
                     // Round-2: tinted outlineVariant vs shell (tone-based). Measured dark min ≈14.39; floor 13.
                     val darkOutlineSep = abs(toneOf(d.outlineVariant) - toneOf(d.shell))
                     assertTrue("dark outline-vs-shell $darkOutlineSep < 13 at balance=$balance s=$s hue=$hue", darkOutlineSep >= 13 - eps)
-                    if (balance == 0f) {
-                        // 45, not 50: SPEC_2025's dark onSurfaceVariant sits at tone ~70 (the 2021
-                        // spec the design doc's "ΔTone >= 50" assumed had ~80), so TODAY'S shipped
-                        // anchor gap is ~46. The contract is no-regression-vs-today, not the
-                        // aspirational 2021 number.
-                        assertTrue(abs(toneOf(d.onSurfaceVariant) - toneOf(dCard)) >= 45 - eps)
-                    } else {
-                        assertTrue(abs(toneOf(d.onSurfaceVariant) - toneOf(dCard)) >= 44 - eps)
-                        assertTrue(abs(toneOf(d.onSurfaceVariant) - toneOf(d.control)) >= 36 - eps)
+                    // 45, not 50: SPEC_2025's dark onSurfaceVariant sits at tone ~70 (the 2021
+                    // spec the design doc's "ΔTone >= 50" assumed had ~80), so the anchor gap
+                    // is ~46. The contract is no-regression-vs-today, not the aspirational 2021
+                    // number. Round 5: the dark gap-on-cards no longer degrades above the anchor
+                    // (the anchor IS now the minimum, ~Δ45.97 measured, improving with balance),
+                    // so the old split anchor/degraded floor collapses to one unconditional ≥45.
+                    assertTrue(abs(toneOf(d.onSurfaceVariant) - toneOf(dCard)) >= 45 - eps)
+                    if (balance != 0f) {
+                        // Round 5: control-pill floor rises 36 -> ~40 (measured deep min ≈40.34).
+                        assertTrue(abs(toneOf(d.onSurfaceVariant) - toneOf(d.control)) >= 40 - eps)
                     }
                 }
             }
