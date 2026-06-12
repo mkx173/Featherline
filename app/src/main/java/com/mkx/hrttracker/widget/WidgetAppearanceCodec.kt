@@ -22,6 +22,12 @@ import com.mkx.hrttracker.model.settings.DarkModeOption
 // The slot-2 backgroundHue is IGNORED, saturation defaults to DEFAULT_SATURATION, and the
 // slot-3 vibrancy maps onto balance via the same (v-0.4)/0.6 formula (v1's 0.4 anchor → 0).
 internal object WidgetAppearanceCodec {
+    // WARNING: this wire version also travels inside backups (settings.widgetAppearance),
+    // and BackupRestoreService.toValidatedSettings hard-fails the ENTIRE restore when
+    // decode returns null — which it does for unknown future versions. Bumping this
+    // therefore makes new backups unrestorable on older apps despite their valid legacy
+    // mirror fields, so a codec version bump MUST ship with a
+    // CURRENT_BACKUP_SNAPSHOT_VERSION bump (see BackupSnapshot.kt's bump policy).
     private const val VERSION = 3
     private const val FIELD_COUNT = 7
 

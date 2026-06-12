@@ -24,6 +24,7 @@ import com.mkx.hrttracker.util.backupFileNameTimestampFormatter
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -162,6 +163,14 @@ class BackupExportService @Inject constructor(
         val onboardingCompleted = settingsRepository.onboardingCompleted.first()
         val stockNudgeEnabled = settingsRepository.stockNudgeEnabledFlow.first()
         val stockNudgeUserEnabled = settingsRepository.stockNudgeUserEnabledFlow.first()
+        // Export must not snapshot Default while un-migrated legacy values still exist
+        // (the fire-and-forget startup migration may have failed); idempotent, so
+        // awaiting it here is safe — same pattern as WidgetConfigActivity.
+        runCatching {
+            widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
+        }.onFailure { error ->
+            if (error is CancellationException) throw error
+        }
         val defaultAppearance = widgetAppearanceRepository.currentEffective(null)
         val userProfile = userProfileRepository.getCurrentProfile()
         // Pulled before groups/logs so the importer can build its valid-medicine

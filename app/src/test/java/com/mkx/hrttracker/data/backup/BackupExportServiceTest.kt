@@ -82,6 +82,9 @@ class BackupExportServiceTest {
         coEvery {
             widgetAppearanceRepository.currentEffective(null)
         } returns WidgetAppearance.Default
+        coEvery {
+            widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
+        } returns false
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
         service = BackupExportService(
             context = context,
@@ -159,6 +162,46 @@ class BackupExportServiceTest {
         assertEquals(appearance.contentScale, snapshot.settings.widgetContentScale, 1e-9f)
         assertEquals(appearance.backgroundAlpha, snapshot.settings.widgetBackgroundAlpha, 1e-9f)
         assertEquals(appearance.darkMode.name, snapshot.settings.widgetDarkModeOption)
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_awaitsLegacyMigrationBeforeReadingAppearance() = runTest {
+        // If the fire-and-forget startup migration failed, the store is unseeded and
+        // the user's real appearance still lives in the un-exported legacy
+        // SettingsRepository keys. Export must await the (idempotent) migration before
+        // reading, or it bakes Default into the backup. Simulate that store: Default
+        // until the migration runs, the legacy-derived appearance afterwards.
+        val legacyDerived = WidgetAppearance.Default.copy(
+            contentScale = 1.2f,
+            backgroundAlpha = 0.4f,
+            darkMode = DarkModeOption.DARK,
+        )
+        var migrated = false
+        coEvery { widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded() } answers {
+            migrated = true
+            true
+        }
+        coEvery { widgetAppearanceRepository.currentEffective(null) } answers {
+            if (migrated) legacyDerived else WidgetAppearance.Default
+        }
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+        val snapshot = BackupSnapshotJsonCodec.decode(
+            service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+        )!!
+
+        assertEquals(
+            WidgetAppearanceCodec.encode(legacyDerived),
+            snapshot.settings.widgetAppearance,
+        )
+        assertEquals(legacyDerived.contentScale, snapshot.settings.widgetContentScale, 1e-9f)
     }
 
     @Test
