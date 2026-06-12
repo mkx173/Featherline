@@ -12,10 +12,12 @@ import com.mkx.hrttracker.util.appLanguageLocale
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
@@ -51,6 +53,11 @@ class SettingsRepositoryLegacyWidgetAppearanceTest {
         )
 
         settingsRepository = SettingsRepository(context, dataStore)
+    }
+
+    @After
+    fun tearDown() {
+        unmockkStatic("com.mkx.hrttracker.util.LocalizationKt")
     }
 
     @Test
