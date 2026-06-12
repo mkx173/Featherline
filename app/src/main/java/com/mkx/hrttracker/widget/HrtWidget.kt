@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
+import android.widget.RemoteViews
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
@@ -297,6 +298,55 @@ private suspend fun pushHrtWidget(
         }.getOrNull() ?: return@forEach
         runCatching { appWidgetManager.updateAppWidget(appWidgetId, result.remoteViews) }
     }
+}
+
+// The preview DpSize the config activity's live preview is composed and laid out at.
+// Exposed (rather than the private constants) so WidgetConfigScreen sizes its
+// AndroidView to exactly the composed size.
+internal fun widgetPreviewSizeDp(isMedium: Boolean): DpSize =
+    if (isMedium) MEDIUM_WIDGET_PREVIEW_SIZE else LARGE_WIDGET_PREVIEW_SIZE
+
+// Single reuse point for WidgetConfigActivity's live preview. Encapsulates the private
+// render helpers: preview size selection, the fixed preview baseline (so the slider
+// shows scale faithfully in relative terms), applying the live control values onto the
+// snapshot, and the synchronous GlanceRemoteViews compose. Falls back to
+// previewSnapshot when no snapshot was ever persisted (fresh install / first
+// placement); in that case the preview E2 trend text is provided the same way
+// HrtPreviewContent does, since the fabricated snapshot has no real projection.
+@OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
+internal suspend fun composeWidgetPreviewRemoteViews(
+    context: Context,
+    isMedium: Boolean,
+    contentScale: Float,
+    backgroundAlpha: Float,
+    forcedDark: Boolean?,
+    snapshot: WidgetSnapshotRecord?,
+): RemoteViews {
+    val previewE2Text = if (snapshot == null) {
+        formatWidgetE2Text(
+            currentConcentration = WIDGET_PREVIEW_E2_PG_PER_ML,
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML,
+            displayUnit = BloodUnitKey.PG_ML,
+        )
+    } else {
+        null
+    }
+    val record = (snapshot ?: previewSnapshot(context)).copy(
+        widgetContentScale = contentScale,
+        widgetBackgroundAlpha = backgroundAlpha,
+        forcedDark = forcedDark,
+    )
+    val size = widgetPreviewSizeDp(isMedium)
+    return GlanceRemoteViews().compose(context = context, size = size) {
+        HrtWidgetThemed(context, record) { themed ->
+            CompositionLocalProvider(
+                LocalPreviewBaselineHeight provides WIDGET_BASELINE_REFERENCE_DP,
+                LocalPreviewE2Text provides previewE2Text,
+            ) {
+                if (isMedium) MediumWidgetContent(themed) else LargeWidgetContent(themed)
+            }
+        }
+    }.remoteViews
 }
 
 // The widget size for the current orientation, derived from the launcher's options.
