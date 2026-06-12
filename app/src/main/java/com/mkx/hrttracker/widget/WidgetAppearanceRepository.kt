@@ -1,0 +1,82 @@
+package com.mkx.hrttracker.widget
+
+import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import javax.inject.Inject
+import javax.inject.Singleton
+
+// override ?: default ?: built-in. Pure so the resolution contract is testable
+// without DataStore plumbing.
+internal fun resolveEffectiveAppearance(
+    override: WidgetAppearance?,
+    default: WidgetAppearance?,
+): WidgetAppearance = override ?: default ?: WidgetAppearance.Default
+
+// The one-time mapping from the three legacy SettingsRepository keys. New theme
+// params start at Default — that combination is the regression anchor.
+internal fun legacyWidgetAppearance(
+    contentScale: Float,
+    backgroundAlpha: Float,
+    darkMode: DarkModeOption,
+): WidgetAppearance = WidgetAppearance.Default.copy(
+    contentScale = contentScale,
+    backgroundAlpha = backgroundAlpha,
+    darkMode = darkMode,
+).sanitized()
+
+@Singleton
+class WidgetAppearanceRepository @Inject constructor(
+    private val store: WidgetAppearanceStore,
+    private val settingsRepository: SettingsRepository,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
+) {
+    // null appWidgetId = "the default entry" (used by the v1 global UI and previews).
+    fun effectiveFor(appWidgetId: Int?): Flow<WidgetAppearance> = combine(
+        if (appWidgetId == null) store.observeEntry(null) else store.observeEntry(appWidgetId),
+        store.observeEntry(null),
+    ) { override, default ->
+        resolveEffectiveAppearance(if (appWidgetId == null) null else override, default)
+    }.distinctUntilChanged()
+
+    suspend fun currentEffective(appWidgetId: Int?): WidgetAppearance =
+        effectiveFor(appWidgetId).first()
+
+    suspend fun setDefault(appearance: WidgetAppearance) = store.setEntry(null, appearance)
+
+    suspend fun updateDefault(transform: (WidgetAppearance) -> WidgetAppearance) =
+        store.updateDefault(transform)
+
+    // Dormant in v1 — activated by a future per-widget editor.
+    suspend fun setForWidget(appWidgetId: Int, appearance: WidgetAppearance) =
+        store.setEntry(appWidgetId, appearance)
+
+    suspend fun deleteOverrides(appWidgetIds: IntArray) = store.deleteOverrides(appWidgetIds)
+
+    fun observeChanges() = store.observeChanges()
+
+    // Seeds appearance_default from the legacy SettingsRepository keys exactly once,
+    // then deletes them. Idempotent and safe to call on every app start. Returns
+    // true when legacy data existed: the caller must repaint widgets then, because
+    // the migration write lands as the change-observer's dropped initial emission
+    // and the async startup worker may have already pushed with Default appearance.
+    // If the process dies between the seed and the legacy-key clear, the next start
+    // re-runs harmlessly (seed no-ops) and the repaint happens then.
+    suspend fun migrateFromLegacySettingsIfNeeded(): Boolean {
+        val legacy = settingsRepository.readLegacyWidgetAppearance() ?: return false
+        val seeded = store.seedDefaultIfAbsent(
+            legacyWidgetAppearance(legacy.contentScale, legacy.backgroundAlpha, legacy.darkMode)
+        )
+        settingsRepository.clearLegacyWidgetAppearanceKeys()
+        diagnosticsLogger.info(TAG, "widget_appearance_migrated seeded=$seeded")
+        return true
+    }
+
+    private companion object {
+        const val TAG = "WidgetAppearanceRepo"
+    }
+}

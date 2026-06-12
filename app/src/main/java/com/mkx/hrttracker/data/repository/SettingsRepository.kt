@@ -384,6 +384,30 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    // Legacy widget-appearance keys, retained ONLY for the one-time migration into
+    // WidgetAppearanceStore (WidgetAppearanceRepository.migrateFromLegacySettingsIfNeeded).
+    // Returns null once the keys are gone, which ends the migration permanently.
+    suspend fun readLegacyWidgetAppearance(): LegacyWidgetAppearance? {
+        val preferences = activeDataStore().data.first()
+        val scale = preferences[widgetContentScaleKey]
+        val alpha = preferences[widgetBackgroundAlphaKey]
+        val dark = preferences[widgetDarkModeKey]
+        if (scale == null && alpha == null && dark == null) return null
+        return LegacyWidgetAppearance(
+            contentScale = scale ?: 1.0f,
+            backgroundAlpha = (alpha ?: 1.0f).coerceIn(0.5f, 1.0f),
+            darkMode = DarkModeOption.fromStorageValue(dark),
+        )
+    }
+
+    suspend fun clearLegacyWidgetAppearanceKeys() {
+        activeDataStore().edit { preferences ->
+            preferences.remove(widgetContentScaleKey)
+            preferences.remove(widgetBackgroundAlphaKey)
+            preferences.remove(widgetDarkModeKey)
+        }
+    }
+
     suspend fun peekNextGroupNameIndex(): Int {
         return (activeDataStore().data.first()[groupNameCounterKey] ?: 0) + 1
     }
@@ -603,3 +627,9 @@ class SettingsRepository @Inject constructor(
         return AppLanguageOption.fromLocale(appLanguageLocale())
     }
 }
+
+data class LegacyWidgetAppearance(
+    val contentScale: Float,
+    val backgroundAlpha: Float,
+    val darkMode: DarkModeOption,
+)
