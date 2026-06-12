@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,8 +49,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.settings.labelRes
@@ -195,16 +196,20 @@ internal fun WidgetConfigScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = dimensionResource(R.dimen.padding_medium)),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.spacedBy(
+                    dimensionResource(R.dimen.padding_small),
+                ),
             ) {
-                TextButton(onClick = onCancel) {
-                    Text(stringResource(R.string.cancel))
-                }
-                TextButton(
+                HrtFilledTonalButton(
+                    text = stringResource(R.string.cancel),
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f),
+                )
+                HrtButton(
+                    text = stringResource(R.string.save),
                     onClick = { onSave(contentScale, backgroundAlpha, darkModeOption) },
-                ) {
-                    Text(stringResource(R.string.save))
-                }
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }
