@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="widget_preview_background">#1F2537</color>
-    <color name="widget_preview_card">#323849</color>
+    <color name="widget_preview_background">#1F2536</color>
+    <color name="widget_preview_card">#353B4D</color>
     <color name="widget_preview_on_surface">#E4E5F0</color>
     <color name="widget_preview_on_surface_variant">#A9AAB5</color>
     <color name="widget_preview_outline_variant">#454850</color>
@@ -9,7 +9,7 @@
     <color name="widget_preview_on_primary">#323F61</color>
     <color name="widget_preview_primary_container">#455274</color>
     <color name="widget_preview_on_primary_container">#DBE2FF</color>
-    <color name="widget_preview_control">#23262E</color>
+    <color name="widget_preview_control">#43495B</color>
     <color name="widget_preview_accent_rose">#FF8A88</color>
     <color name="widget_preview_accent_teal">#0AD8B6</color>
     <color name="widget_preview_accent_indigo">#9DB1FF</color>

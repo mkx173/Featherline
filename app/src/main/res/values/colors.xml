@@ -6,10 +6,10 @@
          the widget's default MaterialKolor seed scheme as derived in
          WidgetTheme.kt (background/card/control are the secondary-palette
          cuts; card is pre-composited at the 0.85 card alpha over the shell).
-         Regenerate with a probe against widgetBackgroundColor /
-         widgetContainerColor / widgetControlColor when derivations change. -->
+         Regenerate by running WidgetPreviewColorProbe (remove @Ignore, run,
+         paste) whenever the derivation changes. -->
     <color name="widget_preview_background">#E9EDFF</color>
-    <color name="widget_preview_card">#DEE4FA</color>
+    <color name="widget_preview_card">#DCE2F9</color>
     <color name="widget_preview_on_surface">#30323A</color>
     <color name="widget_preview_on_surface_variant">#5D5F68</color>
     <color name="widget_preview_outline_variant">#B0B1BC</color>
