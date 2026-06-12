@@ -8,6 +8,7 @@ import android.widget.FrameLayout
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -30,11 +31,11 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -75,6 +76,8 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
+import com.mkx.hrttracker.ui.components.HrtPill
+import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -114,6 +117,13 @@ internal fun WidgetConfigScreen(
     var darkModeOption by rememberSaveable { mutableStateOf(sanitizedInitial.darkMode) }
     var isDarkModeMenuExpanded by rememberSaveable { mutableStateOf(false) }
 
+    // Preview-only light/dark flip, shown only while darkMode == FOLLOW_SYSTEM. Seeded
+    // once from the system appearance at first composition; the saveable preserves the
+    // user's flip across config changes. This NEVER touches darkModeOption / the saved
+    // appearance — it only overrides the PREVIEW's resolved darkMode below.
+    val initialSystemDark = isSystemInDarkTheme()
+    var previewDark by rememberSaveable { mutableStateOf(initialSystemDark) }
+
     val liveAppearance = WidgetAppearance(
         seedHue = seedHue,
         saturation = saturation,
@@ -143,7 +153,14 @@ internal fun WidgetConfigScreen(
                 balance = balance,
                 contentScale = contentScale,
                 backgroundAlpha = backgroundAlpha,
-                darkMode = darkModeOption,
+                // Preview-only override: an explicit LIGHT/DARK selection renders as
+                // chosen, but a FOLLOW_SYSTEM selection follows the previewDark flip so
+                // the user can inspect both appearances without changing the saved value.
+                darkMode = if (darkModeOption == DarkModeOption.FOLLOW_SYSTEM) {
+                    if (previewDark) DarkModeOption.DARK else DarkModeOption.LIGHT
+                } else {
+                    darkModeOption
+                },
             )
         }
             .conflate()
@@ -226,6 +243,33 @@ internal fun WidgetConfigScreen(
                             render = previewRender,
                             modifier = Modifier.padding(WIDGET_PREVIEW_WINDOW_INSET),
                         )
+                        // Preview-only light/dark flip, only meaningful while the saved
+                        // selection follows the system. The icon shows the appearance the
+                        // tap switches TO: a light preview offers the moon (→ dark), a dark
+                        // preview offers the sun (→ light).
+                        if (darkModeOption == DarkModeOption.FOLLOW_SYSTEM) {
+                            FilledTonalIconButton(
+                                onClick = { previewDark = !previewDark },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp)
+                                    .size(36.dp),
+                            ) {
+                                Icon(
+                                    painter = painterResource(
+                                        if (previewDark) {
+                                            R.drawable.ic_sunny
+                                        } else {
+                                            R.drawable.ic_moon_stars
+                                        },
+                                    ),
+                                    contentDescription = stringResource(
+                                        R.string.widget_config_preview_toggle,
+                                    ),
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     // The control rows take the remaining height and scroll: with six rows
@@ -239,39 +283,6 @@ internal fun WidgetConfigScreen(
                             .verticalScroll(rememberScrollState()),
                     ) {
                         HrtSection(title = null) {
-                            item {
-                                HueSliderRow(
-                                    label = stringResource(R.string.widget_config_seed_hue),
-                                    icon = painterResource(R.drawable.ic_palette),
-                                    hue = seedHue,
-                                    restingHue = remember { defaultSeedHue() },
-                                    onHueChange = { seedHue = it },
-                                    resetLabel = stringResource(
-                                        R.string.widget_config_seed_dynamic,
-                                    ),
-                                    onReset = { seedHue = null },
-                                )
-                            }
-                            item {
-                                SliderRow(
-                                    label = stringResource(R.string.widget_config_saturation),
-                                    icon = painterResource(R.drawable.ic_invert_colors),
-                                    iconSize = 18.dp,
-                                    value = saturation,
-                                    valueRange = 0f..1f,
-                                    onValueChange = { saturation = snapToWholePercent(it) },
-                                )
-                            }
-                            item {
-                                SliderRow(
-                                    label = stringResource(R.string.widget_config_balance),
-                                    icon = painterResource(R.drawable.ic_contrast),
-                                    iconSize = 18.dp,
-                                    value = balance,
-                                    valueRange = 0f..1f,
-                                    onValueChange = { balance = snapToWholePercent(it) },
-                                )
-                            }
                             item {
                                 SliderRow(
                                     label = stringResource(
@@ -323,6 +334,39 @@ internal fun WidgetConfigScreen(
                                         },
                                     )
                                 }
+                            }
+                            item {
+                                HueSliderRow(
+                                    label = stringResource(R.string.widget_config_seed_hue),
+                                    icon = painterResource(R.drawable.ic_palette),
+                                    hue = seedHue,
+                                    restingHue = remember { defaultSeedHue() },
+                                    onHueChange = { seedHue = it },
+                                    resetLabel = stringResource(
+                                        R.string.widget_config_seed_dynamic,
+                                    ),
+                                    onReset = { seedHue = null },
+                                )
+                            }
+                            item {
+                                SliderRow(
+                                    label = stringResource(R.string.widget_config_saturation),
+                                    icon = painterResource(R.drawable.ic_invert_colors),
+                                    iconSize = 18.dp,
+                                    value = saturation,
+                                    valueRange = 0f..1f,
+                                    onValueChange = { saturation = snapToWholePercent(it) },
+                                )
+                            }
+                            item {
+                                SliderRow(
+                                    label = stringResource(R.string.widget_config_balance),
+                                    icon = painterResource(R.drawable.ic_contrast),
+                                    iconSize = 18.dp,
+                                    value = balance,
+                                    valueRange = 0f..1f,
+                                    onValueChange = { balance = snapToWholePercent(it) },
+                                )
                             }
                         }
                     }
@@ -425,9 +469,21 @@ private fun HueSliderRow(
                         .size(16.dp)
                         .background(hueSwatchColor(hue ?: restingHue), CircleShape),
                 )
-                TextButton(onClick = onReset, enabled = hue != null) {
-                    Text(resetLabel, style = MaterialTheme.typography.labelMedium)
-                }
+                Spacer(modifier = Modifier.width(8.dp))
+                // SELECTED = Dynamic active (hue == null): the pill fills with the
+                // secondaryContainer accent. Tapping it while already selected is a
+                // no-op; tapping while an explicit hue is set resets back to Dynamic.
+                val dynamicSelected = hue == null
+                HrtPill(
+                    label = resetLabel,
+                    containerColor = if (dynamicSelected) {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainer
+                    },
+                    size = HrtPillSize.Small,
+                    onClick = if (dynamicSelected) null else onReset,
+                )
             }
             Slider(
                 value = hue ?: restingHue,
