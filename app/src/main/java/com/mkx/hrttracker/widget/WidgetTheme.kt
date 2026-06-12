@@ -9,6 +9,7 @@ import androidx.core.graphics.ColorUtils.colorToM3HCT
 import androidx.glance.unit.ColorProvider
 import com.materialkolor.dynamicColorScheme
 import com.materialkolor.dynamiccolor.ColorSpec
+import com.materialkolor.hct.Hct
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.theme.DefaultSeedColor
 import com.mkx.hrttracker.ui.theme.MedicationGroupPalettes
@@ -178,3 +179,103 @@ internal fun groupAccentColor(
     }
     return providers.getValue(colorKey)
 }
+
+// ── Prototype-locked derivation (notes/2026-06-12-widget-customization-design.md) ──
+
+// Vibrancy anchor: 0 = neutral black/white, DEFAULT_VIBRANCY = today's tint
+// (the regression anchor), 1 = max tint. Below the anchor only chroma fades —
+// tones hold and no text lift — which is what keeps the anchor bit-exact.
+private const val CHROMA_BOOST = 18.0
+private const val LIGHT_SHELL_BASE = 94.0
+private const val LIGHT_SHELL_MAX = 82.0
+// SPEC_2025 dark secondaryContainer sits at tone ~25 (the 2021 spec the prototype
+// ran on had 30), so the legacy anchor output is 25 − 10 = 15. The v=1 ceiling
+// stays 35 — the dark ramp is simply longer than the prototype's.
+private const val DARK_SHELL_BASE = 15.0
+private const val DARK_SHELL_MAX = 35.0 // ceiling; text lift keeps onSurface ΔTone >= 50 here
+private const val LIGHT_CARD_DELTA = -4.0
+private const val DARK_CARD_DELTA = 10.0
+private const val LIGHT_CONTROL_DELTA = -6.0
+// Dark control mirrors light (card +6), cut from the BACKGROUND palette: with
+// arbitrary hues the old neutral dark.surfaceVariant pill read broken on tinted
+// cards. Tone 36 tinted at defaults vs today's tone-30 neutral — approved change.
+private const val DARK_CONTROL_DELTA = 6.0
+private const val ON_SURFACE_LIFT_LIGHT = -4.0
+private const val ON_SURFACE_LIFT_DARK = 6.0
+private const val ON_SURFACE_VARIANT_LIFT_LIGHT = -8.0
+// Sized so the SPEC_2025 dark onSurfaceVariant (tone ~70; the prototype's 2021
+// spec had ~80) lands at the prototype's locked v=1 endpoint of ~88, keeping the
+// secondary-text gap vs cards at the accepted ~44 floor instead of collapsing.
+private const val ON_SURFACE_VARIANT_LIFT_DARK = 18.0
+
+private fun lerp(a: Double, b: Double, t: Double): Double = a + (b - a) * t
+
+// Ramp above the anchor; 0 at/below it. All tone/lift movement runs on this.
+private fun vibrancyRamp(vibrancy: Float): Double =
+    (((vibrancy - WidgetAppearance.DEFAULT_VIBRANCY) / (1f - WidgetAppearance.DEFAULT_VIBRANCY))
+        .coerceIn(0f, 1f)).toDouble()
+
+private fun vibrancyChroma(baseChroma: Double, vibrancy: Float): Double =
+    if (vibrancy <= WidgetAppearance.DEFAULT_VIBRANCY) {
+        baseChroma * (vibrancy / WidgetAppearance.DEFAULT_VIBRANCY)
+    } else {
+        baseChroma + CHROMA_BOOST * vibrancyRamp(vibrancy)
+    }
+
+private fun colorAt(hue: Double, chroma: Double, tone: Double): Color =
+    Color(Hct.from(hue, chroma, tone.coerceIn(0.0, 100.0)).toInt())
+
+private fun Color.shiftTone(delta: Double): Color {
+    // Not an optimization: at the vibrancy anchor the lift is exactly 0 and text
+    // colors must pass through UNTOUCHED — an Hct round-trip can move a channel
+    // by 1, which would break the bit-exact anchor contract.
+    if (delta == 0.0) return this
+    val hct = Hct.fromInt(toArgb())
+    return Color(Hct.from(hct.hue, hct.chroma, (hct.tone + delta).coerceIn(0.0, 100.0)).toInt())
+}
+
+internal data class WidgetSurfaces(
+    val shell: Color,
+    val card: Color,
+    val control: Color,
+    val onSurface: Color,
+    val onSurfaceVariant: Color,
+)
+
+// One mode's background surfaces + vibrancy-lifted text tones, built absolutely in
+// HCT. Invariants (encoded in WidgetThemeDerivationTest, not re-derived here):
+// onSurface keeps ΔTone >= 50 against every surface at all vibrancy; secondary
+// text degrades gracefully above the anchor (dark floors 44 cards / 36 pills at v=1).
+internal fun deriveWidgetSurfaces(
+    secondaryContainer: Color,
+    onSurface: Color,
+    onSurfaceVariant: Color,
+    backgroundHue: Float?,
+    vibrancy: Float,
+    dark: Boolean,
+): WidgetSurfaces {
+    val sc = Hct.fromInt(secondaryContainer.toArgb())
+    val hue = backgroundHue?.toDouble() ?: sc.hue
+    val chroma = vibrancyChroma(sc.chroma, vibrancy)
+    val u = vibrancyRamp(vibrancy)
+    val shellTone =
+        if (dark) lerp(DARK_SHELL_BASE, DARK_SHELL_MAX, u)
+        else lerp(LIGHT_SHELL_BASE, LIGHT_SHELL_MAX, u)
+    val cardTone = shellTone + if (dark) DARK_CARD_DELTA else LIGHT_CARD_DELTA
+    val controlTone = cardTone + if (dark) DARK_CONTROL_DELTA else LIGHT_CONTROL_DELTA
+    return WidgetSurfaces(
+        shell = colorAt(hue, chroma, shellTone),
+        card = colorAt(hue, chroma, cardTone),
+        control = colorAt(hue, chroma, controlTone),
+        onSurface = onSurface.shiftTone((if (dark) ON_SURFACE_LIFT_DARK else ON_SURFACE_LIFT_LIGHT) * u),
+        onSurfaceVariant = onSurfaceVariant.shiftTone(
+            (if (dark) ON_SURFACE_VARIANT_LIFT_DARK else ON_SURFACE_VARIANT_LIFT_LIGHT) * u
+        ),
+    )
+}
+
+// An explicit hue pick materialized as a seed. Fixed chroma/tone: TonalSpot only
+// consumes the seed's hue, and constructing in HCT keeps the foreground slider
+// from drifting the perceptual hue (the prototype's HSV-saturation leak).
+internal fun seedColorFromHue(seedHue: Float): Color =
+    Color(Hct.from(seedHue.toDouble(), 36.0, 50.0).toInt())
