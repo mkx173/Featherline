@@ -274,7 +274,11 @@ private fun WidgetPreview(
                     if (views != null && container.tag !== views) {
                         container.tag = views
                         container.removeAllViews()
-                        container.addView(views.apply(container.context, container))
+                        // Apply with the application context, NOT the activity context: the AppCompat
+                        // activity's LayoutInflater factory would inflate ImageView as AppCompatImageView,
+                        // whose setters lack @RemotableViewMethod, crashing RemoteViews actions. The
+                        // launcher applies these RemoteViews with a non-AppCompat context too.
+                        container.addView(views.apply(container.context.applicationContext, container))
                     }
                 },
             )
