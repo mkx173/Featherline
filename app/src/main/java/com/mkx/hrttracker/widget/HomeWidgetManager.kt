@@ -39,6 +39,7 @@ class HomeWidgetManager @Inject constructor(
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val settingsRepository: SettingsRepository,
     private val widgetSnapshotRepository: WidgetSnapshotRepository,
+    private val widgetAppearanceRepository: WidgetAppearanceRepository,
     @param:AppScope private val appScope: CoroutineScope,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
@@ -95,9 +96,6 @@ class HomeWidgetManager @Inject constructor(
                     listOf(
                         settings.hideMedicationDetails,
                         settings.adaptiveColorEnabled,
-                        settings.widgetContentScale,
-                        settings.widgetBackgroundAlpha,
-                        settings.widgetDarkModeOption,
                         settings.homeE2DisplayUnit,
                         settings.appLanguageOption,
                         settings.showArchivedGroupRecords,
@@ -115,6 +113,39 @@ class HomeWidgetManager @Inject constructor(
                             "widget_snapshot_settings_refresh_failed",
                             throwable
                         )
+                    }
+                }
+        }
+
+        // Appearance changes re-render widgets directly: the snapshot no longer carries
+        // appearance, so a full snapshot rebuild isn't required, but refreshWidgetSnapshot
+        // reuses the existing push plumbing (and is what the settings observer already does).
+        appScope.launch {
+            val migrated = runCatching {
+                widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                diagnosticsLogger.warning(TAG, "widget_appearance_migration_failed", throwable)
+            }.getOrDefault(false)
+            if (migrated) {
+                // The migration write predates the collector below (its initial emission is
+                // dropped), and the startup one-shot worker races it — repaint explicitly so
+                // migrated scale/alpha/darkMode apply on first launch, not the next refresh.
+                runCatching {
+                    widgetSnapshotRepository.refreshWidgetSnapshot()
+                }.onFailure { throwable ->
+                    if (throwable is CancellationException) throw throwable
+                    diagnosticsLogger.warning(TAG, "widget_appearance_migration_refresh_failed", throwable)
+                }
+            }
+            widgetAppearanceRepository.observeChanges()
+                .drop(1)
+                .collect {
+                    runCatching {
+                        widgetSnapshotRepository.refreshWidgetSnapshot()
+                    }.onFailure { throwable ->
+                        if (throwable is CancellationException) throw throwable
+                        diagnosticsLogger.warning(TAG, "widget_appearance_refresh_failed", throwable)
                     }
                 }
         }
