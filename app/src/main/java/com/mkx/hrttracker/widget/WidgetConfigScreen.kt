@@ -27,10 +27,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +63,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isFinite
 import androidx.compose.ui.viewinterop.AndroidView
+import com.materialkolor.hct.Hct
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.ui.components.AppContentContainer
@@ -87,23 +90,34 @@ import kotlin.math.roundToInt
 // Deliberately does NOT reuse the in-app WidgetAppearanceDialog.
 @Composable
 internal fun WidgetConfigScreen(
-    initialContentScale: Float,
-    initialBackgroundAlpha: Float,
-    initialDarkModeOption: DarkModeOption,
+    initialAppearance: WidgetAppearance,
     isMediumWidget: Boolean,
     appWidgetId: Int,
     snapshot: WidgetSnapshotRecord?,
-    onSave: (Float, Float, DarkModeOption) -> Unit,
+    onSave: (WidgetAppearance) -> Unit,
     onCancel: () -> Unit,
 ) {
+    val sanitizedInitial = remember(initialAppearance) { initialAppearance.sanitized() }
+    var seedHue by rememberSaveable { mutableStateOf(sanitizedInitial.seedHue) }
+    var backgroundHue by rememberSaveable { mutableStateOf(sanitizedInitial.backgroundHue) }
+    var vibrancy by rememberSaveable { mutableStateOf(sanitizedInitial.vibrancy) }
     var contentScale by rememberSaveable {
-        mutableStateOf(snapToWholePercent(initialContentScale.coerceIn(0.5f, 1.5f)))
+        mutableStateOf(snapToWholePercent(sanitizedInitial.contentScale))
     }
     var backgroundAlpha by rememberSaveable {
-        mutableStateOf(snapToWholePercent(initialBackgroundAlpha.coerceIn(0.5f, 1f)))
+        mutableStateOf(snapToWholePercent(sanitizedInitial.backgroundAlpha))
     }
-    var darkModeOption by rememberSaveable { mutableStateOf(initialDarkModeOption) }
+    var darkModeOption by rememberSaveable { mutableStateOf(sanitizedInitial.darkMode) }
     var isDarkModeMenuExpanded by rememberSaveable { mutableStateOf(false) }
+
+    val liveAppearance = WidgetAppearance(
+        seedHue = seedHue,
+        backgroundHue = backgroundHue,
+        vibrancy = vibrancy,
+        contentScale = contentScale,
+        backgroundAlpha = backgroundAlpha,
+        darkMode = darkModeOption,
+    )
 
     val context = LocalContext.current
     val previewRender by produceState<WidgetConfigPreviewRender?>(
@@ -115,13 +129,7 @@ internal fun WidgetConfigScreen(
         // overwrite the pending value, so a fast drag costs a few renders instead of one
         // full widget composition per tick — and no in-flight render is ever cancelled,
         // so the preview keeps updating continuously THROUGH the drag.
-        snapshotFlow {
-            WidgetAppearance.Default.copy(
-                contentScale = contentScale,
-                backgroundAlpha = backgroundAlpha,
-                darkMode = darkModeOption,
-            )
-        }
+        snapshotFlow { liveAppearance }
             .conflate()
             .collect { appearance ->
                 value = try {
@@ -205,6 +213,40 @@ internal fun WidgetConfigScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     HrtSection(title = null) {
                         item {
+                            HueSliderRow(
+                                label = stringResource(R.string.widget_config_seed_hue),
+                                icon = painterResource(R.drawable.ic_palette),
+                                hue = seedHue,
+                                restingHue = remember { defaultSeedHue() },
+                                onHueChange = { seedHue = it },
+                                resetLabel = stringResource(R.string.widget_config_seed_dynamic),
+                                onReset = { seedHue = null },
+                            )
+                        }
+                        item {
+                            HueSliderRow(
+                                label = stringResource(R.string.widget_config_background_hue),
+                                icon = painterResource(R.drawable.ic_invert_colors),
+                                hue = backgroundHue,
+                                restingHue = remember(seedHue) { derivedBackgroundHue(seedHue) },
+                                onHueChange = { backgroundHue = it },
+                                resetLabel = stringResource(
+                                    R.string.widget_config_background_match,
+                                ),
+                                onReset = { backgroundHue = null },
+                            )
+                        }
+                        item {
+                            SliderRow(
+                                label = stringResource(R.string.widget_config_vibrancy),
+                                icon = painterResource(R.drawable.ic_contrast),
+                                iconSize = 18.dp,
+                                value = vibrancy,
+                                valueRange = 0f..1f,
+                                onValueChange = { vibrancy = snapToWholePercent(it) },
+                            )
+                        }
+                        item {
                             SliderRow(
                                 label = stringResource(R.string.settings_widget_content_scale),
                                 icon = painterResource(R.drawable.ic_loupe),
@@ -269,7 +311,7 @@ internal fun WidgetConfigScreen(
                         )
                         HrtButton(
                             text = stringResource(R.string.save),
-                            onClick = { onSave(contentScale, backgroundAlpha, darkModeOption) },
+                            onClick = { onSave(liveAppearance) },
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -320,6 +362,55 @@ private fun SliderRow(
         }
     }
 }
+
+// A hue slider row with a live swatch and a reset affordance. While [hue] is null
+// the slider rests at [restingHue] (the value the system would derive) and the
+// reset button is disabled; grabbing the slider promotes the resting value to an
+// explicit pick.
+@Composable
+private fun HueSliderRow(
+    label: String,
+    icon: Painter,
+    hue: Float?,
+    restingHue: Float,
+    onHueChange: (Float) -> Unit,
+    resetLabel: String,
+    onReset: () -> Unit,
+) {
+    EditorSegmentedListItem {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RowLeadingIcon(icon, size = 18.dp)
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f).cjkTextOffset(label),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .background(hueSwatchColor(hue ?: restingHue), CircleShape),
+                )
+                TextButton(onClick = onReset, enabled = hue != null) {
+                    Text(resetLabel, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+            Slider(
+                value = hue ?: restingHue,
+                onValueChange = onHueChange,
+                valueRange = 0f..360f,
+            )
+        }
+    }
+}
+
+// Tone-60/chroma-48 cut: a recognizable, mode-independent preview of the hue itself.
+private fun hueSwatchColor(hue: Float): Color =
+    Color(Hct.from(hue.toDouble(), 48.0, 60.0).toInt())
 
 // Mirrors SettingsScreen's SettingsLeadingIconSlot (private there) for this screen's rows.
 @Composable
@@ -440,13 +531,11 @@ private val WIDGET_PREVIEW_WINDOW_INSET = 24.dp
 private fun WidgetConfigScreenPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         WidgetConfigScreen(
-            initialContentScale = 1.0f,
-            initialBackgroundAlpha = 0.8f,
-            initialDarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
+            initialAppearance = WidgetAppearance.Default.copy(backgroundAlpha = 0.8f),
             isMediumWidget = true,
             appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID,
             snapshot = null,
-            onSave = { _, _, _ -> },
+            onSave = {},
             onCancel = {},
         )
     }

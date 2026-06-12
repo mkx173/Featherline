@@ -126,13 +126,11 @@ class WidgetConfigActivity : AppCompatActivity() {
                         LocalCjkTextOffsetEnabled provides loaded.settings.cjkTextOffsetEnabled,
                     ) {
                         WidgetConfigScreen(
-                            initialContentScale = loaded.appearance.contentScale,
-                            initialBackgroundAlpha = loaded.appearance.backgroundAlpha,
-                            initialDarkModeOption = loaded.appearance.darkMode,
+                            initialAppearance = loaded.appearance,
                             isMediumWidget = isMediumWidget,
                             appWidgetId = appWidgetId,
                             snapshot = loaded.snapshot,
-                            onSave = { scale, alpha, darkMode ->
+                            onSave = { appearance ->
                                 setResult(
                                     RESULT_OK,
                                     Intent().putExtra(
@@ -142,13 +140,9 @@ class WidgetConfigActivity : AppCompatActivity() {
                                 )
                                 appScope.launch {
                                     try {
-                                        widgetAppearanceRepository.updateDefault {
-                                            it.copy(
-                                                contentScale = scale,
-                                                backgroundAlpha = alpha,
-                                                darkMode = darkMode,
-                                            )
-                                        }
+                                        // The screen now owns all six appearance fields,
+                                        // so a wholesale setDefault is correct here.
+                                        widgetAppearanceRepository.setDefault(appearance)
                                     } finally {
                                         // Finish only after the write lands: RESULT_OK is
                                         // already reported, and finishing first would leave

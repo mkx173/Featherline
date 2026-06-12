@@ -257,3 +257,16 @@ internal fun deriveWidgetSurfaces(
 // from drifting the perceptual hue (the prototype's HSV-saturation leak).
 internal fun seedColorFromHue(seedHue: Float): Color =
     Color(Hct.from(seedHue.toDouble(), 36.0, 50.0).toInt())
+
+// Where the config sliders rest while their value is null. Uses the seeded
+// fallback scheme; on dynamic-palette devices the true resting hue is the
+// wallpaper's, but the preview shows ground truth and the handle position is
+// cosmetic.
+internal fun defaultSeedHue(): Float =
+    Hct.fromInt(DefaultSeedColor.toArgb()).hue.toFloat()
+
+internal fun derivedBackgroundHue(seedHue: Float?): Float {
+    val seed = seedHue?.let(::seedColorFromHue) ?: DefaultSeedColor
+    val (light, _) = seededWidgetColorSchemes(seed)
+    return Hct.fromInt(light.secondaryContainer.toArgb()).hue.toFloat()
+}
