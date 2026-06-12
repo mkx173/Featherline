@@ -127,11 +127,16 @@ flattened into the parent's JSON.
   reference-range visibility, app-lock grace period, hide-screen-content,
   onboarding, language, `firstDayOfWeekOption`, home E2 display unit,
   home E2 chart window, per-analyte calibration default units,
-  last-seen time-zone, `hideMedicationDetails`, the widget-only knobs
-  `widgetContentScale` / `widgetBackgroundAlpha` /
-  `widgetDarkModeOption`, the `groupNameCounter` used to suffix
-  default group names, and the stock-tracking-nudge flags
-  `stockNudgeEnabled` / `stockNudgeUserEnabled`). `screenLockProtectionEnabled`
+  last-seen time-zone, `hideMedicationDetails`, `widgetAppearance` (the
+  encoded widget-appearance default — accent hue, saturation, light
+  balance, scale, opacity, dark mode), the `groupNameCounter` used to
+  suffix default group names, and the stock-tracking-nudge flags
+  `stockNudgeEnabled` / `stockNudgeUserEnabled`). The legacy
+  `widgetContentScale` / `widgetBackgroundAlpha` / `widgetDarkModeOption`
+  fields are still written as mirrors of the appearance so older app
+  versions can read new backups; on restore, a present `widgetAppearance`
+  wins and backups predating it restore through the legacy fields.
+  `screenLockProtectionEnabled`
   is intentionally excluded — app-lock stays local to the device that set
   it. The nudge's running dismiss count is also excluded: restore clears it
   so the auto-disable threshold starts fresh on the new device.

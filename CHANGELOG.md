@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - On Android 12+, the top app bar, bottom navigation bar, bottom sheets, and dialogs now show a translucent blur of the content behind them, with an appearance setting ("Background blur") to turn it off.
+- The home-screen widget's theme can now be customized in the widget editor: accent color, saturation, and light balance, with a button to preview both the light and dark look. The chosen appearance is included in backups.
 
 ### Changed
 
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rotating, folding, or resizing the window now updates the layout in place instead of recreating the screen.
 - In the group schedule editor, "Also generate past records as planned" is now a checkbox shown while "Show" is selected, and it remembers its choice when switching to "Do not show" and back.
 - Reconfiguring a home-screen widget (long-press → settings) now opens a full-screen editor with a live widget preview over your wallpaper.
+- The home-screen widget now tints its background and cards from the color theme (your wallpaper colors on Android 12+) instead of neutral grays, matching how system widgets blend with the home screen.
 
 ### Fixed
 
