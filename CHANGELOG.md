@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Switching between the Home, Plan, and Settings tabs is now instant instead of cross-fading.
 - Rotating, folding, or resizing the window now updates the layout in place instead of recreating the screen.
 - In the group schedule editor, "Also generate past records as planned" is now a checkbox shown while "Show" is selected, and it remembers its choice when switching to "Do not show" and back.
+- Reconfiguring a home-screen widget (long-press → settings) now opens a full-screen editor with a live widget preview over your wallpaper, instead of a dialog that could show a black navigation bar on Android 14 and below.
 
 ### Fixed
 

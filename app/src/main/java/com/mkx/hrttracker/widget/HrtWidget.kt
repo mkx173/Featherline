@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
+import android.widget.RemoteViews
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
@@ -283,11 +284,13 @@ private suspend fun pushHrtWidget(
         appWidgetManager.getAppWidgetIds(ComponentName(context, receiverClass))
     }.getOrElse { intArrayOf() }
     appWidgetIds.forEach { appWidgetId ->
-        // Read the launcher options once and derive both the compose size and the baseline
-        // height from the same bundle, rather than fetching options twice for one widget.
-        val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
-        val size = currentWidgetSizeDp(context, options, isMedium)
-        val deviceBaselineHeightDp = portraitBaselineHeightDp(options)
+        // One options read; size and baseline resolve through the same helper the
+        // config-screen preview uses.
+        val (size, deviceBaselineHeightDp) = resolveWidgetRenderSize(
+            context,
+            appWidgetManager.getAppWidgetOptions(appWidgetId),
+            isMedium,
+        )
         val result = runCatching {
             GlanceRemoteViews().compose(context = context, size = size) {
                 HrtWidgetThemed(context, record, deviceBaselineHeightDp) { snapshot ->
@@ -297,6 +300,103 @@ private suspend fun pushHrtWidget(
         }.getOrNull() ?: return@forEach
         runCatching { appWidgetManager.updateAppWidget(appWidgetId, result.remoteViews) }
     }
+}
+
+// RemoteViews plus the DpSize it was composed at, so the preview host lays the
+// AndroidView out at exactly the composed size before fit-scaling it for display.
+internal class WidgetConfigPreviewRender(
+    val remoteViews: RemoteViews,
+    val sizeDp: DpSize,
+)
+
+// Single reuse point for WidgetConfigActivity's live preview. Encapsulates the private
+// render helpers: preview size selection, the preview baseline, applying the live
+// control values onto the snapshot, and the synchronous GlanceRemoteViews compose.
+// Falls back to previewSnapshot when no snapshot was ever persisted (fresh install /
+// first placement); in that case the preview E2 trend text is provided the same way
+// HrtPreviewContent does, since the fabricated snapshot has no real projection.
+//
+// When [appWidgetId] resolves to live launcher options, the preview is composed at the
+// widget's ACTUAL current cell size and resolves scale through the same device baseline
+// path the real widget uses (no LocalPreviewBaselineHeight override) — true WYSIWYG.
+// Otherwise (invalid id / options read failed) it falls back to the fixed reference
+// preview size with the reference baseline, as before.
+@OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
+internal suspend fun composeWidgetPreviewRemoteViews(
+    context: Context,
+    isMedium: Boolean,
+    contentScale: Float,
+    backgroundAlpha: Float,
+    forcedDark: Boolean?,
+    snapshot: WidgetSnapshotRecord?,
+    appWidgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID,
+): WidgetConfigPreviewRender {
+    val previewE2Text = if (snapshot == null) {
+        formatWidgetE2Text(
+            currentConcentration = WIDGET_PREVIEW_E2_PG_PER_ML,
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML,
+            displayUnit = BloodUnitKey.PG_ML,
+        )
+    } else {
+        null
+    }
+    val record = (snapshot ?: previewSnapshot(context)).copy(
+        widgetContentScale = contentScale,
+        widgetBackgroundAlpha = backgroundAlpha,
+        forcedDark = forcedDark,
+    )
+    val options = appWidgetId
+        .takeIf { it != AppWidgetManager.INVALID_APPWIDGET_ID }
+        ?.let { widgetId ->
+            runCatching { AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId) }
+                .getOrNull()
+        }
+    // Live options → actual size + the widget's real device baseline, resolved through
+    // the same helper as the production push so the two paths cannot diverge. No
+    // options → fixed reference size + baseline.
+    val (size, deviceBaselineHeightDp) = resolveWidgetRenderSize(context, options, isMedium)
+    val remoteViews = GlanceRemoteViews().compose(context = context, size = size) {
+        HrtWidgetThemed(context, record, deviceBaselineHeightDp) { themed ->
+            CompositionLocalProvider(
+                // Only pin the fixed reference baseline on the fallback path; with live
+                // options the real device baseline (above) drives scale for true WYSIWYG.
+                LocalPreviewBaselineHeight provides
+                    if (options != null) null else WIDGET_BASELINE_REFERENCE_DP,
+                LocalPreviewE2Text provides previewE2Text,
+                LocalHostFreePreview provides true,
+            ) {
+                if (isMedium) MediumWidgetContent(themed) else LargeWidgetContent(themed)
+            }
+        }
+    }.remoteViews
+    return WidgetConfigPreviewRender(remoteViews, size)
+}
+
+// The size a widget render composes at plus the device baseline that drives its content
+// scale. The production push and the config-screen preview BOTH resolve through
+// resolveWidgetRenderSize, so a change to the derivation cannot silently make the
+// preview diverge from the real widget.
+private data class WidgetRenderSize(
+    val sizeDp: DpSize,
+    val deviceBaselineHeightDp: Float?,
+)
+
+// Null options (a preview without live launcher options) fall back to the fixed
+// reference preview size with no device baseline.
+private fun resolveWidgetRenderSize(
+    context: Context,
+    options: Bundle?,
+    isMedium: Boolean,
+): WidgetRenderSize = if (options != null) {
+    WidgetRenderSize(
+        sizeDp = currentWidgetSizeDp(context, options, isMedium),
+        deviceBaselineHeightDp = portraitBaselineHeightDp(options),
+    )
+} else {
+    WidgetRenderSize(
+        sizeDp = if (isMedium) MEDIUM_WIDGET_PREVIEW_SIZE else LARGE_WIDGET_PREVIEW_SIZE,
+        deviceBaselineHeightDp = null,
+    )
 }
 
 // The widget size for the current orientation, derived from the launcher's options.
@@ -452,6 +552,13 @@ private val LocalDeviceBaselineHeight = compositionLocalOf<Float?> { null }
 // PkProjection path (whose windowing is unfriendly to fabricated data) so the
 // preview can demonstrate the trend pill without seeding a full projection.
 private val LocalPreviewE2Text = compositionLocalOf<String?> { null }
+
+// True only when composing the config activity's live preview, whose RemoteViews are
+// applied outside an AppWidget host — a host-free apply() cannot bind collection views
+// (setRemoteAdapter / RemoteCollectionItems are AppWidget-only), so the large widget's
+// dose list must render as a plain Column there. The home-screen render paths are
+// unaffected (default false).
+private val LocalHostFreePreview = compositionLocalOf { false }
 
 @Composable
 private fun widgetScale(widgetKey: String): Float {
@@ -1008,11 +1115,9 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     }
                 }
             } else {
-                LazyColumn(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
-                    itemsIndexed(
-                        items = listItems,
-                        itemId = { index, _ -> (index + 1).toLong() },
-                    ) { index, item ->
+                // One row renderer reused by both list paths so they stay identical.
+                val listItem: @Composable (index: Int, item: WidgetListItem) -> Unit =
+                    { index, item ->
                         Column(
                             modifier = GlanceModifier.fillMaxWidth()
                                 .padding(top = if (index > 0) 2.dp else 0.dp)
@@ -1032,6 +1137,21 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 )
                             }
                         }
+                    }
+                if (LocalHostFreePreview.current) {
+                    // Host-free apply() (config live preview) cannot bind a collection-backed
+                    // LazyColumn, so render the same rows in a plain Column. The preview
+                    // viewport is fixed-height, so any overflow simply clips — fine for an
+                    // inert preview.
+                    Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
+                        listItems.forEachIndexed { index, item -> listItem(index, item) }
+                    }
+                } else {
+                    LazyColumn(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
+                        itemsIndexed(
+                            items = listItems,
+                            itemId = { index, _ -> (index + 1).toLong() },
+                        ) { index, item -> listItem(index, item) }
                     }
                 }
             }

@@ -486,6 +486,7 @@
     <string name="settings_widget_content_scale">Content scale</string>
     <string name="settings_widget_background_opacity">Background opacity</string>
     <string name="settings_widget_dark_mode">Dark mode</string>
+    <string name="widget_config_title">Widget settings</string>
     <string name="settings_display">Display</string>
     <string name="settings_hide_archived_group_records">Hide archived group records</string>
     <string name="settings_hide_reference_ranges">Hide reference ranges</string>
