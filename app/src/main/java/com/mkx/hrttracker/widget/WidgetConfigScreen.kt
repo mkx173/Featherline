@@ -27,7 +27,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -176,9 +178,10 @@ internal fun WidgetConfigScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Pinned behavior: nothing scrolls on this screen, the bar exists only for the
-            // title. It consumes the status-bar inset; the body below pads the remaining
-            // sides. Full-width on purpose — AppContentContainer caps only the body.
+            // Pinned bar: the preview and the Cancel/Save actions stay pinned while only the
+            // control rows between them scroll, so the bar exists only for the title (not a
+            // scroll source). It consumes the status-bar inset; the body below pads the
+            // remaining sides. Full-width on purpose — AppContentContainer caps only the body.
             HazeTopAppBar(
                 title = {
                     val title = stringResource(R.string.widget_config_title)
@@ -223,91 +226,109 @@ internal fun WidgetConfigScreen(
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
-                    HrtSection(title = null) {
-                        item {
-                            HueSliderRow(
-                                label = stringResource(R.string.widget_config_seed_hue),
-                                icon = painterResource(R.drawable.ic_palette),
-                                hue = seedHue,
-                                restingHue = remember { defaultSeedHue() },
-                                onHueChange = { seedHue = it },
-                                resetLabel = stringResource(R.string.widget_config_seed_dynamic),
-                                onReset = { seedHue = null },
-                            )
-                        }
-                        item {
-                            HueSliderRow(
-                                label = stringResource(R.string.widget_config_background_hue),
-                                icon = painterResource(R.drawable.ic_invert_colors),
-                                hue = backgroundHue,
-                                restingHue = remember(seedHue) { derivedBackgroundHue(seedHue) },
-                                onHueChange = { backgroundHue = it },
-                                resetLabel = stringResource(
-                                    R.string.widget_config_background_match,
-                                ),
-                                onReset = { backgroundHue = null },
-                            )
-                        }
-                        item {
-                            SliderRow(
-                                label = stringResource(R.string.widget_config_vibrancy),
-                                icon = painterResource(R.drawable.ic_contrast),
-                                iconSize = 18.dp,
-                                value = vibrancy,
-                                valueRange = 0f..1f,
-                                onValueChange = { vibrancy = snapToWholePercent(it) },
-                            )
-                        }
-                        item {
-                            SliderRow(
-                                label = stringResource(R.string.settings_widget_content_scale),
-                                icon = painterResource(R.drawable.ic_loupe),
-                                iconSize = 18.dp,
-                                value = contentScale,
-                                valueRange = 0.5f..1.5f,
-                                onValueChange = { contentScale = snapToWholePercent(it) },
-                            )
-                        }
-                        item {
-                            SliderRow(
-                                label = stringResource(
-                                    R.string.settings_widget_background_opacity,
-                                ),
-                                icon = painterResource(R.drawable.ic_blur_linear),
-                                iconSize = 18.dp,
-                                value = backgroundAlpha,
-                                valueRange = 0.5f..1f,
-                                onValueChange = { backgroundAlpha = snapToWholePercent(it) },
-                            )
-                        }
-                        item {
-                            Box {
-                                PreferenceSegmentedListItem(
-                                    title = stringResource(R.string.settings_widget_dark_mode),
-                                    supportingText = stringResource(darkModeOption.labelRes),
-                                    onClick = { isDarkModeMenuExpanded = true },
-                                    leadingContent = {
-                                        RowLeadingIcon(
-                                            painterResource(R.drawable.ic_dark_mode),
-                                            size = 24.dp,
-                                        )
-                                    },
+                    // The control rows take the remaining height and scroll: with six rows
+                    // plus the dark-mode row the content overflows a portrait screen, so it
+                    // must scroll between the pinned preview above and the pinned actions
+                    // below. On tall screens where it all fits the rows top-align here and
+                    // the buttons stay at the bottom, visually identical to a fixed layout.
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        HrtSection(title = null) {
+                            item {
+                                HueSliderRow(
+                                    label = stringResource(R.string.widget_config_seed_hue),
+                                    icon = painterResource(R.drawable.ic_palette),
+                                    hue = seedHue,
+                                    restingHue = remember { defaultSeedHue() },
+                                    onHueChange = { seedHue = it },
+                                    resetLabel = stringResource(
+                                        R.string.widget_config_seed_dynamic,
+                                    ),
+                                    onReset = { seedHue = null },
                                 )
-                                HrtDropdownMenu(
-                                    expanded = isDarkModeMenuExpanded,
-                                    onDismissRequest = { isDarkModeMenuExpanded = false },
-                                    modifier = Modifier.width(IntrinsicSize.Min),
-                                    items = DarkModeOption.entries.map { option ->
-                                        HrtDropdownMenuItem(
-                                            text = stringResource(option.labelRes),
-                                            onClick = { darkModeOption = option },
-                                        )
+                            }
+                            item {
+                                HueSliderRow(
+                                    label = stringResource(R.string.widget_config_background_hue),
+                                    icon = painterResource(R.drawable.ic_invert_colors),
+                                    hue = backgroundHue,
+                                    restingHue = remember(seedHue) {
+                                        derivedBackgroundHue(seedHue)
                                     },
+                                    onHueChange = { backgroundHue = it },
+                                    resetLabel = stringResource(
+                                        R.string.widget_config_background_match,
+                                    ),
+                                    onReset = { backgroundHue = null },
                                 )
+                            }
+                            item {
+                                SliderRow(
+                                    label = stringResource(R.string.widget_config_vibrancy),
+                                    icon = painterResource(R.drawable.ic_contrast),
+                                    iconSize = 18.dp,
+                                    value = vibrancy,
+                                    valueRange = 0f..1f,
+                                    onValueChange = { vibrancy = snapToWholePercent(it) },
+                                )
+                            }
+                            item {
+                                SliderRow(
+                                    label = stringResource(
+                                        R.string.settings_widget_content_scale,
+                                    ),
+                                    icon = painterResource(R.drawable.ic_loupe),
+                                    iconSize = 18.dp,
+                                    value = contentScale,
+                                    valueRange = 0.5f..1.5f,
+                                    onValueChange = { contentScale = snapToWholePercent(it) },
+                                )
+                            }
+                            item {
+                                SliderRow(
+                                    label = stringResource(
+                                        R.string.settings_widget_background_opacity,
+                                    ),
+                                    icon = painterResource(R.drawable.ic_blur_linear),
+                                    iconSize = 18.dp,
+                                    value = backgroundAlpha,
+                                    valueRange = 0.5f..1f,
+                                    onValueChange = { backgroundAlpha = snapToWholePercent(it) },
+                                )
+                            }
+                            item {
+                                Box {
+                                    PreferenceSegmentedListItem(
+                                        title = stringResource(
+                                            R.string.settings_widget_dark_mode,
+                                        ),
+                                        supportingText = stringResource(darkModeOption.labelRes),
+                                        onClick = { isDarkModeMenuExpanded = true },
+                                        leadingContent = {
+                                            RowLeadingIcon(
+                                                painterResource(R.drawable.ic_dark_mode),
+                                                size = 24.dp,
+                                            )
+                                        },
+                                    )
+                                    HrtDropdownMenu(
+                                        expanded = isDarkModeMenuExpanded,
+                                        onDismissRequest = { isDarkModeMenuExpanded = false },
+                                        modifier = Modifier.width(IntrinsicSize.Min),
+                                        items = DarkModeOption.entries.map { option ->
+                                            HrtDropdownMenuItem(
+                                                text = stringResource(option.labelRes),
+                                                onClick = { darkModeOption = option },
+                                            )
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.weight(1f))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
