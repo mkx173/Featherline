@@ -298,8 +298,8 @@ class BackupRestoreService @Inject constructor(
             stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
         )
 
-        // Restore REPLACES the default appearance wholesale, including hues and
-        // vibrancy from the backup (or Defaults via the legacy mirror for
+        // Restore REPLACES the default appearance wholesale, including hue, saturation
+        // and balance from the backup (or Defaults via the legacy mirror for
         // pre-customization backups). appWidgetIds are not stable across devices,
         // so only the default entry travels in the backup.
         //

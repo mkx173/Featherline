@@ -9,7 +9,7 @@ class WidgetAppearanceMigrationTest {
 
     @Test
     fun `effective appearance resolves override then default then built-in`() {
-        val default = WidgetAppearance.Default.copy(vibrancy = 0.9f)
+        val default = WidgetAppearance.Default.copy(balance = 0.9f)
         val override = WidgetAppearance.Default.copy(seedHue = 200f)
         assertEquals(override, resolveEffectiveAppearance(override, default))
         assertEquals(default, resolveEffectiveAppearance(null, default))
@@ -29,6 +29,6 @@ class WidgetAppearanceMigrationTest {
         )
         assertNull(migrated.seedHue)
         assertEquals(WidgetAppearance.DEFAULT_SATURATION, migrated.saturation, 0f)
-        assertEquals(WidgetAppearance.DEFAULT_VIBRANCY, migrated.vibrancy, 0f)
+        assertEquals(WidgetAppearance.DEFAULT_BALANCE, migrated.balance, 0f)
     }
 }

@@ -321,13 +321,13 @@ class BackupRestoreServiceTest {
     @Test
     fun restoreBackupBytes_appliesDecodedWidgetAppearanceIgnoringLegacyFields() = runTest {
         // When the encoded appearance string is present it is the source of
-        // truth: setDefault must receive the DECODED appearance (hues + vibrancy
-        // included), and the legacy mirror fields must be ignored even when they
+        // truth: setDefault must receive the DECODED appearance (hue, saturation,
+        // balance included), and the legacy mirror fields must be ignored even when they
         // disagree — they exist only for older app versions reading this backup.
         val appearance = WidgetAppearance.Default.copy(
             seedHue = 200f,
             saturation = 0.7f,
-            vibrancy = 0.7f,
+            balance = 0.7f,
             contentScale = 1.3f,
             backgroundAlpha = 0.6f,
             darkMode = DarkModeOption.DARK,
@@ -361,12 +361,13 @@ class BackupRestoreServiceTest {
     fun restoreBackupBytes_appliesV1AppearancePayloadFromOldBackups() = runTest {
         // Backups written before Round 3 carry a v1 appearance string whose slot 2
         // was the now-removed backgroundHue. Restoring one must migrate transparently:
-        // the v1 string decodes (slot-2 dropped, saturation anchored at the default)
-        // and setDefault receives that migrated appearance rather than failing.
+        // the v1 string decodes (slot-2 dropped, saturation anchored at the default, the
+        // slot-3 vibrancy 0.4 anchor re-mapped onto balance 0) and setDefault receives
+        // that migrated appearance rather than failing.
         val snapshot = emptySnapshot().let { base ->
             base.copy(
                 settings = base.settings.copy(
-                    widgetAppearance = "1|200.0|90.0|1.0|1.1|0.9|LIGHT",
+                    widgetAppearance = "1|200.0|90.0|0.4|1.1|0.9|LIGHT",
                 )
             )
         }
@@ -384,7 +385,7 @@ class BackupRestoreServiceTest {
         val restored = appearanceSlot.captured
         assertEquals(200f, restored.seedHue!!, 1e-4f)
         assertEquals(WidgetAppearance.DEFAULT_SATURATION, restored.saturation, 0f)
-        assertEquals(1.0f, restored.vibrancy, 0f)
+        assertEquals(0f, restored.balance, 1e-4f)
         assertEquals(1.1f, restored.contentScale, 0f)
         assertEquals(0.9f, restored.backgroundAlpha, 0f)
         assertEquals(DarkModeOption.LIGHT, restored.darkMode)

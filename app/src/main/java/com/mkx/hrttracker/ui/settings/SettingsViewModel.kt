@@ -211,7 +211,7 @@ class SettingsViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             // The in-app dialog edits only scale/alpha/darkMode; the theme params
-            // (hues, vibrancy) belong to WidgetConfigActivity and must survive untouched.
+            // (hue, saturation, balance) belong to WidgetConfigActivity and must survive untouched.
             widgetAppearanceRepository.updateDefault {
                 it.copy(
                     contentScale = contentScale,

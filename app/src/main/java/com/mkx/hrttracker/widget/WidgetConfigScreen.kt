@@ -104,7 +104,7 @@ internal fun WidgetConfigScreen(
     var saturation by rememberSaveable {
         mutableStateOf(snapToWholePercent(sanitizedInitial.saturation))
     }
-    var vibrancy by rememberSaveable { mutableStateOf(sanitizedInitial.vibrancy) }
+    var balance by rememberSaveable { mutableStateOf(sanitizedInitial.balance) }
     var contentScale by rememberSaveable {
         mutableStateOf(snapToWholePercent(sanitizedInitial.contentScale))
     }
@@ -117,7 +117,7 @@ internal fun WidgetConfigScreen(
     val liveAppearance = WidgetAppearance(
         seedHue = seedHue,
         saturation = saturation,
-        vibrancy = vibrancy,
+        balance = balance,
         contentScale = contentScale,
         backgroundAlpha = backgroundAlpha,
         darkMode = darkModeOption,
@@ -140,7 +140,7 @@ internal fun WidgetConfigScreen(
             WidgetAppearance(
                 seedHue = seedHue,
                 saturation = saturation,
-                vibrancy = vibrancy,
+                balance = balance,
                 contentScale = contentScale,
                 backgroundAlpha = backgroundAlpha,
                 darkMode = darkModeOption,
@@ -264,12 +264,12 @@ internal fun WidgetConfigScreen(
                             }
                             item {
                                 SliderRow(
-                                    label = stringResource(R.string.widget_config_vibrancy),
+                                    label = stringResource(R.string.widget_config_balance),
                                     icon = painterResource(R.drawable.ic_contrast),
                                     iconSize = 18.dp,
-                                    value = vibrancy,
+                                    value = balance,
                                     valueRange = 0f..1f,
-                                    onValueChange = { vibrancy = snapToWholePercent(it) },
+                                    onValueChange = { balance = snapToWholePercent(it) },
                                 )
                             }
                             item {

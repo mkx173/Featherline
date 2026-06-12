@@ -78,11 +78,11 @@ internal fun widgetColorScheme(
     val alpha = appearance.backgroundAlpha
     val lightSurfaces = deriveWidgetSurfaces(
         light.secondaryContainer, light.onSurface, light.onSurfaceVariant,
-        light.outlineVariant, appearance.saturation, appearance.vibrancy, dark = false,
+        light.outlineVariant, appearance.saturation, appearance.balance, dark = false,
     )
     val darkSurfaces = deriveWidgetSurfaces(
         dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant,
-        dark.outlineVariant, appearance.saturation, appearance.vibrancy, dark = true,
+        dark.outlineVariant, appearance.saturation, appearance.balance, dark = true,
     )
     fun provider(lightColor: Color, darkColor: Color) =
         colorProvider(lightColor, darkColor, forcedDark)
@@ -162,9 +162,11 @@ internal fun groupAccentColor(
 
 // ── Prototype-locked derivation (notes/2026-06-12-widget-customization-design.md) ──
 
-// Vibrancy anchor: 0 = neutral black/white, DEFAULT_VIBRANCY = today's tint
-// (the regression anchor), 1 = max tint. Below the anchor only chroma fades —
-// tones hold and no text lift — which is what keeps the anchor bit-exact.
+// Round 4 split the old single "vibrancy" axis into two independent ones:
+//  - saturation OWNS chroma (0 = b/w, 0.5 = scheme standard, 1 = scChroma + boost);
+//  - balance is pure tone depth + text lift + the Round-2 ramps, re-anchored at
+//    0 = today's tones (regression anchor) / 1 = deepest. All u-driven ramps below
+//    are UNCHANGED as functions of u; only u's source moved (now u = balance).
 private const val CHROMA_BOOST = 18.0
 private const val LIGHT_SHELL_BASE = 94.0
 private const val LIGHT_SHELL_MAX = 82.0
@@ -173,8 +175,8 @@ private const val LIGHT_SHELL_MAX = 82.0
 // stays 35 — the dark ramp is simply longer than the prototype's.
 private const val DARK_SHELL_BASE = 15.0
 private const val DARK_SHELL_MAX = 35.0 // ceiling; text lift keeps onSurface ΔTone >= 50 here
-// Light card delta ramps from the anchor (−4) to a deeper v=1 cut (−9): flat −4
-// composited (~3.4 tones) read too subtle at high vibrancy (Round-2 tuner verdict,
+// Light card delta ramps from the anchor (−4) to a deeper u=1 cut (−9): flat −4
+// composited (~3.4 tones) read too subtle at high balance (Round-2 tuner verdict,
 // notes/prototype-widget-theme-NOTES.md). Dark card stays flat +10.
 private const val LIGHT_CARD_DELTA_ANCHOR = -4.0
 private const val LIGHT_CARD_DELTA_V1 = -9.0
@@ -185,7 +187,7 @@ private const val LIGHT_CONTROL_DELTA = -6.0
 // cards. Tone 36 tinted at defaults vs today's tone-30 neutral — approved change.
 private const val DARK_CONTROL_DELTA = 6.0
 // Light text lifts ramp anchor→v1 then scale by u (amount = lerp(anchor, v1, u)·u),
-// so they're 0 at the anchor and reach −9 / −13 at v=1 — text now tracks vibrancy
+// so they're 0 at the anchor and reach −9 / −13 at u=1 — text now tracks balance
 // more in light mode (Round-2 tuner verdict). Dark lifts are flat per-u (anchor==v1).
 private const val ON_SURFACE_LIFT_LIGHT_ANCHOR = -4.0
 private const val ON_SURFACE_LIFT_LIGHT_V1 = -9.0
@@ -197,32 +199,36 @@ private const val ON_SURFACE_VARIANT_LIFT_LIGHT_V1 = -13.0
 // secondary-text gap vs cards at the accepted ~44 floor instead of collapsing.
 private const val ON_SURFACE_VARIANT_LIFT_DARK = 18.0
 // outlineVariant tint: a static neutral outline loses contrast on tinted surfaces
-// at high vibrancy (dark outline t30 sank BELOW the t35 shell at v=1). Tint it and
-// ramp it Δ vs shell tone: −26 light / +26 dark at v=1 (Round-2 tuner verdict).
+// at high balance (dark outline t30 sank BELOW the t35 shell at u=1). Tint it and
+// ramp it Δ vs shell tone: −26 light / +26 dark at u=1 (Round-2 tuner verdict).
 private const val OUTLINE_VARIANT_DELTA_LIGHT = -26.0
 private const val OUTLINE_VARIANT_DELTA_DARK = 26.0
-// Vibrancy-chroma ceiling for the tinted outline (keeps it from over-saturating).
+// Chroma ceiling for the tinted outline (keeps it from over-saturating).
 private const val OUTLINE_VARIANT_CHROMA_MAX = 24.0
 
 private fun lerp(a: Double, b: Double, t: Double): Double = a + (b - a) * t
 
-// Ramp above the anchor; 0 at/below it. All tone/lift movement runs on this.
-private fun vibrancyRamp(vibrancy: Float): Double =
-    (((vibrancy - WidgetAppearance.DEFAULT_VIBRANCY) / (1f - WidgetAppearance.DEFAULT_VIBRANCY))
-        .coerceIn(0f, 1f)).toDouble()
+// Depth ramp: balance maps 1:1 onto u (0 = today's tones, 1 = deepest). All
+// tone/lift/outline movement runs on this — unchanged as a function of u from the
+// pre-split code; only the source axis was renamed and re-anchored.
+private fun balanceRamp(balance: Float): Double = balance.coerceIn(0f, 1f).toDouble()
 
-private fun vibrancyChroma(baseChroma: Double, vibrancy: Float): Double =
-    if (vibrancy <= WidgetAppearance.DEFAULT_VIBRANCY) {
-        baseChroma * (vibrancy / WidgetAppearance.DEFAULT_VIBRANCY)
+// Saturation owns chroma outright (Round 4): 0 = black/white, 0.5 = the scheme's
+// standard chroma (regression anchor), 1 = the old maximum (scChroma + CHROMA_BOOST).
+private fun saturationChroma(baseChroma: Double, saturation: Float): Double =
+    if (saturation <= WidgetAppearance.DEFAULT_SATURATION) {
+        baseChroma * (saturation / WidgetAppearance.DEFAULT_SATURATION)
     } else {
-        baseChroma + CHROMA_BOOST * vibrancyRamp(vibrancy)
+        baseChroma + CHROMA_BOOST *
+            ((saturation - WidgetAppearance.DEFAULT_SATURATION) /
+                (1f - WidgetAppearance.DEFAULT_SATURATION))
     }
 
 private fun colorAt(hue: Double, chroma: Double, tone: Double): Color =
     Color(Hct.from(hue, chroma, tone.coerceIn(0.0, 100.0)).toInt())
 
 private fun Color.shiftTone(delta: Double): Color {
-    // Not an optimization: at the vibrancy anchor the lift is exactly 0 and text
+    // Not an optimization: at the balance anchor the lift is exactly 0 and text
     // colors must pass through UNTOUCHED — an Hct round-trip can move a channel
     // by 1, which would break the bit-exact anchor contract.
     if (delta == 0.0) return this
@@ -239,29 +245,29 @@ internal data class WidgetSurfaces(
     val outlineVariant: Color,
 )
 
-// One mode's background surfaces + vibrancy-lifted text tones, built absolutely in
+// One mode's background surfaces + balance-lifted text tones, built absolutely in
 // HCT. Invariants (encoded in WidgetThemeDerivationTest, not re-derived here):
-// onSurface keeps ΔTone >= 50 against every surface at all vibrancy; secondary
-// text degrades gracefully above the anchor (dark floors 44 cards / 36 pills at v=1).
+// onSurface keeps ΔTone >= 50 against every surface at all balance; secondary
+// text degrades gracefully above balance 0 (dark floors 44 cards / 36 pills at
+// balance 1).
 internal fun deriveWidgetSurfaces(
     secondaryContainer: Color,
     onSurface: Color,
     onSurfaceVariant: Color,
     schemeOutlineVariant: Color,
     saturation: Float,
-    vibrancy: Float,
+    balance: Float,
     dark: Boolean,
 ): WidgetSurfaces {
     val sc = Hct.fromInt(secondaryContainer.toArgb())
     // One theme color: the background always follows the seed scheme's
     // secondaryContainer hue (Round 3 dropped the separate background-hue pick).
     val hue = sc.hue
-    // Saturation scales the BASE chroma before the vibrancy boost. The factor is
-    // written so saturation == DEFAULT_SATURATION is EXACTLY 1.0 (bit-identical
-    // anchor): division then multiplication by the same Float constant.
-    val saturationScale = (saturation / WidgetAppearance.DEFAULT_SATURATION).toDouble()
-    val chroma = vibrancyChroma(sc.chroma * saturationScale, vibrancy)
-    val u = vibrancyRamp(vibrancy)
+    // Saturation owns chroma outright (Round 4); at DEFAULT_SATURATION this is
+    // EXACTLY the scheme chroma (bit-identical anchor: x/0.5*0.5 short-circuits
+    // through the <= branch).
+    val chroma = saturationChroma(sc.chroma, saturation)
+    val u = balanceRamp(balance)
     val shellTone =
         if (dark) lerp(DARK_SHELL_BASE, DARK_SHELL_MAX, u)
         else lerp(LIGHT_SHELL_BASE, LIGHT_SHELL_MAX, u)
@@ -291,7 +297,7 @@ internal fun deriveWidgetSurfaces(
 }
 
 // The static neutral outlineVariant loses contrast on tinted surfaces at high
-// vibrancy (dark outline t30 sank BELOW the t35 shell at v=1), so above the anchor
+// balance (dark outline t30 sank BELOW the t35 shell at u=1), so above the anchor
 // it's re-cut from the background hue/chroma and ramped to Δ vs shell tone (Round-2
 // tuner verdict, notes/prototype-widget-theme-NOTES.md).
 private fun deriveOutlineVariant(

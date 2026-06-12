@@ -23,7 +23,7 @@ class WidgetPreviewColorProbe {
                 scheme.secondaryContainer, scheme.onSurface, scheme.onSurfaceVariant,
                 scheme.outlineVariant,
                 saturation = WidgetAppearance.DEFAULT_SATURATION,
-                vibrancy = WidgetAppearance.DEFAULT_VIBRANCY, dark = isDark,
+                balance = WidgetAppearance.DEFAULT_BALANCE, dark = isDark,
             )
             println("[$mode] widget_preview_background=${hex(s.shell)}")
             println("[$mode] widget_preview_card=${hex(s.card)}")
