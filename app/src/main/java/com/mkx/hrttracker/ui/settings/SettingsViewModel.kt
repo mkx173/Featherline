@@ -209,7 +209,7 @@ class SettingsViewModel @Inject constructor(
         backgroundAlpha: Float,
         darkModeOption: DarkModeOption,
     ) {
-        viewModelScope.launch {
+        launchSettingsMutation {
             // The in-app dialog edits only scale/alpha/darkMode; the theme params
             // (hue, saturation, balance) belong to WidgetConfigActivity and must survive untouched.
             widgetAppearanceRepository.updateDefault {

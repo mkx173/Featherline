@@ -19,6 +19,7 @@ import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.components.LocalCjkTextOffsetEnabled
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +52,9 @@ class WidgetConfigActivity : AppCompatActivity() {
 
     @Inject
     lateinit var widgetSnapshotStore: WidgetSnapshotStore
+
+    @Inject
+    lateinit var diagnosticsLogger: AppDiagnosticsLogger
 
     // Persist must outlive the activity: the activity can be destroyed mid-write (system
     // kill, config change), and a lifecycleScope write would be cancelled with it.
@@ -141,8 +145,23 @@ class WidgetConfigActivity : AppCompatActivity() {
                                 appScope.launch {
                                     try {
                                         // The screen now owns all six appearance fields,
-                                        // so a wholesale setDefault is correct here.
-                                        widgetAppearanceRepository.setDefault(appearance)
+                                        // so a wholesale setDefault is correct here. A write
+                                        // failure is caught (not rethrown): appScope has no
+                                        // exception handler, so letting it propagate after
+                                        // finish() would crash the process even though the
+                                        // launcher was already told RESULT_OK.
+                                        runCatching {
+                                            widgetAppearanceRepository.setDefault(appearance)
+                                        }.onFailure { throwable ->
+                                            if (throwable is CancellationException) {
+                                                throw throwable
+                                            }
+                                            diagnosticsLogger.warning(
+                                                TAG,
+                                                "widget_config_save_failed",
+                                                throwable,
+                                            )
+                                        }
                                     } finally {
                                         // Finish only after the write lands: RESULT_OK is
                                         // already reported, and finishing first would leave
@@ -175,6 +194,10 @@ class WidgetConfigActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
         }
+    }
+
+    private companion object {
+        const val TAG = "WidgetConfigActivity"
     }
 }
 
