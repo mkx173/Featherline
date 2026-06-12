@@ -265,8 +265,9 @@ internal fun seedColorFromHue(seedHue: Float): Color =
 internal fun defaultSeedHue(): Float =
     Hct.fromInt(DefaultSeedColor.toArgb()).hue.toFloat()
 
-internal fun derivedBackgroundHue(seedHue: Float?): Float {
-    val seed = seedHue?.let(::seedColorFromHue) ?: DefaultSeedColor
-    val (light, _) = seededWidgetColorSchemes(seed)
-    return Hct.fromInt(light.secondaryContainer.toArgb()).hue.toFloat()
-}
+// Under TonalSpot the secondary palette carries the seed hue unrotated (verified
+// by the derivedBackgroundHue test: <=1.36deg across a full hue sweep, 0.61deg for
+// the null case), so the resting hue is just the seed hue — no scheme generation on
+// the slider's drag path. Null falls back to the default seed's own hue.
+internal fun derivedBackgroundHue(seedHue: Float?): Float =
+    seedHue?.mod(360f) ?: defaultSeedHue()

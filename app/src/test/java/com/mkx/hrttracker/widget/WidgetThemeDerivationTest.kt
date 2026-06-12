@@ -3,6 +3,7 @@ package com.mkx.hrttracker.widget
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import com.materialkolor.hct.Hct
+import com.mkx.hrttracker.ui.theme.DefaultSeedColor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -134,6 +135,46 @@ class WidgetThemeDerivationTest {
                 }
             }
         }
+    }
+
+    // Smallest absolute angular distance on the hue circle (handles 0/360 wraparound).
+    private fun circularHueDiff(a: Float, b: Float): Float {
+        val d = abs(a.mod(360f) - b.mod(360f))
+        return minOf(d, 360f - d)
+    }
+
+    @Test
+    fun `derivedBackgroundHue equals seed hue under TonalSpot no-rotation`() {
+        // Guards the assumption that makes derivedBackgroundHue's no-scheme-gen fast
+        // path equivalent to what the widget actually renders: under TonalSpot the
+        // SPEC_2025 SCHEME's secondaryContainer carries the seed hue UNROTATED. We
+        // therefore measure the SCHEME's hue, not derivedBackgroundHue's (which is now
+        // literally h.mod(360) and would tautologically pass). The 2deg tolerance is
+        // the no-regression budget; if a MaterialKolor/spec change ever rotates the
+        // secondary palette this fails and the fast path must be revisited.
+        for (h in 0 until 360 step 30) {
+            val schemeHue = Hct.fromInt(
+                seededWidgetColorSchemes(seedColorFromHue(h.toFloat()))
+                    .first.secondaryContainer.toArgb()
+            ).hue.toFloat()
+            assertEquals(
+                "hue $h should pass through TonalSpot unrotated",
+                0f,
+                circularHueDiff(schemeHue, h.toFloat()),
+                2f,
+            )
+        }
+        // The default resting hue must track the default seed's SCHEME secondaryContainer
+        // (same fast-path equivalence for the null case; the handle position is cosmetic).
+        val defaultSchemeHue = Hct.fromInt(
+            seededWidgetColorSchemes(DefaultSeedColor).first.secondaryContainer.toArgb()
+        ).hue.toFloat()
+        assertEquals(
+            "default resting hue tracks the default scheme's secondaryContainer",
+            0f,
+            circularHueDiff(defaultSchemeHue, defaultSeedHue()),
+            2f,
+        )
     }
 
     @Test
