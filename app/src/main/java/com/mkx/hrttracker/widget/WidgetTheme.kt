@@ -4,13 +4,12 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.core.graphics.ColorUtils.M3HCTToColor
-import androidx.core.graphics.ColorUtils.colorToM3HCT
 import androidx.glance.unit.ColorProvider
 import com.materialkolor.dynamicColorScheme
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.hct.Hct
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.ui.theme.DefaultSeedColor
 import com.mkx.hrttracker.ui.theme.MedicationGroupPalettes
 import androidx.glance.color.ColorProvider as DayNightColorProvider
@@ -53,39 +52,12 @@ private fun colorProvider(light: Color, dark: Color, forcedDark: Boolean?): Colo
         null -> DayNightColorProvider(light, dark)
     }
 
-// Widget shell & card colors follow the launcher convention Google's own widgets use (verified
-// against Gmail): both are cuts of the secondary palette rather than the neutral surface family,
-// so the widget reads as wallpaper-tinted next to other widgets. Tones are adjusted in M3 HCT
-// space, matching Glance's widgetBackground derivation in androidx.glance.material3 exactly.
-private fun adjustSecondaryContainerTone(
-    input: Color,
-    lightAdjustment: Float,
-    darkAdjustment: Float,
-): Color {
-    val hct = floatArrayOf(0f, 0f, 0f)
-    colorToM3HCT(input.toArgb(), hct)
-    val adjustment = if (hct[2] > 50) lightAdjustment else darkAdjustment
-    val tone = (hct[2] + adjustment).coerceIn(0f, 100f)
-    return Color(M3HCTToColor(hct[0], hct[1], tone))
+// Snapshot-time DarkModeOption baking is gone; both render paths resolve at render time.
+internal fun DarkModeOption.toForcedDark(): Boolean? = when (this) {
+    DarkModeOption.LIGHT -> false
+    DarkModeOption.DARK -> true
+    DarkModeOption.FOLLOW_SYSTEM -> null
 }
-
-// Gmail uses tone 95/20 for the shell and 90/40 for cards, but that puts the tint contrast in
-// opposite directions per mode: a near-white shell with tinted rows in light, a tinted shell
-// with grey-washed rows in dark. We keep both layers visibly tinted instead, with the cards one
-// subtle step away from the shell in each mode.
-// Shell: secondaryContainer at tone 94 (light) / tone 20 (dark).
-internal fun widgetBackgroundColor(secondaryContainer: Color): Color =
-    adjustSecondaryContainerTone(secondaryContainer, lightAdjustment = 4f, darkAdjustment = -10f)
-
-// Cards: tone 90 (light) / tone 30, i.e. secondaryContainer as-is with its full chroma.
-internal fun widgetContainerColor(secondaryContainer: Color): Color =
-    adjustSecondaryContainerTone(secondaryContainer, lightAdjustment = 0f, darkAdjustment = 0f)
-
-// Trailing-button pills sit on the tone-90 cards, where the M3 light surfaceVariant (also tone
-// 90, neutral) disappears; use a tone-84 cut of the secondary palette instead. The dark M3
-// surfaceVariant already reads fine against the tone-30 cards and is used as-is.
-internal fun widgetControlColor(secondaryContainer: Color): Color =
-    adjustSecondaryContainerTone(secondaryContainer, lightAdjustment = -6f, darkAdjustment = 0f)
 
 // Cards stack on top of the shell, so at the same alpha they occlude the wallpaper twice and
 // read more "solid" than the background around them. Drawing them at 85% of the user alpha
@@ -100,9 +72,18 @@ private const val CONTAINER_ALPHA_FACTOR = 0.85f
 internal fun widgetColorScheme(
     light: ColorScheme,
     dark: ColorScheme,
-    alpha: Float = 1.0f,
+    appearance: WidgetAppearance = WidgetAppearance.Default,
     forcedDark: Boolean? = null,
 ): WidgetColorScheme {
+    val alpha = appearance.backgroundAlpha
+    val lightSurfaces = deriveWidgetSurfaces(
+        light.secondaryContainer, light.onSurface, light.onSurfaceVariant,
+        appearance.backgroundHue, appearance.vibrancy, dark = false,
+    )
+    val darkSurfaces = deriveWidgetSurfaces(
+        dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant,
+        appearance.backgroundHue, appearance.vibrancy, dark = true,
+    )
     fun provider(lightColor: Color, darkColor: Color) =
         colorProvider(lightColor, darkColor, forcedDark)
     return WidgetColorScheme(
@@ -114,22 +95,19 @@ internal fun widgetColorScheme(
         onSecondary = provider(light.onSecondary, dark.onSecondary),
         secondaryContainer = provider(light.secondaryContainer, dark.secondaryContainer),
         onSecondaryContainer = provider(light.onSecondaryContainer, dark.onSecondaryContainer),
-        widgetControl = provider(
-            widgetControlColor(light.secondaryContainer),
-            dark.surfaceVariant,
-        ),
-        onSurfaceVariant = provider(light.onSurfaceVariant, dark.onSurfaceVariant),
+        // Both modes now cut the control pill from the background palette (the dark
+        // neutral surfaceVariant pill is the design's one approved visible change).
+        widgetControl = provider(lightSurfaces.control, darkSurfaces.control),
+        onSurfaceVariant = provider(lightSurfaces.onSurfaceVariant, darkSurfaces.onSurfaceVariant),
         widgetContainer = provider(
-            widgetContainerColor(light.secondaryContainer)
-                .copy(alpha = alpha * CONTAINER_ALPHA_FACTOR),
-            widgetContainerColor(dark.secondaryContainer)
-                .copy(alpha = alpha * CONTAINER_ALPHA_FACTOR),
+            lightSurfaces.card.copy(alpha = alpha * CONTAINER_ALPHA_FACTOR),
+            darkSurfaces.card.copy(alpha = alpha * CONTAINER_ALPHA_FACTOR),
         ),
         widgetBackground = provider(
-            widgetBackgroundColor(light.secondaryContainer).copy(alpha = alpha),
-            widgetBackgroundColor(dark.secondaryContainer).copy(alpha = alpha),
+            lightSurfaces.shell.copy(alpha = alpha),
+            darkSurfaces.shell.copy(alpha = alpha),
         ),
-        onSurface = provider(light.onSurface, dark.onSurface),
+        onSurface = provider(lightSurfaces.onSurface, darkSurfaces.onSurface),
         outline = provider(light.outline, dark.outline),
         outlineVariant = provider(light.outlineVariant, dark.outlineVariant),
     )

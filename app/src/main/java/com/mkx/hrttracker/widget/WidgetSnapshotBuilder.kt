@@ -10,7 +10,6 @@ import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
-import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.doseInstructionText
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
@@ -151,15 +150,8 @@ internal fun buildWidgetSnapshotRecord(
         hasActiveGroups = activeGroups.isNotEmpty(),
         hideMedicationDetails = settings.hideMedicationDetails,
         adaptiveColorEnabled = settings.adaptiveColorEnabled,
-        widgetContentScale = settings.widgetContentScale,
-        widgetBackgroundAlpha = settings.widgetBackgroundAlpha,
         e2DisplayUnit = settings.homeE2DisplayUnit.storageValue,
         appLanguageTag = settings.appLanguageOption.languageTag,
-        forcedDark = when (settings.widgetDarkModeOption) {
-            DarkModeOption.LIGHT -> false
-            DarkModeOption.DARK -> true
-            DarkModeOption.FOLLOW_SYSTEM -> null
-        },
         doseRows = lastNightRows + (todayScheduledRows + manualRows).sortedBy { row -> row.scheduledAt } + comingUpRows,
         pkProjection = homeSnapshot.widgetPkProjection?.toWidgetRecord(),
     )

@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.settings.DarkModeOption
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -33,9 +34,7 @@ class WidgetConfigPreviewRenderTest {
             composeWidgetPreviewRemoteViews(
                 context = context,
                 isMedium = true,
-                contentScale = 1.0f,
-                backgroundAlpha = 0.8f,
-                forcedDark = null,
+                appearance = WidgetAppearance.Default.copy(backgroundAlpha = 0.8f),
                 snapshot = null,
             )
         }
@@ -48,9 +47,11 @@ class WidgetConfigPreviewRenderTest {
             composeWidgetPreviewRemoteViews(
                 context = context,
                 isMedium = false,
-                contentScale = 1.5f,
-                backgroundAlpha = 0.5f,
-                forcedDark = true,
+                appearance = WidgetAppearance.Default.copy(
+                    contentScale = 1.5f,
+                    backgroundAlpha = 0.5f,
+                    darkMode = DarkModeOption.DARK,
+                ),
                 snapshot = null,
             )
         }
@@ -93,9 +94,7 @@ class WidgetConfigPreviewRenderTest {
             composeWidgetPreviewRemoteViews(
                 context = context,
                 isMedium = true,
-                contentScale = 1.0f,
-                backgroundAlpha = 1.0f,
-                forcedDark = null,
+                appearance = WidgetAppearance.Default,
                 snapshot = null,
             )
         }

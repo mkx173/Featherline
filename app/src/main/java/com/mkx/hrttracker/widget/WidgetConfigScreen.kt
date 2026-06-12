@@ -116,24 +116,19 @@ internal fun WidgetConfigScreen(
         // full widget composition per tick — and no in-flight render is ever cancelled,
         // so the preview keeps updating continuously THROUGH the drag.
         snapshotFlow {
-            // Same option→forcedDark mapping the snapshot builder bakes, so the preview
-            // shows exactly what the home-screen widget will render after Save.
-            val forcedDark = when (darkModeOption) {
-                DarkModeOption.LIGHT -> false
-                DarkModeOption.DARK -> true
-                DarkModeOption.FOLLOW_SYSTEM -> null
-            }
-            Triple(contentScale, backgroundAlpha, forcedDark)
+            WidgetAppearance.Default.copy(
+                contentScale = contentScale,
+                backgroundAlpha = backgroundAlpha,
+                darkMode = darkModeOption,
+            )
         }
             .conflate()
-            .collect { (scale, alpha, forcedDark) ->
+            .collect { appearance ->
                 value = try {
                     composeWidgetPreviewRemoteViews(
                         context = context.applicationContext,
                         isMedium = isMediumWidget,
-                        contentScale = scale,
-                        backgroundAlpha = alpha,
-                        forcedDark = forcedDark,
+                        appearance = appearance,
                         snapshot = snapshot,
                         appWidgetId = appWidgetId,
                     )

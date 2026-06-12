@@ -20,6 +20,7 @@ interface WidgetEntryPoint {
     fun medicationLogRepository(): MedicationLogRepository
     fun medicineStockRepository(): MedicineStockRepository
     fun settingsRepository(): SettingsRepository
+    fun widgetAppearanceRepository(): WidgetAppearanceRepository
     fun reminderNotificationManager(): ReminderNotificationManager
     fun diagnosticsLogger(): AppDiagnosticsLogger
 }
