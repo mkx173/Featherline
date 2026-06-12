@@ -521,10 +521,37 @@ internal object HrtWidgetStateDefinition : GlanceStateDefinition<WidgetSnapshotS
 
 class HrtWidgetMediumReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HrtWidgetMedium()
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        cleanupAppearance(context, appWidgetIds)
+    }
 }
 
 class HrtWidgetLargeReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HrtWidgetLarge()
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        cleanupAppearance(context, appWidgetIds)
+    }
+}
+
+// Best-effort per-instance appearance cleanup (the default entry always survives).
+// Launched on the app scope WITHOUT goAsync: GlanceAppWidgetReceiver's contract
+// forbids overrides calling goAsync (super already manages the async window, and
+// on some OEMs deliberately avoids goAsync). If the process dies before the write
+// lands, the orphaned override is invisible (its id never recurs) and costs a few
+// bytes. Deliberately no onDisabled sweep: medium/large are separate receivers, so
+// a per-provider clear-all would wipe the other provider's overrides.
+private fun cleanupAppearance(context: Context, appWidgetIds: IntArray) {
+    val entryPoint = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java)
+    val repository = entryPoint.widgetAppearanceRepository()
+    entryPoint.appScope().launch {
+        runCatching { repository.deleteOverrides(appWidgetIds) }.onFailure { failure ->
+            if (failure is CancellationException) throw failure
+        }
+    }
 }
 
 
