@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -40,8 +41,10 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isFinite
@@ -156,6 +159,7 @@ internal fun WidgetConfigScreen(
                 item {
                     SliderRow(
                         label = stringResource(R.string.settings_widget_content_scale),
+                        icon = painterResource(R.drawable.ic_zoom_in),
                         value = contentScale,
                         valueRange = 0.5f..1.5f,
                         onValueChange = { contentScale = snapToWholePercent(it) },
@@ -164,6 +168,7 @@ internal fun WidgetConfigScreen(
                 item {
                     SliderRow(
                         label = stringResource(R.string.settings_widget_background_opacity),
+                        icon = painterResource(R.drawable.ic_opacity),
                         value = backgroundAlpha,
                         valueRange = 0.5f..1f,
                         onValueChange = { backgroundAlpha = snapToWholePercent(it) },
@@ -175,6 +180,9 @@ internal fun WidgetConfigScreen(
                             title = stringResource(R.string.settings_widget_dark_mode),
                             supportingText = stringResource(darkModeOption.labelRes),
                             onClick = { isDarkModeMenuExpanded = true },
+                            leadingContent = {
+                                RowLeadingIcon(painterResource(R.drawable.ic_dark_mode))
+                            },
                         )
                         HrtDropdownMenu(
                             expanded = isDarkModeMenuExpanded,
@@ -219,6 +227,7 @@ internal fun WidgetConfigScreen(
 @Composable
 private fun SliderRow(
     label: String,
+    icon: Painter,
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
     onValueChange: (Float) -> Unit,
@@ -228,9 +237,14 @@ private fun SliderRow(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(text = label, style = MaterialTheme.typography.bodyMedium)
+                RowLeadingIcon(icon)
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
                 Text(
                     text = "${(value * 100).roundToInt()}%",
                     style = MaterialTheme.typography.bodyMedium,
@@ -243,6 +257,16 @@ private fun SliderRow(
             )
         }
     }
+}
+
+// Mirrors SettingsScreen's SettingsLeadingIconSlot (private there) for this screen's rows.
+@Composable
+private fun RowLeadingIcon(painter: Painter) {
+    Icon(
+        painter = painter,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 // Hosts the composed RemoteViews, fully inert: intercepted touches, blocked descendant
