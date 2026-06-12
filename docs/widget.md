@@ -257,7 +257,7 @@ launchers have no entry). It launches
 [`WidgetConfigActivity`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigActivity.kt),
 a full-screen activity hosting
 [`WidgetConfigScreen`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigScreen.kt):
-the appearance controls (content scale, background opacity, dark-mode,
+the appearance controls (dark-mode, content scale, background opacity,
 accent color, saturation, light balance) as `HrtSection` rows below a
 live widget preview floating over the system wallpaper. While dark mode
 is "follow system", a corner button on the preview flips it between the
