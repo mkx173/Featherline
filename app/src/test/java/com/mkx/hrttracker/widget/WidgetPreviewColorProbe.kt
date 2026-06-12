@@ -21,6 +21,7 @@ class WidgetPreviewColorProbe {
         )) {
             val s = deriveWidgetSurfaces(
                 scheme.secondaryContainer, scheme.onSurface, scheme.onSurfaceVariant,
+                scheme.outlineVariant,
                 backgroundHue = null, vibrancy = WidgetAppearance.DEFAULT_VIBRANCY, dark = isDark,
             )
             println("[$mode] widget_preview_background=${hex(s.shell)}")
@@ -28,7 +29,9 @@ class WidgetPreviewColorProbe {
             println("[$mode] widget_preview_control=${hex(s.control)}")
             println("[$mode] widget_preview_on_surface=${hex(s.onSurface)}")
             println("[$mode] widget_preview_on_surface_variant=${hex(s.onSurfaceVariant)}")
-            println("[$mode] widget_preview_outline_variant=${hex(scheme.outlineVariant)}")
+            // s.outlineVariant at the anchor (u==0) is the short-circuited scheme color,
+            // so this prints exactly scheme.outlineVariant as before.
+            println("[$mode] widget_preview_outline_variant=${hex(s.outlineVariant)}")
             println("[$mode] widget_preview_primary=${hex(scheme.primary)}")
             println("[$mode] widget_preview_on_primary=${hex(scheme.onPrimary)}")
             println("[$mode] widget_preview_primary_container=${hex(scheme.primaryContainer)}")
