@@ -7,10 +7,14 @@
     </style>
 
     <style name="Theme.HrtTracker.WidgetConfig" parent="Theme.HrtTracker">
-        <item name="android:windowIsTranslucent">true</item>
+        <!-- Full-screen opaque activity over the wallpaper: windowShowWallpaper puts the
+             wallpaper behind the window and the transparent windowBackground lets it show
+             through the screen's punched-out wallpaper window. windowIsTranslucent is
+             deliberately absent: the old translucent window had no backdrop behind the
+             nav-bar region in the launcher's reconfigure task, rendering a black bar on
+             API < 35. -->
         <item name="android:windowBackground">@android:color/transparent</item>
-        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowShowWallpaper">true</item>
         <item name="android:windowContentOverlay">@null</item>
-        <item name="android:windowAnimationStyle">@null</item>
     </style>
 </resources>
