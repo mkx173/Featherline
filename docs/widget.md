@@ -227,8 +227,33 @@ On API 31+ both providers add `android:configure` plus
 reconfigure affordance (the base `xml/` variant omits this, so older
 launchers have no entry). It launches
 [`WidgetConfigActivity`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigActivity.kt),
-a translucent activity that hosts the shared `WidgetAppearanceDialog`
-(content scale, background opacity, dark-mode) over the home screen.
+a full-screen activity hosting
+[`WidgetConfigScreen`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigScreen.kt):
+the appearance controls (content scale, background opacity, dark-mode) as
+`HrtSection` rows, above a live widget preview floating over the system
+wallpaper. The activity uses `Theme.HrtTracker.WidgetConfig`
+(`windowShowWallpaper` with a transparent `windowBackground`); the screen
+paints an opaque offscreen-composited scaffold and punches a `BlendMode.Clear`
+hole in it for the wallpaper window. The system bars therefore sit over the
+opaque scaffold as in `MainActivity`, fixing the black nav bar the old
+translucent-dialog window showed on API < 35. It deliberately does **not**
+reuse the in-app `WidgetAppearanceDialog`.
+
+The preview is a host-free render of the real widget:
+`composeWidgetPreviewRemoteViews` in `HrtWidget.kt` runs the same
+`GlanceRemoteViews().compose` / `MediumWidgetContent` / `LargeWidgetContent`
+path as the live push (sharing `resolveWidgetRenderSize`, so the two cannot
+diverge), composed at the widget's **actual** launcher cell size and device
+baseline for true WYSIWYG — falling back to the fixed reference preview size
+when no live options are available (fresh placement). A conflated
+`snapshotFlow` over the control values keeps the preview on the latest values
+without queueing renders, and the resulting `RemoteViews` is applied with the
+**application** context (the AppCompat activity's inflater would otherwise
+inflate `AppCompatImageView`, whose setters lack `@RemotableViewMethod`). The
+preview host intercepts touches, blocks descendant focus, and hides a11y
+descendants so the widget's quick-log / navigation `PendingIntent`s can never
+fire from it.
+
 Widget appearance is **global**, not per-widget, so the `appWidgetId` is
 only echoed back in the result: the activity defaults to `RESULT_CANCELED`
 and flips to `RESULT_OK` on Save, so cancelling a first-placement config on
@@ -237,7 +262,7 @@ than keeping it unconfigured. The activity reads the **persisted** settings via
 `settingsRepository.getCurrentSettings()` — not the eager `settingsState`
 placeholder, whose pre-DataStore defaults would let a cold-start Save
 overwrite real settings — and writes through `@AppScope` so the persist
-outlives the dialog's synchronous Save→`finish()`.
+outlives the synchronous Save→`finish()`.
 
 ## Update triggers
 
