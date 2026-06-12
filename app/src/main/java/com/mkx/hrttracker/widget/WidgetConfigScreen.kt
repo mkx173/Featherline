@@ -4,6 +4,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isFinite
 import androidx.compose.ui.viewinterop.AndroidView
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -127,10 +130,14 @@ internal fun WidgetConfigScreen(
                 .windowInsetsPadding(WindowInsets.systemBars)
                 .padding(dimensionResource(R.dimen.padding_medium)),
         ) {
+            Spacer(modifier = Modifier.weight(1f))
+            // The wallpaper window hugs the fitted preview height (preview + inset on every
+            // side) rather than claiming all leftover space; animateContentSize smooths the
+            // first-frame arrival when the preview composes (render goes null → sized).
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
+                    .animateContentSize()
                     .drawBehind {
                         drawRoundRect(
                             color = Color.Black,
@@ -140,8 +147,12 @@ internal fun WidgetConfigScreen(
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                WidgetPreview(render = previewRender)
+                WidgetPreview(
+                    render = previewRender,
+                    modifier = Modifier.padding(WIDGET_PREVIEW_WINDOW_INSET),
+                )
             }
+            Spacer(modifier = Modifier.weight(1f))
             HrtSection(title = stringResource(R.string.settings_widget_appearance)) {
                 item {
                     SliderRow(
@@ -244,11 +255,17 @@ private fun WidgetPreview(
     val sizeDp = render?.sizeDp ?: return
     val remoteViews = render.remoteViews
     BoxWithConstraints(modifier = modifier) {
-        // Fit both axes inside the wallpaper window and keep a breathing-room inset so the
-        // preview never touches the window edges; never scale UP past the true size.
-        val availableWidth = (maxWidth - WIDGET_PREVIEW_WINDOW_INSET * 2).coerceAtLeast(1.dp)
-        val availableHeight = (maxHeight - WIDGET_PREVIEW_WINDOW_INSET * 2).coerceAtLeast(1.dp)
-        val fit = min(1f, min(availableWidth / sizeDp.width, availableHeight / sizeDp.height))
+        // Fit inside the constraints (the breathing-room inset is now this composable's outer
+        // padding, so maxWidth/maxHeight already exclude it); never scale UP past the true
+        // size. With the window hugging its content the height is loosely constrained — fall
+        // back to a width-only fit if maxHeight is unbounded so a requiredSize child can't
+        // overflow the screen.
+        val widthFit = maxWidth / sizeDp.width
+        val fit = if (maxHeight.isFinite) {
+            min(1f, min(widthFit, maxHeight / sizeDp.height))
+        } else {
+            min(1f, widthFit)
+        }
         Box(
             modifier = Modifier.size(sizeDp.width * fit, sizeDp.height * fit),
             contentAlignment = Alignment.Center,
@@ -271,17 +288,18 @@ private fun WidgetPreview(
                     }
                 },
                 update = { container ->
-                    val views = remoteViews
                     // Skip no-op reapplies on unrelated recompositions: only rebuild when a new
                     // RemoteViews instance arrives (every real preview change is a new instance).
-                    if (views != null && container.tag !== views) {
-                        container.tag = views
+                    if (container.tag !== remoteViews) {
+                        container.tag = remoteViews
                         container.removeAllViews()
                         // Apply with the application context, NOT the activity context: the AppCompat
                         // activity's LayoutInflater factory would inflate ImageView as AppCompatImageView,
                         // whose setters lack @RemotableViewMethod, crashing RemoteViews actions. The
                         // launcher applies these RemoteViews with a non-AppCompat context too.
-                        container.addView(views.apply(container.context.applicationContext, container))
+                        container.addView(
+                            remoteViews.apply(container.context.applicationContext, container)
+                        )
                     }
                 },
             )
@@ -295,6 +313,6 @@ private fun snapToWholePercent(value: Float): Float = (value * 100).roundToInt()
 
 private const val WALLPAPER_WINDOW_CORNER_DP = 28
 
-// Breathing-room inset kept on every side between the fit-scaled preview and the
-// wallpaper window edges, so the preview sits comfortably inside the window.
+// Breathing-room inset applied as the preview's outer padding, so the wallpaper window
+// (which hugs this composable) stands off the fit-scaled preview on every side.
 private val WIDGET_PREVIEW_WINDOW_INSET = 24.dp
