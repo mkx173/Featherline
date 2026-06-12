@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.isFinite
 import androidx.compose.ui.viewinterop.AndroidView
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
@@ -129,105 +130,110 @@ internal fun WidgetConfigScreen(
     }
 
     // Offscreen compositing so the wallpaper window's BlendMode.Clear punches a real
-    // transparent hole in the opaque background instead of painting black over it.
+    // transparent hole in the opaque background instead of painting black over it. The
+    // opaque background stays full-bleed; AppContentContainer caps/centers only the body
+    // on wide screens (its chrome-haze source is a no-op here — this activity provides
+    // no LocalChromeHazeState).
     Box(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .background(MaterialTheme.colorScheme.background)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.systemBars)
-                .padding(dimensionResource(R.dimen.padding_medium)),
-        ) {
-            // The wallpaper window hugs the fitted preview height (preview + inset on every
-            // side) rather than claiming all leftover space; animateContentSize smooths the
-            // first-frame arrival when the preview composes (render goes null → sized).
-            Box(
+        AppContentContainer {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .animateContentSize()
-                    .drawBehind {
-                        drawRoundRect(
-                            color = Color.Black,
-                            cornerRadius = CornerRadius(WALLPAPER_WINDOW_CORNER_DP.dp.toPx()),
-                            blendMode = BlendMode.Clear,
-                        )
-                    },
-                contentAlignment = Alignment.Center,
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.systemBars)
+                    .padding(dimensionResource(R.dimen.padding_medium)),
             ) {
-                WidgetPreview(
-                    render = previewRender,
-                    modifier = Modifier.padding(WIDGET_PREVIEW_WINDOW_INSET),
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            HrtSection(title = stringResource(R.string.settings_widget_appearance)) {
-                item {
-                    SliderRow(
-                        label = stringResource(R.string.settings_widget_content_scale),
-                        icon = painterResource(R.drawable.ic_loupe),
-                        iconSize = 19.dp,
-                        value = contentScale,
-                        valueRange = 0.5f..1.5f,
-                        onValueChange = { contentScale = snapToWholePercent(it) },
+                // The wallpaper window hugs the fitted preview height (preview + inset on every
+                // side) rather than claiming all leftover space; animateContentSize smooths the
+                // first-frame arrival when the preview composes (render goes null → sized).
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateContentSize()
+                        .drawBehind {
+                            drawRoundRect(
+                                color = Color.Black,
+                                cornerRadius = CornerRadius(WALLPAPER_WINDOW_CORNER_DP.dp.toPx()),
+                                blendMode = BlendMode.Clear,
+                            )
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    WidgetPreview(
+                        render = previewRender,
+                        modifier = Modifier.padding(WIDGET_PREVIEW_WINDOW_INSET),
                     )
                 }
-                item {
-                    SliderRow(
-                        label = stringResource(R.string.settings_widget_background_opacity),
-                        icon = painterResource(R.drawable.ic_opacity),
-                        iconSize = 20.dp,
-                        value = backgroundAlpha,
-                        valueRange = 0.5f..1f,
-                        onValueChange = { backgroundAlpha = snapToWholePercent(it) },
-                    )
-                }
-                item {
-                    Box {
-                        PreferenceSegmentedListItem(
-                            title = stringResource(R.string.settings_widget_dark_mode),
-                            supportingText = stringResource(darkModeOption.labelRes),
-                            onClick = { isDarkModeMenuExpanded = true },
-                            leadingContent = {
-                                RowLeadingIcon(painterResource(R.drawable.ic_dark_mode), size = 24.dp)
-                            },
-                        )
-                        HrtDropdownMenu(
-                            expanded = isDarkModeMenuExpanded,
-                            onDismissRequest = { isDarkModeMenuExpanded = false },
-                            modifier = Modifier.width(IntrinsicSize.Min),
-                            items = DarkModeOption.entries.map { option ->
-                                HrtDropdownMenuItem(
-                                    text = stringResource(option.labelRes),
-                                    onClick = { darkModeOption = option },
-                                )
-                            },
+                Spacer(modifier = Modifier.height(16.dp))
+                HrtSection(title = stringResource(R.string.settings_widget_appearance)) {
+                    item {
+                        SliderRow(
+                            label = stringResource(R.string.settings_widget_content_scale),
+                            icon = painterResource(R.drawable.ic_loupe),
+                            iconSize = 18.dp,
+                            value = contentScale,
+                            valueRange = 0.5f..1.5f,
+                            onValueChange = { contentScale = snapToWholePercent(it) },
                         )
                     }
+                    item {
+                        SliderRow(
+                            label = stringResource(R.string.settings_widget_background_opacity),
+                            icon = painterResource(R.drawable.ic_blur_linear),
+                            iconSize = 18.dp,
+                            value = backgroundAlpha,
+                            valueRange = 0.5f..1f,
+                            onValueChange = { backgroundAlpha = snapToWholePercent(it) },
+                        )
+                    }
+                    item {
+                        Box {
+                            PreferenceSegmentedListItem(
+                                title = stringResource(R.string.settings_widget_dark_mode),
+                                supportingText = stringResource(darkModeOption.labelRes),
+                                onClick = { isDarkModeMenuExpanded = true },
+                                leadingContent = {
+                                    RowLeadingIcon(painterResource(R.drawable.ic_dark_mode), size = 24.dp)
+                                },
+                            )
+                            HrtDropdownMenu(
+                                expanded = isDarkModeMenuExpanded,
+                                onDismissRequest = { isDarkModeMenuExpanded = false },
+                                modifier = Modifier.width(IntrinsicSize.Min),
+                                items = DarkModeOption.entries.map { option ->
+                                    HrtDropdownMenuItem(
+                                        text = stringResource(option.labelRes),
+                                        onClick = { darkModeOption = option },
+                                    )
+                                },
+                            )
+                        }
+                    }
                 }
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = dimensionResource(R.dimen.padding_medium)),
-                horizontalArrangement = Arrangement.spacedBy(
-                    dimensionResource(R.dimen.padding_small),
-                ),
-            ) {
-                HrtFilledTonalButton(
-                    text = stringResource(R.string.cancel),
-                    onClick = onCancel,
-                    modifier = Modifier.weight(1f),
-                )
-                HrtButton(
-                    text = stringResource(R.string.save),
-                    onClick = { onSave(contentScale, backgroundAlpha, darkModeOption) },
-                    modifier = Modifier.weight(1f),
-                )
+                Spacer(modifier = Modifier.weight(1f))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = dimensionResource(R.dimen.padding_medium)),
+                    horizontalArrangement = Arrangement.spacedBy(
+                        dimensionResource(R.dimen.padding_small),
+                    ),
+                ) {
+                    HrtFilledTonalButton(
+                        text = stringResource(R.string.cancel),
+                        onClick = onCancel,
+                        modifier = Modifier.weight(1f),
+                    )
+                    HrtButton(
+                        text = stringResource(R.string.save),
+                        onClick = { onSave(contentScale, backgroundAlpha, darkModeOption) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
     }
