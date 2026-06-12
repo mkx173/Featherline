@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -35,12 +36,18 @@
             </intent-filter>
         </activity>
 
+        <!-- Portrait-locked: the config screen lays out preview + controls + actions as a
+             fixed (non-scrolling) column, which can outgrow a phone's landscape viewport
+             and push the Save/Cancel row off-screen. Android 12+ ignores this lock on
+             large screens, where landscape has enough height anyway. -->
         <activity
             android:name=".widget.WidgetConfigActivity"
             android:exported="true"
             android:excludeFromRecents="true"
             android:launchMode="singleTop"
-            android:theme="@style/Theme.HrtTracker.WidgetConfig">
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.HrtTracker.WidgetConfig"
+            tools:ignore="LockedOrientationActivity">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
             </intent-filter>
