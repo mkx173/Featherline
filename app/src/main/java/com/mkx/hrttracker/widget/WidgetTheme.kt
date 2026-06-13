@@ -406,7 +406,7 @@ internal fun deriveWidgetSurfaces(
     return WidgetSurfaces(
         shell = colorAt(hue, chroma, shellTone),
         card = colorAt(hue, chroma, cardTone),
-        // The control pill caps chroma at PILL_CHROMA_MAX so it doesn't out-saturate at high saturation
+        // The control pill caps chroma at CONTROL_CHROMA_MAX so it doesn't out-saturate at high saturation
         // (the shell/card it sits among keep the full chroma). At/below the default this is a no-op.
         control = colorAt(hue, chroma.coerceAtMost(CONTROL_CHROMA_MAX), controlTone),
         onSurface = onSurface.shiftTone(onSurfaceLift),
