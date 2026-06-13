@@ -96,6 +96,7 @@
         <ImageView
             android:layout_width="19dp"
             android:layout_height="19dp"
+            android:layout_marginTop="4dp"
             android:src="@drawable/widget_preview_progress_ring"
             android:importantForAccessibility="no" />
     </LinearLayout>
