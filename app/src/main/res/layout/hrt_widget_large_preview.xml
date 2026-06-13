@@ -171,7 +171,7 @@
         android:layout_height="2dp" />
 
     <!-- Card 2: Estradiol valerate, DUE_SOON, ROSE accent. Trailing time;
-         action button shows a plus on tertiaryContainer. -->
+         action button shows a plus on primary. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="38dp"
@@ -247,7 +247,7 @@
                 android:layout_height="14dp"
                 android:layout_gravity="center"
                 android:src="@drawable/ic_add"
-                android:tint="@color/widget_preview_on_tertiary_container"
+                android:tint="@color/widget_preview_on_primary"
                 android:importantForAccessibility="no" />
         </FrameLayout>
     </LinearLayout>

@@ -21,6 +21,8 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.util.backupFileNameTimestampFormatter
+import com.mkx.hrttracker.widget.WidgetAppearanceCodec
+import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -41,6 +43,7 @@ class BackupExportService @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
     private val bloodTestRepository: BloodTestRepository,
+    private val widgetAppearanceRepository: WidgetAppearanceRepository,
     private val backupCrypto: BackupCrypto,
 ) {
     internal suspend fun buildBackupSnapshotJson(
@@ -159,6 +162,15 @@ class BackupExportService @Inject constructor(
         val onboardingCompleted = settingsRepository.onboardingCompleted.first()
         val stockNudgeEnabled = settingsRepository.stockNudgeEnabledFlow.first()
         val stockNudgeUserEnabled = settingsRepository.stockNudgeUserEnabledFlow.first()
+        // Export must not snapshot Default while un-migrated legacy values still exist
+        // (the fire-and-forget startup migration may have failed); idempotent, so
+        // awaiting it here is safe — same pattern as WidgetConfigActivity. Let a
+        // migration failure propagate and fail the whole export: with the store left
+        // unseeded, currentEffective(null) reads Default, so swallowing the failure
+        // would silently bake Default over the user's real (still-legacy) widget
+        // settings — worse than a failed export the user can retry.
+        widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
+        val defaultAppearance = widgetAppearanceRepository.currentEffective(null)
         val userProfile = userProfileRepository.getCurrentProfile()
         // Pulled before groups/logs so the importer can build its valid-medicine
         // set up front and reject any item or log that references a row absent
@@ -196,9 +208,12 @@ class BackupExportService @Inject constructor(
                     },
                 lastSeenTimeZoneId = settings.lastSeenTimeZoneId,
                 hideMedicationDetails = settings.hideMedicationDetails,
-                widgetContentScale = settings.widgetContentScale,
-                widgetBackgroundAlpha = settings.widgetBackgroundAlpha,
-                widgetDarkModeOption = settings.widgetDarkModeOption.name,
+                // legacy mirrors for forward-compat readers:
+                // Mirrors must stay derived from defaultAppearance — never set independently.
+                widgetContentScale = defaultAppearance.contentScale,
+                widgetBackgroundAlpha = defaultAppearance.backgroundAlpha,
+                widgetDarkModeOption = defaultAppearance.darkMode.name,
+                widgetAppearance = WidgetAppearanceCodec.encode(defaultAppearance),
                 groupNameCounter = settings.groupNameCounter,
                 firstDayOfWeekOption = settings.firstDayOfWeekOption.name,
                 stockNudgeEnabled = stockNudgeEnabled,

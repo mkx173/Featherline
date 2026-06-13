@@ -11,6 +11,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.widget.WidgetAppearance
 import org.junit.Rule
 import org.junit.Test
 
@@ -33,6 +34,7 @@ class SettingsScreenWeightRowTest {
                         ),
                         isWeightMutationInProgress = true,
                     ),
+                    widgetAppearance = WidgetAppearance.Default,
                     hasNotificationAccess = true,
                     reminderSupportState = SettingsReminderSupportState.NONE,
                     onWeightSave = { _, _ -> },
@@ -52,7 +54,7 @@ class SettingsScreenWeightRowTest {
                     onShowArchivedGroupRecordsChange = {},
                     onHideReferenceRangesChange = {},
                     onHideMedicationDetailsChange = {},
-                    onWidgetAppearanceChange = { _, _, _ -> },
+                    onWidgetAppearanceChange = { },
                     onBackupToFileClick = {},
                     onRestoreFromFileClick = {},
                     showDiagnosticsExport = false,

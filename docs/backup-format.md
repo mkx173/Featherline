@@ -13,7 +13,7 @@ that file is read back. The whole subsystem lives in
   breaking — they cover changes to the framing or to the
   cryptographic primitives.
 - **Snapshot JSON version** —
-  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 3`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt#L213).
+  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 4`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt#L213).
   Describes the plaintext payload — the `BackupSnapshot` data-class
   tree serialized as JSON. Bumps are reserved for renames, removals,
   or semantic changes to existing fields. The restore path also
@@ -127,11 +127,16 @@ flattened into the parent's JSON.
   reference-range visibility, app-lock grace period, hide-screen-content,
   onboarding, language, `firstDayOfWeekOption`, home E2 display unit,
   home E2 chart window, per-analyte calibration default units,
-  last-seen time-zone, `hideMedicationDetails`, the widget-only knobs
-  `widgetContentScale` / `widgetBackgroundAlpha` /
-  `widgetDarkModeOption`, the `groupNameCounter` used to suffix
-  default group names, and the stock-tracking-nudge flags
-  `stockNudgeEnabled` / `stockNudgeUserEnabled`). `screenLockProtectionEnabled`
+  last-seen time-zone, `hideMedicationDetails`, `widgetAppearance` (the
+  encoded widget-appearance default — accent hue, saturation, light
+  balance, scale, opacity, dark mode), the `groupNameCounter` used to
+  suffix default group names, and the stock-tracking-nudge flags
+  `stockNudgeEnabled` / `stockNudgeUserEnabled`). The legacy
+  `widgetContentScale` / `widgetBackgroundAlpha` / `widgetDarkModeOption`
+  fields are still written as mirrors of the appearance so older app
+  versions can read new backups; on restore, a present `widgetAppearance`
+  wins and backups predating it restore through the legacy fields.
+  `screenLockProtectionEnabled`
   is intentionally excluded — app-lock stays local to the device that set
   it. The nudge's running dismiss count is also excluded: restore clears it
   so the auto-disable threshold starts fresh on the new device.
@@ -333,9 +338,15 @@ default. This is how `lastSeenTimeZoneId`, `hideReferenceRanges`,
 `recreatedFromGroupUuid`, `BackupMedicineSnapshot.displayDoseUnit`, and
 the optional `BackupMedicineSnapshot.stock` object (the entire stock
 feature), and `BackupMedicationLogSnapshot.doseAmountDelta` (the
-actual-amount feature) all shipped without a snapshot-version bump —
-`CURRENT_BACKUP_SNAPSHOT_VERSION` stayed at `3`. Removing or renaming a
-field is *not* in this bucket.
+actual-amount feature) all shipped without a snapshot-version bump.
+Removing or renaming a field is *not* in this bucket.
+
+`widgetAppearance` is additive too, but with a caveat: it is an opaque codec
+string carrying its own version, so bumping that version makes the field
+undecodable by older apps — whose restore *hard-fails* on it rather than
+defaulting — and must therefore ship with a snapshot-version bump. (Its legacy
+scale / alpha / dark-mode mirrors only keep apps predating the field entirely
+restoring.)
 
 **Bumping the snapshot version (envelope unchanged).** Required when
 a field's *meaning* changes — a rename, removal, unit change, or a
@@ -348,7 +359,9 @@ sourced from the new `BackupMedicineSnapshot` row via `medicineUuid`),
 semantics, and a non-additive `BackupMedicineSnapshot` section was
 introduced — so v1 → v2 was mandatory. The v2 → v3 bump added
 `CAPSULE` to `preparationType`; older apps would coerce the unknown
-enum to `PILL` and silently misclassify capsules. The validator gates
+enum to `PILL` and silently misclassify capsules. The v3 → v4 bump paired
+with the `widgetAppearance` codec's own v3 → v4 (bidirectional light
+balance), per the caveat above. The validator gates
 on `snapshotVersion in MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION`,
 so bumping `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION` is how we drop
 support for a version when carrying its reader logic is no longer
@@ -370,7 +383,7 @@ inner snapshot version moved.
 | --- | --- | --- | --- |
 | v2 | v2 or v3 | This version | Restores. Legacy framing, payload uncompressed. |
 | v3 | v2 | This version | Restores normally. |
-| v3 | v3 | This version | Restores normally. |
+| v3 | v3 or v4 | This version | Restores normally. |
 | v3 | v3 with omitted optional fields | This version | Restores; missing fields take their data-class defaults. |
 | Any | v1 | This version | Rejected by `toValidatedSnapshot`'s floor check — `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2`. No migration path: the medicine-identity refactor removed the denormalized fields v1 carried. |
 | Future | any | This version | Rejected at `parseContainer` (`IllegalArgumentException("Unsupported backup file version: …")`). |

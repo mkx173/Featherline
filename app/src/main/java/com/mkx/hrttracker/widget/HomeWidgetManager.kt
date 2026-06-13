@@ -23,6 +23,7 @@ import com.mkx.hrttracker.util.observeUses24HourTimeFormat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
@@ -39,6 +40,7 @@ class HomeWidgetManager @Inject constructor(
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val settingsRepository: SettingsRepository,
     private val widgetSnapshotRepository: WidgetSnapshotRepository,
+    private val widgetAppearanceRepository: WidgetAppearanceRepository,
     @param:AppScope private val appScope: CoroutineScope,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
@@ -72,6 +74,13 @@ class HomeWidgetManager @Inject constructor(
             // rebuild emits a fresh non-null snapshot shortly after, which we propagate.
             homeSnapshotRepository.observeHomeSnapshot()
                 .filterNotNull()
+                // Terminal guard: appScope is a handler-less SupervisorJob, so an
+                // upstream failure reaching this collector crashes the process. Log and
+                // stop just this collector instead (per MedicationGroupRepository). The
+                // per-emission write failure is handled separately inside collect.
+                .catch { throwable ->
+                    diagnosticsLogger.warning(TAG, "widget_snapshot_home_stream_failed", throwable)
+                }
                 .collect { snapshot ->
                     runCatching {
                         widgetSnapshotRepository.writeWidgetSnapshot(snapshot)
@@ -95,9 +104,6 @@ class HomeWidgetManager @Inject constructor(
                     listOf(
                         settings.hideMedicationDetails,
                         settings.adaptiveColorEnabled,
-                        settings.widgetContentScale,
-                        settings.widgetBackgroundAlpha,
-                        settings.widgetDarkModeOption,
                         settings.homeE2DisplayUnit,
                         settings.appLanguageOption,
                         settings.showArchivedGroupRecords,
@@ -105,6 +111,11 @@ class HomeWidgetManager @Inject constructor(
                 }
                 .distinctUntilChanged()
                 .drop(1)
+                // Terminal guard: keep an upstream failure off the handler-less appScope
+                // (see the home-snapshot collector above).
+                .catch { throwable ->
+                    diagnosticsLogger.warning(TAG, "widget_snapshot_settings_stream_failed", throwable)
+                }
                 .collect {
                     runCatching {
                         widgetSnapshotRepository.refreshWidgetSnapshot()
@@ -119,6 +130,45 @@ class HomeWidgetManager @Inject constructor(
                 }
         }
 
+        // Appearance changes re-render widgets directly: the snapshot no longer carries
+        // appearance, so a full snapshot rebuild isn't required, but refreshWidgetSnapshot
+        // reuses the existing push plumbing (and is what the settings observer already does).
+        appScope.launch {
+            val migrated = runCatching {
+                widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                diagnosticsLogger.warning(TAG, "widget_appearance_migration_failed", throwable)
+            }.getOrDefault(false)
+            if (migrated) {
+                // The migration write predates the collector below (its initial emission is
+                // dropped), and the startup one-shot worker races it — repaint explicitly so
+                // migrated scale/alpha/darkMode apply on first launch, not the next refresh.
+                runCatching {
+                    widgetSnapshotRepository.refreshWidgetSnapshot()
+                }.onFailure { throwable ->
+                    if (throwable is CancellationException) throw throwable
+                    diagnosticsLogger.warning(TAG, "widget_appearance_migration_refresh_failed", throwable)
+                }
+            }
+            widgetAppearanceRepository.observeChanges()
+                .drop(1)
+                // Terminal guard: observeChanges() rethrows non-IOExceptions by design
+                // (WidgetAppearanceStore.liveData), which would otherwise crash the
+                // handler-less appScope (see the home-snapshot collector above).
+                .catch { throwable ->
+                    diagnosticsLogger.warning(TAG, "widget_appearance_stream_failed", throwable)
+                }
+                .collect {
+                    runCatching {
+                        widgetSnapshotRepository.refreshWidgetSnapshot()
+                    }.onFailure { throwable ->
+                        if (throwable is CancellationException) throw throwable
+                        diagnosticsLogger.warning(TAG, "widget_appearance_refresh_failed", throwable)
+                    }
+                }
+        }
+
         // Android does not broadcast when the user toggles the system 24-hour time
         // format, so the widget's pre-formatted trailing-time strings would otherwise
         // stay stale until another refresh trigger fires. Observe TIME_12_24 directly
@@ -126,6 +176,11 @@ class HomeWidgetManager @Inject constructor(
         appScope.launch {
             context.observeUses24HourTimeFormat()
                 .drop(1)
+                // Terminal guard: keep an upstream failure off the handler-less appScope
+                // (see the home-snapshot collector above).
+                .catch { throwable ->
+                    diagnosticsLogger.warning(TAG, "widget_snapshot_time_format_stream_failed", throwable)
+                }
                 .collect {
                     runCatching {
                         widgetSnapshotRepository.refreshWidgetSnapshot()
@@ -226,7 +281,7 @@ class HomeWidgetManager @Inject constructor(
         private const val TAG = "HomeWidgetManager"
         private const val WORK_NAME = "widget_daily_refresh"
         private const val GENERATED_PREVIEW_PREFS = "hrt_widget_generated_previews"
-        private const val GENERATED_PREVIEW_VERSION = 3
+        private const val GENERATED_PREVIEW_VERSION = 5
         private val GENERATED_PREVIEW_RECEIVERS = listOf<Class<out GlanceAppWidgetReceiver>>(
             HrtWidgetMediumReceiver::class.java,
             HrtWidgetLargeReceiver::class.java,

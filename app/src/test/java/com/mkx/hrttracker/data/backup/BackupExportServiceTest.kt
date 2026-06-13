@@ -33,6 +33,9 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.widget.WidgetAppearance
+import com.mkx.hrttracker.widget.WidgetAppearanceCodec
+import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -46,6 +49,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.time.DayOfWeek
 import java.time.Instant
@@ -63,6 +67,7 @@ class BackupExportServiceTest {
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val bloodTestRepository: BloodTestRepository = mockk()
+    private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
 
     private lateinit var backupCrypto: BackupCrypto
     private lateinit var service: BackupExportService
@@ -75,6 +80,12 @@ class BackupExportServiceTest {
         every { context.cacheDir } returns cacheDir
         every { settingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
         every { settingsRepository.stockNudgeUserEnabledFlow } returns flowOf(false)
+        coEvery {
+            widgetAppearanceRepository.currentEffective(null)
+        } returns WidgetAppearance.Default
+        coEvery {
+            widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
+        } returns false
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
         service = BackupExportService(
             context = context,
@@ -84,6 +95,7 @@ class BackupExportServiceTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
             bloodTestRepository = bloodTestRepository,
+            widgetAppearanceRepository = widgetAppearanceRepository,
             backupCrypto = backupCrypto,
         )
     }
@@ -94,10 +106,11 @@ class BackupExportServiceTest {
     }
 
     @Test
-    fun backupExport_staysAtVersion3_doseAmountDeltaIsAdditive() {
-        // doseAmountDelta is a nullable additive field, so it ships without a
-        // version bump — older readers default it to null. Catches a stale bump.
-        assertEquals(3, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    fun backupExport_versionTripwire_doseAmountDeltaRemainsAdditive() {
+        // doseAmountDelta is a nullable additive field — it did NOT force a version bump
+        // (older readers default it to null). The 3→4 bump is the widget-appearance codec's
+        // (bidirectional balance); this still catches any FURTHER accidental bump.
+        assertEquals(4, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     @Test
@@ -117,6 +130,105 @@ class BackupExportServiceTest {
         )!!
 
         assertEquals(false, snapshot.settings.stockNudgeEnabled)
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_exportsDefaultWidgetAppearanceWithLegacyMirrors() = runTest {
+        // Only the default appearance entry is backed up (appWidgetIds aren't
+        // portable). The encoded payload is the source of truth; the three legacy
+        // widget* fields must mirror its scale/alpha/darkMode so older app
+        // versions reading this backup still get a sensible widget configuration.
+        val appearance = WidgetAppearance.Default.copy(
+            seedHue = 200f,
+            saturation = 0.7f,
+            balance = 0.7f,
+            contentScale = 1.3f,
+            backgroundAlpha = 0.6f,
+            darkMode = DarkModeOption.DARK,
+        )
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+        coEvery { widgetAppearanceRepository.currentEffective(null) } returns appearance
+
+        val snapshot = BackupSnapshotJsonCodec.decode(
+            service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+        )!!
+
+        assertEquals(WidgetAppearanceCodec.encode(appearance), snapshot.settings.widgetAppearance)
+        assertEquals(appearance.contentScale, snapshot.settings.widgetContentScale, 1e-9f)
+        assertEquals(appearance.backgroundAlpha, snapshot.settings.widgetBackgroundAlpha, 1e-9f)
+        assertEquals(appearance.darkMode.name, snapshot.settings.widgetDarkModeOption)
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_awaitsLegacyMigrationBeforeReadingAppearance() = runTest {
+        // If the fire-and-forget startup migration failed, the store is unseeded and
+        // the user's real appearance still lives in the un-exported legacy
+        // SettingsRepository keys. Export must await the (idempotent) migration before
+        // reading, or it bakes Default into the backup. Simulate that store: Default
+        // until the migration runs, the legacy-derived appearance afterwards.
+        val legacyDerived = WidgetAppearance.Default.copy(
+            contentScale = 1.2f,
+            backgroundAlpha = 0.4f,
+            darkMode = DarkModeOption.DARK,
+        )
+        var migrated = false
+        coEvery { widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded() } answers {
+            migrated = true
+            true
+        }
+        coEvery { widgetAppearanceRepository.currentEffective(null) } answers {
+            if (migrated) legacyDerived else WidgetAppearance.Default
+        }
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+        val snapshot = BackupSnapshotJsonCodec.decode(
+            service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+        )!!
+
+        assertEquals(
+            WidgetAppearanceCodec.encode(legacyDerived),
+            snapshot.settings.widgetAppearance,
+        )
+        assertEquals(legacyDerived.contentScale, snapshot.settings.widgetContentScale, 1e-9f)
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_failsWhenLegacyMigrationFails() = runTest {
+        // A failed migration leaves the store unseeded, so currentEffective(null) would
+        // read Default while the user's real appearance still lives in the un-exported
+        // legacy keys. The export must fail loudly rather than silently baking Default
+        // over those settings — a failed export is retryable; a lossy backup is not.
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+        coEvery {
+            widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
+        } throws IOException("appearance store unavailable")
+
+        val thrown = runCatching {
+            service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+        }.exceptionOrNull()
+
+        assertTrue("Expected IOException but got $thrown", thrown is IOException)
     }
 
     @Test
@@ -271,8 +383,6 @@ class BackupExportServiceTest {
             pureBlackEnabled = true,
             cjkTextOffsetEnabled = true,
             hazeBlurEnabled = false,
-            widgetContentScale = 0.8f,
-            widgetBackgroundAlpha = 0.6f,
         )
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile(
             weightKg = 52.2,
@@ -398,7 +508,7 @@ class BackupExportServiceTest {
         snapshot!!
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, snapshot.snapshotVersion)
-        assertEquals(3, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
+        assertEquals(4, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)

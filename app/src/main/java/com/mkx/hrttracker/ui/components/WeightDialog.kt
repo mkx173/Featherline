@@ -37,10 +37,19 @@ fun WeightDialog(
     modifier: Modifier = Modifier,
     isInProgress: Boolean = false,
 ) {
-    var valueText by remember {
+    // Keyed on the source fields so the editable state re-seeds when the real profile
+    // arrives. uiState starts at SettingsUiState() (weightOriginalValue null / KILOGRAMS),
+    // so a dialog composed before the profile loads — e.g. a process-death restore that
+    // reopens it — would otherwise strand an empty field and the default unit, showing the
+    // weight as unset and risking a save under the wrong unit. profile only changes on the
+    // placeholder->real load or after a save (which dismisses the dialog), so in-progress
+    // typing is never reset mid-session.
+    var valueText by remember(profile.weightOriginalValue) {
         mutableStateOf(profile.weightOriginalValue?.let { formatWeightForInput(it) }.orEmpty())
     }
-    var selectedUnit by remember { mutableStateOf(profile.weightOriginalUnit) }
+    var selectedUnit by remember(profile.weightOriginalUnit) {
+        mutableStateOf(profile.weightOriginalUnit)
+    }
     var showValidationError by remember { mutableStateOf(false) }
     val submit = {
         if (!isInProgress) {

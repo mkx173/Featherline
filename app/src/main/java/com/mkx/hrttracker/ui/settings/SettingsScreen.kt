@@ -22,6 +22,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -104,6 +105,8 @@ import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.HrtPill
+import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
@@ -119,6 +122,12 @@ import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.widget.WidgetAppearance
+import com.mkx.hrttracker.widget.WidgetCenteredSliderTrack
+import com.mkx.hrttracker.widget.WidgetHueSpectrumTrack
+import com.mkx.hrttracker.widget.centeredOffsetReadout
+import com.mkx.hrttracker.widget.defaultSeedHue
+import com.mkx.hrttracker.widget.hueSwatchColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -133,6 +142,7 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = uiState.settingsState
+    val widgetAppearance by viewModel.widgetAppearance.collectAsStateWithLifecycle()
     val context = LocalContext.current
     // The app swaps UI language in place via composition locals (see
     // MainActivity) without recreating the Activity, so LocalContext.current is
@@ -470,6 +480,7 @@ fun SettingsScreen(
 
     SettingsScreenContent(
         uiState = uiState,
+        widgetAppearance = widgetAppearance,
         hasNotificationAccess = hasNotificationAccess,
         reminderSupportState = reminderSupportState,
         onWeightSave = viewModel::setWeight,
@@ -613,81 +624,42 @@ private fun snapToWholePercent(value: Float): Float = (value * 100).roundToInt()
 
 @Composable
 internal fun WidgetAppearanceDialog(
-    contentScale: Float,
-    backgroundAlpha: Float,
-    darkModeOption: DarkModeOption,
-    onAppearanceChange: (Float, Float, DarkModeOption) -> Unit,
+    appearance: WidgetAppearance,
+    onAppearanceChange: (WidgetAppearance) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var localContentScale by remember {
-        mutableStateOf(
-            snapToWholePercent(
-                contentScale.coerceIn(
-                    0.5f,
-                    1.5f
-                )
-            )
-        )
+    // Keyed on the incoming values so the local edit state re-seeds when the real
+    // persisted appearance arrives. widgetAppearance is a StateFlow whose initial value
+    // is WidgetAppearance.Default, so a dialog composed before the first DataStore
+    // emission (e.g. a process-death restore with the dialog reopened) would otherwise
+    // strand the 100%/100%/Follow-system placeholder and let Save overwrite the user's
+    // stored values; re-seeding falls back to the currently set value instead. Local
+    // edits are never reset mid-session: these params only change on the placeholder→real
+    // load, and after a Save the dialog has already dismissed.
+    var localSeedHue by remember(appearance.seedHue) { mutableStateOf(appearance.seedHue) }
+    var localSaturation by remember(appearance.saturation) {
+        mutableStateOf(snapToWholePercent(appearance.saturation.coerceIn(0f, 1f)))
     }
-    var localBackgroundAlpha by remember {
-        mutableStateOf(
-            snapToWholePercent(
-                backgroundAlpha.coerceIn(
-                    0.5f,
-                    1f
-                )
-            )
-        )
+    var localBalance by remember(appearance.balance) {
+        mutableStateOf(snapToWholePercent(appearance.balance.coerceIn(0f, 1f)))
     }
-    var localDarkModeOption by remember { mutableStateOf(darkModeOption) }
+    var localContentScale by remember(appearance.contentScale) {
+        mutableStateOf(snapToWholePercent(appearance.contentScale.coerceIn(0.5f, 1.5f)))
+    }
+    var localBackgroundAlpha by remember(appearance.backgroundAlpha) {
+        mutableStateOf(snapToWholePercent(appearance.backgroundAlpha.coerceIn(0.5f, 1f)))
+    }
+    var localDarkModeOption by remember(appearance.darkMode) { mutableStateOf(appearance.darkMode) }
     var isDarkModeMenuExpanded by remember { mutableStateOf(false) }
+    // Resting hue shown while the accent is Dynamic (null); grabbing the slider promotes it
+    // to an explicit pick, the Dynamic pill resets back to null.
+    val restingHue = remember { defaultSeedHue() }
+    val resetAccentHue: () -> Unit = { localSeedHue = null }
     HazeAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.settings_widget_appearance)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = stringResource(R.string.settings_widget_content_scale),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Text(
-                            text = "${(localContentScale * 100).roundToInt()}%",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    Slider(
-                        value = localContentScale,
-                        onValueChange = { localContentScale = snapToWholePercent(it) },
-                        valueRange = 0.5f..1.5f,
-                    )
-                }
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = stringResource(R.string.settings_widget_background_opacity),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Text(
-                            text = "${(localBackgroundAlpha * 100).roundToInt()}%",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    Slider(
-                        value = localBackgroundAlpha,
-                        onValueChange = { localBackgroundAlpha = snapToWholePercent(it) },
-                        valueRange = 0.5f..1f,
-                    )
-                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -738,11 +710,164 @@ internal fun WidgetAppearanceDialog(
                         )
                     }
                 }
+                Column {
+                    val contentScaleLabel = stringResource(R.string.settings_widget_content_scale)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = contentScaleLabel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(contentScaleLabel),
+                        )
+                        Text(
+                            text = "${(localContentScale * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            // Keyed on the label, not "NN%": the percentage is always non-CJK,
+                            // so it must follow the label's offset to stay baseline-aligned.
+                            modifier = Modifier.cjkTextOffset(contentScaleLabel),
+                        )
+                    }
+                    Slider(
+                        value = localContentScale,
+                        onValueChange = { localContentScale = snapToWholePercent(it) },
+                        valueRange = 0.5f..1.5f,
+                    )
+                }
+                Column {
+                    val opacityLabel = stringResource(R.string.settings_widget_background_opacity)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = opacityLabel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(opacityLabel),
+                        )
+                        Text(
+                            text = "${(localBackgroundAlpha * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(opacityLabel),
+                        )
+                    }
+                    Slider(
+                        value = localBackgroundAlpha,
+                        onValueChange = { localBackgroundAlpha = snapToWholePercent(it) },
+                        valueRange = 0.5f..1f,
+                    )
+                }
+                Column {
+                    val seedHueLabel = stringResource(R.string.widget_config_seed_hue)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = seedHueLabel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(seedHueLabel),
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .background(
+                                        hueSwatchColor(localSeedHue ?: restingHue),
+                                        CircleShape,
+                                    ),
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            CompositionLocalProvider(
+                                LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+                            ) {
+                                HrtPill(
+                                    label = stringResource(R.string.widget_config_seed_dynamic),
+                                    containerColor = if (localSeedHue == null) {
+                                        MaterialTheme.colorScheme.secondaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceContainerHighest
+                                    },
+                                    size = HrtPillSize.Small,
+                                    onClick = if (localSeedHue == null) null else resetAccentHue,
+                                )
+                            }
+                        }
+                    }
+                    Slider(
+                        value = localSeedHue ?: restingHue,
+                        onValueChange = { localSeedHue = it },
+                        valueRange = 0f..359f,
+                        track = { WidgetHueSpectrumTrack(it) },
+                    )
+                }
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        val saturationLabel = stringResource(R.string.widget_config_saturation)
+                        Text(
+                            text = saturationLabel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(saturationLabel),
+                        )
+                        Text(
+                            text = "${(localSaturation * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(saturationLabel),
+                        )
+                    }
+                    Slider(
+                        value = localSaturation,
+                        onValueChange = { localSaturation = snapToWholePercent(it) },
+                        valueRange = 0f..1f,
+                    )
+                }
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        val balanceLabel = stringResource(R.string.widget_config_balance)
+                        Text(
+                            text = balanceLabel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(balanceLabel),
+                        )
+                        Text(
+                            text = centeredOffsetReadout(localBalance, 0f..1f),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(balanceLabel),
+                        )
+                    }
+                    Slider(
+                        value = localBalance,
+                        onValueChange = { localBalance = snapToWholePercent(it) },
+                        valueRange = 0f..1f,
+                        track = { WidgetCenteredSliderTrack(it) },
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                onAppearanceChange(localContentScale, localBackgroundAlpha, localDarkModeOption)
+                onAppearanceChange(
+                    WidgetAppearance(
+                        seedHue = localSeedHue,
+                        saturation = localSaturation,
+                        balance = localBalance,
+                        contentScale = localContentScale,
+                        backgroundAlpha = localBackgroundAlpha,
+                        darkMode = localDarkModeOption,
+                    ),
+                )
                 onDismiss()
             }) {
                 Text(stringResource(R.string.save))
@@ -761,6 +886,7 @@ internal fun WidgetAppearanceDialog(
 internal fun SettingsScreenContent(
     modifier: Modifier = Modifier,
     uiState: SettingsUiState,
+    widgetAppearance: WidgetAppearance,
     hasNotificationAccess: Boolean,
     reminderSupportState: SettingsReminderSupportState,
     onWeightSave: (Double, WeightUnit) -> Unit,
@@ -780,7 +906,7 @@ internal fun SettingsScreenContent(
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
-    onWidgetAppearanceChange: (Float, Float, DarkModeOption) -> Unit,
+    onWidgetAppearanceChange: (WidgetAppearance) -> Unit,
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
     showDiagnosticsExport: Boolean,
@@ -1620,9 +1746,7 @@ internal fun SettingsScreenContent(
 
     if (showWidgetAppearanceDialog) {
         WidgetAppearanceDialog(
-            contentScale = settingsState.widgetContentScale,
-            backgroundAlpha = settingsState.widgetBackgroundAlpha,
-            darkModeOption = settingsState.widgetDarkModeOption,
+            appearance = widgetAppearance,
             onAppearanceChange = onWidgetAppearanceChange,
             onDismiss = { showWidgetAppearanceDialog = false },
         )
@@ -1998,6 +2122,7 @@ private fun SettingsScreenPreview() {
                     weightOriginalUnit = WeightUnit.POUNDS,
                 )
             ),
+            widgetAppearance = WidgetAppearance.Default,
             hasNotificationAccess = true,
             reminderSupportState = SettingsReminderSupportState.EXACT_ALARM_OFF,
             onWeightSave = { _, _ -> },
@@ -2017,7 +2142,7 @@ private fun SettingsScreenPreview() {
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },
-            onWidgetAppearanceChange = { _, _, _ -> },
+            onWidgetAppearanceChange = { },
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
             showDiagnosticsExport = true,

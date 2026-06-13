@@ -13,6 +13,8 @@ import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.AppDiagnosticsExportService
 import com.mkx.hrttracker.util.AppDiagnosticsExportedFile
 import com.mkx.hrttracker.util.AppLockSecurityManager
+import com.mkx.hrttracker.widget.WidgetAppearance
+import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import io.mockk.Runs
 import io.mockk.clearMocks
 import io.mockk.coEvery
@@ -56,6 +58,7 @@ class SettingsViewModelTest {
     private val backupExportService: BackupExportService = mockk()
     private val backupRestoreService: BackupRestoreService = mockk()
     private val diagnosticsExportService: AppDiagnosticsExportService = mockk()
+    private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -75,6 +78,8 @@ class SettingsViewModelTest {
         coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
         every { diagnosticsExportService.buildExportFileName(any(), any()) } returns
                 "hrttracker-diagnostics-2026-05-07_12-04-05.txt"
+        every { widgetAppearanceRepository.effectiveFor(null) } returns
+                flowOf(WidgetAppearance.Default)
     }
 
     @After
@@ -448,6 +453,7 @@ class SettingsViewModelTest {
             backupExportService = backupExportService,
             backupRestoreService = backupRestoreService,
             diagnosticsExportService = diagnosticsExportService,
+            widgetAppearanceRepository = widgetAppearanceRepository,
         )
     }
 }

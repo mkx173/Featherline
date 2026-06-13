@@ -169,7 +169,7 @@ internal fun WidgetShell(
                 modifier = GlanceModifier
                     .fillMaxSize()
                     .appWidgetBackground()
-                    .background(colors.surface)
+                    .background(colors.widgetBackground)
                     .cornerRadius(WidgetRoundedShape.Shell.radius)
                     .clickable(
                         onClick = actionStartActivity<MainActivity>(),
@@ -192,7 +192,7 @@ internal fun WidgetShell(
             ) {
                 RoundedMaskImage(
                     shape = WidgetRoundedShape.Shell,
-                    color = colors.surface,
+                    color = colors.widgetBackground,
                     modifier = GlanceModifier
                         .fillMaxSize()
                         .appWidgetBackground(),
@@ -451,7 +451,7 @@ internal fun TrailingButton(
         WidgetDoseStatus.DUE_SOON -> RoundedBackgroundBox(
             modifier = GlanceModifier.size(buttonSize)
                 .then(logModifier),
-            color = colors.tertiaryContainer,
+            color = colors.primary,
             shape = WidgetRoundedShape.Pill,
             contentAlignment = Alignment.Center,
         ) {
@@ -459,14 +459,14 @@ internal fun TrailingButton(
                 provider = ImageProvider(R.drawable.ic_add),
                 contentDescription = null,
                 modifier = GlanceModifier.size(iconSize),
-                colorFilter = ColorFilter.tint(colors.onTertiaryContainer),
+                colorFilter = ColorFilter.tint(colors.onPrimary),
             )
         }
 
         WidgetDoseStatus.OVERDUE -> RoundedBackgroundBox(
             modifier = GlanceModifier.size(buttonSize)
                 .then(logModifier),
-            color = colors.surfaceVariant,
+            color = colors.widgetControl,
             shape = WidgetRoundedShape.Pill,
             contentAlignment = Alignment.Center,
         ) {
@@ -480,7 +480,7 @@ internal fun TrailingButton(
 
         WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> RoundedBackgroundBox(
             modifier = GlanceModifier.size(buttonSize),
-            color = colors.surfaceVariant,
+            color = colors.widgetControl,
             shape = WidgetRoundedShape.Pill,
             contentAlignment = Alignment.Center,
         ) {
@@ -495,7 +495,7 @@ internal fun TrailingButton(
         else -> RoundedBackgroundBox(
             modifier = GlanceModifier.size(buttonSize)
                 .then(navigateModifier),
-            color = colors.surfaceVariant,
+            color = colors.widgetControl,
             shape = WidgetRoundedShape.Pill,
             contentAlignment = Alignment.Center,
         ) {
@@ -593,7 +593,7 @@ internal fun DoseRow(
 
     RoundedBackgroundRow(
         modifier = rowModifier,
-        color = colors.surfaceContainerLow,
+        color = colors.widgetContainer,
         shape = WidgetRoundedShape.Card,
         contentModifier = GlanceModifier
             .padding(horizontal = (16f * scale).dp)

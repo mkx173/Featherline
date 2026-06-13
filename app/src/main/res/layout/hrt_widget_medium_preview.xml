@@ -222,7 +222,7 @@
                     android:layout_height="19dp"
                     android:layout_gravity="center"
                     android:src="@drawable/ic_add"
-                    android:tint="@color/widget_preview_on_tertiary_container"
+                    android:tint="@color/widget_preview_on_primary"
                     android:importantForAccessibility="no" />
             </FrameLayout>
         </LinearLayout>

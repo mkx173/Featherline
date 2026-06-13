@@ -6,7 +6,7 @@ math on the widget thread, and how those surfaces stay current across
 home-data mutations, settings changes, alarms, time/date events, and
 quick-log taps. The whole subsystem lives in
 [`widget/`](../app/src/main/java/com/mkx/hrttracker/widget)
-(15 files). For where it sits in the layer map, see
+(21 files). For where it sits in the layer map, see
 [architecture.md](architecture.md).
 
 ## Sequence
@@ -103,7 +103,7 @@ the IV length, the IV, and then the ciphertext. A
 rather than crashing the launcher.
 
 Wire-format compatibility is gated by `WIDGET_SNAPSHOT_SCHEMA_VERSION`
-(currently `13`). `observeSnapshot()` and `readSnapshot()` both filter
+(currently `14`). `observeSnapshot()` and `readSnapshot()` both filter
 records whose `schemaVersion` doesn't match and log a diagnostic — the
 widget then falls back to its empty-setup composable rather than
 rendering against an obsolete shape.
@@ -113,6 +113,27 @@ The store is also the
 for both widgets, so Glance composables read straight from the same
 file via `currentState<WidgetSnapshotState>()`. There is no in-memory
 cache to keep coherent.
+
+### Appearance
+
+User theming lives outside the snapshot, in its own Preferences
+DataStore (`widget_appearance`):
+[`WidgetAppearance`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetAppearance.kt)
+carries `seedHue` (accent; null = dynamic palette), `saturation`,
+`balance` (light/dark depth), plus `contentScale` / `backgroundAlpha` /
+`darkMode` — all moved out of `SettingsRepository` (a one-time
+migration in `HomeWidgetManager.start()` seeds the default from the
+legacy keys, then deletes them). The store keeps an
+`appearance_default` entry plus dormant per-`appWidgetId` overrides, so
+a future per-widget editor needs no storage migration; the v1 UI writes
+only the default.
+[`WidgetAppearanceRepository`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetAppearanceRepository.kt)
+resolves `override ?: default ?: built-in` as a Flow, both render paths
+resolve it per `appWidgetId`, and receiver `onDeleted` drops the
+removed ids' overrides. Values are encoded by the versioned
+`WidgetAppearanceCodec` string, which doubles as the backup payload —
+only the default entry is backed up
+(see [backup-format.md](backup-format.md)).
 
 ### Render
 
@@ -132,12 +153,19 @@ buckets there (306 × 276 / 624 × 276 dp) are independent of the live
 render size, which follows the launcher cell allocation declared in the
 `appwidget-provider` XML.
 
-Both widgets share a `provideHrtContent` shell that loads the snapshot,
-resolves the color scheme (the system Material You palette on API 31+
-when adaptive colors are enabled, else the baked `DefaultSeedColor`
-expanded by MaterialKolor), and stacks
+Both widgets share a `provideHrtContent` shell that loads the snapshot
+and the per-widget `WidgetAppearance`, resolves the color scheme (an
+explicit accent hue when set, else the system Material You palette on
+API 31+ when adaptive colors are enabled, else the baked
+`DefaultSeedColor` expanded by MaterialKolor), and stacks
 `CompositionLocalProvider`s for the color scheme, content scale,
-background alpha, and forced-dark override. Shared Glance components
+background alpha, and forced-dark override. The widget surfaces (shell,
+cards, control pill, outline) are cut from the scheme's secondary
+palette in HCT by `deriveWidgetSurfaces` in `WidgetTheme.kt`, with
+saturation driving chroma and light balance driving tone depth plus a
+contrast-preserving text lift; the all-default appearance reproduces
+the scheme-derived tints exactly (a bit-exact anchor enforced by
+`WidgetThemeDerivationTest`). Shared Glance components
 live in
 [`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt):
 `WidgetShell`, `ProgressRing`, `ProgressBar`, `DoseRow`,
@@ -229,9 +257,11 @@ launchers have no entry). It launches
 [`WidgetConfigActivity`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigActivity.kt),
 a full-screen activity hosting
 [`WidgetConfigScreen`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigScreen.kt):
-the appearance controls (content scale, background opacity, dark-mode) as
-`HrtSection` rows, above a live widget preview floating over the system
-wallpaper. The activity uses `Theme.HrtTracker.WidgetConfig`
+the appearance controls (dark-mode, content scale, background opacity,
+accent color, saturation, light balance) as `HrtSection` rows below a
+live widget preview floating over the system wallpaper. While dark mode
+is "follow system", a corner button on the preview flips it between the
+light and dark look without touching the saved value. The activity uses `Theme.HrtTracker.WidgetConfig`
 (`windowShowWallpaper` with a transparent `windowBackground`); the screen
 paints an opaque offscreen-composited scaffold and punches a `BlendMode.Clear`
 hole in it for the wallpaper window. The system bars therefore sit over the
@@ -254,15 +284,21 @@ preview host intercepts touches, blocks descendant focus, and hides a11y
 descendants so the widget's quick-log / navigation `PendingIntent`s can never
 fire from it.
 
-Widget appearance is **global**, not per-widget, so the `appWidgetId` is
+Widget appearance is **global** in the v1 UI (the store is keyed
+per-widget for a future editor), so the `appWidgetId` is
 only echoed back in the result: the activity defaults to `RESULT_CANCELED`
 and flips to `RESULT_OK` on Save, so cancelling a first-placement config on
 a launcher that ignores `configuration_optional` removes the widget rather
-than keeping it unconfigured. The activity reads the **persisted** settings via
-`settingsRepository.getCurrentSettings()` — not the eager `settingsState`
-placeholder, whose pre-DataStore defaults would let a cold-start Save
-overwrite real settings — and writes through `@AppScope` so the persist
-outlives the synchronous Save→`finish()`.
+than keeping it unconfigured. The activity awaits the one-time legacy-keys
+migration before seeding, so the appearance read can't race the startup
+migration and strand Defaults that a Save would clobber. It seeds the controls
+from `widgetAppearanceRepository.currentEffective(null)` (and reads the
+**persisted** settings via `settingsRepository.getCurrentSettings()` for
+its own theme — not the eager `settingsState` placeholder, whose
+pre-DataStore defaults would let a cold-start Save overwrite real
+settings); Save replaces the default entry via `setDefault`, written
+through `@AppScope` so the persist outlives the synchronous
+Save→`finish()`.
 
 ## Update triggers
 
@@ -298,13 +334,18 @@ graph TD
 - **Widget-facing settings changes.** The same manager observes
   `settingsRepository.settingsState`, projects it to the tuple
   (`hideMedicationDetails`, `adaptiveColorEnabled`,
-  `widgetContentScale`, `widgetBackgroundAlpha`,
-  `widgetDarkModeOption`, `homeE2DisplayUnit`, `appLanguageOption`,
+  `homeE2DisplayUnit`, `appLanguageOption`,
   `showArchivedGroupRecords`),
   `distinctUntilChanged().drop(1)`, and calls
   `refreshWidgetSnapshot()`. This re-derives the widget snapshot from
   the current home snapshot without forcing a home rebuild — the home
   snapshot itself is unchanged when only widget-only inputs change.
+- **Appearance changes.** The manager also collects the appearance
+  store's change flow (`drop(1)` to skip the initial emission) into the
+  same `refreshWidgetSnapshot()` seat. On startup, before collecting,
+  it runs the one-time legacy-keys migration and repaints explicitly
+  when anything was migrated (the migration write would otherwise be
+  the dropped initial emission).
 - **Wall-clock drift.**
   [`WidgetDailyRefreshWorker`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetDailyRefreshWorker.kt)
   is a periodic `CoroutineWorker` enqueued every 15 minutes (plus one
@@ -482,7 +523,9 @@ renders the `RemoteViews`.
 - The widget snapshot is not part of the backup format
   (see [backup-format.md](backup-format.md)) and is excluded from
   device-transfer flows; it is treated as derived state and rebuilt
-  from the home snapshot on first launch.
+  from the home snapshot on first launch. The widget *appearance*
+  default, by contrast, is backed up — only the default entry, since
+  appWidgetIds are not stable across devices.
 - `HomeWidgetManager.start()` is idempotent and called exactly once
   from `HrtTrackerApplication.onCreate()`; the `started.compareAndSet`
   guard exists to make double-`start()` a no-op for tests rather than

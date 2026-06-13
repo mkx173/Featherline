@@ -102,9 +102,6 @@ data class SettingsState(
     val hideScreenContentEnabled: Boolean = false,
     val lastSeenTimeZoneId: String? = null,
     val hideMedicationDetails: Boolean = false,
-    val widgetContentScale: Float = 1.0f,
-    val widgetBackgroundAlpha: Float = 1.0f,
-    val widgetDarkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
     val groupNameCounter: Int = 0,
 )
 

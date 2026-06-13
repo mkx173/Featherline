@@ -10,7 +10,10 @@ import android.widget.RemoteViews
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,6 +62,8 @@ import com.mkx.hrttracker.ui.theme.DefaultSeedColor
 import com.mkx.hrttracker.ui.theme.systemColorSchemes
 import com.mkx.hrttracker.util.currentAppLocale
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.io.File
@@ -78,6 +83,17 @@ private suspend fun GlanceAppWidget.provideHrtContent(
     content: @Composable (snapshot: WidgetSnapshotRecord?) -> Unit,
 ) {
     val appWidgetId = runCatching { GlanceAppWidgetManager(context).getAppWidgetId(id) }.getOrNull()
+    val appearanceRepository = EntryPointAccessors
+        .fromApplication(context, WidgetEntryPoint::class.java)
+        .widgetAppearanceRepository()
+    // Resolve once before composing so the first frame already has the real value
+    // (a Default initial would flash default colors on session spin-up).
+    val initialAppearance = runCatching {
+        appearanceRepository.currentEffective(appWidgetId)
+    }.getOrElse { failure ->
+        if (failure is CancellationException) throw failure
+        WidgetAppearance.Default
+    }
     provideContent {
         // Re-read on every composition so the baseline picks up the launcher's portrait
         // cell height as soon as options are reported (Glance recomposes on options change).
@@ -88,7 +104,14 @@ private suspend fun GlanceAppWidget.provideHrtContent(
         }
         val state = currentState<WidgetSnapshotState>()
         val snapshot = state.record?.takeIf { it.schemaVersion == WIDGET_SNAPSHOT_SCHEMA_VERSION }
-        HrtWidgetThemed(context, snapshot, deviceBaselineHeightDp) { content(it) }
+        // Remembered: collectAsState keys on flow identity, so an unremembered
+        // effectiveFor() would build a fresh combine flow each recomposition and
+        // cancel/restart the underlying DataStore collections.
+        val appearanceFlow = remember(appWidgetId) {
+            appearanceRepository.effectiveFor(appWidgetId)
+        }
+        val appearance by appearanceFlow.collectAsState(initial = initialAppearance)
+        HrtWidgetThemed(context, snapshot, appearance, deviceBaselineHeightDp) { content(it) }
     }
 }
 
@@ -99,27 +122,38 @@ private suspend fun GlanceAppWidget.provideHrtContent(
 private fun HrtWidgetThemed(
     context: Context,
     snapshot: WidgetSnapshotRecord?,
+    appearance: WidgetAppearance,
     deviceBaselineHeightDp: Float? = null,
     content: @Composable (snapshot: WidgetSnapshotRecord?) -> Unit,
 ) {
     val adaptiveEnabled = snapshot?.adaptiveColorEnabled ?: true
-    val alpha = snapshot?.widgetBackgroundAlpha?.coerceIn(0.5f, 1f) ?: 1.0f
-    val scale = snapshot?.widgetContentScale?.coerceIn(0.5f, 1.5f) ?: 1.0f
-    val forcedDark = snapshot?.forcedDark
+    val sanitized = appearance.sanitized()
+    val alpha = sanitized.backgroundAlpha
+    val scale = sanitized.contentScale
+    val forcedDark = sanitized.darkMode.toForcedDark()
     // Resolve the live-rendered chrome strings against the snapshot's app language, not
     // the raw widget context. Below API 33 the widget process context stays on the system
     // locale, so without this the chrome ("TODAY", "DONE", E2 label) renders in the system
     // language while the snapshot's baked medication/dose strings are in the app language.
-    val localizedContext = context.withLanguageTag(snapshot?.appLanguageTag)
-    // Mirror AndroidX on API 31+ with adaptive on: read the live system palette. Otherwise
-    // regenerate from the baked seed via MaterialKolor. Widgets never apply AMOLED.
-    val (lightScheme, darkScheme) =
-        if (adaptiveEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            systemColorSchemes(localizedContext)
-        } else {
-            seededWidgetColorSchemes(DefaultSeedColor)
+    val localizedContext = remember(context, snapshot?.appLanguageTag) {
+        context.withLanguageTag(snapshot?.appLanguageTag)
+    }
+    // Explicit seed pick wins; null keeps today's source selection (system palette
+    // on API 31+ with adaptive on, DefaultSeedColor otherwise). Deriving the schemes
+    // (HCT round-trips, plus a full tonal-palette generation for a seeded hue) is the
+    // widget's heaviest per-frame work, so memoize it across Glance's frequent
+    // recompositions (size/options/state) when the inputs are unchanged. forcedDark is
+    // derived from sanitized, so the sanitized key already covers it.
+    val widgetColors = remember(sanitized, adaptiveEnabled, localizedContext) {
+        val (lightScheme, darkScheme) = when {
+            sanitized.seedHue != null ->
+                seededWidgetColorSchemes(seedColorFromHue(sanitized.seedHue))
+            adaptiveEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+                systemColorSchemes(localizedContext)
+            else -> seededWidgetColorSchemes(DefaultSeedColor)
         }
-    val widgetColors = widgetColorScheme(lightScheme, darkScheme, alpha, forcedDark)
+        widgetColorScheme(lightScheme, darkScheme, sanitized, forcedDark)
+    }
     GlanceTheme {
         CompositionLocalProvider(
             // GlanceRemoteViews.compose does not seed LocalContext the way the session
@@ -239,11 +273,15 @@ suspend fun updateAllHrtWidgets(context: Context) {
 @OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
 suspend fun pushHrtWidgets(context: Context, record: WidgetSnapshotRecord?) {
     val appWidgetManager = AppWidgetManager.getInstance(context)
+    val appearanceRepository = EntryPointAccessors
+        .fromApplication(context, WidgetEntryPoint::class.java)
+        .widgetAppearanceRepository()
     coroutineScope {
         launch {
             pushHrtWidget(
                 context,
                 appWidgetManager,
+                appearanceRepository,
                 HrtWidgetMediumReceiver::class.java,
                 record,
                 isMedium = true
@@ -254,6 +292,7 @@ suspend fun pushHrtWidgets(context: Context, record: WidgetSnapshotRecord?) {
                 pushHrtWidget(
                     context,
                     appWidgetManager,
+                    appearanceRepository,
                     HrtWidgetLargeReceiver::class.java,
                     record,
                     isMedium = false
@@ -276,6 +315,7 @@ internal fun shouldUseSynchronousWidgetPush(sdkInt: Int = Build.VERSION.SDK_INT)
 private suspend fun pushHrtWidget(
     context: Context,
     appWidgetManager: AppWidgetManager,
+    appearanceRepository: WidgetAppearanceRepository,
     receiverClass: Class<*>,
     record: WidgetSnapshotRecord?,
     isMedium: Boolean,
@@ -283,6 +323,14 @@ private suspend fun pushHrtWidget(
     val appWidgetIds = runCatching {
         appWidgetManager.getAppWidgetIds(ComponentName(context, receiverClass))
     }.getOrElse { intArrayOf() }
+    if (appWidgetIds.isEmpty()) return
+    // Resolve every instance against one read of the shared default entry, instead of
+    // re-reading the default per instance inside currentEffective.
+    val appearances = runCatching { appearanceRepository.currentEffectiveFor(appWidgetIds) }
+        .getOrElse { failure ->
+            if (failure is CancellationException) throw failure
+            emptyMap()
+        }
     appWidgetIds.forEach { appWidgetId ->
         // One options read; size and baseline resolve through the same helper the
         // config-screen preview uses.
@@ -291,9 +339,10 @@ private suspend fun pushHrtWidget(
             appWidgetManager.getAppWidgetOptions(appWidgetId),
             isMedium,
         )
+        val appearance = appearances[appWidgetId] ?: WidgetAppearance.Default
         val result = runCatching {
             GlanceRemoteViews().compose(context = context, size = size) {
-                HrtWidgetThemed(context, record, deviceBaselineHeightDp) { snapshot ->
+                HrtWidgetThemed(context, record, appearance, deviceBaselineHeightDp) { snapshot ->
                     if (isMedium) MediumWidgetContent(snapshot) else LargeWidgetContent(snapshot)
                 }
             }
@@ -325,9 +374,7 @@ internal class WidgetConfigPreviewRender(
 internal suspend fun composeWidgetPreviewRemoteViews(
     context: Context,
     isMedium: Boolean,
-    contentScale: Float,
-    backgroundAlpha: Float,
-    forcedDark: Boolean?,
+    appearance: WidgetAppearance,
     snapshot: WidgetSnapshotRecord?,
     appWidgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID,
 ): WidgetConfigPreviewRender {
@@ -340,23 +387,14 @@ internal suspend fun composeWidgetPreviewRemoteViews(
     } else {
         null
     }
-    val record = (snapshot ?: previewSnapshot(context)).copy(
-        widgetContentScale = contentScale,
-        widgetBackgroundAlpha = backgroundAlpha,
-        forcedDark = forcedDark,
-    )
-    val options = appWidgetId
-        .takeIf { it != AppWidgetManager.INVALID_APPWIDGET_ID }
-        ?.let { widgetId ->
-            runCatching { AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId) }
-                .getOrNull()
-        }
+    val record = snapshot ?: previewSnapshot(context)
+    val options = widgetOptionsOrNull(context, appWidgetId)
     // Live options → actual size + the widget's real device baseline, resolved through
     // the same helper as the production push so the two paths cannot diverge. No
     // options → fixed reference size + baseline.
     val (size, deviceBaselineHeightDp) = resolveWidgetRenderSize(context, options, isMedium)
     val remoteViews = GlanceRemoteViews().compose(context = context, size = size) {
-        HrtWidgetThemed(context, record, deviceBaselineHeightDp) { themed ->
+        HrtWidgetThemed(context, record, appearance, deviceBaselineHeightDp) { themed ->
             CompositionLocalProvider(
                 // Only pin the fixed reference baseline on the fallback path; with live
                 // options the real device baseline (above) drives scale for true WYSIWYG.
@@ -371,6 +409,20 @@ internal suspend fun composeWidgetPreviewRemoteViews(
     }.remoteViews
     return WidgetConfigPreviewRender(remoteViews, size)
 }
+
+private fun widgetOptionsOrNull(context: Context, appWidgetId: Int): Bundle? = appWidgetId
+    .takeIf { it != AppWidgetManager.INVALID_APPWIDGET_ID }
+    ?.let { widgetId ->
+        runCatching { AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId) }
+            .getOrNull()
+    }
+
+// The size the config preview will compose at, resolved synchronously through the same
+// path as the render itself, so the config screen can reserve the wallpaper window's
+// final footprint on its first frame instead of blinking in once the first async
+// render lands.
+internal fun widgetPreviewSizeDp(context: Context, isMedium: Boolean, appWidgetId: Int): DpSize =
+    resolveWidgetRenderSize(context, widgetOptionsOrNull(context, appWidgetId), isMedium).sizeDp
 
 // The size a widget render composes at plus the device baseline that drives its content
 // scale. The production push and the config-screen preview BOTH resolve through
@@ -496,10 +548,37 @@ internal object HrtWidgetStateDefinition : GlanceStateDefinition<WidgetSnapshotS
 
 class HrtWidgetMediumReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HrtWidgetMedium()
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        cleanupAppearance(context, appWidgetIds)
+    }
 }
 
 class HrtWidgetLargeReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HrtWidgetLarge()
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        cleanupAppearance(context, appWidgetIds)
+    }
+}
+
+// Best-effort per-instance appearance cleanup (the default entry always survives).
+// Launched on the app scope WITHOUT goAsync: GlanceAppWidgetReceiver's contract
+// forbids overrides calling goAsync (super already manages the async window, and
+// on some OEMs deliberately avoids goAsync). If the process dies before the write
+// lands, the orphaned override is invisible (its id never recurs) and costs a few
+// bytes. Deliberately no onDisabled sweep: medium/large are separate receivers, so
+// a per-provider clear-all would wipe the other provider's overrides.
+private fun cleanupAppearance(context: Context, appWidgetIds: IntArray) {
+    val entryPoint = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java)
+    val repository = entryPoint.widgetAppearanceRepository()
+    entryPoint.appScope().launch {
+        runCatching { repository.deleteOverrides(appWidgetIds) }.onFailure { failure ->
+            if (failure is CancellationException) throw failure
+        }
+    }
 }
 
 
@@ -845,7 +924,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         modifier = GlanceModifier
                             .fillMaxWidth()
                             .height((64f * scale).dp),
-                        color = colors.surfaceContainerLow,
+                        color = colors.widgetContainer,
                         shape = WidgetRoundedShape.Card,
                         contentModifier = GlanceModifier
                             .padding(horizontal = (16f * scale).dp)
@@ -1182,11 +1261,8 @@ private fun previewSnapshot(context: Context): WidgetSnapshotRecord {
         hasActiveGroups = true,
         hideMedicationDetails = false,
         adaptiveColorEnabled = false,
-        widgetContentScale = 1.0f,
-        widgetBackgroundAlpha = 1.0f,
         e2DisplayUnit = BloodUnitKey.PG_ML.storageValue,
         appLanguageTag = context.currentAppLocale().toLanguageTag(),
-        forcedDark = null,
         doseRows = listOf(
             WidgetDoseRow(
                 medicationName = cpaName,

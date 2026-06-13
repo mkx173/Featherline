@@ -360,27 +360,27 @@ class SettingsRepository @Inject constructor(
         }
     }
 
-    suspend fun setWidgetContentScale(value: Float) {
-        activeDataStore().edit { preferences ->
-            preferences[widgetContentScaleKey] = value
-        }
+    // Legacy widget-appearance keys, retained ONLY for the one-time migration into
+    // WidgetAppearanceStore (WidgetAppearanceRepository.migrateFromLegacySettingsIfNeeded).
+    // Returns null once the keys are gone, which ends the migration permanently.
+    suspend fun readLegacyWidgetAppearance(): LegacyWidgetAppearance? {
+        val preferences = activeDataStore().data.first()
+        val scale = preferences[widgetContentScaleKey]
+        val alpha = preferences[widgetBackgroundAlphaKey]
+        val dark = preferences[widgetDarkModeKey]
+        if (scale == null && alpha == null && dark == null) return null
+        return LegacyWidgetAppearance(
+            contentScale = scale ?: 1.0f,
+            backgroundAlpha = (alpha ?: 1.0f).coerceIn(0.5f, 1.0f),
+            darkMode = DarkModeOption.fromStorageValue(dark),
+        )
     }
 
-    suspend fun setWidgetBackgroundAlpha(value: Float) {
+    suspend fun clearLegacyWidgetAppearanceKeys() {
         activeDataStore().edit { preferences ->
-            preferences[widgetBackgroundAlphaKey] = value.coerceIn(0.5f, 1.0f)
-        }
-    }
-
-    suspend fun setWidgetAppearance(
-        contentScale: Float,
-        backgroundAlpha: Float,
-        darkModeOption: DarkModeOption,
-    ) {
-        activeDataStore().edit { preferences ->
-            preferences[widgetContentScaleKey] = contentScale
-            preferences[widgetBackgroundAlphaKey] = backgroundAlpha.coerceIn(0.5f, 1.0f)
-            preferences[widgetDarkModeKey] = darkModeOption.name
+            preferences.remove(widgetContentScaleKey)
+            preferences.remove(widgetBackgroundAlphaKey)
+            preferences.remove(widgetDarkModeKey)
         }
     }
 
@@ -428,9 +428,6 @@ class SettingsRepository @Inject constructor(
         homeE2ChartWindowOption: HomeE2ChartWindowOption,
         lastSeenTimeZoneId: String? = null,
         hideMedicationDetails: Boolean = false,
-        widgetContentScale: Float = 1.0f,
-        widgetBackgroundAlpha: Float = 1.0f,
-        widgetDarkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
         groupNameCounter: Int = 0,
         firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
         stockNudgeEnabled: Boolean = true,
@@ -479,9 +476,6 @@ class SettingsRepository @Inject constructor(
             }
 
             preferences[hideMedicationDetailsKey] = hideMedicationDetails
-            preferences[widgetContentScaleKey] = widgetContentScale
-            preferences[widgetBackgroundAlphaKey] = widgetBackgroundAlpha.coerceIn(0.5f, 1.0f)
-            preferences[widgetDarkModeKey] = widgetDarkModeOption.name
             preferences[groupNameCounterKey] = groupNameCounter
 
             if (firstDayOfWeekOption == FirstDayOfWeekOption.FOLLOW_SYSTEM) {
@@ -538,12 +532,6 @@ class SettingsRepository @Inject constructor(
             screenLockProtectionEnabled = preferences[screenLockProtectionKey] ?: false,
             lastSeenTimeZoneId = preferences[lastSeenTimeZoneIdKey],
             hideMedicationDetails = preferences[hideMedicationDetailsKey] ?: false,
-            widgetContentScale = preferences[widgetContentScaleKey] ?: 1.0f,
-            widgetBackgroundAlpha = (preferences[widgetBackgroundAlphaKey] ?: 1.0f).coerceIn(
-                0.5f,
-                1.0f
-            ),
-            widgetDarkModeOption = DarkModeOption.fromStorageValue(preferences[widgetDarkModeKey]),
             groupNameCounter = preferences[groupNameCounterKey] ?: 0,
             firstDayOfWeekOption = FirstDayOfWeekOption.fromStorageValue(preferences[firstDayOfWeekKey]),
         )
@@ -603,3 +591,9 @@ class SettingsRepository @Inject constructor(
         return AppLanguageOption.fromLocale(appLanguageLocale())
     }
 }
+
+data class LegacyWidgetAppearance(
+    val contentScale: Float,
+    val backgroundAlpha: Float,
+    val darkMode: DarkModeOption,
+)

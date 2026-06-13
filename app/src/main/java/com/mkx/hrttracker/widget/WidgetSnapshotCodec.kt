@@ -22,11 +22,8 @@ internal object WidgetSnapshotCodec {
             stream.writeBoolean(record.hasActiveGroups)
             stream.writeBoolean(record.hideMedicationDetails)
             stream.writeBoolean(record.adaptiveColorEnabled)
-            stream.writeFloat(record.widgetContentScale)
-            stream.writeFloat(record.widgetBackgroundAlpha)
             stream.writeString(record.e2DisplayUnit)
             stream.writeString(record.appLanguageTag)
-            stream.writeNullableBoolean(record.forcedDark)
             stream.writeList(record.doseRows) { writeDoseRow(it) }
             stream.writePkProjection(record.pkProjection)
         }
@@ -49,11 +46,8 @@ internal object WidgetSnapshotCodec {
                 hasActiveGroups = stream.readBoolean(),
                 hideMedicationDetails = stream.readBoolean(),
                 adaptiveColorEnabled = stream.readBoolean(),
-                widgetContentScale = stream.readFloat(),
-                widgetBackgroundAlpha = stream.readFloat(),
                 e2DisplayUnit = stream.readString(),
                 appLanguageTag = stream.readString(),
-                forcedDark = stream.readNullableBoolean(),
                 doseRows = stream.readList { readDoseRow() },
                 pkProjection = stream.readPkProjection(),
             )
@@ -173,14 +167,6 @@ internal object WidgetSnapshotCodec {
     private fun DataInputStream.readNullableString(): String? =
         if (readBoolean()) readString() else null
 
-    private fun DataOutputStream.writeNullableBoolean(value: Boolean?) {
-        writeBoolean(value != null)
-        value?.let { writeBoolean(it) }
-    }
-
-    private fun DataInputStream.readNullableBoolean(): Boolean? =
-        if (readBoolean()) readBoolean() else null
-
     private fun <T> DataOutputStream.writeList(
         values: List<T>,
         write: DataOutputStream.(T) -> Unit
@@ -197,5 +183,5 @@ internal object WidgetSnapshotCodec {
     }
 }
 
-private const val WIDGET_SNAPSHOT_CODEC_VERSION = 13
+private const val WIDGET_SNAPSHOT_CODEC_VERSION = 14
 private const val BYTE_MASK = 0xff

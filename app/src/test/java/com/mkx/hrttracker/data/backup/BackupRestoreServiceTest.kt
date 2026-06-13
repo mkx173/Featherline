@@ -31,9 +31,13 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
+import com.mkx.hrttracker.widget.WidgetAppearance
+import com.mkx.hrttracker.widget.WidgetAppearanceCodec
+import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -71,6 +75,7 @@ class BackupRestoreServiceTest {
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
     private val reminderNotificationManager: ReminderNotificationManager =
         mockk(relaxed = true)
+    private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
 
     private lateinit var backupCrypto: BackupCrypto
     private lateinit var service: BackupRestoreService
@@ -95,12 +100,13 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(),
-                any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(),
             )
         } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
         coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
+        coEvery { widgetAppearanceRepository.setDefault(any()) } just Runs
 
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
         service = BackupRestoreService(
@@ -111,6 +117,7 @@ class BackupRestoreServiceTest {
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             reminderNotificationManager = reminderNotificationManager,
+            widgetAppearanceRepository = widgetAppearanceRepository,
             backupCrypto = backupCrypto,
         )
     }
@@ -159,8 +166,8 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(),
-                any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(),
             )
         }
     }
@@ -285,41 +292,15 @@ class BackupRestoreServiceTest {
     }
 
     @Test
-    fun restoreBackupBytes_acceptsWidgetContentScaleAcrossFullUiRange() = runTest {
-        // The widget appearance slider lets users choose any scale in
-        // 0.5..1.5 and export copies it verbatim. The restore validator must
-        // accept that same domain — a narrower range silently rejects a
-        // legitimately-exported backup as "incompatible". Restoring at both
-        // extremes must succeed and preserve the stored value unchanged.
-        val capturedScales = mutableListOf<Float>()
-        coEvery {
-            settingsRepository.restoreSettings(
-                darkModeOption = any(),
-                adaptiveColorEnabled = any(),
-                pureBlackEnabled = any(),
-                cjkTextOffsetEnabled = any(),
-                hazeBlurEnabled = any(),
-                remindersEnabled = any(),
-                showArchivedGroupRecords = any(),
-                hideReferenceRanges = any(),
-                appLockGracePeriodOption = any(),
-                hideScreenContentEnabled = any(),
-                onboardingCompleted = any(),
-                appLanguageOption = any(),
-                calibrationDefaultUnits = any(),
-                homeE2DisplayUnit = any(),
-                homeE2ChartWindowOption = any(),
-                lastSeenTimeZoneId = any(),
-                hideMedicationDetails = any(),
-                widgetContentScale = capture(capturedScales),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
-                groupNameCounter = any(),
-                firstDayOfWeekOption = any(),
-                stockNudgeEnabled = any(),
-                stockNudgeUserEnabled = any(),
-            )
-        } just Runs
+    fun restoreBackupBytes_appliesLegacyWidgetContentScaleAcrossFullUiRange() = runTest {
+        // The widget appearance slider lets users choose any scale in 0.5..1.5,
+        // and pre-customization backups carry that scale only in the legacy
+        // widgetContentScale field (no encoded appearance string). Restore must
+        // (a) accept that full domain — a narrower validator range would reject a
+        // legitimately-exported backup as "incompatible" — and (b) apply the
+        // legacy scale to the default appearance verbatim via setDefault.
+        val appearancesSlot = mutableListOf<WidgetAppearance>()
+        coEvery { widgetAppearanceRepository.setDefault(capture(appearancesSlot)) } just Runs
 
         listOf(0.5f, 1.5f).forEach { scale ->
             service.restoreBackupBytes(
@@ -331,7 +312,139 @@ class BackupRestoreServiceTest {
             )
         }
 
-        assertEquals(listOf(0.5f, 1.5f), capturedScales)
+        assertEquals(
+            listOf(0.5f, 1.5f),
+            appearancesSlot.map { it.contentScale },
+        )
+    }
+
+    @Test
+    fun restoreBackupBytes_appliesDecodedWidgetAppearanceIgnoringLegacyFields() = runTest {
+        // When the encoded appearance string is present it is the source of
+        // truth: setDefault must receive the DECODED appearance (hue, saturation,
+        // balance included), and the legacy mirror fields must be ignored even when they
+        // disagree — they exist only for older app versions reading this backup.
+        val appearance = WidgetAppearance.Default.copy(
+            seedHue = 200f,
+            saturation = 0.7f,
+            balance = 0.7f,
+            contentScale = 1.3f,
+            backgroundAlpha = 0.6f,
+            darkMode = DarkModeOption.DARK,
+        )
+        val snapshot = emptySnapshot().let { base ->
+            base.copy(
+                settings = base.settings.copy(
+                    widgetAppearance = WidgetAppearanceCodec.encode(appearance),
+                    // Deliberately disagree with the encoded payload.
+                    widgetContentScale = 1.0f,
+                    widgetBackgroundAlpha = 1.0f,
+                    widgetDarkModeOption = "FOLLOW_SYSTEM",
+                )
+            )
+        }
+        val appearanceSlot = slot<WidgetAppearance>()
+        coEvery { widgetAppearanceRepository.setDefault(capture(appearanceSlot)) } just Runs
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        assertEquals(appearance, appearanceSlot.captured)
+    }
+
+    @Test
+    fun restoreBackupBytes_appliesV1AppearancePayloadFromOldBackups() = runTest {
+        // Backups written before Round 3 carry a v1 appearance string whose slot 2
+        // was the now-removed backgroundHue. Restoring one must migrate transparently:
+        // the v1 string decodes (slot-2 dropped, saturation anchored at the default, the
+        // slot-3 vibrancy 0.4 anchor re-mapped onto balance 0.5 — the Round-6 bidirectional
+        // anchor) and setDefault receives that migrated appearance rather than failing.
+        val snapshot = emptySnapshot().let { base ->
+            base.copy(
+                settings = base.settings.copy(
+                    widgetAppearance = "1|200.0|90.0|0.4|1.1|0.9|LIGHT",
+                )
+            )
+        }
+        val appearanceSlot = slot<WidgetAppearance>()
+        coEvery { widgetAppearanceRepository.setDefault(capture(appearanceSlot)) } just Runs
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        val restored = appearanceSlot.captured
+        assertEquals(200f, restored.seedHue!!, 1e-4f)
+        assertEquals(WidgetAppearance.DEFAULT_SATURATION, restored.saturation, 0f)
+        assertEquals(0.5f, restored.balance, 1e-4f)
+        assertEquals(1.1f, restored.contentScale, 0f)
+        assertEquals(0.9f, restored.backgroundAlpha, 0f)
+        assertEquals(DarkModeOption.LIGHT, restored.darkMode)
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsInvalidWidgetAppearancePayload() = runTest {
+        // A malformed appearance string fails restore the same way any other
+        // invalid field does — via IllegalArgumentException — rather than being
+        // silently dropped.
+        val snapshot = emptySnapshot().let { base ->
+            base.copy(settings = base.settings.copy(widgetAppearance = "not-a-valid-payload"))
+        }
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(snapshot),
+            password = "password".toCharArray(),
+        )
+
+        val error = try {
+            service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
+            fail("Expected restore to reject an invalid widget appearance payload.")
+            null
+        } catch (error: IllegalArgumentException) {
+            error
+        }
+
+        assertNotNull(error)
+        coVerify(exactly = 0) { widgetAppearanceRepository.setDefault(any()) }
+    }
+
+    @Test
+    fun restoreBackupBytes_completesWhenSetDefaultThrowsIoException() = runTest {
+        // Applying the default appearance is a post-commit, best-effort side
+        // effect: by this point the data has already landed. A DataStore write
+        // failure here must not surface as a failed restore — that would show a
+        // "restore failed" toast even though the user's data was restored.
+        coEvery {
+            widgetAppearanceRepository.setDefault(any())
+        } throws IOException("datastore write failed")
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(emptySnapshot()),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        // The data-restore path still ran to completion despite the apply failure.
+        coVerify(exactly = 1) {
+            settingsRepository.restoreSettings(
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(),
+            )
+        }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
     @Test
@@ -356,9 +469,6 @@ class BackupRestoreServiceTest {
                 homeE2ChartWindowOption = any(),
                 lastSeenTimeZoneId = any(),
                 hideMedicationDetails = any(),
-                widgetContentScale = any(),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = any(),
@@ -402,9 +512,6 @@ class BackupRestoreServiceTest {
                 homeE2ChartWindowOption = any(),
                 lastSeenTimeZoneId = any(),
                 hideMedicationDetails = any(),
-                widgetContentScale = any(),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = any(),
@@ -448,9 +555,6 @@ class BackupRestoreServiceTest {
                 homeE2ChartWindowOption = any(),
                 lastSeenTimeZoneId = any(),
                 hideMedicationDetails = any(),
-                widgetContentScale = any(),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = any(),
@@ -494,9 +598,6 @@ class BackupRestoreServiceTest {
                 homeE2ChartWindowOption = any(),
                 lastSeenTimeZoneId = any(),
                 hideMedicationDetails = any(),
-                widgetContentScale = any(),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = any(),
@@ -542,9 +643,6 @@ class BackupRestoreServiceTest {
                 homeE2ChartWindowOption = any(),
                 lastSeenTimeZoneId = any(),
                 hideMedicationDetails = any(),
-                widgetContentScale = any(),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = capture(capturedValues),
@@ -587,9 +685,6 @@ class BackupRestoreServiceTest {
                 homeE2ChartWindowOption = any(),
                 lastSeenTimeZoneId = any(),
                 hideMedicationDetails = any(),
-                widgetContentScale = any(),
-                widgetBackgroundAlpha = any(),
-                widgetDarkModeOption = any(),
                 groupNameCounter = any(),
                 firstDayOfWeekOption = any(),
                 stockNudgeEnabled = capture(capturedValues),
@@ -663,11 +758,18 @@ class BackupRestoreServiceTest {
         val exportMedicationGroupRepository: MedicationGroupRepository = mockk()
         val exportMedicationLogRepository: MedicationLogRepository = mockk()
         val exportBloodTestRepository: BloodTestRepository = mockk()
+        val exportWidgetAppearanceRepository: WidgetAppearanceRepository = mockk()
 
         every { exportSettingsRepository.onboardingCompleted } returns flowOf(true)
         every { exportSettingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
         every { exportSettingsRepository.stockNudgeUserEnabledFlow } returns flowOf(false)
         coEvery { exportSettingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery {
+            exportWidgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
+        } returns false
+        coEvery {
+            exportWidgetAppearanceRepository.currentEffective(null)
+        } returns WidgetAppearance.Default
         coEvery { exportUserProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { exportMedicineRepository.getAll() } returns medicines
         coEvery { exportMedicationGroupRepository.getGroups() } returns emptyList()
@@ -683,6 +785,7 @@ class BackupRestoreServiceTest {
             medicationGroupRepository = exportMedicationGroupRepository,
             medicationLogRepository = exportMedicationLogRepository,
             bloodTestRepository = exportBloodTestRepository,
+            widgetAppearanceRepository = exportWidgetAppearanceRepository,
             backupCrypto = backupCrypto,
         )
     }
