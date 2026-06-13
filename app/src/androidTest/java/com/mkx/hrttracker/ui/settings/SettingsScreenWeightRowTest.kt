@@ -54,7 +54,7 @@ class SettingsScreenWeightRowTest {
                     onShowArchivedGroupRecordsChange = {},
                     onHideReferenceRangesChange = {},
                     onHideMedicationDetailsChange = {},
-                    onWidgetAppearanceChange = { _, _, _ -> },
+                    onWidgetAppearanceChange = { },
                     onBackupToFileClick = {},
                     onRestoreFromFileClick = {},
                     showDiagnosticsExport = false,

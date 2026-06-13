@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - On Android 12+, the top app bar, bottom navigation bar, bottom sheets, and dialogs now show a translucent blur of the content behind them, with an appearance setting ("Background blur") to turn it off.
-- The home-screen widget's theme can now be customized in the widget editor: accent color, saturation, and light balance, with a button to preview both the light and dark look. The chosen appearance is included in backups.
+- The home-screen widget's theme can now be customized in Settings or the widget editor: accent color, saturation, and light balance, with a button in the editor to preview both the light and dark look. The chosen appearance is included in backups.
 
 ### Changed
 

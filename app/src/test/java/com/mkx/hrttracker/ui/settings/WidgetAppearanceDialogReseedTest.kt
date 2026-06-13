@@ -39,16 +39,12 @@ class WidgetAppearanceDialogReseedTest {
     fun dialog_reseedsToRealValue_whenItArrivesAfterPlaceholder() {
         // Starts at the StateFlow placeholder (Default = 100% / 100% / Follow system).
         var appearance by mutableStateOf(WidgetAppearance.Default)
-        var saved: Triple<Float, Float, DarkModeOption>? = null
+        var saved: WidgetAppearance? = null
 
         composeRule.setContent {
             WidgetAppearanceDialog(
-                contentScale = appearance.contentScale,
-                backgroundAlpha = appearance.backgroundAlpha,
-                darkModeOption = appearance.darkMode,
-                onAppearanceChange = { scale, alpha, dark ->
-                    saved = Triple(scale, alpha, dark)
-                },
+                appearance = appearance,
+                onAppearanceChange = { saved = it },
                 onDismiss = {},
             )
         }
@@ -68,8 +64,16 @@ class WidgetAppearanceDialogReseedTest {
         composeRule.onNodeWithText("70%").assertExists()
         composeRule.onNodeWithText("60%").assertExists()
 
-        // ...and Save persists the real value rather than the Default placeholder.
+        // ...and Save persists the real value — every field round-trips, with the theme
+        // params (hue/saturation/balance) preserved at their re-seeded defaults.
         composeRule.onNodeWithText("Save").performClick()
-        assertEquals(Triple(0.7f, 0.6f, DarkModeOption.DARK), saved)
+        assertEquals(
+            WidgetAppearance.Default.copy(
+                contentScale = 0.7f,
+                backgroundAlpha = 0.6f,
+                darkMode = DarkModeOption.DARK,
+            ),
+            saved,
+        )
     }
 }

@@ -22,6 +22,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -104,6 +105,8 @@ import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.HrtPill
+import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
@@ -120,6 +123,11 @@ import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
+import com.mkx.hrttracker.widget.WidgetCenteredSliderTrack
+import com.mkx.hrttracker.widget.WidgetHueSpectrumTrack
+import com.mkx.hrttracker.widget.centeredOffsetReadout
+import com.mkx.hrttracker.widget.defaultSeedHue
+import com.mkx.hrttracker.widget.hueSwatchColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -616,10 +624,8 @@ private fun snapToWholePercent(value: Float): Float = (value * 100).roundToInt()
 
 @Composable
 internal fun WidgetAppearanceDialog(
-    contentScale: Float,
-    backgroundAlpha: Float,
-    darkModeOption: DarkModeOption,
-    onAppearanceChange: (Float, Float, DarkModeOption) -> Unit,
+    appearance: WidgetAppearance,
+    onAppearanceChange: (WidgetAppearance) -> Unit,
     onDismiss: () -> Unit,
 ) {
     // Keyed on the incoming values so the local edit state re-seeds when the real
@@ -630,75 +636,30 @@ internal fun WidgetAppearanceDialog(
     // stored values; re-seeding falls back to the currently set value instead. Local
     // edits are never reset mid-session: these params only change on the placeholder→real
     // load, and after a Save the dialog has already dismissed.
-    var localContentScale by remember(contentScale) {
-        mutableStateOf(
-            snapToWholePercent(
-                contentScale.coerceIn(
-                    0.5f,
-                    1.5f
-                )
-            )
-        )
+    var localSeedHue by remember(appearance.seedHue) { mutableStateOf(appearance.seedHue) }
+    var localSaturation by remember(appearance.saturation) {
+        mutableStateOf(snapToWholePercent(appearance.saturation.coerceIn(0f, 1f)))
     }
-    var localBackgroundAlpha by remember(backgroundAlpha) {
-        mutableStateOf(
-            snapToWholePercent(
-                backgroundAlpha.coerceIn(
-                    0.5f,
-                    1f
-                )
-            )
-        )
+    var localBalance by remember(appearance.balance) {
+        mutableStateOf(snapToWholePercent(appearance.balance.coerceIn(0f, 1f)))
     }
-    var localDarkModeOption by remember(darkModeOption) { mutableStateOf(darkModeOption) }
+    var localContentScale by remember(appearance.contentScale) {
+        mutableStateOf(snapToWholePercent(appearance.contentScale.coerceIn(0.5f, 1.5f)))
+    }
+    var localBackgroundAlpha by remember(appearance.backgroundAlpha) {
+        mutableStateOf(snapToWholePercent(appearance.backgroundAlpha.coerceIn(0.5f, 1f)))
+    }
+    var localDarkModeOption by remember(appearance.darkMode) { mutableStateOf(appearance.darkMode) }
     var isDarkModeMenuExpanded by remember { mutableStateOf(false) }
+    // Resting hue shown while the accent is Dynamic (null); grabbing the slider promotes it
+    // to an explicit pick, the Dynamic pill resets back to null.
+    val restingHue = remember { defaultSeedHue() }
+    val resetAccentHue: () -> Unit = { localSeedHue = null }
     HazeAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.settings_widget_appearance)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = stringResource(R.string.settings_widget_content_scale),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Text(
-                            text = "${(localContentScale * 100).roundToInt()}%",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    Slider(
-                        value = localContentScale,
-                        onValueChange = { localContentScale = snapToWholePercent(it) },
-                        valueRange = 0.5f..1.5f,
-                    )
-                }
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = stringResource(R.string.settings_widget_background_opacity),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Text(
-                            text = "${(localBackgroundAlpha * 100).roundToInt()}%",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    Slider(
-                        value = localBackgroundAlpha,
-                        onValueChange = { localBackgroundAlpha = snapToWholePercent(it) },
-                        valueRange = 0.5f..1f,
-                    )
-                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -749,11 +710,148 @@ internal fun WidgetAppearanceDialog(
                         )
                     }
                 }
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_widget_content_scale),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = "${(localContentScale * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Slider(
+                        value = localContentScale,
+                        onValueChange = { localContentScale = snapToWholePercent(it) },
+                        valueRange = 0.5f..1.5f,
+                    )
+                }
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_widget_background_opacity),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = "${(localBackgroundAlpha * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Slider(
+                        value = localBackgroundAlpha,
+                        onValueChange = { localBackgroundAlpha = snapToWholePercent(it) },
+                        valueRange = 0.5f..1f,
+                    )
+                }
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.widget_config_seed_hue),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .background(
+                                        hueSwatchColor(localSeedHue ?: restingHue),
+                                        CircleShape,
+                                    ),
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            CompositionLocalProvider(
+                                LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+                            ) {
+                                HrtPill(
+                                    label = stringResource(R.string.widget_config_seed_dynamic),
+                                    containerColor = if (localSeedHue == null) {
+                                        MaterialTheme.colorScheme.secondaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceContainerHighest
+                                    },
+                                    size = HrtPillSize.Small,
+                                    onClick = if (localSeedHue == null) null else resetAccentHue,
+                                )
+                            }
+                        }
+                    }
+                    Slider(
+                        value = localSeedHue ?: restingHue,
+                        onValueChange = { localSeedHue = it },
+                        valueRange = 0f..359f,
+                        track = { WidgetHueSpectrumTrack(it) },
+                    )
+                }
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.widget_config_saturation),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = "${(localSaturation * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Slider(
+                        value = localSaturation,
+                        onValueChange = { localSaturation = snapToWholePercent(it) },
+                        valueRange = 0f..1f,
+                    )
+                }
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.widget_config_balance),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = centeredOffsetReadout(localBalance, 0f..1f),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Slider(
+                        value = localBalance,
+                        onValueChange = { localBalance = snapToWholePercent(it) },
+                        valueRange = 0f..1f,
+                        track = { WidgetCenteredSliderTrack(it) },
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                onAppearanceChange(localContentScale, localBackgroundAlpha, localDarkModeOption)
+                onAppearanceChange(
+                    WidgetAppearance(
+                        seedHue = localSeedHue,
+                        saturation = localSaturation,
+                        balance = localBalance,
+                        contentScale = localContentScale,
+                        backgroundAlpha = localBackgroundAlpha,
+                        darkMode = localDarkModeOption,
+                    ),
+                )
                 onDismiss()
             }) {
                 Text(stringResource(R.string.save))
@@ -792,7 +890,7 @@ internal fun SettingsScreenContent(
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
-    onWidgetAppearanceChange: (Float, Float, DarkModeOption) -> Unit,
+    onWidgetAppearanceChange: (WidgetAppearance) -> Unit,
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
     showDiagnosticsExport: Boolean,
@@ -1632,9 +1730,7 @@ internal fun SettingsScreenContent(
 
     if (showWidgetAppearanceDialog) {
         WidgetAppearanceDialog(
-            contentScale = widgetAppearance.contentScale,
-            backgroundAlpha = widgetAppearance.backgroundAlpha,
-            darkModeOption = widgetAppearance.darkMode,
+            appearance = widgetAppearance,
             onAppearanceChange = onWidgetAppearanceChange,
             onDismiss = { showWidgetAppearanceDialog = false },
         )
@@ -2030,7 +2126,7 @@ private fun SettingsScreenPreview() {
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },
-            onWidgetAppearanceChange = { _, _, _ -> },
+            onWidgetAppearanceChange = { },
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
             showDiagnosticsExport = true,

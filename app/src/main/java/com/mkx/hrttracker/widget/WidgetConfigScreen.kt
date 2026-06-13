@@ -55,10 +55,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
@@ -74,7 +72,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isFinite
 import androidx.compose.ui.viewinterop.AndroidView
-import com.materialkolor.hct.Hct
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.ui.components.AppContentContainer
@@ -452,10 +449,7 @@ private fun SliderRow(
             // Bidirectional axes read as a signed offset from neutral (e.g. +30 / 0 / -20);
             // ordinary axes read as a plain percentage of the value.
             val readout = if (centered) {
-                val mid = (valueRange.start + valueRange.endInclusive) / 2f
-                val offset =
-                    ((value - mid) / (valueRange.endInclusive - valueRange.start) * 100).roundToInt()
-                if (offset > 0) "+$offset" else offset.toString()
+                centeredOffsetReadout(value, valueRange)
             } else {
                 "${(value * 100).roundToInt()}%"
             }
@@ -485,7 +479,7 @@ private fun SliderRow(
                 valueRange = valueRange,
                 track = { sliderState ->
                     if (centered) {
-                        SliderDefaults.CenteredTrack(sliderState = sliderState)
+                        WidgetCenteredSliderTrack(sliderState)
                     } else {
                         SliderDefaults.Track(sliderState = sliderState)
                     }
@@ -548,51 +542,18 @@ private fun HueSliderRow(
                     )
                 }
             }
-            // Hue picker: the track IS the spectrum (chroma/tone matched to the swatch
-            // above), so the thumb position reads directly as the chosen hue. Painted with
-            // SrcAtop over the default expressive track so the thumb/track gap and rounded
-            // ends stay identical to the other rows.
-            val hueColors = remember {
-                (0..360 step 15).map { hueSwatchColor(it.toFloat()) }
-            }
             Slider(
                 value = hue ?: restingHue,
                 onValueChange = onHueChange,
                 // Ends at 359 so the canonical mod-360 stored value round-trips to the
                 // same thumb position (360 would alias to 0 and snap the handle far-left).
                 valueRange = 0f..359f,
-                track = { sliderState ->
-                    SliderDefaults.Track(
-                        sliderState = sliderState,
-                        // Opaque mask: SrcAtop keeps the track's alpha (so the gap stays a
-                        // real gap) but replaces its colour, so both segments read equally vivid.
-                        colors = SliderDefaults.colors(
-                            activeTrackColor = Color.Black,
-                            inactiveTrackColor = Color.Black,
-                        ),
-                        modifier = Modifier
-                            // Isolate so SrcAtop tints only the track's painted pixels,
-                            // leaving the thumb gap and rounded ends transparent.
-                            .graphicsLayer {
-                                compositingStrategy = CompositingStrategy.Offscreen
-                            }
-                            .drawWithContent {
-                                drawContent()
-                                drawRect(
-                                    brush = Brush.horizontalGradient(hueColors, endX = size.width),
-                                    blendMode = BlendMode.SrcAtop,
-                                )
-                            },
-                    )
-                },
+                // The track IS the hue spectrum, so the thumb reads directly as the hue.
+                track = { sliderState -> WidgetHueSpectrumTrack(sliderState) },
             )
         }
     }
 }
-
-// Tone-60/chroma-48 cut: a recognizable, mode-independent preview of the hue itself.
-private fun hueSwatchColor(hue: Float): Color =
-    Color(Hct.from(hue.toDouble(), 48.0, 60.0).toInt())
 
 // Mirrors SettingsScreen's SettingsLeadingIconSlot (private there) for this screen's rows.
 @Composable
