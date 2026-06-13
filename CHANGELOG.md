@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+
+- The home-screen widget no longer briefly flips back to out-of-date content — such as a dose row reverting to its previous state — when you return to the launcher page or close the widget editor.
 
 ## [1.2.0] - 2026-06-13
 

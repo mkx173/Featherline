@@ -265,6 +265,17 @@ suspend fun updateAllHrtWidgets(context: Context) {
 //     platform rebinds inline collections from updateAppWidget; below 33 it falls back to the
 //     session path (which reads the snapshot just written to the DataStore).
 //
+// Because the synchronous push never runs through the session, it leaves the session's
+// in-memory composition at its pre-push state. The session doesn't repaint on its own, but the
+// launcher re-asserts that stale composition on the next re-attach (swiping back to the page,
+// dismissing the reconfigure activity), briefly reverting the widget to the old content until
+// the session finally recomposes. So after each synchronous push we also updateAll() that
+// widget: it recomposes from the snapshot we just wrote to the DataStore, putting the session's
+// cached composition back in lockstep with what the push painted. The push still owns the
+// instant, background-capable paint; the trailing updateAll() only reconciles — it defers
+// harmlessly while backgrounded (the push already showed the right content) and is invisible
+// while foregrounded (the user is in the app, not watching the widget).
+//
 // Tradeoff (synchronous path): we compose a single RemoteViews for the current orientation's
 // size rather than Glance's automatic portrait/landscape variants. Acceptable here because
 // content scale is frozen to the captured per-device baseline.
@@ -287,6 +298,9 @@ suspend fun pushHrtWidgets(context: Context, record: WidgetSnapshotRecord?) {
                 record,
                 isMedium = true
             )
+            // Reconcile the session with the snapshot we just pushed so it can't re-assert a
+            // stale composition on the next launcher re-attach (see note above).
+            HrtWidgetMedium().glanceUpdateAll(context)
         }
         launch {
             if (shouldUseSynchronousWidgetPush()) {
@@ -298,7 +312,11 @@ suspend fun pushHrtWidgets(context: Context, record: WidgetSnapshotRecord?) {
                     record,
                     isMedium = false
                 )
+                // Reconcile the session after the synchronous push (see note above).
+                HrtWidgetLarge().glanceUpdateAll(context)
             } else {
+                // Below API 33 the large widget already renders through the session, so its
+                // composition is current — no separate reconcile needed.
                 HrtWidgetLarge().glanceUpdateAll(context)
             }
         }

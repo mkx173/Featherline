@@ -391,9 +391,14 @@ Two render paths exist in
   the empty state). It bypasses Glance's session, whose frame-clock-driven
   recomposition stalls while the app is backgrounded (so an off-screen
   settings change applies immediately) and, on a foregrounded tap, briefly
-  paints the `initialLayout` loading spinner during session spin-up.
-  Tradeoff: a single composed size instead of Glance's portrait/landscape
-  variants — fine because content scale is frozen to the baseline.
+  paints the `initialLayout` loading spinner during session spin-up. After
+  pushing, it then runs `glanceUpdateAll` for each pushed widget so the
+  session — which the push otherwise leaves at its pre-push composition —
+  recomposes from the just-written DataStore instead of re-asserting stale
+  content when the launcher re-attaches the widget (page swipe, reconfigure
+  dismiss). Tradeoff: a single composed size instead of Glance's
+  portrait/landscape variants — fine because content scale is frozen to the
+  baseline.
 
   The synchronous push is gated **per widget** by
   `shouldUseSynchronousWidgetPush`:
