@@ -377,7 +377,6 @@ internal fun WidgetConfigScreen(
                                     value = saturation,
                                     valueRange = 0f..1f,
                                     onValueChange = { saturation = snapToWholePercent(it) },
-                                    centered = true,
                                 )
                             }
                             item {
@@ -431,14 +430,25 @@ private fun SliderRow(
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
     onValueChange: (Float) -> Unit,
-    // When true, render the Material 3 Expressive centered track: the active indicator
-    // grows from the track midpoint out to the thumb, marking the neutral anchor of a
-    // bidirectional axis. Only meaningful when the axis default sits at the midpoint of
-    // valueRange — true for balance/saturation (0.5 in 0..1). The thumb still moves freely.
+    // When true this is a bidirectional axis anchored at the midpoint of valueRange
+    // (light balance: 0.5 in 0..1). Renders the Material 3 Expressive centered track —
+    // the active indicator grows from the midpoint out to the thumb — and shows the
+    // readout as a signed offset from neutral (−50..+50) instead of 0..100%. The thumb
+    // still moves freely.
     centered: Boolean = false,
 ) {
     EditorSegmentedListItem {
         Column {
+            // Bidirectional axes read as a signed offset from neutral (e.g. +30 / 0 / -20);
+            // ordinary axes read as a plain percentage of the value.
+            val readout = if (centered) {
+                val mid = (valueRange.start + valueRange.endInclusive) / 2f
+                val offset =
+                    ((value - mid) / (valueRange.endInclusive - valueRange.start) * 100).roundToInt()
+                if (offset > 0) "+$offset" else offset.toString()
+            } else {
+                "${(value * 100).roundToInt()}%"
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -451,7 +461,7 @@ private fun SliderRow(
                     modifier = Modifier.weight(1f).cjkTextOffset(label),
                 )
                 Text(
-                    text = "${(value * 100).roundToInt()}%",
+                    text = readout,
                     style = MaterialTheme.typography.bodyMedium,
                     // Keyed on the label on purpose: the "NN%" text is always non-CJK, so
                     // keying on its own text would never offset it — it must follow the
