@@ -622,7 +622,15 @@ internal fun WidgetAppearanceDialog(
     onAppearanceChange: (Float, Float, DarkModeOption) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var localContentScale by remember {
+    // Keyed on the incoming values so the local edit state re-seeds when the real
+    // persisted appearance arrives. widgetAppearance is a StateFlow whose initial value
+    // is WidgetAppearance.Default, so a dialog composed before the first DataStore
+    // emission (e.g. a process-death restore with the dialog reopened) would otherwise
+    // strand the 100%/100%/Follow-system placeholder and let Save overwrite the user's
+    // stored values; re-seeding falls back to the currently set value instead. Local
+    // edits are never reset mid-session: these params only change on the placeholder→real
+    // load, and after a Save the dialog has already dismissed.
+    var localContentScale by remember(contentScale) {
         mutableStateOf(
             snapToWholePercent(
                 contentScale.coerceIn(
@@ -632,7 +640,7 @@ internal fun WidgetAppearanceDialog(
             )
         )
     }
-    var localBackgroundAlpha by remember {
+    var localBackgroundAlpha by remember(backgroundAlpha) {
         mutableStateOf(
             snapToWholePercent(
                 backgroundAlpha.coerceIn(
@@ -642,7 +650,7 @@ internal fun WidgetAppearanceDialog(
             )
         )
     }
-    var localDarkModeOption by remember { mutableStateOf(darkModeOption) }
+    var localDarkModeOption by remember(darkModeOption) { mutableStateOf(darkModeOption) }
     var isDarkModeMenuExpanded by remember { mutableStateOf(false) }
     HazeAlertDialog(
         onDismissRequest = onDismiss,
