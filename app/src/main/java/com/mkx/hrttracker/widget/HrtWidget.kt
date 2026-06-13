@@ -323,6 +323,14 @@ private suspend fun pushHrtWidget(
     val appWidgetIds = runCatching {
         appWidgetManager.getAppWidgetIds(ComponentName(context, receiverClass))
     }.getOrElse { intArrayOf() }
+    if (appWidgetIds.isEmpty()) return
+    // Resolve every instance against one read of the shared default entry, instead of
+    // re-reading the default per instance inside currentEffective.
+    val appearances = runCatching { appearanceRepository.currentEffectiveFor(appWidgetIds) }
+        .getOrElse { failure ->
+            if (failure is CancellationException) throw failure
+            emptyMap()
+        }
     appWidgetIds.forEach { appWidgetId ->
         // One options read; size and baseline resolve through the same helper the
         // config-screen preview uses.
@@ -331,11 +339,7 @@ private suspend fun pushHrtWidget(
             appWidgetManager.getAppWidgetOptions(appWidgetId),
             isMedium,
         )
-        val appearance = runCatching { appearanceRepository.currentEffective(appWidgetId) }
-            .getOrElse { failure ->
-                if (failure is CancellationException) throw failure
-                WidgetAppearance.Default
-            }
+        val appearance = appearances[appWidgetId] ?: WidgetAppearance.Default
         val result = runCatching {
             GlanceRemoteViews().compose(context = context, size = size) {
                 HrtWidgetThemed(context, record, appearance, deviceBaselineHeightDp) { snapshot ->

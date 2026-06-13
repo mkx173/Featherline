@@ -49,7 +49,16 @@ internal fun WidgetCenteredSliderTrack(sliderState: SliderState) {
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun WidgetHueSpectrumTrack(sliderState: SliderState) {
-    val hueColors = remember { (0..360 step 15).map { hueSwatchColor(it.toFloat()) } }
+    // Stops span the hue slider's 0..359 range (HueSliderRow's valueRange), not 0..360, so
+    // the colour under the thumb matches the swatch dot at every position (359 is visually
+    // red, the same as 360). Remember the Brush itself — not just the stop list — so a drag
+    // doesn't reallocate the gradient shader on every draw pass; the default endX resolves to
+    // the full track width from the draw size when the shader is built.
+    val hueBrush = remember {
+        Brush.horizontalGradient(
+            List(HUE_SEGMENTS + 1) { hueSwatchColor(it * 359f / HUE_SEGMENTS) },
+        )
+    }
     SliderDefaults.Track(
         sliderState = sliderState,
         // Opaque mask: SrcAtop keeps the track's alpha (so the gap stays a real gap) but
@@ -64,10 +73,10 @@ internal fun WidgetHueSpectrumTrack(sliderState: SliderState) {
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .drawWithContent {
                 drawContent()
-                drawRect(
-                    brush = Brush.horizontalGradient(hueColors, endX = size.width),
-                    blendMode = BlendMode.SrcAtop,
-                )
+                drawRect(brush = hueBrush, blendMode = BlendMode.SrcAtop)
             },
     )
 }
+
+// Hue track gradient: 25 segments → 26 evenly-spaced colour stops spanning hues 0..359.
+private const val HUE_SEGMENTS = 25

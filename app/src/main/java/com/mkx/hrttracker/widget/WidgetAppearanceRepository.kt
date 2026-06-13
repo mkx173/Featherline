@@ -62,6 +62,16 @@ class WidgetAppearanceRepository @Inject constructor(
         return resolveEffectiveAppearance(override, default)
     }
 
+    // Resolves several widget instances against a SINGLE read of the shared default entry,
+    // so a multi-widget push doesn't re-read the default once per instance (currentEffective
+    // would). Each id's override is layered over that one default.
+    suspend fun currentEffectiveFor(appWidgetIds: IntArray): Map<Int, WidgetAppearance> {
+        val default = store.readEntry(null)
+        return appWidgetIds.associateWith { appWidgetId ->
+            resolveEffectiveAppearance(store.readEntry(appWidgetId), default)
+        }
+    }
+
     suspend fun setDefault(appearance: WidgetAppearance) = store.setEntry(null, appearance)
 
     suspend fun updateDefault(transform: (WidgetAppearance) -> WidgetAppearance) =
@@ -84,14 +94,29 @@ class WidgetAppearanceRepository @Inject constructor(
     // clear is non-fatal for the same reason a crash between seed and clear is: the
     // surviving keys make the next start re-run harmlessly (seed no-ops) and retry
     // the clear — but the seed DID land, so we still report true for the repaint.
+    //
+    // Several call sites invoke this fire-and-forget at startup/first-use (HomeWidgetManager,
+    // SettingsViewModel, WidgetConfigActivity, BackupExportService); once the keys are gone
+    // there is nothing left to do, so short-circuit on a process-lifetime flag to skip the
+    // redundant readLegacyWidgetAppearance read every subsequent call would otherwise pay.
+    // The flag is only set once the legacy keys are confirmed gone (absent, or cleared), so
+    // a clear failure still re-runs and retries on the next call.
+    @Volatile
+    private var legacyMigrationComplete = false
+
     suspend fun migrateFromLegacySettingsIfNeeded(): Boolean {
-        val legacy = settingsRepository.readLegacyWidgetAppearance() ?: return false
+        if (legacyMigrationComplete) return false
+        val legacy = settingsRepository.readLegacyWidgetAppearance() ?: run {
+            legacyMigrationComplete = true
+            return false
+        }
         val seeded = store.seedDefaultIfAbsent(
             legacyWidgetAppearance(legacy.contentScale, legacy.backgroundAlpha, legacy.darkMode)
         )
         val cleared = runCatching { settingsRepository.clearLegacyWidgetAppearanceKeys() }
             .onFailure { error -> if (error is CancellationException) throw error }
             .isSuccess
+        if (cleared) legacyMigrationComplete = true
         diagnosticsLogger.info(TAG, "widget_appearance_migrated seeded=$seeded cleared=$cleared")
         return true
     }

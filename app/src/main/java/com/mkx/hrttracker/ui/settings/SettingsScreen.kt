@@ -711,18 +711,23 @@ internal fun WidgetAppearanceDialog(
                     }
                 }
                 Column {
+                    val contentScaleLabel = stringResource(R.string.settings_widget_content_scale)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = stringResource(R.string.settings_widget_content_scale),
+                            text = contentScaleLabel,
                             style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(contentScaleLabel),
                         )
                         Text(
                             text = "${(localContentScale * 100).roundToInt()}%",
                             style = MaterialTheme.typography.bodyMedium,
+                            // Keyed on the label, not "NN%": the percentage is always non-CJK,
+                            // so it must follow the label's offset to stay baseline-aligned.
+                            modifier = Modifier.cjkTextOffset(contentScaleLabel),
                         )
                     }
                     Slider(
@@ -732,18 +737,21 @@ internal fun WidgetAppearanceDialog(
                     )
                 }
                 Column {
+                    val opacityLabel = stringResource(R.string.settings_widget_background_opacity)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = stringResource(R.string.settings_widget_background_opacity),
+                            text = opacityLabel,
                             style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(opacityLabel),
                         )
                         Text(
                             text = "${(localBackgroundAlpha * 100).roundToInt()}%",
                             style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(opacityLabel),
                         )
                     }
                     Slider(
@@ -753,14 +761,16 @@ internal fun WidgetAppearanceDialog(
                     )
                 }
                 Column {
+                    val seedHueLabel = stringResource(R.string.widget_config_seed_hue)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text(
-                            text = stringResource(R.string.widget_config_seed_hue),
+                            text = seedHueLabel,
                             style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(seedHueLabel),
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
@@ -801,13 +811,16 @@ internal fun WidgetAppearanceDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
+                        val saturationLabel = stringResource(R.string.widget_config_saturation)
                         Text(
-                            text = stringResource(R.string.widget_config_saturation),
+                            text = saturationLabel,
                             style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(saturationLabel),
                         )
                         Text(
                             text = "${(localSaturation * 100).roundToInt()}%",
                             style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(saturationLabel),
                         )
                     }
                     Slider(
@@ -822,13 +835,16 @@ internal fun WidgetAppearanceDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
+                        val balanceLabel = stringResource(R.string.widget_config_balance)
                         Text(
-                            text = stringResource(R.string.widget_config_balance),
+                            text = balanceLabel,
                             style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(balanceLabel),
                         )
                         Text(
                             text = centeredOffsetReadout(localBalance, 0f..1f),
                             style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.cjkTextOffset(balanceLabel),
                         )
                     }
                     Slider(
