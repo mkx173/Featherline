@@ -163,9 +163,10 @@ background alpha, and forced-dark override. The widget surfaces (shell,
 cards, control pill, outline) are cut from the scheme's secondary
 palette in HCT by `deriveWidgetSurfaces` in `WidgetTheme.kt`, with
 saturation driving chroma and light balance driving tone depth plus a
-contrast-preserving text lift; the all-default appearance reproduces
-the scheme-derived tints exactly (a bit-exact anchor enforced by
-`WidgetThemeDerivationTest`). Shared Glance components
+contrast-preserving text lift; at the default appearance the shell, cards,
+control pill, and text reproduce the scheme-derived tints exactly (a bit-exact
+anchor enforced by `WidgetThemeDerivationTest`), while the outline and the done
+indicator are tinted and offset from the surface to keep contrast across the range. Shared Glance components
 live in
 [`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt):
 `WidgetShell`, `ProgressRing`, `ProgressBar`, `DoseRow`,
