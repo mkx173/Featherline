@@ -14,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1131,28 +1132,35 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 )
                             }"
                         )
-//                        if (allDone) {
-//                            Spacer(GlanceModifier.width((8f * scale).dp))
-//                            Image(
-//                                provider = ImageProvider(R.drawable.ic_check_circle_filled),
-//                                contentDescription = null,
-//                                modifier = GlanceModifier.size((22f * scale).dp),
-//                                colorFilter = ColorFilter.tint(colors.primary),
-//                            )
-//                        }
                     }
                     Spacer(GlanceModifier.height((8 * scale).dp))
                     ProgressBar(doneCount = doneCount, totalCount = totalCount)
                 }
                 if (e2Text != null) {
-                    Spacer(GlanceModifier.width((64f * scale).dp))
-                    Text(
-                        text = e2Text,
-                        style = TextStyle(
-                            color = colors.onSurfaceVariant,
-                            fontSize = (16f * scale).sp,
-                        ),
-                    )
+                    Spacer(GlanceModifier.width((48f * scale).dp))
+                    // Reserve the width of the widest (4-digit) E2 label via an invisible
+                    // placeholder, then draw the live value over it, end-aligned. The bar shares
+                    // this row through the weighted column, so pinning the E2 slot to a constant
+                    // width keeps the bar from jumping as the live value shrinks/grows. The slot
+                    // still scales with `scale` like everything else, so the existing scaling holds.
+                    Box(contentAlignment = Alignment.CenterEnd) {
+                        Text(
+                            text = widgetE2PlaceholderText(e2DisplayUnit),
+                            style = TextStyle(
+                                color = fixedColorProvider(Color.Transparent),
+                                fontSize = (16f * scale).sp,
+                            ),
+                            maxLines = 1,
+                        )
+                        Text(
+                            text = e2Text,
+                            style = TextStyle(
+                                color = colors.onSurfaceVariant,
+                                fontSize = (16f * scale).sp,
+                            ),
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
 

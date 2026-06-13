@@ -80,7 +80,7 @@
         </LinearLayout>
 
         <FrameLayout
-            android:layout_width="20dp"
+            android:layout_width="29dp"
             android:layout_height="match_parent" />
 
         <TextView
