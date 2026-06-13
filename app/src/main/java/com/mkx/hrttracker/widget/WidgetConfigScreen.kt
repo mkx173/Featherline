@@ -55,8 +55,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
@@ -497,6 +499,7 @@ private fun SliderRow(
 // the slider rests at [restingHue] (the value the system would derive) and the
 // reset button is disabled; grabbing the slider promotes the resting value to an
 // explicit pick.
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun HueSliderRow(
     label: String,
@@ -545,12 +548,43 @@ private fun HueSliderRow(
                     )
                 }
             }
+            // Hue picker: the track IS the spectrum (chroma/tone matched to the swatch
+            // above), so the thumb position reads directly as the chosen hue. Painted with
+            // SrcAtop over the default expressive track so the thumb/track gap and rounded
+            // ends stay identical to the other rows.
+            val hueColors = remember {
+                (0..360 step 15).map { hueSwatchColor(it.toFloat()) }
+            }
             Slider(
                 value = hue ?: restingHue,
                 onValueChange = onHueChange,
                 // Ends at 359 so the canonical mod-360 stored value round-trips to the
                 // same thumb position (360 would alias to 0 and snap the handle far-left).
                 valueRange = 0f..359f,
+                track = { sliderState ->
+                    SliderDefaults.Track(
+                        sliderState = sliderState,
+                        // Opaque mask: SrcAtop keeps the track's alpha (so the gap stays a
+                        // real gap) but replaces its colour, so both segments read equally vivid.
+                        colors = SliderDefaults.colors(
+                            activeTrackColor = Color.Black,
+                            inactiveTrackColor = Color.Black,
+                        ),
+                        modifier = Modifier
+                            // Isolate so SrcAtop tints only the track's painted pixels,
+                            // leaving the thumb gap and rounded ends transparent.
+                            .graphicsLayer {
+                                compositingStrategy = CompositingStrategy.Offscreen
+                            }
+                            .drawWithContent {
+                                drawContent()
+                                drawRect(
+                                    brush = Brush.horizontalGradient(hueColors, endX = size.width),
+                                    blendMode = BlendMode.SrcAtop,
+                                )
+                            },
+                    )
+                },
             )
         }
     }
