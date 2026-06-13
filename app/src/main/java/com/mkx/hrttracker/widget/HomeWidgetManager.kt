@@ -23,6 +23,7 @@ import com.mkx.hrttracker.util.observeUses24HourTimeFormat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
@@ -73,6 +74,13 @@ class HomeWidgetManager @Inject constructor(
             // rebuild emits a fresh non-null snapshot shortly after, which we propagate.
             homeSnapshotRepository.observeHomeSnapshot()
                 .filterNotNull()
+                // Terminal guard: appScope is a handler-less SupervisorJob, so an
+                // upstream failure reaching this collector crashes the process. Log and
+                // stop just this collector instead (per MedicationGroupRepository). The
+                // per-emission write failure is handled separately inside collect.
+                .catch { throwable ->
+                    diagnosticsLogger.warning(TAG, "widget_snapshot_home_stream_failed", throwable)
+                }
                 .collect { snapshot ->
                     runCatching {
                         widgetSnapshotRepository.writeWidgetSnapshot(snapshot)
@@ -103,6 +111,11 @@ class HomeWidgetManager @Inject constructor(
                 }
                 .distinctUntilChanged()
                 .drop(1)
+                // Terminal guard: keep an upstream failure off the handler-less appScope
+                // (see the home-snapshot collector above).
+                .catch { throwable ->
+                    diagnosticsLogger.warning(TAG, "widget_snapshot_settings_stream_failed", throwable)
+                }
                 .collect {
                     runCatching {
                         widgetSnapshotRepository.refreshWidgetSnapshot()
@@ -140,6 +153,12 @@ class HomeWidgetManager @Inject constructor(
             }
             widgetAppearanceRepository.observeChanges()
                 .drop(1)
+                // Terminal guard: observeChanges() rethrows non-IOExceptions by design
+                // (WidgetAppearanceStore.liveData), which would otherwise crash the
+                // handler-less appScope (see the home-snapshot collector above).
+                .catch { throwable ->
+                    diagnosticsLogger.warning(TAG, "widget_appearance_stream_failed", throwable)
+                }
                 .collect {
                     runCatching {
                         widgetSnapshotRepository.refreshWidgetSnapshot()
@@ -157,6 +176,11 @@ class HomeWidgetManager @Inject constructor(
         appScope.launch {
             context.observeUses24HourTimeFormat()
                 .drop(1)
+                // Terminal guard: keep an upstream failure off the handler-less appScope
+                // (see the home-snapshot collector above).
+                .catch { throwable ->
+                    diagnosticsLogger.warning(TAG, "widget_snapshot_time_format_stream_failed", throwable)
+                }
                 .collect {
                     runCatching {
                         widgetSnapshotRepository.refreshWidgetSnapshot()
