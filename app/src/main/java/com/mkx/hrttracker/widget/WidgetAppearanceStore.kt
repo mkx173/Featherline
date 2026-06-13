@@ -12,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
 import java.io.IOException
@@ -39,12 +40,11 @@ private fun overrideKey(appWidgetId: Int) = stringPreferencesKey("appearance_$ap
 class WidgetAppearanceStore @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) {
-    // Bounded recovery for the one-shot readers (currentEffective, via observeEntry):
-    // retry transient IOExceptions (low memory, EBUSY during fsync) briefly, then fall
-    // back to empty (→ Default) so a read never hangs under persistent I/O failure. The
-    // flow completes after that fallback — acceptable for `.first()`, but NOT for the
-    // app-lifetime change observer, which must never complete (see observeChanges).
-    private fun safeData(): Flow<Preferences> =
+    // Bounded reader for one-shot reads (readEntry → currentEffective): retry transient
+    // IOExceptions (low memory, EBUSY during fsync) briefly, then fall back to empty
+    // (→ Default) so a read never hangs under persistent I/O failure, then complete.
+    // Completing is fine for `.first()`, but NOT for the live observers below.
+    private fun boundedData(): Flow<Preferences> =
         context.widgetAppearanceDataStore.data
             .retryWhen { cause, attempt ->
                 val retry = cause is IOException && attempt < IO_RETRY_ATTEMPTS
@@ -55,24 +55,34 @@ class WidgetAppearanceStore @Inject constructor(
                 if (cause is IOException) emit(emptyPreferences()) else throw cause
             }
 
-    internal fun observeEntry(appWidgetId: Int?): Flow<WidgetAppearance?> =
-        safeData()
-            .map { it.decodeEntry(appWidgetId) }
-            .distinctUntilChanged()
-
-    // One tick per store mutation; HomeWidgetManager re-renders widgets on it. This is
-    // an app-lifetime collector, so unlike safeData it must NEVER complete on I/O
-    // failure — a completed flow would permanently stop appearance-driven repaints.
-    // Retry transient IOExceptions indefinitely with capped backoff so the observer
-    // pauses across an outage and resumes (re-emitting the current value) on recovery,
-    // instead of terminating; non-IO failures still propagate, matching safeData.
-    internal fun observeChanges(): Flow<Preferences> =
+    // App-lifetime reader for the live observers (observeEntry, observeChanges). Retry
+    // transient IOExceptions indefinitely with capped backoff and NEVER complete, so an
+    // observer pauses across an outage and resumes (re-emitting the current value) on
+    // recovery instead of terminating. A completed flow would permanently freeze
+    // appearance-driven updates — both the in-app StateFlow and the widget composition
+    // collect this. Non-IO failures still propagate, matching boundedData.
+    private fun liveData(): Flow<Preferences> =
         context.widgetAppearanceDataStore.data
             .retryWhen { cause, _ ->
                 if (cause !is IOException) return@retryWhen false
                 delay(IO_RETRY_DELAY_MS)
                 true
             }
+
+    // Live per-entry observation for the UI/widget collectors — never completes so it
+    // recovers after an I/O outage (see liveData).
+    internal fun observeEntry(appWidgetId: Int?): Flow<WidgetAppearance?> =
+        liveData()
+            .map { it.decodeEntry(appWidgetId) }
+            .distinctUntilChanged()
+
+    // One-shot bounded read backing currentEffective — completes (see boundedData) so
+    // push/export callers never hang under persistent I/O failure.
+    internal suspend fun readEntry(appWidgetId: Int?): WidgetAppearance? =
+        boundedData().map { it.decodeEntry(appWidgetId) }.first()
+
+    // One tick per store mutation; HomeWidgetManager re-renders widgets on it.
+    internal fun observeChanges(): Flow<Preferences> = liveData()
 
     internal suspend fun setEntry(appWidgetId: Int?, appearance: WidgetAppearance) {
         context.widgetAppearanceDataStore.edit { prefs ->

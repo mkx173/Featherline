@@ -7,7 +7,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,15 +37,30 @@ class WidgetAppearanceRepository @Inject constructor(
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     // null appWidgetId = "the default entry" (used by the v1 global UI and previews).
-    fun effectiveFor(appWidgetId: Int?): Flow<WidgetAppearance> = combine(
-        if (appWidgetId == null) store.observeEntry(null) else store.observeEntry(appWidgetId),
-        store.observeEntry(null),
-    ) { override, default ->
-        resolveEffectiveAppearance(if (appWidgetId == null) null else override, default)
-    }.distinctUntilChanged()
+    // The default path has no override, so observe the default entry once instead of
+    // combining two collectors on the same key; only a real appWidgetId needs the
+    // override ?: default merge.
+    fun effectiveFor(appWidgetId: Int?): Flow<WidgetAppearance> =
+        if (appWidgetId == null) {
+            store.observeEntry(null)
+                .map { resolveEffectiveAppearance(null, it) }
+                .distinctUntilChanged()
+        } else {
+            combine(
+                store.observeEntry(appWidgetId),
+                store.observeEntry(null),
+            ) { override, default ->
+                resolveEffectiveAppearance(override, default)
+            }.distinctUntilChanged()
+        }
 
-    suspend fun currentEffective(appWidgetId: Int?): WidgetAppearance =
-        effectiveFor(appWidgetId).first()
+    // One-shot bounded reads (not effectiveFor().first(), whose live flow never
+    // completes under persistent I/O failure and would hang here).
+    suspend fun currentEffective(appWidgetId: Int?): WidgetAppearance {
+        val default = store.readEntry(null)
+        val override = if (appWidgetId == null) null else store.readEntry(appWidgetId)
+        return resolveEffectiveAppearance(override, default)
+    }
 
     suspend fun setDefault(appearance: WidgetAppearance) = store.setEntry(null, appearance)
 

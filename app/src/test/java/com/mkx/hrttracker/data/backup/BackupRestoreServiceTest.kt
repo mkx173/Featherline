@@ -765,6 +765,9 @@ class BackupRestoreServiceTest {
         every { exportSettingsRepository.stockNudgeUserEnabledFlow } returns flowOf(false)
         coEvery { exportSettingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery {
+            exportWidgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
+        } returns false
+        coEvery {
             exportWidgetAppearanceRepository.currentEffective(null)
         } returns WidgetAppearance.Default
         coEvery { exportUserProfileRepository.getCurrentProfile() } returns UserProfile()

@@ -135,17 +135,25 @@ private fun HrtWidgetThemed(
     // the raw widget context. Below API 33 the widget process context stays on the system
     // locale, so without this the chrome ("TODAY", "DONE", E2 label) renders in the system
     // language while the snapshot's baked medication/dose strings are in the app language.
-    val localizedContext = context.withLanguageTag(snapshot?.appLanguageTag)
-    // Explicit seed pick wins; null keeps today's source selection (system palette
-    // on API 31+ with adaptive on, DefaultSeedColor otherwise).
-    val (lightScheme, darkScheme) = when {
-        sanitized.seedHue != null ->
-            seededWidgetColorSchemes(seedColorFromHue(sanitized.seedHue))
-        adaptiveEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-            systemColorSchemes(localizedContext)
-        else -> seededWidgetColorSchemes(DefaultSeedColor)
+    val localizedContext = remember(context, snapshot?.appLanguageTag) {
+        context.withLanguageTag(snapshot?.appLanguageTag)
     }
-    val widgetColors = widgetColorScheme(lightScheme, darkScheme, sanitized, forcedDark)
+    // Explicit seed pick wins; null keeps today's source selection (system palette
+    // on API 31+ with adaptive on, DefaultSeedColor otherwise). Deriving the schemes
+    // (HCT round-trips, plus a full tonal-palette generation for a seeded hue) is the
+    // widget's heaviest per-frame work, so memoize it across Glance's frequent
+    // recompositions (size/options/state) when the inputs are unchanged. forcedDark is
+    // derived from sanitized, so the sanitized key already covers it.
+    val widgetColors = remember(sanitized, adaptiveEnabled, localizedContext) {
+        val (lightScheme, darkScheme) = when {
+            sanitized.seedHue != null ->
+                seededWidgetColorSchemes(seedColorFromHue(sanitized.seedHue))
+            adaptiveEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+                systemColorSchemes(localizedContext)
+            else -> seededWidgetColorSchemes(DefaultSeedColor)
+        }
+        widgetColorScheme(lightScheme, darkScheme, sanitized, forcedDark)
+    }
     GlanceTheme {
         CompositionLocalProvider(
             // GlanceRemoteViews.compose does not seed LocalContext the way the session

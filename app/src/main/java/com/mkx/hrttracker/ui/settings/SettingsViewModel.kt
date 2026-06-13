@@ -210,6 +210,13 @@ class SettingsViewModel @Inject constructor(
         darkModeOption: DarkModeOption,
     ) {
         launchSettingsMutation {
+            // The legacy→store migration may still be in flight on a fresh upgrade (it runs
+            // fire-and-forget from HomeWidgetManager.start). Await it first — it is idempotent,
+            // so this is safe — so updateDefault reads the migrated legacy values instead of
+            // seeding Default over an absent key and silently losing the user's saved
+            // scale/alpha/darkMode. A migration failure surfaces as a Save failure rather
+            // than a silent clobber.
+            widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
             // The in-app dialog edits only scale/alpha/darkMode; the theme params
             // (hue, saturation, balance) belong to WidgetConfigActivity and must survive untouched.
             widgetAppearanceRepository.updateDefault {
