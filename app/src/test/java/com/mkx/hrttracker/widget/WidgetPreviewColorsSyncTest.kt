@@ -20,7 +20,6 @@ internal fun widgetPreviewDerivedHexes(): Map<String, Map<String, String>> {
     ).associate { (mode, scheme, isDark) ->
         val s = deriveWidgetSurfaces(
             scheme.secondaryContainer, scheme.onSurface, scheme.onSurfaceVariant,
-            scheme.outlineVariant,
             saturation = WidgetAppearance.DEFAULT_SATURATION,
             balance = WidgetAppearance.DEFAULT_BALANCE, dark = isDark,
         )
@@ -30,8 +29,9 @@ internal fun widgetPreviewDerivedHexes(): Map<String, Map<String, String>> {
             "widget_preview_control" to hex(s.control),
             "widget_preview_on_surface" to hex(s.onSurface),
             "widget_preview_on_surface_variant" to hex(s.onSurfaceVariant),
-            // s.outlineVariant at the anchor (u==0) is the short-circuited scheme
-            // color, so this is exactly scheme.outlineVariant.
+            // Round 7: s.outlineVariant tints with the surface even at the default, so this is
+            // NO LONGER the scheme color — it's the surface-tinted outline (shell tone − 18 / + 18 at
+            // the default; the Round-8 alpha boost is 1 here since default backgroundAlpha is 1.0).
             "widget_preview_outline_variant" to hex(s.outlineVariant),
             "widget_preview_primary" to hex(scheme.primary),
             "widget_preview_on_primary" to hex(scheme.onPrimary),

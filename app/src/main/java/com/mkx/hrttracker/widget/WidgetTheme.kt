@@ -91,11 +91,11 @@ internal fun widgetColorScheme(
     val cardAlpha = containerAlpha(alpha)
     val lightSurfaces = deriveWidgetSurfaces(
         light.secondaryContainer, light.onSurface, light.onSurfaceVariant,
-        light.outlineVariant, appearance.saturation, appearance.balance, dark = false,
+        appearance.saturation, appearance.balance, dark = false, backgroundAlpha = alpha,
     )
     val darkSurfaces = deriveWidgetSurfaces(
         dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant,
-        dark.outlineVariant, appearance.saturation, appearance.balance, dark = true,
+        appearance.saturation, appearance.balance, dark = true, backgroundAlpha = alpha,
     )
     fun provider(lightColor: Color, darkColor: Color) =
         colorProvider(lightColor, darkColor, forcedDark)
@@ -224,13 +224,24 @@ private const val ON_SURFACE_VARIANT_LIFT_LIGHT_V1 = -13.0
 // compressed shell (ceiling 25), the secondary-text gap vs cards no longer
 // degrades with balance — its minimum is now at the anchor (~Δ46.5).
 private const val ON_SURFACE_VARIANT_LIFT_DARK = 18.0
-// outlineVariant tint: a static neutral outline loses contrast on tinted surfaces
-// at high balance (dark outline t30 sank BELOW the t35 shell at u=1). Tint it and
-// ramp it Δ vs shell tone: −26 light / +26 dark at u=1 (Round-2 tuner verdict).
-private const val OUTLINE_VARIANT_DELTA_LIGHT = -26.0
-private const val OUTLINE_VARIANT_DELTA_DARK = 26.0
+// outlineVariant (divider + unfulfilled progress dots/track). Round 7: tinted with the surface across
+// the WHOLE balance range (surface hue + capped chroma; tone sits |offset| from the shell — darker in
+// light, lighter in dark). Offsets are flat (anchor == deepen) so the separation is constant across
+// balance. Round 8: the outline is painted SOLID over the translucent shell, so as backgroundAlpha
+// drops the rendered background drifts toward the wallpaper and the solid outline's contrast falls;
+// the offset is boosted on a linear opacity ramp (up to ×1.333 at the 0.5 floor) so the tone
+// separation grows as opacity drops.
+private const val OUTLINE_VARIANT_OFFSET_LIGHT_ANCHOR = -18.0
+private const val OUTLINE_VARIANT_OFFSET_LIGHT_DEEPEN = -18.0
+private const val OUTLINE_VARIANT_OFFSET_DARK_ANCHOR = 18.0
+private const val OUTLINE_VARIANT_OFFSET_DARK_DEEPEN = 18.0
 // Chroma ceiling for the tinted outline (keeps it from over-saturating).
-private const val OUTLINE_VARIANT_CHROMA_MAX = 24.0
+private const val OUTLINE_VARIANT_CHROMA_MAX = 22.0
+// Round 8: the solid outline's offset grows as backgroundAlpha drops (the shell fades toward the
+// wallpaper under it). LINEAR ramp — ×1 at full opacity → ×this at the 0.5 floor. 1.333 gives offset
+// 18 at full opacity, ~21 at 0.75, ~24 at the 0.5 floor; steeper boosts (the old 1/alpha curve hit ×2
+// / offset 36) read too bright at low opacity. Tuned on device.
+private const val OUTLINE_VARIANT_OFFSET_BOOST_AT_MIN_ALPHA = 1.333
 
 private fun lerp(a: Double, b: Double, t: Double): Double = a + (b - a) * t
 
@@ -286,10 +297,10 @@ internal fun deriveWidgetSurfaces(
     secondaryContainer: Color,
     onSurface: Color,
     onSurfaceVariant: Color,
-    schemeOutlineVariant: Color,
     saturation: Float,
     balance: Float,
     dark: Boolean,
+    backgroundAlpha: Float = 1f,
 ): WidgetSurfaces {
     val sc = Hct.fromInt(secondaryContainer.toArgb())
     // One theme color: the background always follows the seed scheme's
@@ -326,34 +337,43 @@ internal fun deriveWidgetSurfaces(
         control = colorAt(hue, chroma, controlTone),
         onSurface = onSurface.shiftTone(onSurfaceLift),
         onSurfaceVariant = onSurfaceVariant.shiftTone(onSurfaceVariantLift),
-        outlineVariant = deriveOutlineVariant(
-            schemeOutlineVariant, hue, chroma, shellTone, u, dark,
-        ),
+        outlineVariant = deriveOutlineVariant(hue, chroma, shellTone, u, dark, backgroundAlpha),
     )
 }
 
-// The static neutral outlineVariant loses contrast on tinted surfaces at high
-// balance (dark outline t30 sank BELOW the t35 shell at u=1), so above the anchor
-// it's re-cut from the background hue/chroma and ramped to Δ vs shell tone (Round-2
-// tuner verdict, notes/prototype-widget-theme-NOTES.md).
+// outlineVariant (divider + unfulfilled progress dots/track), Round 7: tinted with the surface at
+// EVERY balance. Tone = shellTone + offset, where the offset ramps on u from the anchor offset
+// (lighten half + the default) to the deepen offset (balance 1); hue is the surface hue and chroma
+// the capped surface chroma. Because u is 0 across the lighten half, the offset holds at the anchor
+// and the outline tracks the shell as it brightens/darkens. There is deliberately NO anchor
+// short-circuit: unlike shiftTone, the outline is no longer the scheme color at the default (it gains
+// the surface tint), so there is no bit-exact scheme value to preserve (notes Round 7).
+//
+// Round 8: the outline is painted SOLID over the translucent shell, so as backgroundAlpha drops the
+// rendered background drifts toward the wallpaper and the solid outline's tone separation collapses.
+// Boost the offset on a LINEAR opacity ramp (×1 at full opacity → ×BOOST_AT_MIN_ALPHA at the 0.5
+// floor) so the separation grows as opacity falls. No effect at full opacity (boost = 1).
 private fun deriveOutlineVariant(
-    schemeOutlineVariant: Color,
     hue: Double,
     chroma: Double,
     shellTone: Double,
     u: Double,
     dark: Boolean,
+    backgroundAlpha: Float,
 ): Color {
-    // Anchor-exact short-circuit (same load-bearing trick as shiftTone's early
-    // return): at u==0 an Hct round-trip could move a channel by 1 and break the
-    // bit-exact anchor contract, so return the scheme color UNTOUCHED.
-    if (u == 0.0) return schemeOutlineVariant
-    val anchor = Hct.fromInt(schemeOutlineVariant.toArgb())
-    val delta = if (dark) OUTLINE_VARIANT_DELTA_DARK else OUTLINE_VARIANT_DELTA_LIGHT
+    val anchorOffset =
+        if (dark) OUTLINE_VARIANT_OFFSET_DARK_ANCHOR else OUTLINE_VARIANT_OFFSET_LIGHT_ANCHOR
+    val deepenOffset =
+        if (dark) OUTLINE_VARIANT_OFFSET_DARK_DEEPEN else OUTLINE_VARIANT_OFFSET_LIGHT_DEEPEN
+    // alpha is sanitized to [0.5, 1] upstream; coerce defends against a stray value.
+    val alpha = backgroundAlpha.coerceIn(0.5f, 1f).toDouble()
+    // Linear boost: ×1 at full opacity → ×BOOST_AT_MIN_ALPHA at the 0.5 floor.
+    val alphaBoost = lerp(1.0, OUTLINE_VARIANT_OFFSET_BOOST_AT_MIN_ALPHA, (1.0 - alpha) / 0.5)
+    val offset = lerp(anchorOffset, deepenOffset, u) * alphaBoost
     return colorAt(
         hue,
-        lerp(anchor.chroma, chroma.coerceAtMost(OUTLINE_VARIANT_CHROMA_MAX), u),
-        lerp(anchor.tone, shellTone + delta, u),
+        chroma.coerceAtMost(OUTLINE_VARIANT_CHROMA_MAX),
+        shellTone + offset,
     )
 }
 

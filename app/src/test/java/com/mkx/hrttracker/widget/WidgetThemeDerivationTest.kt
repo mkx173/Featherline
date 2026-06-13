@@ -17,6 +17,7 @@ class WidgetThemeDerivationTest {
     )
 
     private fun toneOf(color: Color): Double = Hct.fromInt(color.toArgb()).tone
+    private fun chromaOf(color: Color): Double = Hct.fromInt(color.toArgb()).chroma
 
     // The pre-customization derivation (relative ±tone on secondaryContainer), kept
     // here as the executable definition of "today's output". WHY: the default
@@ -50,7 +51,6 @@ class WidgetThemeDerivationTest {
             val l = deriveWidgetSurfaces(
                 secondaryContainer = light.secondaryContainer, onSurface = light.onSurface,
                 onSurfaceVariant = light.onSurfaceVariant,
-                schemeOutlineVariant = light.outlineVariant,
                 saturation = WidgetAppearance.DEFAULT_SATURATION,
                 balance = WidgetAppearance.DEFAULT_BALANCE, dark = false,
             )
@@ -59,14 +59,16 @@ class WidgetThemeDerivationTest {
             assertColorClose(legacyAdjust(light.secondaryContainer, -6.0, 0.0), l.control)
             assertColorClose(light.onSurface, l.onSurface)               // no lift at anchor
             assertColorClose(light.onSurfaceVariant, l.onSurfaceVariant)
-            // outlineVariant short-circuits to the scheme color at the anchor (u==0):
-            // EXACT argb equality, not tolerance — the early return guarantees it.
-            assertEquals(light.outlineVariant.toArgb(), l.outlineVariant.toArgb())
+            // Round 7: the outline now tints with the surface at EVERY balance (the old
+            // u==0 scheme short-circuit is gone). At the anchor its tone sits the ANCHOR
+            // offset (−18) below the shell, and it carries the surface hue + chroma (no
+            // longer the near-neutral scheme grey).
+            assertEquals(toneOf(l.shell) - 18.0, toneOf(l.outlineVariant), 0.6)
+            assertTrue(chromaOf(l.outlineVariant) > 4.0)
 
             val d = deriveWidgetSurfaces(
                 secondaryContainer = dark.secondaryContainer, onSurface = dark.onSurface,
                 onSurfaceVariant = dark.onSurfaceVariant,
-                schemeOutlineVariant = dark.outlineVariant,
                 saturation = WidgetAppearance.DEFAULT_SATURATION,
                 balance = WidgetAppearance.DEFAULT_BALANCE, dark = true,
             )
@@ -75,7 +77,10 @@ class WidgetThemeDerivationTest {
             // Dark control: approved change — tinted cardTone+6, NOT today's neutral
             // surfaceVariant. Assert the new contract instead of equivalence.
             assertEquals(toneOf(d.card) + 6.0, toneOf(d.control), 0.6)
-            assertEquals(dark.outlineVariant.toArgb(), d.outlineVariant.toArgb())
+            // Round 7: dark outline tone sits the anchor offset (+18) above the shell,
+            // tinted (was the short-circuited neutral scheme color at the anchor).
+            assertEquals(toneOf(d.shell) + 18.0, toneOf(d.outlineVariant), 0.6)
+            assertTrue(chromaOf(d.outlineVariant) > 4.0)
         }
     }
 
@@ -87,8 +92,8 @@ class WidgetThemeDerivationTest {
         // saturation, so this isolates the depth axis.
         val (light, dark) = seededWidgetColorSchemes(seeds[0])
         val s = WidgetAppearance.DEFAULT_SATURATION
-        fun lightShell(b: Float) = toneOf(deriveWidgetSurfaces(light.secondaryContainer, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, b, dark = false).shell)
-        fun darkShell(b: Float) = toneOf(deriveWidgetSurfaces(dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, b, dark = true).shell)
+        fun lightShell(b: Float) = toneOf(deriveWidgetSurfaces(light.secondaryContainer, light.onSurface, light.onSurfaceVariant, s, b, dark = false).shell)
+        fun darkShell(b: Float) = toneOf(deriveWidgetSurfaces(dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant, s, b, dark = true).shell)
 
         assertEquals(94.0, lightShell(0.5f), 0.6)  // anchor
         assertEquals(88.0, lightShell(1f), 0.6)    // deepen ceiling (Round 5)
@@ -104,22 +109,51 @@ class WidgetThemeDerivationTest {
         // Round 4: saturation owns chroma outright (independent of balance). s=0 drives
         // chroma to ~0; s=1 boosts past s=0.5. Measured at balance 0 (today's tones).
         val (_, dark) = seededWidgetColorSchemes(seeds[0])
-        fun shellChroma(scHue: Double, s: Float): Double {
-            // Dark-mode synthesized sc at t25: the t25 shell has gamut headroom so the
+        fun surfacesAt(scHue: Double, s: Float): WidgetSurfaces {
+            // Dark-mode synthesized sc at t25: the dark shell/outline have gamut headroom so the
             // s=1 boost isn't clamped flat the way the near-white t94 light shell is.
             val sc = Color(Hct.from(scHue, 16.0, 25.0).toInt())
-            val surfaces = deriveWidgetSurfaces(
-                sc, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant,
+            return deriveWidgetSurfaces(
+                sc, dark.onSurface, dark.onSurfaceVariant,
                 s, WidgetAppearance.DEFAULT_BALANCE, dark = true,
             )
-            return Hct.fromInt(surfaces.shell.toArgb()).chroma
         }
         // s=0 → ~0 chroma (tolerance 3 for the HCT solver's near-zero residual).
-        assertEquals(0.0, shellChroma(270.0, 0f), 3.0)
+        assertEquals(0.0, chromaOf(surfacesAt(270.0, 0f).shell), 3.0)
         // s=1 chroma must exceed s=0.5 chroma at a dark-mode sc where headroom exists.
-        val half = shellChroma(270.0, 0.5f)
-        val full = shellChroma(270.0, 1f)
+        val half = chromaOf(surfacesAt(270.0, 0.5f).shell)
+        val full = chromaOf(surfacesAt(270.0, 1f).shell)
         assertTrue("s=1 chroma $full should exceed s=0.5 chroma $half at hue 270", full > half + 5)
+        // Round 7: the outline tints with the surface too (was a neutral scheme grey at the
+        // anchor) — its chroma collapses to ~0 at s=0 and lifts well above that at s=1.
+        val outlineNeutral = chromaOf(surfacesAt(270.0, 0f).outlineVariant)
+        val outlineTinted = chromaOf(surfacesAt(270.0, 1f).outlineVariant)
+        assertEquals(0.0, outlineNeutral, 3.0)
+        assertTrue("s=1 outline chroma $outlineTinted should tint past s=0 $outlineNeutral", outlineTinted > outlineNeutral + 5)
+    }
+
+    @Test
+    fun `outline offset grows as background alpha drops (solid-outline alpha comp)`() {
+        // Round 8: the outline is painted SOLID over the translucent shell, so as backgroundAlpha
+        // drops the rendered background drifts toward the wallpaper and a fixed tone offset loses
+        // contrast. WHY this matters: the offset grows on a LINEAR opacity ramp (×1 at full opacity →
+        // ×1.333 at the 0.5 floor), so the solid outline's tone separation from the shell grows as
+        // opacity falls — ~18 at full opacity, ~21 at 0.75, ~24 at the 0.5 floor — instead of
+        // collapsing. A test that ignored alpha could never catch a regression here.
+        val (light, _) = seededWidgetColorSchemes(seeds[0])
+        fun lightOutlineSep(alpha: Float): Double {
+            val s = deriveWidgetSurfaces(
+                light.secondaryContainer, light.onSurface, light.onSurfaceVariant,
+                WidgetAppearance.DEFAULT_SATURATION, WidgetAppearance.DEFAULT_BALANCE,
+                dark = false, backgroundAlpha = alpha,
+            )
+            return abs(toneOf(s.shell) - toneOf(s.outlineVariant))
+        }
+        assertEquals(18.0, lightOutlineSep(1f), 0.6)    // full opacity: the base offset, no boost
+        assertEquals(24.0, lightOutlineSep(0.5f), 0.8)  // 0.5 floor: 18 × 1.333 (linear ramp)
+        // Monotonic: lower alpha → larger separation (defends the compensation direction).
+        assertTrue(lightOutlineSep(0.75f) > lightOutlineSep(1f))
+        assertTrue(lightOutlineSep(0.5f) > lightOutlineSep(0.75f))
     }
 
     @Test
@@ -154,7 +188,7 @@ class WidgetThemeDerivationTest {
             val darkSc = Color(Hct.from(hue.toDouble(), 16.0, 25.0).toInt())
             for (balance in floatArrayOf(0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1f)) {
                 for (s in floatArrayOf(0f, 0.5f, 1f)) {
-                    val l = deriveWidgetSurfaces(lightSc, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, balance, dark = false)
+                    val l = deriveWidgetSurfaces(lightSc, light.onSurface, light.onSurfaceVariant, s, balance, dark = false)
                     val lCard = composite(l.card, l.shell, 0.85f)
                     assertTrue(abs(toneOf(l.onSurface) - toneOf(l.shell)) >= 50 - eps)
                     assertTrue(abs(toneOf(l.onSurface) - toneOf(lCard)) >= 50 - eps)
@@ -171,20 +205,22 @@ class WidgetThemeDerivationTest {
                         // (measured sweep min at balance 1 ≈7.31).
                         assertTrue("light card-vs-shell sep $lightSep < 7 at balance=1 s=$s hue=$hue", lightSep >= 7 - eps)
                     }
-                    // Round-2: tinted outlineVariant must keep contrast vs shell (tone-based,
-                    // so saturation-independent). Measured light min ≈20.19; floor 18.
+                    // Round 7/8: the tinted outline tracks the shell at a flat |offset| of 18 across
+                    // the whole balance range (anchor == deepen). Tone-based, so saturation-independent.
+                    // This sweep is at full opacity (the Round-8 alpha boost is 1 at alpha 1). Floor 17.
                     val lightOutlineSep = abs(toneOf(l.outlineVariant) - toneOf(l.shell))
-                    assertTrue("light outline-vs-shell $lightOutlineSep < 18 at balance=$balance s=$s hue=$hue", lightOutlineSep >= 18 - eps)
+                    assertTrue("light outline-vs-shell $lightOutlineSep < 17 at balance=$balance s=$s hue=$hue", lightOutlineSep >= 17 - eps)
 
-                    val d = deriveWidgetSurfaces(darkSc, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, balance, dark = true)
+                    val d = deriveWidgetSurfaces(darkSc, dark.onSurface, dark.onSurfaceVariant, s, balance, dark = true)
                     val dCard = composite(d.card, d.shell, 0.85f)
                     assertTrue(abs(toneOf(d.onSurface) - toneOf(d.shell)) >= 50 - eps)
                     assertTrue(abs(toneOf(d.onSurface) - toneOf(dCard)) >= 50 - eps)
                     // Round 5: dark shell ceiling compressed 35 -> 25 (measured sweep max ≈25.19).
                     assertTrue(toneOf(d.shell) <= 25 + eps && toneOf(dCard) <= 45 + eps)
-                    // Round-2: tinted outlineVariant vs shell (tone-based). Measured dark min ≈14.39; floor 13.
+                    // Round 7/8: dark outline tracks the shell at a flat |offset| of 18 across the
+                    // whole balance range (full-opacity sweep; alpha boost is 1 at alpha 1). Floor 17.
                     val darkOutlineSep = abs(toneOf(d.outlineVariant) - toneOf(d.shell))
-                    assertTrue("dark outline-vs-shell $darkOutlineSep < 13 at balance=$balance s=$s hue=$hue", darkOutlineSep >= 13 - eps)
+                    assertTrue("dark outline-vs-shell $darkOutlineSep < 17 at balance=$balance s=$s hue=$hue", darkOutlineSep >= 17 - eps)
                     // 45, not 50: SPEC_2025's dark onSurfaceVariant sits at tone ~70 (the 2021
                     // spec the design doc's "ΔTone >= 50" assumed had ~80), so the anchor gap
                     // is ~46. The contract is no-regression-vs-today, not the aspirational 2021
@@ -247,20 +283,20 @@ class WidgetThemeDerivationTest {
             val lightSc = Color(Hct.from(hue.toDouble(), 16.0, 90.0).toInt())
             val darkSc = Color(Hct.from(hue.toDouble(), 16.0, 25.0).toInt())
             for (s in floatArrayOf(0f, 0.5f, 1f)) {
-                val lAnchor = deriveWidgetSurfaces(lightSc, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, 0.5f, dark = false)
+                val lAnchor = deriveWidgetSurfaces(lightSc, light.onSurface, light.onSurfaceVariant, s, 0.5f, dark = false)
                 val lAnchorCard = composite(lAnchor.card, lAnchor.shell, 0.85f)
                 val lOnSurface = abs(toneOf(lAnchor.onSurface) - toneOf(lAnchorCard))
                 val lOsv = abs(toneOf(lAnchor.onSurfaceVariant) - toneOf(lAnchorCard))
                 val lOutline = abs(toneOf(lAnchor.outlineVariant) - toneOf(lAnchor.shell))
 
-                val dAnchor = deriveWidgetSurfaces(darkSc, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, 0.5f, dark = true)
+                val dAnchor = deriveWidgetSurfaces(darkSc, dark.onSurface, dark.onSurfaceVariant, s, 0.5f, dark = true)
                 val dAnchorCard = composite(dAnchor.card, dAnchor.shell, 0.85f)
                 val dOnSurface = abs(toneOf(dAnchor.onSurface) - toneOf(dAnchorCard))
                 val dOsv = abs(toneOf(dAnchor.onSurfaceVariant) - toneOf(dAnchorCard))
                 val dControl = abs(toneOf(dAnchor.onSurfaceVariant) - toneOf(dAnchor.control))
 
                 for (balance in lightenSteps) {
-                    val l = deriveWidgetSurfaces(lightSc, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, balance, dark = false)
+                    val l = deriveWidgetSurfaces(lightSc, light.onSurface, light.onSurfaceVariant, s, balance, dark = false)
                     val lCard = composite(l.card, l.shell, 0.85f)
                     val ctx = "balance=$balance s=$s hue=$hue"
                     assertTrue("light shell must brighten vs anchor at $ctx", toneOf(l.shell) >= toneOf(lAnchor.shell) - eps)
@@ -268,7 +304,7 @@ class WidgetThemeDerivationTest {
                     assertTrue("light osv-vs-card regressed at $ctx", abs(toneOf(l.onSurfaceVariant) - toneOf(lCard)) >= lOsv - eps)
                     assertTrue("light outline-vs-shell regressed at $ctx", abs(toneOf(l.outlineVariant) - toneOf(l.shell)) >= lOutline - eps)
 
-                    val d = deriveWidgetSurfaces(darkSc, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, balance, dark = true)
+                    val d = deriveWidgetSurfaces(darkSc, dark.onSurface, dark.onSurfaceVariant, s, balance, dark = true)
                     val dCard = composite(d.card, d.shell, 0.85f)
                     assertTrue("dark shell must darken vs anchor at $ctx", toneOf(d.shell) <= toneOf(dAnchor.shell) + eps)
                     assertTrue("dark onSurface-vs-card regressed at $ctx", abs(toneOf(d.onSurface) - toneOf(dCard)) >= dOnSurface - eps)
