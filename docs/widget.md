@@ -289,8 +289,10 @@ per-widget for a future editor), so the `appWidgetId` is
 only echoed back in the result: the activity defaults to `RESULT_CANCELED`
 and flips to `RESULT_OK` on Save, so cancelling a first-placement config on
 a launcher that ignores `configuration_optional` removes the widget rather
-than keeping it unconfigured. The activity seeds the controls from
-`widgetAppearanceRepository.currentEffective(null)` (and reads the
+than keeping it unconfigured. The activity awaits the one-time legacy-keys
+migration before seeding, so the appearance read can't race the startup
+migration and strand Defaults that a Save would clobber. It seeds the controls
+from `widgetAppearanceRepository.currentEffective(null)` (and reads the
 **persisted** settings via `settingsRepository.getCurrentSettings()` for
 its own theme — not the eager `settingsState` placeholder, whose
 pre-DataStore defaults would let a cold-start Save overwrite real

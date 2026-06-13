@@ -342,6 +342,13 @@ actual-amount feature) all shipped without a snapshot-version bump —
 `CURRENT_BACKUP_SNAPSHOT_VERSION` stayed at `3`. Removing or renaming a
 field is *not* in this bucket.
 
+`widgetAppearance` is additive too, but with a caveat: it is an opaque codec
+string carrying its own version, so bumping that version makes the field
+undecodable by older apps — whose restore *hard-fails* on it rather than
+defaulting — and must therefore ship with a snapshot-version bump. (Its legacy
+scale / alpha / dark-mode mirrors only keep apps predating the field entirely
+restoring.)
+
 **Bumping the snapshot version (envelope unchanged).** Required when
 a field's *meaning* changes — a rename, removal, unit change, or a
 constraint that breaks older payloads. The medicine-identity refactor
