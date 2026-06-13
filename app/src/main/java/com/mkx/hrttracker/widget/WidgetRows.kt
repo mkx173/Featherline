@@ -301,7 +301,7 @@ internal fun ProgressBar(
 internal fun ProgressRing(
     doneCount: Int,
     totalCount: Int,
-    sizeDp: Float = 32f,
+    sizeDp: Float = 34f,
     strokeDp: Float = 4f,
 ) {
     val context = LocalContext.current
@@ -310,6 +310,7 @@ internal fun ProgressRing(
     val density = context.resources.displayMetrics.density
 
     val scaledSizeDp = sizeDp * scale
+    val scaledBoxSizeDp = (sizeDp + 4) * scale
     val sizePx = (scaledSizeDp * density).toInt().coerceAtLeast(1)
     val strokePx = strokeDp * scale * density
     // Treat 0/0 as 0/1 so the ring still draws as an empty track instead of
@@ -359,7 +360,7 @@ internal fun ProgressRing(
         }
     }
 
-    Box(modifier = GlanceModifier.size(scaledSizeDp.dp)) {
+    Box(modifier = GlanceModifier.size(scaledBoxSizeDp.dp), contentAlignment = Alignment.BottomCenter) {
         Image(
             provider = ImageProvider(trackBitmap),
             contentDescription = null,

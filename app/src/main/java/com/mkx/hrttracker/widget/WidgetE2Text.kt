@@ -38,3 +38,12 @@ internal fun formatWidgetE2Text(
     return "E2 ~$formatted ${calibrationUnitLabel(displayUnit)}"
 }
 
+// The widest realistic E2 label for a unit — a 4-digit value. Rendered invisibly behind the
+// live value to reserve a fixed-width slot, so the large widget's progress bar (which shares the
+// top row) keeps a constant length instead of jumping as the live value shrinks/grows. The
+// integer units (pg/mL, pmol/L) top out around 4 digits and the decimal units format shorter, so
+// a 4-digit integer is a safe upper bound; digits are equal-advance, so 8888 covers any value.
+// Keep the "E2 ~<n> <unit>" shape in sync with formatWidgetE2Text above.
+internal fun widgetE2PlaceholderText(displayUnit: BloodUnitKey): String =
+    "E2 ~8888 ${calibrationUnitLabel(displayUnit)}"
+

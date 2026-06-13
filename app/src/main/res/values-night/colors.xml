@@ -4,11 +4,11 @@
     <color name="widget_preview_card">#353B4D</color>
     <color name="widget_preview_on_surface">#E4E5F0</color>
     <color name="widget_preview_on_surface_variant">#A9AAB5</color>
-    <color name="widget_preview_outline_variant">#454850</color>
+    <color name="widget_preview_outline_variant">#474D60</color>
     <color name="widget_preview_primary">#B8C6EE</color>
     <color name="widget_preview_on_primary">#323F61</color>
     <color name="widget_preview_primary_container">#455274</color>
-    <color name="widget_preview_on_primary_container">#DBE2FF</color>
+    <color name="widget_preview_on_primary_container">#EEF0FF</color>
     <color name="widget_preview_control">#43495B</color>
     <color name="widget_preview_accent_rose">#FF8A88</color>
     <color name="widget_preview_accent_teal">#0AD8B6</color>

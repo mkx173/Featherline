@@ -91,19 +91,26 @@ internal fun widgetColorScheme(
     val cardAlpha = containerAlpha(alpha)
     val lightSurfaces = deriveWidgetSurfaces(
         light.secondaryContainer, light.onSurface, light.onSurfaceVariant,
-        light.outlineVariant, appearance.saturation, appearance.balance, dark = false,
+        appearance.saturation, appearance.balance, dark = false, backgroundAlpha = alpha,
     )
     val darkSurfaces = deriveWidgetSurfaces(
         dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant,
-        dark.outlineVariant, appearance.saturation, appearance.balance, dark = true,
+        appearance.saturation, appearance.balance, dark = true, backgroundAlpha = alpha,
+    )
+    // DONE check-pill: derive from the card so it holds contrast across balance/saturation (Round 9).
+    val lightDone = deriveWidgetPrimaryContainer(
+        light.primaryContainer, lightSurfaces.card, appearance.saturation, dark = false,
+    )
+    val darkDone = deriveWidgetPrimaryContainer(
+        dark.primaryContainer, darkSurfaces.card, appearance.saturation, dark = true,
     )
     fun provider(lightColor: Color, darkColor: Color) =
         colorProvider(lightColor, darkColor, forcedDark)
     return WidgetColorScheme(
         primary = provider(light.primary, dark.primary),
         onPrimary = provider(light.onPrimary, dark.onPrimary),
-        primaryContainer = provider(light.primaryContainer, dark.primaryContainer),
-        onPrimaryContainer = provider(light.onPrimaryContainer, dark.onPrimaryContainer),
+        primaryContainer = provider(lightDone.container, darkDone.container),
+        onPrimaryContainer = provider(lightDone.onContainer, darkDone.onContainer),
         secondary = provider(light.secondary, dark.secondary),
         onSecondary = provider(light.onSecondary, dark.onSecondary),
         secondaryContainer = provider(light.secondaryContainer, dark.secondaryContainer),
@@ -224,13 +231,47 @@ private const val ON_SURFACE_VARIANT_LIFT_LIGHT_V1 = -13.0
 // compressed shell (ceiling 25), the secondary-text gap vs cards no longer
 // degrades with balance — its minimum is now at the anchor (~Δ46.5).
 private const val ON_SURFACE_VARIANT_LIFT_DARK = 18.0
-// outlineVariant tint: a static neutral outline loses contrast on tinted surfaces
-// at high balance (dark outline t30 sank BELOW the t35 shell at u=1). Tint it and
-// ramp it Δ vs shell tone: −26 light / +26 dark at u=1 (Round-2 tuner verdict).
-private const val OUTLINE_VARIANT_DELTA_LIGHT = -26.0
-private const val OUTLINE_VARIANT_DELTA_DARK = 26.0
+// outlineVariant (divider + unfulfilled progress dots/track). Round 7: tinted with the surface across
+// the WHOLE balance range (surface hue + capped chroma; tone sits |offset| from the shell — darker in
+// light, lighter in dark). Offsets are flat (anchor == deepen) so the separation is constant across
+// balance. Round 8: the outline is painted SOLID over the translucent shell, so as backgroundAlpha
+// drops the rendered background drifts toward the wallpaper and the solid outline's contrast falls;
+// the offset is boosted on a linear opacity ramp (up to ×1.333 at the 0.5 floor) so the tone
+// separation grows as opacity drops.
+private const val OUTLINE_VARIANT_OFFSET_LIGHT_ANCHOR = -18.0
+private const val OUTLINE_VARIANT_OFFSET_LIGHT_DEEPEN = -18.0
+private const val OUTLINE_VARIANT_OFFSET_DARK_ANCHOR = 18.0
+private const val OUTLINE_VARIANT_OFFSET_DARK_DEEPEN = 18.0
 // Chroma ceiling for the tinted outline (keeps it from over-saturating).
-private const val OUTLINE_VARIANT_CHROMA_MAX = 24.0
+private const val OUTLINE_VARIANT_CHROMA_MAX = 22.0
+// Round 8: the solid outline's offset grows as backgroundAlpha drops (the shell fades toward the
+// wallpaper under it). LINEAR ramp — ×1 at full opacity → ×this at the 0.5 floor. 1.333 gives offset
+// 18 at full opacity, ~21 at 0.75, ~24 at the 0.5 floor; steeper boosts (the old 1/alpha curve hit ×2
+// / offset 36) read too bright at low opacity. Tuned on device.
+private const val OUTLINE_VARIANT_OFFSET_BOOST_AT_MIN_ALPHA = 1.333
+
+// Chroma ceiling for the CONTROL pill. Round 9: it takes the surface's saturation-driven chroma (0 when
+// neutral → scheme chroma at the default → boosted at max saturation) but capped here, so the neutral
+// control pill stays restrained and doesn't out-saturate. The shell/card surfaces are NOT capped — they
+// express the full saturation. At/below the default this cap is a no-op.
+private const val CONTROL_CHROMA_MAX = 24.0
+
+// DONE check-pill (the only consumer of primaryContainer/onPrimaryContainer — the trailing button for
+// the DONE state). Scheme primaryContainer is a fixed tint that does NOT track the surfaces, so at high
+// balance the card darkens past it (Δ collapses) and high saturation pulls the card into the same hue.
+// Round 9: derive it from the card — tone = cardTone + delta (darker in light / lighter in dark) and the
+// PRIMARY hue. Its chroma follows the saturation slider but anchored on the scheme primaryContainer's OWN
+// chroma (pcChroma): a floor (a fraction of pcChroma, so it keeps color even at saturation 0), rising to
+// EXACTLY pcChroma at the 0.5 anchor (so the default DONE pill matches the Material primaryContainer),
+// then boosted toward the cap at max saturation. The check icon is forced to a contrasting tone in the
+// same hue so it stays legible. (Round 9)
+private const val DONE_CONTAINER_DELTA_LIGHT = -10.0
+private const val DONE_CONTAINER_DELTA_DARK = 10.0
+private const val DONE_CONTAINER_CHROMA_MAX = 48.0       // ceiling at max saturation
+private const val DONE_CHROMA_FLOOR_FRACTION = 0.5       // chroma at saturation 0, as a fraction of pcChroma
+private const val DONE_ICON_CHROMA_MAX = 16.0
+private const val DONE_ICON_TONE_ON_LIGHT_PILL = 20.0   // dark icon on a light (tone > 50) pill
+private const val DONE_ICON_TONE_ON_DARK_PILL = 95.0    // light icon on a dark (tone <= 50) pill
 
 private fun lerp(a: Double, b: Double, t: Double): Double = a + (b - a) * t
 
@@ -277,6 +318,48 @@ internal data class WidgetSurfaces(
     val outlineVariant: Color,
 )
 
+// The DONE check-pill's derived background + check-icon colors (Round 9).
+internal data class WidgetPrimaryContainer(
+    val container: Color,
+    val onContainer: Color,
+)
+
+// DONE pill chroma vs the saturation slider, anchored on the scheme primaryContainer's chroma: a floor
+// (fraction of pcChroma, so it keeps color even at saturation 0) → EXACTLY pcChroma at the 0.5 anchor (so
+// the default DONE pill matches the Material primaryContainer) → boosted by CHROMA_BOOST toward the cap
+// at max saturation. Same shape as the surface saturationChroma, but floored and anchored on pcChroma.
+private fun doneContainerChroma(saturation: Float, pcChroma: Double): Double {
+    val anchor = WidgetAppearance.DEFAULT_SATURATION
+    val raw =
+        if (saturation <= anchor) {
+            lerp(pcChroma * DONE_CHROMA_FLOOR_FRACTION, pcChroma, (saturation / anchor).toDouble())
+        } else {
+            pcChroma + CHROMA_BOOST * ((saturation - anchor) / (1f - anchor)).toDouble()
+        }
+    return raw.coerceAtMost(DONE_CONTAINER_CHROMA_MAX)
+}
+
+// Derive the DONE check-pill from the card so it can't collide as the card moves with balance (see the
+// DONE_CONTAINER_* notes). Uses the scheme primaryContainer's HUE (the accent identity), the tone =
+// cardTone + delta, and a saturation-driven chroma anchored on pcChroma (doneContainerChroma): floored so
+// it keeps color at saturation 0 and equal to pcChroma at the default. The icon is a contrasting tone.
+internal fun deriveWidgetPrimaryContainer(
+    schemePrimaryContainer: Color,
+    card: Color,
+    saturation: Float,
+    dark: Boolean,
+): WidgetPrimaryContainer {
+    val pc = Hct.fromInt(schemePrimaryContainer.toArgb())
+    val chroma = doneContainerChroma(saturation, pc.chroma)
+    val cardTone = Hct.fromInt(card.toArgb()).tone
+    val tone = cardTone + if (dark) DONE_CONTAINER_DELTA_DARK else DONE_CONTAINER_DELTA_LIGHT
+    val iconTone = if (tone > 50.0) DONE_ICON_TONE_ON_LIGHT_PILL else DONE_ICON_TONE_ON_DARK_PILL
+    return WidgetPrimaryContainer(
+        container = colorAt(pc.hue, chroma, tone),
+        onContainer = colorAt(pc.hue, chroma.coerceAtMost(DONE_ICON_CHROMA_MAX), iconTone),
+    )
+}
+
 // One mode's background surfaces + balance-lifted text tones, built absolutely in
 // HCT. Invariants (encoded in WidgetThemeDerivationTest, not re-derived here):
 // onSurface keeps ΔTone >= 50 against every surface at all balance; with the
@@ -286,10 +369,10 @@ internal fun deriveWidgetSurfaces(
     secondaryContainer: Color,
     onSurface: Color,
     onSurfaceVariant: Color,
-    schemeOutlineVariant: Color,
     saturation: Float,
     balance: Float,
     dark: Boolean,
+    backgroundAlpha: Float = 1f,
 ): WidgetSurfaces {
     val sc = Hct.fromInt(secondaryContainer.toArgb())
     // One theme color: the background always follows the seed scheme's
@@ -323,37 +406,48 @@ internal fun deriveWidgetSurfaces(
     return WidgetSurfaces(
         shell = colorAt(hue, chroma, shellTone),
         card = colorAt(hue, chroma, cardTone),
-        control = colorAt(hue, chroma, controlTone),
+        // The control pill caps chroma at CONTROL_CHROMA_MAX so it doesn't out-saturate at high saturation
+        // (the shell/card it sits among keep the full chroma). At/below the default this is a no-op.
+        control = colorAt(hue, chroma.coerceAtMost(CONTROL_CHROMA_MAX), controlTone),
         onSurface = onSurface.shiftTone(onSurfaceLift),
         onSurfaceVariant = onSurfaceVariant.shiftTone(onSurfaceVariantLift),
-        outlineVariant = deriveOutlineVariant(
-            schemeOutlineVariant, hue, chroma, shellTone, u, dark,
-        ),
+        outlineVariant = deriveOutlineVariant(hue, chroma, shellTone, u, dark, backgroundAlpha),
     )
 }
 
-// The static neutral outlineVariant loses contrast on tinted surfaces at high
-// balance (dark outline t30 sank BELOW the t35 shell at u=1), so above the anchor
-// it's re-cut from the background hue/chroma and ramped to Δ vs shell tone (Round-2
-// tuner verdict, notes/prototype-widget-theme-NOTES.md).
+// outlineVariant (divider + unfulfilled progress dots/track), Round 7: tinted with the surface at
+// EVERY balance. Tone = shellTone + offset, where the offset ramps on u from the anchor offset
+// (lighten half + the default) to the deepen offset (balance 1); hue is the surface hue and chroma
+// the capped surface chroma. Because u is 0 across the lighten half, the offset holds at the anchor
+// and the outline tracks the shell as it brightens/darkens. There is deliberately NO anchor
+// short-circuit: unlike shiftTone, the outline is no longer the scheme color at the default (it gains
+// the surface tint), so there is no bit-exact scheme value to preserve (notes Round 7).
+//
+// Round 8: the outline is painted SOLID over the translucent shell, so as backgroundAlpha drops the
+// rendered background drifts toward the wallpaper and the solid outline's tone separation collapses.
+// Boost the offset on a LINEAR opacity ramp (×1 at full opacity → ×BOOST_AT_MIN_ALPHA at the 0.5
+// floor) so the separation grows as opacity falls. No effect at full opacity (boost = 1).
 private fun deriveOutlineVariant(
-    schemeOutlineVariant: Color,
     hue: Double,
     chroma: Double,
     shellTone: Double,
     u: Double,
     dark: Boolean,
+    backgroundAlpha: Float,
 ): Color {
-    // Anchor-exact short-circuit (same load-bearing trick as shiftTone's early
-    // return): at u==0 an Hct round-trip could move a channel by 1 and break the
-    // bit-exact anchor contract, so return the scheme color UNTOUCHED.
-    if (u == 0.0) return schemeOutlineVariant
-    val anchor = Hct.fromInt(schemeOutlineVariant.toArgb())
-    val delta = if (dark) OUTLINE_VARIANT_DELTA_DARK else OUTLINE_VARIANT_DELTA_LIGHT
+    val anchorOffset =
+        if (dark) OUTLINE_VARIANT_OFFSET_DARK_ANCHOR else OUTLINE_VARIANT_OFFSET_LIGHT_ANCHOR
+    val deepenOffset =
+        if (dark) OUTLINE_VARIANT_OFFSET_DARK_DEEPEN else OUTLINE_VARIANT_OFFSET_LIGHT_DEEPEN
+    // alpha is sanitized to [0.5, 1] upstream; coerce defends against a stray value.
+    val alpha = backgroundAlpha.coerceIn(0.5f, 1f).toDouble()
+    // Linear boost: ×1 at full opacity → ×BOOST_AT_MIN_ALPHA at the 0.5 floor.
+    val alphaBoost = lerp(1.0, OUTLINE_VARIANT_OFFSET_BOOST_AT_MIN_ALPHA, (1.0 - alpha) / 0.5)
+    val offset = lerp(anchorOffset, deepenOffset, u) * alphaBoost
     return colorAt(
         hue,
-        lerp(anchor.chroma, chroma.coerceAtMost(OUTLINE_VARIANT_CHROMA_MAX), u),
-        lerp(anchor.tone, shellTone + delta, u),
+        chroma.coerceAtMost(OUTLINE_VARIANT_CHROMA_MAX),
+        shellTone + offset,
     )
 }
 
