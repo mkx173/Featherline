@@ -362,8 +362,8 @@ class BackupRestoreServiceTest {
         // Backups written before Round 3 carry a v1 appearance string whose slot 2
         // was the now-removed backgroundHue. Restoring one must migrate transparently:
         // the v1 string decodes (slot-2 dropped, saturation anchored at the default, the
-        // slot-3 vibrancy 0.4 anchor re-mapped onto balance 0) and setDefault receives
-        // that migrated appearance rather than failing.
+        // slot-3 vibrancy 0.4 anchor re-mapped onto balance 0.5 — the Round-6 bidirectional
+        // anchor) and setDefault receives that migrated appearance rather than failing.
         val snapshot = emptySnapshot().let { base ->
             base.copy(
                 settings = base.settings.copy(
@@ -385,7 +385,7 @@ class BackupRestoreServiceTest {
         val restored = appearanceSlot.captured
         assertEquals(200f, restored.seedHue!!, 1e-4f)
         assertEquals(WidgetAppearance.DEFAULT_SATURATION, restored.saturation, 0f)
-        assertEquals(0f, restored.balance, 1e-4f)
+        assertEquals(0.5f, restored.balance, 1e-4f)
         assertEquals(1.1f, restored.contentScale, 0f)
         assertEquals(0.9f, restored.backgroundAlpha, 0f)
         assertEquals(DarkModeOption.LIGHT, restored.darkMode)

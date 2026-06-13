@@ -106,10 +106,11 @@ class BackupExportServiceTest {
     }
 
     @Test
-    fun backupExport_staysAtVersion3_doseAmountDeltaIsAdditive() {
-        // doseAmountDelta is a nullable additive field, so it ships without a
-        // version bump — older readers default it to null. Catches a stale bump.
-        assertEquals(3, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    fun backupExport_versionTripwire_doseAmountDeltaRemainsAdditive() {
+        // doseAmountDelta is a nullable additive field — it did NOT force a version bump
+        // (older readers default it to null). The 3→4 bump is the widget-appearance codec's
+        // (bidirectional balance); this still catches any FURTHER accidental bump.
+        assertEquals(4, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     @Test
@@ -507,7 +508,7 @@ class BackupExportServiceTest {
         snapshot!!
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, snapshot.snapshotVersion)
-        assertEquals(3, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
+        assertEquals(4, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)

@@ -20,8 +20,8 @@ class WidgetAppearanceCodecTest {
         val codecFormatVersion = WidgetAppearanceCodec.encode(WidgetAppearance.Default)
             .substringBefore('|')
             .toInt()
-        assertEquals(3, codecFormatVersion)
-        assertEquals(3, CURRENT_BACKUP_SNAPSHOT_VERSION)
+        assertEquals(4, codecFormatVersion)
+        assertEquals(4, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     @Test
@@ -64,22 +64,24 @@ class WidgetAppearanceCodecTest {
         assertEquals(0.7f, decoded.backgroundAlpha, 0f)
         assertEquals(DarkModeOption.DARK, decoded.darkMode)
 
-        // v2 at the old vibrancy anchor (0.4) maps to balance 0 (today's tones).
+        // v2 at the old vibrancy anchor (0.4) maps to depth 0, then to balance 0.5 — the
+        // new bidirectional anchor (today's tones).
         val anchor = WidgetAppearanceCodec.decode("2||0.5|0.4|1.0|1.0|FOLLOW_SYSTEM")!!
         assertNull(anchor.seedHue)
         assertEquals(0.5f, anchor.saturation, 0f)
-        assertEquals(0f, anchor.balance, 1e-4f)
+        assertEquals(0.5f, anchor.balance, 1e-4f)
     }
 
     @Test
     fun `decode accepts v1 dropping background hue and anchoring saturation`() {
         // v1-compat: existing stores / old backups must keep decoding. The old
         // slot-2 backgroundHue (180.0) is IGNORED, saturation defaults to the anchor,
-        // and the slot-3 vibrancy (0.4 anchor) maps onto balance 0 — today's output.
+        // and the slot-3 vibrancy (0.4 anchor) maps onto depth 0 then balance 0.5 — today's
+        // output at the new bidirectional anchor.
         val decoded = WidgetAppearanceCodec.decode("1|212.5|180.0|0.4|1.2|0.7|DARK")!!
         assertEquals(212.5f, decoded.seedHue!!, 1e-4f)
         assertEquals(WidgetAppearance.DEFAULT_SATURATION, decoded.saturation, 0f)
-        assertEquals(0f, decoded.balance, 1e-4f)
+        assertEquals(0.5f, decoded.balance, 1e-4f)
         assertEquals(1.2f, decoded.contentScale, 0f)
         assertEquals(0.7f, decoded.backgroundAlpha, 0f)
         assertEquals(DarkModeOption.DARK, decoded.darkMode)
@@ -88,7 +90,7 @@ class WidgetAppearanceCodecTest {
         val emptySlot = WidgetAppearanceCodec.decode("1|212.5||0.4|1.2|0.7|DARK")!!
         assertEquals(212.5f, emptySlot.seedHue!!, 1e-4f)
         assertEquals(WidgetAppearance.DEFAULT_SATURATION, emptySlot.saturation, 0f)
-        assertEquals(0f, emptySlot.balance, 1e-4f)
+        assertEquals(0.5f, emptySlot.balance, 1e-4f)
     }
 
     @Test
@@ -99,7 +101,17 @@ class WidgetAppearanceCodecTest {
         assertNull(WidgetAppearanceCodec.decode("1|||0.4|1.0|1.0"))
         assertNull(WidgetAppearanceCodec.decode("1|||0.4|1.0|1.0|NOT_A_MODE"))
         // Unknown future version with correct arity still rejects.
-        assertNull(WidgetAppearanceCodec.decode("4|212.5|0.5|0.8|1.2|0.7|DARK"))
+        assertNull(WidgetAppearanceCodec.decode("5|212.5|0.5|0.8|1.2|0.7|DARK"))
+    }
+
+    @Test
+    fun `decode remaps v3 one-directional balance onto the bidirectional anchor`() {
+        // v3 stored balance with 0 = anchor (today's tones) / 1 = deepest. Round 6 moved the
+        // anchor to 0.5, so old depth maps onto the deepen half via 0.5 + 0.5·balance — a
+        // stored v3 anchor (0) must re-emerge as 0.5, and the deepest (1) stays 1.
+        assertEquals(0.5f, WidgetAppearanceCodec.decode("3||0.5|0.0|1.0|1.0|FOLLOW_SYSTEM")!!.balance, 1e-4f)
+        assertEquals(0.75f, WidgetAppearanceCodec.decode("3||0.5|0.5|1.0|1.0|FOLLOW_SYSTEM")!!.balance, 1e-4f)
+        assertEquals(1.0f, WidgetAppearanceCodec.decode("3||0.5|1.0|1.0|1.0|FOLLOW_SYSTEM")!!.balance, 1e-4f)
     }
 
     @Test
@@ -107,10 +119,10 @@ class WidgetAppearanceCodecTest {
         // The all-default appearance is contractually pixel-equivalent to the
         // pre-customization widget; these exact values are what makes that true.
         assertEquals(0.5f, WidgetAppearance.DEFAULT_SATURATION, 0f)
-        assertEquals(0f, WidgetAppearance.DEFAULT_BALANCE, 0f)
+        assertEquals(0.5f, WidgetAppearance.DEFAULT_BALANCE, 0f)
         assertEquals(
             WidgetAppearance(
-                seedHue = null, saturation = 0.5f, balance = 0f,
+                seedHue = null, saturation = 0.5f, balance = 0.5f,
                 contentScale = 1.0f, backgroundAlpha = 1.0f,
                 darkMode = DarkModeOption.FOLLOW_SYSTEM,
             ),

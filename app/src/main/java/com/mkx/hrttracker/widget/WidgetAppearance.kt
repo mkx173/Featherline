@@ -15,9 +15,10 @@ data class WidgetAppearance(
     // DEFAULT_SATURATION (0.5) = the scheme's standard chroma (regression anchor,
     // bit-identical to today's output), 1 = the old maximum (scChroma + CHROMA_BOOST).
     val saturation: Float,
-    // 0..1; "light balance" — pure tone depth + text-tone lift + the Round-2
-    // card/text/outline ramps. Re-anchored (Round 4): 0 = today's tones (regression
-    // anchor), 1 = deepest. Chroma no longer depends on this axis.
+    // 0..1; "light balance" — pure tone depth. Bidirectional (Round 6): 0.5 = today's
+    // tones (regression anchor); 0.5→1 DEEPENS (light darker / dark brighter, the
+    // Round-2 card/text/outline ramps run on this half); 0.5→0 LIGHTENS (light brighter
+    // / dark darker, tones-only — lifts/outline stay at the anchor). Chroma is independent.
     val balance: Float,
     val contentScale: Float,
     val backgroundAlpha: Float, // backgrounds only; controls stay opaque (existing design)
@@ -33,7 +34,9 @@ data class WidgetAppearance(
 
     companion object {
         const val DEFAULT_SATURATION = 0.5f
-        const val DEFAULT_BALANCE = 0f
+        // Round 6: the anchor (today's tones) is the slider's MIDPOINT so balance can move
+        // both ways. The deepen half (0.5→1) reproduces the old 0→1 bit-exact.
+        const val DEFAULT_BALANCE = 0.5f
         val Default = WidgetAppearance(
             seedHue = null,
             saturation = DEFAULT_SATURATION,

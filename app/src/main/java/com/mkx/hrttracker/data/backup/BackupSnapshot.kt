@@ -233,7 +233,12 @@ data class BackupBloodTestResultSnapshot(
 // The 2→3 bump added the CAPSULE preparationType enum value. Older apps
 // coerce unknown preparationType strings to PILL on restore, which would
 // silently misclassify capsules — non-additive, hence the bump.
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 3
+//
+// The 3→4 bump pairs with the WidgetAppearanceCodec v3→v4 bump (bidirectional balance):
+// a v4 appearance string inside a backup decodes to null on a v3-era app, which hard-fails
+// the entire restore, so the version gate must reject the newer backup cleanly instead
+// (see WidgetAppearanceCodec's coupling note).
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 4
 
 // Stable logical app identity for backups. Do not derive this from
 // Context.packageName: build variants may add an install suffix, but their

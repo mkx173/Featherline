@@ -27,7 +27,8 @@ class WidgetThemeDerivationTest {
         return Color(Hct.from(hct.hue, hct.chroma, (hct.tone + adj).coerceIn(0.0, 100.0)).toInt())
     }
 
-    // What the launcher shows: card drawn at 0.85 over the shell (CONTAINER_ALPHA_FACTOR).
+    // The tone design at FULL opacity: card composited at 0.85 over the shell
+    // (CONTAINER_ALPHA_FACTOR_HIGH). Opacity-aware thinning below 1.0 is a separate axis.
     private fun composite(top: Color, bottom: Color, alpha: Float): Color = Color(
         red = top.red * alpha + bottom.red * (1 - alpha),
         green = top.green * alpha + bottom.green * (1 - alpha),
@@ -80,21 +81,22 @@ class WidgetThemeDerivationTest {
 
     @Test
     fun `balance owns tone depth at fixed saturation`() {
-        // Round 4: balance is pure tone depth. At balance 0 the shell holds at its base
-        // (light 94 / dark 15); at balance 1 it reaches the ceiling. Chroma is held constant
-        // by saturation, so this isolates the depth axis.
-        // Round 5: the ceiling was compressed (light 82 -> 88, dark 35 -> 25).
+        // Round 6: balance is pure tone depth, BIDIRECTIONAL. At balance 0.5 the shell holds at
+        // its anchor (light 94 / dark 15); 0.5→1 DEEPENS toward the ceiling (light 88 / dark 25,
+        // Round 5); 0.5→0 LIGHTENS the other way (light 98 / dark 8). Chroma is held constant by
+        // saturation, so this isolates the depth axis.
         val (light, dark) = seededWidgetColorSchemes(seeds[0])
         val s = WidgetAppearance.DEFAULT_SATURATION
-        val lAnchor = deriveWidgetSurfaces(light.secondaryContainer, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, 0f, dark = false)
-        val lDeep = deriveWidgetSurfaces(light.secondaryContainer, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, 1f, dark = false)
-        assertEquals(94.0, toneOf(lAnchor.shell), 0.6)
-        assertEquals(88.0, toneOf(lDeep.shell), 0.6)
+        fun lightShell(b: Float) = toneOf(deriveWidgetSurfaces(light.secondaryContainer, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, b, dark = false).shell)
+        fun darkShell(b: Float) = toneOf(deriveWidgetSurfaces(dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, b, dark = true).shell)
 
-        val dAnchor = deriveWidgetSurfaces(dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, 0f, dark = true)
-        val dDeep = deriveWidgetSurfaces(dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, 1f, dark = true)
-        assertEquals(15.0, toneOf(dAnchor.shell), 0.6)
-        assertEquals(25.0, toneOf(dDeep.shell), 0.6) // dark ceiling (Round 5: 35 -> 25)
+        assertEquals(94.0, lightShell(0.5f), 0.6)  // anchor
+        assertEquals(88.0, lightShell(1f), 0.6)    // deepen ceiling (Round 5)
+        assertEquals(98.0, lightShell(0f), 0.6)    // lighten end (Round 6)
+
+        assertEquals(15.0, darkShell(0.5f), 0.6)   // anchor
+        assertEquals(25.0, darkShell(1f), 0.6)     // deepen ceiling (Round 5: 35 -> 25)
+        assertEquals(8.0, darkShell(0f), 0.6)      // lighten end (Round 6)
     }
 
     @Test
@@ -128,8 +130,10 @@ class WidgetThemeDerivationTest {
         //  - dark onSurfaceVariant-vs-control-pill >= 40 for balance > 0
         //  - shell/card tone safe bands: light >= 78, dark <= 45
         //
-        // Round 4: the depth axis is `balance` (u = balance), re-anchored at 0 = today's
-        // tones / 1 = deepest.
+        // Round 6: balance is bidirectional (anchor 0.5). This sweep walks the DEEPEN half
+        // (balance 0.5→1, u = (balance−0.5)·2) — the SAME u-points as the old 0→1 sweep, so it
+        // pins that the deepen half reproduces today's output bit-for-bit. The lighten half
+        // (balance 0.5→0) has its own no-regression test below.
         //
         // Round 5: the shell endpoints were compressed (light 82->88, dark 35->25), which
         // IMPROVES every deep-end contrast number — secondary text no longer degrades with
@@ -148,7 +152,7 @@ class WidgetThemeDerivationTest {
         for (hue in 0 until 360 step 15) {
             val lightSc = Color(Hct.from(hue.toDouble(), 16.0, 90.0).toInt())
             val darkSc = Color(Hct.from(hue.toDouble(), 16.0, 25.0).toInt())
-            for (balance in floatArrayOf(0f, 0.2f, 0.4f, 0.6f, 0.8f, 1f)) {
+            for (balance in floatArrayOf(0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1f)) {
                 for (s in floatArrayOf(0f, 0.5f, 1f)) {
                     val l = deriveWidgetSurfaces(lightSc, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, balance, dark = false)
                     val lCard = composite(l.card, l.shell, 0.85f)
@@ -188,10 +192,88 @@ class WidgetThemeDerivationTest {
                     // (the anchor IS now the minimum, ~Δ45.97 measured, improving with balance),
                     // so the old split anchor/degraded floor collapses to one unconditional ≥45.
                     assertTrue(abs(toneOf(d.onSurfaceVariant) - toneOf(dCard)) >= 45 - eps)
-                    if (balance != 0f) {
+                    if (balance != 0.5f) {
                         // Round 5: control-pill floor rises 36 -> ~40 (measured deep min ≈40.34).
+                        // Skip the anchor (balance 0.5, u=0): its tinted-pill contrast is ~37,
+                        // below 40 — the same exclusion the pre-Round-6 sweep made at balance 0.
                         assertTrue(abs(toneOf(d.onSurfaceVariant) - toneOf(d.control)) >= 40 - eps)
                     }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `container alpha ramps down with opacity but holds a separation floor`() {
+        // Round 6 #1: cards stack on the shell, so a flat factor makes them occlude the
+        // wallpaper through two layers and read "more solid" than the shell — worst at low
+        // opacity. The factor now ramps from 0.85 @ opacity 1 (unchanged look) to 0.40 @ the
+        // 0.5 floor, so the EXCESS solidity (cardAlpha·(1−a) above the shell's a) shrinks as
+        // opacity drops, while the floor keeps the card painted enough to stay a visible row.
+        assertEquals(0.85f, containerAlpha(1.0f), 1e-4f)        // full opacity: unchanged
+        assertEquals(0.40f * 0.5f, containerAlpha(0.5f), 1e-4f) // floor: factor 0.40 · alpha 0.5
+        // Strictly increasing in opacity (more opacity → more card paint).
+        var prev = -1f
+        var a = 0.5f
+        while (a <= 1.0001f) {
+            val v = containerAlpha(a)
+            assertTrue("containerAlpha must increase with opacity (a=$a)", v > prev)
+            prev = v
+            a += 0.05f
+        }
+        // The point of the ramp: at every opacity below 1.0 the card's excess solidity over the
+        // shell is SMALLER than today's flat-0.85 would give (and equal only at full opacity).
+        for (alpha in floatArrayOf(0.5f, 0.6f, 0.7f, 0.8f, 0.9f)) {
+            val newExcess = containerAlpha(alpha) * (1 - alpha)
+            val flatExcess = 0.85f * alpha * (1 - alpha)
+            assertTrue("ramp must reduce excess solidity at a=$alpha", newExcess < flatExcess)
+        }
+        assertEquals(0.85f * 1.0f * 0f, containerAlpha(1.0f) * (1 - 1.0f), 1e-4f) // equal (zero) at full
+    }
+
+    @Test
+    fun `lighten half moves the shell and never regresses contrast below the anchor`() {
+        // Round 6: the lighten half (balance 0.5→0) is TONES-ONLY — only shell/card/control
+        // tones move (lighter in light mode, darker in dark mode); the text lifts and the
+        // outline tint hold at the anchor (deepenRamp is 0 across this half). Lightening moves
+        // the surfaces AWAY from the text tones, so every contrast metric can only IMPROVE.
+        // This encodes that intent directly: the shell moves the expected direction and NO
+        // metric drops below its anchor (balance 0.5) value — a self-validating guarantee, so
+        // there are no hand-tuned lighten-half floors to drift.
+        val (light, dark) = seededWidgetColorSchemes(seeds[0])
+        val eps = 0.75
+        val lightenSteps = floatArrayOf(0f, 0.1f, 0.2f, 0.3f, 0.4f)
+        for (hue in 0 until 360 step 15) {
+            val lightSc = Color(Hct.from(hue.toDouble(), 16.0, 90.0).toInt())
+            val darkSc = Color(Hct.from(hue.toDouble(), 16.0, 25.0).toInt())
+            for (s in floatArrayOf(0f, 0.5f, 1f)) {
+                val lAnchor = deriveWidgetSurfaces(lightSc, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, 0.5f, dark = false)
+                val lAnchorCard = composite(lAnchor.card, lAnchor.shell, 0.85f)
+                val lOnSurface = abs(toneOf(lAnchor.onSurface) - toneOf(lAnchorCard))
+                val lOsv = abs(toneOf(lAnchor.onSurfaceVariant) - toneOf(lAnchorCard))
+                val lOutline = abs(toneOf(lAnchor.outlineVariant) - toneOf(lAnchor.shell))
+
+                val dAnchor = deriveWidgetSurfaces(darkSc, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, 0.5f, dark = true)
+                val dAnchorCard = composite(dAnchor.card, dAnchor.shell, 0.85f)
+                val dOnSurface = abs(toneOf(dAnchor.onSurface) - toneOf(dAnchorCard))
+                val dOsv = abs(toneOf(dAnchor.onSurfaceVariant) - toneOf(dAnchorCard))
+                val dControl = abs(toneOf(dAnchor.onSurfaceVariant) - toneOf(dAnchor.control))
+
+                for (balance in lightenSteps) {
+                    val l = deriveWidgetSurfaces(lightSc, light.onSurface, light.onSurfaceVariant, light.outlineVariant, s, balance, dark = false)
+                    val lCard = composite(l.card, l.shell, 0.85f)
+                    val ctx = "balance=$balance s=$s hue=$hue"
+                    assertTrue("light shell must brighten vs anchor at $ctx", toneOf(l.shell) >= toneOf(lAnchor.shell) - eps)
+                    assertTrue("light onSurface-vs-card regressed at $ctx", abs(toneOf(l.onSurface) - toneOf(lCard)) >= lOnSurface - eps)
+                    assertTrue("light osv-vs-card regressed at $ctx", abs(toneOf(l.onSurfaceVariant) - toneOf(lCard)) >= lOsv - eps)
+                    assertTrue("light outline-vs-shell regressed at $ctx", abs(toneOf(l.outlineVariant) - toneOf(l.shell)) >= lOutline - eps)
+
+                    val d = deriveWidgetSurfaces(darkSc, dark.onSurface, dark.onSurfaceVariant, dark.outlineVariant, s, balance, dark = true)
+                    val dCard = composite(d.card, d.shell, 0.85f)
+                    assertTrue("dark shell must darken vs anchor at $ctx", toneOf(d.shell) <= toneOf(dAnchor.shell) + eps)
+                    assertTrue("dark onSurface-vs-card regressed at $ctx", abs(toneOf(d.onSurface) - toneOf(dCard)) >= dOnSurface - eps)
+                    assertTrue("dark osv-vs-card regressed at $ctx", abs(toneOf(d.onSurfaceVariant) - toneOf(dCard)) >= dOsv - eps)
+                    assertTrue("dark osv-vs-control regressed at $ctx", abs(toneOf(d.onSurfaceVariant) - toneOf(d.control)) >= dControl - eps)
                 }
             }
         }

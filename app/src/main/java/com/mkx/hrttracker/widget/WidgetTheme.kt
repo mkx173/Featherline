@@ -59,11 +59,23 @@ internal fun DarkModeOption.toForcedDark(): Boolean? = when (this) {
     DarkModeOption.FOLLOW_SYSTEM -> null
 }
 
-// Cards stack on top of the shell, so at the same alpha they occlude the wallpaper twice and
-// read more "solid" than the background around them. Drawing them at 85% of the user alpha
-// compensates, letting cards wash toward the wallpaper at a rate closer to the shell's. At
-// full alpha the visible card color is 0.85·card + 0.15·shell — within a tone of the target.
-private const val CONTAINER_ALPHA_FACTOR = 0.85f
+// Cards stack on top of the shell, so a card pixel covers the wallpaper through TWO
+// translucent layers and reads more "solid" than the surrounding shell — worst at low
+// opacity (a flat factor barely helps; the fully-present shell underneath is the real
+// occluder). Round 6: ramp the factor down with opacity (HIGH at full opacity → FLOOR at the
+// 0.5 slider floor) so the excess solidity shrinks as opacity drops, with FLOOR a floor that
+// keeps the row visibly distinct. At full opacity the factor is still 0.85, so the visible
+// card color is 0.85·card + 0.15·shell — unchanged.
+private const val CONTAINER_ALPHA_FACTOR_HIGH = 0.85f   // @ backgroundAlpha 1.0 (unchanged look)
+private const val CONTAINER_ALPHA_FACTOR_FLOOR = 0.40f  // @ backgroundAlpha 0.5 (the slider floor)
+
+// Card paint alpha for a given user backgroundAlpha: the opacity-aware factor times the alpha
+// itself. backgroundAlpha is sanitized to [0.5, 1]; the coerce defends the endpoints.
+internal fun containerAlpha(backgroundAlpha: Float): Float {
+    val t = ((backgroundAlpha - 0.5f) / 0.5f).coerceIn(0f, 1f)
+    return backgroundAlpha *
+        (CONTAINER_ALPHA_FACTOR_FLOOR + (CONTAINER_ALPHA_FACTOR_HIGH - CONTAINER_ALPHA_FACTOR_FLOOR) * t)
+}
 
 // Builds the widget's day/night ColorProvider scheme from explicit light & dark Material 3
 // schemes. The source is chosen upstream: the live system palette (mirrors AndroidX) on API
@@ -76,6 +88,7 @@ internal fun widgetColorScheme(
     forcedDark: Boolean? = null,
 ): WidgetColorScheme {
     val alpha = appearance.backgroundAlpha
+    val cardAlpha = containerAlpha(alpha)
     val lightSurfaces = deriveWidgetSurfaces(
         light.secondaryContainer, light.onSurface, light.onSurfaceVariant,
         light.outlineVariant, appearance.saturation, appearance.balance, dark = false,
@@ -100,8 +113,8 @@ internal fun widgetColorScheme(
         widgetControl = provider(lightSurfaces.control, darkSurfaces.control),
         onSurfaceVariant = provider(lightSurfaces.onSurfaceVariant, darkSurfaces.onSurfaceVariant),
         widgetContainer = provider(
-            lightSurfaces.card.copy(alpha = alpha * CONTAINER_ALPHA_FACTOR),
-            darkSurfaces.card.copy(alpha = alpha * CONTAINER_ALPHA_FACTOR),
+            lightSurfaces.card.copy(alpha = cardAlpha),
+            darkSurfaces.card.copy(alpha = cardAlpha),
         ),
         widgetBackground = provider(
             lightSurfaces.shell.copy(alpha = alpha),
@@ -164,9 +177,10 @@ internal fun groupAccentColor(
 
 // Round 4 split the old single "vibrancy" axis into two independent ones:
 //  - saturation OWNS chroma (0 = b/w, 0.5 = scheme standard, 1 = scChroma + boost);
-//  - balance is pure tone depth + text lift + the Round-2 ramps, re-anchored at
-//    0 = today's tones (regression anchor) / 1 = deepest. All u-driven ramps below
-//    are UNCHANGED as functions of u; only u's source moved (now u = balance).
+//  - balance is pure tone depth + text lift + the Round-2 ramps. Bidirectional (Round 6):
+//    0.5 = today's tones (regression anchor); 0.5→1 DEEPENS, 0.5→0 LIGHTENS. All u-driven
+//    ramps below are UNCHANGED as functions of u; u is now the DEEPEN half of balance
+//    (deepenRamp), which is 0 across the lighten half — so they hold at the anchor there.
 private const val CHROMA_BOOST = 18.0
 private const val LIGHT_SHELL_BASE = 94.0
 // Round 5: the old endpoints (light 82 / dark 35) were the original prototype's
@@ -181,6 +195,11 @@ private const val DARK_SHELL_BASE = 15.0
 // ceiling; with the compressed range the text lift keeps onSurface ΔTone >= 50 and
 // secondary-text contrast back to ≈Δ45+ across the whole slider (min at the anchor).
 private const val DARK_SHELL_MAX = 25.0
+// Round 6 — lighten half (balance 0.5→0): the shell runs the OTHER way, light toward
+// near-white / dark toward near-black. Tones-only (every ramp below keys off deepenRamp,
+// which is 0 here), and lightening only ever IMPROVES contrast, so no claw-back is needed.
+private const val LIGHT_SHELL_LIGHTEN = 98.0
+private const val DARK_SHELL_LIGHTEN = 8.0
 // Light card delta ramps from the anchor (−4) to a deeper u=1 cut (−9): flat −4
 // composited (~3.4 tones) read too subtle at high balance (Round-2 tuner verdict,
 // notes/prototype-widget-theme-NOTES.md). Dark card stays flat +10.
@@ -215,10 +234,16 @@ private const val OUTLINE_VARIANT_CHROMA_MAX = 24.0
 
 private fun lerp(a: Double, b: Double, t: Double): Double = a + (b - a) * t
 
-// Depth ramp: balance maps 1:1 onto u (0 = today's tones, 1 = deepest). All
-// tone/lift/outline movement runs on this — unchanged as a function of u from the
-// pre-split code; only the source axis was renamed and re-anchored.
-private fun balanceRamp(balance: Float): Double = balance.coerceIn(0f, 1f).toDouble()
+// Deepen ramp: 0 at the anchor (balance 0.5) → 1 at the deepest (balance 1); 0 across the
+// whole lighten half. Every tone/lift/outline ramp runs on this — UNCHANGED as a function of
+// u from the pre-Round-6 code (for b >= 0.5, deepenRamp(b) equals the old balanceRamp run on
+// 2·(b − 0.5)), so the deepen half reproduces the old 0→1 bit-exact.
+private fun deepenRamp(balance: Float): Double =
+    (((balance - 0.5f) * 2f).coerceIn(0f, 1f)).toDouble()
+
+// Lighten ramp: 0 at the anchor → 1 at the lightest (balance 0); 0 across the deepen half.
+private fun lightenRamp(balance: Float): Double =
+    (((0.5f - balance) * 2f).coerceIn(0f, 1f)).toDouble()
 
 // Saturation owns chroma outright (Round 4): 0 = black/white, 0.5 = the scheme's
 // standard chroma (regression anchor), 1 = the old maximum (scChroma + CHROMA_BOOST).
@@ -274,10 +299,14 @@ internal fun deriveWidgetSurfaces(
     // EXACTLY the scheme chroma (bit-identical anchor: x/0.5*0.5 short-circuits
     // through the <= branch).
     val chroma = saturationChroma(sc.chroma, saturation)
-    val u = balanceRamp(balance)
-    val shellTone =
-        if (dark) lerp(DARK_SHELL_BASE, DARK_SHELL_MAX, u)
-        else lerp(LIGHT_SHELL_BASE, LIGHT_SHELL_MAX, u)
+    val u = deepenRamp(balance)
+    val lighten = lightenRamp(balance)
+    // Anchor at balance 0.5; deepen toward _MAX (b→1) or lighten toward _LIGHTEN (b→0). u and
+    // lighten are mutually exclusive (each is 0 off its own half), so one expression covers both.
+    val shellBase = if (dark) DARK_SHELL_BASE else LIGHT_SHELL_BASE
+    val shellTone = shellBase +
+        ((if (dark) DARK_SHELL_MAX else LIGHT_SHELL_MAX) - shellBase) * u +
+        ((if (dark) DARK_SHELL_LIGHTEN else LIGHT_SHELL_LIGHTEN) - shellBase) * lighten
     val cardDelta =
         if (dark) DARK_CARD_DELTA
         else lerp(LIGHT_CARD_DELTA_ANCHOR, LIGHT_CARD_DELTA_V1, u)
