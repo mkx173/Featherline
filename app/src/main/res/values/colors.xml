@@ -15,8 +15,8 @@
     <color name="widget_preview_outline_variant">#B5BBD1</color>
     <color name="widget_preview_primary">#4C5E8B</color>
     <color name="widget_preview_on_primary">#F9F8FF</color>
-    <color name="widget_preview_primary_container">#B9CBFF</color>
-    <color name="widget_preview_on_primary_container">#30436E</color>
+    <color name="widget_preview_primary_container">#B4C6F9</color>
+    <color name="widget_preview_on_primary_container">#2A3042</color>
     <color name="widget_preview_control">#CBD1E8</color>
     <color name="widget_preview_accent_rose">#CE2C31</color>
     <color name="widget_preview_accent_teal">#00826D</color>

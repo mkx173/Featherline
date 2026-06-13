@@ -157,6 +157,58 @@ class WidgetThemeDerivationTest {
     }
 
     @Test
+    fun `DONE check-pill is derived from the card so it never collides`() {
+        // Round 9: scheme primaryContainer is a fixed tint that collides with the card at high balance
+        // (the card darkens past it). The DONE check-pill is derived from the card instead — tone =
+        // cardTone + delta (light −10 / dark +10) — so it holds a CONSTANT separation at every balance,
+        // and the check icon stays legible regardless. A fixed-color button could pass at one balance
+        // yet still vanish at another; pinning the offset is the contract.
+        val (light, dark) = seededWidgetColorSchemes(seeds[0])
+        val s = WidgetAppearance.DEFAULT_SATURATION
+        for (balance in floatArrayOf(0f, 0.5f, 0.75f, 1f)) {
+            val l = deriveWidgetSurfaces(light.secondaryContainer, light.onSurface, light.onSurfaceVariant, s, balance, dark = false)
+            val lDone = deriveWidgetPrimaryContainer(light.primaryContainer, l.card, s, dark = false)
+            assertEquals("light DONE vs card at balance=$balance", toneOf(l.card) - 10.0, toneOf(lDone.container), 0.8)
+            assertTrue("light check icon legible at balance=$balance", abs(toneOf(lDone.onContainer) - toneOf(lDone.container)) >= 45)
+
+            val d = deriveWidgetSurfaces(dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant, s, balance, dark = true)
+            val dDone = deriveWidgetPrimaryContainer(dark.primaryContainer, d.card, s, dark = true)
+            assertEquals("dark DONE vs card at balance=$balance", toneOf(d.card) + 10.0, toneOf(dDone.container), 0.8)
+            assertTrue("dark check icon legible at balance=$balance", abs(toneOf(dDone.onContainer) - toneOf(dDone.container)) >= 45)
+        }
+    }
+
+    @Test
+    fun `DONE pill chroma is floored, matches primaryContainer at default, and stays vivid`() {
+        // Round 9: the control pill IS a surface element, so it collapses to neutral with the surfaces at
+        // saturation 0 and is capped at CONTROL_CHROMA_MAX (24). The accent DONE pill keeps its OWN chroma
+        // curve anchored on the scheme primaryContainer's chroma — a FLOOR so it still reads as the accent
+        // at saturation 0, EXACTLY pcChroma at the 0.5 default (so the default pill matches the Material
+        // primaryContainer), and a boost so it stays vivid above the control's cap at max saturation.
+        // Dark, hue-headroom seed.
+        val (_, dark) = seededWidgetColorSchemes(seeds[0])
+        val pcChroma = chromaOf(dark.primaryContainer)
+        fun darkSurfacesAt(saturation: Float) = deriveWidgetSurfaces(
+            Color(Hct.from(270.0, 16.0, 25.0).toInt()), dark.onSurface, dark.onSurfaceVariant,
+            saturation, WidgetAppearance.DEFAULT_BALANCE, dark = true,
+        )
+        fun doneChromaAt(saturation: Float) = chromaOf(
+            deriveWidgetPrimaryContainer(dark.primaryContainer, darkSurfacesAt(saturation).card, saturation, dark = true).container
+        )
+        // sat 0 → the control collapses to neutral, but the DONE pill keeps a floored, still-colorful chroma.
+        assertEquals(0.0, chromaOf(darkSurfacesAt(0f).control), 3.0)
+        assertTrue("DONE keeps color at sat 0 (floor)", doneChromaAt(0f) > 5.0)
+        assertTrue("DONE rises from its floor to the default", doneChromaAt(0.5f) > doneChromaAt(0f) + 3)
+        // default → the DONE pill matches the scheme primaryContainer's chroma.
+        assertEquals("DONE == primaryContainer chroma at default", pcChroma, doneChromaAt(0.5f), 5.0)
+        // sat 1 → control held at the 24 cap; the DONE pill is boosted and stays vivid above it.
+        val s1 = darkSurfacesAt(1f)
+        assertTrue("control capped at ~24", chromaOf(s1.control) <= 24.5)
+        assertTrue("DONE boosted past its default", doneChromaAt(1f) > doneChromaAt(0.5f) + 3)
+        assertTrue("DONE stays vivid above the control cap", doneChromaAt(1f) > chromaOf(s1.control) + 3)
+    }
+
+    @Test
     fun `contrast invariants hold across hue x balance x saturation sweep`() {
         // Encodes the spec's contrast guarantee (not specific hexes):
         //  - onSurface ΔTone >= 50 against shell and the COMPOSITED card, at all balance

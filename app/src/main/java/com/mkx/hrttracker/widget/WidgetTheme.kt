@@ -97,13 +97,20 @@ internal fun widgetColorScheme(
         dark.secondaryContainer, dark.onSurface, dark.onSurfaceVariant,
         appearance.saturation, appearance.balance, dark = true, backgroundAlpha = alpha,
     )
+    // DONE check-pill: derive from the card so it holds contrast across balance/saturation (Round 9).
+    val lightDone = deriveWidgetPrimaryContainer(
+        light.primaryContainer, lightSurfaces.card, appearance.saturation, dark = false,
+    )
+    val darkDone = deriveWidgetPrimaryContainer(
+        dark.primaryContainer, darkSurfaces.card, appearance.saturation, dark = true,
+    )
     fun provider(lightColor: Color, darkColor: Color) =
         colorProvider(lightColor, darkColor, forcedDark)
     return WidgetColorScheme(
         primary = provider(light.primary, dark.primary),
         onPrimary = provider(light.onPrimary, dark.onPrimary),
-        primaryContainer = provider(light.primaryContainer, dark.primaryContainer),
-        onPrimaryContainer = provider(light.onPrimaryContainer, dark.onPrimaryContainer),
+        primaryContainer = provider(lightDone.container, darkDone.container),
+        onPrimaryContainer = provider(lightDone.onContainer, darkDone.onContainer),
         secondary = provider(light.secondary, dark.secondary),
         onSecondary = provider(light.onSecondary, dark.onSecondary),
         secondaryContainer = provider(light.secondaryContainer, dark.secondaryContainer),
@@ -243,6 +250,29 @@ private const val OUTLINE_VARIANT_CHROMA_MAX = 22.0
 // / offset 36) read too bright at low opacity. Tuned on device.
 private const val OUTLINE_VARIANT_OFFSET_BOOST_AT_MIN_ALPHA = 1.333
 
+// Chroma ceiling for the CONTROL pill. Round 9: it takes the surface's saturation-driven chroma (0 when
+// neutral → scheme chroma at the default → boosted at max saturation) but capped here, so the neutral
+// control pill stays restrained and doesn't out-saturate. The shell/card surfaces are NOT capped — they
+// express the full saturation. At/below the default this cap is a no-op.
+private const val CONTROL_CHROMA_MAX = 24.0
+
+// DONE check-pill (the only consumer of primaryContainer/onPrimaryContainer — the trailing button for
+// the DONE state). Scheme primaryContainer is a fixed tint that does NOT track the surfaces, so at high
+// balance the card darkens past it (Δ collapses) and high saturation pulls the card into the same hue.
+// Round 9: derive it from the card — tone = cardTone + delta (darker in light / lighter in dark) and the
+// PRIMARY hue. Its chroma follows the saturation slider but anchored on the scheme primaryContainer's OWN
+// chroma (pcChroma): a floor (a fraction of pcChroma, so it keeps color even at saturation 0), rising to
+// EXACTLY pcChroma at the 0.5 anchor (so the default DONE pill matches the Material primaryContainer),
+// then boosted toward the cap at max saturation. The check icon is forced to a contrasting tone in the
+// same hue so it stays legible. (Round 9)
+private const val DONE_CONTAINER_DELTA_LIGHT = -10.0
+private const val DONE_CONTAINER_DELTA_DARK = 10.0
+private const val DONE_CONTAINER_CHROMA_MAX = 48.0       // ceiling at max saturation
+private const val DONE_CHROMA_FLOOR_FRACTION = 0.5       // chroma at saturation 0, as a fraction of pcChroma
+private const val DONE_ICON_CHROMA_MAX = 16.0
+private const val DONE_ICON_TONE_ON_LIGHT_PILL = 20.0   // dark icon on a light (tone > 50) pill
+private const val DONE_ICON_TONE_ON_DARK_PILL = 95.0    // light icon on a dark (tone <= 50) pill
+
 private fun lerp(a: Double, b: Double, t: Double): Double = a + (b - a) * t
 
 // Deepen ramp: 0 at the anchor (balance 0.5) → 1 at the deepest (balance 1); 0 across the
@@ -287,6 +317,48 @@ internal data class WidgetSurfaces(
     val onSurfaceVariant: Color,
     val outlineVariant: Color,
 )
+
+// The DONE check-pill's derived background + check-icon colors (Round 9).
+internal data class WidgetPrimaryContainer(
+    val container: Color,
+    val onContainer: Color,
+)
+
+// DONE pill chroma vs the saturation slider, anchored on the scheme primaryContainer's chroma: a floor
+// (fraction of pcChroma, so it keeps color even at saturation 0) → EXACTLY pcChroma at the 0.5 anchor (so
+// the default DONE pill matches the Material primaryContainer) → boosted by CHROMA_BOOST toward the cap
+// at max saturation. Same shape as the surface saturationChroma, but floored and anchored on pcChroma.
+private fun doneContainerChroma(saturation: Float, pcChroma: Double): Double {
+    val anchor = WidgetAppearance.DEFAULT_SATURATION
+    val raw =
+        if (saturation <= anchor) {
+            lerp(pcChroma * DONE_CHROMA_FLOOR_FRACTION, pcChroma, (saturation / anchor).toDouble())
+        } else {
+            pcChroma + CHROMA_BOOST * ((saturation - anchor) / (1f - anchor)).toDouble()
+        }
+    return raw.coerceAtMost(DONE_CONTAINER_CHROMA_MAX)
+}
+
+// Derive the DONE check-pill from the card so it can't collide as the card moves with balance (see the
+// DONE_CONTAINER_* notes). Uses the scheme primaryContainer's HUE (the accent identity), the tone =
+// cardTone + delta, and a saturation-driven chroma anchored on pcChroma (doneContainerChroma): floored so
+// it keeps color at saturation 0 and equal to pcChroma at the default. The icon is a contrasting tone.
+internal fun deriveWidgetPrimaryContainer(
+    schemePrimaryContainer: Color,
+    card: Color,
+    saturation: Float,
+    dark: Boolean,
+): WidgetPrimaryContainer {
+    val pc = Hct.fromInt(schemePrimaryContainer.toArgb())
+    val chroma = doneContainerChroma(saturation, pc.chroma)
+    val cardTone = Hct.fromInt(card.toArgb()).tone
+    val tone = cardTone + if (dark) DONE_CONTAINER_DELTA_DARK else DONE_CONTAINER_DELTA_LIGHT
+    val iconTone = if (tone > 50.0) DONE_ICON_TONE_ON_LIGHT_PILL else DONE_ICON_TONE_ON_DARK_PILL
+    return WidgetPrimaryContainer(
+        container = colorAt(pc.hue, chroma, tone),
+        onContainer = colorAt(pc.hue, chroma.coerceAtMost(DONE_ICON_CHROMA_MAX), iconTone),
+    )
+}
 
 // One mode's background surfaces + balance-lifted text tones, built absolutely in
 // HCT. Invariants (encoded in WidgetThemeDerivationTest, not re-derived here):
@@ -334,7 +406,9 @@ internal fun deriveWidgetSurfaces(
     return WidgetSurfaces(
         shell = colorAt(hue, chroma, shellTone),
         card = colorAt(hue, chroma, cardTone),
-        control = colorAt(hue, chroma, controlTone),
+        // The control pill caps chroma at PILL_CHROMA_MAX so it doesn't out-saturate at high saturation
+        // (the shell/card it sits among keep the full chroma). At/below the default this is a no-op.
+        control = colorAt(hue, chroma.coerceAtMost(CONTROL_CHROMA_MAX), controlTone),
         onSurface = onSurface.shiftTone(onSurfaceLift),
         onSurfaceVariant = onSurfaceVariant.shiftTone(onSurfaceVariantLift),
         outlineVariant = deriveOutlineVariant(hue, chroma, shellTone, u, dark, backgroundAlpha),

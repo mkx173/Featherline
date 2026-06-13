@@ -23,6 +23,10 @@ internal fun widgetPreviewDerivedHexes(): Map<String, Map<String, String>> {
             saturation = WidgetAppearance.DEFAULT_SATURATION,
             balance = WidgetAppearance.DEFAULT_BALANCE, dark = isDark,
         )
+        // Round 9: the DONE check-pill is derived from the card, not the raw scheme primaryContainer.
+        val done = deriveWidgetPrimaryContainer(
+            scheme.primaryContainer, s.card, WidgetAppearance.DEFAULT_SATURATION, dark = isDark,
+        )
         mode to mapOf(
             "widget_preview_background" to hex(s.shell),
             "widget_preview_card" to hex(s.card),
@@ -35,8 +39,10 @@ internal fun widgetPreviewDerivedHexes(): Map<String, Map<String, String>> {
             "widget_preview_outline_variant" to hex(s.outlineVariant),
             "widget_preview_primary" to hex(scheme.primary),
             "widget_preview_on_primary" to hex(scheme.onPrimary),
-            "widget_preview_primary_container" to hex(scheme.primaryContainer),
-            "widget_preview_on_primary_container" to hex(scheme.onPrimaryContainer),
+            // Round 9: DONE check-pill derived from the card (cardTone ∓ 10, primary hue), not the
+            // raw scheme primaryContainer; the icon is forced to a contrasting tone in that hue.
+            "widget_preview_primary_container" to hex(done.container),
+            "widget_preview_on_primary_container" to hex(done.onContainer),
         )
     }
 }
