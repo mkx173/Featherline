@@ -49,6 +49,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.time.DayOfWeek
 import java.time.Instant
@@ -202,6 +203,31 @@ class BackupExportServiceTest {
             snapshot.settings.widgetAppearance,
         )
         assertEquals(legacyDerived.contentScale, snapshot.settings.widgetContentScale, 1e-9f)
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_failsWhenLegacyMigrationFails() = runTest {
+        // A failed migration leaves the store unseeded, so currentEffective(null) would
+        // read Default while the user's real appearance still lives in the un-exported
+        // legacy keys. The export must fail loudly rather than silently baking Default
+        // over those settings — a failed export is retryable; a lossy backup is not.
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+        coEvery {
+            widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
+        } throws IOException("appearance store unavailable")
+
+        val thrown = runCatching {
+            service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+        }.exceptionOrNull()
+
+        assertTrue("Expected IOException but got $thrown", thrown is IOException)
     }
 
     @Test

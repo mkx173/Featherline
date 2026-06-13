@@ -39,13 +39,11 @@ private fun overrideKey(appWidgetId: Int) = stringPreferencesKey("appearance_$ap
 class WidgetAppearanceStore @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) {
-    // Transient IOException (low memory, EBUSY during fsync) would otherwise tear
-    // down the app-lifetime appearance collectors: `catch` completes the flow after
-    // its fallback emission, so a single transient failure would permanently kill
-    // them. Retry briefly first so transient failures resubscribe upstream; only
-    // then fall back to empty (→ Default) so one-shot readers (currentEffective)
-    // never hang under persistent I/O failure. Residual limitation: a persistent
-    // failure still completes the flow after the retries are exhausted.
+    // Bounded recovery for the one-shot readers (currentEffective, via observeEntry):
+    // retry transient IOExceptions (low memory, EBUSY during fsync) briefly, then fall
+    // back to empty (→ Default) so a read never hangs under persistent I/O failure. The
+    // flow completes after that fallback — acceptable for `.first()`, but NOT for the
+    // app-lifetime change observer, which must never complete (see observeChanges).
     private fun safeData(): Flow<Preferences> =
         context.widgetAppearanceDataStore.data
             .retryWhen { cause, attempt ->
@@ -62,8 +60,19 @@ class WidgetAppearanceStore @Inject constructor(
             .map { it.decodeEntry(appWidgetId) }
             .distinctUntilChanged()
 
-    // One tick per store mutation; HomeWidgetManager re-renders widgets on it.
-    internal fun observeChanges(): Flow<Preferences> = safeData()
+    // One tick per store mutation; HomeWidgetManager re-renders widgets on it. This is
+    // an app-lifetime collector, so unlike safeData it must NEVER complete on I/O
+    // failure — a completed flow would permanently stop appearance-driven repaints.
+    // Retry transient IOExceptions indefinitely with capped backoff so the observer
+    // pauses across an outage and resumes (re-emitting the current value) on recovery,
+    // instead of terminating; non-IO failures still propagate, matching safeData.
+    internal fun observeChanges(): Flow<Preferences> =
+        context.widgetAppearanceDataStore.data
+            .retryWhen { cause, _ ->
+                if (cause !is IOException) return@retryWhen false
+                delay(IO_RETRY_DELAY_MS)
+                true
+            }
 
     internal suspend fun setEntry(appWidgetId: Int?, appearance: WidgetAppearance) {
         context.widgetAppearanceDataStore.edit { prefs ->

@@ -24,7 +24,6 @@ import com.mkx.hrttracker.util.backupFileNameTimestampFormatter
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -165,12 +164,12 @@ class BackupExportService @Inject constructor(
         val stockNudgeUserEnabled = settingsRepository.stockNudgeUserEnabledFlow.first()
         // Export must not snapshot Default while un-migrated legacy values still exist
         // (the fire-and-forget startup migration may have failed); idempotent, so
-        // awaiting it here is safe — same pattern as WidgetConfigActivity.
-        runCatching {
-            widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
-        }.onFailure { error ->
-            if (error is CancellationException) throw error
-        }
+        // awaiting it here is safe — same pattern as WidgetConfigActivity. Let a
+        // migration failure propagate and fail the whole export: with the store left
+        // unseeded, currentEffective(null) reads Default, so swallowing the failure
+        // would silently bake Default over the user's real (still-legacy) widget
+        // settings — worse than a failed export the user can retry.
+        widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
         val defaultAppearance = widgetAppearanceRepository.currentEffective(null)
         val userProfile = userProfileRepository.getCurrentProfile()
         // Pulled before groups/logs so the importer can build its valid-medicine
