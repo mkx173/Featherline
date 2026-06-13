@@ -465,7 +465,7 @@
     <string name="settings_dark_mode">深色模式</string>
     <string name="settings_adaptive_color">自适应配色</string>
     <string name="settings_amoled_black">纯黑深色主题</string>
-    <string name="settings_haze_blur">背景模糊</string>
+    <string name="settings_haze_blur">背景模糊效果</string>
     <string name="settings_widget_appearance">小部件</string>
     <string name="settings_widget_content_scale">内容大小</string>
     <string name="settings_widget_background_opacity">背景不透明度</string>
