@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
@@ -60,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -153,6 +155,11 @@ internal fun WidgetConfigScreen(
     val previewPlaceholderSizeDp = remember(isMediumWidget, appWidgetId) {
         widgetPreviewSizeDp(context, isMediumWidget, appWidgetId)
     }
+    // A very tall widget (e.g. a large instance on a tall layout) would otherwise scale the
+    // preview up until it crowds the controls out. Cap the window so it never exceeds a
+    // fraction of the screen; WidgetPreview fit-scales the widget down into the cap.
+    val maxPreviewHeightDp =
+        LocalConfiguration.current.screenHeightDp.dp * PREVIEW_MAX_HEIGHT_FRACTION
     val previewRender by produceState<WidgetConfigPreviewRender?>(
         initialValue = null,
         isMediumWidget, appWidgetId, snapshot,
@@ -248,6 +255,7 @@ internal fun WidgetConfigScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .heightIn(max = maxPreviewHeightDp)
                             .drawBehind {
                                 drawRoundRect(
                                     color = Color.Black,
@@ -657,6 +665,11 @@ private const val WALLPAPER_WINDOW_CORNER_DP = 28
 // Breathing-room inset applied as the preview's outer padding, so the wallpaper window
 // (which hugs this composable) stands off the fit-scaled preview on every side.
 private val WIDGET_PREVIEW_WINDOW_INSET = 24.dp
+
+// Upper bound on the pinned preview window as a fraction of the screen height, so a tall
+// widget can't crowd out the scrolling controls beneath it. The preview still hugs its
+// fitted height when shorter than this.
+private const val PREVIEW_MAX_HEIGHT_FRACTION = 0.33f
 
 // The window region renders as an empty reference-size hole here: no RemoteViews can be
 // composed in inspection mode (and on-device the hole shows the wallpaper anyway).
