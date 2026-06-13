@@ -32,11 +32,13 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -375,6 +377,7 @@ internal fun WidgetConfigScreen(
                                     value = saturation,
                                     valueRange = 0f..1f,
                                     onValueChange = { saturation = snapToWholePercent(it) },
+                                    centered = true,
                                 )
                             }
                             item {
@@ -385,6 +388,7 @@ internal fun WidgetConfigScreen(
                                     value = balance,
                                     valueRange = 0f..1f,
                                     onValueChange = { balance = snapToWholePercent(it) },
+                                    centered = true,
                                 )
                             }
                         }
@@ -418,6 +422,7 @@ internal fun WidgetConfigScreen(
 
 // A static (non-clickable) segmented row hosting a labelled slider, matching the
 // label/percentage layout of the in-app dialog but as an HrtSection row.
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun SliderRow(
     label: String,
@@ -426,6 +431,11 @@ private fun SliderRow(
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
     onValueChange: (Float) -> Unit,
+    // When true, render the Material 3 Expressive centered track: the active indicator
+    // grows from the track midpoint out to the thumb, marking the neutral anchor of a
+    // bidirectional axis. Only meaningful when the axis default sits at the midpoint of
+    // valueRange — true for balance/saturation (0.5 in 0..1). The thumb still moves freely.
+    centered: Boolean = false,
 ) {
     EditorSegmentedListItem {
         Column {
@@ -453,6 +463,13 @@ private fun SliderRow(
                 value = value,
                 onValueChange = onValueChange,
                 valueRange = valueRange,
+                track = { sliderState ->
+                    if (centered) {
+                        SliderDefaults.CenteredTrack(sliderState = sliderState)
+                    } else {
+                        SliderDefaults.Track(sliderState = sliderState)
+                    }
+                },
             )
         }
     }
@@ -501,7 +518,7 @@ private fun HueSliderRow(
                     HrtPill(
                         label = resetLabel,
                         containerColor = if (dynamicSelected) {
-                            MaterialTheme.colorScheme.primaryContainer
+                            MaterialTheme.colorScheme.secondaryContainer
                         } else {
                             MaterialTheme.colorScheme.surfaceContainer
                         },
