@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.2.0] - 2026-06-13
+
 ### Added
 
 - On Android 12+, the top app bar, bottom navigation bar, bottom sheets, and dialogs now show a translucent blur of the content behind them, with an appearance setting ("Background blur") to turn it off.
@@ -191,7 +195,8 @@ First public release on Google Play.
 - Material 3 interface with dynamic color.
 - Fully on-device, encrypted local storage — no accounts, no telemetry, no network calls.
 
-[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.1.4...HEAD
+[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/mkx173/Featherline/compare/v1.1.4...v1.2.0
 [1.1.4]: https://github.com/mkx173/Featherline/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/mkx173/Featherline/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/mkx173/Featherline/compare/v1.1.1...v1.1.2
