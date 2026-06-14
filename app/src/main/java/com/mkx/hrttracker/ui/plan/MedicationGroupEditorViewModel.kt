@@ -444,6 +444,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
+    fun updateAutoAddFutureEntries(autoAddFutureEntries: Boolean) {
+        _uiState.update {
+            it.copy(autoAddFutureEntries = autoAddFutureEntries)
+        }
+    }
+
     fun updateDailyIntervalDays(intervalDays: String) {
         _uiState.update {
             if (it.areScheduleShapeFieldsLocked) {
@@ -1024,6 +1030,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     notificationsEnabled = currentState.notificationsEnabled,
                     includePastScheduledSlots = currentState.includePastScheduledSlots,
                     replacesGroupUuid = currentState.pendingReplacementGroupId?.let(UUID::fromString),
+                    autoAddFutureEntries = currentState.autoAddFutureEntries,
                     now = saveNow,
                 )
             }
@@ -1475,6 +1482,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 notificationsEnabled = draftState.notificationsEnabled,
                 includePastScheduledSlots = draftState.includePastScheduledSlots,
                 replacesGroupUuid = replacesGroupUuid,
+                autoAddFutureEntries = draftState.autoAddFutureEntries,
                 now = now,
             )
         }.getOrNull()
@@ -1796,6 +1804,7 @@ private fun MedicationGroup.toEditorState(
         notificationsEnabled = notificationsEnabled,
         hasResolvedNotificationDefault = true,
         includePastScheduledSlots = includePastScheduledSlots,
+        autoAddFutureEntries = autoAddFutureEntries,
         isScheduleStartDateLocked = recreatedFromGroupUuid != null &&
                 (archivedAt != null || relatedEntryCount > 0),
         recreatedFromGroupId = recreatedFromGroupUuid?.toString(),
@@ -2252,6 +2261,7 @@ data class MedicationGroupEditorUiState(
     // path's findOrCreate. The screen reads this to toast the count, then
     // calls consumeDuplicateArchivedGroupResult().
     val duplicateArchivedGroupSkippedCount: Int? = null,
+    val autoAddFutureEntries: Boolean = false,
     val scrollToTopRequestVersion: Int = 0,
 ) {
     val isEditing: Boolean

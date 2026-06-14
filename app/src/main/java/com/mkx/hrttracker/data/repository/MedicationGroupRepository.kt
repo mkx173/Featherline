@@ -330,6 +330,7 @@ class MedicationGroupRepository @Inject constructor(
         notificationsEnabled: Boolean = false,
         includePastScheduledSlots: Boolean = true,
         replacesGroupUuid: UUID? = null,
+        autoAddFutureEntries: Boolean = false,
         now: Instant = Instant.now(),
     ): UUID {
         val nowEpochMillis = now.toEpochMilli()
@@ -408,6 +409,7 @@ class MedicationGroupRepository @Inject constructor(
                         includePastScheduledSlots = resolvedIncludePastScheduledSlots,
                         replacedByGroupUuid = existingGroupRow?.replacedByGroupUuid,
                         recreatedFromGroupUuid = resolvedRecreatedFromGroupUuid,
+                        autoAddFutureEntries = autoAddFutureEntries,
                     ),
                     items = medications.mapIndexed { index, medication ->
                         val preparationType = medication.medicineUuid

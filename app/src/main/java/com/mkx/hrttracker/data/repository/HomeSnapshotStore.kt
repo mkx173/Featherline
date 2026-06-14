@@ -184,6 +184,10 @@ data class HomePkProjectionRecord(
     val chartWindowHours: Int,
     val densePolicy: HomePkDenseSamplePolicyRecord,
     val includesPostDoseOffsets: Boolean,
+    // T suppression curve derived from E2 projection + T lab calibration.
+    // Null when no T blood test results are available.
+    val tConcentrations: List<Double>? = null,
+    val tConcentrationUnit: String? = null,
 )
 
 data class HomePkProjectionDoseMarkerRecord(

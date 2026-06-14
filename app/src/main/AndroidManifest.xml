@@ -27,6 +27,7 @@
             android:windowSoftInputMode="adjustResize"
             android:exported="true"
             android:launchMode="singleTop"
+            android:enableOnBackInvokedCallback="true"
             android:configChanges="uiMode|locale|layoutDirection|orientation|screenSize|smallestScreenSize|screenLayout|density"
             android:theme="@style/AppTheme.Splash">
             <intent-filter>

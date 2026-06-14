@@ -361,6 +361,48 @@ internal fun NotificationsCard(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
+internal fun AutoAddFutureEntriesCard(
+    enabled: Boolean,
+    toggleEnabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+    index: Int? = null,
+    count: Int? = null,
+) {
+    PreferenceSegmentedListItem(
+        title = stringResource(R.string.plan_editor_auto_add_future_entries),
+        supportingText = stringResource(R.string.plan_editor_auto_add_future_entries_summary),
+        index = index,
+        count = count,
+        enabled = toggleEnabled,
+        onClick = if (toggleEnabled) {
+            { onToggle(!enabled) }
+        } else {
+            null
+        },
+        titleColor = if (toggleEnabled) {
+            MaterialTheme.colorScheme.onSurface
+        } else {
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        },
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.ic_schedule),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        trailingContent = {
+            Checkbox(
+                checked = enabled,
+                onCheckedChange = onToggle,
+                enabled = toggleEnabled
+            )
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
 internal fun DeleteMedicationGroupRecordsCard(
     enabled: Boolean = true,
     onClick: () -> Unit,

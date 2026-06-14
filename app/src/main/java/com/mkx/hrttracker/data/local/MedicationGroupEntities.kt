@@ -25,6 +25,7 @@ data class MedicationGroupEntity(
     val includePastScheduledSlots: Boolean = true,
     val replacedByGroupUuid: String? = null,
     val recreatedFromGroupUuid: String? = null,
+    val autoAddFutureEntries: Boolean = false,
 )
 
 @Entity(

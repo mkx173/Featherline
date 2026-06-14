@@ -136,6 +136,14 @@ fun MainContent(
                 hideReferenceRanges = uiState.hideReferenceRanges,
             )
 
+            if (uiState.e2Hero.currentTValue != null && uiState.e2Hero.tUnit != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                MainTHeroCard(
+                    currentTValue = uiState.e2Hero.currentTValue,
+                    tUnit = uiState.e2Hero.tUnit,
+                )
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
             MainE2ChartCard(
                 section = uiState.e2Chart,

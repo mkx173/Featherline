@@ -294,15 +294,34 @@ private fun CalibrationScreenContent(
                         )
                     ) {
                         if (hideReferenceRanges) {
+                            CalibrationModelExplanationCard(
+                                index = 0,
+                                count = 2,
+                            )
                             CalibrationInfoCard(
                                 panelCount = uiState.panels.size,
-                                index = 0,
-                                count = 1,
+                                index = 1,
+                                count = 2,
                             )
                         } else {
-                            CalibrationTargetRangeCard(settingsState = uiState.settingsState)
-                            CalibrationReferenceRangeDisclaimerCard()
-                            CalibrationInfoCard(panelCount = uiState.panels.size)
+                            CalibrationTargetRangeCard(
+                                settingsState = uiState.settingsState,
+                                index = 0,
+                                count = 4,
+                            )
+                            CalibrationReferenceRangeDisclaimerCard(
+                                index = 1,
+                                count = 4,
+                            )
+                            CalibrationModelExplanationCard(
+                                index = 2,
+                                count = 4,
+                            )
+                            CalibrationInfoCard(
+                                panelCount = uiState.panels.size,
+                                index = 3,
+                                count = 4,
+                            )
                         }
                     }
                 }
@@ -434,12 +453,29 @@ private fun CalibrationInfoCard(
 @Composable
 private fun CalibrationReferenceRangeDisclaimerCard(
     modifier: Modifier = Modifier,
+    index: Int = 1,
+    count: Int = 3,
 ) {
     SupportMessageListItem(
         text = stringResource(R.string.medical_disclaimer_reference_ranges),
         painter = painterResource(R.drawable.ic_help_clinic),
-        index = 1,
-        count = 3,
+        index = index,
+        count = count,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun CalibrationModelExplanationCard(
+    modifier: Modifier = Modifier,
+    index: Int = 0,
+    count: Int = 1,
+) {
+    SupportMessageListItem(
+        text = stringResource(R.string.settings_calibration_model_explanation),
+        painter = painterResource(R.drawable.ic_settings_backup_restore),
+        index = index,
+        count = count,
         modifier = modifier,
     )
 }
@@ -448,13 +484,15 @@ private fun CalibrationReferenceRangeDisclaimerCard(
 private fun CalibrationTargetRangeCard(
     settingsState: SettingsState,
     modifier: Modifier = Modifier,
+    index: Int = 0,
+    count: Int = 3,
 ) {
     SupportMessageListItem(
         supportingText = calibrationHistoryTargetRangeSummary(settingsState),
         text = stringResource(R.string.settings_calibration_target_ranges_title),
         painter = painterResource(R.drawable.ic_bloodtype),
-        index = 0,
-        count = 3,
+        index = index,
+        count = count,
         modifier = modifier,
         textStyle = MaterialTheme.typography.titleMedium,
         supportingTextStyle = MaterialTheme.typography.labelMedium.copy(

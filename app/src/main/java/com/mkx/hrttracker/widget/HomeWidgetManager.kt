@@ -64,6 +64,18 @@ class HomeWidgetManager @Inject constructor(
         // Run the worker logic once immediately on startup so the widget is never stale
         // after a long absence or a fresh install.
         workManager.enqueue(OneTimeWorkRequestBuilder<WidgetDailyRefreshWorker>().build())
+
+        // 2. Enqueue the periodic auto log worker.
+        val autoLogPeriodicRequest =
+            PeriodicWorkRequestBuilder<AutoLogWorker>(15, TimeUnit.MINUTES)
+                .build()
+        workManager.enqueueUniquePeriodicWork(
+            AUTO_LOG_WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            autoLogPeriodicRequest,
+        )
+        workManager.enqueue(OneTimeWorkRequestBuilder<AutoLogWorker>().build())
+
         scheduleNextWidgetDateRefresh(context, diagnosticsLogger = diagnosticsLogger)
         publishGeneratedWidgetPreviewsIfNeeded()
 
@@ -280,6 +292,7 @@ class HomeWidgetManager @Inject constructor(
     companion object {
         private const val TAG = "HomeWidgetManager"
         private const val WORK_NAME = "widget_daily_refresh"
+        private const val AUTO_LOG_WORK_NAME = "auto_log_future_doses"
         private const val GENERATED_PREVIEW_PREFS = "hrt_widget_generated_previews"
         private const val GENERATED_PREVIEW_VERSION = 9
         private val GENERATED_PREVIEW_RECEIVERS = listOf<Class<out GlanceAppWidgetReceiver>>(

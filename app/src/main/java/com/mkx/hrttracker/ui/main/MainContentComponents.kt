@@ -726,6 +726,130 @@ internal fun MainE2HeroCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun MainTHeroCard(
+    currentTValue: Double,
+    tUnit: String,
+    modifier: Modifier = Modifier,
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val heroContentColor = colorScheme.secondary
+    val heroSupportingColor = colorScheme.onSurfaceVariant
+    val estimateInfoTooltipText = stringResource(R.string.medical_disclaimer_testosterone_suppression)
+    val estimateInfoTooltipState = rememberTooltipState(isPersistent = true)
+    val estimateInfoTooltipScope = rememberCoroutineScope()
+    BackHandler(enabled = estimateInfoTooltipState.isVisible) {
+        estimateInfoTooltipState.dismiss()
+    }
+    
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.extraLarge)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = colorScheme.surfaceContainerLow,
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.MonitorHeart,
+                            contentDescription = null,
+                            tint = heroSupportingColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.medication_category_testosterone),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = heroSupportingColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        CompositionLocalProvider(
+                            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                        ) {
+                            TooltipBox(
+                                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                    TooltipAnchorPosition.Above
+                                ),
+                                tooltip = {
+                                    RichTooltip {
+                                        Text(
+                                            text = estimateInfoTooltipText,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(vertical = 8.dp)
+                                        )
+                                    }
+                                },
+                                state = estimateInfoTooltipState,
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        if (estimateInfoTooltipState.isVisible) {
+                                            estimateInfoTooltipState.dismiss()
+                                        } else {
+                                            estimateInfoTooltipScope.launch {
+                                                estimateInfoTooltipState.show()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.size(24.dp),
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_info),
+                                        contentDescription = "info",
+                                        tint = heroSupportingColor,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = String.format(java.util.Locale.US, "%.1f", currentTValue),
+                            style = MaterialTheme.typography.displayLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = heroContentColor,
+                        )
+                        Text(
+                            text = tUnit,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = heroSupportingColor,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun MainE2RangeStatusPill(
     iconDrawableRes: Int,
@@ -1097,6 +1221,8 @@ internal fun MainE2ChartCard(
             currentTimeXHours,
             currentTimeConcentration,
             chartViewSpec,
+            section.tPoints,
+            pointXHours,
         ) {
             modelProducer.runTransaction {
                 lineSeries {
@@ -1108,6 +1234,8 @@ internal fun MainE2ChartCard(
                         doseMarkerLoggedConcentrations = doseMarkerLoggedConcentrations,
                         doseMarkerPlannedXHours = doseMarkerPlannedXHours,
                         doseMarkerPlannedConcentrations = doseMarkerPlannedConcentrations,
+                        pointXHours = pointXHours,
+                        tPoints = section.tPoints,
                     )
                 }
                 extras { extraStore ->
@@ -1339,6 +1467,19 @@ internal fun MainE2ChartCard(
                                                         plannedDoseMarkerPoint
                                                     ),
                                                 ),
+                                                LineCartesianLayer.rememberLine(
+                                                    fill = LineCartesianLayer.LineFill.single(
+                                                        Fill(
+                                                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f)
+                                                        )
+                                                    ),
+                                                    stroke = LineCartesianLayer.LineStroke.Dashed(
+                                                        thickness = 2.dp,
+                                                        dashLength = 4.dp,
+                                                        gapLength = 4.dp,
+                                                    ),
+                                                    interpolator = LineCartesianLayer.Interpolator.catmullRom(),
+                                                ),
                                             ),
                                         rangeProvider = rangeProvider,
                                     ),
@@ -1398,6 +1539,8 @@ internal fun MainE2ChartCard(
                                     currentTimeXHours,
                                     currentTimeConcentration,
                                     chartViewSpec,
+                                    section.tPoints,
+                                    pointXHours,
                                 ) {
                                     buildMainE2ChartModel(
                                         splitChartSeries = splitChartSeries,
@@ -1408,6 +1551,8 @@ internal fun MainE2ChartCard(
                                         doseMarkerPlannedXHours = doseMarkerPlannedXHours,
                                         doseMarkerPlannedConcentrations = doseMarkerPlannedConcentrations,
                                         viewSpec = chartViewSpec,
+                                        pointXHours = pointXHours,
+                                        tPoints = section.tPoints,
                                     )
                                 }
                                 CartesianChartHost(
@@ -1586,6 +1731,8 @@ private fun LineCartesianLayerModel.BuilderScope.mainE2ChartLineSeries(
     doseMarkerLoggedConcentrations: List<Float>,
     doseMarkerPlannedXHours: List<Double>,
     doseMarkerPlannedConcentrations: List<Float>,
+    pointXHours: List<Double>,
+    tPoints: List<Float>?,
 ) {
     // Solid line: window start → today midnight (with area fill).
     series(
@@ -1612,26 +1759,27 @@ private fun LineCartesianLayerModel.BuilderScope.mainE2ChartLineSeries(
     // there is at least one marker — the absent one is padded with
     // an out-of-axis sentinel point so the LineProvider's
     // index-based style mapping stays stable.
-    val hasAnyMarker = doseMarkerLoggedXHours.isNotEmpty() ||
-            doseMarkerPlannedXHours.isNotEmpty()
-    if (hasAnyMarker) {
-        series(
-            x = doseMarkerLoggedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
-            y = doseMarkerLoggedConcentrations.ifEmpty {
-                listOf(
-                    OffAxisDoseMarkerSentinelConcentration
-                )
-            },
-        )
-        series(
-            x = doseMarkerPlannedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
-            y = doseMarkerPlannedConcentrations.ifEmpty {
-                listOf(
-                    OffAxisDoseMarkerSentinelConcentration
-                )
-            },
-        )
-    }
+    series(
+        x = doseMarkerLoggedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
+        y = doseMarkerLoggedConcentrations.ifEmpty {
+            listOf(
+                OffAxisDoseMarkerSentinelConcentration
+            )
+        },
+    )
+    series(
+        x = doseMarkerPlannedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
+        y = doseMarkerPlannedConcentrations.ifEmpty {
+            listOf(
+                OffAxisDoseMarkerSentinelConcentration
+            )
+        },
+    )
+    // T curve (series index 5)
+    series(
+        x = if (!tPoints.isNullOrEmpty()) pointXHours else listOf(OffAxisDoseMarkerSentinelXHours),
+        y = if (!tPoints.isNullOrEmpty()) tPoints else listOf(OffAxisDoseMarkerSentinelConcentration),
+    )
 }
 
 // Builds the chart model synchronously for the post-intro render path. The
@@ -1648,6 +1796,8 @@ internal fun buildMainE2ChartModel(
     doseMarkerPlannedXHours: List<Double>,
     doseMarkerPlannedConcentrations: List<Float>,
     viewSpec: MainE2ChartViewSpec,
+    pointXHours: List<Double>,
+    tPoints: List<Float>?,
 ): CartesianChartModel {
     return CartesianChartModel(
         LineCartesianLayerModel.build {
@@ -1659,6 +1809,8 @@ internal fun buildMainE2ChartModel(
                 doseMarkerLoggedConcentrations = doseMarkerLoggedConcentrations,
                 doseMarkerPlannedXHours = doseMarkerPlannedXHours,
                 doseMarkerPlannedConcentrations = doseMarkerPlannedConcentrations,
+                pointXHours = pointXHours,
+                tPoints = tPoints,
             )
         }
     ).copy(
@@ -3361,17 +3513,14 @@ internal fun MainUpcomingSection(
 }
 
 internal fun mainTodayDoseRowCompositionKey(row: MainTodayDoseRowUiState): String {
-    val entryIdentity = (row.fulfillingEntryUuids + row.outsideScheduleWindowEntryUuids)
-        .sorted()
-        .joinToString(separator = ",")
-    return listOf(
-        if (row.isManualRecord) "manual" else "scheduled",
-        row.groupUuid,
-        row.scheduleTimeUuid,
-        row.scheduledAt,
-        row.medication.uuid,
-        entryIdentity,
-    ).joinToString(separator = "|")
+    return if (row.isManualRecord) {
+        val entryIdentity = (row.fulfillingEntryUuids + row.outsideScheduleWindowEntryUuids)
+            .sorted()
+            .joinToString(separator = ",")
+        "manual|${row.groupUuid}|${row.medication.uuid}|$entryIdentity"
+    } else {
+        "scheduled|${row.groupUuid}|${row.scheduleTimeUuid}|${row.scheduledAt}|${row.medication.uuid}"
+    }
 }
 
 internal fun mainUpcomingDoseRowCompositionKey(row: MainUpcomingDoseRowUiState): String =

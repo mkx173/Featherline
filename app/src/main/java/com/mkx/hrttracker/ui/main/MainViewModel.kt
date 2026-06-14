@@ -42,6 +42,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import javax.inject.Inject
+import com.mkx.hrttracker.model.settings.calibrationDefaultUnitFor
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
@@ -334,11 +335,13 @@ class MainViewModel @Inject constructor(
                 displayUnit = homeE2DisplayUnit,
                 zoneId = zoneId,
                 now = now,
+                tDisplayUnit = inputs.settings.calibrationDefaultUnitFor(BloodAnalyteKey.T),
             ),
             e2Chart = buildMainE2Chart(
                 trendResult = trendResult,
                 displayUnit = homeE2DisplayUnit,
                 chartWindowOption = chartWindowOption,
+                tDisplayUnit = inputs.settings.calibrationDefaultUnitFor(BloodAnalyteKey.T),
             ),
             antiandrogenCards = buildMainAntiandrogenCards(
                 groups = inputs.activeGroups,

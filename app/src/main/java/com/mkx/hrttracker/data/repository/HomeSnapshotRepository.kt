@@ -10,8 +10,10 @@ import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.PkProjectionResult
+import com.mkx.hrttracker.model.pk.PkTestosteroneSuppressionModel
 import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
 import com.mkx.hrttracker.model.pk.projectionFutureDays
+import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
@@ -271,6 +273,8 @@ class HomeSnapshotRepository @Inject constructor(
                         isPlanned = marker.isPlanned,
                     )
                 },
+                tConcentrations = projectionRecord.tConcentrations,
+                tConcentrationUnit = projectionRecord.tConcentrationUnit,
             )
         }.getOrNull()
     }
@@ -634,6 +638,45 @@ class HomeSnapshotRepository @Inject constructor(
                     "windowStart=${projection.windowStart} windowEnd=${projection.windowEnd} " +
                     "expiresAt=$expiresAtInstant"
         )
+        // --- T Suppression curve ---
+        // Fetch T lab results, pair each with the E2 predicted at that time by the
+        // projection, calibrate the Emax suppression model, then evaluate it over the
+        // same time axis as the E2 curve. Null when no T labs exist (UI hides T section).
+        val tLabPoints: List<PkTestosteroneSuppressionModel.TLabPoint> = run {
+            val tTrendPoints = bloodTestRepository.get()
+                .getBuiltinTrendPoints(BloodAnalyteKey.T)
+            if (tTrendPoints.isEmpty() || projection.timeH.isEmpty()) return@run emptyList()
+            tTrendPoints.mapNotNull { tLab ->
+                val tLabTimeH = java.time.Duration.between(
+                    windowStart, tLab.collectedAt
+                ).toMillis() / 3600000.0
+                // Linear interpolation of E2 at the lab time.
+                val idx = projection.timeH.indexOfLast { it <= tLabTimeH }
+                val e2AtLabTime = when {
+                    idx < 0 -> projection.concentrations.firstOrNull()
+                    idx >= projection.timeH.lastIndex -> projection.concentrations.lastOrNull()
+                    else -> {
+                        val t0 = projection.timeH[idx]; val t1 = projection.timeH[idx + 1]
+                        val c0 = projection.concentrations[idx]; val c1 = projection.concentrations[idx + 1]
+                        val frac = if (t1 > t0) (tLabTimeH - t0) / (t1 - t0) else 0.0
+                        c0 + frac * (c1 - c0)
+                    }
+                } ?: return@mapNotNull null
+                PkTestosteroneSuppressionModel.TLabPoint(
+                    e2PgMl = e2AtLabTime,
+                    tNgDl = tLab.canonicalValue,
+                )
+            }
+        }
+        val suppressionModel = PkTestosteroneSuppressionModel()
+        val tCurveData: Pair<List<Double>, String>? = if (tLabPoints.isNotEmpty()) {
+            val calibratedState = suppressionModel.calibrate(tLabPoints)
+            val tConcentrations = projection.concentrations.map { e2 ->
+                suppressionModel.predictT(e2, calibratedState)
+            }
+            tConcentrations to "ng_dl"
+        } else null
+
         val pkProjectionRecord = HomePkProjectionRecord(
             generatedAtEpochMillis = projection.generatedAt.toEpochMilli(),
             windowStartEpochMillis = projection.windowStart.toEpochMilli(),
@@ -653,6 +696,8 @@ class HomeSnapshotRepository @Inject constructor(
             chartWindowHours = option.chartWindowHours.toInt(),
             densePolicy = option.densePolicy.toRecord(),
             includesPostDoseOffsets = option.includesPostDoseOffsets,
+            tConcentrations = tCurveData?.first,
+            tConcentrationUnit = tCurveData?.second,
         )
         // No planned doses → nothing to "go stale" mid-window; expire at windowEnd.
         val widgetPkProjectionRecord = HomePkProjectionRecord(

@@ -72,6 +72,8 @@ data class MainE2HeroUiState(
     val unit: String = E2_UNIT_PG_ML,
     val lastDose: LastDoseDisplay? = null,
     val lastDoseAt: LocalDateTime? = null,
+    val currentTValue: Double? = null,
+    val tUnit: String? = null,
 )
 
 data class MainE2ChartUiState(
@@ -87,6 +89,8 @@ data class MainE2ChartUiState(
     val predictionStartXHours: Double = EmptyE2ChartPredictionStartXHours,
     val chartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
     val pastDays: Long = chartWindowOption.pastDays,
+    val tPoints: List<Float>? = null,
+    val tUnit: String? = null,
 )
 
 data class MainE2DoseMarkerUiState(
@@ -211,6 +215,7 @@ internal fun buildMainE2Hero(
     // currently displayed minute still counts rather than hiding until the next
     // tick. When `now` is null no upper bound is applied (used by previews/tests).
     now: LocalDateTime? = null,
+    tDisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.T),
 ): MainE2HeroUiState {
     val lastDoseCutoff = now?.let { mainHomeLatestDoseCutoff(now = it, zoneId = zoneId) }
     val lastEstradiolEntry = findLastEstradiolEntry(
@@ -258,7 +263,15 @@ internal fun buildMainE2Hero(
         lastDoseAt = lastEstradiolEntry
             ?.appliedAt
             ?.atZone(zoneId)
-            ?.toLocalDateTime()
+            ?.toLocalDateTime(),
+        currentTValue = trendResult?.currentTConcentration?.let { concentration ->
+            mainTConcentrationInDisplayUnit(
+                value = concentration,
+                sourceUnitStr = trendResult.tConcentrationUnit,
+                displayUnit = tDisplayUnit,
+            )
+        },
+        tUnit = calibrationUnitLabel(tDisplayUnit),
     )
 }
 
@@ -266,6 +279,7 @@ internal fun buildMainE2Chart(
     trendResult: PkTrendResult? = null,
     displayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
     chartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+    tDisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.T),
 ): MainE2ChartUiState {
     val chartConcentrations = trendResult
         ?.chartConcentrations
@@ -273,6 +287,17 @@ internal fun buildMainE2Chart(
     val chartTimeH = trendResult
         ?.chartTimeH
         ?.takeIf { timeH -> chartConcentrations != null && timeH.size == chartConcentrations.size }
+
+    val chartTConcentrations = trendResult?.tConcentrations
+    val tPoints = if (chartTConcentrations != null && chartTimeH != null && chartTimeH.size == chartTConcentrations.size) {
+        chartTConcentrations.map { concentration ->
+            mainTConcentrationInDisplayUnit(
+                value = concentration,
+                sourceUnitStr = trendResult.tConcentrationUnit,
+                displayUnit = tDisplayUnit,
+            ).toFloat()
+        }
+    } else null
 
     return MainE2ChartUiState(
         points = chartConcentrations
@@ -317,6 +342,8 @@ internal fun buildMainE2Chart(
             ?: EmptyE2ChartPredictionStartXHours,
         chartWindowOption = chartWindowOption,
         pastDays = chartWindowOption.pastDays,
+        tPoints = tPoints,
+        tUnit = calibrationUnitLabel(tDisplayUnit),
     )
 }
 
@@ -729,6 +756,19 @@ private fun mainE2ConcentrationInDisplayUnit(
     return BloodTestCatalog.fromCanonical(
         analyteKey = BloodAnalyteKey.E2,
         canonicalValue = canonicalValue,
+        unit = displayUnit,
+    )
+}
+
+private fun mainTConcentrationInDisplayUnit(
+    value: Double,
+    sourceUnitStr: String?,
+    displayUnit: BloodUnitKey,
+): Double {
+    // SuppressionModel's predicted T values are always in its canonical unit: ng/dL
+    return BloodTestCatalog.fromCanonical(
+        analyteKey = BloodAnalyteKey.T,
+        canonicalValue = value,
         unit = displayUnit,
     )
 }

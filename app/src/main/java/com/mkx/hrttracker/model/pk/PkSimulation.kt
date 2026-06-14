@@ -165,6 +165,9 @@ data class PkTrendResult(
         0
     ),
     val predictionStartTimeH: Double = chartWindowHours.toDouble(),
+    val tConcentrations: List<Double>? = null,
+    val tConcentrationUnit: String? = null,
+    val currentTConcentration: Double? = null,
 ) {
     val changeSincePreviousDay: Double
         get() = currentConcentration - previousDayConcentration
@@ -178,6 +181,8 @@ data class PkProjectionResult(
     val timeH: List<Double>,
     val concentrations: List<Double>,
     val doseMarkers: List<PkDoseMarker>,
+    val tConcentrations: List<Double>? = null,
+    val tConcentrationUnit: String? = null,
 ) {
     fun toMainEstradiolTrend(
         now: LocalDateTime,
@@ -222,6 +227,9 @@ data class PkProjectionResult(
         val dailyConcentrations = (0..option.chartWindowDays.toInt()).map { index ->
             concentrationAt(chartWindowStartH + index * PkMedicationSimulation.hoursPerDay) ?: 0.0
         }
+        val chartTConcentrations = if (tConcentrations != null && tConcentrations.size == concentrations.size) {
+            chartTimeH.map { time -> tConcentrationAt(time) ?: 0.0 }
+        } else null
 
         return PkTrendResult(
             currentConcentration = concentrationAt(currentTimeH) ?: 0.0,
@@ -238,6 +246,9 @@ data class PkProjectionResult(
                 },
             chartWindowHours = option.chartWindowHours.toInt(),
             predictionStartTimeH = predictionStartTimeH,
+            tConcentrations = chartTConcentrations,
+            tConcentrationUnit = tConcentrationUnit,
+            currentTConcentration = tConcentrationAt(currentTimeH),
         )
     }
 
@@ -247,6 +258,28 @@ data class PkProjectionResult(
 
     private fun hoursBetween(start: Instant, end: Instant): Double {
         return Duration.between(start, end).toMillis() / 3_600_000.0
+    }
+
+    private fun tConcentrationAt(hour: Double): Double? {
+        val tConcs = tConcentrations ?: return null
+        if (timeH.isEmpty() || timeH.size != tConcs.size) {
+            return null
+        }
+        if (hour <= timeH.first()) {
+            return tConcs.first()
+        }
+        if (hour >= timeH.last()) {
+            return tConcs.last()
+        }
+        val idx = timeH.indexOfLast { it <= hour }
+        if (idx < 0) return tConcs.first()
+        if (idx >= timeH.lastIndex) return tConcs.last()
+        val t0 = timeH[idx]
+        val t1 = timeH[idx + 1]
+        val c0 = tConcs[idx]
+        val c1 = tConcs[idx + 1]
+        val frac = if (t1 > t0) (hour - t0) / (t1 - t0) else 0.0
+        return c0 + frac * (c1 - c0)
     }
 
     private fun concentrationAt(hour: Double): Double? {

@@ -25,6 +25,7 @@ data class MedicationGroup(
     val includePastScheduledSlots: Boolean = true,
     val replacedByGroupUuid: UUID? = null,
     val recreatedFromGroupUuid: UUID? = null,
+    val autoAddFutureEntries: Boolean = false,
 )
 
 data class MedicationGroupMedication(

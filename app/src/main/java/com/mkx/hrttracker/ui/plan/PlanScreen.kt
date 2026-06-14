@@ -131,6 +131,8 @@ fun PlanScreen(
     onBatchAddClick: () -> Unit,
     onArchivedGroupsClick: () -> Unit,
     onMedicinesClick: () -> Unit,
+    onManageRecordsClick: () -> Unit = {},
+    onQuickOneTimeLogClick: () -> Unit = {},
     scrollToTopSignal: Int = 0,
     viewModel: PlanViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
@@ -148,6 +150,8 @@ fun PlanScreen(
         onBatchAddClick = onBatchAddClick,
         onArchivedGroupsClick = onArchivedGroupsClick,
         onMedicinesClick = onMedicinesClick,
+        onManageRecordsClick = onManageRecordsClick,
+        onQuickOneTimeLogClick = onQuickOneTimeLogClick,
         onDateSelected = viewModel::toggleSelectedDate,
         onDateSelectionReset = viewModel::clearSelectedDate,
         scrollToTopSignal = scrollToTopSignal,
@@ -168,6 +172,8 @@ private fun PlanScreenContent(
     onBatchAddClick: () -> Unit,
     onArchivedGroupsClick: () -> Unit,
     onMedicinesClick: () -> Unit,
+    onManageRecordsClick: () -> Unit = {},
+    onQuickOneTimeLogClick: () -> Unit = {},
     onDateSelected: (LocalDate) -> Unit,
     onDateSelectionReset: () -> Unit,
     scrollToTopSignal: Int = 0,
@@ -334,6 +340,18 @@ private fun PlanScreenContent(
                                 HrtDropdownMenuItem(
                                     text = stringResource(R.string.plan_batch_add_from_plan),
                                     onClick = onBatchAddClick,
+                                )
+                            )
+                            add(
+                                HrtDropdownMenuItem(
+                                    text = stringResource(R.string.plan_manage_records),
+                                    onClick = onManageRecordsClick,
+                                )
+                            )
+                            add(
+                                HrtDropdownMenuItem(
+                                    text = stringResource(R.string.plan_quick_one_time_log),
+                                    onClick = onQuickOneTimeLogClick,
                                 )
                             )
                         }

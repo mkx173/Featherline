@@ -99,6 +99,7 @@ import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanBatchAddScreen
 import com.mkx.hrttracker.ui.plan.PlanScreen
+import com.mkx.hrttracker.ui.plan.PlanRecordsScreen
 import com.mkx.hrttracker.ui.postLogStockWarningDestination
 import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
 import com.mkx.hrttracker.ui.settings.SettingsScreen
@@ -127,6 +128,17 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
         R.string.plan_archived_groups
     ) {
         const val baseRoute = "plan_archived_groups"
+
+        fun createRoute(topLevelParentRoute: String = Plan.route): String {
+            return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+        }
+    }
+
+    data object PlanRecords : Screen(
+        "plan_records?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.plan_records_title
+    ) {
+        const val baseRoute = "plan_records"
 
         fun createRoute(topLevelParentRoute: String = Plan.route): String {
             return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
@@ -850,6 +862,18 @@ fun HrtTrackerNavHost(
                                 navController.navigate(Screen.Medicines.createRoute(Screen.Plan.route)) {
                                     launchSingleTop = true
                                 }
+                            },
+                            onManageRecordsClick = {
+                                navController.navigate(Screen.PlanRecords.createRoute(Screen.Plan.route)) {
+                                    launchSingleTop = true
+                                }
+                            },
+                            onQuickOneTimeLogClick = {
+                                if (canOpenOverlaySheet(backStackEntry)) {
+                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                        entryIds = emptyList()
+                                    )
+                                }
                             }
                         )
                     }
@@ -868,6 +892,29 @@ fun HrtTrackerNavHost(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
                             onStockWarning = showPostLogStockWarning,
+                        )
+                    }
+                }
+                composable(
+                    route = Screen.PlanRecords.route,
+                    arguments = listOf(
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Plan.route
+                        }
+                    )
+                ) { backStackEntry ->
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
+                        PlanRecordsScreen(
+                            modifier = modifier,
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            onEntryClick = { entryIds ->
+                                if (canOpenOverlaySheet(backStackEntry)) {
+                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                        entryIds = entryIds.map(UUID::toString)
+                                    )
+                                }
+                            }
                         )
                     }
                 }

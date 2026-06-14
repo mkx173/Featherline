@@ -66,6 +66,7 @@ internal fun MedicationGroupWithItemsEntity.toMedicationGroupModel(
         includePastScheduledSlots = group.includePastScheduledSlots,
         replacedByGroupUuid = group.replacedByGroupUuid?.let(UUID::fromString),
         recreatedFromGroupUuid = group.recreatedFromGroupUuid?.let(UUID::fromString),
+        autoAddFutureEntries = group.autoAddFutureEntries,
     )
 }
 

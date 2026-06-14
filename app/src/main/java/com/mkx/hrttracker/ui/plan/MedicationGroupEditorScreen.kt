@@ -355,6 +355,7 @@ fun MedicationGroupEditorScreen(
         onSinceDateChange = viewModel::updateSinceDate,
         onIncludePastScheduledSlotsChange = viewModel::updateIncludePastScheduledSlots,
         onCreatePastScheduledSlotRecordsChange = viewModel::updateCreatePastScheduledSlotRecords,
+        onAutoAddFutureEntriesChange = viewModel::updateAutoAddFutureEntries,
         onNotificationsEnabledChange = { enabled ->
             if (!enabled) {
                 viewModel.updateNotificationsEnabled(false)
@@ -481,6 +482,7 @@ private fun MedicationGroupEditorScreenContent(
     onIncludePastScheduledSlotsChange: (Boolean) -> Unit,
     onCreatePastScheduledSlotRecordsChange: (Boolean) -> Unit,
     onNotificationsEnabledChange: (Boolean) -> Unit,
+    onAutoAddFutureEntriesChange: (Boolean) -> Unit = {},
     onRequestExactAlarmAccess: () -> Unit,
     onRecoverMasterReminders: () -> Unit,
     hasNotificationAccess: Boolean,
@@ -1637,6 +1639,13 @@ private fun MedicationGroupEditorScreenContent(
                                 enabled = uiState.notificationsEnabled,
                                 toggleEnabled = presentedNotificationsToggleEnabled,
                                 onToggle = onNotificationsEnabledChange,
+                            )
+                        }
+                        item {
+                            AutoAddFutureEntriesCard(
+                                enabled = uiState.autoAddFutureEntries,
+                                toggleEnabled = !uiState.isArchived,
+                                onToggle = onAutoAddFutureEntriesChange,
                             )
                         }
                         if (uiState.isArchived) {
