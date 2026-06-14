@@ -55,4 +55,7 @@ data class MedicineEntity(
 
     @ColumnInfo(defaultValue = "0")
     val stockGeneration: Long = 0L,
+
+    @ColumnInfo(defaultValue = "0")
+    val importedFromExternalTracker: Boolean = false,
 )

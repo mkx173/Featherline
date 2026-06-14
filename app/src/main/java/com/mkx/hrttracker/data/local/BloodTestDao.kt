@@ -38,6 +38,42 @@ interface BloodTestDao {
     )
     suspend fun getPanel(uuid: String): BloodTestPanelWithResultsEntity?
 
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM blood_test_panels
+        WHERE importSourceApp = :sourceApp
+          AND importPanelKey = :panelKey
+        LIMIT 1
+        """
+    )
+    suspend fun getImportedPanel(
+        sourceApp: String,
+        panelKey: Long,
+    ): BloodTestPanelWithResultsEntity?
+
+    @Query(
+        """
+        SELECT * FROM blood_test_results
+        WHERE importSourceApp = :sourceApp
+          AND importExternalId = :externalId
+        LIMIT 1
+        """
+    )
+    suspend fun getImportedResult(
+        sourceApp: String,
+        externalId: String,
+    ): BloodTestResultEntity?
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM blood_test_panels
+        WHERE importSourceApp = :sourceApp
+        """
+    )
+    suspend fun getImportedPanels(sourceApp: String): List<BloodTestPanelWithResultsEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPanel(panel: BloodTestPanelEntity)
 
@@ -62,6 +98,15 @@ interface BloodTestDao {
         """
     )
     suspend fun deletePanel(uuid: String)
+
+    @Query(
+        """
+        DELETE FROM blood_test_panels
+        WHERE importSourceApp IS NOT NULL
+          AND uuid NOT IN (SELECT DISTINCT panelUuid FROM blood_test_results)
+        """
+    )
+    suspend fun deleteEmptyImportedPanels()
 
     @Query(
         """
