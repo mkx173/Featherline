@@ -467,7 +467,7 @@ internal fun mainE2ChartYAxisSpec(
         ?: 0.0
     // Headroom for Catmull-Rom overshoot between sample points; otherwise a
     // sample flush with the top tick clips the rendered curve and minimap.
-    val maxValue = (rawMax * MainE2YAxisHeadroomMultiplier).coerceAtLeast(1.0)
+    val maxValue = (rawMax * MainE2YAxisHeadroomMultiplier).coerceAtLeast(2.0)
     val candidates = MainE2YAxisTickSteps.filter { candidate ->
         ceil(maxValue / candidate) <= MainE2YAxisMaxTickIntervals
     }

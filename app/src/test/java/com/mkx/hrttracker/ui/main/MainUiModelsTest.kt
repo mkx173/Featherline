@@ -369,6 +369,14 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun mainE2ChartYAxisSpec_uses_whole_number_ticks_for_tiny_ranges() {
+        val expected = MainE2ChartYAxisSpec(maxY = 2.0, tickStep = 1.0)
+
+        assertEquals(expected, mainE2ChartYAxisSpec(points = emptyList()))
+        assertEquals(expected, mainE2ChartYAxisSpec(points = listOf(0.4f)))
+    }
+
+    @Test
     fun mainE2ChartYAxisSpec_bumps_when_sample_is_flush_with_tick_boundary() {
         // Catmull-Rom interpolation overshoots between samples; a peak sitting
         // exactly on the top tick would clip in the rendered curve and minimap.
