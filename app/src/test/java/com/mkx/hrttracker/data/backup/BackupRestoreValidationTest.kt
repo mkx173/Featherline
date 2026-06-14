@@ -3,6 +3,8 @@ package com.mkx.hrttracker.data.backup
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
@@ -813,6 +815,243 @@ class BackupRestoreValidationTest {
         }
     }
 
+    @Test
+    fun toValidatedSnapshot_allowsImportedMedicationLogsForImportedMedicineAndPatchOffWithoutMedicine() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000008a0")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-0000000008a1")
+        val patchOffLogUuid = UUID.fromString("00000000-0000-0000-0000-0000000008a2")
+        val snapshot = validationSnapshot(
+            medicines = listOf(importedPillMedicineSnapshot(medicineUuid)),
+            medicationLogs = listOf(
+                importedPillLogSnapshot(
+                    logUuid = logUuid,
+                    medicineUuid = medicineUuid,
+                    externalId = "dose-8a1",
+                ),
+                importedPatchOffLogSnapshot(
+                    logUuid = patchOffLogUuid,
+                    externalId = "patch-off-8a2",
+                ),
+            ),
+        )
+
+        val result = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        assertEquals(true, result.medicines.single().importedFromExternalTracker)
+        val restoredLogs = result.medicationLogs.sortedBy { it.uuid }
+        assertEquals("transmtf", restoredLogs[0].importSourceApp)
+        assertEquals("dose-8a1", restoredLogs[0].importExternalId)
+        assertEquals(medicineUuid.toString(), restoredLogs[0].medicineUuid)
+        assertEquals("transmtf", restoredLogs[1].importSourceApp)
+        assertEquals("patch-off-8a2", restoredLogs[1].importExternalId)
+        assertNull(restoredLogs[1].medicineUuid)
+        assertEquals("PATCH_OFF", restoredLogs[1].applicationType)
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsDuplicateLogImportProvenance() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000008b0")
+        val snapshot = validationSnapshot(
+            medicines = listOf(importedPillMedicineSnapshot(medicineUuid)),
+            medicationLogs = listOf(
+                importedPillLogSnapshot(
+                    logUuid = UUID.fromString("00000000-0000-0000-0000-0000000008b1"),
+                    medicineUuid = medicineUuid,
+                    externalId = "dose-duplicate",
+                ),
+                importedPillLogSnapshot(
+                    logUuid = UUID.fromString("00000000-0000-0000-0000-0000000008b2"),
+                    medicineUuid = medicineUuid,
+                    externalId = "dose-duplicate",
+                ),
+            ),
+        )
+
+        assertRejects(snapshot, "Duplicate medication log import provenance")
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsDuplicatePanelImportProvenance() {
+        val snapshot = validationSnapshot(
+            bloodTestPanels = listOf(
+                importedBloodPanelSnapshot(
+                    panelUuid = UUID.fromString("00000000-0000-0000-0000-0000000008c1"),
+                    resultUuid = UUID.fromString("00000000-0000-0000-0000-0000000008c2"),
+                    panelKey = 81L,
+                    resultExternalId = "result-8c2",
+                ),
+                importedBloodPanelSnapshot(
+                    panelUuid = UUID.fromString("00000000-0000-0000-0000-0000000008c3"),
+                    resultUuid = UUID.fromString("00000000-0000-0000-0000-0000000008c4"),
+                    panelKey = 81L,
+                    resultExternalId = "result-8c4",
+                ),
+            ),
+        )
+
+        assertRejects(snapshot, "Duplicate blood test panel import provenance")
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsDuplicateResultImportProvenance() {
+        val snapshot = validationSnapshot(
+            bloodTestPanels = listOf(
+                importedBloodPanelSnapshot(
+                    panelUuid = UUID.fromString("00000000-0000-0000-0000-0000000008d1"),
+                    resultUuid = UUID.fromString("00000000-0000-0000-0000-0000000008d2"),
+                    panelKey = 82L,
+                    resultExternalId = "result-duplicate",
+                ),
+                importedBloodPanelSnapshot(
+                    panelUuid = UUID.fromString("00000000-0000-0000-0000-0000000008d3"),
+                    resultUuid = UUID.fromString("00000000-0000-0000-0000-0000000008d4"),
+                    panelKey = 83L,
+                    resultExternalId = "result-duplicate",
+                ),
+            ),
+        )
+
+        assertRejects(snapshot, "Duplicate blood test result import provenance")
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsHalfSetImportProvenancePairs() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000008e0")
+        val cases = listOf(
+            validationSnapshot(
+                medicines = listOf(importedPillMedicineSnapshot(medicineUuid)),
+                medicationLogs = listOf(
+                    importedPillLogSnapshot(
+                        logUuid = UUID.fromString("00000000-0000-0000-0000-0000000008e1"),
+                        medicineUuid = medicineUuid,
+                        externalId = "dose-8e1",
+                    ).copy(importExternalId = null)
+                ),
+            ),
+            validationSnapshot(
+                bloodTestPanels = listOf(
+                    importedBloodPanelSnapshot(
+                        panelUuid = UUID.fromString("00000000-0000-0000-0000-0000000008e2"),
+                        resultUuid = UUID.fromString("00000000-0000-0000-0000-0000000008e3"),
+                        panelKey = 84L,
+                        resultExternalId = "result-8e3",
+                    ).copy(importPanelKey = null)
+                ),
+            ),
+            validationSnapshot(
+                bloodTestPanels = listOf(
+                    importedBloodPanelSnapshot(
+                        panelUuid = UUID.fromString("00000000-0000-0000-0000-0000000008e4"),
+                        resultUuid = UUID.fromString("00000000-0000-0000-0000-0000000008e5"),
+                        panelKey = 85L,
+                        resultExternalId = "result-8e5",
+                    ).let { panel ->
+                        panel.copy(
+                            results = listOf(panel.results.single().copy(importExternalId = null))
+                        )
+                    }
+                ),
+            ),
+        )
+
+        cases.forEach { snapshot ->
+            assertRejects(snapshot, "import provenance must be either fully set or fully absent")
+        }
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsImportOnlyPreparationWhenMedicineIsNotImported() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000008f0")
+        val snapshot = validationSnapshot(
+            medicines = listOf(
+                importedInjectionMedicineSnapshot(medicineUuid)
+                    .copy(importedFromExternalTracker = false)
+            ),
+        )
+
+        assertRejects(snapshot, "requires importedFromExternalTracker")
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsImportedMedicineWithTrackedStock() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000008f1")
+        val snapshot = validationSnapshot(
+            medicines = listOf(
+                importedPillMedicineSnapshot(medicineUuid).copy(
+                    stock = BackupMedicineStockSnapshot(
+                        trackingEnabled = true,
+                        unitsRemaining = 1.0,
+                        unitsLastTotal = 1.0,
+                        openContainerAmount = null,
+                        warnAtDaysRemaining = 14,
+                        stockGeneration = 1L,
+                    )
+                )
+            ),
+        )
+
+        assertRejects(snapshot, "Imported external medicines cannot track stock")
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsImportedMedicineWithDisabledStockBlock() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000008f7")
+        val snapshot = validationSnapshot(
+            medicines = listOf(
+                importedPillMedicineSnapshot(medicineUuid).copy(
+                    stock = BackupMedicineStockSnapshot(
+                        trackingEnabled = false,
+                        unitsRemaining = 1.0,
+                        unitsLastTotal = 1.0,
+                        openContainerAmount = null,
+                        warnAtDaysRemaining = 14,
+                        stockGeneration = 1L,
+                    )
+                )
+            ),
+        )
+
+        assertRejects(snapshot, "Imported external medicines cannot include stock blocks")
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsGroupItemsThatReferenceImportedMedicine() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000008f2")
+        val groupUuid = UUID.fromString("00000000-0000-0000-0000-0000000008f3")
+        val itemUuid = UUID.fromString("00000000-0000-0000-0000-0000000008f4")
+        val snapshot = validationSnapshot(
+            medicines = listOf(importedPillMedicineSnapshot(medicineUuid)),
+            medicationGroups = listOf(
+                baselineMedicationGroupSnapshot(
+                    groupUuid = groupUuid,
+                    item = pillWholeUnitGroupItemSnapshot(
+                        itemUuid = itemUuid,
+                        medicineUuid = medicineUuid,
+                    ),
+                )
+            ),
+        )
+
+        assertRejects(snapshot, "references imported medicine")
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsImportedMedicationLogReferencingNonImportedMedicine() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000008f5")
+        val snapshot = validationSnapshot(
+            medicines = listOf(catalogMedicineSnapshot(medicineUuid)),
+            medicationLogs = listOf(
+                importedPillLogSnapshot(
+                    logUuid = UUID.fromString("00000000-0000-0000-0000-0000000008f6"),
+                    medicineUuid = medicineUuid,
+                    externalId = "dose-8f6",
+                )
+            ),
+        )
+
+        assertRejects(snapshot, "must reference an imported medicine")
+    }
+
     private fun baselineSettings(): BackupSettingsSnapshot = BackupSettingsSnapshot(
         darkModeOption = "FOLLOW_SYSTEM",
         adaptiveColorEnabled = true,
@@ -829,6 +1068,191 @@ class BackupRestoreValidationTest {
         weightOriginalValue = null,
         weightOriginalUnit = "KILOGRAMS",
     )
+
+    private fun assertRejects(
+        snapshot: BackupSnapshot,
+        expectedMessagePart: String,
+    ) {
+        try {
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+            fail("Expected restore validation to reject the snapshot.")
+        } catch (error: IllegalArgumentException) {
+            assertEquals(
+                true,
+                error.message.orEmpty().contains(expectedMessagePart),
+            )
+        }
+    }
+
+    private fun validationSnapshot(
+        medicines: List<BackupMedicineSnapshot> = emptyList(),
+        medicationGroups: List<BackupMedicationGroupSnapshot> = emptyList(),
+        medicationLogs: List<BackupMedicationLogSnapshot> = emptyList(),
+        bloodTestPanels: List<BackupBloodTestPanelSnapshot> = emptyList(),
+    ): BackupSnapshot {
+        return BackupSnapshot(
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = medicines,
+            medicationGroups = medicationGroups,
+            medicationLogs = medicationLogs,
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = bloodTestPanels,
+        )
+    }
+
+    private fun importedPillMedicineSnapshot(uuid: UUID): BackupMedicineSnapshot {
+        return BackupMedicineSnapshot(
+            uuid = uuid.toString(),
+            selectionKind = "CATALOG",
+            medicationKey = MedicationKey.ESTRADIOL.name,
+            customMedicationName = null,
+            customMedicationNameNormalized = null,
+            category = "ESTRADIOL",
+            preparationType = "PILL",
+            strengthMgPerTablet = 2.0,
+            strengthMgPerVial = null,
+            concentrationMgPerMl = null,
+            vialVolumeMl = null,
+            concentrationPercent = null,
+            sachetWeightGrams = null,
+            containerWeightGrams = null,
+            patchTotalMg = null,
+            patchReleaseRateMcgPerDay = null,
+            displayName = null,
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "transmtf",
+                applicationType = MedicationApplicationType.ORAL,
+                compound = "ESTRADIOL",
+                doseKey = "2",
+            ),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+            archivedAtEpochMillis = null,
+            importedFromExternalTracker = true,
+        )
+    }
+
+    private fun importedInjectionMedicineSnapshot(uuid: UUID): BackupMedicineSnapshot {
+        return BackupMedicineSnapshot(
+            uuid = uuid.toString(),
+            selectionKind = "CUSTOM",
+            medicationKey = MedicationKey.ESTRADIOL_VALERATE.name,
+            customMedicationName = "External tracker",
+            customMedicationNameNormalized = "external tracker",
+            category = "ESTRADIOL",
+            preparationType = "IMPORTED_INJECTION",
+            strengthMgPerTablet = null,
+            strengthMgPerVial = 5.0,
+            concentrationMgPerMl = null,
+            vialVolumeMl = null,
+            concentrationPercent = null,
+            sachetWeightGrams = null,
+            containerWeightGrams = null,
+            patchTotalMg = null,
+            patchReleaseRateMcgPerDay = null,
+            displayName = null,
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "transmtf",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "EV",
+                doseKey = "5",
+            ),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+            archivedAtEpochMillis = null,
+            importedFromExternalTracker = true,
+        )
+    }
+
+    private fun importedPillLogSnapshot(
+        logUuid: UUID,
+        medicineUuid: UUID,
+        externalId: String,
+    ): BackupMedicationLogSnapshot {
+        return BackupMedicationLogSnapshot(
+            uuid = logUuid.toString(),
+            category = "ESTRADIOL",
+            medicineUuid = medicineUuid.toString(),
+            applicationType = "ORAL",
+            doseInstructionKind = "TABLET_FRACTION",
+            tabletFractionNumerator = 1,
+            tabletFractionDenominator = 1,
+            doseVolumeMl = null,
+            doseWeightGrams = null,
+            gelApplicationArea = "DEFAULT",
+            equivalentE2Mg = 2.0,
+            sourceGroupUuid = null,
+            appliedAtEpochMillis = 200L,
+            appliedAtTimeZoneId = "Asia/Tokyo",
+            scheduledForIso = null,
+            count = 1,
+            importSourceApp = "transmtf",
+            importExternalId = externalId,
+        )
+    }
+
+    private fun importedPatchOffLogSnapshot(
+        logUuid: UUID,
+        externalId: String,
+    ): BackupMedicationLogSnapshot {
+        return BackupMedicationLogSnapshot(
+            uuid = logUuid.toString(),
+            category = "ESTRADIOL",
+            medicineUuid = null,
+            applicationType = "PATCH_OFF",
+            doseInstructionKind = "NOOP",
+            tabletFractionNumerator = null,
+            tabletFractionDenominator = null,
+            doseVolumeMl = null,
+            doseWeightGrams = null,
+            gelApplicationArea = "DEFAULT",
+            equivalentE2Mg = null,
+            sourceGroupUuid = null,
+            appliedAtEpochMillis = 200L,
+            appliedAtTimeZoneId = "Asia/Tokyo",
+            scheduledForIso = null,
+            count = 1,
+            importSourceApp = "transmtf",
+            importExternalId = externalId,
+        )
+    }
+
+    private fun importedBloodPanelSnapshot(
+        panelUuid: UUID,
+        resultUuid: UUID,
+        panelKey: Long,
+        resultExternalId: String,
+    ): BackupBloodTestPanelSnapshot {
+        return BackupBloodTestPanelSnapshot(
+            uuid = panelUuid.toString(),
+            collectedAtInstantEpochMillis = 300L,
+            collectedAtTimeZoneId = "Asia/Tokyo",
+            notes = null,
+            timeSinceLastEstradiolDoseMillis = null,
+            timeSinceLastTestosteroneDoseMillis = null,
+            createdAtEpochMillis = 300L,
+            updatedAtEpochMillis = 300L,
+            importSourceApp = "oyama",
+            importPanelKey = panelKey,
+            results = listOf(
+                BackupBloodTestResultSnapshot(
+                    uuid = resultUuid.toString(),
+                    createdAtEpochMillis = 301L,
+                    displayOrder = 0,
+                    builtinAnalyteKey = BloodAnalyteKey.E2.storageValue,
+                    customAnalyteUuid = null,
+                    value = 100.0,
+                    unitSnapshot = BloodUnitKey.PG_ML.storageValue,
+                    canonicalValue = 100.0,
+                    importSourceApp = "oyama",
+                    importExternalId = resultExternalId,
+                )
+            ),
+        )
+    }
 
     private fun patchOffMedicineSnapshot(uuid: UUID): BackupMedicineSnapshot {
         return BackupMedicineSnapshot(

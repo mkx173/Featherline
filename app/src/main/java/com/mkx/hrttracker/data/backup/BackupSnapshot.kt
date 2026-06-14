@@ -104,6 +104,7 @@ data class BackupMedicineSnapshot(
     // Optional for backwards compatibility — backups exported before the
     // picker existed simply default to "MG" on restore.
     val displayDoseUnit: String? = null,
+    val importedFromExternalTracker: Boolean = false,
     val stock: BackupMedicineStockSnapshot? = null,
 )
 
@@ -184,6 +185,8 @@ data class BackupMedicationLogSnapshot(
     val appliedAtTimeZoneId: String,
     val scheduledForIso: String?,
     val count: Int,
+    val importSourceApp: String? = null,
+    val importExternalId: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -207,6 +210,8 @@ data class BackupBloodTestPanelSnapshot(
     val timeSinceLastTestosteroneDoseMillis: Long?,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
+    val importSourceApp: String? = null,
+    val importPanelKey: Long? = null,
     val results: List<BackupBloodTestResultSnapshot>,
 )
 
@@ -220,6 +225,8 @@ data class BackupBloodTestResultSnapshot(
     val value: Double,
     val unitSnapshot: String,
     val canonicalValue: Double,
+    val importSourceApp: String? = null,
+    val importExternalId: String? = null,
 )
 
 // Bump this when a schema change isn't safely readable by an older app —
@@ -238,7 +245,11 @@ data class BackupBloodTestResultSnapshot(
 // a v4 appearance string inside a backup decodes to null on a v3-era app, which hard-fails
 // the entire restore, so the version gate must reject the newer backup cleanly instead
 // (see WidgetAppearanceCodec's coupling note).
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 4
+//
+// The 4→5 bump added IMPORTED_INJECTION and IMPORTED_GEL preparationType enum
+// values. Older apps coerce unknown preparationType strings to PILL on restore,
+// which would silently misclassify imported medicines.
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 5
 
 // Stable logical app identity for backups. Do not derive this from
 // Context.packageName: build variants may add an install suffix, but their

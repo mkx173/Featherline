@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
@@ -17,6 +18,7 @@ import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
@@ -44,6 +46,7 @@ class BackupExportService @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val bloodTestRepository: BloodTestRepository,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
+    private val databaseHolder: DatabaseHolder,
     private val backupCrypto: BackupCrypto,
 ) {
     internal suspend fun buildBackupSnapshotJson(
@@ -180,6 +183,10 @@ class BackupExportService @Inject constructor(
         val medicationLogs = medicationLogRepository.getEntries()
         val customBloodAnalytes = bloodTestRepository.getCustomAnalytes()
         val bloodTestPanels = bloodTestRepository.getPanels()
+        val medicationLogImportProvenanceByUuid =
+            medicationLogs.medicationLogImportProvenanceByUuid()
+        val bloodTestImportProvenance =
+            bloodTestPanels.bloodTestImportProvenanceByUuid()
 
         return BackupSnapshot(
             exportedAtEpochMillis = exportedAt.toEpochMilli(),
@@ -227,7 +234,11 @@ class BackupExportService @Inject constructor(
             ),
             medicines = medicines.map { medicine -> medicine.toBackupSnapshot() },
             medicationGroups = medicationGroups.map { group -> group.toBackupSnapshot() },
-            medicationLogs = medicationLogs.map { entry -> entry.toBackupSnapshot() },
+            medicationLogs = medicationLogs.map { entry ->
+                entry.toBackupSnapshot(
+                    importProvenance = medicationLogImportProvenanceByUuid[entry.uuid.toString()],
+                )
+            },
             customBloodAnalytes = customBloodAnalytes.map { analyte ->
                 BackupCustomBloodAnalyteSnapshot(
                     uuid = analyte.uuid.toString(),
@@ -239,14 +250,16 @@ class BackupExportService @Inject constructor(
                     archivedAtEpochMillis = analyte.archivedAt?.toEpochMilli(),
                 )
             },
-            bloodTestPanels = bloodTestPanels.map { panel -> panel.toBackupSnapshot() },
+            bloodTestPanels = bloodTestPanels.map { panel ->
+                panel.toBackupSnapshot(
+                    importProvenance = bloodTestImportProvenance.panelsByUuid[panel.uuid.toString()],
+                    resultImportProvenanceByUuid = bloodTestImportProvenance.resultsByUuid,
+                )
+            },
         )
     }
 
     private fun Medicine.toBackupSnapshot(): BackupMedicineSnapshot {
-        check(!importedFromExternalTracker) {
-            "Imported external medicines are not supported in backups yet."
-        }
         val storageFields = preparation.toBackupStorageFields()
         return BackupMedicineSnapshot(
             uuid = uuid.toString(),
@@ -255,10 +268,14 @@ class BackupExportService @Inject constructor(
             // (kind is CATALOG) but has no medicationKey / customName; the
             // preparationType PATCH_OFF marker rebuilds the PatchOff selection
             // on restore. Mirrors MedicineEntityMappers.toEntity.
-            medicationKey = when (val currentSelection = selection) {
-                is MedicineSelection.Catalog -> currentSelection.medicationKey.name
-                is MedicineSelection.Custom -> null
-                is MedicineSelection.PatchOff -> null
+            medicationKey = when {
+                preparation is MedicinePreparation.ImportedInjection -> preparation.ester.name
+                preparation is MedicinePreparation.ImportedGel -> MedicationKey.ESTRADIOL.name
+                else -> when (val currentSelection = selection) {
+                    is MedicineSelection.Catalog -> currentSelection.medicationKey.name
+                    is MedicineSelection.Custom -> null
+                    is MedicineSelection.PatchOff -> null
+                }
             },
             customMedicationName = when (val currentSelection = selection) {
                 is MedicineSelection.Catalog -> null
@@ -287,6 +304,7 @@ class BackupExportService @Inject constructor(
             updatedAtEpochMillis = updatedAt.toEpochMilli(),
             archivedAtEpochMillis = archivedAt?.toEpochMilli(),
             displayDoseUnit = displayDoseUnit.name,
+            importedFromExternalTracker = importedFromExternalTracker,
             stock = if (stock.trackingEnabled) {
                 BackupMedicineStockSnapshot(
                     trackingEnabled = true,
@@ -351,7 +369,9 @@ class BackupExportService @Inject constructor(
         )
     }
 
-    private fun MedicationLogEntry.toBackupSnapshot(): BackupMedicationLogSnapshot {
+    private fun MedicationLogEntry.toBackupSnapshot(
+        importProvenance: StringImportProvenance?,
+    ): BackupMedicationLogSnapshot {
         val instructionFields = doseInstruction.toBackupFields()
         return BackupMedicationLogSnapshot(
             uuid = uuid.toString(),
@@ -372,6 +392,8 @@ class BackupExportService @Inject constructor(
             appliedAtTimeZoneId = appliedAtTimeZoneId,
             scheduledForIso = scheduledFor?.toString(),
             count = count,
+            importSourceApp = importProvenance?.sourceApp,
+            importExternalId = importProvenance?.externalId,
         )
     }
 
@@ -420,9 +442,15 @@ class BackupExportService @Inject constructor(
                 containerWeightGrams = containerWeightGrams,
             )
 
-            is MedicinePreparation.ImportedInjection,
-            is MedicinePreparation.ImportedGel ->
-                error("Imported external medicine preparations are not supported in backups yet.")
+            is MedicinePreparation.ImportedInjection -> BackupMedicineStorageFields(
+                preparationType = type.name,
+                strengthMgPerVial = administeredMg,
+            )
+
+            is MedicinePreparation.ImportedGel -> BackupMedicineStorageFields(
+                preparationType = type.name,
+                strengthMgPerVial = appliedEstradiolMg,
+            )
 
             is MedicinePreparation.Patch -> when (val currentSpecification = specification) {
                 is MedicinePreparation.PatchSpecification.TotalMg -> BackupMedicineStorageFields(
@@ -443,7 +471,10 @@ class BackupExportService @Inject constructor(
         }
     }
 
-    private fun BloodTestPanel.toBackupSnapshot(): BackupBloodTestPanelSnapshot {
+    private fun BloodTestPanel.toBackupSnapshot(
+        importProvenance: PanelImportProvenance?,
+        resultImportProvenanceByUuid: Map<String, StringImportProvenance>,
+    ): BackupBloodTestPanelSnapshot {
         return BackupBloodTestPanelSnapshot(
             uuid = uuid.toString(),
             collectedAtInstantEpochMillis = collectedAt.toEpochMilli(),
@@ -453,11 +484,19 @@ class BackupExportService @Inject constructor(
             timeSinceLastTestosteroneDoseMillis = timeSinceLastTestosteroneDoseMillis,
             createdAtEpochMillis = createdAt.toEpochMilli(),
             updatedAtEpochMillis = updatedAt.toEpochMilli(),
-            results = results.map { result -> result.toBackupSnapshot() },
+            importSourceApp = importProvenance?.sourceApp,
+            importPanelKey = importProvenance?.panelKey,
+            results = results.map { result ->
+                result.toBackupSnapshot(
+                    importProvenance = resultImportProvenanceByUuid[result.uuid.toString()],
+                )
+            },
         )
     }
 
-    private fun BloodTestResult.toBackupSnapshot(): BackupBloodTestResultSnapshot {
+    private fun BloodTestResult.toBackupSnapshot(
+        importProvenance: StringImportProvenance?,
+    ): BackupBloodTestResultSnapshot {
         return BackupBloodTestResultSnapshot(
             uuid = uuid.toString(),
             createdAtEpochMillis = createdAt.toEpochMilli(),
@@ -467,6 +506,46 @@ class BackupExportService @Inject constructor(
             value = value,
             unitSnapshot = unitSnapshot,
             canonicalValue = canonicalValue,
+            importSourceApp = importProvenance?.sourceApp,
+            importExternalId = importProvenance?.externalId,
+        )
+    }
+
+    private suspend fun List<MedicationLogEntry>.medicationLogImportProvenanceByUuid():
+            Map<String, StringImportProvenance> {
+        if (isEmpty()) return emptyMap()
+        return databaseHolder.get()
+            .medicationLogDao()
+            .getEntries()
+            .associate { entity ->
+                entity.uuid to StringImportProvenance(
+                    sourceApp = entity.importSourceApp,
+                    externalId = entity.importExternalId,
+                )
+            }
+    }
+
+    private suspend fun List<BloodTestPanel>.bloodTestImportProvenanceByUuid():
+            BloodTestImportProvenance {
+        if (isEmpty()) return BloodTestImportProvenance()
+        val panels = databaseHolder.get()
+            .bloodTestDao()
+            .getPanels()
+        return BloodTestImportProvenance(
+            panelsByUuid = panels.associate { panelWithResults ->
+                panelWithResults.panel.uuid to PanelImportProvenance(
+                    sourceApp = panelWithResults.panel.importSourceApp,
+                    panelKey = panelWithResults.panel.importPanelKey,
+                )
+            },
+            resultsByUuid = panels
+                .flatMap { panelWithResults -> panelWithResults.results }
+                .associate { result ->
+                    result.uuid to StringImportProvenance(
+                        sourceApp = result.importSourceApp,
+                        externalId = result.importExternalId,
+                    )
+                },
         )
     }
 
@@ -543,4 +622,19 @@ private data class BackupMedicineStorageFields(
     val containerWeightGrams: Double? = null,
     val patchTotalMg: Double? = null,
     val patchReleaseRateMcgPerDay: Double? = null,
+)
+
+private data class StringImportProvenance(
+    val sourceApp: String?,
+    val externalId: String?,
+)
+
+private data class PanelImportProvenance(
+    val sourceApp: String?,
+    val panelKey: Long?,
+)
+
+private data class BloodTestImportProvenance(
+    val panelsByUuid: Map<String, PanelImportProvenance> = emptyMap(),
+    val resultsByUuid: Map<String, StringImportProvenance> = emptyMap(),
 )

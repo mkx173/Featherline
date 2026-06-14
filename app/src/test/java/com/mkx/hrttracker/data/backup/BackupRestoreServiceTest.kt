@@ -4,6 +4,8 @@ import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import com.mkx.hrttracker.data.local.BloodTestDao
+import com.mkx.hrttracker.data.local.BloodTestPanelEntity
+import com.mkx.hrttracker.data.local.BloodTestResultEntity
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.MedicationGroupDao
@@ -19,6 +21,7 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
+import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -89,6 +92,9 @@ class BackupRestoreServiceTest {
         every { database.medicineDao() } returns medicineDao
         every { database.bloodTestDao() } returns bloodTestDao
         every { database.userProfileDao() } returns userProfileDao
+        every { databaseHolder.get() } returns database
+        coEvery { medicationLogDao.getEntries() } returns emptyList()
+        coEvery { bloodTestDao.getPanels() } returns emptyList()
         coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
             firstArg<suspend () -> Unit>().invoke()
         }
@@ -290,6 +296,91 @@ class BackupRestoreServiceTest {
         assertEquals(logUuid.toString(), restoredLog.uuid)
         assertNull(restoredLog.doseAmountDelta)
     }
+
+    @Test
+    fun restoreBackupBytes_restoresImportProvenanceIntoInsertedEntities() = runTest {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000750")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000751")
+        val panelUuid = UUID.fromString("00000000-0000-0000-0000-000000000752")
+        val resultUuid = UUID.fromString("00000000-0000-0000-0000-000000000753")
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(
+                importedProvenanceSnapshot(
+                    medicineUuid = medicineUuid,
+                    logUuid = logUuid,
+                    panelUuid = panelUuid,
+                    resultUuid = resultUuid,
+                )
+            ),
+            password = "password".toCharArray(),
+        )
+        val medicinesSlot = slot<List<MedicineEntity>>()
+        val logsSlot = slot<List<MedicationLogEntryEntity>>()
+        val panelsSlot = slot<List<BloodTestPanelEntity>>()
+        val resultsSlot = slot<List<BloodTestResultEntity>>()
+
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
+
+        coVerify(exactly = 1) { medicineDao.insertAll(capture(medicinesSlot)) }
+        coVerify(exactly = 1) { medicationLogDao.insertEntries(capture(logsSlot)) }
+        coVerify(exactly = 1) { bloodTestDao.insertPanels(capture(panelsSlot)) }
+        coVerify(exactly = 1) { bloodTestDao.insertResults(capture(resultsSlot)) }
+
+        assertEquals(true, medicinesSlot.captured.single().importedFromExternalTracker)
+        val restoredLog = logsSlot.captured.single()
+        assertEquals("transmtf", restoredLog.importSourceApp)
+        assertEquals("dose-750", restoredLog.importExternalId)
+        val restoredPanel = panelsSlot.captured.single()
+        assertEquals("oyama", restoredPanel.importSourceApp)
+        assertEquals(750L, restoredPanel.importPanelKey)
+        val restoredResult = resultsSlot.captured.single()
+        assertEquals("oyama", restoredResult.importSourceApp)
+        assertEquals("result-750", restoredResult.importExternalId)
+    }
+
+    @Test
+    fun restoreBackupBytes_withoutImportFields_defaultsInsertedEntitiesToNonImportedAndNullProvenance() =
+        runTest {
+            val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000760")
+            val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000761")
+            val panelUuid = UUID.fromString("00000000-0000-0000-0000-000000000762")
+            val resultUuid = UUID.fromString("00000000-0000-0000-0000-000000000763")
+            val json = BackupSnapshotJsonCodec.encode(
+                nonImportedProvenanceSnapshot(
+                    medicineUuid = medicineUuid,
+                    logUuid = logUuid,
+                    panelUuid = panelUuid,
+                    resultUuid = resultUuid,
+                )
+            )
+                .replace(",\"importedFromExternalTracker\":false", "")
+                .replace(",\"importSourceApp\":null", "")
+                .replace(",\"importExternalId\":null", "")
+                .replace(",\"importPanelKey\":null", "")
+            val encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = json,
+                password = "password".toCharArray(),
+            )
+            val medicinesSlot = slot<List<MedicineEntity>>()
+            val logsSlot = slot<List<MedicationLogEntryEntity>>()
+            val panelsSlot = slot<List<BloodTestPanelEntity>>()
+            val resultsSlot = slot<List<BloodTestResultEntity>>()
+
+            service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
+
+            coVerify(exactly = 1) { medicineDao.insertAll(capture(medicinesSlot)) }
+            coVerify(exactly = 1) { medicationLogDao.insertEntries(capture(logsSlot)) }
+            coVerify(exactly = 1) { bloodTestDao.insertPanels(capture(panelsSlot)) }
+            coVerify(exactly = 1) { bloodTestDao.insertResults(capture(resultsSlot)) }
+
+            assertEquals(false, medicinesSlot.captured.single().importedFromExternalTracker)
+            assertNull(logsSlot.captured.single().importSourceApp)
+            assertNull(logsSlot.captured.single().importExternalId)
+            assertNull(panelsSlot.captured.single().importSourceApp)
+            assertNull(panelsSlot.captured.single().importPanelKey)
+            assertNull(resultsSlot.captured.single().importSourceApp)
+            assertNull(resultsSlot.captured.single().importExternalId)
+        }
 
     @Test
     fun restoreBackupBytes_appliesLegacyWidgetContentScaleAcrossFullUiRange() = runTest {
@@ -786,6 +877,7 @@ class BackupRestoreServiceTest {
             medicationLogRepository = exportMedicationLogRepository,
             bloodTestRepository = exportBloodTestRepository,
             widgetAppearanceRepository = exportWidgetAppearanceRepository,
+            databaseHolder = databaseHolder,
             backupCrypto = backupCrypto,
         )
     }
@@ -879,6 +971,190 @@ class BackupRestoreServiceTest {
                     appliedAtTimeZoneId = "Asia/Tokyo",
                     scheduledForIso = null,
                     count = 1,
+                )
+            ),
+        )
+    }
+
+    private fun importedProvenanceSnapshot(
+        medicineUuid: UUID,
+        logUuid: UUID,
+        panelUuid: UUID,
+        resultUuid: UUID,
+    ): BackupSnapshot {
+        return emptySnapshot().copy(
+            medicines = listOf(
+                importedPillMedicineSnapshot(medicineUuid)
+            ),
+            medicationLogs = listOf(
+                BackupMedicationLogSnapshot(
+                    uuid = logUuid.toString(),
+                    category = "ESTRADIOL",
+                    medicineUuid = medicineUuid.toString(),
+                    applicationType = "ORAL",
+                    doseInstructionKind = "TABLET_FRACTION",
+                    tabletFractionNumerator = 1,
+                    tabletFractionDenominator = 1,
+                    doseVolumeMl = null,
+                    doseWeightGrams = null,
+                    gelApplicationArea = "DEFAULT",
+                    equivalentE2Mg = 2.0,
+                    doseAmountDelta = null,
+                    sourceGroupUuid = null,
+                    appliedAtEpochMillis = 200L,
+                    appliedAtTimeZoneId = "Asia/Tokyo",
+                    scheduledForIso = null,
+                    count = 1,
+                    importSourceApp = "transmtf",
+                    importExternalId = "dose-750",
+                )
+            ),
+            bloodTestPanels = listOf(
+                bloodPanelSnapshot(
+                    panelUuid = panelUuid,
+                    resultUuid = resultUuid,
+                    importSourceApp = "oyama",
+                    importPanelKey = 750L,
+                    resultImportSourceApp = "oyama",
+                    resultImportExternalId = "result-750",
+                )
+            ),
+        )
+    }
+
+    private fun nonImportedProvenanceSnapshot(
+        medicineUuid: UUID,
+        logUuid: UUID,
+        panelUuid: UUID,
+        resultUuid: UUID,
+    ): BackupSnapshot {
+        val preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0)
+        return emptySnapshot().copy(
+            medicines = listOf(
+                BackupMedicineSnapshot(
+                    uuid = medicineUuid.toString(),
+                    selectionKind = "CATALOG",
+                    medicationKey = "ESTRADIOL",
+                    customMedicationName = null,
+                    customMedicationNameNormalized = null,
+                    category = "ESTRADIOL",
+                    preparationType = "PILL",
+                    strengthMgPerTablet = 2.0,
+                    strengthMgPerVial = null,
+                    concentrationMgPerMl = null,
+                    vialVolumeMl = null,
+                    concentrationPercent = null,
+                    sachetWeightGrams = null,
+                    containerWeightGrams = null,
+                    patchTotalMg = null,
+                    patchReleaseRateMcgPerDay = null,
+                    displayName = null,
+                    identityKey = MedicineIdentityKey.catalog(MedicationKey.ESTRADIOL, preparation),
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 100L,
+                    archivedAtEpochMillis = null,
+                    importedFromExternalTracker = false,
+                )
+            ),
+            medicationLogs = listOf(
+                BackupMedicationLogSnapshot(
+                    uuid = logUuid.toString(),
+                    category = "ESTRADIOL",
+                    medicineUuid = medicineUuid.toString(),
+                    applicationType = "ORAL",
+                    doseInstructionKind = "TABLET_FRACTION",
+                    tabletFractionNumerator = 1,
+                    tabletFractionDenominator = 1,
+                    doseVolumeMl = null,
+                    doseWeightGrams = null,
+                    gelApplicationArea = "DEFAULT",
+                    equivalentE2Mg = 2.0,
+                    doseAmountDelta = null,
+                    sourceGroupUuid = null,
+                    appliedAtEpochMillis = 200L,
+                    appliedAtTimeZoneId = "Asia/Tokyo",
+                    scheduledForIso = null,
+                    count = 1,
+                    importSourceApp = null,
+                    importExternalId = null,
+                )
+            ),
+            bloodTestPanels = listOf(
+                bloodPanelSnapshot(
+                    panelUuid = panelUuid,
+                    resultUuid = resultUuid,
+                    importSourceApp = null,
+                    importPanelKey = null,
+                    resultImportSourceApp = null,
+                    resultImportExternalId = null,
+                )
+            ),
+        )
+    }
+
+    private fun importedPillMedicineSnapshot(medicineUuid: UUID): BackupMedicineSnapshot {
+        return BackupMedicineSnapshot(
+            uuid = medicineUuid.toString(),
+            selectionKind = "CATALOG",
+            medicationKey = "ESTRADIOL",
+            customMedicationName = null,
+            customMedicationNameNormalized = null,
+            category = "ESTRADIOL",
+            preparationType = "PILL",
+            strengthMgPerTablet = 2.0,
+            strengthMgPerVial = null,
+            concentrationMgPerMl = null,
+            vialVolumeMl = null,
+            concentrationPercent = null,
+            sachetWeightGrams = null,
+            containerWeightGrams = null,
+            patchTotalMg = null,
+            patchReleaseRateMcgPerDay = null,
+            displayName = null,
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "transmtf",
+                applicationType = MedicationApplicationType.ORAL,
+                compound = "ESTRADIOL",
+                doseKey = "2",
+            ),
+            createdAtEpochMillis = 100L,
+            updatedAtEpochMillis = 100L,
+            archivedAtEpochMillis = null,
+            importedFromExternalTracker = true,
+        )
+    }
+
+    private fun bloodPanelSnapshot(
+        panelUuid: UUID,
+        resultUuid: UUID,
+        importSourceApp: String?,
+        importPanelKey: Long?,
+        resultImportSourceApp: String?,
+        resultImportExternalId: String?,
+    ): BackupBloodTestPanelSnapshot {
+        return BackupBloodTestPanelSnapshot(
+            uuid = panelUuid.toString(),
+            collectedAtInstantEpochMillis = 300L,
+            collectedAtTimeZoneId = "Asia/Tokyo",
+            notes = null,
+            timeSinceLastEstradiolDoseMillis = null,
+            timeSinceLastTestosteroneDoseMillis = null,
+            createdAtEpochMillis = 300L,
+            updatedAtEpochMillis = 300L,
+            importSourceApp = importSourceApp,
+            importPanelKey = importPanelKey,
+            results = listOf(
+                BackupBloodTestResultSnapshot(
+                    uuid = resultUuid.toString(),
+                    createdAtEpochMillis = 301L,
+                    displayOrder = 0,
+                    builtinAnalyteKey = BloodAnalyteKey.E2.storageValue,
+                    customAnalyteUuid = null,
+                    value = 367.1,
+                    unitSnapshot = BloodUnitKey.PMOL_L.storageValue,
+                    canonicalValue = 100.0,
+                    importSourceApp = resultImportSourceApp,
+                    importExternalId = resultImportExternalId,
                 )
             ),
         )
