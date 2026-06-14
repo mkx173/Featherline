@@ -7,9 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- The home-screen widget no longer briefly flips back to out-of-date content — such as a dose row reverting to its previous state — when you return to the launcher page or close the widget editor.
+_Nothing yet._
 
 ## [1.2.0] - 2026-06-13
 
@@ -42,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The home estradiol chart's opening animation no longer gets cut short on slow app starts, and no longer interrupts a touch in progress when it finishes.
 - Per-minute screen updates now pause while the app is in the background instead of running continuously; date and time zone changes are still picked up immediately.
 - Disabled rows in settings and editors now gray out their labels in step with their switches instead of a moment behind.
+- The home-screen widget no longer briefly flips back to out-of-date content — such as a dose row reverting to its previous state — when you return to the launcher page or close the widget editor.
 
 ## [1.1.4] - 2026-06-09
 
