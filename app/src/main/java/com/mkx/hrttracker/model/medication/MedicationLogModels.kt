@@ -19,6 +19,8 @@ data class MedicationLogEntry(
     val count: Int = 1,
     val scheduleTimeUuid: UUID? = null,
     val doseAmountDelta: Double? = null,
+    val importSourceApp: String? = null,
+    val importExternalId: String? = null,
 ) {
     init {
         require(count > 0) { "Medication log count must be at least 1." }

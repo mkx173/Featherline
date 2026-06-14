@@ -516,6 +516,8 @@ internal object HomeSnapshotCodec {
         writeNullableString(entry.scheduledFor?.toString())
         writeInt(entry.count)
         writeNullableDouble(entry.doseAmountDelta)
+        writeNullableString(entry.importSourceApp)
+        writeNullableString(entry.importExternalId)
     }
 
     private fun DataInputStream.readMedicationLogEntryBody(
@@ -536,6 +538,8 @@ internal object HomeSnapshotCodec {
             scheduledFor = readNullableString()?.let(LocalDateTime::parse),
             count = readInt(),
             doseAmountDelta = readNullableDouble(),
+            importSourceApp = readNullableString(),
+            importExternalId = readNullableString(),
         )
     }
 
@@ -975,7 +979,8 @@ private const val TAG = "HomeSnapshotStore"
 // v19 appends doseAmountDelta to medication log entries for stock deltas.
 // v20 appends importedFromExternalTracker to cached Medicine and adds imported
 // injection/gel preparation payloads.
-private const val SNAPSHOT_CODEC_VERSION = 20
+// v21 appends medication log import provenance.
+private const val SNAPSHOT_CODEC_VERSION = 21
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0

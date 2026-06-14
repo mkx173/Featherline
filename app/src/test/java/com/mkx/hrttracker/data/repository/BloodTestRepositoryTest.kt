@@ -120,6 +120,68 @@ class BloodTestRepositoryTest {
     }
 
     @Test
+    fun savePanel_preservesImportedPanelAndResultProvenanceForSurvivingResults() = runTest {
+        val panelUuid = UUID.fromString("aaaaaaaa-1000-0000-0000-000000000001")
+        val resultUuid = UUID.fromString("aaaaaaaa-1000-0000-0000-000000000002")
+        val panelSlot = slot<BloodTestPanelEntity>()
+        val resultsSlot = slot<List<BloodTestResultEntity>>()
+        coEvery { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { dao.getPanel(panelUuid.toString()) } returns BloodTestPanelWithResultsEntity(
+            panel = BloodTestPanelEntity(
+                uuid = panelUuid.toString(),
+                collectedAtInstantEpochMillis = 1_700_000_000_000L,
+                collectedAtTimeZoneId = "Asia/Tokyo",
+                notes = null,
+                timeSinceLastEstradiolDoseMillis = null,
+                timeSinceLastTestosteroneDoseMillis = null,
+                createdAtEpochMillis = 1_700_000_000_000L,
+                updatedAtEpochMillis = 1_700_000_000_000L,
+                importSourceApp = "transmtf",
+                importPanelKey = 1_700_000_000_000L,
+            ),
+            results = listOf(
+                BloodTestResultEntity(
+                    uuid = resultUuid.toString(),
+                    panelUuid = panelUuid.toString(),
+                    createdAtEpochMillis = 1_700_000_000_000L,
+                    displayOrder = 0,
+                    builtinAnalyteKey = "e2",
+                    customAnalyteUuid = null,
+                    value = 100.0,
+                    unitSnapshot = "pg_ml",
+                    canonicalValue = 100.0,
+                    importSourceApp = "transmtf",
+                    importExternalId = "lab-e2",
+                )
+            ),
+        )
+        coEvery { dao.upsertPanelWithResults(capture(panelSlot), capture(resultsSlot)) } returns Unit
+
+        repository.savePanel(
+            uuid = panelUuid,
+            collectedAt = Instant.ofEpochMilli(1_700_000_060_000L),
+            collectedAtTimeZoneId = "Asia/Tokyo",
+            notes = "edited",
+            results = listOf(
+                BloodTestResultInput.Builtin(
+                    uuid = resultUuid,
+                    analyteKey = BloodAnalyteKey.E2,
+                    unit = com.mkx.hrttracker.model.bloodtest.BloodUnitKey.PG_ML,
+                    value = 125.0,
+                )
+            ),
+            now = Instant.ofEpochMilli(1_700_000_120_000L),
+        )
+
+        assertEquals("transmtf", panelSlot.captured.importSourceApp)
+        assertEquals(1_700_000_000_000L, panelSlot.captured.importPanelKey)
+        val savedResult = resultsSlot.captured.single()
+        assertEquals(resultUuid.toString(), savedResult.uuid)
+        assertEquals("transmtf", savedResult.importSourceApp)
+        assertEquals("lab-e2", savedResult.importExternalId)
+    }
+
+    @Test
     fun deleteAllPanels_clears_results_and_panels_in_single_transaction() = runTest {
         coEvery {
             databaseHolder.withTransaction<Unit>(any())

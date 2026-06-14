@@ -116,12 +116,15 @@ class BloodTestRepository @Inject constructor(
         val timeSinceLastEstradiolDoseMillis = resolveTimeSinceLastEstradiolDoseMillis(collectedAt)
 
         val normalizedResults = results.mapIndexed { index, result ->
+            val existingResult = existingResultsByUuid[result.uuid]
             result.toEntity(
                 panelUuid = panelUuid,
                 displayOrder = index,
-                createdAtEpochMillis = existingResultsByUuid[result.uuid]?.createdAtEpochMillis
+                createdAtEpochMillis = existingResult?.createdAtEpochMillis
                     ?: now.toEpochMilli(),
                 customAnalytesByUuid = customAnalytesByUuid,
+                importSourceApp = existingResult?.importSourceApp,
+                importExternalId = existingResult?.importExternalId,
             )
         }
 
@@ -136,6 +139,8 @@ class BloodTestRepository @Inject constructor(
                 timeSinceLastTestosteroneDoseMillis = null,
                 createdAtEpochMillis = createdAtEpochMillis,
                 updatedAtEpochMillis = now.toEpochMilli(),
+                importSourceApp = existingPanel?.panel?.importSourceApp,
+                importPanelKey = existingPanel?.panel?.importPanelKey,
             ),
             results = normalizedResults,
         )
@@ -414,6 +419,8 @@ class BloodTestRepository @Inject constructor(
         displayOrder: Int,
         createdAtEpochMillis: Long,
         customAnalytesByUuid: Map<String, CustomBloodAnalyteEntity>,
+        importSourceApp: String?,
+        importExternalId: String?,
     ): BloodTestResultEntity {
         require(value.isFinite()) { "Blood test value must be finite." }
         val resultUuid = uuid ?: UUID.randomUUID()
@@ -433,6 +440,8 @@ class BloodTestRepository @Inject constructor(
                     value = value,
                     unit = unit,
                 ),
+                importSourceApp = importSourceApp,
+                importExternalId = importExternalId,
             )
 
             is BloodTestResultInput.Custom -> {
@@ -449,6 +458,8 @@ class BloodTestRepository @Inject constructor(
                     value = value,
                     unitSnapshot = analyte.unitLabel,
                     canonicalValue = value,
+                    importSourceApp = importSourceApp,
+                    importExternalId = importExternalId,
                 )
             }
         }
@@ -469,6 +480,8 @@ class BloodTestRepository @Inject constructor(
             },
             createdAt = Instant.ofEpochMilli(panel.createdAtEpochMillis),
             updatedAt = Instant.ofEpochMilli(panel.updatedAtEpochMillis),
+            importSourceApp = panel.importSourceApp,
+            importPanelKey = panel.importPanelKey,
         )
     }
 
@@ -495,6 +508,8 @@ class BloodTestRepository @Inject constructor(
             value = value,
             unitSnapshot = unitSnapshot,
             canonicalValue = canonicalValue,
+            importSourceApp = importSourceApp,
+            importExternalId = importExternalId,
         )
     }
 

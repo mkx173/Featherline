@@ -440,6 +440,35 @@ class HomeSnapshotCodecTest {
     }
 
     @Test
+    fun encodeDecode_roundTripsMedicationLogImportProvenance() {
+        val record = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 1L,
+            generatedAtEpochMillis = 100L,
+            anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
+            zoneId = "Asia/Tokyo",
+            pkProjection = null,
+            activeGroups = emptyList(),
+            scheduleEntries = listOf(
+                testMedicationLogEntry(
+                    sourceGroupUuid = null,
+                    appliedAt = Instant.ofEpochMilli(1_000L),
+                ).copy(
+                    importSourceApp = "transmtf",
+                    importExternalId = "dose-a",
+                )
+            ),
+            antiandrogenHistoryEntries = emptyList(),
+        )
+
+        val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+
+        assertEquals("transmtf", decoded.scheduleEntries.single().importSourceApp)
+        assertEquals("dose-a", decoded.scheduleEntries.single().importExternalId)
+        assertEquals(record, decoded)
+    }
+
+    @Test
     fun encodeDecode_roundTripsImportedMedicineFlagAndPreparations() {
         val importedInjection = importedMedicine(
             uuid = UUID.fromString("eeee0000-0000-0000-0000-000000000001"),

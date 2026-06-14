@@ -114,6 +114,8 @@ internal fun MedicationLogEntryEntity.toMedicationLogEntryModel(
         scheduledFor = scheduledForIso?.let(LocalDateTime::parse),
         count = count.coerceAtLeast(1),
         doseAmountDelta = doseAmountDelta,
+        importSourceApp = importSourceApp,
+        importExternalId = importExternalId,
     )
 }
 

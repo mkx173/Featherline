@@ -13,6 +13,8 @@ data class BloodTestPanel(
     val results: List<BloodTestResult>,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val importSourceApp: String? = null,
+    val importPanelKey: Long? = null,
 )
 
 data class BloodTestResult(
@@ -23,6 +25,8 @@ data class BloodTestResult(
     val value: Double,
     val unitSnapshot: String,
     val canonicalValue: Double,
+    val importSourceApp: String? = null,
+    val importExternalId: String? = null,
 )
 
 sealed interface BloodTestResultAnalyte {

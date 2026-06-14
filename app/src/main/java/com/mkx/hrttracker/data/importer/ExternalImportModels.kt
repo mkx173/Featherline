@@ -72,6 +72,29 @@ data class ExternalImportParseResult(
     val warnings: List<ExternalImportWarning>,
 )
 
+data class ExternalImportPreview(
+    val parseResult: ExternalImportParseResult,
+    val sourceAppLabel: String,
+    val medicationRowsToCreate: Int,
+    val medicationRowsToUpdate: Int,
+    val labRowsToCreate: Int,
+    val labRowsToUpdate: Int,
+    val importedMedicinesToCreate: List<ImportedMedicineIdentity>,
+    val importedMedicinesToReuse: List<ImportedMedicineIdentity>,
+    val warnings: List<ExternalImportWarning>,
+)
+
+data class ExternalImportCommitResult(
+    val sourceAppLabel: String,
+    val medicationRowsCreated: Int,
+    val medicationRowsUpdated: Int,
+    val labRowsCreated: Int,
+    val labRowsUpdated: Int,
+    val importedMedicinesCreated: Int,
+    val importedMedicinesReused: Int,
+    val warnings: List<ExternalImportWarning>,
+)
+
 data class ExternalImportWarning(
     val reason: ExternalImportWarningReason,
     val externalId: String?,
@@ -89,6 +112,7 @@ enum class ExternalImportWarningReason {
     GEL_METADATA_PREVIEW_ONLY,
     AMBIGUOUS_LAB_UNIT,
     DUPLICATE_LAB_RESULT,
+    LAB_USER_CONFLICT,
     SOURCE_FALLBACK,
 }
 
