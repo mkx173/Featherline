@@ -339,6 +339,44 @@ class BackupRestoreServiceTest {
     }
 
     @Test
+    fun restoreBackupBytes_acceptsImportedAntiandrogenMedicineWithProvenance() = runTest {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000754")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000755")
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(
+                importedAntiandrogenProvenanceSnapshot(
+                    medicineUuid = medicineUuid,
+                    logUuid = logUuid,
+                )
+            ),
+            password = "password".toCharArray(),
+        )
+        val medicinesSlot = slot<List<MedicineEntity>>()
+        val logsSlot = slot<List<MedicationLogEntryEntity>>()
+
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
+
+        coVerify(exactly = 1) { medicineDao.insertAll(capture(medicinesSlot)) }
+        coVerify(exactly = 1) { medicationLogDao.insertEntries(capture(logsSlot)) }
+
+        val restoredMedicine = medicinesSlot.captured.single()
+        assertEquals(true, restoredMedicine.importedFromExternalTracker)
+        assertEquals("SPIRONOLACTONE", restoredMedicine.medicationKey)
+        assertEquals("ANTIANDROGEN", restoredMedicine.category)
+        assertEquals("PILL", restoredMedicine.preparationType)
+        assertEquals("E|transmtf|ORAL|SPIRONOLACTONE|mg:100", restoredMedicine.identityKey)
+
+        val restoredLog = logsSlot.captured.single()
+        assertEquals(logUuid.toString(), restoredLog.uuid)
+        assertEquals(medicineUuid.toString(), restoredLog.medicineUuid)
+        assertEquals("ANTIANDROGEN", restoredLog.category)
+        assertEquals("ORAL", restoredLog.applicationType)
+        assertEquals("transmtf", restoredLog.importSourceApp)
+        assertEquals("spiro-dose-755", restoredLog.importExternalId)
+        assertNull(restoredLog.equivalentE2Mg)
+    }
+
+    @Test
     fun restoreBackupBytes_withoutImportFields_defaultsInsertedEntitiesToNonImportedAndNullProvenance() =
         runTest {
             val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000760")
@@ -1017,6 +1055,68 @@ class BackupRestoreServiceTest {
                     importPanelKey = 750L,
                     resultImportSourceApp = "oyama",
                     resultImportExternalId = "result-750",
+                )
+            ),
+        )
+    }
+
+    private fun importedAntiandrogenProvenanceSnapshot(
+        medicineUuid: UUID,
+        logUuid: UUID,
+    ): BackupSnapshot {
+        return emptySnapshot().copy(
+            medicines = listOf(
+                BackupMedicineSnapshot(
+                    uuid = medicineUuid.toString(),
+                    selectionKind = "CATALOG",
+                    medicationKey = "SPIRONOLACTONE",
+                    customMedicationName = null,
+                    customMedicationNameNormalized = null,
+                    category = "ANTIANDROGEN",
+                    preparationType = "PILL",
+                    strengthMgPerTablet = 100.0,
+                    strengthMgPerVial = null,
+                    concentrationMgPerMl = null,
+                    vialVolumeMl = null,
+                    concentrationPercent = null,
+                    sachetWeightGrams = null,
+                    containerWeightGrams = null,
+                    patchTotalMg = null,
+                    patchReleaseRateMcgPerDay = null,
+                    displayName = null,
+                    identityKey = MedicineIdentityKey.external(
+                        sourceApp = "transmtf",
+                        applicationType = MedicationApplicationType.ORAL,
+                        compound = "SPIRONOLACTONE",
+                        doseKey = "mg:100",
+                    ),
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 100L,
+                    archivedAtEpochMillis = null,
+                    importedFromExternalTracker = true,
+                )
+            ),
+            medicationLogs = listOf(
+                BackupMedicationLogSnapshot(
+                    uuid = logUuid.toString(),
+                    category = "ANTIANDROGEN",
+                    medicineUuid = medicineUuid.toString(),
+                    applicationType = "ORAL",
+                    doseInstructionKind = "TABLET_FRACTION",
+                    tabletFractionNumerator = 1,
+                    tabletFractionDenominator = 1,
+                    doseVolumeMl = null,
+                    doseWeightGrams = null,
+                    gelApplicationArea = "DEFAULT",
+                    equivalentE2Mg = null,
+                    doseAmountDelta = null,
+                    sourceGroupUuid = null,
+                    appliedAtEpochMillis = 200L,
+                    appliedAtTimeZoneId = "Asia/Tokyo",
+                    scheduledForIso = null,
+                    count = 1,
+                    importSourceApp = "transmtf",
+                    importExternalId = "spiro-dose-755",
                 )
             ),
         )

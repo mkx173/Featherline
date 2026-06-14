@@ -165,6 +165,22 @@ class MedicineIdentityKeyTest {
     }
 
     @Test
+    fun canonicalDoubleUsesSixSignificantFiguresAboveOne() {
+        assertEquals("123457", MedicineIdentityKey.canonicalDouble(123456.789))
+    }
+
+    @Test
+    fun canonicalDoubleUsesSixSignificantFiguresBelowOne() {
+        assertEquals("0.000123457", MedicineIdentityKey.canonicalDouble(0.000123456789))
+    }
+
+    @Test
+    fun canonicalDoubleStripsTrailingZerosWithoutExponentNotation() {
+        assertEquals("12.34", MedicineIdentityKey.canonicalDouble(12.3400001))
+        assertEquals("100000", MedicineIdentityKey.canonicalDouble(100000.0))
+    }
+
+    @Test
     fun medicinePreparationNumericFieldsRejectInvalidValues() {
         val invalidValues = listOf(0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY)
 

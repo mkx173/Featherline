@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.model.medication
 
 import java.math.BigDecimal
+import java.math.MathContext
 import java.math.RoundingMode
 import java.util.Locale
 
@@ -58,7 +59,7 @@ object MedicineIdentityKey {
     fun canonicalDouble(value: Double): String {
         require(value > 0.0 && !value.isNaN() && !value.isInfinite())
         return BigDecimal.valueOf(value)
-            .setScale(6, RoundingMode.HALF_UP)
+            .round(MathContext(6, RoundingMode.HALF_UP))
             .stripTrailingZeros()
             .toPlainString()
     }

@@ -487,6 +487,37 @@ class ExternalImportParserTest {
     }
 
     @Test
+    fun transmtfE2LabsSkipUnitsOutsideExternalImportMapping() {
+        val result = parser.parse(
+            """
+            {
+              "gelProducts": [],
+              "events": [
+                { "id": "dose", "timeH": 1, "route": "oral", "ester": "E2", "doseMG": 2 }
+              ],
+              "labResults": [
+                { "id": "e2-good", "timeH": 2, "unit": "pg/ml", "value": 125 },
+                { "id": "e2-bad-ngml", "timeH": 3, "unit": "ng/ml", "value": 0.12 },
+                { "id": "e2-bad-miul", "timeH": 4, "unit": "miu/l", "value": 100 }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(listOf("dose"), result.medicationDoses.map { dose -> dose.provenance.externalId })
+        assertEquals(listOf("e2-good"), result.labResults.map { lab -> lab.provenance.externalId })
+        assertEquals(BloodAnalyteKey.E2, result.labResults.single().analyteKey)
+        assertEquals(BloodUnitKey.PG_ML, result.labResults.single().unitKey)
+        assertEquals(
+            listOf(
+                ExternalImportWarningReason.AMBIGUOUS_LAB_UNIT,
+                ExternalImportWarningReason.AMBIGUOUS_LAB_UNIT,
+            ),
+            result.warningReasons(),
+        )
+    }
+
+    @Test
     fun transmtfAndOyamaUseCompoundDoseButNoMtfUsesActiveEquivalentDose() {
         val transmtf = parser.parse(
             """

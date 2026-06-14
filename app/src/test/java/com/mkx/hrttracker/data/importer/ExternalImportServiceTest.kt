@@ -144,6 +144,35 @@ class ExternalImportServiceTest {
     }
 
     @Test
+    fun importSkipsUnsupportedTransmtfE2LabUnitAndCommitsValidRows() = runTest {
+        val preview = service.buildPreview(
+            json = transmtfJson(
+                events = """
+                    { "id": "dose-a", "timeH": 1, "route": "oral", "ester": "E2", "doseMG": 2 }
+                """.trimIndent(),
+                labs = """
+                    { "id": "lab-good", "timeH": 2, "unit": "pg/ml", "value": 120 },
+                    { "id": "lab-bad", "timeH": 3, "unit": "ng/ml", "value": 0.12 }
+                """.trimIndent(),
+            ),
+            now = NOW,
+        )
+
+        assertEquals(1, preview.medicationRowsToCreate)
+        assertEquals(1, preview.labRowsToCreate)
+        assertEquals(listOf(ExternalImportWarningReason.AMBIGUOUS_LAB_UNIT), preview.warningReasons())
+
+        val result = service.commit(preview, now = NOW)
+
+        assertEquals(1, result.medicationRowsCreated)
+        assertEquals(1, result.labRowsCreated)
+        assertEquals(listOf(ExternalImportWarningReason.AMBIGUOUS_LAB_UNIT), result.warningReasons())
+        assertEquals(1, database.medicationLogDao().getEntries().size)
+        assertEquals(1, database.bloodTestDao().getPanels().flatMap { panel -> panel.results }.size)
+        assertNull(database.bloodTestDao().getImportedResult("transmtf", "lab-bad"))
+    }
+
+    @Test
     fun buildPreviewPerformsNoWritesAcrossImportedTables() = runTest {
         val existingMedicine = testMedicine(
             uuid = UUID.fromString("00000000-0000-0000-0000-000000000001"),

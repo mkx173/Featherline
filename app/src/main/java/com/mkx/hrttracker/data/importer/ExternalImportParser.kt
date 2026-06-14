@@ -904,7 +904,11 @@ class ExternalImportParser @Inject constructor() {
         row: LabRow,
         unit: BloodUnitKey,
     ): BloodAnalyteKey? {
-        if (sourceApp == ExternalTrackerSourceApp.NOMTF) {
+        if (
+            sourceApp == ExternalTrackerSourceApp.NOMTF ||
+            sourceApp == ExternalTrackerSourceApp.TRANSMTF ||
+            sourceApp == ExternalTrackerSourceApp.TRANSMTF_COMPATIBLE
+        ) {
             return when (unit) {
                 BloodUnitKey.PG_ML,
                 BloodUnitKey.PMOL_L,

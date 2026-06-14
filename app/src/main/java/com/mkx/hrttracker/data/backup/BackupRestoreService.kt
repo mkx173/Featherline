@@ -1301,14 +1301,15 @@ private fun validateImportedMedicineInvariants(
             require(selectionKind == MedicationSelectionKind.CATALOG) {
                 "Imported pill medicine $medicineUuid must use CATALOG selectionKind."
             }
-            require(category == MedicationCategory.ESTRADIOL) {
-                "Imported pill medicine $medicineUuid must be in the ESTRADIOL category."
-            }
-            require(
-                key == MedicationKey.ESTRADIOL ||
-                        key == MedicationKey.ESTRADIOL_VALERATE
-            ) {
-                "Imported pill medicine $medicineUuid has unsupported medicationKey $medicationKey."
+            val isSupportedEstradiolPill =
+                category == MedicationCategory.ESTRADIOL &&
+                        key in IMPORTED_ESTRADIOL_PILL_KEYS
+            val isSupportedAntiandrogenPill =
+                category == MedicationCategory.ANTIANDROGEN &&
+                        key in IMPORTED_ANTIANDROGEN_PILL_KEYS
+            require(isSupportedEstradiolPill || isSupportedAntiandrogenPill) {
+                "Imported pill medicine $medicineUuid has unsupported category/key combination " +
+                        "$category/$medicationKey."
             }
         }
 
@@ -1849,4 +1850,15 @@ private val SUPPORTED_IMPORT_SOURCE_APPS = setOf(
     "oyama",
     "nomtf",
     "transmtf-compatible",
+)
+
+private val IMPORTED_ESTRADIOL_PILL_KEYS = setOf(
+    MedicationKey.ESTRADIOL,
+    MedicationKey.ESTRADIOL_VALERATE,
+)
+
+private val IMPORTED_ANTIANDROGEN_PILL_KEYS = setOf(
+    MedicationKey.CYPROTERONE_ACETATE,
+    MedicationKey.SPIRONOLACTONE,
+    MedicationKey.BICALUTAMIDE,
 )
