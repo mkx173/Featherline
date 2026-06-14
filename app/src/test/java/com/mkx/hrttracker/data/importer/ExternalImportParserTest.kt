@@ -921,6 +921,15 @@ class ExternalImportParserTest {
             ),
             result.warningReasons(),
         )
+        assertEquals(
+            listOf(
+                ExternalImportWarningMessageKey.ESTROGEN_UNSUPPORTED_ROUTE_COMPOUND,
+                ExternalImportWarningMessageKey.ESTROGEN_UNSUPPORTED_ROUTE_COMPOUND,
+                ExternalImportWarningMessageKey.ESTROGEN_UNSUPPORTED_ROUTE_COMPOUND,
+                ExternalImportWarningMessageKey.ESTROGEN_UNSUPPORTED_ROUTE_COMPOUND,
+            ),
+            result.warnings.map(ExternalImportWarning::messageKey),
+        )
     }
 
     @Test

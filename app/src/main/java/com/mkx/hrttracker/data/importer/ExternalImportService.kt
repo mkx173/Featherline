@@ -15,16 +15,20 @@ import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicineStock
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private const val TAG = "ExternalImportService"
 
 @Singleton
 class ExternalImportService @Inject constructor(
     private val parser: ExternalImportParser,
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotRepository: HomeSnapshotRepository,
+    private val diagnosticsLogger: AppDiagnosticsLogger,
 ) {
     suspend fun buildPreview(
         json: String,
@@ -80,6 +84,11 @@ class ExternalImportService @Inject constructor(
             parseResult.distinctMedicineIdentities().partition { identity ->
                 medicineDao.getImportedByIdentityKey(identity.identityKey) != null
             }
+        val warnings = parseResult.warnings + labWarnings
+        logPreviewWarnings(
+            sourceApp = parseResult.sourceApp,
+            warnings = warnings,
+        )
 
         return ExternalImportPreview(
             parseResult = parseResult,
@@ -90,7 +99,7 @@ class ExternalImportService @Inject constructor(
             labRowsToUpdate = labRowsToUpdate,
             importedMedicinesToCreate = importedMedicinesToCreate,
             importedMedicinesToReuse = importedMedicinesToReuse,
-            warnings = parseResult.warnings + labWarnings,
+            warnings = warnings,
         )
     }
 
@@ -375,7 +384,34 @@ class ExternalImportService @Inject constructor(
             externalId = provenance.externalId,
             rowIndex = null,
             message = "Skipped imported lab result because the target imported panel contains a user-created result for the same analyte.",
+            messageKey = ExternalImportWarningMessageKey.LAB_USER_CONFLICT,
         )
+    }
+
+    private fun logPreviewWarnings(
+        sourceApp: ExternalTrackerSourceApp,
+        warnings: List<ExternalImportWarning>,
+    ) {
+        warnings.forEach { warning ->
+            diagnosticsLogger.warning(
+                TAG,
+                warning.toDiagnosticMessage(sourceApp),
+                null,
+            )
+        }
+    }
+
+    private fun ExternalImportWarning.toDiagnosticMessage(
+        sourceApp: ExternalTrackerSourceApp,
+    ): String {
+        val cleanMessage = message.lineSequence().joinToString(separator = " ") { line -> line.trim() }
+        return "external_import_skipped_row " +
+                "sourceApp=${sourceApp.storageValue} " +
+                "reason=$reason " +
+                "messageKey=${messageKey?.name ?: "none"} " +
+                "externalId=${externalId ?: "none"} " +
+                "rowIndex=${rowIndex?.toString() ?: "none"} " +
+                "message=$cleanMessage"
     }
 
     private fun ExternalImportCandidate.MedicationDose.toEntity(

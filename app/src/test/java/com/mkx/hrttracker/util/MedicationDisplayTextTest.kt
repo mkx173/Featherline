@@ -1,9 +1,11 @@
 package com.mkx.hrttracker.util
 
 import android.content.Context
+import android.content.res.Configuration
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testCustomMedicine
@@ -77,6 +79,63 @@ class MedicationDisplayTextTest {
             sachetWeightGrams = 1.0,
         ),
     )
+
+    @Test
+    fun medicineDisplayName_importedInjectionUsesLocalizedEsterNameInsteadOfSentinel() {
+        val medicine = testCustomMedicine(
+            medicationName = "External tracker",
+            category = MedicationCategory.ESTRADIOL,
+            displayName = "External tracker",
+        ).copy(
+            preparation = MedicinePreparation.ImportedInjection(
+                administeredMg = 5.0,
+                ester = MedicationKey.ESTRADIOL_VALERATE,
+            ),
+            identityKey = "E|transmtf|INJECTION|ESTRADIOL_VALERATE|mg:5",
+            importedFromExternalTracker = true,
+        )
+
+        assertEquals("Estradiol valerate", medicineDisplayName(medicine, realContext))
+        assertEquals(
+            "戊酸雌二醇",
+            medicineDisplayName(medicine, localizedContext(Locale.SIMPLIFIED_CHINESE)),
+        )
+    }
+
+    @Test
+    fun medicineDisplayName_importedGelUsesLocalizedEstradiolNameInsteadOfSentinel() {
+        val medicine = testCustomMedicine(
+            medicationName = "External tracker",
+            category = MedicationCategory.ESTRADIOL,
+            displayName = "External tracker",
+        ).copy(
+            preparation = MedicinePreparation.ImportedGel(appliedEstradiolMg = 0.75),
+            identityKey = "E|transmtf|GEL|ESTRADIOL|mg:0.75",
+            importedFromExternalTracker = true,
+        )
+
+        assertEquals("Estradiol", medicineDisplayName(medicine, realContext))
+        assertEquals(
+            "雌二醇",
+            medicineDisplayName(medicine, localizedContext(Locale.SIMPLIFIED_CHINESE)),
+        )
+    }
+
+    @Test
+    fun medicineDisplayName_importedCatalogMedicineUsesLocalizedNameInsteadOfStoredEnglishName() {
+        val medicine = testMedicine(
+            key = MedicationKey.CYPROTERONE_ACETATE,
+            displayName = "Cyproterone acetate",
+        ).copy(
+            identityKey = "E|transmtf|ORAL|CYPROTERONE_ACETATE|mg:12.5",
+            importedFromExternalTracker = true,
+        )
+
+        assertEquals(
+            "醋酸环丙孕酮",
+            medicineDisplayName(medicine, localizedContext(Locale.SIMPLIFIED_CHINESE)),
+        )
+    }
 
     @Test
     fun doseInstructionText_withDelta_showsActualDrawnVolume() {
@@ -341,5 +400,12 @@ class MedicationDisplayTextTest {
                 count = 1,
             ),
         )
+    }
+
+    private fun localizedContext(locale: Locale): Context {
+        val configuration = Configuration(realContext.resources.configuration).apply {
+            setLocale(locale)
+        }
+        return realContext.createConfigurationContext(configuration)
     }
 }

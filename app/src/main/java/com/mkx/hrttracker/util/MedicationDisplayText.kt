@@ -5,6 +5,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
@@ -16,11 +17,25 @@ import com.mkx.hrttracker.model.medication.reduceTabletPortion
 import java.util.Locale
 
 fun medicineDisplayName(medicine: Medicine, context: Context): String {
+    importedExternalMedicineDisplayKey(medicine)?.let { medicationKey ->
+        return context.getString(medicationKey.labelRes)
+    }
     medicine.displayName?.takeIf(String::isNotBlank)?.let { return it }
     return when (val selection = medicine.selection) {
         is MedicineSelection.Catalog -> context.getString(selection.medicationKey.labelRes)
         is MedicineSelection.Custom -> selection.medicationName
         is MedicineSelection.PatchOff -> context.getString(R.string.medicine_patch_off_name)
+    }
+}
+
+fun importedExternalMedicineDisplayKey(medicine: Medicine): MedicationKey? {
+    if (!medicine.importedFromExternalTracker) {
+        return null
+    }
+    return when (val preparation = medicine.preparation) {
+        is MedicinePreparation.ImportedInjection -> preparation.ester
+        is MedicinePreparation.ImportedGel -> MedicationKey.ESTRADIOL
+        else -> (medicine.selection as? MedicineSelection.Catalog)?.medicationKey
     }
 }
 

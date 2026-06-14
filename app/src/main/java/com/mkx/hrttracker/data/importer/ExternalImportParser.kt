@@ -36,6 +36,7 @@ class ExternalImportParser @Inject constructor() {
                 reason = ExternalImportWarningReason.SOURCE_FALLBACK,
                 externalId = null,
                 rowIndex = null,
+                messageKey = ExternalImportWarningMessageKey.SOURCE_FALLBACK,
                 message = "Source was not positively identified; using Transmtf-compatible fallback semantics.",
             )
         }
@@ -220,7 +221,12 @@ class ExternalImportParser @Inject constructor() {
     ): ExternalImportCandidate.MedicationDose? {
         val fields = row.row
         if (fields == null) {
-            warnings.addMalformed(null, row.rowIndex, "Skipped non-object medication row.")
+            warnings.addMalformed(
+                externalId = null,
+                rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.MEDICATION_NON_OBJECT_ROW,
+                message = "Skipped non-object medication row.",
+            )
             return null
         }
         val externalId = text(fields["id"]) ?: text(fields["uuid"]) ?: text(fields["key"])
@@ -229,6 +235,7 @@ class ExternalImportParser @Inject constructor() {
                 reason = ExternalImportWarningReason.MISSING_EXTERNAL_ID,
                 externalId = externalId,
                 rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.MEDICATION_MISSING_ID,
                 message = "Skipped medication row without an external id.",
             )
             return null
@@ -238,6 +245,7 @@ class ExternalImportParser @Inject constructor() {
                 reason = ExternalImportWarningReason.DUPLICATE_EXTERNAL_ID,
                 externalId = externalId,
                 rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.MEDICATION_DUPLICATE_ID,
                 message = "Skipped duplicate medication row external id.",
             )
             return null
@@ -245,7 +253,12 @@ class ExternalImportParser @Inject constructor() {
 
         val timeH = number(fields["timeH"])
         if (timeH == null || !timeH.isFinite()) {
-            warnings.addMalformed(externalId, row.rowIndex, "Skipped medication row with invalid timeH.")
+            warnings.addMalformed(
+                externalId = externalId,
+                rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.MEDICATION_INVALID_TIME,
+                message = "Skipped medication row with invalid timeH.",
+            )
             return null
         }
         val route = routeFrom(text(fields["route"]) ?: text(fields["type"]) ?: text(fields["applicationType"]))
@@ -254,6 +267,7 @@ class ExternalImportParser @Inject constructor() {
                 reason = ExternalImportWarningReason.UNSUPPORTED_ROUTE,
                 externalId = externalId,
                 rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.MEDICATION_UNSUPPORTED_ROUTE,
                 message = "Skipped medication row with unsupported route.",
             )
             return null
@@ -299,6 +313,7 @@ class ExternalImportParser @Inject constructor() {
                     reason = ExternalImportWarningReason.UNSUPPORTED_COMPOUND,
                     externalId = externalId,
                     rowIndex = row.rowIndex,
+                    messageKey = ExternalImportWarningMessageKey.UNSUPPORTED_ANTIANDROGEN,
                     message = "Skipped unsupported antiandrogen.",
                 )
                 return null
@@ -314,6 +329,7 @@ class ExternalImportParser @Inject constructor() {
                     reason = ExternalImportWarningReason.UNSUPPORTED_COMPOUND,
                     externalId = externalId,
                     rowIndex = row.rowIndex,
+                    messageKey = ExternalImportWarningMessageKey.ESTROGEN_UNSUPPORTED_COMPOUND,
                     message = "Skipped medication row with unsupported estrogen compound.",
                 )
                 return null
@@ -324,6 +340,7 @@ class ExternalImportParser @Inject constructor() {
                     reason = ExternalImportWarningReason.UNSUPPORTED_CATEGORY,
                     externalId = externalId,
                     rowIndex = row.rowIndex,
+                    messageKey = ExternalImportWarningMessageKey.TESTOSTERONE_MEDICATION_ROW,
                     message = "Skipped testosterone medication row.",
                 )
                 return null
@@ -360,6 +377,7 @@ class ExternalImportParser @Inject constructor() {
                     reason = ExternalImportWarningReason.UNSUPPORTED_COMPOUND,
                     externalId = externalId,
                     rowIndex = row.rowIndex,
+                    messageKey = ExternalImportWarningMessageKey.RECORD_ONLY_ANTIANDROGEN_UNSUPPORTED,
                     message = "Skipped unsupported record-only antiandrogen.",
                 )
                 return NoMtfSpecialResult.Skip
@@ -370,6 +388,7 @@ class ExternalImportParser @Inject constructor() {
                     reason = ExternalImportWarningReason.UNSUPPORTED_COMPOUND,
                     externalId = externalId,
                     rowIndex = row.rowIndex,
+                    messageKey = ExternalImportWarningMessageKey.NOMTF_RECORD_ONLY_UNSUPPORTED,
                     message = "Skipped unsupported record-only medication from NoMTF.",
                 )
                 return NoMtfSpecialResult.Skip
@@ -413,6 +432,7 @@ class ExternalImportParser @Inject constructor() {
                         reason = ExternalImportWarningReason.UNSUPPORTED_COMPOUND,
                         externalId = externalId,
                         rowIndex = row.rowIndex,
+                        messageKey = ExternalImportWarningMessageKey.UNSUPPORTED_ANTIANDROGEN,
                         message = "Skipped unsupported antiandrogen.",
                     )
                     return NoMtfSpecialResult.Skip
@@ -423,6 +443,7 @@ class ExternalImportParser @Inject constructor() {
                         reason = ExternalImportWarningReason.UNSUPPORTED_COMPOUND,
                         externalId = externalId,
                         rowIndex = row.rowIndex,
+                        messageKey = ExternalImportWarningMessageKey.UNSUPPORTED_ANTIANDROGEN,
                         message = "Skipped unsupported antiandrogen.",
                     )
                     return NoMtfSpecialResult.Skip
@@ -444,6 +465,7 @@ class ExternalImportParser @Inject constructor() {
                     reason = ExternalImportWarningReason.UNSUPPORTED_CATEGORY,
                     externalId = externalId,
                     rowIndex = row.rowIndex,
+                    messageKey = ExternalImportWarningMessageKey.TESTOSTERONE_MEDICATION_ROW,
                     message = "Skipped testosterone medication row.",
                 )
                 return NoMtfSpecialResult.Skip
@@ -454,6 +476,7 @@ class ExternalImportParser @Inject constructor() {
                     reason = ExternalImportWarningReason.UNSUPPORTED_CATEGORY,
                     externalId = externalId,
                     rowIndex = row.rowIndex,
+                    messageKey = ExternalImportWarningMessageKey.NOMTF_CATEGORY_UNSUPPORTED,
                     message = "Skipped medication row with unsupported NoMTF category.",
                 )
                 return NoMtfSpecialResult.Skip
@@ -479,6 +502,7 @@ class ExternalImportParser @Inject constructor() {
                     reason = ExternalImportWarningReason.UNSUPPORTED_ROUTE,
                     externalId = externalId,
                     rowIndex = row.rowIndex,
+                    messageKey = ExternalImportWarningMessageKey.ANTIANDROGEN_UNSUPPORTED_ROUTE,
                     message = "Skipped antiandrogen row with unsupported route.",
                 )
                 return null
@@ -488,7 +512,12 @@ class ExternalImportParser @Inject constructor() {
             ?: positiveDoseMg(fields["doseMg"])
             ?: positiveDoseMg(fields["dose"])
         if (doseMg == null) {
-            warnings.addMalformed(externalId, row.rowIndex, "Skipped antiandrogen row with invalid dose.")
+            warnings.addMalformed(
+                externalId = externalId,
+                rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.ANTIANDROGEN_INVALID_DOSE,
+                message = "Skipped antiandrogen row with invalid dose.",
+            )
             return null
         }
 
@@ -547,6 +576,7 @@ class ExternalImportParser @Inject constructor() {
                 reason = ExternalImportWarningReason.UNSUPPORTED_COMPOUND,
                 externalId = externalId,
                 rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.ESTROGEN_UNSUPPORTED_ROUTE_COMPOUND,
                 message = "Skipped estrogen row with a compound unsupported for its route.",
             )
             return null
@@ -565,7 +595,12 @@ class ExternalImportParser @Inject constructor() {
         }
 
         if (doseMg == null || !doseMg.isFinite() || doseMg <= 0.0) {
-            warnings.addMalformed(externalId, row.rowIndex, "Skipped estrogen row with invalid dose.")
+            warnings.addMalformed(
+                externalId = externalId,
+                rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.ESTROGEN_INVALID_DOSE,
+                message = "Skipped estrogen row with invalid dose.",
+            )
             return null
         }
 
@@ -736,6 +771,7 @@ class ExternalImportParser @Inject constructor() {
                 reason = ExternalImportWarningReason.GEL_METADATA_PREVIEW_ONLY,
                 externalId = externalId,
                 rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.GEL_METADATA_PREVIEW_ONLY,
                 message = "Gel metadata is available for preview only and does not affect medicine identity.",
             )
         }
@@ -835,7 +871,12 @@ class ExternalImportParser @Inject constructor() {
     ): ExternalImportCandidate.LabResult? {
         val fields = row.row
         if (fields == null) {
-            warnings.addMalformed(null, row.rowIndex, "Skipped non-object lab row.")
+            warnings.addMalformed(
+                externalId = null,
+                rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.LAB_NON_OBJECT_ROW,
+                message = "Skipped non-object lab row.",
+            )
             return null
         }
         val externalId = text(fields["id"]) ?: text(fields["uuid"]) ?: text(fields["key"])
@@ -844,6 +885,7 @@ class ExternalImportParser @Inject constructor() {
                 reason = ExternalImportWarningReason.MISSING_EXTERNAL_ID,
                 externalId = externalId,
                 rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.LAB_MISSING_ID,
                 message = "Skipped lab row without an external id.",
             )
             return null
@@ -853,6 +895,7 @@ class ExternalImportParser @Inject constructor() {
                 reason = ExternalImportWarningReason.DUPLICATE_EXTERNAL_ID,
                 externalId = externalId,
                 rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.LAB_DUPLICATE_ID,
                 message = "Skipped duplicate lab row external id.",
             )
             return null
@@ -862,7 +905,12 @@ class ExternalImportParser @Inject constructor() {
         val value = number(fields["concValue"]) ?: number(fields["value"])
         val unit = unitFrom(text(fields["unit"]) ?: text(fields["units"]))
         if (timeH == null || !timeH.isFinite() || value == null || !value.isFinite() || unit == null) {
-            warnings.addMalformed(externalId, row.rowIndex, "Skipped malformed lab row.")
+            warnings.addMalformed(
+                externalId = externalId,
+                rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.LAB_MALFORMED,
+                message = "Skipped malformed lab row.",
+            )
             return null
         }
 
@@ -872,6 +920,7 @@ class ExternalImportParser @Inject constructor() {
                 reason = ExternalImportWarningReason.AMBIGUOUS_LAB_UNIT,
                 externalId = externalId,
                 rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.LAB_AMBIGUOUS_ANALYTE_UNIT,
                 message = "Skipped lab row with ambiguous analyte unit.",
             )
             return null
@@ -883,6 +932,7 @@ class ExternalImportParser @Inject constructor() {
                 reason = ExternalImportWarningReason.DUPLICATE_LAB_RESULT,
                 externalId = externalId,
                 rowIndex = row.rowIndex,
+                messageKey = ExternalImportWarningMessageKey.LAB_DUPLICATE_ANALYTE_PANEL,
                 message = "Skipped duplicate analyte result in the same panel.",
             )
             return null
@@ -1155,12 +1205,14 @@ class ExternalImportParser @Inject constructor() {
     private fun MutableList<ExternalImportWarning>.addMalformed(
         externalId: String?,
         rowIndex: Int?,
+        messageKey: ExternalImportWarningMessageKey,
         message: String,
     ) {
         addWarning(
             reason = ExternalImportWarningReason.MALFORMED_ROW,
             externalId = externalId,
             rowIndex = rowIndex,
+            messageKey = messageKey,
             message = message,
         )
     }
@@ -1169,6 +1221,7 @@ class ExternalImportParser @Inject constructor() {
         reason: ExternalImportWarningReason,
         externalId: String?,
         rowIndex: Int?,
+        messageKey: ExternalImportWarningMessageKey,
         message: String,
     ) {
         add(
@@ -1177,6 +1230,7 @@ class ExternalImportParser @Inject constructor() {
                 externalId = externalId?.takeIf { id -> id.isNotBlank() },
                 rowIndex = rowIndex,
                 message = message,
+                messageKey = messageKey,
             )
         )
     }

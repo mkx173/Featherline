@@ -21,6 +21,8 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
+import com.mkx.hrttracker.data.importer.ExternalImportWarning
+import com.mkx.hrttracker.data.importer.ExternalImportWarningMessageKey
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
@@ -112,7 +114,7 @@ private fun ExternalImportReviewSheetContent(
             )
             preview.warnings.forEach { warning ->
                 Text(
-                    text = warning.message,
+                    text = externalImportWarningText(warning),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -151,4 +153,83 @@ private fun ExternalImportSummaryText(
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurface,
     )
+}
+
+@Composable
+private fun externalImportWarningText(warning: ExternalImportWarning): String {
+    return when (warning.messageKey) {
+        ExternalImportWarningMessageKey.SOURCE_FALLBACK ->
+            stringResource(R.string.external_import_warning_source_fallback)
+
+        ExternalImportWarningMessageKey.MEDICATION_NON_OBJECT_ROW ->
+            stringResource(R.string.external_import_warning_medication_non_object_row)
+
+        ExternalImportWarningMessageKey.MEDICATION_MISSING_ID ->
+            stringResource(R.string.external_import_warning_medication_missing_id)
+
+        ExternalImportWarningMessageKey.MEDICATION_DUPLICATE_ID ->
+            stringResource(R.string.external_import_warning_medication_duplicate_id)
+
+        ExternalImportWarningMessageKey.MEDICATION_INVALID_TIME ->
+            stringResource(R.string.external_import_warning_medication_invalid_time)
+
+        ExternalImportWarningMessageKey.MEDICATION_UNSUPPORTED_ROUTE ->
+            stringResource(R.string.external_import_warning_medication_unsupported_route)
+
+        ExternalImportWarningMessageKey.UNSUPPORTED_ANTIANDROGEN ->
+            stringResource(R.string.external_import_warning_unsupported_antiandrogen)
+
+        ExternalImportWarningMessageKey.ESTROGEN_UNSUPPORTED_COMPOUND ->
+            stringResource(R.string.external_import_warning_estrogen_unsupported_compound)
+
+        ExternalImportWarningMessageKey.TESTOSTERONE_MEDICATION_ROW ->
+            stringResource(R.string.external_import_warning_testosterone_medication_row)
+
+        ExternalImportWarningMessageKey.RECORD_ONLY_ANTIANDROGEN_UNSUPPORTED ->
+            stringResource(R.string.external_import_warning_record_only_antiandrogen_unsupported)
+
+        ExternalImportWarningMessageKey.NOMTF_RECORD_ONLY_UNSUPPORTED ->
+            stringResource(R.string.external_import_warning_nomtf_record_only_unsupported)
+
+        ExternalImportWarningMessageKey.NOMTF_CATEGORY_UNSUPPORTED ->
+            stringResource(R.string.external_import_warning_nomtf_category_unsupported)
+
+        ExternalImportWarningMessageKey.ANTIANDROGEN_UNSUPPORTED_ROUTE ->
+            stringResource(R.string.external_import_warning_antiandrogen_unsupported_route)
+
+        ExternalImportWarningMessageKey.ANTIANDROGEN_INVALID_DOSE ->
+            stringResource(R.string.external_import_warning_antiandrogen_invalid_dose)
+
+        ExternalImportWarningMessageKey.ESTROGEN_UNSUPPORTED_ROUTE_COMPOUND ->
+            stringResource(R.string.external_import_warning_estrogen_unsupported_route_compound)
+
+        ExternalImportWarningMessageKey.ESTROGEN_INVALID_DOSE ->
+            stringResource(R.string.external_import_warning_estrogen_invalid_dose)
+
+        ExternalImportWarningMessageKey.GEL_METADATA_PREVIEW_ONLY ->
+            stringResource(R.string.external_import_warning_gel_metadata_preview_only)
+
+        ExternalImportWarningMessageKey.LAB_NON_OBJECT_ROW ->
+            stringResource(R.string.external_import_warning_lab_non_object_row)
+
+        ExternalImportWarningMessageKey.LAB_MISSING_ID ->
+            stringResource(R.string.external_import_warning_lab_missing_id)
+
+        ExternalImportWarningMessageKey.LAB_DUPLICATE_ID ->
+            stringResource(R.string.external_import_warning_lab_duplicate_id)
+
+        ExternalImportWarningMessageKey.LAB_MALFORMED ->
+            stringResource(R.string.external_import_warning_lab_malformed)
+
+        ExternalImportWarningMessageKey.LAB_AMBIGUOUS_ANALYTE_UNIT ->
+            stringResource(R.string.external_import_warning_lab_ambiguous_analyte_unit)
+
+        ExternalImportWarningMessageKey.LAB_DUPLICATE_ANALYTE_PANEL ->
+            stringResource(R.string.external_import_warning_lab_duplicate_analyte_panel)
+
+        ExternalImportWarningMessageKey.LAB_USER_CONFLICT ->
+            stringResource(R.string.external_import_warning_lab_user_conflict)
+
+        null -> warning.message
+    }
 }

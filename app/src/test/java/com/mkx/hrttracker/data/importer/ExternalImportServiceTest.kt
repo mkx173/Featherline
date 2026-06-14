@@ -19,9 +19,11 @@ import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -42,6 +44,7 @@ import java.util.UUID
 class ExternalImportServiceTest {
     private val databaseHolder: DatabaseHolder = mockk()
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk()
+    private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
 
     private lateinit var database: HrtTrackerDatabase
     private lateinit var service: ExternalImportService
@@ -74,6 +77,7 @@ class ExternalImportServiceTest {
             parser = ExternalImportParser(),
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
+            diagnosticsLogger = diagnosticsLogger,
         )
     }
 
@@ -170,6 +174,36 @@ class ExternalImportServiceTest {
         assertEquals(1, database.medicationLogDao().getEntries().size)
         assertEquals(1, database.bloodTestDao().getPanels().flatMap { panel -> panel.results }.size)
         assertNull(database.bloodTestDao().getImportedResult("transmtf", "lab-bad"))
+    }
+
+    @Test
+    fun buildPreviewLogsSkippedWarningsWithRowDetailsForDebugDiagnostics() = runTest {
+        service.buildPreview(
+            json = transmtfJson(
+                events = """
+                    { "id": "dose-a", "timeH": 1, "route": "oral", "ester": "E2", "doseMG": 2 }
+                """.trimIndent(),
+                labs = """
+                    { "id": "lab-good", "timeH": 2, "unit": "pg/ml", "value": 120 },
+                    { "id": "lab-bad", "timeH": 3, "unit": "ng/ml", "value": 0.12 }
+                """.trimIndent(),
+            ),
+            now = NOW,
+        )
+
+        verify {
+            diagnosticsLogger.warning(
+                "ExternalImportService",
+                match { message ->
+                    message.contains("external_import_skipped_row") &&
+                            message.contains("reason=AMBIGUOUS_LAB_UNIT") &&
+                            message.contains("externalId=lab-bad") &&
+                            message.contains("rowIndex=1") &&
+                            message.contains("Skipped lab row with ambiguous analyte unit.")
+                },
+                null,
+            )
+        }
     }
 
     @Test

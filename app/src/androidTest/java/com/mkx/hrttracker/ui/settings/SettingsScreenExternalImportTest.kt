@@ -2,10 +2,12 @@ package com.mkx.hrttracker.ui.settings
 
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -14,6 +16,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.importer.ExternalImportParseResult
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
 import com.mkx.hrttracker.data.importer.ExternalImportWarning
+import com.mkx.hrttracker.data.importer.ExternalImportWarningMessageKey
 import com.mkx.hrttracker.data.importer.ExternalImportWarningReason
 import com.mkx.hrttracker.data.importer.ExternalTrackerSourceApp
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -113,13 +116,45 @@ class SettingsScreenExternalImportTest {
         composeRule.onNodeWithText(context.getString(R.string.external_import_cancel)).assertIsDisplayed()
     }
 
-    private fun sampleExternalImportPreviewForUi(): ExternalImportPreview {
-        val warning = ExternalImportWarning(
+    @Test
+    fun reviewSheetLocalizesStructuredWarnings() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val preview = sampleExternalImportPreviewForUi(
+            warning = ExternalImportWarning(
+                reason = ExternalImportWarningReason.UNSUPPORTED_COMPOUND,
+                externalId = "row-7",
+                rowIndex = 7,
+                messageKey = ExternalImportWarningMessageKey.ESTROGEN_UNSUPPORTED_ROUTE_COMPOUND,
+                message = "RAW WARNING SHOULD NOT RENDER",
+            )
+        )
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                ExternalImportReviewSheet(
+                    preview = preview,
+                    isImporting = false,
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    onDismissRequest = {},
+                    onImportClick = {},
+                )
+            }
+        }
+
+        composeRule
+            .onNodeWithText(context.getString(R.string.external_import_warning_estrogen_unsupported_route_compound))
+            .assertIsDisplayed()
+        composeRule.onAllNodesWithText("RAW WARNING SHOULD NOT RENDER").assertCountEquals(0)
+    }
+
+    private fun sampleExternalImportPreviewForUi(
+        warning: ExternalImportWarning = ExternalImportWarning(
             reason = ExternalImportWarningReason.UNSUPPORTED_CATEGORY,
             externalId = "row-7",
             rowIndex = 7,
             message = "Skipped unsupported row",
-        )
+        ),
+    ): ExternalImportPreview {
         return ExternalImportPreview(
             parseResult = ExternalImportParseResult(
                 sourceApp = ExternalTrackerSourceApp.NOMTF,

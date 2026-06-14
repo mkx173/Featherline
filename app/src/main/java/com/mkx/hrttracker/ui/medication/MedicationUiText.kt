@@ -12,11 +12,15 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.util.doseInstructionText
+import com.mkx.hrttracker.util.importedExternalMedicineDisplayKey
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.rememberAppLocale
 
 @Composable
 fun medicineDisplayName(medicine: Medicine): String {
+    importedExternalMedicineDisplayKey(medicine)?.let { medicationKey ->
+        return stringResource(medicationKey.labelRes)
+    }
     medicine.displayName?.takeIf(String::isNotBlank)?.let { return it }
     return when (val selection = medicine.selection) {
         is MedicineSelection.Catalog -> stringResource(selection.medicationKey.labelRes)

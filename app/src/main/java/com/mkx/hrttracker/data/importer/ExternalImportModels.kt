@@ -100,6 +100,7 @@ data class ExternalImportWarning(
     val externalId: String?,
     val rowIndex: Int?,
     val message: String,
+    val messageKey: ExternalImportWarningMessageKey? = null,
 )
 
 enum class ExternalImportWarningReason {
@@ -114,6 +115,33 @@ enum class ExternalImportWarningReason {
     DUPLICATE_LAB_RESULT,
     LAB_USER_CONFLICT,
     SOURCE_FALLBACK,
+}
+
+enum class ExternalImportWarningMessageKey {
+    SOURCE_FALLBACK,
+    MEDICATION_NON_OBJECT_ROW,
+    MEDICATION_MISSING_ID,
+    MEDICATION_DUPLICATE_ID,
+    MEDICATION_INVALID_TIME,
+    MEDICATION_UNSUPPORTED_ROUTE,
+    UNSUPPORTED_ANTIANDROGEN,
+    ESTROGEN_UNSUPPORTED_COMPOUND,
+    TESTOSTERONE_MEDICATION_ROW,
+    RECORD_ONLY_ANTIANDROGEN_UNSUPPORTED,
+    NOMTF_RECORD_ONLY_UNSUPPORTED,
+    NOMTF_CATEGORY_UNSUPPORTED,
+    ANTIANDROGEN_UNSUPPORTED_ROUTE,
+    ANTIANDROGEN_INVALID_DOSE,
+    ESTROGEN_UNSUPPORTED_ROUTE_COMPOUND,
+    ESTROGEN_INVALID_DOSE,
+    GEL_METADATA_PREVIEW_ONLY,
+    LAB_NON_OBJECT_ROW,
+    LAB_MISSING_ID,
+    LAB_DUPLICATE_ID,
+    LAB_MALFORMED,
+    LAB_AMBIGUOUS_ANALYTE_UNIT,
+    LAB_DUPLICATE_ANALYTE_PANEL,
+    LAB_USER_CONFLICT,
 }
 
 class ExternalImportFatalException(message: String) : IllegalArgumentException(message)
