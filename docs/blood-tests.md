@@ -95,6 +95,33 @@ unit-agnostic and only meaningful row-to-row within the same custom
 analyte, since two rows for the same custom analyte are assumed to
 share their `unitLabel`.
 
+## External import reconciliation
+
+External tracker JSON imports write only builtin E2/T lab results. They
+do not match user-created panels by timestamp or analyte value. Instead,
+the importer stores explicit provenance on both levels:
+
+- `BloodTestPanelEntity.importSourceApp` plus `importPanelKey`, where
+  `importPanelKey` is the source row time rounded to epoch
+  milliseconds.
+- `BloodTestResultEntity.importSourceApp` plus `importExternalId`, where
+  `importExternalId` is the source lab row ID.
+
+Preview and commit use the same rules. A source lab row targets the
+imported panel with matching `(sourceApp, importPanelKey)`, creating it
+if none exists. The result itself is keyed by `(sourceApp,
+importExternalId)`, so reimport updates the existing imported result
+even if it moves to a different imported panel key. Imported results
+are appended after any user-owned results in the same panel and their
+display order is renormalized within the imported suffix.
+
+User-owned rows are deliberately not overwritten. If the target imported
+panel contains a user-created result for the same builtin analyte, that
+source lab row is skipped with a warning. Existing user-created panels
+with the same collection time are ignored because they have null import
+provenance. Empty imported panels left behind after a moved result are
+deleted by the importer cleanup helper.
+
 ## `AllowedAnalyteUnit` validated type
 
 [`AllowedAnalyteUnit`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/bloodtest/AllowedAnalyteUnit.kt)

@@ -10,14 +10,14 @@ format used for manual backups, see [backup-format.md](backup-format.md).
 ## Database setup
 
 - [`HrtTrackerDatabase`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt)
-  is the Room database at schema version 6. It declares 10 entities
+  is the Room database at schema version 7. It declares 10 entities
   and exposes 6 DAOs. `exportSchema` is off — schemas are tracked via
   migration objects in source rather than committed schema JSON.
 - [`DatabaseHolder`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/DatabaseHolder.kt)
   builds the database via `Room.databaseBuilder`, installs a
   `SupportOpenHelperFactory` from SQLCipher's `net.zetetic` artifact,
   and registers `MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4`,
-  `MIGRATION_4_5`, and `MIGRATION_5_6`.
+  `MIGRATION_4_5`, `MIGRATION_5_6`, and `MIGRATION_6_7`.
   No `fallbackToDestructiveMigration`
   is wired — a missing migration crashes loudly in every build, debug
   and release, so silent data loss can't slip through.
@@ -39,9 +39,10 @@ notable invariant.
 
 Defined in [`MedicineEntities.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicineEntities.kt).
 Annotated `@Entity(tableName = "medicines")` — one row per known
-medicine in the catalog (built-in plus user-defined custom), keyed on
-a UUID. This is the canonical identity for "what substance, in what
-package". Most group slots and log rows reference a row here by
+medicine in the catalog (built-in plus user-defined custom) or hidden
+external-import medicine, keyed on a UUID. This is the canonical
+identity for "what substance, in what package". Most group slots and
+log rows reference a row here by
 `medicineUuid`; the app's normal write paths create **PATCH_OFF rows
 with `medicineUuid = null`** and rely on
 `applicationType = PATCH_OFF` for identity. Restore also accepts
@@ -54,12 +55,16 @@ preparation's numeric fields as a flat union of nullable columns
 (`strengthMgPerTablet`, `strengthMgPerVial`, `concentrationMgPerMl`,
 `vialVolumeMl`, `concentrationPercent`, `sachetWeightGrams`,
 `containerWeightGrams`, `patchTotalMg`, `patchReleaseRateMcgPerDay`
-— only the subset matching the preparation is populated), an optional
+— only the subset matching the preparation is populated; import-only
+injection/gel preparations reuse `strengthMgPerVial` for their
+administered/applied mg payload), an optional
 user-set `displayName` (hidden in the editor for built-in catalog
 medicines), the `displayDoseUnit` the user picked for raw-mass entry
-on custom medicines (mg / μg / g; catalog rows stay `MG`), and the
-canonical `identityKey` fingerprint used by the repository to dedupe
-on find-or-create. Soft-deleted via `archivedAtEpochMillis`. Indexed
+on custom medicines (mg / μg / g; catalog rows stay `MG`), the
+`importedFromExternalTracker` flag for imported support medicines, and
+the canonical `identityKey` fingerprint used by the repository to
+dedupe on find-or-create. Soft-deleted via `archivedAtEpochMillis`.
+Indexed
 unique on `identityKey`, plus secondary indices on
 `archivedAtEpochMillis` and `category`. The `identityKey` index is
 the dedup contract: two medicines that hash to the same canonical
@@ -94,6 +99,17 @@ app-created PATCH_OFF slot/log rows do not FK to it; the row serves
 the catalog manager, find-or-create lifecycle, and restore
 compatibility. The repository enforces one-row-per-database semantics
 by looking up that fixed key before inserting.
+
+External tracker imports create or reuse hidden support medicines with
+`importedFromExternalTracker = true`. They are not archived by default;
+instead, the repository hides them from user-facing medicine lists and
+tracked-stock queries by filtering on the flag. Restore also rejects
+imported medicines that carry stock blocks or participate in medication
+groups. Import-only medicines use identity keys in the external
+namespace (`E|<source>|<applicationType>|<compound>|<doseKey>`) so
+they cannot collide with user-created `C|`, `X|`, or `P|` identities.
+Only imported medicines may use `IMPORTED_INJECTION` or `IMPORTED_GEL`
+preparations.
 
 ### `UserProfileEntity`
 
@@ -206,6 +222,11 @@ latest/category-bounded log reads and the home snapshot's
 latest-antiandrogen lookup (a single-pass `ROW_NUMBER()` window query
 that picks the latest entry per `(applicationType, medicineUuid,
 sourceGroupUuid)` identity). The primary key remains `uuid`.
+External tracker rows add nullable `importSourceApp` and
+`importExternalId` columns. A non-null pair marks an import-owned log,
+and the unique `(importSourceApp, importExternalId)` index lets
+reimports update the same local row while ordinary user-created rows
+keep both fields null.
 
 ### `BloodTestPanelEntity`
 
@@ -216,7 +237,11 @@ blood-test sitting. Stores
 draw occurred), free-form `notes`, and the two
 `timeSinceLast*DoseMillis` columns that snapshot dose-to-draw offsets
 at panel-save time. Indexed on `collectedAtInstantEpochMillis` to
-support the trend chart's chronological scan.
+support the trend chart's chronological scan. Imported panels also
+store nullable `importSourceApp` and `importPanelKey`; the latter is
+the rounded source epoch-millis panel key. The unique
+`(importSourceApp, importPanelKey)` index is the panel-level reimport
+identity.
 
 ### `BloodTestResultEntity`
 
@@ -234,6 +259,10 @@ on `panelUuid`, on each analyte key, and on three unique composite
 indices: `(panelUuid, displayOrder)` enforces per-panel ordering, and
 `(panelUuid, builtinAnalyteKey)` plus `(panelUuid, customAnalyteUuid)`
 enforce one-row-per-analyte within a panel.
+Imported results also carry nullable `importSourceApp` and
+`importExternalId`, with a unique `(importSourceApp, importExternalId)`
+index. This is the result-level identity used when an imported lab
+row moves between imported panels on reimport.
 
 ### `CustomBloodAnalyteEntity`
 
@@ -274,12 +303,17 @@ in-memory model splits cleanly along two axes — defined in
 
 - **`MedicinePreparation`** (sealed) describes what's in the package:
   `Pill`, `Capsule`, `InjectionSingleUseVial`,
-  `InjectionMultiUseVial`, `GelSachet`, `GelContainer`, and `Patch`
+  `InjectionMultiUseVial`, `GelSachet`, `GelContainer`,
+  `ImportedInjection`, `ImportedGel`, and `Patch`
   (the patch carries a `PatchSpecification` of either `TotalMg` or
   `ReleaseRateMcgPerDay`). The `PatchOff` data object is a sentinel
   preparation that lives on the global PATCH_OFF singleton; the PK
   simulator routes patch removals on `applicationType` alone, so it
-  carries no numeric data.
+  carries no numeric data. The imported variants are valid only on
+  `importedFromExternalTracker` medicines: `ImportedInjection` stores
+  administered compound mg plus estradiol ester, and `ImportedGel`
+  stores applied estradiol mg, without fabricated vial or sachet
+  geometry.
 - **`DoseInstruction`** (sealed) describes how much per administration:
   `TabletFraction(numerator, denominator)`, `WholeUnit`,
   `VolumeMl`, `WeightGrams`, `Noop`. Compatibility against a
@@ -299,6 +333,12 @@ preparation fields). Catalog keys take the form
 singleton has the fixed string `P|PATCH_OFF`. Numeric fields are
 serialized via `BigDecimal` at scale 6 with `HALF_UP` rounding and
 trailing zeros stripped, so 1.0 mg and 1.000000 mg hash identically.
+External-import support medicines use a separate namespace:
+`E|<sourceApp>|<applicationType>|<compound>|<doseKey>`. Repository
+helpers look up imported identities only among
+`importedFromExternalTracker = true` rows, so an import never reuses,
+unarchives, or collides with a user-visible medicine that happens to
+have the same display dose.
 
 Mass-equivalent dosing — what gets snapshotted into
 `equivalentE2Mg` on each log row — is computed by
@@ -342,7 +382,10 @@ Patterns shared across entities:
 - **Indices are declared explicitly per entity** on the columns that
   back foreign keys and the columns that drive observed Flow queries
   (the home-screen panel-by-time scan, the trend-chart sort, the
-  group-items lookup by `groupUuid`).
+  group-items lookup by `groupUuid`). Import provenance indices are
+  nullable unique composites; SQLite allows multiple ordinary rows
+  with null provenance while enforcing one local row for each non-null
+  external source/id pair.
 
 ## DAOs
 
@@ -364,7 +407,10 @@ Six DAO interfaces, each backing the entities in its namesake area.
   change-only signal: repositories that resolve medicines as a
   separate fetch off a group or log observation join on this so
   display-name / preparation / archive edits propagate without
-  needing the primary table to change too.
+  needing the primary table to change too. Active/tracked reads filter
+  out `importedFromExternalTracker` rows; `getAll()` still returns
+  them for backup, and `getImportedByIdentityKey` is the importer-only
+  identity lookup.
 - [`UserProfileDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/UserProfileDao.kt)
   — singleton-row read / observe / upsert for `user_profile`.
 - [`MedicationGroupDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicationGroupDao.kt)
@@ -380,12 +426,15 @@ Six DAO interfaces, each backing the entities in its namesake area.
   references rather than dropping rows, and the
   `observeScheduledEntriesInWindow` / `getScheduledEntriesInWindow`
   reads that index already-logged scheduled doses for the stock
-  runway projection.
+  runway projection. `getImportedEntry(sourceApp, externalId)` is the
+  reimport lookup for provenance-owned logs.
 - [`BloodTestDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestDao.kt)
   — panels, results, and custom analytes; the
   `upsertPanelWithResults` `@Transaction`; the
   `getBuiltinTrendPoints` / `getCustomTrendPoints` projections that
-  feed the chart.
+  feed the chart. Import helpers read panels/results by provenance,
+  enumerate all imported panels for a source, and delete empty
+  imported panels left behind after a moved result.
 - [`HomeDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HomeDao.kt)
   — the composite queries feeding the home screen:
   `observeActiveGroups`, `observeScheduleEntries`,
@@ -404,7 +453,7 @@ abandoned mid-flight and the database was collapsed to v1, with
 fresh at v1 and bumps via `Migration` objects declared inline in
 [`HrtTrackerDatabase.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt).
 The chain today is `MIGRATION_1_2` → `MIGRATION_2_3` → `MIGRATION_3_4`
-→ `MIGRATION_4_5` → `MIGRATION_5_6`.
+→ `MIGRATION_4_5` → `MIGRATION_5_6` → `MIGRATION_6_7`.
 `MIGRATION_1_2` adds the `displayDoseUnit` column to `medicines` with a
 `MG` default. `MIGRATION_2_3` adds the stock feature: the six stock
 columns on `medicines` (see [`MedicineEntity`](#medicineentity) above),
@@ -420,7 +469,10 @@ Stock instead.) `MIGRATION_4_5` adds the nullable `doseAmountDelta`
 column to `medication_log_entries` for the actual-amount feature.
 `MIGRATION_5_6` adds the `(category, appliedAtEpochMillis)` index that
 serves category/latest reads and the latest-antiandrogen home snapshot
-query. The
+query. `MIGRATION_6_7` adds `importedFromExternalTracker` to
+`medicines`, import provenance columns to medication logs, blood-test
+panels, and blood-test results, and creates unique provenance indices
+for medication logs, imported panels, and imported results. The
 reset deliberately did not register a `MIGRATION_29_*` shim, and no
 `fallbackToDestructiveMigration` is wired in any build flavor: a
 pre-refactor database does not migrate, it fails to open at startup

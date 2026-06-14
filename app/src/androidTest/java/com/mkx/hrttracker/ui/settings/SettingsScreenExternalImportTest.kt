@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.importer.ExternalImportParseResult
@@ -71,6 +72,7 @@ class SettingsScreenExternalImportTest {
                 matcher = hasText(context.getString(R.string.settings_import_external_tracker_json)) and
                         hasClickAction(),
             )
+            .performScrollTo()
             .assertIsDisplayed()
             .performClick()
 
@@ -79,6 +81,7 @@ class SettingsScreenExternalImportTest {
 
     @Test
     fun reviewSheetShowsCountsWarningsAndActions() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
         val preview = sampleExternalImportPreviewForUi()
 
         composeRule.setContent {
@@ -93,15 +96,21 @@ class SettingsScreenExternalImportTest {
             }
         }
 
-        composeRule.onNodeWithText("Review external import").assertIsDisplayed()
-        composeRule.onNodeWithText("Source: NoMTF").assertIsDisplayed()
-        composeRule.onNodeWithText("Medication rows: 2 new, 1 updated").assertIsDisplayed()
-        composeRule.onNodeWithText("Lab rows: 3 new, 4 updated").assertIsDisplayed()
-        composeRule.onNodeWithText("Imported medicines: 0 new, 0 reused").assertIsDisplayed()
-        composeRule.onNodeWithText("Warnings").assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.external_import_review_title))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.external_import_detected_source, "NoMTF"))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.external_import_medication_summary, 2, 1))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.external_import_lab_summary, 3, 4))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.external_import_medicine_summary, 0, 0))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.external_import_warnings_title))
+            .assertIsDisplayed()
         composeRule.onNodeWithText("Skipped unsupported row").assertIsDisplayed()
-        composeRule.onNodeWithText("Import").assertIsDisplayed()
-        composeRule.onNodeWithText("Cancel").assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.external_import_confirm)).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.external_import_cancel)).assertIsDisplayed()
     }
 
     private fun sampleExternalImportPreviewForUi(): ExternalImportPreview {
