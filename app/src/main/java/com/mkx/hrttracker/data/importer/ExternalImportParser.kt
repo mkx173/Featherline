@@ -13,9 +13,10 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.squareup.moshi.Moshi
 import java.time.ZoneId
 import java.util.Locale
+import javax.inject.Inject
 import kotlin.math.round
 
-class ExternalImportParser {
+class ExternalImportParser @Inject constructor() {
     private val moshi = Moshi.Builder().build()
     private val anyAdapter = moshi.adapter(Any::class.java)
 
