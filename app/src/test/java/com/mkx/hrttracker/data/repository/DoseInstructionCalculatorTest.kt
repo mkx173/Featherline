@@ -2,13 +2,16 @@ package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionCalculator
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -204,6 +207,114 @@ class DoseInstructionCalculatorTest {
     }
 
     @Test
+    fun importedInjectionEquivalentE2UsesEsterRatio() {
+        val medicine = importedMedicine(
+            preparation = MedicinePreparation.ImportedInjection(
+                administeredMg = 5.0,
+                ester = MedicationKey.ESTRADIOL_VALERATE,
+            ),
+            applicationType = MedicationApplicationType.INJECTION,
+            compound = "ESTRADIOL_VALERATE",
+            doseKey = "5",
+        )
+
+        val result = DoseInstructionCalculator.perUnitEquivalentE2Mg(
+            medicine = medicine,
+            doseInstruction = DoseInstruction.WholeUnit,
+        )
+
+        assertEquals(
+            5.0 * requireNotNull(
+                DoseInstructionCalculator.e2EquivalenceRatio(MedicationKey.ESTRADIOL_VALERATE)
+            ),
+            requireNotNull(result),
+            1e-9,
+        )
+    }
+
+    @Test
+    fun importedGelEquivalentE2UsesAppliedEstradiolMg() {
+        val medicine = importedMedicine(
+            preparation = MedicinePreparation.ImportedGel(appliedEstradiolMg = 1.5),
+            applicationType = MedicationApplicationType.GEL,
+            compound = "ESTRADIOL_GEL",
+            doseKey = "1.5",
+        )
+
+        val result = DoseInstructionCalculator.perUnitEquivalentE2Mg(
+            medicine = medicine,
+            doseInstruction = DoseInstruction.WholeUnit,
+        )
+
+        assertEquals(1.5, requireNotNull(result), 1e-9)
+    }
+
+    @Test
+    fun importedEvInjectionEquivalentMatchesCatalogEvInjectionAtSameMg() {
+        val imported = importedMedicine(
+            preparation = MedicinePreparation.ImportedInjection(
+                administeredMg = 5.0,
+                ester = MedicationKey.ESTRADIOL_VALERATE,
+            ),
+            applicationType = MedicationApplicationType.INJECTION,
+            compound = "ESTRADIOL_VALERATE",
+            doseKey = "5",
+        )
+        val catalog = singleUseVial(strengthMgPerVial = 5.0)
+
+        assertEquals(
+            requireNotNull(
+                DoseInstructionCalculator.perUnitEquivalentE2Mg(
+                    medicine = catalog,
+                    doseInstruction = DoseInstruction.WholeUnit,
+                )
+            ),
+            requireNotNull(
+                DoseInstructionCalculator.perUnitEquivalentE2Mg(
+                    medicine = imported,
+                    doseInstruction = DoseInstruction.WholeUnit,
+                )
+            ),
+            1e-9,
+        )
+    }
+
+    @Test
+    fun importedCatalogPillKeepsEquivalentAndImportedPatchKeepsNullEquivalent() {
+        val importedPill = importedMedicine(
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+            applicationType = MedicationApplicationType.ORAL,
+            compound = "ESTRADIOL_VALERATE",
+            doseKey = "2",
+        )
+        val importedPatch = importedMedicine(
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_PATCH),
+            preparation = MedicinePreparation.Patch(
+                specification = MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                    valueMcgPerDay = 100.0,
+                ),
+            ),
+            applicationType = MedicationApplicationType.PATCH_ON,
+            compound = "ESTRADIOL_PATCH",
+            doseKey = "100mcgPerDay",
+        )
+
+        assertNotNull(
+            DoseInstructionCalculator.perUnitEquivalentE2Mg(
+                medicine = importedPill,
+                doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 1),
+            )
+        )
+        assertNull(
+            DoseInstructionCalculator.perUnitEquivalentE2Mg(
+                medicine = importedPatch,
+                doseInstruction = DoseInstruction.WholeUnit,
+            )
+        )
+    }
+
+    @Test
     fun gelPercentConvertsToMgPerGram() {
         val medicine = medicine(
             selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_GEL),
@@ -377,6 +488,38 @@ class DoseInstructionCalculatorTest {
             updatedAt = timestamp,
             archivedAt = null,
             stock = MedicineStock(),
+        )
+    }
+
+    private fun importedMedicine(
+        preparation: MedicinePreparation,
+        applicationType: MedicationApplicationType,
+        compound: String,
+        doseKey: String,
+        selection: MedicineSelection = MedicineSelection.Custom("External tracker"),
+    ): Medicine {
+        val timestamp = Instant.parse("2026-05-22T00:00:00Z")
+        return Medicine(
+            uuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000000"),
+            selection = selection,
+            category = when (selection) {
+                is MedicineSelection.Catalog -> selection.medicationKey.category
+                is MedicineSelection.Custom -> MedicationCategory.ESTRADIOL
+                is MedicineSelection.PatchOff -> MedicationCategory.ESTRADIOL
+            },
+            preparation = preparation,
+            displayName = null,
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = applicationType,
+                compound = compound,
+                doseKey = doseKey,
+            ),
+            createdAt = timestamp,
+            updatedAt = timestamp,
+            archivedAt = null,
+            stock = MedicineStock(),
+            importedFromExternalTracker = true,
         )
     }
 }

@@ -61,18 +61,22 @@ class MedicineRepository @Inject internal constructor(
                             // this emission, never terminating: a terminal `.catch` inside
                             // flatMapLatest would freeze this Eagerly, app-scoped flow —
                             // and the Medicines list — until the app process is rebuilt.
-                            entities.mapNotNull { entity ->
-                                try {
-                                    entity.toMedicineModel()
-                                } catch (error: Exception) {
-                                    // No suspension point here today, so cancellation
-                                    // can't surface — but rethrow it anyway so a future
-                                    // suspend call is never silently swallowed. Drop only
-                                    // the offending row.
-                                    if (error is CancellationException) throw error
-                                    null
+                            entities
+                                .asSequence()
+                                .filterNot(MedicineEntity::importedFromExternalTracker)
+                                .mapNotNull { entity ->
+                                    try {
+                                        entity.toMedicineModel()
+                                    } catch (error: Exception) {
+                                        // No suspension point here today, so cancellation
+                                        // can't surface — but rethrow it anyway so a future
+                                        // suspend call is never silently swallowed. Drop only
+                                        // the offending row.
+                                        if (error is CancellationException) throw error
+                                        null
+                                    }
                                 }
-                            }
+                                .toList()
                         }
                         // Per-row mapping above recovers from a malformed row; this
                         // terminal catch separately guards the Room flow
@@ -120,7 +124,8 @@ class MedicineRepository @Inject internal constructor(
     /**
      * Stock-tracked subset of the active medicines, derived from the same
      * guarded, eagerly-cached [activeMedicinesFlow] (`trackingEnabled` mirrors
-     * `MedicineDao.getAllActiveTrackedEntities`'s `trackingEnabled = 1` filter).
+     * `MedicineDao.getAllActiveTrackedEntities`'s `trackingEnabled = 1` filter;
+     * imported external backing rows are already removed by [activeMedicinesFlow]).
      * Deriving instead of opening a second Room query reuses the per-row mapping
      * + terminal `.catch` above: a malformed row drops only itself (so an
      * unrelated untracked bad row can't blank these tracked rows), and a raw

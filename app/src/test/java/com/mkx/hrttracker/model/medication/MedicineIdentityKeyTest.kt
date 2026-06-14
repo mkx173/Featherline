@@ -33,6 +33,97 @@ class MedicineIdentityKeyTest {
     }
 
     @Test
+    fun externalIdentityCanonicalizesDoseKeyComponents() {
+        val keys = listOf(5.0, 5.00, 5.000).map { value ->
+            MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = MedicineIdentityKey.canonicalDouble(value),
+            )
+        }
+
+        assertEquals("E|NoMTF|INJECTION|ESTRADIOL_VALERATE|5", keys[0])
+        assertEquals(keys[0], keys[1])
+        assertEquals(keys[0], keys[2])
+    }
+
+    @Test
+    fun externalIdentityDifferentiatesSourceRouteCompoundAndDose() {
+        val base = MedicineIdentityKey.external(
+            sourceApp = "NoMTF",
+            applicationType = MedicationApplicationType.INJECTION,
+            compound = "ESTRADIOL_VALERATE",
+            doseKey = "5",
+        )
+
+        assertNotEquals(
+            base,
+            MedicineIdentityKey.external(
+                sourceApp = "DoseLogger",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = "5",
+            ),
+        )
+        assertNotEquals(
+            base,
+            MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.GEL,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = "5",
+            ),
+        )
+        assertNotEquals(
+            base,
+            MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_CYPIONATE",
+                doseKey = "5",
+            ),
+        )
+        assertNotEquals(
+            base,
+            MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = "10",
+            ),
+        )
+    }
+
+    @Test
+    fun externalIdentityRejectsBlankComponents() {
+        assertThrows(IllegalArgumentException::class.java) {
+            MedicineIdentityKey.external(
+                sourceApp = " ",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = "5",
+            )
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = " ",
+                doseKey = "5",
+            )
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = " ",
+            )
+        }
+    }
+
+    @Test
     fun customCapsuleIdentityDiffersFromCustomPillAtSameStrength() {
         val pillKey = MedicineIdentityKey.custom(
             customMedicationName = "Progesterone",

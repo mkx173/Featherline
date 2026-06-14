@@ -1258,7 +1258,9 @@ private fun PreparationEditorFields(
             // the detail screen hides the entire edit sheet for it (see
             // MedicineDetailScreenContent), so this branch only exists for
             // when-exhaustiveness.
-            MedicinePreparationType.PATCH_OFF -> Unit
+            MedicinePreparationType.PATCH_OFF,
+            MedicinePreparationType.IMPORTED_INJECTION,
+            MedicinePreparationType.IMPORTED_GEL -> Unit
         }
     }
 }
@@ -1295,7 +1297,9 @@ private fun preparationEditFields(
         PatchSpecKind.RELEASE_RATE -> listOf(CreateMedicineField.PATCH_RELEASE_RATE)
     }
 
-    MedicinePreparationType.PATCH_OFF -> emptyList()
+    MedicinePreparationType.PATCH_OFF,
+    MedicinePreparationType.IMPORTED_INJECTION,
+    MedicinePreparationType.IMPORTED_GEL -> emptyList()
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -1403,10 +1407,12 @@ private fun inferApplicationType(medicine: Medicine): MedicationApplicationType 
         is MedicinePreparation.Pill -> MedicationApplicationType.ORAL
         is MedicinePreparation.Capsule -> MedicationApplicationType.ORAL
         is MedicinePreparation.InjectionSingleUseVial,
-        is MedicinePreparation.InjectionMultiUseVial -> MedicationApplicationType.INJECTION
+        is MedicinePreparation.InjectionMultiUseVial,
+        is MedicinePreparation.ImportedInjection -> MedicationApplicationType.INJECTION
 
         is MedicinePreparation.GelSachet,
-        is MedicinePreparation.GelContainer -> MedicationApplicationType.GEL
+        is MedicinePreparation.GelContainer,
+        is MedicinePreparation.ImportedGel -> MedicationApplicationType.GEL
 
         is MedicinePreparation.Patch -> MedicationApplicationType.PATCH_ON
         // Singleton row in the manager renders the patch-off icon.
@@ -1465,7 +1471,9 @@ private fun MedicinePreparation.toPreparationDraft(
         }
 
         // The singleton has no numeric fields to seed.
-        is MedicinePreparation.PatchOff -> base
+        is MedicinePreparation.PatchOff,
+        is MedicinePreparation.ImportedInjection,
+        is MedicinePreparation.ImportedGel -> base
     }
 }
 
@@ -1520,6 +1528,10 @@ private fun MedicinePreparationDraftUiState.toPreparationOrNull(): MedicinePrepa
             // reaches this branch because the detail screen hides the edit
             // action for the singleton.
             MedicinePreparationType.PATCH_OFF -> MedicinePreparation.PatchOff
+
+            MedicinePreparationType.IMPORTED_INJECTION,
+            MedicinePreparationType.IMPORTED_GEL ->
+                error("Imported preparations are immutable from the medicine editor.")
         }
     }.getOrNull()
 }

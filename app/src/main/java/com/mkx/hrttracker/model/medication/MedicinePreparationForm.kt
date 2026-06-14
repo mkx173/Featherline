@@ -14,10 +14,12 @@ fun MedicinePreparationType.form(): MedicinePreparationForm {
         MedicinePreparationType.CAPSULE -> MedicinePreparationForm.CAPSULE
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+        MedicinePreparationType.IMPORTED_INJECTION,
             -> MedicinePreparationForm.INJECTION
 
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.GEL_CONTAINER,
+        MedicinePreparationType.IMPORTED_GEL,
             -> MedicinePreparationForm.GEL
 
         MedicinePreparationType.PATCH,
@@ -32,10 +34,12 @@ fun MedicinePreparationType.requiredApplicationType(): MedicationApplicationType
         MedicinePreparationType.CAPSULE -> MedicationApplicationType.ORAL
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+        MedicinePreparationType.IMPORTED_INJECTION,
             -> MedicationApplicationType.INJECTION
 
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.GEL_CONTAINER,
+        MedicinePreparationType.IMPORTED_GEL,
             -> MedicationApplicationType.GEL
 
         MedicinePreparationType.PATCH -> MedicationApplicationType.PATCH_ON
@@ -54,10 +58,12 @@ fun MedicationApplicationType.isCompatibleWith(preparation: MedicinePreparationT
 
         MedicationApplicationType.SUBLINGUAL -> preparation == MedicinePreparationType.PILL
         MedicationApplicationType.INJECTION -> preparation == MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ||
-                preparation == MedicinePreparationType.INJECTION_MULTI_USE_VIAL
+                preparation == MedicinePreparationType.INJECTION_MULTI_USE_VIAL ||
+                preparation == MedicinePreparationType.IMPORTED_INJECTION
 
         MedicationApplicationType.GEL -> preparation == MedicinePreparationType.GEL_SACHET ||
-                preparation == MedicinePreparationType.GEL_CONTAINER
+                preparation == MedicinePreparationType.GEL_CONTAINER ||
+                preparation == MedicinePreparationType.IMPORTED_GEL
 
         MedicationApplicationType.PATCH_ON -> preparation == MedicinePreparationType.PATCH
         MedicationApplicationType.PATCH_OFF -> preparation == MedicinePreparationType.PATCH_OFF ||
@@ -71,7 +77,9 @@ fun DoseInstruction.isCompatibleWith(preparation: MedicinePreparationType?): Boo
         DoseInstruction.WholeUnit -> preparation == MedicinePreparationType.CAPSULE ||
                 preparation == MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ||
                 preparation == MedicinePreparationType.GEL_SACHET ||
-                preparation == MedicinePreparationType.PATCH
+                preparation == MedicinePreparationType.PATCH ||
+                preparation == MedicinePreparationType.IMPORTED_INJECTION ||
+                preparation == MedicinePreparationType.IMPORTED_GEL
 
         is DoseInstruction.VolumeMl -> preparation == MedicinePreparationType.INJECTION_MULTI_USE_VIAL
         is DoseInstruction.WeightGrams -> preparation == MedicinePreparationType.GEL_CONTAINER

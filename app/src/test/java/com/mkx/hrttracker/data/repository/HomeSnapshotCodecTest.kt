@@ -11,7 +11,10 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
@@ -437,6 +440,46 @@ class HomeSnapshotCodecTest {
     }
 
     @Test
+    fun encodeDecode_roundTripsImportedMedicineFlagAndPreparations() {
+        val importedInjection = importedMedicine(
+            uuid = UUID.fromString("eeee0000-0000-0000-0000-000000000001"),
+            preparation = MedicinePreparation.ImportedInjection(
+                administeredMg = 5.0,
+                ester = MedicationKey.ESTRADIOL_VALERATE,
+            ),
+            applicationType = MedicationApplicationType.INJECTION,
+            compound = "ESTRADIOL_VALERATE",
+            doseKey = "5",
+        )
+        val importedGel = importedMedicine(
+            uuid = UUID.fromString("eeee0000-0000-0000-0000-000000000002"),
+            preparation = MedicinePreparation.ImportedGel(appliedEstradiolMg = 1.5),
+            applicationType = MedicationApplicationType.GEL,
+            compound = "ESTRADIOL_GEL",
+            doseKey = "1.5",
+        )
+        val record = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 1L,
+            generatedAtEpochMillis = 100L,
+            anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
+            zoneId = "Asia/Tokyo",
+            pkProjection = null,
+            activeGroups = emptyList(),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+            stockMedicines = listOf(importedInjection, importedGel),
+        )
+
+        val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+
+        assertEquals(record, decoded)
+        assertTrue(decoded.stockMedicines.all { medicine -> medicine.importedFromExternalTracker })
+        assertEquals(importedInjection.preparation, decoded.stockMedicines[0].preparation)
+        assertEquals(importedGel.preparation, decoded.stockMedicines[1].preparation)
+    }
+
+    @Test
     fun encode_dedupesMedicineSharedAcrossPkEntries() {
         // A medicine shared across many entries must be serialized once. Encode
         // 40 entries that share one medicine vs 40 that each carry a distinct
@@ -616,5 +659,33 @@ class HomeSnapshotCodecTest {
         val bytes = value.toByteArray(Charsets.UTF_8)
         writeInt(bytes.size)
         write(bytes)
+    }
+
+    private fun importedMedicine(
+        uuid: UUID,
+        preparation: MedicinePreparation,
+        applicationType: MedicationApplicationType,
+        compound: String,
+        doseKey: String,
+    ): Medicine {
+        val timestamp = Instant.parse("2026-05-22T00:00:00Z")
+        return Medicine(
+            uuid = uuid,
+            selection = MedicineSelection.Custom("External tracker"),
+            category = MedicationCategory.ESTRADIOL,
+            preparation = preparation,
+            displayName = null,
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = applicationType,
+                compound = compound,
+                doseKey = doseKey,
+            ),
+            createdAt = timestamp,
+            updatedAt = timestamp,
+            archivedAt = null,
+            stock = MedicineStock(),
+            importedFromExternalTracker = true,
+        )
     }
 }

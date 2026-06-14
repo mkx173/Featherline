@@ -23,7 +23,11 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -580,6 +584,47 @@ class BackupExportServiceTest {
         assertTrue(!json.contains("\"screenLockProtectionEnabled\""))
         assertFalse("Backup JSON should not be pretty-printed.", json.contains('\n'))
     }
+
+    @Test
+    fun buildBackupSnapshotJson_rejectsImportedExternalMedicinesUntilBackupFormatSupportsThem() =
+        runTest {
+            val preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0)
+            val importedMedicine = Medicine(
+                uuid = UUID.fromString("00000000-0000-0000-0000-000000000050"),
+                selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL),
+                category = MedicationCategory.ESTRADIOL,
+                preparation = preparation,
+                displayName = null,
+                identityKey = MedicineIdentityKey.external(
+                    sourceApp = "NoMTF",
+                    applicationType = MedicationApplicationType.ORAL,
+                    compound = "ESTRADIOL",
+                    doseKey = "2",
+                ),
+                createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+                updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+                archivedAt = null,
+                stock = MedicineStock(),
+                importedFromExternalTracker = true,
+            )
+            every { settingsRepository.onboardingCompleted } returns flowOf(false)
+            coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+            coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+            coEvery { medicineRepository.getAll() } returns listOf(importedMedicine)
+            coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+            coEvery { medicationLogRepository.getEntries() } returns emptyList()
+            coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+            coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+            val error = runCatching {
+                service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+            }.exceptionOrNull()
+
+            assertEquals(
+                "Imported external medicines are not supported in backups yet.",
+                error?.message,
+            )
+        }
 
     @Test
     fun buildBackupSnapshotJson_serializesPatchOffSlotWithoutMedicineUuid() = runTest {

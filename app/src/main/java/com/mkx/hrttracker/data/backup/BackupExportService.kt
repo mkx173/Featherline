@@ -244,6 +244,9 @@ class BackupExportService @Inject constructor(
     }
 
     private fun Medicine.toBackupSnapshot(): BackupMedicineSnapshot {
+        check(!importedFromExternalTracker) {
+            "Imported external medicines are not supported in backups yet."
+        }
         val storageFields = preparation.toBackupStorageFields()
         return BackupMedicineSnapshot(
             uuid = uuid.toString(),
@@ -416,6 +419,10 @@ class BackupExportService @Inject constructor(
                 concentrationPercent = concentrationPercent,
                 containerWeightGrams = containerWeightGrams,
             )
+
+            is MedicinePreparation.ImportedInjection,
+            is MedicinePreparation.ImportedGel ->
+                error("Imported external medicine preparations are not supported in backups yet.")
 
             is MedicinePreparation.Patch -> when (val currentSpecification = specification) {
                 is MedicinePreparation.PatchSpecification.TotalMg -> BackupMedicineStorageFields(

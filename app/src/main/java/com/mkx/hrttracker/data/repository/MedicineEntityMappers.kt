@@ -46,6 +46,7 @@ internal fun MedicineEntity.toMedicineModel(): Medicine {
             warnAtDaysRemaining = warnAtDaysRemaining,
             generation = stockGeneration,
         ).normalizedFor(preparation),
+        importedFromExternalTracker = importedFromExternalTracker,
     )
 }
 
@@ -86,10 +87,11 @@ internal fun Medicine.toEntity(): MedicineEntity {
         // PATCH_OFF reuses CATALOG selectionKind for storage but has no
         // medicationKey/customName; the preparationType PATCH_OFF marker is
         // what reconstructs the MedicineSelection.PatchOff variant on read.
-        medicationKey = when (val currentSelection = selection) {
-            is MedicineSelection.Catalog -> currentSelection.medicationKey.name
-            is MedicineSelection.Custom -> null
-            is MedicineSelection.PatchOff -> null
+        medicationKey = when {
+            preparation is MedicinePreparation.ImportedInjection -> preparation.ester.name
+            preparation is MedicinePreparation.ImportedGel -> MedicationKey.ESTRADIOL.name
+            selection is MedicineSelection.Catalog -> selection.medicationKey.name
+            else -> null
         },
         customMedicationName = when (val currentSelection = selection) {
             is MedicineSelection.Catalog -> null
@@ -124,6 +126,7 @@ internal fun Medicine.toEntity(): MedicineEntity {
         openContainerAmount = stock.openContainerAmount,
         warnAtDaysRemaining = stock.warnAtDaysRemaining,
         stockGeneration = stock.generation,
+        importedFromExternalTracker = importedFromExternalTracker,
     )
 }
 
@@ -160,6 +163,16 @@ internal fun MedicinePreparation.toStorageFields(): MedicinePreparationStorageFi
             preparationType = type.name,
             concentrationPercent = concentrationPercent,
             containerWeightGrams = containerWeightGrams,
+        )
+
+        is MedicinePreparation.ImportedInjection -> MedicinePreparationStorageFields(
+            preparationType = type.name,
+            strengthMgPerVial = administeredMg,
+        )
+
+        is MedicinePreparation.ImportedGel -> MedicinePreparationStorageFields(
+            preparationType = type.name,
+            strengthMgPerVial = appliedEstradiolMg,
         )
 
         is MedicinePreparation.Patch -> when (val currentSpecification = specification) {
@@ -216,6 +229,10 @@ private fun MedicineEntity.validateIdentityFields(
     selection: MedicineSelection,
     preparation: MedicinePreparation,
 ) {
+    if (importedFromExternalTracker && identityKey.startsWith("E|")) {
+        return
+    }
+
     val expectedIdentityKey = when (selection) {
         is MedicineSelection.Catalog -> {
             MedicineIdentityKey.catalog(selection.medicationKey, preparation)
@@ -297,6 +314,27 @@ private fun MedicineEntity.toMedicinePreparation(): MedicinePreparation {
             MedicinePreparation.GelContainer(
                 concentrationPercent = checkNotNull(concentrationPercent),
                 containerWeightGrams = checkNotNull(containerWeightGrams),
+            )
+        }
+
+        MedicinePreparationType.IMPORTED_INJECTION -> {
+            requireOnlyPreparationFields("strengthMgPerVial")
+            val ester = checkNotNull(MedicationKey.fromStorageValue(medicationKey)) {
+                "Imported injection medicine $uuid is missing ester medicationKey."
+            }
+            MedicinePreparation.ImportedInjection(
+                administeredMg = checkNotNull(strengthMgPerVial),
+                ester = ester,
+            )
+        }
+
+        MedicinePreparationType.IMPORTED_GEL -> {
+            requireOnlyPreparationFields("strengthMgPerVial")
+            require(medicationKey == MedicationKey.ESTRADIOL.name) {
+                "Imported gel medicine $uuid must carry ESTRADIOL medicationKey."
+            }
+            MedicinePreparation.ImportedGel(
+                appliedEstradiolMg = checkNotNull(strengthMgPerVial),
             )
         }
 

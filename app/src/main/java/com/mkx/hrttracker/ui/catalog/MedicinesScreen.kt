@@ -803,11 +803,13 @@ private fun inferApplicationTypeForMedicine(
             MedicationApplicationType.ORAL
 
         is MedicinePreparation.InjectionSingleUseVial,
-        is MedicinePreparation.InjectionMultiUseVial ->
+        is MedicinePreparation.InjectionMultiUseVial,
+        is MedicinePreparation.ImportedInjection ->
             MedicationApplicationType.INJECTION
 
         is MedicinePreparation.GelSachet,
-        is MedicinePreparation.GelContainer ->
+        is MedicinePreparation.GelContainer,
+        is MedicinePreparation.ImportedGel ->
             MedicationApplicationType.GEL
 
         is MedicinePreparation.Patch ->

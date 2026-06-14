@@ -10,6 +10,8 @@ enum class MedicinePreparationType {
     INJECTION_MULTI_USE_VIAL,
     GEL_SACHET,
     GEL_CONTAINER,
+    IMPORTED_INJECTION,
+    IMPORTED_GEL,
     PATCH,
 
     // Sentinel "preparation" carried by the global PATCH_OFF singleton medicine.
@@ -24,6 +26,14 @@ enum class MedicinePreparationType {
         }
     }
 }
+
+val IMPORTED_INJECTION_ESTER_KEYS = setOf(
+    MedicationKey.ESTRADIOL,
+    MedicationKey.ESTRADIOL_VALERATE,
+    MedicationKey.ESTRADIOL_BENZOATE,
+    MedicationKey.ESTRADIOL_CYPIONATE,
+    MedicationKey.ESTRADIOL_ENANTHATE,
+)
 
 sealed interface MedicineSelection {
     val kind: MedicationSelectionKind
@@ -113,6 +123,28 @@ sealed interface MedicinePreparation {
         }
 
         override val type: MedicinePreparationType = MedicinePreparationType.GEL_CONTAINER
+    }
+
+    data class ImportedInjection(
+        val administeredMg: Double,
+        val ester: MedicationKey,
+    ) : MedicinePreparation {
+        init {
+            require(administeredMg.isFinitePositive())
+            require(ester in IMPORTED_INJECTION_ESTER_KEYS)
+        }
+
+        override val type: MedicinePreparationType = MedicinePreparationType.IMPORTED_INJECTION
+    }
+
+    data class ImportedGel(
+        val appliedEstradiolMg: Double,
+    ) : MedicinePreparation {
+        init {
+            require(appliedEstradiolMg.isFinitePositive())
+        }
+
+        override val type: MedicinePreparationType = MedicinePreparationType.IMPORTED_GEL
     }
 
     data class Patch(val specification: PatchSpecification) : MedicinePreparation {
@@ -211,6 +243,7 @@ data class Medicine(
     // medicines always store MG; the picker only renders for custom medicines.
     val displayDoseUnit: MedicineDisplayDoseUnit = MedicineDisplayDoseUnit.MG,
     val stock: MedicineStock,
+    val importedFromExternalTracker: Boolean = false,
 ) {
     init {
         if (selection is MedicineSelection.Catalog) {
@@ -231,6 +264,25 @@ data class Medicine(
         if (preparation is MedicinePreparation.PatchOff) {
             require(selection is MedicineSelection.PatchOff) {
                 "PatchOff preparation requires PATCH_OFF selection."
+            }
+        }
+        if (
+            preparation is MedicinePreparation.ImportedInjection ||
+            preparation is MedicinePreparation.ImportedGel
+        ) {
+            require(importedFromExternalTracker) {
+                "Import-only preparations require importedFromExternalTracker."
+            }
+            require(selection == MedicineSelection.Custom("External tracker")) {
+                "Import-only preparations require External tracker custom selection."
+            }
+            require(stock.trackingEnabled.not()) {
+                "Imported external medicines cannot track stock."
+            }
+        }
+        if (importedFromExternalTracker) {
+            require(stock.trackingEnabled.not()) {
+                "Imported external medicines cannot track stock."
             }
         }
     }

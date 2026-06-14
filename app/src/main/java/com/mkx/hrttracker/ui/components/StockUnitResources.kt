@@ -17,7 +17,9 @@ internal fun stockUnitNounPluralRes(preparation: MedicinePreparation): Int? = wh
     is MedicinePreparation.InjectionSingleUseVial -> R.plurals.stock_count_vials
     is MedicinePreparation.InjectionMultiUseVial -> R.plurals.stock_count_vials
     is MedicinePreparation.GelContainer -> R.plurals.stock_count_containers
-    is MedicinePreparation.PatchOff -> null
+    is MedicinePreparation.PatchOff,
+    is MedicinePreparation.ImportedInjection,
+    is MedicinePreparation.ImportedGel -> null
 }
 
 @PluralsRes
@@ -62,7 +64,9 @@ internal fun stockInventoryUnitRes(preparation: MedicinePreparation): Int? = whe
     is MedicinePreparation.InjectionSingleUseVial -> R.string.stock_unit_vials
     is MedicinePreparation.InjectionMultiUseVial -> R.string.stock_unit_vials
     is MedicinePreparation.GelContainer -> R.string.stock_unit_containers
-    is MedicinePreparation.PatchOff -> null
+    is MedicinePreparation.PatchOff,
+    is MedicinePreparation.ImportedInjection,
+    is MedicinePreparation.ImportedGel -> null
 }
 
 @StringRes
@@ -74,5 +78,7 @@ internal fun stockRateUnitRes(preparation: MedicinePreparation): Int? = when (pr
     is MedicinePreparation.InjectionSingleUseVial -> R.string.stock_unit_vials
     is MedicinePreparation.InjectionMultiUseVial -> R.string.stock_unit_ml
     is MedicinePreparation.GelContainer -> R.string.stock_unit_g
-    is MedicinePreparation.PatchOff -> null
+    is MedicinePreparation.PatchOff,
+    is MedicinePreparation.ImportedInjection,
+    is MedicinePreparation.ImportedGel -> null
 }

@@ -1217,8 +1217,17 @@ private fun MedicationApplicationType.toPkRoute(): PkRoute {
 }
 
 private fun Medicine.toEstradiolPkCompound(): PkCompound? {
-    val medicationKey = (selection as? MedicineSelection.Catalog)?.medicationKey ?: return null
-    return when (medicationKey) {
+    return when (val currentPreparation = preparation) {
+        is MedicinePreparation.ImportedInjection -> currentPreparation.ester.toEstradiolPkCompound()
+        is MedicinePreparation.ImportedGel -> PkCompound.E2
+        else -> (selection as? MedicineSelection.Catalog)
+            ?.medicationKey
+            ?.toEstradiolPkCompound()
+    }
+}
+
+private fun MedicationKey.toEstradiolPkCompound(): PkCompound? {
+    return when (this) {
         MedicationKey.ESTRADIOL -> PkCompound.E2
         MedicationKey.ESTRADIOL_VALERATE -> PkCompound.EV
         MedicationKey.ESTRADIOL_BENZOATE -> PkCompound.EB

@@ -12,6 +12,7 @@ interface MedicineDao {
         """
         SELECT * FROM medicines
         WHERE archivedAtEpochMillis IS NULL
+          AND importedFromExternalTracker = 0
         ORDER BY category ASC, updatedAtEpochMillis DESC, createdAtEpochMillis DESC
         """
     )
@@ -28,7 +29,9 @@ interface MedicineDao {
     @Query(
         """
         SELECT * FROM medicines
-        WHERE archivedAtEpochMillis IS NULL AND trackingEnabled = 1
+        WHERE archivedAtEpochMillis IS NULL
+          AND trackingEnabled = 1
+          AND importedFromExternalTracker = 0
         """
     )
     suspend fun getAllActiveTrackedEntities(): List<MedicineEntity>

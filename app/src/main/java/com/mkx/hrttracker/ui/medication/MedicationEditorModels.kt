@@ -183,7 +183,9 @@ fun activeDoseAssistPresets(
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH,
-        MedicinePreparationType.PATCH_OFF -> emptyList()
+        MedicinePreparationType.PATCH_OFF,
+        MedicinePreparationType.IMPORTED_INJECTION,
+        MedicinePreparationType.IMPORTED_GEL -> emptyList()
     }
 }
 
@@ -288,12 +290,14 @@ fun applicationTypesCompatibleWithPreparation(
         )
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> listOf(
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+        MedicinePreparationType.IMPORTED_INJECTION -> listOf(
             MedicationApplicationType.INJECTION,
         )
 
         MedicinePreparationType.GEL_SACHET,
-        MedicinePreparationType.GEL_CONTAINER -> listOf(
+        MedicinePreparationType.GEL_CONTAINER,
+        MedicinePreparationType.IMPORTED_GEL -> listOf(
             MedicationApplicationType.GEL,
         )
 
@@ -794,7 +798,9 @@ fun MedicinePreparationType.hasRawMassDoseField(patchSpecKind: PatchSpecKind): B
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.GEL_CONTAINER,
             // The singleton has no numeric fields, raw-mass or otherwise.
-        MedicinePreparationType.PATCH_OFF -> false
+        MedicinePreparationType.PATCH_OFF,
+        MedicinePreparationType.IMPORTED_INJECTION,
+        MedicinePreparationType.IMPORTED_GEL -> false
     }
 }
 
@@ -830,7 +836,9 @@ internal fun requiresEditableDoseInstructionForm(
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH,
             // PATCH_OFF emits a Noop dose with no editable form.
-        MedicinePreparationType.PATCH_OFF -> false
+        MedicinePreparationType.PATCH_OFF,
+        MedicinePreparationType.IMPORTED_INJECTION,
+        MedicinePreparationType.IMPORTED_GEL -> false
     }
 }
 
@@ -851,6 +859,8 @@ internal fun doseInstructionHasTextField(
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH,
         MedicinePreparationType.PATCH_OFF,
+        MedicinePreparationType.IMPORTED_INJECTION,
+        MedicinePreparationType.IMPORTED_GEL,
         null -> false
     }
 }
@@ -984,6 +994,10 @@ internal fun MedicinePickerUiState.toMedicinePreparation(
         // singleton is auto-created on the first patch medicine creation.
         MedicinePreparationType.PATCH_OFF ->
             error("PATCH_OFF is not creatable from the medicine picker.")
+
+        MedicinePreparationType.IMPORTED_INJECTION,
+        MedicinePreparationType.IMPORTED_GEL ->
+            error("Imported preparations are not creatable from the medicine picker.")
     }
 }
 
@@ -1010,7 +1024,9 @@ fun DoseInstructionDraftUiState.toDoseInstruction(): DoseInstruction {
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.CAPSULE,
         MedicinePreparationType.GEL_SACHET,
-        MedicinePreparationType.PATCH -> DoseInstruction.WholeUnit
+        MedicinePreparationType.PATCH,
+        MedicinePreparationType.IMPORTED_INJECTION,
+        MedicinePreparationType.IMPORTED_GEL -> DoseInstruction.WholeUnit
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> DoseInstruction.VolumeMl(
             valueMl = checkNotNull(parsePositiveDouble(volumeMl)),
@@ -1114,7 +1130,9 @@ fun MedicinePickerUiState.validationErrorRes(): Int? {
         }
 
         // The singleton has no editable fields, so nothing to validate.
-        MedicinePreparationType.PATCH_OFF -> null
+        MedicinePreparationType.PATCH_OFF,
+        MedicinePreparationType.IMPORTED_INJECTION,
+        MedicinePreparationType.IMPORTED_GEL -> null
     }
 }
 
@@ -1191,10 +1209,12 @@ fun compatibleApplicationTypeForMedicine(
         MedicinePreparationType.CAPSULE -> MedicationApplicationType.ORAL
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicationApplicationType.INJECTION
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+        MedicinePreparationType.IMPORTED_INJECTION -> MedicationApplicationType.INJECTION
 
         MedicinePreparationType.GEL_SACHET,
-        MedicinePreparationType.GEL_CONTAINER -> MedicationApplicationType.GEL
+        MedicinePreparationType.GEL_CONTAINER,
+        MedicinePreparationType.IMPORTED_GEL -> MedicationApplicationType.GEL
 
         MedicinePreparationType.PATCH -> MedicationApplicationType.PATCH_ON
 
@@ -1261,7 +1281,9 @@ private fun MedicinePickerUiState.withPreparationFields(
         }
 
         // No numeric fields to populate; the singleton's draft is empty.
-        is MedicinePreparation.PatchOff -> this
+        is MedicinePreparation.PatchOff,
+        is MedicinePreparation.ImportedInjection,
+        is MedicinePreparation.ImportedGel -> this
     }
 }
 
@@ -1297,7 +1319,9 @@ fun DoseInstructionDraftUiState.validationErrorRes(): Int? {
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.CAPSULE,
         MedicinePreparationType.GEL_SACHET,
-        MedicinePreparationType.PATCH -> null
+        MedicinePreparationType.PATCH,
+        MedicinePreparationType.IMPORTED_INJECTION,
+        MedicinePreparationType.IMPORTED_GEL -> null
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL ->
             R.string.validation_dose_volume_required

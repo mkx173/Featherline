@@ -1098,7 +1098,11 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
     return MedicineEntity(
         uuid = medicineUuid,
         selectionKind = selectionKind.name,
-        medicationKey = (resolvedSelection as? MedicineSelection.Catalog)?.medicationKey?.name,
+        medicationKey = when (resolvedSelection) {
+            is MedicineSelection.Catalog -> resolvedSelection.medicationKey.name
+            is MedicineSelection.Custom -> null
+            is MedicineSelection.PatchOff -> null
+        },
         customMedicationName = (resolvedSelection as? MedicineSelection.Custom)?.medicationName,
         customMedicationNameNormalized = (resolvedSelection as? MedicineSelection.Custom)
             ?.normalizedMedicationName,
@@ -1208,6 +1212,12 @@ private fun MedicinePreparationType.toValidatedPreparation(
                 containerWeightGrams = checkNotNull(containerWeightGrams),
             )
         }
+
+        MedicinePreparationType.IMPORTED_INJECTION,
+        MedicinePreparationType.IMPORTED_GEL ->
+            throw IllegalArgumentException(
+                "Imported external medicine preparations are not supported in backups yet."
+            )
 
         MedicinePreparationType.PATCH -> {
             val patchFields = listOfNotNull(patchTotalMg, patchReleaseRateMcgPerDay)

@@ -771,7 +771,9 @@ private fun NewMedicinePreparationForm(
         // The PATCH_OFF singleton is never created from this sheet — it's
         // auto-spawned when a patch medicine is created. Guard with Unit so
         // the when stays exhaustive without rendering an empty form.
-        MedicinePreparationType.PATCH_OFF -> Unit
+        MedicinePreparationType.PATCH_OFF,
+        MedicinePreparationType.IMPORTED_INJECTION,
+        MedicinePreparationType.IMPORTED_GEL -> Unit
     }
 }
 
@@ -917,7 +919,9 @@ internal fun editableFields(draft: MedicinePickerUiState): List<CreateMedicineFi
         }
         // The PATCH_OFF singleton isn't user-creatable; the picker never
         // surfaces it, so there are no editable fields for it.
-        MedicinePreparationType.PATCH_OFF -> Unit
+        MedicinePreparationType.PATCH_OFF,
+        MedicinePreparationType.IMPORTED_INJECTION,
+        MedicinePreparationType.IMPORTED_GEL -> Unit
         null -> Unit
     }
     return fields
@@ -950,6 +954,8 @@ internal fun createMedicineRequiredFields(draft: MedicinePickerUiState): List<Cr
         }
 
         MedicinePreparationType.PATCH_OFF,
+        MedicinePreparationType.IMPORTED_INJECTION,
+        MedicinePreparationType.IMPORTED_GEL,
         null -> emptyList()
     }
 }

@@ -41,6 +41,18 @@ object MedicineIdentityKey {
         }
     }
 
+    fun external(
+        sourceApp: String,
+        applicationType: MedicationApplicationType,
+        compound: String,
+        doseKey: String,
+    ): String {
+        require(sourceApp.isNotBlank())
+        require(compound.isNotBlank())
+        require(doseKey.isNotBlank())
+        return "E|$sourceApp|${applicationType.name}|$compound|$doseKey"
+    }
+
     fun patchOff(): String = PATCH_OFF
 
     fun canonicalDouble(value: Double): String {
@@ -78,6 +90,16 @@ object MedicineIdentityKey {
             is MedicinePreparation.GelContainer -> {
                 appendField("concentrationPercent", preparation.concentrationPercent)
                 appendField("containerWeightGrams", preparation.containerWeightGrams)
+            }
+
+            is MedicinePreparation.ImportedInjection -> {
+                appendField("administeredMg", preparation.administeredMg)
+                append("|ester=")
+                append(preparation.ester.name)
+            }
+
+            is MedicinePreparation.ImportedGel -> {
+                appendField("appliedEstradiolMg", preparation.appliedEstradiolMg)
             }
 
             is MedicinePreparation.Patch -> {

@@ -75,6 +75,17 @@ fun medicinePreparationSummary(medicine: Medicine): String {
             preparation.containerWeightGrams.formatDose(appLocale),
         )
 
+        is MedicinePreparation.ImportedInjection -> stringResource(
+            R.string.medication_preparation_summary_single_use_vial_with_unit,
+            displayUnit.fromMg(preparation.administeredMg).formatDose(appLocale),
+            unitLabel,
+        )
+
+        is MedicinePreparation.ImportedGel -> stringResource(
+            R.string.medication_preparation_summary_imported_gel,
+            preparation.appliedEstradiolMg.formatDose(appLocale),
+        )
+
         is MedicinePreparation.Patch -> when (val spec = preparation.specification) {
             is MedicinePreparation.PatchSpecification.TotalMg -> stringResource(
                 R.string.medication_preparation_summary_patch_total_with_unit,

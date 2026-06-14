@@ -86,6 +86,16 @@ fun medicinePreparationSummary(medicine: Medicine, context: Context): String {
             preparation.containerWeightGrams.formatDose(locale),
         )
 
+        is MedicinePreparation.ImportedInjection -> context.getString(
+            R.string.medication_preparation_summary_single_use_vial,
+            preparation.administeredMg.formatDose(locale),
+        )
+
+        is MedicinePreparation.ImportedGel -> context.getString(
+            R.string.medication_preparation_summary_imported_gel,
+            preparation.appliedEstradiolMg.formatDose(locale),
+        )
+
         is MedicinePreparation.Patch -> when (val spec = preparation.specification) {
             is MedicinePreparation.PatchSpecification.TotalMg -> context.getString(
                 R.string.medication_preparation_summary_patch_total,
