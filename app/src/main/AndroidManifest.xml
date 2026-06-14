@@ -40,6 +40,7 @@
             android:exported="true"
             android:excludeFromRecents="true"
             android:launchMode="singleTop"
+            android:taskAffinity=""
             android:theme="@style/Theme.HrtTracker.WidgetConfig">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
