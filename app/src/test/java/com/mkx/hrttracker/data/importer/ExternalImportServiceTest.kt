@@ -786,6 +786,54 @@ class ExternalImportServiceTest {
     }
 
     @Test
+    fun changedLabExternalIdAtSameInstantAndAnalyteReplacesPriorImportedResult() = runTest {
+        service.commit(
+            service.buildPreview(
+                transmtfJson(
+                    events = "",
+                    labs = """
+                        { "id": "lab-a", "timeH": 2, "unit": "pg/ml", "value": 120 }
+                    """.trimIndent(),
+                )
+            ),
+            now = NOW,
+        )
+        val originalPanel = checkNotNull(database.bloodTestDao().getImportedPanel("transmtf", 7_200_000L))
+        val originalResult = originalPanel.results.single()
+
+        val preview = service.buildPreview(
+            transmtfJson(
+                events = "",
+                labs = """
+                    { "id": "lab-b", "timeH": 2, "unit": "pg/ml", "value": 140 }
+                """.trimIndent(),
+            ),
+            now = NOW.plusSeconds(60),
+        )
+
+        // The new external ID overwrites the existing imported result for this
+        // panel/analyte, so the review summary reports it as an update, not a
+        // create — the count reflects the dropped row instead of hiding it.
+        assertEquals(0, preview.labRowsToCreate)
+        assertEquals(1, preview.labRowsToUpdate)
+
+        val result = service.commit(preview, now = NOW.plusSeconds(60))
+
+        assertEquals(0, result.labRowsCreated)
+        assertEquals(1, result.labRowsUpdated)
+        assertNull(database.bloodTestDao().getImportedResult("transmtf", "lab-a"))
+
+        val replacement = checkNotNull(database.bloodTestDao().getImportedResult("transmtf", "lab-b"))
+        assertNotEquals(originalResult.uuid, replacement.uuid)
+        assertEquals(originalPanel.panel.uuid, replacement.panelUuid)
+        assertEquals(0, replacement.displayOrder)
+        assertEquals(140.0, replacement.value, 1e-9)
+
+        val panelAfterReplacement = checkNotNull(database.bloodTestDao().getImportedPanel("transmtf", 7_200_000L))
+        assertEquals(listOf(replacement), panelAfterReplacement.results)
+    }
+
+    @Test
     fun transactionFailureLeavesNoPartialImportedWrites() = runTest {
         val conflictingIdentity = "E|transmtf|ORAL|ESTRADIOL|mg:2"
         database.medicineDao().insert(

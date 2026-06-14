@@ -115,6 +115,15 @@ even if it moves to a different imported panel key. Imported results
 are appended after any user-owned results in the same panel and their
 display order is renormalized within the imported suffix.
 
+The schema allows only one builtin/custom analyte result per panel. If
+a later file assigns a different external ID to the same source app,
+panel key, and analyte, the incoming imported result replaces the prior
+imported result for that panel/analyte and display order is
+renormalized. This is the schema-forced exception to the usual "missing
+rows from later import are kept" rule. Because it overwrites an existing
+imported reading, the review summary counts it as an updated row, not a
+created one, so the dropped result is reflected in the count.
+
 User-owned rows are deliberately not overwritten. If the target imported
 panel contains a user-created result for the same builtin analyte, that
 source lab row is skipped with a warning. Existing user-created panels

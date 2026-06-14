@@ -68,15 +68,19 @@ class ExternalImportService @Inject constructor(
                 labWarnings += result.userConflictWarning()
                 return@forEach
             }
-            if (
-                bloodTestDao.getImportedResult(
-                    sourceApp = sourceApp,
-                    externalId = result.provenance.externalId,
-                ) == null
-            ) {
-                labRowsToCreate += 1
-            } else {
+            val existingResult = bloodTestDao.getImportedResult(
+                sourceApp = sourceApp,
+                externalId = result.provenance.externalId,
+            )
+            // A row whose external ID is new but whose (panel, analyte) slot is
+            // already held by an imported result overwrites that result (the
+            // schema allows one result per analyte per panel), so report it as
+            // an update rather than a create — otherwise the review summary's
+            // "updated" count hides the replaced row behind a "created" tally.
+            if (existingResult != null || targetPanel.replacesImportedAnalyte(result)) {
                 labRowsToUpdate += 1
+            } else {
+                labRowsToCreate += 1
             }
         }
 
@@ -261,14 +265,19 @@ class ExternalImportService @Inject constructor(
                     sourceApp = sourceApp,
                     externalId = labResult.provenance.externalId,
                 )
-            if (existingResult == null) {
-                created += 1
-            } else {
+            if (existingResult != null) {
                 updated += 1
                 affectedPanelUuids += existingResult.panelUuid
                 panelStatesByUuid[existingResult.panelUuid]
                     ?.results
                     ?.removeAll { result -> result.uuid == existingResult.uuid }
+            } else if (targetState.replacesImportedAnalyte(labResult)) {
+                // New external ID landing on a (panel, analyte) slot already
+                // held by an imported result: the removeAll below evicts that
+                // result, so count the overwrite as an update, not a create.
+                updated += 1
+            } else {
+                created += 1
             }
 
             val resultEntity = labResult.toEntity(
@@ -277,6 +286,11 @@ class ExternalImportService @Inject constructor(
                 createdAtEpochMillis = existingResult?.createdAtEpochMillis ?: nowEpochMillis,
                 sourceApp = sourceApp,
             )
+            targetState.results.removeAll { result ->
+                !result.isUserOwned() &&
+                        result.uuid != resultEntity.uuid &&
+                        result.hasSameAnalyte(resultEntity)
+            }
             targetState.results.removeAll { result -> result.uuid == resultEntity.uuid }
             targetState.results += resultEntity
         }
@@ -358,6 +372,16 @@ class ExternalImportService @Inject constructor(
         return importSourceApp == null && importExternalId == null
     }
 
+    private fun BloodTestResultEntity.hasSameAnalyte(
+        other: BloodTestResultEntity,
+    ): Boolean {
+        return when {
+            builtinAnalyteKey != null -> builtinAnalyteKey == other.builtinAnalyteKey
+            customAnalyteUuid != null -> customAnalyteUuid == other.customAnalyteUuid
+            else -> false
+        }
+    }
+
     private fun BloodTestPanelWithResultsEntity?.hasUserOwnedConflict(
         labResult: ExternalImportCandidate.LabResult,
     ): Boolean {
@@ -376,6 +400,29 @@ class ExternalImportService @Inject constructor(
         labResult: ExternalImportCandidate.LabResult,
     ): Boolean {
         return results.hasUserOwnedConflict(labResult)
+    }
+
+    // True when an imported (non-user-owned) result for the same analyte already
+    // occupies this panel, so an incoming row with a new external ID will replace
+    // it instead of adding a second analyte value the schema cannot hold.
+    private fun BloodTestPanelWithResultsEntity?.replacesImportedAnalyte(
+        labResult: ExternalImportCandidate.LabResult,
+    ): Boolean {
+        return this?.results?.replacesImportedAnalyte(labResult) == true
+    }
+
+    private fun List<BloodTestResultEntity>.replacesImportedAnalyte(
+        labResult: ExternalImportCandidate.LabResult,
+    ): Boolean {
+        return any { result ->
+            !result.isUserOwned() && result.builtinAnalyteKey == labResult.analyteKey.storageValue
+        }
+    }
+
+    private fun MutableImportedPanel.replacesImportedAnalyte(
+        labResult: ExternalImportCandidate.LabResult,
+    ): Boolean {
+        return results.replacesImportedAnalyte(labResult)
     }
 
     private fun ExternalImportCandidate.LabResult.userConflictWarning(): ExternalImportWarning {
