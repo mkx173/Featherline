@@ -1089,7 +1089,6 @@ private const val EmptyE2ChartSampleIntervalHours = 24
 private const val EmptyE2ChartWindowHours = 7 * 24
 private const val EmptyE2ChartPredictionStartXHours = 3 * 24.0
 private val MainE2YAxisTickSteps = listOf(
-    0.5,
     1.0,
     2.0,
     5.0,
