@@ -83,7 +83,7 @@ class SettingsScreenExternalImportTest {
     }
 
     @Test
-    fun reviewSheetShowsCountsWarningsAndActions() {
+    fun reviewSheetShowsSummarySkippedSectionAndActions() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val preview = sampleExternalImportPreviewForUi()
 
@@ -103,21 +103,22 @@ class SettingsScreenExternalImportTest {
             .assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_detected_source, "NoMTF"))
             .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.external_import_medication_label))
+            .assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_medication_summary, 2, 1))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.external_import_lab_label))
             .assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_lab_summary, 3, 4))
             .assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.external_import_medicine_summary, 0, 0))
+        composeRule.onNodeWithText(context.getString(R.string.external_import_skipped_rows_title))
             .assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.external_import_warnings_title))
-            .assertIsDisplayed()
-        composeRule.onNodeWithText("Skipped unsupported row").assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_confirm)).assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_cancel)).assertIsDisplayed()
     }
 
     @Test
-    fun reviewSheetLocalizesStructuredWarnings() {
+    fun reviewSheetSkippedRowOpensDialogWithConciseReason() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val preview = sampleExternalImportPreviewForUi(
             warning = ExternalImportWarning(
@@ -141,8 +142,11 @@ class SettingsScreenExternalImportTest {
             }
         }
 
+        composeRule.onNodeWithText(context.getString(R.string.external_import_skipped_rows_title))
+            .performClick()
+
         composeRule
-            .onNodeWithText(context.getString(R.string.external_import_warning_estrogen_unsupported_route_compound))
+            .onNodeWithText(context.getString(R.string.external_import_skipped_reason_unsupported_route_compound))
             .assertIsDisplayed()
         composeRule.onAllNodesWithText("RAW WARNING SHOULD NOT RENDER").assertCountEquals(0)
     }
