@@ -619,6 +619,13 @@
     <string name="external_import_skipped_reason_ambiguous_unit">单位无法明确对应</string>
     <string name="external_import_skipped_reason_duplicate_analyte">同一面板中检测项重复</string>
     <string name="external_import_skipped_reason_lab_conflict">与已有结果冲突</string>
+    <string name="external_import_skipped_rows_title">已跳过的行</string>
+    <string name="external_import_skipped_rows_subtitle">未导入 — 点按查看原因</string>
+    <plurals name="external_import_skipped_rows_count">
+        <item quantity="other">%1$d 行未导入</item>
+    </plurals>
+    <string name="external_import_skipped_rows_close">关闭</string>
+    <string name="external_import_skipped_row_number">第 %1$d 行</string>
     <string name="settings_update_failed">无法更新设置</string>
     <string name="settings_diagnostics">诊断</string>
     <string name="settings_diagnostics_export_logs">导出诊断日志</string>

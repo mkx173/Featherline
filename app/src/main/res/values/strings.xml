@@ -639,6 +639,14 @@
     <string name="external_import_skipped_reason_ambiguous_unit">Ambiguous unit</string>
     <string name="external_import_skipped_reason_duplicate_analyte">Duplicate analyte in panel</string>
     <string name="external_import_skipped_reason_lab_conflict">Conflicts with your existing result</string>
+    <string name="external_import_skipped_rows_title">Skipped rows</string>
+    <string name="external_import_skipped_rows_subtitle">Not imported — tap to see why</string>
+    <plurals name="external_import_skipped_rows_count">
+        <item quantity="one">%1$d row wasn\'t imported</item>
+        <item quantity="other">%1$d rows weren\'t imported</item>
+    </plurals>
+    <string name="external_import_skipped_rows_close">Close</string>
+    <string name="external_import_skipped_row_number">Row %1$d</string>
     <string name="settings_update_failed">Unable to update setting.</string>
     <string name="settings_diagnostics">Diagnostics</string>
     <string name="settings_diagnostics_export_logs">Export diagnostic logs</string>

@@ -8,21 +8,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
 import com.mkx.hrttracker.data.importer.ExternalImportWarning
 import com.mkx.hrttracker.data.importer.ExternalImportWarningMessageKey
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
@@ -228,5 +235,67 @@ private fun externalImportWarningText(warning: ExternalImportWarning): String {
             stringResource(R.string.external_import_warning_lab_user_conflict)
 
         null -> warning.message
+    }
+}
+
+@Composable
+private fun ExternalImportSkippedRowsDialog(
+    skippedWarnings: List<ExternalImportWarning>,
+    onDismiss: () -> Unit,
+) {
+    HazeAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.external_import_skipped_rows_title)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+            ) {
+                Text(
+                    text = pluralStringResource(
+                        R.plurals.external_import_skipped_rows_count,
+                        skippedWarnings.size,
+                        skippedWarnings.size,
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                skippedWarnings.forEach { warning -> ExternalImportSkippedRow(warning) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.external_import_skipped_rows_close))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ExternalImportSkippedRow(warning: ExternalImportWarning) {
+    val rowText = warning.rowIndex?.let { index ->
+        stringResource(R.string.external_import_skipped_row_number, index + 1)
+    }
+    val identifier = joinSkippedRowIdentifier(rowText, warning.externalId)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_error_outline),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            if (identifier != null) {
+                Text(text = identifier, style = MaterialTheme.typography.bodyMedium)
+            }
+            Text(
+                text = externalImportSkippedReasonText(warning),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
