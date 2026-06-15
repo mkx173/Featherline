@@ -74,7 +74,7 @@ private fun ExternalImportReviewSheetContent(preview: ExternalImportPreview) {
                 supportingText = preview.sourceAppLabel,
                 painter = painterResource(R.drawable.ic_data_object),
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                leadingIconSize = 18.dp
+                leadingIconSize = 19.dp
             )
         }
         item {

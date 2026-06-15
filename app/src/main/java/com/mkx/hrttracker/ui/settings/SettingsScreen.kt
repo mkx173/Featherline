@@ -1297,15 +1297,10 @@ internal fun SettingsScreenContent(
                                 onHideReferenceRangesChange(!settingsState.hideReferenceRanges)
                             },
                             leadingContent = {
-                                Box(
-                                    modifier = Modifier.size(24.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    SettingsLeadingIconSlot(
-                                        modifier = Modifier.size(22.dp),
-                                        painter = painterResource(R.drawable.ic_auto_stories_off)
-                                    )
-                                }
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_auto_stories_off),
+                                    iconSize = 22.dp
+                                )
                             },
                             trailingContent = {
                                 Switch(
@@ -1481,15 +1476,10 @@ internal fun SettingsScreenContent(
                                     onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
                                 },
                                 leadingContent = {
-                                    Box(
-                                        modifier = Modifier.size(24.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        SettingsLeadingIconSlot(
-                                            painter = painterResource(R.drawable.ic_palette),
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_palette),
+                                        iconSize = 22.dp
+                                    )
                                 },
                                 trailingContent = {
                                     Switch(
@@ -1586,7 +1576,8 @@ internal fun SettingsScreenContent(
                             onClick = onImportExternalTrackerClick,
                             leadingContent = {
                                 SettingsLeadingIconSlot(
-                                    painter = painterResource(R.drawable.ic_data_object)
+                                    painter = painterResource(R.drawable.ic_download),
+                                    iconSize = 20.dp
                                 )
                             },
                             trailingContent = {
@@ -1650,14 +1641,9 @@ internal fun SettingsScreenContent(
                                 )
                             },
                             leadingContent = {
-                                Box(
-                                    modifier = Modifier.size(24.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    SettingsLeadingIconSlot(
-                                        painter = painterResource(R.drawable.ic_code_blocks),
-                                    )
-                                }
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_code_blocks)
+                                )
                             },
                             trailingContent = {
                                 SettingsLinkTrailingIcon()
@@ -1675,14 +1661,9 @@ internal fun SettingsScreenContent(
                                 )
                             },
                             leadingContent = {
-                                Box(
-                                    modifier = Modifier.size(24.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    SettingsLeadingIconSlot(
-                                        painter = painterResource(R.drawable.ic_quick_reference),
-                                    )
-                                }
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_quick_reference)
+                                )
                             },
                             trailingContent = {
                                 SettingsLinkTrailingIcon()
@@ -1700,15 +1681,10 @@ internal fun SettingsScreenContent(
                                 )
                             },
                             leadingContent = {
-                                Box(
-                                    modifier = Modifier.size(24.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    SettingsLeadingIconSlot(
-                                        painter = painterResource(R.drawable.ic_github),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_github),
+                                    iconSize = 20.dp
+                                )
                             },
                             trailingContent = {
                                 SettingsLinkTrailingIcon()
@@ -1726,15 +1702,10 @@ internal fun SettingsScreenContent(
                                 )
                             },
                             leadingContent = {
-                                Box(
-                                    modifier = Modifier.size(24.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    SettingsLeadingIconSlot(
-                                        painter = painterResource(R.drawable.ic_x),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_x),
+                                    iconSize = 18.dp
+                                )
                             },
                             trailingContent = {
                                 SettingsLinkTrailingIcon()
@@ -1748,15 +1719,9 @@ internal fun SettingsScreenContent(
                             supportingText = stringResource(R.string.settings_about_feedback_summary),
                             onClick = { showFeedbackEmailDialog = true },
                             leadingContent = {
-                                Box(
-                                    modifier = Modifier.size(24.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    SettingsLeadingIconSlot(
-                                        painter = painterResource(R.drawable.ic_contact_support),
-                                    )
-                                }
-
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_contact_support)
+                                )
                             },
                             trailingContent = {
                                 SettingsLinkTrailingIcon()
@@ -1804,15 +1769,10 @@ internal fun SettingsScreenContent(
                                 }
                             },
                             leadingContent = {
-                                Box(
-                                    modifier = Modifier.size(24.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    SettingsLeadingIconSlot(
-                                        painter = painterResource(R.drawable.ic_info_filled),
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_info_filled),
+                                    iconSize = 22.dp
+                                )
                             }
                         )
                     }
@@ -1955,25 +1915,41 @@ private fun SettingsLeadingIconSlot(
     icon: ImageVector? = null,
     painter: Painter? = null,
     tint: Color? = null,
+    iconSize: Dp? = null,
 ) {
-    when {
-        icon != null -> {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = tint ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = modifier
-            )
-        }
+    val resolvedTint = tint ?: MaterialTheme.colorScheme.onSurfaceVariant
+    val iconContent: @Composable (Modifier) -> Unit = { iconModifier ->
+        when {
+            icon != null -> {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = resolvedTint,
+                    modifier = iconModifier
+                )
+            }
 
-        painter != null -> {
-            Icon(
-                painter = painter,
-                contentDescription = null,
-                tint = tint ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = modifier
-            )
+            painter != null -> {
+                Icon(
+                    painter = painter,
+                    contentDescription = null,
+                    tint = resolvedTint,
+                    modifier = iconModifier
+                )
+            }
         }
+    }
+    if (iconSize != null) {
+        // Center a sub-24.dp icon inside the standard 24.dp slot so every row's
+        // leading content keeps the same footprint regardless of the asset size.
+        Box(
+            modifier = modifier.size(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            iconContent(Modifier.size(iconSize))
+        }
+    } else {
+        iconContent(modifier)
     }
 }
 
@@ -2054,17 +2030,12 @@ private fun SettingsSupportMessage(
             onClick = onClick ?: {},
             modifier = Modifier.wrapContentHeight(),
             leadingContent = {
-                Box(
-                    modifier = Modifier.size(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    SettingsLeadingIconSlot(
-                        icon = icon,
-                        painter = painter,
-                        tint = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+                SettingsLeadingIconSlot(
+                    icon = icon,
+                    painter = painter,
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    iconSize = 22.dp
+                )
             },
             trailingContent = if (showChevron) {
                 { SettingsChevronTrailingIcon() }
