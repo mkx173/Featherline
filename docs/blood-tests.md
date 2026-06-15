@@ -116,13 +116,15 @@ are appended after any user-owned results in the same panel and their
 display order is renormalized within the imported suffix.
 
 The schema allows only one builtin/custom analyte result per panel. If
-a later file assigns a different external ID to the same source app,
-panel key, and analyte, the incoming imported result replaces the prior
-imported result for that panel/analyte and display order is
-renormalized. This is the schema-forced exception to the usual "missing
-rows from later import are kept" rule. Because it overwrites an existing
-imported reading, the review summary counts it as an updated row, not a
-created one, so the dropped result is reflected in the count.
+the target imported panel already holds a *different* imported reading
+(a different external ID) for the same analyte, the incoming source row
+is rejected and skipped with a warning rather than overwriting it, so an
+existing imported reading is never silently destroyed. A row updating its
+own prior reading — same `(sourceApp, importExternalId)` — is not a
+conflict and proceeds normally, even when it moves to a different panel
+key. The one exception is that move itself: if the destination panel
+already holds a different imported reading for the same analyte, the move
+is rejected too and the existing reading is kept.
 
 User-owned rows are deliberately not overwritten. If the target imported
 panel contains a user-created result for the same builtin analyte, that

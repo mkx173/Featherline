@@ -72,6 +72,30 @@ class ExternalImportParserTest {
     }
 
     @Test
+    fun numericExternalIdsStringifyWithoutTrailingDecimalPoint() {
+        // Moshi decodes every JSON number as Double, so a numeric id must render
+        // as "1042"/"2048", not "1042.0"/"2048.0" — otherwise the dedup key on
+        // (importSourceApp, importExternalId) is corrupted and re-imports of the
+        // same row no longer match.
+        val result = parser.parse(
+            """
+            {
+              "gelProducts": [{ "id": "estrogel" }],
+              "events": [
+                { "id": 1042, "timeH": 12.5, "route": "gel", "ester": "E2", "doseMG": 0.75 }
+              ],
+              "labResults": [
+                { "id": 2048, "timeH": 18, "unit": "pg/ml", "value": 150 }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        assertEquals("1042", result.medicationDoses.single().provenance.externalId)
+        assertEquals("2048", result.labResults.single().provenance.externalId)
+    }
+
+    @Test
     fun detectsOyamaNestedModesAndImportsTransfemDataWhenActiveModeIsTransmasc() {
         val result = parser.parse(
             """

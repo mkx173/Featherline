@@ -1,14 +1,6 @@
 package com.mkx.hrttracker.data.backup
 
 import android.content.Context
-import com.mkx.hrttracker.data.local.BloodTestDao
-import com.mkx.hrttracker.data.local.BloodTestPanelEntity
-import com.mkx.hrttracker.data.local.BloodTestPanelWithResultsEntity
-import com.mkx.hrttracker.data.local.BloodTestResultEntity
-import com.mkx.hrttracker.data.local.DatabaseHolder
-import com.mkx.hrttracker.data.local.HrtTrackerDatabase
-import com.mkx.hrttracker.data.local.MedicationLogDao
-import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
@@ -80,10 +72,6 @@ class BackupExportServiceTest {
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val bloodTestRepository: BloodTestRepository = mockk()
     private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
-    private val databaseHolder: DatabaseHolder = mockk()
-    private val database: HrtTrackerDatabase = mockk()
-    private val medicationLogDao: MedicationLogDao = mockk()
-    private val bloodTestDao: BloodTestDao = mockk()
 
     private lateinit var backupCrypto: BackupCrypto
     private lateinit var service: BackupExportService
@@ -102,11 +90,6 @@ class BackupExportServiceTest {
         coEvery {
             widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
         } returns false
-        every { databaseHolder.get() } returns database
-        every { database.medicationLogDao() } returns medicationLogDao
-        every { database.bloodTestDao() } returns bloodTestDao
-        coEvery { medicationLogDao.getEntries() } returns emptyList()
-        coEvery { bloodTestDao.getPanels() } returns emptyList()
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
         service = BackupExportService(
             context = context,
@@ -117,7 +100,6 @@ class BackupExportServiceTest {
             medicationLogRepository = medicationLogRepository,
             bloodTestRepository = bloodTestRepository,
             widgetAppearanceRepository = widgetAppearanceRepository,
-            databaseHolder = databaseHolder,
             backupCrypto = backupCrypto,
         )
     }
@@ -740,6 +722,8 @@ class BackupExportServiceTest {
                 sourceGroupUuid = null,
                 appliedAt = Instant.parse("2026-04-26T01:00:00Z"),
                 appliedAtTimeZoneId = "Asia/Tokyo",
+                importSourceApp = "nomtf",
+                importExternalId = "dose-60",
             )
         )
         coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
@@ -760,64 +744,14 @@ class BackupExportServiceTest {
                         value = 367.1,
                         unitSnapshot = BloodUnitKey.PMOL_L.storageValue,
                         canonicalValue = 100.0,
-                    )
-                ),
-                createdAt = Instant.parse("2026-04-26T02:00:00Z"),
-                updatedAt = Instant.parse("2026-04-26T02:00:00Z"),
-            )
-        )
-        coEvery { medicationLogDao.getEntries() } returns listOf(
-            MedicationLogEntryEntity(
-                uuid = logUuid.toString(),
-                category = "ESTRADIOL",
-                medicineUuid = medicineUuid.toString(),
-                applicationType = "ORAL",
-                doseInstructionKind = "TABLET_FRACTION",
-                tabletFractionNumerator = 1,
-                tabletFractionDenominator = 1,
-                doseVolumeMl = null,
-                doseWeightGrams = null,
-                equivalentE2Mg = 2.0,
-                sourceGroupUuid = null,
-                appliedAtEpochMillis = Instant.parse("2026-04-26T01:00:00Z").toEpochMilli(),
-                appliedAtTimeZoneId = "Asia/Tokyo",
-                importSourceApp = "nomtf",
-                importExternalId = "dose-60",
-            )
-        )
-        coEvery { bloodTestDao.getPanels() } returns listOf(
-            BloodTestPanelWithResultsEntity(
-                panel = BloodTestPanelEntity(
-                    uuid = panelUuid.toString(),
-                    collectedAtInstantEpochMillis = Instant.parse("2026-04-26T02:00:00Z")
-                        .toEpochMilli(),
-                    collectedAtTimeZoneId = "Asia/Tokyo",
-                    notes = null,
-                    timeSinceLastEstradiolDoseMillis = null,
-                    timeSinceLastTestosteroneDoseMillis = null,
-                    createdAtEpochMillis = Instant.parse("2026-04-26T02:00:00Z")
-                        .toEpochMilli(),
-                    updatedAtEpochMillis = Instant.parse("2026-04-26T02:00:00Z")
-                        .toEpochMilli(),
-                    importSourceApp = "oyama",
-                    importPanelKey = 600L,
-                ),
-                results = listOf(
-                    BloodTestResultEntity(
-                        uuid = resultUuid.toString(),
-                        panelUuid = panelUuid.toString(),
-                        createdAtEpochMillis = Instant.parse("2026-04-26T02:10:00Z")
-                            .toEpochMilli(),
-                        displayOrder = 0,
-                        builtinAnalyteKey = BloodAnalyteKey.E2.storageValue,
-                        customAnalyteUuid = null,
-                        value = 367.1,
-                        unitSnapshot = BloodUnitKey.PMOL_L.storageValue,
-                        canonicalValue = 100.0,
                         importSourceApp = "oyama",
                         importExternalId = "result-60",
                     )
                 ),
+                createdAt = Instant.parse("2026-04-26T02:00:00Z"),
+                updatedAt = Instant.parse("2026-04-26T02:00:00Z"),
+                importSourceApp = "oyama",
+                importPanelKey = 600L,
             )
         )
 

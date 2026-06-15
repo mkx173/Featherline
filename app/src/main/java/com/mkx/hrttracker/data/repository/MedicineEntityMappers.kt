@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import java.time.Instant
 import java.util.UUID
+import kotlin.coroutines.cancellation.CancellationException
 
 internal fun MedicineEntity.toMedicineModel(): Medicine {
     val preparation = toMedicinePreparation()
@@ -48,6 +49,25 @@ internal fun MedicineEntity.toMedicineModel(): Medicine {
         ).normalizedFor(preparation),
         importedFromExternalTracker = importedFromExternalTracker,
     )
+}
+
+/**
+ * Per-row-safe [toMedicineModel] for display/resolution read paths: returns null
+ * instead of throwing when a single row is malformed (e.g. a corrupted imported
+ * preparation), so one bad row drops only itself instead of aborting a whole
+ * batch resolve and freezing the screen. Mirrors the per-row isolation in
+ * [com.mkx.hrttracker.data.repository.MedicineRepository] `activeMedicinesFlow`.
+ * Backup export deliberately keeps the throwing [toMedicineModel] (fail loud:
+ * a retriable failed export beats silently omitting a row from the backup).
+ */
+internal fun MedicineEntity.toMedicineModelOrNull(): Medicine? {
+    return try {
+        toMedicineModel()
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        null
+    }
 }
 
 /**

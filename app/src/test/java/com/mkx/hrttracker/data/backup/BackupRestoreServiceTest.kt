@@ -915,7 +915,6 @@ class BackupRestoreServiceTest {
             medicationLogRepository = exportMedicationLogRepository,
             bloodTestRepository = exportBloodTestRepository,
             widgetAppearanceRepository = exportWidgetAppearanceRepository,
-            databaseHolder = databaseHolder,
             backupCrypto = backupCrypto,
         )
     }

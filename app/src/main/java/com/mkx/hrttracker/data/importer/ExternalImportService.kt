@@ -1,7 +1,7 @@
 package com.mkx.hrttracker.data.importer
 
+import com.mkx.hrttracker.data.local.BloodTestDao
 import com.mkx.hrttracker.data.local.BloodTestPanelEntity
-import com.mkx.hrttracker.data.local.BloodTestPanelWithResultsEntity
 import com.mkx.hrttracker.data.local.BloodTestResultEntity
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
@@ -56,33 +56,19 @@ class ExternalImportService @Inject constructor(
             }
         }
 
-        var labRowsToCreate = 0
-        var labRowsToUpdate = 0
-        val labWarnings = mutableListOf<ExternalImportWarning>()
-        parseResult.labResults.forEach { result ->
-            val targetPanel = bloodTestDao.getImportedPanel(
-                sourceApp = sourceApp,
-                panelKey = result.panelProvenance.panelKey,
-            )
-            if (targetPanel.hasUserOwnedConflict(result)) {
-                labWarnings += result.userConflictWarning()
-                return@forEach
-            }
-            val existingResult = bloodTestDao.getImportedResult(
-                sourceApp = sourceApp,
-                externalId = result.provenance.externalId,
-            )
-            // A row whose external ID is new but whose (panel, analyte) slot is
-            // already held by an imported result overwrites that result (the
-            // schema allows one result per analyte per panel), so report it as
-            // an update rather than a create — otherwise the review summary's
-            // "updated" count hides the replaced row behind a "created" tally.
-            if (existingResult != null || targetPanel.replacesImportedAnalyte(result)) {
-                labRowsToUpdate += 1
-            } else {
-                labRowsToCreate += 1
-            }
-        }
+        // Run the same reconciliation commit uses, as a read-only dry run that
+        // writes nothing, so the review summary's lab tally and skip warnings can
+        // never disagree with what the commit actually does (one algorithm, not
+        // two hand-synced count implementations).
+        val labPlan = planLabReconciliation(
+            bloodTestDao = bloodTestDao,
+            sourceApp = sourceApp,
+            labResults = parseResult.labResults,
+            nowEpochMillis = now.toEpochMilli(),
+        )
+        val labRowsToCreate = labPlan.created
+        val labRowsToUpdate = labPlan.updated
+        val labWarnings = labPlan.warnings
 
         val (importedMedicinesToReuse, importedMedicinesToCreate) =
             parseResult.distinctMedicineIdentities().partition { identity ->
@@ -229,11 +215,47 @@ class ExternalImportService @Inject constructor(
         labResults: List<ExternalImportCandidate.LabResult>,
         nowEpochMillis: Long,
     ): LabCommitResult {
+        val bloodTestDao = database.bloodTestDao()
+        val plan = planLabReconciliation(
+            bloodTestDao = bloodTestDao,
+            sourceApp = sourceApp,
+            labResults = labResults,
+            nowEpochMillis = nowEpochMillis,
+        )
+        plan.panelsToUpsert.forEach { panel -> bloodTestDao.insertPanel(panel) }
+        if (plan.resultsToUpsert.isNotEmpty()) {
+            // REPLACE on the unique (panelUuid, analyte) index evicts an imported
+            // result this overwrites; a row moved across panels keeps its uuid so
+            // the same DB row relocates instead of duplicating.
+            bloodTestDao.insertResults(plan.resultsToUpsert)
+        }
+        bloodTestDao.deleteEmptyImportedPanels()
+
+        return LabCommitResult(
+            created = plan.created,
+            updated = plan.updated,
+            warnings = plan.warnings,
+        )
+    }
+
+    /**
+     * Pure planning pass shared by [buildPreview] and [reconcileLabResults]:
+     * replays the imported-panel reconciliation against an in-memory copy of the
+     * current imported state and returns the create/update tally, skip warnings,
+     * and the panel/result rows to upsert — writing nothing. Preview consumes only
+     * the counts and warnings; commit additionally applies the upserts. One
+     * algorithm, so the review summary can never disagree with the commit.
+     */
+    private suspend fun planLabReconciliation(
+        bloodTestDao: BloodTestDao,
+        sourceApp: String,
+        labResults: List<ExternalImportCandidate.LabResult>,
+        nowEpochMillis: Long,
+    ): LabReconciliationPlan {
         if (labResults.isEmpty()) {
-            return LabCommitResult(created = 0, updated = 0, warnings = emptyList())
+            return LabReconciliationPlan()
         }
 
-        val bloodTestDao = database.bloodTestDao()
         val panelStatesByUuid = linkedMapOf<String, MutableImportedPanel>()
         val panelUuidByKey = mutableMapOf<Long, String>()
         bloodTestDao.getImportedPanels(sourceApp).forEach { panelWithResults ->
@@ -273,6 +295,17 @@ class ExternalImportService @Inject constructor(
                 return@forEach
             }
 
+            // The schema holds one result per analyte per panel. If the target
+            // panel already holds a *different* imported reading (different
+            // external id) for this analyte, reject the incoming row rather than
+            // silently clobbering the existing reading — the user sees the skip
+            // in the review summary and can resolve it. A row updating its own
+            // prior reading (same external id) is not a conflict and proceeds.
+            if (targetState.conflictsWithDifferentImportedResult(labResult)) {
+                warnings += labResult.analyteConflictWarning()
+                return@forEach
+            }
+
             targetPanelUuids += targetState.panel.uuid
             affectedPanelUuids += targetState.panel.uuid
 
@@ -287,11 +320,6 @@ class ExternalImportService @Inject constructor(
                 panelStatesByUuid[existingResult.panelUuid]
                     ?.results
                     ?.removeAll { result -> result.uuid == existingResult.uuid }
-            } else if (targetState.replacesImportedAnalyte(labResult)) {
-                // New external ID landing on a (panel, analyte) slot already
-                // held by an imported result: the removeAll below evicts that
-                // result, so count the overwrite as an update, not a create.
-                updated += 1
             } else {
                 created += 1
             }
@@ -302,25 +330,20 @@ class ExternalImportService @Inject constructor(
                 createdAtEpochMillis = existingResult?.createdAtEpochMillis ?: nowEpochMillis,
                 sourceApp = sourceApp,
             )
-            targetState.results.removeAll { result ->
-                !result.isUserOwned() &&
-                        result.uuid != resultEntity.uuid &&
-                        result.hasSameAnalyte(resultEntity)
-            }
             targetState.results.removeAll { result -> result.uuid == resultEntity.uuid }
             targetState.results += resultEntity
         }
 
-        targetPanelUuids.forEach { panelUuid ->
-            bloodTestDao.insertPanel(panelStatesByUuid.getValue(panelUuid).panel)
+        val panelsToUpsert = targetPanelUuids.map { panelUuid ->
+            panelStatesByUuid.getValue(panelUuid).panel
         }
-        affectedPanelUuids.forEach { panelUuid ->
-            val state = panelStatesByUuid[panelUuid] ?: return@forEach
+        val resultsToUpsert = affectedPanelUuids.flatMap { panelUuid ->
+            val state = panelStatesByUuid[panelUuid] ?: return@flatMap emptyList<BloodTestResultEntity>()
             val userOwnedMaxDisplayOrder = state.results
                 .filter { result -> result.isUserOwned() }
                 .maxOfOrNull(BloodTestResultEntity::displayOrder)
             val firstImportedDisplayOrder = (userOwnedMaxDisplayOrder ?: -1) + 1
-            val normalizedImportedResults = state.results
+            state.results
                 .filterNot { result -> result.isUserOwned() }
                 .distinctBy(BloodTestResultEntity::uuid)
                 .mapIndexed { index, result ->
@@ -329,16 +352,14 @@ class ExternalImportService @Inject constructor(
                         displayOrder = firstImportedDisplayOrder + index,
                     )
                 }
-            if (normalizedImportedResults.isNotEmpty()) {
-                bloodTestDao.insertResults(normalizedImportedResults)
-            }
         }
-        bloodTestDao.deleteEmptyImportedPanels()
 
-        return LabCommitResult(
+        return LabReconciliationPlan(
             created = created,
             updated = updated,
             warnings = warnings,
+            panelsToUpsert = panelsToUpsert,
+            resultsToUpsert = resultsToUpsert,
         )
     }
 
@@ -388,22 +409,6 @@ class ExternalImportService @Inject constructor(
         return importSourceApp == null && importExternalId == null
     }
 
-    private fun BloodTestResultEntity.hasSameAnalyte(
-        other: BloodTestResultEntity,
-    ): Boolean {
-        return when {
-            builtinAnalyteKey != null -> builtinAnalyteKey == other.builtinAnalyteKey
-            customAnalyteUuid != null -> customAnalyteUuid == other.customAnalyteUuid
-            else -> false
-        }
-    }
-
-    private fun BloodTestPanelWithResultsEntity?.hasUserOwnedConflict(
-        labResult: ExternalImportCandidate.LabResult,
-    ): Boolean {
-        return this?.results?.hasUserOwnedConflict(labResult) == true
-    }
-
     private fun List<BloodTestResultEntity>.hasUserOwnedConflict(
         labResult: ExternalImportCandidate.LabResult,
     ): Boolean {
@@ -418,27 +423,20 @@ class ExternalImportService @Inject constructor(
         return results.hasUserOwnedConflict(labResult)
     }
 
-    // True when an imported (non-user-owned) result for the same analyte already
-    // occupies this panel, so an incoming row with a new external ID will replace
-    // it instead of adding a second analyte value the schema cannot hold.
-    private fun BloodTestPanelWithResultsEntity?.replacesImportedAnalyte(
+    // True when this panel already holds a *different* imported reading (a
+    // non-user-owned result with a different external id) for the same analyte.
+    // The schema allows one result per analyte per panel, so the incoming row
+    // would overwrite that reading — instead it is rejected to preserve it. A
+    // result with the same external id is the row's own prior reading, not a
+    // conflict.
+    private fun MutableImportedPanel.conflictsWithDifferentImportedResult(
         labResult: ExternalImportCandidate.LabResult,
     ): Boolean {
-        return this?.results?.replacesImportedAnalyte(labResult) == true
-    }
-
-    private fun List<BloodTestResultEntity>.replacesImportedAnalyte(
-        labResult: ExternalImportCandidate.LabResult,
-    ): Boolean {
-        return any { result ->
-            !result.isUserOwned() && result.builtinAnalyteKey == labResult.analyteKey.storageValue
+        return results.any { result ->
+            !result.isUserOwned() &&
+                    result.builtinAnalyteKey == labResult.analyteKey.storageValue &&
+                    result.importExternalId != labResult.provenance.externalId
         }
-    }
-
-    private fun MutableImportedPanel.replacesImportedAnalyte(
-        labResult: ExternalImportCandidate.LabResult,
-    ): Boolean {
-        return results.replacesImportedAnalyte(labResult)
     }
 
     private fun ExternalImportCandidate.LabResult.userConflictWarning(): ExternalImportWarning {
@@ -448,6 +446,16 @@ class ExternalImportService @Inject constructor(
             rowIndex = null,
             message = "Skipped imported lab result because the target imported panel contains a user-created result for the same analyte.",
             messageKey = ExternalImportWarningMessageKey.LAB_USER_CONFLICT,
+        )
+    }
+
+    private fun ExternalImportCandidate.LabResult.analyteConflictWarning(): ExternalImportWarning {
+        return ExternalImportWarning(
+            reason = ExternalImportWarningReason.LAB_ANALYTE_CONFLICT,
+            externalId = provenance.externalId,
+            rowIndex = null,
+            message = "Skipped imported lab result because the target imported panel already holds a different imported result for the same analyte.",
+            messageKey = ExternalImportWarningMessageKey.LAB_ANALYTE_CONFLICT,
         )
     }
 
@@ -547,6 +555,14 @@ class ExternalImportService @Inject constructor(
         val created: Int,
         val updated: Int,
         val warnings: List<ExternalImportWarning>,
+    )
+
+    private data class LabReconciliationPlan(
+        val created: Int = 0,
+        val updated: Int = 0,
+        val warnings: List<ExternalImportWarning> = emptyList(),
+        val panelsToUpsert: List<BloodTestPanelEntity> = emptyList(),
+        val resultsToUpsert: List<BloodTestResultEntity> = emptyList(),
     )
 }
 

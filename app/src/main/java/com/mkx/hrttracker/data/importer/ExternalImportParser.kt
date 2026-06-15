@@ -1252,10 +1252,24 @@ class ExternalImportParser @Inject constructor() {
     private fun text(value: Any?): String? {
         return when (value) {
             is String -> value.trim()
-            is Number -> value.toString()
+            // Moshi decodes every JSON number as Double, so a numeric id like
+            // {"id": 1042} would otherwise stringify as "1042.0" and a numeric
+            // token as "0.0". Render an integral value without the trailing ".0"
+            // so external-id dedup keys stay stable. (Values beyond 2^53 already
+            // lost precision when Moshi parsed them, which no formatting recovers.)
+            is Number -> value.plainText()
             is Boolean -> value.toString()
             else -> null
         }?.takeIf { text -> text.isNotBlank() }
+    }
+
+    private fun Number.plainText(): String {
+        val asDouble = toDouble()
+        return if (asDouble.isFinite() && asDouble == asDouble.toLong().toDouble()) {
+            asDouble.toLong().toString()
+        } else {
+            toString()
+        }
     }
 
     private fun number(value: Any?): Double? {

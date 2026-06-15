@@ -112,6 +112,7 @@ enum class ExternalImportWarningReason {
     AMBIGUOUS_LAB_UNIT,
     DUPLICATE_LAB_RESULT,
     LAB_USER_CONFLICT,
+    LAB_ANALYTE_CONFLICT,
     SOURCE_FALLBACK,
 }
 
@@ -139,6 +140,7 @@ enum class ExternalImportWarningMessageKey {
     LAB_AMBIGUOUS_ANALYTE_UNIT,
     LAB_DUPLICATE_ANALYTE_PANEL,
     LAB_USER_CONFLICT,
+    LAB_ANALYTE_CONFLICT,
 }
 
 class ExternalImportFatalException(message: String) : IllegalArgumentException(message)

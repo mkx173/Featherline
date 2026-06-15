@@ -188,7 +188,10 @@ class MedicineRepository @Inject internal constructor(
         }
         return databaseHolder.get().medicineDao()
             .getByUuids(uuids.map(UUID::toString))
-            .map(MedicineEntity::toMedicineModel)
+            // Per-row isolation (display lookup): a corrupted row drops only
+            // itself rather than failing the whole lookup. getAll() below stays
+            // strict — backup export must fail loud, not silently omit a row.
+            .mapNotNull(MedicineEntity::toMedicineModelOrNull)
             .associateBy(Medicine::uuid)
     }
 

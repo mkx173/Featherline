@@ -812,7 +812,7 @@ class ExternalImportServiceTest {
     }
 
     @Test
-    fun changedLabExternalIdAtSameInstantAndAnalyteReplacesPriorImportedResult() = runTest {
+    fun newLabExternalIdAtSameInstantAndAnalyteIsRejectedToPreservePriorImportedResult() = runTest {
         service.commit(
             service.buildPreview(
                 transmtfJson(
@@ -837,26 +837,78 @@ class ExternalImportServiceTest {
             now = NOW.plusSeconds(60),
         )
 
-        // The new external ID overwrites the existing imported result for this
-        // panel/analyte, so the review summary reports it as an update, not a
-        // create — the count reflects the dropped row instead of hiding it.
+        // A different external ID for the same panel/analyte would overwrite the
+        // existing imported reading, so the incoming row is rejected (skipped with
+        // a warning) instead — the prior reading is never silently destroyed.
         assertEquals(0, preview.labRowsToCreate)
-        assertEquals(1, preview.labRowsToUpdate)
+        assertEquals(0, preview.labRowsToUpdate)
+        assertTrue(
+            preview.warnings.any { warning ->
+                warning.reason == ExternalImportWarningReason.LAB_ANALYTE_CONFLICT &&
+                        warning.externalId == "lab-b"
+            }
+        )
 
         val result = service.commit(preview, now = NOW.plusSeconds(60))
 
         assertEquals(0, result.labRowsCreated)
-        assertEquals(1, result.labRowsUpdated)
-        assertNull(database.bloodTestDao().getImportedResult("transmtf", "lab-a"))
+        assertEquals(0, result.labRowsUpdated)
+        // The incoming row was not imported; the prior reading is untouched.
+        assertNull(database.bloodTestDao().getImportedResult("transmtf", "lab-b"))
+        val panelAfter = checkNotNull(database.bloodTestDao().getImportedPanel("transmtf", 7_200_000L))
+        assertEquals(listOf(originalResult), panelAfter.results)
+    }
 
-        val replacement = checkNotNull(database.bloodTestDao().getImportedResult("transmtf", "lab-b"))
-        assertNotEquals(originalResult.uuid, replacement.uuid)
-        assertEquals(originalPanel.panel.uuid, replacement.panelUuid)
-        assertEquals(0, replacement.displayOrder)
-        assertEquals(140.0, replacement.value, 1e-9)
+    @Test
+    fun movedLabResultOntoAnotherImportedAnalyteSlotIsRejectedNotEvicted() = runTest {
+        // lab-a at timeH 1 (panel 3_600_000), lab-b at timeH 2 (panel 7_200_000),
+        // both E2.
+        service.commit(
+            service.buildPreview(
+                transmtfJson(
+                    events = "",
+                    labs = """
+                        { "id": "lab-a", "timeH": 1, "unit": "pg/ml", "value": 100 },
+                        { "id": "lab-b", "timeH": 2, "unit": "pg/ml", "value": 200 }
+                    """.trimIndent(),
+                )
+            ),
+            now = NOW,
+        )
 
-        val panelAfterReplacement = checkNotNull(database.bloodTestDao().getImportedPanel("transmtf", 7_200_000L))
-        assertEquals(listOf(replacement), panelAfterReplacement.results)
+        // Re-export moves lab-a to timeH 2 — the panel slot already held by lab-b
+        // (a different reading) for the same analyte. The move is rejected so
+        // lab-b is not evicted and lab-a stays at its prior panel/value.
+        val preview = service.buildPreview(
+            transmtfJson(
+                events = "",
+                labs = """
+                    { "id": "lab-a", "timeH": 2, "unit": "pg/ml", "value": 110 }
+                """.trimIndent(),
+            ),
+            now = NOW.plusSeconds(60),
+        )
+
+        assertEquals(0, preview.labRowsToCreate)
+        assertEquals(0, preview.labRowsToUpdate)
+        assertTrue(
+            preview.warnings.any { warning ->
+                warning.reason == ExternalImportWarningReason.LAB_ANALYTE_CONFLICT &&
+                        warning.externalId == "lab-a"
+            }
+        )
+
+        service.commit(preview, now = NOW.plusSeconds(60))
+
+        // Both readings survive, each on its original panel and value.
+        val preservedA = checkNotNull(database.bloodTestDao().getImportedResult("transmtf", "lab-a"))
+        assertEquals(100.0, preservedA.value, 1e-9)
+        val panelA = checkNotNull(database.bloodTestDao().getImportedPanel("transmtf", 3_600_000L))
+        assertEquals(listOf(preservedA), panelA.results)
+        val preservedB = checkNotNull(database.bloodTestDao().getImportedResult("transmtf", "lab-b"))
+        assertEquals(200.0, preservedB.value, 1e-9)
+        val panelB = checkNotNull(database.bloodTestDao().getImportedPanel("transmtf", 7_200_000L))
+        assertEquals(listOf(preservedB), panelB.results)
     }
 
     @Test

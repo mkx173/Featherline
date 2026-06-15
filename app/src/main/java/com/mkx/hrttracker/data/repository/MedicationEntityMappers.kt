@@ -166,7 +166,14 @@ private suspend fun HrtTrackerDatabase.loadMedicinesByUuid(
         return emptyMap()
     }
     return medicineDao().getByUuids(medicineUuids)
-        .associate { entity: MedicineEntity -> entity.uuid to entity.toMedicineModel() }
+        // Per-row isolation: a single malformed medicine (e.g. a corrupted
+        // imported preparation) drops only itself instead of throwing and
+        // blanking medicine resolution for every history/plan log entry in the
+        // batch. Consumers already tolerate a missing uuid (deleted/absent rows).
+        .mapNotNull { entity: MedicineEntity ->
+            entity.toMedicineModelOrNull()?.let { medicine -> entity.uuid to medicine }
+        }
+        .toMap()
 }
 
 internal fun UserProfileEntity.toUserProfileModel(): UserProfile {
