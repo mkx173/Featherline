@@ -1,6 +1,12 @@
 package com.mkx.hrttracker.ui.plan
 
+import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
+import com.mkx.hrttracker.model.medication.testInstant
+import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.ui.medication.MedicationLogScheduleOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -10,8 +16,67 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.UUID
 
 class PlanScreenComponentsTest {
+    @Test
+    fun selectedDayRowIndicatorSizes_useFixedSlotWithSmallerDownloadGlyph() {
+        assertEquals(14.dp, SelectedDayRowIndicatorSlotSize)
+        assertEquals(13.dp, selectedDayRowIndicatorGlyphSize(R.drawable.ic_download))
+        assertEquals(14.dp, selectedDayRowIndicatorGlyphSize(R.drawable.ic_archive))
+        assertEquals(13.dp, SelectedDayCrossZoneIndicatorGlyphSize)
+    }
+
+    @Test
+    fun selectedDayRowImportedIndicatorIconRes_usesDownloadForImportedManualRows() {
+        val entry = testMedicationLogEntry(
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 5, 20, 9, 0)),
+        ).copy(
+            importSourceApp = "transmtf",
+            importExternalId = "dose-1",
+        )
+        val row = SelectedDayRowModel.Unplanned(
+            entry = entry,
+            sortTime = LocalTime.of(9, 0),
+        )
+
+        assertEquals(R.drawable.ic_download, selectedDayRowImportedIndicatorIconRes(row))
+    }
+
+    @Test
+    fun selectedDayRowImportedIndicatorIconRes_usesDownloadForImportedScheduledRows() {
+        val entry = PlanDayScheduleEntry(
+            groupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
+            groupName = "Imported group",
+            groupColorKey = MedicationGroupColorKey.ROSE,
+            scheduledTime = LocalTime.of(9, 0),
+            medication = testMedicationGroupMedication(),
+            fulfillingEntryUuids = listOf(UUID.fromString("22222222-2222-2222-2222-222222222222")),
+            isImportedRecord = true,
+            isFulfilled = true,
+            isDueSoon = false,
+            isPastDue = false,
+        )
+        val row = SelectedDayRowModel.Scheduled(entry)
+
+        assertEquals(R.drawable.ic_download, selectedDayRowImportedIndicatorIconRes(row))
+    }
+
+    @Test
+    fun selectedDayRowImportedIndicatorIconRes_omitsIconForLocalManualRows() {
+        val entry = testMedicationLogEntry(
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 5, 20, 9, 0)),
+        )
+        val row = SelectedDayRowModel.Unplanned(
+            entry = entry,
+            sortTime = LocalTime.of(9, 0),
+        )
+
+        assertNull(selectedDayRowImportedIndicatorIconRes(row))
+    }
+
     @Test
     fun stockPreviewNumberUsesProvidedLocaleWithoutFixedTrailingZeros() {
         assertEquals("1,5", stockPreviewNumber(1.5, Locale.GERMANY))

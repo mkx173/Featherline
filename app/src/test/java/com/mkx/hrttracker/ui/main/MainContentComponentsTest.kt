@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.main
 
+import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
@@ -17,6 +18,14 @@ import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainContentComponentsTest {
+    @Test
+    fun mainTodayRowIndicatorSizes_useFixedSlotWithSmallerDownloadGlyph() {
+        assertEquals(18.dp, MainTodayRowIndicatorSlotSize)
+        assertEquals(16.dp, mainTodayRowIndicatorGlyphSize(R.drawable.ic_download))
+        assertEquals(17.dp, mainTodayRowIndicatorGlyphSize(R.drawable.ic_edit_square))
+        assertEquals(18.dp, mainTodayRowIndicatorGlyphSize(R.drawable.ic_archive))
+    }
+
     @Test
     fun mainTodayDoseRowIndicatorIconRes_usesDownloadForImportedRows() {
         val row = scheduledTodayRow(

@@ -2945,6 +2945,16 @@ internal fun mainTodayDoseRowIndicatorIconRes(row: MainTodayDoseRowUiState): Int
     else -> null
 }
 
+internal val MainTodayRowIndicatorSlotSize = 18.dp
+
+internal fun mainTodayRowIndicatorGlyphSize(@DrawableRes iconDrawableRes: Int): Dp =
+    when (iconDrawableRes) {
+        R.drawable.ic_download -> 16.dp
+        R.drawable.ic_edit_square -> 17.dp
+
+        else -> MainTodayRowIndicatorSlotSize
+    }
+
 @StringRes
 private fun mainTodayDoseRowIndicatorContentDescriptionRes(row: MainTodayDoseRowUiState): Int? =
     when {
@@ -2954,17 +2964,22 @@ private fun mainTodayDoseRowIndicatorContentDescriptionRes(row: MainTodayDoseRow
     }
 
 @Composable
-private fun MainRecordIndicatorIcon(
+private fun MainRowIndicatorIcon(
     @DrawableRes iconDrawableRes: Int,
     @StringRes contentDescriptionRes: Int,
     modifier: Modifier = Modifier
 ) {
-    Icon(
-        painter = painterResource(iconDrawableRes),
-        contentDescription = stringResource(contentDescriptionRes),
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.size(17.dp)
-    )
+    Box(
+        modifier = modifier.size(MainTodayRowIndicatorSlotSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(iconDrawableRes),
+            contentDescription = stringResource(contentDescriptionRes),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(mainTodayRowIndicatorGlyphSize(iconDrawableRes))
+        )
+    }
 }
 
 @Composable
@@ -3745,15 +3760,13 @@ private fun MainTodayTrailingContent(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 if (row.isFromArchivedGroup) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_archive),
-                        contentDescription = stringResource(R.string.archived_group_record_indicator),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
+                    MainRowIndicatorIcon(
+                        iconDrawableRes = R.drawable.ic_archive,
+                        contentDescriptionRes = R.string.archived_group_record_indicator,
                     )
                 }
                 if (indicatorIconRes != null && indicatorContentDescriptionRes != null) {
-                    MainRecordIndicatorIcon(
+                    MainRowIndicatorIcon(
                         iconDrawableRes = indicatorIconRes,
                         contentDescriptionRes = indicatorContentDescriptionRes,
                     )

@@ -10,6 +10,14 @@ import java.time.LocalDateTime
 
 class WidgetDoseRowTrailingContentTest {
     @Test
+    fun indicatorSizesUseFixedSlotWithSmallerDownloadGlyph() {
+        assertEquals(20f, WidgetDoseRowIndicatorSlotSizeDp, 0.0001f)
+        assertEquals(18f, widgetDoseRowIndicatorGlyphSizeDp(R.drawable.ic_download), 0.0001f)
+        assertEquals(19f, widgetDoseRowIndicatorGlyphSizeDp(R.drawable.ic_edit_square), 0.0001f)
+        assertEquals(20f, widgetDoseRowIndicatorGlyphSizeDp(R.drawable.ic_archive), 0.0001f)
+    }
+
+    @Test
     fun manualRowsUseIconInsteadOfTrailingTextWhenDetailsAreVisible() {
         val row = widgetDoseRow(
             trailingText = "Manual",

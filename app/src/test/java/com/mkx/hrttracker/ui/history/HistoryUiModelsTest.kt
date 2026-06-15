@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.history
 
+import androidx.compose.ui.unit.dp
 import com.kizitonwose.calendar.core.DayPosition
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
@@ -36,6 +37,15 @@ class HistoryUiModelsTest {
     // its slot, and the fulfillment-status assertions would all degrade to
     // MISSED.
     private val estradiolMedicineUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
+
+    @Test
+    fun historyEntryIndicatorSizes_useFixedSlotWithSmallerDownloadGlyph() {
+        assertEquals(18.dp, HistoryEntryRowIndicatorSlotSize)
+        assertEquals(16.dp, historyEntryRowIndicatorGlyphSize(R.drawable.ic_download))
+        assertEquals(17.dp, historyEntryRowIndicatorGlyphSize(R.drawable.ic_edit_square))
+        assertEquals(18.dp, historyEntryRowIndicatorGlyphSize(R.drawable.ic_archive))
+        assertEquals(16.5.dp, HistoryEntryCrossZoneIndicatorGlyphSize)
+    }
 
     @Test
     fun historyEntryIndicatorIconRes_usesDownloadForImportedRows() {

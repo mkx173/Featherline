@@ -27,6 +27,7 @@ data class PlanDayScheduleEntry(
     val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedAt: LocalDateTime? = null,
     val isLastFulfillingEntryCrossZone: Boolean = false,
+    val isImportedRecord: Boolean = false,
     val outsideScheduleWindowLoggedAt: LocalDateTime? = null,
     val loggedCount: Int = 0,
     val isFulfilled: Boolean,
@@ -139,6 +140,8 @@ fun buildPlanDaySchedule(
                                 zoneId
                             )
                         } == true,
+                        isImportedRecord = (matchingLogs + outsideWindowLogs)
+                            .any { entry -> entry.importSourceApp != null },
                         outsideScheduleWindowLoggedAt = lastOutsideWindowEntry?.let {
                             appliedAtAsLocalDateTime(
                                 it,

@@ -1586,7 +1586,7 @@ internal fun SettingsScreenContent(
                             onClick = onImportExternalTrackerClick,
                             leadingContent = {
                                 SettingsLeadingIconSlot(
-                                    painter = painterResource(R.drawable.ic_settings_backup_restore)
+                                    painter = painterResource(R.drawable.ic_data_object)
                                 )
                             },
                             trailingContent = {

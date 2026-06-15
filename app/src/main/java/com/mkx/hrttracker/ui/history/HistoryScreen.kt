@@ -168,11 +168,56 @@ internal fun historyEntryIndicatorIconRes(entry: MedicationLogEntry): Int? = whe
     else -> null
 }
 
+internal val HistoryEntryRowIndicatorSlotSize = 18.dp
+internal val HistoryEntryCrossZoneIndicatorGlyphSize = 16.5.dp
+
+internal fun historyEntryRowIndicatorGlyphSize(@DrawableRes iconDrawableRes: Int): Dp =
+    when (iconDrawableRes) {
+        R.drawable.ic_download -> 16.dp
+        R.drawable.ic_edit_square -> 17.dp
+
+        else -> HistoryEntryRowIndicatorSlotSize
+    }
+
 @StringRes
 private fun historyEntryIndicatorContentDescriptionRes(entry: MedicationLogEntry): Int? = when {
     entry.importSourceApp != null -> R.string.external_tracker_record_indicator
     entry.sourceGroupUuid == null -> R.string.plan_entry_label_manual
     else -> null
+}
+
+@Composable
+private fun HistoryEntryRowIndicatorIcon(
+    @DrawableRes iconDrawableRes: Int,
+    @StringRes contentDescriptionRes: Int,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.size(HistoryEntryRowIndicatorSlotSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(iconDrawableRes),
+            contentDescription = stringResource(contentDescriptionRes),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(historyEntryRowIndicatorGlyphSize(iconDrawableRes)),
+        )
+    }
+}
+
+@Composable
+private fun HistoryEntryCrossZoneIndicatorIcon(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.size(HistoryEntryRowIndicatorSlotSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Public,
+            contentDescription = stringResource(R.string.cross_timezone_entry_indicator),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(HistoryEntryCrossZoneIndicatorGlyphSize),
+        )
+    }
 }
 
 @Composable
@@ -2231,30 +2276,19 @@ private fun HistoryEntryCard(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (isFromArchivedGroup) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_archive),
-                        contentDescription = stringResource(
-                            R.string.archived_group_record_indicator
-                        ),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
+                    HistoryEntryRowIndicatorIcon(
+                        iconDrawableRes = R.drawable.ic_archive,
+                        contentDescriptionRes = R.string.archived_group_record_indicator,
                     )
                 }
                 if (indicatorIconRes != null && indicatorContentDescriptionRes != null) {
-                    Icon(
-                        painter = painterResource(indicatorIconRes),
-                        contentDescription = stringResource(indicatorContentDescriptionRes),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(17.dp)
+                    HistoryEntryRowIndicatorIcon(
+                        iconDrawableRes = indicatorIconRes,
+                        contentDescriptionRes = indicatorContentDescriptionRes,
                     )
                 }
                 if (crossZone) {
-                    Icon(
-                        imageVector = Icons.Rounded.Public,
-                        contentDescription = stringResource(R.string.cross_timezone_entry_indicator),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.5.dp)
-                    )
+                    HistoryEntryCrossZoneIndicatorIcon()
                 }
                 Text(
                     text = formatEntryWallTime(entry, timeFormatter, deviceZone),

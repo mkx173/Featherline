@@ -550,7 +550,7 @@
     <string name="settings_backup_restore">备份与恢复</string>
     <string name="settings_backup_to_file">备份到文件</string>
     <string name="settings_restore_from_file">从备份恢复</string>
-    <string name="settings_import_external_tracker_json">导入外部跟踪器 JSON</string>
+    <string name="settings_import_external_tracker_json">导入外部数据</string>
     <string name="settings_backup_export_success">备份已保存为 %1$s</string>
     <string name="settings_backup_export_failed">无法保存备份</string>
     <string name="settings_backup_password_title">加密备份</string>
