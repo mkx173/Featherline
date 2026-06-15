@@ -577,7 +577,6 @@
     <string name="external_import_medication_label">用药记录</string>
     <string name="external_import_lab_label">化验记录</string>
     <string name="external_import_confirm">导入</string>
-    <string name="external_import_cancel">取消</string>
     <string name="external_import_failed">无法导入所选 JSON</string>
     <string name="external_import_success">外部跟踪器数据已导入</string>
     <string name="external_tracker_record_indicator">已导入的外部跟踪器记录</string>

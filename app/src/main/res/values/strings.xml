@@ -597,7 +597,6 @@
     <string name="external_import_medication_label">Medication rows</string>
     <string name="external_import_lab_label">Lab rows</string>
     <string name="external_import_confirm">Import</string>
-    <string name="external_import_cancel">Cancel</string>
     <string name="external_import_failed">Unable to import selected JSON</string>
     <string name="external_import_success">External tracker data imported</string>
     <string name="external_tracker_record_indicator">Imported external tracker record</string>

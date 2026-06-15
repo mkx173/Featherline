@@ -115,7 +115,7 @@ class SettingsScreenExternalImportTest {
         composeRule.onNodeWithText(context.getString(R.string.external_import_skipped_rows_title))
             .assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_confirm)).assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.external_import_cancel)).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.cancel)).assertIsDisplayed()
     }
 
     @Test
