@@ -17,6 +17,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,10 +31,15 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.importer.ExternalImportParseResult
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
 import com.mkx.hrttracker.data.importer.ExternalImportWarning
+import com.mkx.hrttracker.data.importer.ExternalImportWarningMessageKey
+import com.mkx.hrttracker.data.importer.ExternalImportWarningReason
+import com.mkx.hrttracker.data.importer.ExternalTrackerSourceApp
 import com.mkx.hrttracker.data.importer.skippedRows
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
@@ -42,6 +48,7 @@ import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,6 +120,7 @@ private fun ExternalImportReviewSheetContent(
                         preview.medicationRowsToUpdate,
                     ),
                     painter = painterResource(R.drawable.ic_medication),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 )
             }
             item {
@@ -124,6 +132,7 @@ private fun ExternalImportReviewSheetContent(
                         preview.labRowsToUpdate,
                     ),
                     painter = painterResource(R.drawable.ic_labs),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 )
             }
         }
@@ -135,6 +144,7 @@ private fun ExternalImportReviewSheetContent(
                         text = stringResource(R.string.external_import_skipped_rows_title),
                         supportingText = stringResource(R.string.external_import_skipped_rows_subtitle),
                         painter = painterResource(R.drawable.ic_error_outline),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         onClick = { showSkippedDialog = true },
                         trailingContent = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -246,3 +256,125 @@ private fun ExternalImportSkippedRow(warning: ExternalImportWarning) {
         }
     }
 }
+
+@Preview(
+    name = "Review sheet · with skipped rows",
+    showBackground = true,
+    widthDp = 420,
+)
+@Composable
+private fun ExternalImportReviewSheetContentPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        // The sheet renders on surfaceContainer in the app, so its list items
+        // sit one step higher (surfaceContainerHigh).
+        Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+            ExternalImportReviewSheetContent(
+                preview = externalImportSamplePreview(externalImportSampleWarnings()),
+                isImporting = false,
+                onDismissRequest = {},
+                onImportClick = {},
+            )
+        }
+    }
+}
+
+@Preview(
+    name = "Review sheet · no skipped rows",
+    showBackground = true,
+    widthDp = 420,
+)
+@Composable
+private fun ExternalImportReviewSheetContentNoSkippedPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+            ExternalImportReviewSheetContent(
+                preview = externalImportSamplePreview(warnings = emptyList()),
+                isImporting = false,
+                onDismissRequest = {},
+                onImportClick = {},
+            )
+        }
+    }
+}
+
+@Preview(
+    name = "Skipped rows dialog",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 520,
+)
+@Composable
+private fun ExternalImportSkippedRowsDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        // HazeAlertDialog draws its own surfaceContainerHigh background.
+        ExternalImportSkippedRowsDialog(
+            skippedWarnings = externalImportSampleWarnings().skippedRows(),
+            onDismiss = {},
+        )
+    }
+}
+
+private fun externalImportSamplePreview(
+    warnings: List<ExternalImportWarning>,
+): ExternalImportPreview {
+    val parseResult = ExternalImportParseResult(
+        sourceApp = ExternalTrackerSourceApp.TRANSMTF,
+        exportVersion = "1",
+        exportedAt = null,
+        medicationDoses = emptyList(),
+        labResults = emptyList(),
+        warnings = warnings,
+    )
+    return ExternalImportPreview(
+        parseResult = parseResult,
+        sourceAppLabel = "TransMTF",
+        medicationRowsToCreate = 12,
+        medicationRowsToUpdate = 3,
+        labRowsToCreate = 5,
+        labRowsToUpdate = 1,
+        importedMedicinesToCreate = emptyList(),
+        importedMedicinesToReuse = emptyList(),
+        warnings = warnings,
+    )
+}
+
+// Mixed sample: a SOURCE_FALLBACK notice (filtered out by skippedRows) plus four
+// skipped rows exercising every joinSkippedRowIdentifier branch (row+id, id-only,
+// row-only) and concise messageKey labels.
+private fun externalImportSampleWarnings(): List<ExternalImportWarning> = listOf(
+    ExternalImportWarning(
+        reason = ExternalImportWarningReason.SOURCE_FALLBACK,
+        externalId = null,
+        rowIndex = null,
+        message = "Unrecognized source; parsed as TransMTF-compatible.",
+        messageKey = ExternalImportWarningMessageKey.SOURCE_FALLBACK,
+    ),
+    ExternalImportWarning(
+        reason = ExternalImportWarningReason.UNSUPPORTED_ROUTE,
+        externalId = "med-1042",
+        rowIndex = 2,
+        message = "Unsupported medication route.",
+        messageKey = ExternalImportWarningMessageKey.MEDICATION_UNSUPPORTED_ROUTE,
+    ),
+    ExternalImportWarning(
+        reason = ExternalImportWarningReason.LAB_USER_CONFLICT,
+        externalId = "lab-88",
+        rowIndex = 7,
+        message = "Conflicts with an existing lab result.",
+        messageKey = ExternalImportWarningMessageKey.LAB_USER_CONFLICT,
+    ),
+    ExternalImportWarning(
+        reason = ExternalImportWarningReason.MALFORMED_ROW,
+        externalId = null,
+        rowIndex = 4,
+        message = "Malformed medication row.",
+        messageKey = ExternalImportWarningMessageKey.MEDICATION_NON_OBJECT_ROW,
+    ),
+    ExternalImportWarning(
+        reason = ExternalImportWarningReason.DUPLICATE_EXTERNAL_ID,
+        externalId = "med-1042",
+        rowIndex = null,
+        message = "Duplicate external id.",
+        messageKey = ExternalImportWarningMessageKey.MEDICATION_DUPLICATE_ID,
+    ),
+)
