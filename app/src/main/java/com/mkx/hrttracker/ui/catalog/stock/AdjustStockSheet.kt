@@ -209,7 +209,7 @@ fun AdjustStockSheet(
 }
 
 @Composable
-private fun RecountForm(
+internal fun RecountForm(
     projection: MedicineStockProjection,
     isContainer: Boolean,
     locale: Locale,
@@ -281,7 +281,7 @@ private fun RecountForm(
 }
 
 @Composable
-private fun ReceivedForm(
+internal fun ReceivedForm(
     projection: MedicineStockProjection,
     isContainer: Boolean,
     locale: Locale,
