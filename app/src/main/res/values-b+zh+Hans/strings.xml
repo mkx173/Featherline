@@ -574,7 +574,6 @@
     <string name="external_import_medication_summary">新增 %1$d · 更新 %2$d</string>
     <string name="external_import_lab_summary">新增 %1$d · 更新 %2$d</string>
     <string name="external_import_section_summary">概要</string>
-    <string name="external_import_section_needs_review">需查看</string>
     <string name="external_import_medication_label">用药记录</string>
     <string name="external_import_lab_label">化验记录</string>
     <string name="external_import_confirm">导入</string>
@@ -584,7 +583,7 @@
     <string name="external_tracker_record_indicator">已导入的外部跟踪器记录</string>
     <string name="external_import_skipped_rows_title">已跳过的行</string>
     <string name="external_import_skipped_rows_copy">复制已跳过的行</string>
-    <string name="external_import_skipped_rows_copied">已复制。</string>
+    <string name="external_import_skipped_rows_copied">已复制错误信息</string>
     <plurals name="external_import_skipped_rows_count">
         <item quantity="other">%1$d 行未导入</item>
     </plurals>

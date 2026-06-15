@@ -15,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
@@ -129,10 +128,7 @@ private fun ExternalImportReviewSheetContent(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 )
             }
-        }
-
-        if (skippedWarnings.isNotEmpty()) {
-            HrtSection(title = stringResource(R.string.external_import_section_needs_review)) {
+            if (skippedWarnings.isNotEmpty()) {
                 item {
                     val context = LocalContext.current
                     val clipLabel = stringResource(R.string.external_import_skipped_rows_title)
@@ -147,29 +143,26 @@ private fun ExternalImportReviewSheetContent(
                         ),
                         painter = painterResource(R.drawable.ic_error_outline),
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        trailingContent = {
-                            IconButton(
-                                onClick = {
-                                    context.getSystemService(ClipboardManager::class.java)
-                                        ?.setPrimaryClip(
-                                            ClipData.newPlainText(
-                                                clipLabel,
-                                                externalImportSkippedRowsJson(skippedWarnings),
-                                            ),
-                                        )
-                                    Toast.makeText(
-                                        context,
-                                        copiedMessage,
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
-                                },
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_content_copy),
-                                    contentDescription = copyDescription,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        onClick = {
+                            context.getSystemService(ClipboardManager::class.java)
+                                ?.setPrimaryClip(
+                                    ClipData.newPlainText(
+                                        clipLabel,
+                                        externalImportSkippedRowsJson(skippedWarnings),
+                                    ),
                                 )
-                            }
+                            Toast.makeText(
+                                context,
+                                copiedMessage,
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        },
+                        trailingContent = {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_content_copy),
+                                contentDescription = copyDescription,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         },
                     )
                 }
