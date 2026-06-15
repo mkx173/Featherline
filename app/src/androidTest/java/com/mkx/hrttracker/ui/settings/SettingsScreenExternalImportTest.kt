@@ -5,6 +5,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -118,7 +119,7 @@ class SettingsScreenExternalImportTest {
     }
 
     @Test
-    fun reviewSheetSkippedRowOpensDialogWithConciseReason() {
+    fun reviewSheetSkippedRowShowsCountAndCopyActionWithoutRawMessage() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val preview = sampleExternalImportPreviewForUi(
             warning = ExternalImportWarning(
@@ -142,12 +143,26 @@ class SettingsScreenExternalImportTest {
             }
         }
 
-        composeRule.onNodeWithText(context.getString(R.string.external_import_skipped_rows_title))
-            .performClick()
-
+        // The skipped count is shown inline, and the copy action is reachable...
         composeRule
-            .onNodeWithText(context.getString(R.string.external_import_skipped_reason_unsupported_route_compound))
+            .onNodeWithText(
+                context.resources.getQuantityString(
+                    R.plurals.external_import_skipped_rows_count,
+                    1,
+                    1,
+                ),
+            )
             .assertIsDisplayed()
+        composeRule
+            .onNode(
+                matcher = hasContentDescription(
+                    context.getString(R.string.external_import_skipped_rows_copy),
+                ) and hasClickAction(),
+            )
+            .assertIsDisplayed()
+            .performClick()
+        // ...but the raw warning message is never rendered in the sheet (only the JSON,
+        // copied to the clipboard, carries it). Serialization itself is unit-tested.
         composeRule.onAllNodesWithText("RAW WARNING SHOULD NOT RENDER").assertCountEquals(0)
     }
 
