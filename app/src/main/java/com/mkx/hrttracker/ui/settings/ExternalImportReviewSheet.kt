@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.widget.Toast
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +26,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.importer.ExternalImportParseResult
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
@@ -65,14 +67,16 @@ fun ExternalImportReviewSheet(
 private fun ExternalImportReviewSheetContent(preview: ExternalImportPreview) {
     val skippedWarnings = preview.warnings.skippedRows()
 
-    Text(
-        text = stringResource(R.string.external_import_detected_source, preview.sourceAppLabel),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-
-    HrtSection(title = stringResource(R.string.external_import_section_summary)) {
+    HrtSection(title = null) {
+        item {
+            SupportMessageListItem(
+                text = stringResource(R.string.external_import_detected_source),
+                supportingText = preview.sourceAppLabel,
+                painter = painterResource(R.drawable.ic_data_object),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                leadingIconSize = 18.dp
+            )
+        }
         item {
             SupportMessageListItem(
                 text = stringResource(R.string.external_import_medication_label),
@@ -93,7 +97,7 @@ private fun ExternalImportReviewSheetContent(preview: ExternalImportPreview) {
                     preview.labRowsToCreate,
                     preview.labRowsToUpdate,
                 ),
-                painter = painterResource(R.drawable.ic_labs),
+                painter = painterResource(R.drawable.ic_experiment),
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             )
         }
@@ -115,8 +119,7 @@ private fun ExternalImportSkippedRowsItem(skippedWarnings: List<ExternalImportWa
     var lastCopiedToast by remember { mutableStateOf<Toast?>(null) }
 
     SupportMessageListItem(
-        text = stringResource(R.string.external_import_skipped_rows_title),
-        supportingText = pluralStringResource(
+        text = pluralStringResource(
             R.plurals.external_import_skipped_rows_count,
             skippedWarnings.size,
             skippedWarnings.size,
@@ -149,6 +152,7 @@ private fun ExternalImportSkippedRowsItem(skippedWarnings: List<ExternalImportWa
                 painter = painterResource(R.drawable.ic_content_copy),
                 contentDescription = copyDescription,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
             )
         },
     )

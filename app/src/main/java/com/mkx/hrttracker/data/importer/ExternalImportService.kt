@@ -552,8 +552,8 @@ class ExternalImportService @Inject constructor(
 
 private val ExternalTrackerSourceApp.label: String
     get() = when (this) {
-        ExternalTrackerSourceApp.TRANSMTF -> "Transfem Science"
-        ExternalTrackerSourceApp.OYAMA -> "Oyama"
-        ExternalTrackerSourceApp.NOMTF -> "NoMTF"
-        ExternalTrackerSourceApp.TRANSMTF_COMPATIBLE -> "Transfem-compatible"
+        ExternalTrackerSourceApp.TRANSMTF -> "hrt.transmtf.com"
+        ExternalTrackerSourceApp.OYAMA -> "hrt.mahiro.uk"
+        ExternalTrackerSourceApp.NOMTF -> "HRT Recorder"
+        ExternalTrackerSourceApp.TRANSMTF_COMPATIBLE -> "hrt.transmtf.com"
     }
