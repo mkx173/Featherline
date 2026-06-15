@@ -142,3 +142,14 @@ enum class ExternalImportWarningMessageKey {
 }
 
 class ExternalImportFatalException(message: String) : IllegalArgumentException(message)
+
+/**
+ * A warning represents a skipped row unless it is the informational source-fallback
+ * notice. Classify on [ExternalImportWarning.reason] (always set), never messageKey
+ * (nullable), so the count badge and the dialog list can never disagree.
+ */
+internal fun ExternalImportWarning.isSkip(): Boolean =
+    reason != ExternalImportWarningReason.SOURCE_FALLBACK
+
+internal fun List<ExternalImportWarning>.skippedRows(): List<ExternalImportWarning> =
+    filter { it.isSkip() }
