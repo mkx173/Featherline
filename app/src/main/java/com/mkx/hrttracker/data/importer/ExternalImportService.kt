@@ -111,7 +111,7 @@ class ExternalImportService @Inject constructor(
         preview: ExternalImportPreview,
         now: Instant = Instant.now(),
     ): ExternalImportCommitResult {
-        return homeSnapshotRepository.runHomeDataMutation {
+        val result = homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
                 commitInTransaction(
                     preview = preview,
@@ -120,6 +120,22 @@ class ExternalImportService @Inject constructor(
                 )
             }
         }
+        logImportedMedicines(preview, result)
+        return result
+    }
+
+    private fun logImportedMedicines(
+        preview: ExternalImportPreview,
+        result: ExternalImportCommitResult,
+    ) {
+        diagnosticsLogger.info(
+            TAG,
+            "external_import_committed_medicines " +
+                "created=${result.importedMedicinesCreated} " +
+                "reused=${result.importedMedicinesReused} " +
+                "createdKeys=${preview.importedMedicinesToCreate.joinToString { it.identityKey }} " +
+                "reusedKeys=${preview.importedMedicinesToReuse.joinToString { it.identityKey }}",
+        )
     }
 
     private suspend fun commitInTransaction(

@@ -148,6 +148,32 @@ class ExternalImportServiceTest {
     }
 
     @Test
+    fun commitLogsImportedMedicineCounts() = runTest {
+        val preview = service.buildPreview(
+            json = transmtfJson(
+                events = """
+                    { "id": "dose-a", "timeH": 1, "route": "oral", "ester": "E2", "doseMG": 2 }
+                """.trimIndent(),
+                labs = "",
+            ),
+            now = NOW,
+        )
+
+        service.commit(preview = preview, now = NOW)
+
+        verify {
+            diagnosticsLogger.info(
+                "ExternalImportService",
+                match { message ->
+                    message.contains("external_import_committed_medicines") &&
+                        message.contains("created=1") &&
+                        message.contains("reused=0")
+                },
+            )
+        }
+    }
+
+    @Test
     fun importSkipsUnsupportedTransmtfE2LabUnitAndCommitsValidRows() = runTest {
         val preview = service.buildPreview(
             json = transmtfJson(
