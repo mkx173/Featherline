@@ -230,7 +230,12 @@ class ExternalImportService @Inject constructor(
             labResults = labResults,
             nowEpochMillis = nowEpochMillis,
         )
-        plan.panelsToUpsert.forEach { panel -> bloodTestDao.insertPanel(panel) }
+        // Upsert (not REPLACE) existing panels: an INSERT OR REPLACE on a panel
+        // cascade-deletes its results (blood_test_results ON DELETE CASCADE),
+        // which would silently drop any user-owned result the user added to an
+        // imported panel for a different analyte. upsertPanel updates in place
+        // and leaves child results untouched.
+        plan.panelsToUpsert.forEach { panel -> bloodTestDao.upsertPanel(panel) }
         if (plan.resultsToUpsert.isNotEmpty()) {
             // REPLACE on the unique (panelUuid, analyte) index evicts an imported
             // result this overwrites; a row moved across panels keeps its uuid so
@@ -277,8 +282,11 @@ class ExternalImportService @Inject constructor(
                 panelUuidByKey[panelKey] = panelWithResults.panel.uuid
             }
         }
-        val importedResultsByExternalId = panelStatesByUuid.values
-            .flatMap { panel -> panel.results }
+        // Index every existing imported result for this source by external id in
+        // one query. Building it from the loaded panels alone would miss a result
+        // whose panel is not imported-for-this-source, forcing a per-row DB
+        // fallback (an N+1 on the very path the bulk panel load avoids).
+        val importedResultsByExternalId = bloodTestDao.getImportedResults(sourceApp)
             .mapNotNull { result ->
                 result.importExternalId?.let { externalId -> externalId to result }
             }
@@ -318,10 +326,6 @@ class ExternalImportService @Inject constructor(
             affectedPanelUuids += targetState.panel.uuid
 
             val existingResult = importedResultsByExternalId[labResult.provenance.externalId]
-                ?: bloodTestDao.getImportedResult(
-                    sourceApp = sourceApp,
-                    externalId = labResult.provenance.externalId,
-                )
             if (existingResult != null) {
                 updated += 1
                 affectedPanelUuids += existingResult.panelUuid

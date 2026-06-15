@@ -245,6 +245,38 @@ class ExternalImportParserTest {
     }
 
     @Test
+    fun encryptedFlagRejectsTruthyOrNonBooleanButAcceptsExplicitFalse() {
+        // A truthy or non-boolean flag must be treated as encrypted and rejected,
+        // so an encrypted payload can never slip past as plaintext just because
+        // the flag arrived as a string or number rather than a boolean true.
+        assertFatal("""{ "encrypted": "yes", "mode": "transfem" }""", "encrypted")
+        assertFatal("""{ "encrypted": "true", "mode": "transfem" }""", "encrypted")
+        assertFatal("""{ "encrypted": 1, "mode": "transfem" }""", "encrypted")
+        assertFatal("""{ "encrypted": 0, "mode": "transfem" }""", "encrypted")
+
+        // Only an explicit boolean false or the string "false" is recognized as
+        // "not encrypted"; the export then parses normally.
+        fun oyamaBody(encrypted: String) =
+            """
+            {
+              "encrypted": $encrypted,
+              "mode": "transfem",
+              "modes": {
+                "transfem": {
+                  "events": [
+                    { "id": "tf-dose", "timeH": 2, "route": "oral", "ester": "EV", "doseMG": 2 }
+                  ],
+                  "labResults": []
+                }
+              }
+            }
+            """.trimIndent()
+
+        assertEquals(ExternalTrackerSourceApp.OYAMA, parser.parse(oyamaBody("false")).sourceApp)
+        assertEquals(ExternalTrackerSourceApp.OYAMA, parser.parse(oyamaBody("\"false\"")).sourceApp)
+    }
+
+    @Test
     fun noMtfAntiandrogenClassificationAndRecordOnlySkipsHappenBeforeCompoundMapping() {
         val result = parser.parse(
             """

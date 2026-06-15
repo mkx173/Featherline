@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -65,6 +66,14 @@ interface BloodTestDao {
         externalId: String,
     ): BloodTestResultEntity?
 
+    @Query(
+        """
+        SELECT * FROM blood_test_results
+        WHERE importSourceApp = :sourceApp
+        """
+    )
+    suspend fun getImportedResults(sourceApp: String): List<BloodTestResultEntity>
+
     @Transaction
     @Query(
         """
@@ -76,6 +85,13 @@ interface BloodTestDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPanel(panel: BloodTestPanelEntity)
+
+    // Insert a new panel or update an existing one in place. Unlike
+    // insertPanel's REPLACE, this never deletes-then-reinserts the row, so the
+    // ON DELETE CASCADE on blood_test_results does not fire and child results
+    // (including user-owned ones) are preserved across an imported-panel update.
+    @Upsert
+    suspend fun upsertPanel(panel: BloodTestPanelEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPanels(panels: List<BloodTestPanelEntity>)

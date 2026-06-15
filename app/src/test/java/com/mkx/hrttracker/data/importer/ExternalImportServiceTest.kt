@@ -537,6 +537,70 @@ class ExternalImportServiceTest {
     }
 
     @Test
+    fun reimportUpdatingImportedPanelPreservesUserOwnedResultForDifferentAnalyte() = runTest {
+        service.commit(
+            service.buildPreview(
+                transmtfJson(
+                    events = "",
+                    labs = """
+                        { "id": "lab-a", "timeH": 2, "unit": "pg/ml", "value": 120 }
+                    """.trimIndent(),
+                )
+            ),
+            now = NOW,
+        )
+        val importedPanel = checkNotNull(database.bloodTestDao().getImportedPanel("transmtf", 7_200_000L))
+        val importedResult = importedPanel.results.single()
+        // The user adds a result for a *different* analyte (testosterone) to the
+        // imported panel, keeping the imported e2 result alongside it.
+        val userOwnedResult = BloodTestResultEntity(
+            uuid = "00000000-0000-0000-0000-000000000152",
+            panelUuid = importedPanel.panel.uuid,
+            createdAtEpochMillis = NOW.plusSeconds(30).toEpochMilli(),
+            displayOrder = 1,
+            builtinAnalyteKey = "t",
+            customAnalyteUuid = null,
+            value = 5.0,
+            unitSnapshot = "ng_ml",
+            canonicalValue = 5.0,
+            importSourceApp = null,
+            importExternalId = null,
+        )
+        database.bloodTestDao().insertResults(listOf(userOwnedResult))
+
+        // Re-importing lab-a updates the e2 result. It is not a user conflict
+        // (different analyte), so the panel is upserted — the panel REPLACE must
+        // not cascade-delete the user's testosterone result.
+        val preview = service.buildPreview(
+            transmtfJson(
+                events = "",
+                labs = """
+                    { "id": "lab-a", "timeH": 2, "unit": "pg/ml", "value": 125 }
+                """.trimIndent(),
+            ),
+            now = NOW.plusSeconds(60),
+        )
+
+        assertEquals(0, preview.labRowsToCreate)
+        assertEquals(1, preview.labRowsToUpdate)
+        assertEquals(emptyList<ExternalImportWarningReason>(), preview.warningReasons())
+
+        val result = service.commit(preview, now = NOW.plusSeconds(60))
+
+        assertEquals(0, result.labRowsCreated)
+        assertEquals(1, result.labRowsUpdated)
+
+        val panelAfter = checkNotNull(database.bloodTestDao().getImportedPanel("transmtf", 7_200_000L))
+        assertEquals(2, panelAfter.results.size)
+        // The user-owned testosterone result survives untouched.
+        assertEquals(userOwnedResult, panelAfter.results.single { row -> row.importSourceApp == null })
+        // The imported e2 result is updated in place (same row, new value).
+        val updatedImported = panelAfter.results.single { row -> row.importExternalId == "lab-a" }
+        assertEquals(importedResult.uuid, updatedImported.uuid)
+        assertEquals(125.0, updatedImported.value, 1e-9)
+    }
+
+    @Test
     fun patchRemoveImportsPatchOffLogWithNullMedicineUuid() = runTest {
         service.commit(
             service.buildPreview(

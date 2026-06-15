@@ -76,12 +76,13 @@ class ExternalImportParser @Inject constructor() {
     }
 
     private fun detectSource(root: Map<String, Any?>): ExternalTrackerSourceApp {
-        // Reject anything that is not explicitly non-encrypted: the flag may
-        // arrive as a non-boolean truthy value (number 1, "yes"), and treating
-        // those as "not encrypted" would feed an encrypted payload into the
-        // parser and surface a confusing downstream error instead of this one.
+        // Reject the export unless the encrypted flag is explicitly a recognized
+        // "not encrypted" value (boolean false or the string "false"). A truthy
+        // or non-boolean flag — number 1, "yes" — is treated as encrypted, so an
+        // encrypted payload can never slip past as plaintext and surface a
+        // confusing downstream error instead of this one.
         val encrypted = root["encrypted"]
-        if (encrypted != null && boolean(encrypted) != false) {
+        if (encrypted != null && !encrypted.isNotEncryptedFlag()) {
             throw ExternalImportFatalException("Encrypted Oyama exports are not supported.")
         }
 
@@ -1276,11 +1277,11 @@ class ExternalImportParser @Inject constructor() {
         }
     }
 
-    private fun boolean(value: Any?): Boolean? {
-        return when (value) {
-            is Boolean -> value
-            is String -> value.equals("true", ignoreCase = true)
-            else -> null
+    private fun Any?.isNotEncryptedFlag(): Boolean {
+        return when (this) {
+            is Boolean -> !this
+            is String -> equals("false", ignoreCase = true)
+            else -> false
         }
     }
 
