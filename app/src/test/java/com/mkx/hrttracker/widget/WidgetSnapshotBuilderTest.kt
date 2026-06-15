@@ -304,6 +304,30 @@ class WidgetSnapshotBuilderTest {
         assertEquals(false, isEmptySetup(snapshot))
     }
 
+    @Test
+    fun marksImportedManualLogRows() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        stubMedicationStrings()
+        val imported = testMedicationLogEntry(
+            sourceGroupUuid = null,
+            appliedAt = now.atZone(zoneId).toInstant(),
+        ).copy(
+            importSourceApp = "transmtf",
+            importExternalId = "dose-1",
+        )
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = context,
+            homeSnapshot = homeSnapshotRecord(now = now, activeGroups = emptyList())
+                .copy(scheduleEntries = listOf(imported)),
+            settings = SettingsState(),
+            now = now,
+            zoneId = zoneId,
+        )
+
+        assertEquals(true, snapshot.doseRows.single().isImportedRecord)
+    }
+
     private fun stubMedicationStrings() {
         every { context.getString(R.string.medication_name_bicalutamide) } returns "Bicalutamide"
         every { context.getString(R.string.medication_application_oral) } returns "Oral"

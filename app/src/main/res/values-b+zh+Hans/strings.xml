@@ -579,6 +579,7 @@
     <string name="external_import_cancel">取消</string>
     <string name="external_import_failed">无法导入所选 JSON</string>
     <string name="external_import_success">外部跟踪器数据已导入</string>
+    <string name="external_tracker_record_indicator">已导入的外部跟踪器记录</string>
     <string name="external_import_warning_source_fallback">无法明确识别来源，已按 Transmtf 兼容格式处理</string>
     <string name="external_import_warning_medication_non_object_row">已跳过非对象的用药行</string>
     <string name="external_import_warning_medication_missing_id">已跳过缺少外部 ID 的用药行</string>

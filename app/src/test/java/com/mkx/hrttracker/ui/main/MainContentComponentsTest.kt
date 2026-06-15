@@ -18,6 +18,45 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainContentComponentsTest {
     @Test
+    fun mainTodayDoseRowIndicatorIconRes_usesDownloadForImportedRows() {
+        val row = scheduledTodayRow(
+            groupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
+            scheduleTimeUuid = null,
+            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
+            medicationUuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
+        ).copy(
+            isManualRecord = true,
+            isImportedRecord = true,
+        )
+
+        assertEquals(R.drawable.ic_download, mainTodayDoseRowIndicatorIconRes(row))
+    }
+
+    @Test
+    fun mainTodayDoseRowIndicatorIconRes_keepsEditForLocalManualRows() {
+        val row = scheduledTodayRow(
+            groupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
+            scheduleTimeUuid = null,
+            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
+            medicationUuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
+        ).copy(isManualRecord = true)
+
+        assertEquals(R.drawable.ic_edit_square, mainTodayDoseRowIndicatorIconRes(row))
+    }
+
+    @Test
+    fun mainTodayDoseRowIndicatorIconRes_omitsIconForScheduledRows() {
+        val row = scheduledTodayRow(
+            groupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
+            scheduleTimeUuid = null,
+            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
+            medicationUuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
+        )
+
+        assertNull(mainTodayDoseRowIndicatorIconRes(row))
+    }
+
+    @Test
     fun runDoseRowHighlightPulse_risesToPeakThenFallsToZeroWithoutPlateau() = runTest {
         // The pulse must be a single rise-then-fall sweep ending at fully
         // transparent: a peak leg up to DoseRowHighlightPeakAlpha followed by a

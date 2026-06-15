@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -158,6 +160,20 @@ import java.util.UUID
 private const val HistoryCalendarNavigationSettleTimeoutMillis = 500L
 private val HistorySelectionFabHideScrollThreshold = 48.dp
 private val HistorySelectionFabShowScrollThreshold = 24.dp
+
+@DrawableRes
+internal fun historyEntryIndicatorIconRes(entry: MedicationLogEntry): Int? = when {
+    entry.importSourceApp != null -> R.drawable.ic_download
+    entry.sourceGroupUuid == null -> R.drawable.ic_edit_square
+    else -> null
+}
+
+@StringRes
+private fun historyEntryIndicatorContentDescriptionRes(entry: MedicationLogEntry): Int? = when {
+    entry.importSourceApp != null -> R.string.external_tracker_record_indicator
+    entry.sourceGroupUuid == null -> R.string.plan_entry_label_manual
+    else -> null
+}
 
 @Composable
 fun HistoryScreen(
@@ -2208,7 +2224,8 @@ private fun HistoryEntryCard(
         trailingContent = {
             val deviceZone = remember { ZoneId.systemDefault() }
             val crossZone = remember(entry) { isCrossZone(entry, deviceZone) }
-            val isManualEntry = entry.sourceGroupUuid == null
+            val indicatorIconRes = historyEntryIndicatorIconRes(entry)
+            val indicatorContentDescriptionRes = historyEntryIndicatorContentDescriptionRes(entry)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -2223,10 +2240,10 @@ private fun HistoryEntryCard(
                         modifier = Modifier.size(18.dp)
                     )
                 }
-                if (isManualEntry) {
+                if (indicatorIconRes != null && indicatorContentDescriptionRes != null) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_edit_square),
-                        contentDescription = stringResource(R.string.plan_entry_label_manual),
+                        painter = painterResource(indicatorIconRes),
+                        contentDescription = stringResource(indicatorContentDescriptionRes),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(17.dp)
                     )

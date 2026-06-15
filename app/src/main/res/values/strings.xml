@@ -599,6 +599,7 @@
     <string name="external_import_cancel">Cancel</string>
     <string name="external_import_failed">Unable to import selected JSON</string>
     <string name="external_import_success">External tracker data imported</string>
+    <string name="external_tracker_record_indicator">Imported external tracker record</string>
     <string name="external_import_warning_source_fallback">Source was not positively identified; using Transmtf-compatible fallback semantics.</string>
     <string name="external_import_warning_medication_non_object_row">Skipped non-object medication row.</string>
     <string name="external_import_warning_medication_missing_id">Skipped medication row without an external id.</string>

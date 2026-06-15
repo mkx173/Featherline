@@ -2938,13 +2938,30 @@ private fun MainAntiandrogenCardHeader(
     }
 }
 
+@DrawableRes
+internal fun mainTodayDoseRowIndicatorIconRes(row: MainTodayDoseRowUiState): Int? = when {
+    row.isImportedRecord -> R.drawable.ic_download
+    row.isManualRecord -> R.drawable.ic_edit_square
+    else -> null
+}
+
+@StringRes
+private fun mainTodayDoseRowIndicatorContentDescriptionRes(row: MainTodayDoseRowUiState): Int? =
+    when {
+        row.isImportedRecord -> R.string.external_tracker_record_indicator
+        row.isManualRecord -> R.string.plan_entry_label_manual
+        else -> null
+    }
+
 @Composable
-private fun MainManualRecordIcon(
+private fun MainRecordIndicatorIcon(
+    @DrawableRes iconDrawableRes: Int,
+    @StringRes contentDescriptionRes: Int,
     modifier: Modifier = Modifier
 ) {
     Icon(
-        painter = painterResource(R.drawable.ic_edit_square),
-        contentDescription = stringResource(R.string.plan_entry_label_manual),
+        painter = painterResource(iconDrawableRes),
+        contentDescription = stringResource(contentDescriptionRes),
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.size(17.dp)
     )
@@ -3715,12 +3732,14 @@ private fun MainTodayTrailingContent(
     }
 
     val hasTextLabel = textLabel != null && textLabel.text.isNotBlank()
+    val indicatorIconRes = mainTodayDoseRowIndicatorIconRes(row)
+    val indicatorContentDescriptionRes = mainTodayDoseRowIndicatorContentDescriptionRes(row)
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (row.isFromArchivedGroup || row.isManualRecord || hasTextLabel) {
+        if (row.isFromArchivedGroup || indicatorIconRes != null || hasTextLabel) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -3733,8 +3752,11 @@ private fun MainTodayTrailingContent(
                         modifier = Modifier.size(18.dp)
                     )
                 }
-                if (row.isManualRecord) {
-                    MainManualRecordIcon()
+                if (indicatorIconRes != null && indicatorContentDescriptionRes != null) {
+                    MainRecordIndicatorIcon(
+                        iconDrawableRes = indicatorIconRes,
+                        contentDescriptionRes = indicatorContentDescriptionRes,
+                    )
                 }
                 if (textLabel != null && textLabel.text.isNotBlank()) {
                     Text(

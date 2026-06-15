@@ -182,6 +182,7 @@ private fun MedicationLogEntry.toManualWidgetDoseRow(
         scheduledAt = appliedAt.atZone(zoneId).toLocalDateTime(),
         trailingText = context.getString(R.string.plan_entry_label_manual),
         isManualRecord = true,
+        isImportedRecord = importSourceApp != null,
         isFromArchivedGroup = isFromArchivedGroup,
         contextChip = contextChip,
         groupUuid = null,
