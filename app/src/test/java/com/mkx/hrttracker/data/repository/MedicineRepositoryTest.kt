@@ -756,6 +756,26 @@ class MedicineRepositoryTest {
     }
 
     @Test
+    fun toMedicineModel_rejectsImportedMedicineWhoseDoseKeyDisagreesWithPreparation() {
+        // The imported key's sourceApp/route can't be re-derived here, but its
+        // dose-key segment can: a stored key claiming a different dose than the
+        // preparation it backs must be rejected, not silently trusted, so a dose
+        // can never be routed to a medicine of the wrong strength.
+        val tampered = importedInjectionEntity().copy(
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = "mg:10",
+            ),
+        )
+
+        assertThrows(IllegalStateException::class.java) {
+            tampered.toMedicineModel()
+        }
+    }
+
+    @Test
     fun toMedicineModel_rejectsNonImportedMedicineWithImportedOnlyPreparation() {
         val entity = importedInjectionEntity(importedFromExternalTracker = false)
 
@@ -1243,7 +1263,7 @@ class MedicineRepositoryTest {
                 sourceApp = "NoMTF",
                 applicationType = MedicationApplicationType.ORAL,
                 compound = "ESTRADIOL",
-                doseKey = "2",
+                doseKey = "mg:2",
             ),
             importedFromExternalTracker = true,
         )
@@ -1259,7 +1279,7 @@ class MedicineRepositoryTest {
                 sourceApp = "NoMTF",
                 applicationType = MedicationApplicationType.PATCH_ON,
                 compound = "ESTRADIOL_PATCH",
-                doseKey = "100mcgPerDay",
+                doseKey = "rate:100",
             ),
             importedFromExternalTracker = true,
         )
@@ -1281,7 +1301,7 @@ class MedicineRepositoryTest {
                 sourceApp = "NoMTF",
                 applicationType = MedicationApplicationType.INJECTION,
                 compound = "ESTRADIOL_VALERATE",
-                doseKey = "5",
+                doseKey = "mg:5",
             ),
             importedFromExternalTracker = importedFromExternalTracker,
         )
@@ -1301,7 +1321,7 @@ class MedicineRepositoryTest {
                 sourceApp = "NoMTF",
                 applicationType = MedicationApplicationType.GEL,
                 compound = "ESTRADIOL_GEL",
-                doseKey = "1.5",
+                doseKey = "mg:1.5",
             ),
             importedFromExternalTracker = true,
         )

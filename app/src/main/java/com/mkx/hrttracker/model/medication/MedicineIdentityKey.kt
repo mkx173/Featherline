@@ -59,9 +59,59 @@ object MedicineIdentityKey {
     fun canonicalDouble(value: Double): String {
         require(value > 0.0 && !value.isNaN() && !value.isInfinite())
         return BigDecimal.valueOf(value)
+            .setScale(6, RoundingMode.HALF_UP)
+            .stripTrailingZeros()
+            .toPlainString()
+    }
+
+    // Imported identity keys (E|...) round dose magnitudes to 6 significant
+    // figures rather than the 6 decimal places catalog/custom keys use. Source
+    // dose values can carry float-reconstruction noise (e.g. NoMTF dividing an
+    // E2-equivalent by a ratio) and dose magnitudes are small, so significant-
+    // figure rounding collapses that noise without splitting an identity. This
+    // is import-only: catalog/custom keys persisted before this existed were
+    // encoded with canonicalDouble (setScale) and must keep recomputing to the
+    // same string, so they must not be routed through here.
+    fun canonicalImportedDose(value: Double): String {
+        require(value > 0.0 && !value.isNaN() && !value.isInfinite())
+        return BigDecimal.valueOf(value)
             .round(MathContext(6, RoundingMode.HALF_UP))
             .stripTrailingZeros()
             .toPlainString()
+    }
+
+    // The dose-key segment of an imported (E|...) identity key, derived from the
+    // preparation alone. The importer uses this to build a key and the restore /
+    // read boundaries use it to verify a stored key against its preparation, so
+    // the two can never derive the segment differently. The sourceApp and route
+    // segments of an imported key are not recoverable from the entity, so this
+    // is the one component a read boundary can re-check.
+    fun importedDoseKey(preparation: MedicinePreparation): String = when (preparation) {
+        is MedicinePreparation.Pill ->
+            "mg:${canonicalImportedDose(preparation.strengthMgPerTablet)}"
+
+        is MedicinePreparation.ImportedInjection ->
+            "mg:${canonicalImportedDose(preparation.administeredMg)}"
+
+        is MedicinePreparation.ImportedGel ->
+            "mg:${canonicalImportedDose(preparation.appliedEstradiolMg)}"
+
+        is MedicinePreparation.Patch -> when (val specification = preparation.specification) {
+            is MedicinePreparation.PatchSpecification.TotalMg ->
+                "totalmg:${canonicalImportedDose(specification.valueMg)}"
+
+            is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay ->
+                "rate:${canonicalImportedDose(specification.valueMcgPerDay)}"
+        }
+
+        is MedicinePreparation.Capsule,
+        is MedicinePreparation.InjectionSingleUseVial,
+        is MedicinePreparation.InjectionMultiUseVial,
+        is MedicinePreparation.GelSachet,
+        is MedicinePreparation.GelContainer,
+        is MedicinePreparation.PatchOff,
+        ->
+            error("Preparation ${preparation::class.simpleName} is not an importable form.")
     }
 
     private fun StringBuilder.appendPreparationFields(preparation: MedicinePreparation) {

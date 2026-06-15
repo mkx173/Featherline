@@ -1214,7 +1214,7 @@ class BackupRestoreServiceTest {
                 sourceApp = "transmtf",
                 applicationType = MedicationApplicationType.ORAL,
                 compound = "ESTRADIOL",
-                doseKey = "2",
+                doseKey = "mg:2",
             ),
             createdAtEpochMillis = 100L,
             updatedAtEpochMillis = 100L,

@@ -41,20 +41,16 @@ class ExternalImportService @Inject constructor(
         val medicineDao = database.medicineDao()
         val bloodTestDao = database.bloodTestDao()
 
-        var medicationRowsToCreate = 0
-        var medicationRowsToUpdate = 0
-        parseResult.medicationDoses.forEach { dose ->
-            if (
-                medicationDao.getImportedEntry(
-                    sourceApp = sourceApp,
-                    externalId = dose.provenance.externalId,
-                ) == null
-            ) {
-                medicationRowsToCreate += 1
-            } else {
-                medicationRowsToUpdate += 1
+        // Bulk-load the existing imported rows once rather than querying per
+        // dose and per medicine identity: a preview of N doses across K
+        // medicines must not fan out into N+K round-trips on the preview path.
+        val existingDoseExternalIds = medicationDao.getImportedEntries(sourceApp)
+            .mapNotNull { entry -> entry.importExternalId }
+            .toHashSet()
+        val (medicationRowsToUpdate, medicationRowsToCreate) =
+            parseResult.medicationDoses.partition { dose ->
+                dose.provenance.externalId in existingDoseExternalIds
             }
-        }
 
         // Run the same reconciliation commit uses, as a read-only dry run that
         // writes nothing, so the review summary's lab tally and skip warnings can
@@ -70,9 +66,13 @@ class ExternalImportService @Inject constructor(
         val labRowsToUpdate = labPlan.updated
         val labWarnings = labPlan.warnings
 
+        val distinctIdentities = parseResult.distinctMedicineIdentities()
+        val existingMedicineIdentityKeys = medicineDao
+            .getImportedByIdentityKeys(distinctIdentities.map { identity -> identity.identityKey })
+            .mapTo(mutableSetOf()) { medicine -> medicine.identityKey }
         val (importedMedicinesToReuse, importedMedicinesToCreate) =
-            parseResult.distinctMedicineIdentities().partition { identity ->
-                medicineDao.getImportedByIdentityKey(identity.identityKey) != null
+            distinctIdentities.partition { identity ->
+                identity.identityKey in existingMedicineIdentityKeys
             }
         val warnings = parseResult.warnings + labWarnings
         logPreviewWarnings(
@@ -83,8 +83,8 @@ class ExternalImportService @Inject constructor(
         return ExternalImportPreview(
             parseResult = parseResult,
             sourceAppLabel = parseResult.sourceApp.label,
-            medicationRowsToCreate = medicationRowsToCreate,
-            medicationRowsToUpdate = medicationRowsToUpdate,
+            medicationRowsToCreate = medicationRowsToCreate.size,
+            medicationRowsToUpdate = medicationRowsToUpdate.size,
             labRowsToCreate = labRowsToCreate,
             labRowsToUpdate = labRowsToUpdate,
             importedMedicinesToCreate = importedMedicinesToCreate,
@@ -136,11 +136,19 @@ class ExternalImportService @Inject constructor(
         val bloodTestDao = database.bloodTestDao()
         val nowEpochMillis = now.toEpochMilli()
 
+        // Resolve existing imported medicines and dose rows with one bulk query
+        // each instead of a query per identity / per dose, mirroring the preview
+        // path so the commit does not re-incur the same N+K round-trips.
+        val distinctIdentities = parseResult.distinctMedicineIdentities()
+        val existingMedicinesByIdentityKey = medicineDao
+            .getImportedByIdentityKeys(distinctIdentities.map { identity -> identity.identityKey })
+            .associateBy { medicine -> medicine.identityKey }
+
         var importedMedicinesCreated = 0
         var importedMedicinesReused = 0
         val importedMedicineByIdentityKey = mutableMapOf<String, MedicineEntity>()
-        parseResult.distinctMedicineIdentities().forEach { identity ->
-            val existing = medicineDao.getImportedByIdentityKey(identity.identityKey)
+        distinctIdentities.forEach { identity ->
+            val existing = existingMedicinesByIdentityKey[identity.identityKey]
             if (existing != null) {
                 importedMedicinesReused += 1
                 importedMedicineByIdentityKey[identity.identityKey] = existing
@@ -165,30 +173,30 @@ class ExternalImportService @Inject constructor(
             }
         }
 
+        val existingEntriesByExternalId = medicationDao.getImportedEntries(sourceApp)
+            .mapNotNull { entry -> entry.importExternalId?.let { externalId -> externalId to entry } }
+            .toMap()
+
         var medicationRowsCreated = 0
         var medicationRowsUpdated = 0
-        parseResult.medicationDoses.forEach { dose ->
-            val existing = medicationDao.getImportedEntry(
-                sourceApp = sourceApp,
-                externalId = dose.provenance.externalId,
-            )
+        val entriesToInsert = parseResult.medicationDoses.map { dose ->
+            val existing = existingEntriesByExternalId[dose.provenance.externalId]
             if (existing == null) {
                 medicationRowsCreated += 1
             } else {
                 medicationRowsUpdated += 1
             }
-            medicationDao.insertEntry(
-                dose.toEntity(
-                    uuid = existing?.uuid ?: UUID.randomUUID().toString(),
-                    medicineUuid = dose.medicineIdentity?.let { identity ->
-                        checkNotNull(importedMedicineByIdentityKey[identity.identityKey]) {
-                            "Imported medicine ${identity.identityKey} was not resolved."
-                        }.uuid
-                    },
-                    sourceApp = sourceApp,
-                )
+            dose.toEntity(
+                uuid = existing?.uuid ?: UUID.randomUUID().toString(),
+                medicineUuid = dose.medicineIdentity?.let { identity ->
+                    checkNotNull(importedMedicineByIdentityKey[identity.identityKey]) {
+                        "Imported medicine ${identity.identityKey} was not resolved."
+                    }.uuid
+                },
+                sourceApp = sourceApp,
             )
         }
+        medicationDao.insertEntries(entriesToInsert)
 
         val labCommitResult = reconcileLabResults(
             database = database,

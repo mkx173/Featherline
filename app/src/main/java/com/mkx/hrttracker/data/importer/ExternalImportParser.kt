@@ -76,7 +76,12 @@ class ExternalImportParser @Inject constructor() {
     }
 
     private fun detectSource(root: Map<String, Any?>): ExternalTrackerSourceApp {
-        if (boolean(root["encrypted"]) == true) {
+        // Reject anything that is not explicitly non-encrypted: the flag may
+        // arrive as a non-boolean truthy value (number 1, "yes"), and treating
+        // those as "not encrypted" would feed an encrypted payload into the
+        // parser and surface a confusing downstream error instead of this one.
+        val encrypted = root["encrypted"]
+        if (encrypted != null && boolean(encrypted) != false) {
             throw ExternalImportFatalException("Encrypted Oyama exports are not supported.")
         }
 
@@ -150,21 +155,20 @@ class ExternalImportParser @Inject constructor() {
         if (sourceApp == ExternalTrackerSourceApp.OYAMA) {
             val modes = content["modes"].asMap()
             if (modes != null) {
-                val modeName = "transfem"
-                return modes.valueByKey(modeName)
+                return modes.valueByKey("transfem")
                     .asMap()
                     ?.get("events")
                     .asList()
                     .orEmpty()
                     .mapIndexed { index, rawRow ->
-                        MedicationRow(row = rawRow.asMap(), rowIndex = index, modeName = modeName)
+                        MedicationRow(row = rawRow.asMap(), rowIndex = index)
                     }
             }
         }
         return content["events"].asList()
             .orEmpty()
             .mapIndexed { index, rawRow ->
-                MedicationRow(row = rawRow.asMap(), rowIndex = index, modeName = null)
+                MedicationRow(row = rawRow.asMap(), rowIndex = index)
             }
     }
 
@@ -188,7 +192,6 @@ class ExternalImportParser @Inject constructor() {
                             LabRow(
                                 row = rawRow.asMap(),
                                 rowIndex = index,
-                                modeName = modeName,
                                 sourceAnalyte = analyte,
                             )
                         }
@@ -197,7 +200,7 @@ class ExternalImportParser @Inject constructor() {
             return content["labResults"].asList()
                 .orEmpty()
                 .mapIndexed { index, rawRow ->
-                    LabRow(row = rawRow.asMap(), rowIndex = index, modeName = null, sourceAnalyte = BloodAnalyteKey.E2)
+                    LabRow(row = rawRow.asMap(), rowIndex = index, sourceAnalyte = BloodAnalyteKey.E2)
                 }
         }
 
@@ -207,7 +210,6 @@ class ExternalImportParser @Inject constructor() {
                 LabRow(
                     row = rawRow.asMap(),
                     rowIndex = index,
-                    modeName = null,
                     sourceAnalyte = if (sourceApp == ExternalTrackerSourceApp.NOMTF) null else BloodAnalyteKey.E2,
                 )
             }
@@ -530,7 +532,7 @@ class ExternalImportParser @Inject constructor() {
                 sourceApp = sourceApp.storageValue,
                 applicationType = applicationType,
                 compound = compoundIdentity,
-                doseKey = doseKey("mg", doseMg),
+                doseKey = MedicineIdentityKey.importedDoseKey(preparation),
             ),
             displayName = medicationKey.displayName(),
             category = MedicationCategory.ANTIANDROGEN,
@@ -589,7 +591,6 @@ class ExternalImportParser @Inject constructor() {
                 specification = MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
                     releaseRateMcgPerDay,
                 ),
-                doseKey = doseKey("rate", releaseRateMcgPerDay),
             )
         }
 
@@ -650,7 +651,6 @@ class ExternalImportParser @Inject constructor() {
                 externalId = externalId,
                 timeH = timeH,
                 specification = MedicinePreparation.PatchSpecification.TotalMg(doseMg),
-                doseKey = doseKey("totalmg", doseMg),
             )
 
             ExternalRoute.PATCH_REMOVE -> patchRemoveCandidate(sourceApp, externalId, timeH)
@@ -678,7 +678,7 @@ class ExternalImportParser @Inject constructor() {
                 sourceApp = sourceApp.storageValue,
                 applicationType = applicationType,
                 compound = compoundKey.name,
-                doseKey = doseKey("mg", administeredDoseMg),
+                doseKey = MedicineIdentityKey.importedDoseKey(preparation),
             ),
             displayName = compoundKey.displayName(),
             category = MedicationCategory.ESTRADIOL,
@@ -716,7 +716,7 @@ class ExternalImportParser @Inject constructor() {
                 sourceApp = sourceApp.storageValue,
                 applicationType = MedicationApplicationType.INJECTION,
                 compound = compoundKey.name,
-                doseKey = doseKey("mg", administeredDoseMg),
+                doseKey = MedicineIdentityKey.importedDoseKey(preparation),
             ),
             displayName = EXTERNAL_TRACKER_DISPLAY_NAME,
             category = MedicationCategory.ESTRADIOL,
@@ -749,7 +749,7 @@ class ExternalImportParser @Inject constructor() {
                 sourceApp = sourceApp.storageValue,
                 applicationType = MedicationApplicationType.GEL,
                 compound = MedicationKey.ESTRADIOL.name,
-                doseKey = doseKey("mg", appliedEstradiolMg),
+                doseKey = MedicineIdentityKey.importedDoseKey(preparation),
             ),
             displayName = EXTERNAL_TRACKER_DISPLAY_NAME,
             category = MedicationCategory.ESTRADIOL,
@@ -774,7 +774,6 @@ class ExternalImportParser @Inject constructor() {
         externalId: String,
         timeH: Double,
         specification: MedicinePreparation.PatchSpecification,
-        doseKey: String,
     ): ExternalImportCandidate.MedicationDose {
         val doseInstruction = DoseInstruction.WholeUnit
         val preparation = MedicinePreparation.Patch(specification)
@@ -783,7 +782,7 @@ class ExternalImportParser @Inject constructor() {
                 sourceApp = sourceApp.storageValue,
                 applicationType = MedicationApplicationType.PATCH_ON,
                 compound = MedicationKey.ESTRADIOL_PATCH.name,
-                doseKey = doseKey,
+                doseKey = MedicineIdentityKey.importedDoseKey(preparation),
             ),
             displayName = MedicationKey.ESTRADIOL_PATCH.displayName(),
             category = MedicationCategory.ESTRADIOL,
@@ -1166,9 +1165,6 @@ class ExternalImportParser @Inject constructor() {
         return dose.takeIf { it.isFinite() && it > 0.0 }
     }
 
-    private fun doseKey(prefix: String, value: Double): String =
-        "$prefix:${MedicineIdentityKey.canonicalDouble(value)}"
-
     private fun epochMillisFromTimeH(value: Double): Long =
         round(value * 3_600_000.0).toLong()
 
@@ -1240,12 +1236,12 @@ class ExternalImportParser @Inject constructor() {
         return text(root["meta"].asMap()?.valueByKey(key))
     }
 
-    private fun Any?.asMap(): Map<String, Any?>? {
-        val map = this as? Map<*, *> ?: return null
-        return map.entries.mapNotNull { (key, value) ->
-            (key as? String)?.let { stringKey -> stringKey to value }
-        }.toMap()
-    }
+    // Moshi decodes every JSON object as a Map with String keys, so a checked
+    // cast suffices; rebuilding a filtered copy on each call (asMap runs many
+    // times over the same nodes during detection and per-row field access) only
+    // adds allocations and GC pressure.
+    @Suppress("UNCHECKED_CAST")
+    private fun Any?.asMap(): Map<String, Any?>? = this as? Map<String, Any?>
 
     private fun Any?.asList(): List<Any?>? = this as? List<Any?>
 
@@ -1289,19 +1285,17 @@ class ExternalImportParser @Inject constructor() {
     }
 
     private fun String?.normalizedToken(): String? {
-        return this?.lowercase(Locale.ROOT)?.replace(Regex("[^a-z0-9]"), "")
+        return this?.lowercase(Locale.ROOT)?.replace(NON_ALPHANUMERIC_REGEX, "")
     }
 
     private data class MedicationRow(
         val row: Map<String, Any?>?,
         val rowIndex: Int,
-        val modeName: String?,
     )
 
     private data class LabRow(
         val row: Map<String, Any?>?,
         val rowIndex: Int,
-        val modeName: String?,
         val sourceAnalyte: BloodAnalyteKey?,
     )
 
@@ -1337,5 +1331,10 @@ class ExternalImportParser @Inject constructor() {
 
     private companion object {
         private const val EXTERNAL_TRACKER_DISPLAY_NAME = "External tracker"
+
+        // Compiled once and reused: normalizedToken() runs for many fields on
+        // every medication and lab row, so recompiling this per call would
+        // rebuild the same immutable pattern thousands of times per import.
+        private val NON_ALPHANUMERIC_REGEX = Regex("[^a-z0-9]")
     }
 }

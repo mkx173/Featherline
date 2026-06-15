@@ -41,6 +41,15 @@ interface MedicationLogDao {
     @Query(
         """
         SELECT * FROM medication_log_entries
+        WHERE importSourceApp = :sourceApp
+          AND importExternalId IS NOT NULL
+        """
+    )
+    suspend fun getImportedEntries(sourceApp: String): List<MedicationLogEntryEntity>
+
+    @Query(
+        """
+        SELECT * FROM medication_log_entries
         WHERE uuid IN (:uuids)
         """
     )

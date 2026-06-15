@@ -478,14 +478,14 @@ class HomeSnapshotCodecTest {
             ),
             applicationType = MedicationApplicationType.INJECTION,
             compound = "ESTRADIOL_VALERATE",
-            doseKey = "5",
+            doseKey = "mg:5",
         )
         val importedGel = importedMedicine(
             uuid = UUID.fromString("eeee0000-0000-0000-0000-000000000002"),
             preparation = MedicinePreparation.ImportedGel(appliedEstradiolMg = 1.5),
             applicationType = MedicationApplicationType.GEL,
             compound = "ESTRADIOL_GEL",
-            doseKey = "1.5",
+            doseKey = "mg:1.5",
         )
         val record = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,

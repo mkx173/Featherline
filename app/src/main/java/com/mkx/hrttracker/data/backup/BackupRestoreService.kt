@@ -1040,12 +1040,8 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
         require(identityKey.startsWith("E|")) {
             "Imported external medicine $uuid identityKey must start with E|."
         }
-        require(stock?.trackingEnabled != true) {
-            "Imported external medicines cannot track stock."
-        }
-        require(stock == null) {
-            "Imported external medicines cannot include stock blocks."
-        }
+        // The imported-medicine stock invariants are enforced once below in
+        // validateImportedMedicineInvariants(), which runs on this same path.
     }
 
     val resolvedSelection: MedicineSelection = when {
@@ -1151,6 +1147,17 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
     if (!importedFromExternalTracker) {
         require(identityKey == expectedIdentityKey) {
             "Medicine $uuid identityKey does not match its selection and preparation."
+        }
+    } else {
+        // sourceApp and route live only inside the E| key, so it cannot be
+        // recomputed in full here; verify the dose-key segment, which IS
+        // derivable from the preparation, so a tampered backup cannot bind a
+        // dose to a medicine whose key claims a different dose.
+        require(
+            identityKey.substringAfterLast("|") ==
+                MedicineIdentityKey.importedDoseKey(resolvedPreparation)
+        ) {
+            "Imported medicine $uuid dose key does not match its preparation."
         }
     }
 

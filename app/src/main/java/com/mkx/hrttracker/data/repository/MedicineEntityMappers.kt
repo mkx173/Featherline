@@ -250,6 +250,13 @@ private fun MedicineEntity.validateIdentityFields(
     preparation: MedicinePreparation,
 ) {
     if (importedFromExternalTracker && identityKey.startsWith("E|")) {
+        // The sourceApp and route segments of an imported key are stored only in
+        // the key itself, so the full key cannot be recomputed here; verify the
+        // dose-key segment, which is derivable from the preparation, so a stored
+        // key cannot disagree with the dose it backs.
+        check(identityKey.substringAfterLast("|") == MedicineIdentityKey.importedDoseKey(preparation)) {
+            "Imported medicine $uuid dose key does not match its preparation."
+        }
         return
     }
 

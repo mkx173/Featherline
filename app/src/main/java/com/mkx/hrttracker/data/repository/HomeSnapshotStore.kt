@@ -593,7 +593,17 @@ internal object HomeSnapshotCodec {
         } else {
             rawSelection
         }
-        if (!(importedFromExternalTracker && storedIdentityKey.startsWith("E|"))) {
+        if (importedFromExternalTracker && storedIdentityKey.startsWith("E|")) {
+            // Imported keys embed sourceApp + route, which are not recoverable
+            // here; verify the dose-key segment, which is derivable from the
+            // preparation, so a cached key cannot disagree with the dose it backs.
+            check(
+                storedIdentityKey.substringAfterLast("|") ==
+                    MedicineIdentityKey.importedDoseKey(preparation)
+            ) {
+                "Cached imported medicine $uuid dose key does not match its preparation."
+            }
+        } else {
             val expectedIdentityKey = when (selection) {
                 is MedicineSelection.Catalog ->
                     MedicineIdentityKey.catalog(selection.medicationKey, preparation)

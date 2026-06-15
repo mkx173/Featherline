@@ -89,6 +89,15 @@ interface MedicineDao {
     )
     suspend fun getImportedByIdentityKey(identityKey: String): MedicineEntity?
 
+    @Query(
+        """
+        SELECT * FROM medicines
+        WHERE importedFromExternalTracker = 1
+          AND identityKey IN (:identityKeys)
+        """
+    )
+    suspend fun getImportedByIdentityKeys(identityKeys: List<String>): List<MedicineEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(entity: MedicineEntity)
 
