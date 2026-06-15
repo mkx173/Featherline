@@ -39,7 +39,6 @@ sealed interface ExternalImportCandidate {
         val doseInstruction: DoseInstruction,
         val medicineIdentity: ImportedMedicineIdentity?,
         val equivalentE2Mg: Double?,
-        val previewNotes: List<String>,
     ) : ExternalImportCandidate
 
     data class LabResult(
@@ -110,7 +109,6 @@ enum class ExternalImportWarningReason {
     UNSUPPORTED_COMPOUND,
     UNSUPPORTED_CATEGORY,
     UNSUPPORTED_ROUTE,
-    GEL_METADATA_PREVIEW_ONLY,
     AMBIGUOUS_LAB_UNIT,
     DUPLICATE_LAB_RESULT,
     LAB_USER_CONFLICT,
@@ -134,7 +132,6 @@ enum class ExternalImportWarningMessageKey {
     ANTIANDROGEN_INVALID_DOSE,
     ESTROGEN_UNSUPPORTED_ROUTE_COMPOUND,
     ESTROGEN_INVALID_DOSE,
-    GEL_METADATA_PREVIEW_ONLY,
     LAB_NON_OBJECT_ROW,
     LAB_MISSING_ID,
     LAB_DUPLICATE_ID,

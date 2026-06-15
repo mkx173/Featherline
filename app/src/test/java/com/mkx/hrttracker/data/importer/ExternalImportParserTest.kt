@@ -57,13 +57,12 @@ class ExternalImportParserTest {
         assertEquals("2026-06-01T00:00:00Z", result.exportedAt)
         assertEquals(1, result.medicationDoses.size)
         assertEquals(1, result.labResults.size)
-        assertEquals(listOf(ExternalImportWarningReason.GEL_METADATA_PREVIEW_ONLY), result.warningReasons())
+        assertEquals(emptyList<ExternalImportWarningReason>(), result.warningReasons())
 
         val dose = result.medicationDoses.single()
         assertEquals("gel-a", dose.provenance.externalId)
         assertEquals(MedicationApplicationType.GEL, dose.applicationType)
         assertEquals(MedicationCategory.ESTRADIOL, dose.category)
-        assertTrue(dose.previewNotes.any { note -> "Oestrogel" in note })
         assertIs<MedicinePreparation.ImportedGel>(dose.medicineIdentity!!.preparation)
         assertEquals("E|transmtf|GEL|ESTRADIOL|mg:0.75", dose.medicineIdentity.identityKey)
 
@@ -323,7 +322,7 @@ class ExternalImportParserTest {
     }
 
     @Test
-    fun gelMetadataIsPreviewOnlyAndDoesNotSplitIdentity() {
+    fun gelExtrasDoNotSplitIdentity() {
         val result = parser.parse(
             """
             {
@@ -356,14 +355,7 @@ class ExternalImportParserTest {
             result.medicationDoses[1].medicineIdentity!!.identityKey,
         )
         assertIs<MedicinePreparation.ImportedGel>(result.medicationDoses[0].medicineIdentity!!.preparation)
-        assertTrue(result.medicationDoses.all { dose -> dose.previewNotes.isNotEmpty() })
-        assertEquals(
-            listOf(
-                ExternalImportWarningReason.GEL_METADATA_PREVIEW_ONLY,
-                ExternalImportWarningReason.GEL_METADATA_PREVIEW_ONLY,
-            ),
-            result.warningReasons(),
-        )
+        assertEquals(emptyList<ExternalImportWarningReason>(), result.warningReasons())
     }
 
     @Test

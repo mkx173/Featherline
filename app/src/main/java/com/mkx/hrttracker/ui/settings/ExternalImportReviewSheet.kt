@@ -206,9 +206,6 @@ private fun externalImportWarningText(warning: ExternalImportWarning): String {
         ExternalImportWarningMessageKey.ESTROGEN_INVALID_DOSE ->
             stringResource(R.string.external_import_warning_estrogen_invalid_dose)
 
-        ExternalImportWarningMessageKey.GEL_METADATA_PREVIEW_ONLY ->
-            stringResource(R.string.external_import_warning_gel_metadata_preview_only)
-
         ExternalImportWarningMessageKey.LAB_NON_OBJECT_ROW ->
             stringResource(R.string.external_import_warning_lab_non_object_row)
 

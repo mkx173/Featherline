@@ -596,7 +596,6 @@
     <string name="external_import_warning_antiandrogen_invalid_dose">已跳过剂量无效的抗雄激素行</string>
     <string name="external_import_warning_estrogen_unsupported_route_compound">已跳过成分不适用于该给药途径的雌激素行</string>
     <string name="external_import_warning_estrogen_invalid_dose">已跳过剂量无效的雌激素行</string>
-    <string name="external_import_warning_gel_metadata_preview_only">凝胶元数据仅用于预览，不会影响药物身份</string>
     <string name="external_import_warning_lab_non_object_row">已跳过非对象的化验行</string>
     <string name="external_import_warning_lab_missing_id">已跳过缺少外部 ID 的化验行</string>
     <string name="external_import_warning_lab_duplicate_id">已跳过外部 ID 重复的化验行</string>

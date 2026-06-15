@@ -548,7 +548,6 @@ class ExternalImportParser @Inject constructor() {
             doseInstruction = doseInstruction,
             medicineIdentity = identity,
             equivalentE2Mg = null,
-            previewNotes = emptyList(),
         )
     }
 
@@ -644,9 +643,6 @@ class ExternalImportParser @Inject constructor() {
                 externalId = externalId,
                 timeH = timeH,
                 appliedEstradiolMg = doseMg,
-                warnings = warnings,
-                row = row,
-                extras = extras,
             )
 
             ExternalRoute.PATCH_APPLY -> patchApplyCandidate(
@@ -745,9 +741,6 @@ class ExternalImportParser @Inject constructor() {
         externalId: String,
         timeH: Double,
         appliedEstradiolMg: Double,
-        warnings: MutableList<ExternalImportWarning>,
-        row: MedicationRow,
-        extras: Map<String, Any?>,
     ): ExternalImportCandidate.MedicationDose {
         val doseInstruction = DoseInstruction.WholeUnit
         val preparation = MedicinePreparation.ImportedGel(appliedEstradiolMg)
@@ -765,16 +758,6 @@ class ExternalImportParser @Inject constructor() {
             applicationType = MedicationApplicationType.GEL,
             doseInstruction = doseInstruction,
         )
-        val previewNotes = gelPreviewNotes(extras)
-        if (previewNotes.isNotEmpty()) {
-            warnings.addWarning(
-                reason = ExternalImportWarningReason.GEL_METADATA_PREVIEW_ONLY,
-                externalId = externalId,
-                rowIndex = row.rowIndex,
-                messageKey = ExternalImportWarningMessageKey.GEL_METADATA_PREVIEW_ONLY,
-                message = "Gel metadata is available for preview only and does not affect medicine identity.",
-            )
-        }
         return medicationCandidate(
             sourceApp = sourceApp,
             externalId = externalId,
@@ -783,7 +766,6 @@ class ExternalImportParser @Inject constructor() {
             doseInstruction = doseInstruction,
             medicineIdentity = identity,
             equivalentE2Mg = appliedEstradiolMg,
-            previewNotes = previewNotes,
         )
     }
 
@@ -835,7 +817,6 @@ class ExternalImportParser @Inject constructor() {
             doseInstruction = DoseInstruction.Noop,
             medicineIdentity = null,
             equivalentE2Mg = null,
-            previewNotes = emptyList(),
         )
     }
 
@@ -847,7 +828,6 @@ class ExternalImportParser @Inject constructor() {
         doseInstruction: DoseInstruction,
         medicineIdentity: ImportedMedicineIdentity?,
         equivalentE2Mg: Double?,
-        previewNotes: List<String> = emptyList(),
     ): ExternalImportCandidate.MedicationDose {
         return ExternalImportCandidate.MedicationDose(
             provenance = ExternalImportProvenance(sourceApp, externalId),
@@ -858,7 +838,6 @@ class ExternalImportParser @Inject constructor() {
             doseInstruction = doseInstruction,
             medicineIdentity = medicineIdentity,
             equivalentE2Mg = equivalentE2Mg,
-            previewNotes = previewNotes,
         )
     }
 
@@ -1180,15 +1159,6 @@ class ExternalImportParser @Inject constructor() {
             "iul" -> BloodUnitKey.IU_L
             else -> null
         }
-    }
-
-    private fun gelPreviewNotes(extras: Map<String, Any?>): List<String> {
-        return listOfNotNull(
-            text(extras.valueByKey("product"))?.let { value -> "Product: $value" },
-            text(extras.valueByKey("site"))?.let { value -> "Site: $value" },
-            text(extras.valueByKey("area"))?.let { value -> "Area: $value" },
-            text(extras.valueByKey("wash"))?.let { value -> "Wash: $value" },
-        )
     }
 
     private fun positiveDoseMg(value: Any?): Double? {

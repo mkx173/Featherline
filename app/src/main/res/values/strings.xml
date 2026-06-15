@@ -616,7 +616,6 @@
     <string name="external_import_warning_antiandrogen_invalid_dose">Skipped antiandrogen row with invalid dose.</string>
     <string name="external_import_warning_estrogen_unsupported_route_compound">Skipped estrogen row with a compound unsupported for its route.</string>
     <string name="external_import_warning_estrogen_invalid_dose">Skipped estrogen row with invalid dose.</string>
-    <string name="external_import_warning_gel_metadata_preview_only">Gel metadata is available for preview only and does not affect medicine identity.</string>
     <string name="external_import_warning_lab_non_object_row">Skipped non-object lab row.</string>
     <string name="external_import_warning_lab_missing_id">Skipped lab row without an external id.</string>
     <string name="external_import_warning_lab_duplicate_id">Skipped duplicate lab row external id.</string>
