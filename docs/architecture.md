@@ -40,13 +40,17 @@ The rules:
 Everything lives under `com.mkx.hrttracker`. The top-level packages
 are organized by role:
 
-- [`model`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/model) — pure-Kotlin domain.
-  Five sub-packages.
-- [`data`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data) — Room, DataStore, backup
-  codec. Three sub-packages; `data/repository` holds 9 `*Repository`
-  classes plus `HomeSnapshotStore`, the `MedicationEntityMappers`
-  and `MedicineEntityMappers` helpers, and the stock-projection helpers
-  (see below).
+- [`model`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/model) — pure-Kotlin domain.
+  Six sub-packages, including `model/journal` for pure journal date
+  and note logic.
+- [`data`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/data) — Room, DataStore, backup
+  codec, and external-import plumbing. Four sub-packages:
+  `backup`, `importer`, `local`, and `repository`. `data/repository`
+  holds 10 `*Repository` classes plus `HomeSnapshotStore`, the
+  `MedicationEntityMappers`, `MedicineEntityMappers`, and
+  `JournalEntityMappers` helpers, plus the stock-projection helpers
+  (see below). `JournalRepository` owns the phase-1 journal
+  tracked-date and daily-note data surface.
 - [`ui`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui) — Compose UI. Ten feature
   sub-packages plus `components`, `navigation`, `theme`.
 - [`di`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/di) — Hilt modules. Two files.
@@ -120,11 +124,14 @@ code is built around.
 
 ## Within `data/`
 
-[`data/repository`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/repository)
-holds 9 `*Repository` classes — `BloodTestRepository`, `HomeRepository`,
+[`data/repository`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/data/repository)
+holds 10 `*Repository` classes — `BloodTestRepository`, `HomeRepository`,
 `HomeSnapshotRepository` (gates all home-data mutations and currently
 bundles the PK projection — see [Home snapshot and PK projection
 cache](#home-snapshot-and-pk-projection-cache) below),
+`JournalRepository` (tracked-date and daily-note Flow observers,
+pin-on-create support, one-note-per-day note writes, and backup
+read-through methods),
 `MedicationGroupRepository`, `MedicationLogRepository`,
 `MedicineRepository` (find-or-create dedup over `MedicineIdentityKey`,
 plus the global PATCH_OFF singleton lifecycle),
@@ -134,8 +141,9 @@ columns plus the active schedule), `SettingsRepository`,
 and `UserProfileRepository` — plus `HomeSnapshotStore` (serializes
 `HomeSnapshotRecord` including the embedded `HomePkProjectionRecord`
 to an encrypted DataStore file) and the supporting files: the
-`MedicationEntityMappers` and `MedicineEntityMappers` helpers and the
-stock engine — `MedicineStockMutator` (applies the deduction-on-log and
+`MedicationEntityMappers`, `MedicineEntityMappers`, and
+`JournalEntityMappers` helpers and the stock engine —
+`MedicineStockMutator` (applies the deduction-on-log and
 recount/top-up/recover mutations, delegating the per-dose math to
 `MedicineStockDeduction` — the pure helper shared with the batch-add
 stock preview), `ScheduledRunwayCalculator` (a
@@ -149,22 +157,29 @@ and the `RunwayProjection` result type live in `model/medication`, not
 here. Only repositories are exposed across the layer boundary; DAOs and
 entities stay inside `data/`.
 
-[`data/local`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/local)
-holds the Room database, the 10 `@Entity` data classes, the 6 DAOs,
+[`data/local`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/data/local)
+holds the Room database, the 12 `@Entity` data classes, the 7 DAOs,
 the migration objects, and the SQLCipher passphrase provider. The
-current schema is version 6 (the medicine-identity refactor reset the
+current schema is version 8 (the medicine-identity refactor reset the
 schema and dropped the legacy v1–v29 migration chain; `MIGRATION_2_3`
-and `MIGRATION_3_4` then added the stock columns on `medicines`, and
-`MIGRATION_4_5` added the `doseAmountDelta` column, and
+and `MIGRATION_3_4` then added the stock columns on `medicines`,
+`MIGRATION_4_5` added the `doseAmountDelta` column,
 `MIGRATION_5_6` added the medication-log `(category, appliedAtEpochMillis)`
-index). See
+index, `MIGRATION_6_7` added external-import provenance, and
+`MIGRATION_7_8` added the `tracked_dates` and `notes` journal tables).
+See
 [data-model.md](data-model.md) for the per-entity breakdown.
 
-[`data/backup`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup)
+[`data/backup`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/data/backup)
 holds `BackupExportService`, `BackupRestoreService`, `BackupCrypto`,
 `BackupSnapshot`, and `BackupSnapshotJsonCodec` — the v3 compressed,
 password-encrypted backup format used for manual user-driven backups.
 Detailed in [backup-format.md](backup-format.md).
+
+[`data/importer`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/data/importer)
+holds the external-tracker import parser, import-domain models, and
+service that maps compatible imported histories into the app's local
+medicine, log, and blood-test repositories.
 
 ## Within `model/`
 
@@ -187,6 +202,10 @@ Detailed in [backup-format.md](backup-format.md).
   `MedicineStockState` (HEALTHY / USER_LOW / IMMINENT / OUT / UNTRACKED
   / NO_RUNWAY), and `MedicineStockProjection` (the derived UI payload —
   rate, total units, runway, state) in `MedicineStockModels.kt`.
+- [`model/journal`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/model/journal) — pure journal domain
+  models and functions: `TrackedDate`, `Note`, curated `AnchorIcon`
+  storage keys, whole-day counts, next-milestone derivation, and pin
+  ordering helpers.
 - [`model/bloodtest`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/model/bloodtest) — analyte catalog
   (`BloodTestCatalog`), unit-conversion factor table, and the
   `AllowedAnalyteUnit` validation pattern. Detailed in
