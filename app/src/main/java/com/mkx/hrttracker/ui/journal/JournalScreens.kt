@@ -102,6 +102,7 @@ fun JournalScreenContent(
                         if (uiState.hasAnchors) {
                             item {
                                 MilestonesStackCard(
+                                    today = uiState.today,
                                     anchors = uiState.pinnedAnchors,
                                     onClick = onOpenMilestones,
                                 )

@@ -209,6 +209,14 @@
     <string name="journal_all_notes">All notes</string>
     <string name="journal_edit">Edit</string>
     <string name="journal_done">Done</string>
+    <plurals name="journal_milestone_days_past">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <plurals name="journal_milestone_days_future">
+        <item quantity="one">in %1$d day</item>
+        <item quantity="other">in %1$d days</item>
+    </plurals>
     <string name="history_delete_selected_entries_failure">Unable to delete selected records.</string>
     <plurals name="history_delete_all_entries_confirmation">
         <item quantity="one">Delete all %1$d record?</item>

@@ -12,8 +12,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
@@ -33,6 +39,7 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
+import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
@@ -43,27 +50,101 @@ private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field
 
 @Composable
 fun MilestonesStackCard(
+    today: LocalDate,
     anchors: List<AnchorRowUiState>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale, today) {
+        dateLabelFormatter(appLocale, today)
+    }
+
     EditorSegmentedListItem(
         modifier = modifier.fillMaxWidth(),
         onClick = onClick,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))) {
-            anchors.take(3).forEach { anchor ->
+        Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_schedule),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
                 Text(
-                    text = anchor.name,
+                    text = stringResource(R.string.journal_since_you_started),
+                    modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleMedium,
                 )
-                Text(
-                    text = anchor.dayCountLabel(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            anchors.forEach { anchor ->
+                MilestonesStackAnchorRow(
+                    anchor = anchor,
+                    dateLabel = dateFormatter(anchor.date),
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun MilestonesStackAnchorRow(
+    anchor: AnchorRowUiState,
+    dateLabel: String,
+    modifier: Modifier = Modifier,
+) {
+    val colorScheme = rememberMedicationGroupColorScheme(colorKey = anchor.palette)
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            modifier = Modifier.size(36.dp),
+            shape = MaterialTheme.shapes.small,
+            color = colorScheme.primaryContainer,
+            contentColor = colorScheme.onPrimaryContainer,
+        ) {
+            Box(
+                modifier = Modifier.size(36.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(anchorIconRes(anchor.icon)),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = anchor.name,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = dateLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+        Text(
+            text = anchor.dayCountLabel(),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -383,10 +464,12 @@ fun EmptyRecentNotesCard(
     )
 }
 
+@Composable
 private fun AnchorRowUiState.dayCountLabel(): String {
+    val days = dayMagnitude.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     return if (isFuture) {
-        "in $dayMagnitude days"
+        pluralStringResource(R.plurals.journal_milestone_days_future, days, days)
     } else {
-        "$dayMagnitude days"
+        pluralStringResource(R.plurals.journal_milestone_days_past, days, days)
     }
 }

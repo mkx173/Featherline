@@ -15,7 +15,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.Note
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.dateLabelFormatter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -111,6 +113,92 @@ class JournalScreenTest {
         composeRule.onNodeWithText("Today note").assertIsDisplayed()
         composeRule.onNodeWithText("Yesterday note").assertIsDisplayed()
         composeRule.onNodeWithText("2026-06-16").assertIsNotDisplayed()
+    }
+
+    @Test
+    fun milestonesStackCard_rendersPinnedAnchorsInOrderAndOpensMilestones() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2024, 6, 16)
+        val expectedDateLabel = dateLabelFormatter(
+            locale = context.resources.configuration.locales[0],
+            today = today,
+        )(LocalDate.of(2024, 4, 1))
+        var opened = false
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                MilestonesStackCard(
+                    today = today,
+                    anchors = listOf(
+                        AnchorRowUiState(
+                            id = "estradiol",
+                            name = "On estradiol",
+                            icon = AnchorIcon.MEDICATION,
+                            palette = MedicationGroupColorKey.ROSE,
+                            date = LocalDate.of(2024, 4, 1),
+                            dayMagnitude = 807,
+                            isFuture = false,
+                        ),
+                        AnchorRowUiState(
+                            id = "surgery",
+                            name = "Surgery",
+                            icon = AnchorIcon.EVENT,
+                            palette = MedicationGroupColorKey.TEAL,
+                            date = LocalDate.of(2026, 9, 15),
+                            dayMagnitude = 91,
+                            isFuture = true,
+                        ),
+                        AnchorRowUiState(
+                            id = "labs",
+                            name = "Labs",
+                            icon = AnchorIcon.LABS,
+                            palette = null,
+                            date = LocalDate.of(2026, 6, 15),
+                            dayMagnitude = 1,
+                            isFuture = false,
+                        ),
+                    ),
+                    onClick = { opened = true },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(context.getString(R.string.journal_since_you_started))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("On estradiol").assertIsDisplayed()
+        composeRule.onNodeWithText("Surgery").assertIsDisplayed()
+        composeRule.onNodeWithText("Labs").assertIsDisplayed()
+        composeRule.onNodeWithText(expectedDateLabel).assertIsDisplayed()
+        val estradiolTop = composeRule.onNodeWithText("On estradiol", useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .top
+        val surgeryTop = composeRule.onNodeWithText("Surgery", useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .top
+        val labsTop = composeRule.onNodeWithText("Labs", useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .top
+        assertTrue("Anchors should render in tray order", estradiolTop < surgeryTop)
+        assertTrue("Anchors should render in tray order", surgeryTop < labsTop)
+        composeRule.onNodeWithText(
+            context.resources.getQuantityString(R.plurals.journal_milestone_days_past, 807, 807)
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            context.resources.getQuantityString(R.plurals.journal_milestone_days_future, 91, 91)
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            context.resources.getQuantityString(R.plurals.journal_milestone_days_past, 1, 1)
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText("100 days").assertIsNotDisplayed()
+
+        composeRule.onNodeWithText(context.getString(R.string.journal_since_you_started))
+            .performClick()
+        composeRule.runOnIdle {
+            assertTrue(opened)
+        }
     }
 
     @Test
