@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -91,6 +92,28 @@ class JournalDaoTest {
         assertEquals(1000L, updated?.createdAtEpochMillis)
         assertEquals(3000L, updated?.updatedAtEpochMillis)
         assertEquals(1, dao.getNotes().size)
+    }
+
+    @Test
+    fun getMaxPinnedOrder_returnsLargestPinnedOrderWithoutLoadingRows() = runBlocking {
+        dao.upsertTrackedDate(trackedDate("a", dateIso = "2024-04-01", pinnedOrder = 1))
+        dao.upsertTrackedDate(trackedDate("b", dateIso = "2026-03-01", pinnedOrder = null))
+        dao.upsertTrackedDate(trackedDate("c", dateIso = "2026-09-15", pinnedOrder = 3))
+
+        assertEquals(3, dao.getMaxPinnedOrder())
+    }
+
+    @Test
+    fun trackedDates_hasDateIsoIndexForChronologicalObservation() {
+        val indexNames = mutableSetOf<String>()
+        db.openHelper.readableDatabase.query("PRAGMA index_list(tracked_dates)").use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            while (cursor.moveToNext()) {
+                indexNames += cursor.getString(nameIndex)
+            }
+        }
+
+        assertTrue(indexNames.contains("index_tracked_dates_dateIso"))
     }
 
     private fun trackedDate(

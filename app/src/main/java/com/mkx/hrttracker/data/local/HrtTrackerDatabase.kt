@@ -176,6 +176,7 @@ internal val MIGRATION_7_8: Migration = object : Migration(7, 8) {
             """.trimIndent()
         )
         db.execSQL("CREATE INDEX index_tracked_dates_pinnedOrder ON tracked_dates(pinnedOrder)")
+        db.execSQL("CREATE INDEX index_tracked_dates_dateIso ON tracked_dates(dateIso)")
         db.execSQL(
             """
             CREATE TABLE notes (

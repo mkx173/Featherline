@@ -45,6 +45,7 @@ class Migration7To8Test {
 
             assertTableExists(db, "tracked_dates")
             assertTableExists(db, "notes")
+            assertIndex(db, "tracked_dates", "index_tracked_dates_dateIso")
             assertUniqueIndex(db, "notes", "index_notes_dateIso")
 
             db.execSQL(
@@ -79,6 +80,16 @@ class Migration7To8Test {
                 if (cursor.getString(nameIndex) == index) {
                     assertEquals(1, cursor.getInt(uniqueIndex)); return
                 }
+            }
+        }
+        fail("Missing index $index")
+    }
+
+    private fun assertIndex(db: SupportSQLiteDatabase, table: String, index: String) {
+        db.query("PRAGMA index_list($table)").use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameIndex) == index) return
             }
         }
         fail("Missing index $index")

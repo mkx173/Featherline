@@ -7,7 +7,11 @@ package com.mkx.hrttracker.model.journal
 object PinOrder {
     /** Pin-on-create appends to the bottom; tolerates gaps left by prior unpins. */
     fun appendOrder(existingOrders: List<Int>): Int =
-        (existingOrders.maxOrNull()?.plus(1)) ?: 0
+        appendOrderAfterMax(existingOrders.maxOrNull())
+
+    /** Pin-on-create appends to the bottom when the max order is already known. */
+    fun appendOrderAfterMax(maxOrder: Int?): Int =
+        maxOrder?.plus(1) ?: 0
 
     /** Re-index a reordered/unpinned tray to contiguous 0..n-1 in list order. */
     fun normalize(pinnedIdsInOrder: List<String>): Map<String, Int> =

@@ -88,7 +88,6 @@ class JournalRepository @Inject constructor(
         val database = databaseHolder.get()
         database.withTransaction {
             val dao = database.journalDao()
-            val existingOrders = dao.getTrackedDates().mapNotNull { it.pinnedOrder }
             val now = clock.millis()
             dao.upsertTrackedDate(
                 TrackedDateEntity(
@@ -97,7 +96,7 @@ class JournalRepository @Inject constructor(
                     iconKey = AnchorIcon.fromStorageValue(icon).storageKey,
                     dateIso = date.toString(),
                     paletteKey = paletteKey,
-                    pinnedOrder = PinOrder.appendOrder(existingOrders),
+                    pinnedOrder = PinOrder.appendOrderAfterMax(dao.getMaxPinnedOrder()),
                     createdAtEpochMillis = now,
                     updatedAtEpochMillis = now,
                 )

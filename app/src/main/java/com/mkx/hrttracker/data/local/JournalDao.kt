@@ -25,6 +25,9 @@ interface JournalDao {
     @Query("SELECT * FROM tracked_dates ORDER BY dateIso ASC")
     suspend fun getTrackedDates(): List<TrackedDateEntity>
 
+    @Query("SELECT MAX(pinnedOrder) FROM tracked_dates")
+    suspend fun getMaxPinnedOrder(): Int?
+
     @Upsert
     suspend fun upsertTrackedDate(entity: TrackedDateEntity)
 

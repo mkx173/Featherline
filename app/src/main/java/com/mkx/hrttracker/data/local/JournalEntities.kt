@@ -6,7 +6,10 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "tracked_dates",
-    indices = [Index("pinnedOrder")],
+    indices = [
+        Index("pinnedOrder"),
+        Index("dateIso"),
+    ],
 )
 data class TrackedDateEntity(
     @PrimaryKey val uuid: String,
