@@ -122,8 +122,15 @@ class SettingsScreenExternalImportTest {
                 context.getString(R.string.external_import_summary_existing, 6),
             ).joinToString(" · "),
         ).assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.external_import_skipped_rows_title))
-            .assertIsDisplayed()
+        // The skipped section renders the count (the title string is only the
+        // clipboard label after the dialog-removal refactor), so assert the count.
+        composeRule.onNodeWithText(
+            context.resources.getQuantityString(
+                R.plurals.external_import_skipped_rows_count,
+                1,
+                1,
+            ),
+        ).assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_confirm)).assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.cancel)).assertIsDisplayed()
     }
