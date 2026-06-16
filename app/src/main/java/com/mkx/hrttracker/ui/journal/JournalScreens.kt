@@ -7,10 +7,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -23,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
+import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
@@ -170,8 +176,141 @@ fun JournalScreenContent(
 fun MilestonesScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
+    viewModel: MilestonesViewModel = hiltViewModel(
+        viewModelStoreOwner = LocalActivity.current as ComponentActivity
+    ),
 ) {
-    Box(modifier = modifier.fillMaxSize())
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    MilestonesScreenContent(
+        uiState = uiState,
+        onNavigateBack = onNavigateBack,
+        onToggleEdit = viewModel::toggleEditMode,
+        onSetPinned = viewModel::setPinned,
+        onReorder = viewModel::reorderPinned,
+        onAddDate = { },
+        onUpdateDate = { anchor ->
+            viewModel.updateDate(
+                id = anchor.id,
+                name = anchor.name,
+                icon = anchor.icon.storageKey,
+                date = anchor.date,
+                paletteKey = anchor.palette?.name,
+            )
+        },
+        onDeleteDate = viewModel::deleteDate,
+        modifier = modifier,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MilestonesScreenContent(
+    uiState: MilestonesUiState,
+    onNavigateBack: () -> Unit,
+    onToggleEdit: () -> Unit,
+    onSetPinned: (String, Boolean) -> Unit,
+    onReorder: (List<String>) -> Unit,
+    onAddDate: () -> Unit,
+    onUpdateDate: (AnchorRowUiState) -> Unit,
+    onDeleteDate: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val listState = rememberLazyListState()
+    val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
+
+    Scaffold(
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            HazeTopAppBar(
+                title = { Text(text = stringResource(R.string.journal_since_you_started)) },
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.navigate_back),
+                        )
+                    }
+                },
+                actions = {
+                    TextButton(onClick = onToggleEdit) {
+                        Text(
+                            text = stringResource(
+                                if (uiState.isEditMode) {
+                                    R.string.journal_done
+                                } else {
+                                    R.string.journal_edit
+                                }
+                            )
+                        )
+                    }
+                },
+                scrollBehavior = scrollBehavior,
+            )
+        },
+    ) { innerPadding ->
+        AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
+                return@AppContentContainer
+            }
+
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
+            ) {
+                item(key = "milestones-hero", contentType = "milestones-hero") {
+                    MilestonesHero(
+                        hero = uiState.hero,
+                        nextMilestoneLabel = uiState.heroNextMilestoneLabel,
+                    )
+                }
+
+                item(key = "milestones-pinned", contentType = "journal-section") {
+                    HrtSection(title = stringResource(R.string.journal_pinned_section)) {
+                        item {
+                            PinnedTray(
+                                anchors = uiState.pinnedTray,
+                                isEditMode = uiState.isEditMode,
+                                onReorder = onReorder,
+                                onSetPinned = onSetPinned,
+                            )
+                        }
+                    }
+                }
+
+                item(key = "milestones-timeline", contentType = "journal-section") {
+                    HrtSection(title = stringResource(R.string.journal_timeline_section)) {
+                        item {
+                            MilestonesTimeline(
+                                nodes = uiState.timeline,
+                                todayDividerIndex = uiState.todayDividerIndex,
+                                isEditMode = uiState.isEditMode,
+                                onSetPinned = onSetPinned,
+                                onUpdateDate = onUpdateDate,
+                                onDeleteDate = onDeleteDate,
+                            )
+                        }
+                    }
+                }
+
+                item(key = "milestones-add-date", contentType = "journal-action") {
+                    HrtFilledTonalButton(
+                        text = stringResource(R.string.journal_add_date),
+                        onClick = onAddDate,
+                        modifier = Modifier.padding(top = dimensionResource(R.dimen.padding_small)),
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable

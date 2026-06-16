@@ -169,6 +169,121 @@ fun EmptyMilestonesCard(
 }
 
 @Composable
+fun MilestonesHero(
+    hero: AnchorRowUiState?,
+    nextMilestoneLabel: String?,
+    modifier: Modifier = Modifier,
+) {
+    EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
+        if (hero == null) {
+            Text(
+                text = stringResource(R.string.journal_no_dates),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            return@EditorSegmentedListItem
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))) {
+            Text(
+                text = hero.name,
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            Text(
+                text = hero.dayCountLabel(),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (nextMilestoneLabel != null) {
+                Text(
+                    text = nextMilestoneLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun PinnedTray(
+    anchors: List<AnchorRowUiState>,
+    isEditMode: Boolean,
+    onReorder: (List<String>) -> Unit,
+    onSetPinned: (String, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
+        if (anchors.isEmpty()) {
+            Text(
+                text = stringResource(R.string.journal_nothing_pinned),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@EditorSegmentedListItem
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))) {
+            anchors.forEach { anchor ->
+                MilestonesBasicAnchorText(anchor = anchor)
+            }
+        }
+    }
+}
+
+@Composable
+fun MilestonesTimeline(
+    nodes: List<TimelineNodeUiState>,
+    todayDividerIndex: Int,
+    isEditMode: Boolean,
+    onSetPinned: (String, Boolean) -> Unit,
+    onUpdateDate: (AnchorRowUiState) -> Unit,
+    onDeleteDate: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
+        if (nodes.isEmpty()) {
+            Text(
+                text = stringResource(R.string.journal_no_dates),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@EditorSegmentedListItem
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))) {
+            nodes.forEachIndexed { index, node ->
+                if (index == todayDividerIndex) {
+                    Text(
+                        text = stringResource(R.string.journal_today),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                MilestonesBasicAnchorText(anchor = node.anchor)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MilestonesBasicAnchorText(
+    anchor: AnchorRowUiState,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = anchor.name,
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            text = anchor.dayCountLabel(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
 fun TodayComposer(
     today: LocalDate,
     note: Note?,
