@@ -1,20 +1,28 @@
 package com.mkx.hrttracker.ui.journal
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
+
+private const val TodayComposerTextFieldTag = "today-composer-text-field"
 
 class JournalScreenTest {
     @get:Rule
@@ -104,7 +112,125 @@ class JournalScreenTest {
     }
 
     @Test
-    fun todayPlaceholder_doesNotSaveUntilEditorExists() {
+    fun todayPrompt_opensEditorAndSavesNonEmptyTextOnce() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val savedTexts = mutableListOf<String>()
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = LocalDate.of(2026, 6, 16),
+                        recentNotes = listOf(
+                            Note(
+                                id = "june-15",
+                                date = LocalDate.of(2026, 6, 15),
+                                text = "Older note",
+                            )
+                        ),
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = { savedTexts += it },
+                    onSaveNote = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
+            .assertIsDisplayed()
+            .performClick()
+
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.save)).assertIsNotEnabled()
+
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextInput("A new day")
+        composeRule.onNodeWithText(context.getString(R.string.save))
+            .assertIsEnabled()
+            .performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(listOf("A new day"), savedTexts)
+        }
+    }
+
+    @Test
+    fun todayEditor_cancelReturnsWithoutSaving() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        var saved = false
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = LocalDate.of(2026, 6, 16),
+                        recentNotes = listOf(
+                            Note(
+                                id = "june-15",
+                                date = LocalDate.of(2026, 6, 15),
+                                text = "Older note",
+                            )
+                        ),
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = { saved = true },
+                    onSaveNote = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
+            .performClick()
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextInput("Unsaved draft")
+        composeRule.onNodeWithText(context.getString(R.string.cancel)).performClick()
+
+        composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
+            .assertIsDisplayed()
+        composeRule.runOnIdle {
+            assertFalse(saved)
+        }
+    }
+
+    @Test
+    fun todaySavedNote_tapsOpenPrefilledEditor() {
+        val today = LocalDate.of(2026, 6, 16)
+        val todayNote = Note(
+            id = "june-16",
+            date = today,
+            text = "Existing note",
+        )
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = today,
+                        todayNote = todayNote,
+                        recentNotes = listOf(todayNote),
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = {},
+                    onSaveNote = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Existing note")
+            .assertIsDisplayed()
+            .performClick()
+
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag)
+            .assertIsDisplayed()
+            .assertTextContains("Existing note")
+    }
+
+    @Test
+    fun todayPromptAndTimelineRows_doNotSaveBeforeSaveAction() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         var todayNoteSaved = false
         var olderNoteSaved = false
