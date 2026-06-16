@@ -478,6 +478,95 @@ class BackupRestoreServiceTest {
     }
 
     @Test
+    fun restoreBackupBytes_rejectsInvalidTrackedDateIsoBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000778",
+                    name = "Bad anchor date",
+                    iconKey = "event",
+                    dateIso = "not-a-date",
+                    paletteKey = null,
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(error.message.orEmpty().contains("Invalid tracked date dateIso."))
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsInvalidNoteDateIsoBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            notes = listOf(
+                BackupNoteSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000779",
+                    dateIso = "not-a-date",
+                    text = "Bad note date.",
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(error.message.orEmpty().contains("Invalid note dateIso."))
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsInvalidTrackedDateIconKeyBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000780",
+                    name = "Bad icon",
+                    iconKey = "not_an_icon",
+                    dateIso = "2024-04-01",
+                    paletteKey = null,
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(error.message.orEmpty().contains("Unsupported tracked date icon key: not_an_icon."))
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsInvalidTrackedDatePaletteKeyBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000781",
+                    name = "Bad palette",
+                    iconKey = "event",
+                    dateIso = "2024-04-01",
+                    paletteKey = "CUSTOM",
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(error.message.orEmpty().contains("Unsupported tracked date palette key: CUSTOM."))
+        verifyNoJournalMutation()
+    }
+
+    @Test
     fun restoreBackupBytes_restoresImportProvenanceIntoInsertedEntities() = runTest {
         val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000750")
         val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000751")

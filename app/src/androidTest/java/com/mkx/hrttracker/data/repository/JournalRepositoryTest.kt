@@ -5,6 +5,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
+import com.mkx.hrttracker.data.local.JournalDao
+import com.mkx.hrttracker.data.local.TrackedDateEntity
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -12,7 +14,12 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -170,6 +177,71 @@ class JournalRepositoryTest {
         assertEquals(emptyList<String>(), repo.observePinnedTrackedDates().first().map { it.name })
         assertEquals(emptyList<String>(), repo.observeNotesOnOrAfter(today).first().map { it.text })
         assertNull(repo.observeNoteForDate(today).first())
+    }
+
+    @Test
+    fun observers_emitFallbacks_whenDaoFlowsThrowRecoverableError() = runBlocking {
+        val journalDao = mockk<JournalDao>()
+        every { journalDao.observeTrackedDates() } returns flow {
+            throw IllegalStateException("tracked dates failed")
+        }
+        every { journalDao.observePinnedTrackedDates() } returns flow {
+            throw IllegalStateException("pinned tracked dates failed")
+        }
+        every { journalDao.observeNotesOnOrAfter(today.toString()) } returns flow {
+            throw IllegalStateException("notes failed")
+        }
+        every { journalDao.observeNoteForDate(today.toString()) } returns flow {
+            throw IllegalStateException("note failed")
+        }
+        val erroringDatabase = mockk<HrtTrackerDatabase>()
+        every { erroringDatabase.journalDao() } returns journalDao
+        databaseFlow.value = erroringDatabase
+
+        assertEquals(emptyList<String>(), repo.observeTrackedDates().first().map { it.name })
+        assertEquals(emptyList<String>(), repo.observePinnedTrackedDates().first().map { it.name })
+        assertEquals(emptyList<String>(), repo.observeNotesOnOrAfter(today).first().map { it.text })
+        assertNull(repo.observeNoteForDate(today).first())
+    }
+
+    @Test
+    fun observerContinues_whenDatabaseFlowEmitsAfterRecoverableDaoError() = runBlocking {
+        val journalDao = mockk<JournalDao>()
+        every { journalDao.observeTrackedDates() } returns flow {
+            throw IllegalStateException("tracked dates failed")
+        }
+        val erroringDatabase = mockk<HrtTrackerDatabase>()
+        every { erroringDatabase.journalDao() } returns journalDao
+        databaseFlow.value = erroringDatabase
+
+        val recoveredRow = TrackedDateEntity(
+            uuid = "recovered",
+            name = "Recovered",
+            iconKey = "event",
+            dateIso = today.toString(),
+            paletteKey = null,
+            pinnedOrder = 0,
+            createdAtEpochMillis = 1000L,
+            updatedAtEpochMillis = 1000L,
+        )
+        var switchedToRecoveredDatabase = false
+
+        val emissions = withTimeout(2_000) {
+            repo.observeTrackedDates()
+                .onEach {
+                    if (!switchedToRecoveredDatabase) {
+                        switchedToRecoveredDatabase = true
+                        db.journalDao().upsertTrackedDate(recoveredRow)
+                        databaseFlow.value = db
+                    }
+                }
+                .take(2)
+                .toList()
+        }
+
+        assertEquals(listOf(emptyList<String>(), listOf("Recovered")), emissions.map { rows ->
+            rows.map { it.name }
+        })
     }
 
     private class MutableClock(

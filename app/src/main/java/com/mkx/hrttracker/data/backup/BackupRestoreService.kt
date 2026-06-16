@@ -23,6 +23,7 @@ import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.IMPORTED_INJECTION_ESTER_KEYS
@@ -1053,16 +1054,24 @@ private fun BackupCustomBloodAnalyteSnapshot.toValidatedEntity(): CustomBloodAna
 
 private fun BackupTrackedDateSnapshot.toValidatedEntity(): TrackedDateEntity {
     val trackedDateUuid = uuid.parseUuid("tracked date UUID").toString()
-    val normalizedDateIso = LocalDate.parse(dateIso).toString()
+    val normalizedDateIso = dateIso.parseLocalDateIso("tracked date dateIso")
+    val anchorIcon = requireNotNull(AnchorIcon.fromStorageValueOrNull(iconKey)) {
+        "Unsupported tracked date icon key: $iconKey."
+    }
+    val normalizedPaletteKey = paletteKey?.let { key ->
+        requireNotNull(MedicationGroupColorKey.fromStorageValueOrNull(key)) {
+            "Unsupported tracked date palette key: $key."
+        }.name
+    }
     require(updatedAtEpochMillis >= createdAtEpochMillis) {
         "Tracked date $trackedDateUuid updatedAt must not be before createdAt."
     }
     return TrackedDateEntity(
         uuid = trackedDateUuid,
         name = name,
-        iconKey = iconKey,
+        iconKey = anchorIcon.storageKey,
         dateIso = normalizedDateIso,
-        paletteKey = paletteKey,
+        paletteKey = normalizedPaletteKey,
         pinnedOrder = pinnedOrder,
         createdAtEpochMillis = createdAtEpochMillis,
         updatedAtEpochMillis = updatedAtEpochMillis,
@@ -1071,7 +1080,7 @@ private fun BackupTrackedDateSnapshot.toValidatedEntity(): TrackedDateEntity {
 
 private fun BackupNoteSnapshot.toValidatedEntity(): NoteEntity {
     val noteUuid = uuid.parseUuid("note UUID").toString()
-    val normalizedDateIso = LocalDate.parse(dateIso).toString()
+    val normalizedDateIso = dateIso.parseLocalDateIso("note dateIso")
     require(updatedAtEpochMillis >= createdAtEpochMillis) {
         "Note $noteUuid updatedAt must not be before createdAt."
     }
@@ -1844,6 +1853,11 @@ private inline fun <reified T : Enum<T>> requireEnumName(
 
 private fun String?.parseUuid(fieldName: String): UUID {
     return runCatching { UUID.fromString(requireNotNull(this)) }
+        .getOrElse { throw IllegalArgumentException("Invalid $fieldName.", it) }
+}
+
+private fun String.parseLocalDateIso(fieldName: String): String {
+    return runCatching { LocalDate.parse(this).toString() }
         .getOrElse { throw IllegalArgumentException("Invalid $fieldName.", it) }
 }
 

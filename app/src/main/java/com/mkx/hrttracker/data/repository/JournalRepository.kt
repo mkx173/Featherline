@@ -8,8 +8,10 @@ import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.journal.PinOrder
 import com.mkx.hrttracker.model.journal.TrackedDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -30,7 +32,10 @@ class JournalRepository @Inject constructor(
             if (db == null) {
                 flowOf(emptyList())
             } else {
-                db.journalDao().observeTrackedDates().map { rows -> rows.map { it.toModel() } }
+                db.journalDao()
+                    .observeTrackedDates()
+                    .map { rows -> rows.map { it.toModel() } }
+                    .catchRecoverableDatabaseError(emptyList())
             }
         }
 
@@ -40,7 +45,10 @@ class JournalRepository @Inject constructor(
             if (db == null) {
                 flowOf(emptyList())
             } else {
-                db.journalDao().observePinnedTrackedDates().map { rows -> rows.map { it.toModel() } }
+                db.journalDao()
+                    .observePinnedTrackedDates()
+                    .map { rows -> rows.map { it.toModel() } }
+                    .catchRecoverableDatabaseError(emptyList())
             }
         }
 
@@ -53,6 +61,7 @@ class JournalRepository @Inject constructor(
                 db.journalDao()
                     .observeNotesOnOrAfter(fromDate.toString())
                     .map { rows -> rows.map { it.toModel() } }
+                    .catchRecoverableDatabaseError(emptyList())
             }
         }
 
@@ -62,7 +71,10 @@ class JournalRepository @Inject constructor(
             if (db == null) {
                 flowOf(null)
             } else {
-                db.journalDao().observeNoteForDate(date.toString()).map { it?.toModel() }
+                db.journalDao()
+                    .observeNoteForDate(date.toString())
+                    .map { it?.toModel() }
+                    .catchRecoverableDatabaseError(null)
             }
         }
 
@@ -111,3 +123,12 @@ class JournalRepository @Inject constructor(
         }
     }
 }
+
+// Terminal catch guards Room/SQLCipher flow failures during restore or database
+// swaps without swallowing cancellation or fatal VM errors.
+private fun <T> Flow<T>.catchRecoverableDatabaseError(fallback: T): Flow<T> =
+    catch { error ->
+        if (error is CancellationException) throw error
+        if (error !is Exception) throw error
+        emit(fallback)
+    }
