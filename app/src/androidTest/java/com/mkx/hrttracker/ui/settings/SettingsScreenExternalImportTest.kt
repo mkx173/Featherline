@@ -106,12 +106,22 @@ class SettingsScreenExternalImportTest {
             .assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_medication_label))
             .assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.external_import_medication_summary, 2, 1, 5))
-            .assertIsDisplayed()
+        composeRule.onNodeWithText(
+            listOf(
+                context.getString(R.string.external_import_summary_new, 2),
+                context.getString(R.string.external_import_summary_updated, 1),
+                context.getString(R.string.external_import_summary_existing, 5),
+            ).joinToString(" · "),
+        ).assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_lab_label))
             .assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.external_import_lab_summary, 3, 4, 6))
-            .assertIsDisplayed()
+        composeRule.onNodeWithText(
+            listOf(
+                context.getString(R.string.external_import_summary_new, 3),
+                context.getString(R.string.external_import_summary_updated, 4),
+                context.getString(R.string.external_import_summary_existing, 6),
+            ).joinToString(" · "),
+        ).assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_skipped_rows_title))
             .assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_confirm)).assertIsDisplayed()

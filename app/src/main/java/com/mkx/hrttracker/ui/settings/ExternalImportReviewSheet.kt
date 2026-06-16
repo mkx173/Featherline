@@ -80,11 +80,21 @@ private fun ExternalImportReviewSheetContent(preview: ExternalImportPreview) {
         item {
             SupportMessageListItem(
                 text = stringResource(R.string.external_import_medication_label),
-                supportingText = stringResource(
-                    R.string.external_import_medication_summary,
-                    preview.medicationRowsToCreate,
-                    preview.medicationRowsToUpdate,
-                    preview.medicationRowsUnchanged,
+                supportingText = externalImportRowSummary(
+                    newText = stringResource(
+                        R.string.external_import_summary_new,
+                        preview.medicationRowsToCreate,
+                    ),
+                    updatedText = stringResource(
+                        R.string.external_import_summary_updated,
+                        preview.medicationRowsToUpdate,
+                    ),
+                    updatedCount = preview.medicationRowsToUpdate,
+                    existingText = stringResource(
+                        R.string.external_import_summary_existing,
+                        preview.medicationRowsUnchanged,
+                    ),
+                    existingCount = preview.medicationRowsUnchanged,
                 ),
                 painter = painterResource(R.drawable.ic_medication),
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -93,11 +103,21 @@ private fun ExternalImportReviewSheetContent(preview: ExternalImportPreview) {
         item {
             SupportMessageListItem(
                 text = stringResource(R.string.external_import_lab_label),
-                supportingText = stringResource(
-                    R.string.external_import_lab_summary,
-                    preview.labRowsToCreate,
-                    preview.labRowsToUpdate,
-                    preview.labRowsUnchanged,
+                supportingText = externalImportRowSummary(
+                    newText = stringResource(
+                        R.string.external_import_summary_new,
+                        preview.labRowsToCreate,
+                    ),
+                    updatedText = stringResource(
+                        R.string.external_import_summary_updated,
+                        preview.labRowsToUpdate,
+                    ),
+                    updatedCount = preview.labRowsToUpdate,
+                    existingText = stringResource(
+                        R.string.external_import_summary_existing,
+                        preview.labRowsUnchanged,
+                    ),
+                    existingCount = preview.labRowsUnchanged,
                 ),
                 painter = painterResource(R.drawable.ic_experiment),
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -267,3 +287,22 @@ private fun externalImportSampleWarnings(): List<ExternalImportWarning> = listOf
 )
 
 private const val EXTERNAL_IMPORT_COPY_THROTTLE_MS = 2_000L
+
+private const val EXTERNAL_IMPORT_SUMMARY_SEPARATOR = " · "
+
+/**
+ * Builds the per-section row summary. The new count is always shown — an import
+ * that adds nothing should still say so — while the updated and existing segments
+ * are dropped when their count is zero, so the line lists only what happened.
+ */
+internal fun externalImportRowSummary(
+    newText: String,
+    updatedText: String,
+    updatedCount: Int,
+    existingText: String,
+    existingCount: Int,
+): String = buildList {
+    add(newText)
+    if (updatedCount > 0) add(updatedText)
+    if (existingCount > 0) add(existingText)
+}.joinToString(EXTERNAL_IMPORT_SUMMARY_SEPARATOR)
