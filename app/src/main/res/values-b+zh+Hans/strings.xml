@@ -2,6 +2,7 @@
     <string name="app_name">Featherline</string>
     <string name="tab_main">主页</string>
     <string name="tab_plan">计划</string>
+    <string name="tab_journal">日志</string>
     <string name="tab_history">历史</string>
     <string name="tab_settings">设置</string>
     <string name="navigate_back">返回</string>
@@ -183,6 +184,21 @@
     <plurals name="history_delete_selected_entries_success">
         <item quantity="other">已删除 %1$d 条记录</item>
     </plurals>
+    <string name="journal_milestones_section">里程碑</string>
+    <string name="journal_notes_section">笔记</string>
+    <string name="journal_notes_window_meta">最近 30 天</string>
+    <string name="journal_since_you_started">自开始以来</string>
+    <string name="journal_no_dates">还没有日期</string>
+    <string name="journal_add_date">添加日期</string>
+    <string name="journal_see_all_notes">查看全部笔记</string>
+    <string name="journal_today">今天</string>
+    <string name="journal_write_about_today">记录今天…</string>
+    <string name="journal_nothing_pinned">还没有固定内容。请在下方时间线中固定日期。</string>
+    <string name="journal_pinned_section">已固定</string>
+    <string name="journal_timeline_section">时间线</string>
+    <string name="journal_all_notes">全部笔记</string>
+    <string name="journal_edit">编辑</string>
+    <string name="journal_done">完成</string>
     <string name="history_delete_selected_entries_failure">无法删除所选记录</string>
     <plurals name="history_delete_all_entries_confirmation">
         <item quantity="other">要删除全部 %1$d 条记录吗？</item>

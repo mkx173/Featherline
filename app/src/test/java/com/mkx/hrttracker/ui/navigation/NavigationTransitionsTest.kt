@@ -99,6 +99,42 @@ class NavigationTransitionsTest {
     }
 
     @Test
+    fun resolveNavigationMotionPattern_returnsNestedForward_for_journalMilestones_navigation() {
+        assertEquals(
+            NavigationMotionPattern.NESTED_FORWARD,
+            resolveNavigationMotionPattern(
+                initialRoute = Screen.Journal.route,
+                targetRoute = Screen.JournalMilestones.createRoute(Screen.Journal.route),
+                isPop = false,
+            )
+        )
+    }
+
+    @Test
+    fun resolveNavigationMotionPattern_returnsNestedForward_for_journalAllNotes_navigation() {
+        assertEquals(
+            NavigationMotionPattern.NESTED_FORWARD,
+            resolveNavigationMotionPattern(
+                initialRoute = Screen.Journal.route,
+                targetRoute = Screen.JournalAllNotes.createRoute(Screen.Journal.route),
+                isPop = false,
+            )
+        )
+    }
+
+    @Test
+    fun resolveNavigationMotionPattern_returnsNestedBackward_for_journal_child_pop() {
+        assertEquals(
+            NavigationMotionPattern.NESTED_BACKWARD,
+            resolveNavigationMotionPattern(
+                initialRoute = Screen.JournalMilestones.baseRoute,
+                targetRoute = Screen.Journal.route,
+                isPop = true,
+            )
+        )
+    }
+
+    @Test
     fun resolveNavigationMotionPattern_returnsNestedForward_for_in_section_navigation() {
         assertEquals(
             NavigationMotionPattern.NESTED_FORWARD,

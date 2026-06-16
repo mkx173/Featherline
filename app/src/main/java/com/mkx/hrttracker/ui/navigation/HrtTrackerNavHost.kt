@@ -89,6 +89,9 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.rememberChromeHazeState
 import com.mkx.hrttracker.ui.components.stockInventoryCountText
 import com.mkx.hrttracker.ui.history.HistoryScreen
+import com.mkx.hrttracker.ui.journal.AllNotesScreen
+import com.mkx.hrttracker.ui.journal.JournalScreen
+import com.mkx.hrttracker.ui.journal.MilestonesScreen
 import com.mkx.hrttracker.ui.log.MedicationLogEntryEditSnapshot
 import com.mkx.hrttracker.ui.log.MedicationLogEntryQuickLogRequest
 import com.mkx.hrttracker.ui.log.MedicationLogEntryScreen
@@ -111,6 +114,27 @@ import java.util.UUID
 sealed class Screen(val route: String, @get:StringRes val label: Int) {
     data object Main : Screen("main", R.string.tab_main)
     data object Plan : Screen("plan", R.string.tab_plan)
+    data object Journal : Screen("journal", R.string.tab_journal)
+    data object JournalMilestones : Screen(
+        "journal_milestones?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.journal_since_you_started
+    ) {
+        const val baseRoute = "journal_milestones"
+
+        fun createRoute(topLevelParentRoute: String = Journal.route): String =
+            "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+    }
+
+    data object JournalAllNotes : Screen(
+        "journal_all_notes?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.journal_all_notes
+    ) {
+        const val baseRoute = "journal_all_notes"
+
+        fun createRoute(topLevelParentRoute: String = Journal.route): String =
+            "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+    }
+
     data object PlanBatchAdd : Screen(
         "plan_batch_add?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
         R.string.plan_batch_add_title
@@ -277,6 +301,7 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
             return when (route) {
                 Main.route -> Main
                 Plan.route -> Plan
+                Journal.route -> Journal
                 Settings.route -> Settings
                 else -> null
             }
@@ -292,7 +317,8 @@ internal data class NavigationItemContent(
 internal val topLevelNavigationItems = listOf(
     NavigationItemContent(Screen.Main, R.drawable.ic_home),
     NavigationItemContent(Screen.Plan, R.drawable.ic_calendar_month),
-    NavigationItemContent(Screen.Settings, R.drawable.ic_settings)
+    NavigationItemContent(Screen.Journal, R.drawable.ic_menu_book),
+    NavigationItemContent(Screen.Settings, R.drawable.ic_settings),
 )
 
 internal enum class TopLevelNavigationTapAction {
@@ -919,6 +945,45 @@ fun HrtTrackerNavHost(
                         )
                     }
                 }
+                composable(Screen.Journal.route) { backStackEntry ->
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
+                        JournalScreen(
+                            onOpenMilestones = {
+                                navController.navigate(
+                                    Screen.JournalMilestones.createRoute(Screen.Journal.route)
+                                )
+                            },
+                            onOpenAllNotes = {
+                                navController.navigate(
+                                    Screen.JournalAllNotes.createRoute(Screen.Journal.route)
+                                )
+                            },
+                            modifier = modifier,
+                        )
+                    }
+                }
+                composable(
+                    route = Screen.JournalMilestones.route,
+                    arguments = topLevelParentArgs(Screen.Journal.route),
+                ) {
+                    RoutedTopChromeHazeProvider(navController, it) {
+                        MilestonesScreen(
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            modifier = modifier,
+                        )
+                    }
+                }
+                composable(
+                    route = Screen.JournalAllNotes.route,
+                    arguments = topLevelParentArgs(Screen.Journal.route),
+                ) {
+                    RoutedTopChromeHazeProvider(navController, it) {
+                        AllNotesScreen(
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            modifier = modifier,
+                        )
+                    }
+                }
                 composable(Screen.Settings.route) {
                     RoutedTopChromeHazeProvider(navController, it) {
                         SettingsScreen(
@@ -1360,6 +1425,13 @@ private fun NavHostController.navigateToTopLevelScreen(
         restoreState = true
     }
 }
+
+private fun topLevelParentArgs(defaultValue: String) = listOf(
+    navArgument(TOP_LEVEL_PARENT_ARG) {
+        type = NavType.StringType
+        this.defaultValue = defaultValue
+    }
+)
 
 internal const val TOP_LEVEL_PARENT_ARG = "topLevelParent"
 private const val SLOT_RESULT_KEY_ARG = "slotResultKey"
