@@ -104,6 +104,33 @@ class JournalRepository @Inject constructor(
         }
     }
 
+    suspend fun updateTrackedDate(
+        id: String,
+        name: String,
+        icon: String,
+        date: LocalDate,
+        paletteKey: String?,
+    ) {
+        val database = databaseHolder.get()
+        database.withTransaction {
+            val dao = database.journalDao()
+            val existing = dao.getTrackedDates().firstOrNull { it.uuid == id } ?: return@withTransaction
+            dao.upsertTrackedDate(
+                existing.copy(
+                    name = name,
+                    iconKey = AnchorIcon.fromStorageValue(icon).storageKey,
+                    dateIso = date.toString(),
+                    paletteKey = paletteKey,
+                    updatedAtEpochMillis = clock.millis(),
+                )
+            )
+        }
+    }
+
+    suspend fun deleteTrackedDate(id: String) {
+        databaseHolder.get().journalDao().deleteTrackedDate(id)
+    }
+
     suspend fun setPinned(id: String, pinned: Boolean) {
         val database = databaseHolder.get()
         database.withTransaction {
@@ -186,6 +213,10 @@ class JournalRepository @Inject constructor(
                 )
             )
         }
+    }
+
+    suspend fun deleteNoteForDate(date: LocalDate) {
+        databaseHolder.get().journalDao().deleteNoteForDate(date.toString())
     }
 }
 

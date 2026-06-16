@@ -7,7 +7,13 @@ import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.JournalDao
 import com.mkx.hrttracker.data.local.TrackedDateEntity
+import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.TrackedDate
+import io.mockk.Runs
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -336,6 +342,94 @@ class JournalRepositoryTest {
     }
 
     @Test
+    fun updateTrackedDate_keepsPinAndCreatedAt() = runBlocking {
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        val a = repo.observeTrackedDates().first().single()
+        val originalRow = db.journalDao().getTrackedDates().single { it.uuid == a.id }
+        clock.advanceMillis(1_000)
+
+        repo.updateTrackedDate(
+            id = a.id,
+            name = "A2",
+            icon = "flag",
+            date = LocalDate.of(2025, 5, 5),
+            paletteKey = "ROSE",
+        )
+
+        val updated = repo.observeTrackedDates().first().single()
+        val updatedRow = db.journalDao().getTrackedDates().single { it.uuid == a.id }
+        assertEquals("A2", updated.name)
+        assertEquals(AnchorIcon.FLAG, updated.icon)
+        assertEquals(LocalDate.of(2025, 5, 5), updated.date)
+        assertEquals(a.pinnedOrder, updated.pinnedOrder)
+        assertEquals(originalRow.createdAtEpochMillis, updatedRow.createdAtEpochMillis)
+        assertTrue(updatedRow.updatedAtEpochMillis > originalRow.updatedAtEpochMillis)
+    }
+
+    @Test
+    fun updateTrackedDate_missingId_noOpsWithoutChangingExistingRows() = runBlocking {
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        val beforeRows = db.journalDao().getTrackedDates()
+        clock.advanceMillis(1_000)
+
+        repo.updateTrackedDate(
+            id = "missing",
+            name = "A2",
+            icon = "flag",
+            date = LocalDate.of(2025, 5, 5),
+            paletteKey = "ROSE",
+        )
+
+        assertEquals(beforeRows, db.journalDao().getTrackedDates())
+    }
+
+    @Test
+    fun updateTrackedDate_normalizesUnknownIconAndPreservesUnknownPaletteInStorage() = runBlocking {
+        repo.addTrackedDate("A", "flag", LocalDate.of(2024, 1, 1), "ROSE")
+        val a = repo.observeTrackedDates().first().single()
+
+        repo.updateTrackedDate(
+            id = a.id,
+            name = "A2",
+            icon = "unknown",
+            date = LocalDate.of(2025, 5, 5),
+            paletteKey = "CUSTOM",
+        )
+
+        val updated = repo.observeTrackedDates().first().single()
+        val updatedRow = db.journalDao().getTrackedDates().single { it.uuid == a.id }
+        assertEquals(AnchorIcon.EVENT, updated.icon)
+        assertNull(updated.palette)
+        assertEquals("event", updatedRow.iconKey)
+        assertEquals("CUSTOM", updatedRow.paletteKey)
+    }
+
+    @Test
+    fun deleteTrackedDate_removesRow() = runBlocking {
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        val a = repo.observeTrackedDates().first().single()
+
+        repo.deleteTrackedDate(a.id)
+
+        assertEquals(emptyList<TrackedDate>(), repo.observeTrackedDates().first())
+    }
+
+    @Test
+    fun deleteTrackedDate_missingAndDoubleDelete_areIdempotent() = runBlocking {
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        val a = repo.observeTrackedDates().first().single()
+
+        repo.deleteTrackedDate("missing")
+
+        assertEquals(listOf(a), repo.observeTrackedDates().first())
+
+        repo.deleteTrackedDate(a.id)
+        repo.deleteTrackedDate(a.id)
+
+        assertEquals(emptyList<TrackedDate>(), repo.observeTrackedDates().first())
+    }
+
+    @Test
     fun observeTrackedDates_returnsMappedDates() = runBlocking {
         repo.addTrackedDate(
             name = "Future",
@@ -369,6 +463,50 @@ class JournalRepositoryTest {
         assertEquals(first.createdAtEpochMillis, second.createdAtEpochMillis)
         assertTrue(second.updatedAtEpochMillis > first.updatedAtEpochMillis)
         assertEquals(1, db.journalDao().getNotes().size)
+    }
+
+    @Test
+    fun deleteNoteForDate_removesOnlyThatDay() = runBlocking {
+        val day = LocalDate.of(2026, 6, 16)
+        val otherDay = day.plusDays(1)
+        repo.saveNoteForDate(day, "hello")
+        repo.saveNoteForDate(otherDay, "keep")
+
+        repo.deleteNoteForDate(day)
+
+        assertNull(repo.observeNoteForDate(day).first())
+        assertEquals("keep", repo.observeNoteForDate(otherDay).first()?.text)
+    }
+
+    @Test
+    fun deleteNoteForDate_usesAtomicDaoDeleteByDate() = runBlocking {
+        val journalDao = mockk<JournalDao>()
+        coEvery { journalDao.deleteNoteForDate(today.toString()) } just Runs
+        val database = mockk<HrtTrackerDatabase>()
+        every { database.journalDao() } returns journalDao
+        val holder = mockk<DatabaseHolder>()
+        every { holder.get() } returns database
+        val repository = JournalRepository(databaseHolder = holder, clock = clock)
+
+        repository.deleteNoteForDate(today)
+
+        coVerify(exactly = 1) { journalDao.deleteNoteForDate(today.toString()) }
+        coVerify(exactly = 0) { journalDao.getNoteForDate(today.toString()) }
+    }
+
+    @Test
+    fun deleteNoteForDate_missingAndDoubleDelete_areIdempotent() = runBlocking {
+        val day = LocalDate.of(2026, 6, 16)
+        repo.saveNoteForDate(day, "hello")
+
+        repo.deleteNoteForDate(day.plusDays(1))
+
+        assertEquals("hello", repo.observeNoteForDate(day).first()?.text)
+
+        repo.deleteNoteForDate(day)
+        repo.deleteNoteForDate(day)
+
+        assertNull(repo.observeNoteForDate(day).first())
     }
 
     @Test

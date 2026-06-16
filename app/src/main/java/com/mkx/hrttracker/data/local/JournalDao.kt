@@ -55,6 +55,9 @@ interface JournalDao {
     @Query("SELECT * FROM notes ORDER BY dateIso DESC")
     suspend fun getNotes(): List<NoteEntity>
 
+    @Query("DELETE FROM notes WHERE dateIso = :dateIso")
+    suspend fun deleteNoteForDate(dateIso: String)
+
     @Transaction
     suspend fun upsertNote(entity: NoteEntity) {
         val existingForDate = getNoteForDate(entity.dateIso)
