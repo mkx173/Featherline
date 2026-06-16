@@ -607,49 +607,38 @@ class BackupRestoreServiceTest {
     }
 
     @Test
-    fun restoreBackupBytes_rejectsInvalidTrackedDateIconKeyBeforeJournalMutation() = runTest {
+    fun restoreBackupBytes_preservesUnknownTrackedDateIconAndPaletteKeys() = runTest {
+        // A forward-compatible backup may carry an icon or palette key this
+        // build does not know yet. It must restore intact (read-time mapping
+        // falls back gracefully) rather than failing the whole import.
         val snapshot = emptySnapshot().copy(
             trackedDates = listOf(
                 BackupTrackedDateSnapshot(
-                    uuid = "00000000-0000-0000-0000-000000000780",
-                    name = "Bad icon",
-                    iconKey = "not_an_icon",
+                    uuid = "00000000-0000-0000-0000-000000000786",
+                    name = "Forward-compatible anchor",
+                    iconKey = "syringe",
                     dateIso = "2024-04-01",
-                    paletteKey = null,
+                    paletteKey = "AMBER",
                     pinnedOrder = 0,
                     createdAtEpochMillis = 100L,
                     updatedAtEpochMillis = 110L,
                 ),
             ),
         )
+        val trackedDatesSlot = slot<List<TrackedDateEntity>>()
 
-        val error = restoreBackupBytesFails(snapshot)
-
-        assertTrue(error.message.orEmpty().contains("Unsupported tracked date icon key: not_an_icon."))
-        verifyNoJournalMutation()
-    }
-
-    @Test
-    fun restoreBackupBytes_rejectsInvalidTrackedDatePaletteKeyBeforeJournalMutation() = runTest {
-        val snapshot = emptySnapshot().copy(
-            trackedDates = listOf(
-                BackupTrackedDateSnapshot(
-                    uuid = "00000000-0000-0000-0000-000000000781",
-                    name = "Bad palette",
-                    iconKey = "event",
-                    dateIso = "2024-04-01",
-                    paletteKey = "CUSTOM",
-                    pinnedOrder = 0,
-                    createdAtEpochMillis = 100L,
-                    updatedAtEpochMillis = 110L,
-                ),
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
             ),
+            password = "password",
         )
 
-        val error = restoreBackupBytesFails(snapshot)
-
-        assertTrue(error.message.orEmpty().contains("Unsupported tracked date palette key: CUSTOM."))
-        verifyNoJournalMutation()
+        coVerify(exactly = 1) { journalDao.insertTrackedDates(capture(trackedDatesSlot)) }
+        val restored = trackedDatesSlot.captured.single()
+        assertEquals("syringe", restored.iconKey)
+        assertEquals("AMBER", restored.paletteKey)
     }
 
     @Test

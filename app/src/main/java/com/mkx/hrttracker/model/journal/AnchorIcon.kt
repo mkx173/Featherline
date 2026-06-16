@@ -3,7 +3,7 @@ package com.mkx.hrttracker.model.journal
 /**
  * Curated, stable icon keys for anchors (spec §3.1). The string [storageKey] is what
  * persists in Room and backups; unknown keys resolve to [DEFAULT] = EVENT so a
- * forward-compatible or corrupted stored row never crashes read-time mapping.
+ * forward-compatible or corrupted value never crashes a restore or read-time mapping.
  *
  * Design-backed set: every [storageKey] maps to an `ic_<storageKey>` vector drawable,
  * so the UI-layer resolver (Phase 2) is the mechanical `R.drawable.ic_$storageKey`.

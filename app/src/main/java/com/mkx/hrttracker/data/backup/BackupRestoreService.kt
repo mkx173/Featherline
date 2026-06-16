@@ -23,7 +23,6 @@ import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
-import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.IMPORTED_INJECTION_ESTER_KEYS
@@ -1065,23 +1064,19 @@ private fun BackupTrackedDateSnapshot.toValidatedEntity(): TrackedDateEntity {
         "Tracked date name must not be blank."
     }
     val normalizedDateIso = dateIso.parseLocalDateIso("tracked date dateIso")
-    val anchorIcon = requireNotNull(AnchorIcon.fromStorageValueOrNull(iconKey)) {
-        "Unsupported tracked date icon key: $iconKey."
-    }
-    val normalizedPaletteKey = paletteKey?.let { key ->
-        requireNotNull(MedicationGroupColorKey.fromStorageValueOrNull(key)) {
-            "Unsupported tracked date palette key: $key."
-        }.name
-    }
     require(updatedAtEpochMillis >= createdAtEpochMillis) {
         "Tracked date $trackedDateUuid updatedAt must not be before createdAt."
     }
+    // iconKey and paletteKey are stored as-is rather than rejected: both have
+    // graceful read-time fallbacks (AnchorIcon.EVENT and the slate default), so
+    // a forward-compatible backup carrying an icon or palette this build does
+    // not know yet restores intact instead of failing the whole import.
     return TrackedDateEntity(
         uuid = trackedDateUuid,
         name = normalizedName,
-        iconKey = anchorIcon.storageKey,
+        iconKey = iconKey,
         dateIso = normalizedDateIso,
-        paletteKey = normalizedPaletteKey,
+        paletteKey = paletteKey,
         pinnedOrder = pinnedOrder,
         createdAtEpochMillis = createdAtEpochMillis,
         updatedAtEpochMillis = updatedAtEpochMillis,
