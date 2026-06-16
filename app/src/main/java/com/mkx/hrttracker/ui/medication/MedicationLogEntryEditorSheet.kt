@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.medication
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -43,6 +44,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
@@ -50,6 +52,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
@@ -120,6 +123,7 @@ fun MedicationLogEntryEditorSheet(
     sourceGroupScheduledFor: LocalDateTime? = null,
     sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean = false,
     countText: String,
+    recordIndicator: MedicationLogRecordIndicator? = null,
     appliedDate: LocalDate,
     appliedTime: LocalTime,
     appliedZoneId: ZoneId = ZoneId.systemDefault(),
@@ -187,6 +191,7 @@ fun MedicationLogEntryEditorSheet(
                 doseAmountDelta = doseAmountDelta,
             ),
             countText = countText,
+            recordIndicator = recordIndicator,
             sourceGroupName = sourceGroupName,
             sourceGroupColorKey = sourceGroupColorKey,
             sourceGroupIsArchived = sourceGroupIsArchived,
@@ -251,6 +256,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
     doseInstruction: DoseInstruction?,
     doseAmountDelta: Double? = null,
     countText: String,
+    recordIndicator: MedicationLogRecordIndicator? = null,
     sourceGroupName: String?,
     sourceGroupColorKey: MedicationGroupColorKey?,
     sourceGroupIsArchived: Boolean,
@@ -300,6 +306,9 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
         // Medicine identity is locked on existing log entries; render the
         // card as a non-clickable summary so it neither ripples nor grays.
         onClick = null,
+        trailingContent = recordIndicator?.let { indicator ->
+            { MedicationLogRecordIndicatorIcon(indicator = indicator) }
+        },
         modifier = Modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         index = if (hasGroupInfo) 1 else 0,
@@ -314,6 +323,73 @@ internal fun linkedMedicationSummaryMissingGroupColorTreatment(
         MedicationCardMissingGroupColorTreatment.NEUTRAL_GROUP_PALETTE
     } else {
         MedicationCardMissingGroupColorTreatment.PRIMARY_CONTAINER
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Record provenance indicator (manual vs imported) shown on the summary card.
+// ---------------------------------------------------------------------------
+
+// How an existing log entry was created. Scheduled/group entries carry no
+// indicator, so the mapper returns null for them.
+enum class MedicationLogRecordIndicator {
+    MANUAL,
+    IMPORTED,
+}
+
+// Mirrors the manual/imported provenance rule used by the history, plan, main,
+// and widget surfaces: an external-import entry reads as IMPORTED, an entry with
+// no source group is a user-recorded MANUAL log, and a scheduled group entry has
+// no indicator.
+internal fun medicationLogRecordIndicator(entry: MedicationLogEntry): MedicationLogRecordIndicator? =
+    when {
+        entry.importSourceApp != null -> MedicationLogRecordIndicator.IMPORTED
+        entry.sourceGroupUuid == null -> MedicationLogRecordIndicator.MANUAL
+        else -> null
+    }
+
+@DrawableRes
+private fun medicationLogRecordIndicatorIconRes(indicator: MedicationLogRecordIndicator): Int =
+    when (indicator) {
+        MedicationLogRecordIndicator.IMPORTED -> R.drawable.ic_download
+        MedicationLogRecordIndicator.MANUAL -> R.drawable.ic_edit_square
+    }
+
+@StringRes
+private fun medicationLogRecordIndicatorContentDescriptionRes(
+    indicator: MedicationLogRecordIndicator,
+): Int =
+    when (indicator) {
+        MedicationLogRecordIndicator.IMPORTED -> R.string.external_tracker_record_indicator
+        MedicationLogRecordIndicator.MANUAL -> R.string.plan_entry_label_manual
+    }
+
+private val MedicationLogRecordIndicatorSlotSize = 18.dp
+
+// Per-glyph sizing within the 18.dp slot keeps the download/edit glyphs visually
+// balanced, matching the established history/widget indicator scaling.
+private fun medicationLogRecordIndicatorGlyphSize(@DrawableRes iconDrawableRes: Int): Dp =
+    when (iconDrawableRes) {
+        R.drawable.ic_download -> 16.dp
+        R.drawable.ic_edit_square -> 17.dp
+        else -> MedicationLogRecordIndicatorSlotSize
+    }
+
+@Composable
+private fun MedicationLogRecordIndicatorIcon(indicator: MedicationLogRecordIndicator) {
+    val iconDrawableRes = medicationLogRecordIndicatorIconRes(indicator)
+    Box(
+        modifier = Modifier.size(MedicationLogRecordIndicatorSlotSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(iconDrawableRes),
+            contentDescription = stringResource(
+                medicationLogRecordIndicatorContentDescriptionRes(indicator),
+            ),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(medicationLogRecordIndicatorGlyphSize(iconDrawableRes)),
+        )
     }
 }
 

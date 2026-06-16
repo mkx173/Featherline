@@ -29,11 +29,13 @@ import com.mkx.hrttracker.reminder.captureStockStatesForLog
 import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
+import com.mkx.hrttracker.ui.medication.MedicationLogRecordIndicator
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.doseAmountDeltaForActual
 import com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction
 import com.mkx.hrttracker.ui.medication.effectiveActualDoseAmount
+import com.mkx.hrttracker.ui.medication.medicationLogRecordIndicator
 import com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine
 import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import com.mkx.hrttracker.ui.medication.parseMedicationCountText
@@ -653,6 +655,9 @@ data class MedicationLogEntryUiState(
     val scheduledFor: LocalDateTime? = null,
     val sourceGroupPreviousScheduledFor: LocalDateTime? = null,
     val sourceGroupNextScheduledFor: LocalDateTime? = null,
+    // Provenance badge for an existing entry being edited (manual vs imported).
+    // Null for quick-log/new entries and scheduled group entries.
+    val recordIndicator: MedicationLogRecordIndicator? = null,
     val countText: String = "1",
     val appliedDate: LocalDate = LocalDate.now(),
     val appliedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
@@ -864,6 +869,7 @@ internal fun buildEditingUiState(
             matchingSourceGroup?.nextScheduledForAfter(scheduledFor)
                 ?: sourceGroupNextScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
         },
+        recordIndicator = medicationLogRecordIndicator(representativeEntry),
         countText = normalizeMedicationCount(
             applicationType = representativeEntry.applicationType,
             count = representativeEntry.count,

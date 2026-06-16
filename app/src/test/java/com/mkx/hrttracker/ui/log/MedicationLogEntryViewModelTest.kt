@@ -22,6 +22,7 @@ import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.ui.medication.MedicationLogRecordIndicator
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -235,6 +236,56 @@ class MedicationLogEntryViewModelTest {
         assertEquals("Nightly estradiol", uiState.sourceGroupName)
         assertEquals(MedicationGroupColorKey.INDIGO, uiState.sourceGroupColorKey)
         assertFalse(uiState.sourceGroupIsArchived)
+    }
+
+    @Test
+    fun buildEditingUiState_flagsManualRecordIndicator_forUserRecordedLog() {
+        // A log with no source group and no import provenance is a hand-entered
+        // record; the editor surfaces the manual badge so its origin is visible.
+        val entry = testMedicationLogEntry(
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+        )
+
+        val uiState = requireNotNull(buildEditingUiState(listOf(entry)))
+
+        assertEquals(MedicationLogRecordIndicator.MANUAL, uiState.recordIndicator)
+    }
+
+    @Test
+    fun buildEditingUiState_flagsImportedRecordIndicator_forExternalLog() {
+        // An externally-imported log carries import provenance and reads as
+        // IMPORTED regardless of source group, distinguishing it from manual logs.
+        val entry = testMedicationLogEntry(
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+        ).copy(importSourceApp = "ExternalTracker", importExternalId = "abc-123")
+
+        val uiState = requireNotNull(buildEditingUiState(listOf(entry)))
+
+        assertEquals(MedicationLogRecordIndicator.IMPORTED, uiState.recordIndicator)
+    }
+
+    @Test
+    fun buildEditingUiState_omitsRecordIndicator_forScheduledGroupLog() {
+        // Scheduled group entries are the default origin and carry no provenance
+        // badge, so the summary card stays uncluttered for fulfilled slots.
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val entry = testMedicationLogEntry(
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            sourceGroupUuid = groupId,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+            scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0),
+        )
+
+        val uiState = requireNotNull(buildEditingUiState(listOf(entry)))
+
+        assertNull(uiState.recordIndicator)
     }
 
     @Test

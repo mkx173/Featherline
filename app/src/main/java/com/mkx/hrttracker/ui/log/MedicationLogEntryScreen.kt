@@ -311,6 +311,7 @@ private fun MedicationLogEntryScreenBody(
         sourceGroupScheduleOffsetOutsideFulfillmentWindow =
             sourceGroupScheduleOffsetOutsideFulfillmentWindow,
         countText = uiState.countText,
+        recordIndicator = uiState.recordIndicator,
         appliedDate = uiState.appliedDate,
         appliedTime = uiState.appliedTime,
         appliedZoneId = uiState.appliedZoneId,
