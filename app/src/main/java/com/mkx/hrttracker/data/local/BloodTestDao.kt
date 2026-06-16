@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -38,8 +39,59 @@ interface BloodTestDao {
     )
     suspend fun getPanel(uuid: String): BloodTestPanelWithResultsEntity?
 
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM blood_test_panels
+        WHERE importSourceApp = :sourceApp
+          AND importPanelKey = :panelKey
+        LIMIT 1
+        """
+    )
+    suspend fun getImportedPanel(
+        sourceApp: String,
+        panelKey: Long,
+    ): BloodTestPanelWithResultsEntity?
+
+    @Query(
+        """
+        SELECT * FROM blood_test_results
+        WHERE importSourceApp = :sourceApp
+          AND importExternalId = :externalId
+        LIMIT 1
+        """
+    )
+    suspend fun getImportedResult(
+        sourceApp: String,
+        externalId: String,
+    ): BloodTestResultEntity?
+
+    @Query(
+        """
+        SELECT * FROM blood_test_results
+        WHERE importSourceApp = :sourceApp
+        """
+    )
+    suspend fun getImportedResults(sourceApp: String): List<BloodTestResultEntity>
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM blood_test_panels
+        WHERE importSourceApp = :sourceApp
+        """
+    )
+    suspend fun getImportedPanels(sourceApp: String): List<BloodTestPanelWithResultsEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPanel(panel: BloodTestPanelEntity)
+
+    // Insert a new panel or update an existing one in place. Unlike
+    // insertPanel's REPLACE, this never deletes-then-reinserts the row, so the
+    // ON DELETE CASCADE on blood_test_results does not fire and child results
+    // (including user-owned ones) are preserved across an imported-panel update.
+    @Upsert
+    suspend fun upsertPanel(panel: BloodTestPanelEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPanels(panels: List<BloodTestPanelEntity>)
@@ -62,6 +114,15 @@ interface BloodTestDao {
         """
     )
     suspend fun deletePanel(uuid: String)
+
+    @Query(
+        """
+        DELETE FROM blood_test_panels
+        WHERE importSourceApp IS NOT NULL
+          AND uuid NOT IN (SELECT DISTINCT panelUuid FROM blood_test_results)
+        """
+    )
+    suspend fun deleteEmptyImportedPanels()
 
     @Query(
         """

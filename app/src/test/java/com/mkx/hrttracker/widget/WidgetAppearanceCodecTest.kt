@@ -4,24 +4,24 @@ import com.mkx.hrttracker.data.backup.CURRENT_BACKUP_SNAPSHOT_VERSION
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WidgetAppearanceCodecTest {
 
     @Test
-    fun `codec format version stays coupled to the backup snapshot version`() {
+    fun `codec format version stays within the backup snapshot version gate`() {
         // The encoded appearance travels inside backups (settings.widgetAppearance), and
         // BackupRestoreService hard-fails the ENTIRE restore when decode() returns null —
         // which it does for any codec format version an older app does not recognize. So a
         // codec format bump MUST be paired with a CURRENT_BACKUP_SNAPSHOT_VERSION bump, so
-        // an older app rejects the newer backup cleanly at the version gate instead of
-        // throwing mid-restore. This tripwire pins the current known-good pairing: if you
-        // change either constant, change both deliberately and update the expectations here.
+        // an older app rejects the newer backup cleanly at the version gate. The snapshot
+        // version may still outpace the codec version for unrelated backup-format bumps.
         val codecFormatVersion = WidgetAppearanceCodec.encode(WidgetAppearance.Default)
             .substringBefore('|')
             .toInt()
         assertEquals(4, codecFormatVersion)
-        assertEquals(4, CURRENT_BACKUP_SNAPSHOT_VERSION)
+        assertTrue(codecFormatVersion <= CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     @Test

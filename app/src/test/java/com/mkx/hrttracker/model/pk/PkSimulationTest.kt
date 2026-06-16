@@ -1,11 +1,16 @@
 package com.mkx.hrttracker.model.pk
 
 import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
@@ -900,8 +905,213 @@ class PkSimulationTest {
         assertTrue(withRemoval.currentConcentration < withoutRemoval.currentConcentration)
     }
 
+    @Test
+    fun simulateMainEstradiolTrend_usesImportedEvInjectionDepotKinetics() {
+        val now = LocalDateTime.of(2026, 5, 5, 12, 0)
+        val zoneId = ZoneId.systemDefault()
+        val bodyWeightKg = 70.0
+        val medicineDoseMg = 5.0
+        val entry = testMedicationLogEntry(
+            medicine = importedMedicine(
+                preparation = MedicinePreparation.ImportedInjection(
+                    administeredMg = medicineDoseMg,
+                    ester = MedicationKey.ESTRADIOL_VALERATE,
+                ),
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = "5",
+            ),
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = DoseInstruction.WholeUnit,
+            equivalentE2Mg = null,
+            sourceGroupUuid = null,
+            appliedAt = testInstant(now.minusHours(48)),
+        )
+
+        val trend = checkNotNull(
+            PkMedicationSimulation.simulateMainEstradiolTrend(
+                entries = listOf(entry),
+                bodyWeightKg = bodyWeightKg,
+                now = now,
+                zoneId = zoneId,
+            )
+        )
+        val equivalentE2Mg = medicineDoseMg * requireNotNull(
+            DoseInstructionCalculator.e2EquivalenceRatio(MedicationKey.ESTRADIOL_VALERATE)
+        )
+        val expected = PkSimulationEngine(
+            events = listOf(
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = null,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.INJECTION,
+                    timeH = 36.0,
+                    doseMg = equivalentE2Mg,
+                    compound = PkCompound.EV,
+                )
+            ),
+            hormone = PkHormone.ESTRADIOL,
+            bodyWeightKg = bodyWeightKg,
+            startTimeH = 0.0,
+            endTimeH = 168.0,
+            numberOfSteps = 169,
+        ).run(sampleTimeH = listOf(0.0, 84.0))
+
+        assertEquals(expected.concentrationAt(84.0) ?: 0.0, trend.currentConcentration, 1e-9)
+    }
+
+    @Test
+    fun simulateMainEstradiolTrend_usesImportedGelKinetics() {
+        val now = LocalDateTime.of(2026, 5, 5, 12, 0)
+        val zoneId = ZoneId.systemDefault()
+        val bodyWeightKg = 70.0
+        val appliedEstradiolMg = 1.5
+        val entry = testMedicationLogEntry(
+            medicine = importedMedicine(
+                preparation = MedicinePreparation.ImportedGel(
+                    appliedEstradiolMg = appliedEstradiolMg,
+                ),
+                applicationType = MedicationApplicationType.GEL,
+                compound = "ESTRADIOL_GEL",
+                doseKey = "1.5",
+            ),
+            applicationType = MedicationApplicationType.GEL,
+            doseInstruction = DoseInstruction.WholeUnit,
+            equivalentE2Mg = null,
+            sourceGroupUuid = null,
+            appliedAt = testInstant(now.minusHours(8)),
+        )
+
+        val trend = checkNotNull(
+            PkMedicationSimulation.simulateMainEstradiolTrend(
+                entries = listOf(entry),
+                bodyWeightKg = bodyWeightKg,
+                now = now,
+                zoneId = zoneId,
+            )
+        )
+        val expected = PkSimulationEngine(
+            events = listOf(
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = null,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.GEL,
+                    timeH = 76.0,
+                    doseMg = appliedEstradiolMg,
+                    compound = PkCompound.E2,
+                )
+            ),
+            hormone = PkHormone.ESTRADIOL,
+            bodyWeightKg = bodyWeightKg,
+            startTimeH = 0.0,
+            endTimeH = 168.0,
+            numberOfSteps = 169,
+        ).run(sampleTimeH = listOf(0.0, 84.0))
+
+        assertEquals(expected.concentrationAt(84.0) ?: 0.0, trend.currentConcentration, 1e-9)
+    }
+
+    @Test
+    fun simulateMainEstradiolTrend_keepsImportedCatalogPillsAndPatches() {
+        val now = LocalDateTime.of(2026, 5, 17, 12, 0)
+        val zoneId = ZoneId.systemDefault()
+        val entries = listOf(
+            testMedicationLogEntry(
+                medicine = importedMedicine(
+                    selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),
+                    preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                    applicationType = MedicationApplicationType.ORAL,
+                    compound = "ESTRADIOL_VALERATE",
+                    doseKey = "2",
+                ),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 1),
+                equivalentE2Mg = null,
+                sourceGroupUuid = null,
+                appliedAt = now.minusHours(36).atZone(zoneId).toInstant(),
+            ),
+            testMedicationLogEntry(
+                medicine = importedMedicine(
+                    selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL),
+                    preparation = MedicinePreparation.Pill(strengthMgPerTablet = 1.0),
+                    applicationType = MedicationApplicationType.SUBLINGUAL,
+                    compound = "ESTRADIOL",
+                    doseKey = "1",
+                ),
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+                doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 1),
+                equivalentE2Mg = null,
+                sourceGroupUuid = null,
+                appliedAt = now.minusHours(24).atZone(zoneId).toInstant(),
+            ),
+            testMedicationLogEntry(
+                medicine = importedMedicine(
+                    selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_PATCH),
+                    preparation = MedicinePreparation.Patch(
+                        specification = MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                            valueMcgPerDay = 100.0,
+                        ),
+                    ),
+                    applicationType = MedicationApplicationType.PATCH_ON,
+                    compound = "ESTRADIOL_PATCH",
+                    doseKey = "100mcgPerDay",
+                ),
+                applicationType = MedicationApplicationType.PATCH_ON,
+                doseInstruction = DoseInstruction.WholeUnit,
+                equivalentE2Mg = null,
+                sourceGroupUuid = null,
+                appliedAt = now.minusHours(12).atZone(zoneId).toInstant(),
+            ),
+        )
+
+        val trend = checkNotNull(
+            PkMedicationSimulation.simulateMainEstradiolTrend(
+                entries = entries,
+                bodyWeightKg = 70.0,
+                now = now,
+                zoneId = zoneId,
+            )
+        )
+
+        assertEquals(3, trend.doseMarkers.size)
+        assertTrue(trend.currentConcentration > 0.0)
+    }
+
     private fun round4(value: Double): Double {
         // Mirrors PkMedicationSimulation.toChartXHour rounding scale.
         return kotlin.math.round(value * 10_000.0) / 10_000.0
+    }
+
+    private fun importedMedicine(
+        preparation: MedicinePreparation,
+        applicationType: MedicationApplicationType,
+        compound: String,
+        doseKey: String,
+        selection: MedicineSelection = MedicineSelection.Custom("External tracker"),
+    ): Medicine {
+        return Medicine(
+            uuid = UUID.randomUUID(),
+            selection = selection,
+            category = when (selection) {
+                is MedicineSelection.Catalog -> selection.medicationKey.category
+                is MedicineSelection.Custom -> MedicationCategory.ESTRADIOL
+                is MedicineSelection.PatchOff -> MedicationCategory.ESTRADIOL
+            },
+            preparation = preparation,
+            displayName = null,
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = applicationType,
+                compound = compound,
+                doseKey = doseKey,
+            ),
+            createdAt = testInstant(LocalDateTime.of(2026, 5, 1, 0, 0)),
+            updatedAt = testInstant(LocalDateTime.of(2026, 5, 1, 0, 0)),
+            archivedAt = null,
+            stock = MedicineStock(),
+            importedFromExternalTracker = true,
+        )
     }
 }

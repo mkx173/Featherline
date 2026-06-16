@@ -516,6 +516,8 @@ internal object HomeSnapshotCodec {
         writeNullableString(entry.scheduledFor?.toString())
         writeInt(entry.count)
         writeNullableDouble(entry.doseAmountDelta)
+        writeNullableString(entry.importSourceApp)
+        writeNullableString(entry.importExternalId)
     }
 
     private fun DataInputStream.readMedicationLogEntryBody(
@@ -536,6 +538,8 @@ internal object HomeSnapshotCodec {
             scheduledFor = readNullableString()?.let(LocalDateTime::parse),
             count = readInt(),
             doseAmountDelta = readNullableDouble(),
+            importSourceApp = readNullableString(),
+            importExternalId = readNullableString(),
         )
     }
 
@@ -559,6 +563,7 @@ internal object HomeSnapshotCodec {
         writeMedicinePreparation(medicine.preparation)
         writeNullableString(medicine.displayName)
         writeString(medicine.identityKey)
+        writeBoolean(medicine.importedFromExternalTracker)
         writeLong(medicine.createdAt.toEpochMilli())
         writeLong(medicine.updatedAt.toEpochMilli())
         writeNullableLong(medicine.archivedAt?.toEpochMilli())
@@ -573,6 +578,7 @@ internal object HomeSnapshotCodec {
         val preparation = readMedicinePreparation()
         val displayName = readNullableString()
         val storedIdentityKey = readString()
+        val importedFromExternalTracker = readBoolean()
         val createdAt = Instant.ofEpochMilli(readLong())
         val updatedAt = Instant.ofEpochMilli(readLong())
         val archivedAt = readNullableLong()?.let(Instant::ofEpochMilli)
@@ -587,17 +593,29 @@ internal object HomeSnapshotCodec {
         } else {
             rawSelection
         }
-        val expectedIdentityKey = when (selection) {
-            is MedicineSelection.Catalog ->
-                MedicineIdentityKey.catalog(selection.medicationKey, preparation)
+        if (importedFromExternalTracker && storedIdentityKey.startsWith("E|")) {
+            // Imported keys embed sourceApp + route, which are not recoverable
+            // here; verify the dose-key segment, which is derivable from the
+            // preparation, so a cached key cannot disagree with the dose it backs.
+            check(
+                storedIdentityKey.substringAfterLast("|") ==
+                    MedicineIdentityKey.importedDoseKey(preparation)
+            ) {
+                "Cached imported medicine $uuid dose key does not match its preparation."
+            }
+        } else {
+            val expectedIdentityKey = when (selection) {
+                is MedicineSelection.Catalog ->
+                    MedicineIdentityKey.catalog(selection.medicationKey, preparation)
 
-            is MedicineSelection.Custom ->
-                MedicineIdentityKey.custom(selection.medicationName, preparation)
+                is MedicineSelection.Custom ->
+                    MedicineIdentityKey.custom(selection.medicationName, preparation)
 
-            is MedicineSelection.PatchOff -> MedicineIdentityKey.patchOff()
-        }
-        check(storedIdentityKey == expectedIdentityKey) {
-            "Cached medicine $uuid identityKey does not match selection and preparation."
+                is MedicineSelection.PatchOff -> MedicineIdentityKey.patchOff()
+            }
+            check(storedIdentityKey == expectedIdentityKey) {
+                "Cached medicine $uuid identityKey does not match selection and preparation."
+            }
         }
         return Medicine(
             uuid = uuid,
@@ -611,6 +629,7 @@ internal object HomeSnapshotCodec {
             archivedAt = archivedAt,
             displayDoseUnit = displayDoseUnit,
             stock = stock.normalizedFor(preparation),
+            importedFromExternalTracker = importedFromExternalTracker,
         )
     }
 
@@ -687,6 +706,15 @@ internal object HomeSnapshotCodec {
                 writeDouble(preparation.containerWeightGrams)
             }
 
+            is MedicinePreparation.ImportedInjection -> {
+                writeDouble(preparation.administeredMg)
+                writeString(preparation.ester.name)
+            }
+
+            is MedicinePreparation.ImportedGel -> {
+                writeDouble(preparation.appliedEstradiolMg)
+            }
+
             is MedicinePreparation.Patch -> when (val specification = preparation.specification) {
                 is MedicinePreparation.PatchSpecification.TotalMg -> {
                     writeByte(PATCH_SPECIFICATION_TOTAL_MG)
@@ -730,6 +758,17 @@ internal object HomeSnapshotCodec {
             MedicinePreparationType.GEL_CONTAINER -> MedicinePreparation.GelContainer(
                 concentrationPercent = readDouble(),
                 containerWeightGrams = readDouble(),
+            )
+
+            MedicinePreparationType.IMPORTED_INJECTION -> MedicinePreparation.ImportedInjection(
+                administeredMg = readDouble(),
+                ester = checkNotNull(MedicationKey.fromStorageValue(readString())) {
+                    "Imported injection snapshot medicine is missing ester medicationKey."
+                },
+            )
+
+            MedicinePreparationType.IMPORTED_GEL -> MedicinePreparation.ImportedGel(
+                appliedEstradiolMg = readDouble(),
             )
 
             MedicinePreparationType.PATCH -> MedicinePreparation.Patch(
@@ -948,7 +987,10 @@ private const val TAG = "HomeSnapshotStore"
 // the E2 curve locally when the cached projection expires.
 // v18 appends archivedGroups (after activeGroups) so Home/widget mirror Plan.
 // v19 appends doseAmountDelta to medication log entries for stock deltas.
-private const val SNAPSHOT_CODEC_VERSION = 19
+// v20 appends importedFromExternalTracker to cached Medicine and adds imported
+// injection/gel preparation payloads.
+// v21 appends medication log import provenance.
+private const val SNAPSHOT_CODEC_VERSION = 21
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0

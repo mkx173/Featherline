@@ -134,6 +134,7 @@ data class MainTodayDoseRowUiState(
     val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedCount: Int = 0,
     val isManualRecord: Boolean = false,
+    val isImportedRecord: Boolean = false,
     val isFromArchivedGroup: Boolean = false,
     val groupCreatedAt: Instant = Instant.EPOCH,
     val medicationSortOrder: Int = 0,
@@ -827,6 +828,7 @@ private fun buildMainTodayRowsForDate(
             fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
             outsideScheduleWindowEntryUuids = scheduledEntry.outsideScheduleWindowEntryUuids,
             loggedCount = scheduledEntry.loggedCount,
+            isImportedRecord = editSnapshotEntries.any { entry -> entry.importSourceApp != null },
             isFromArchivedGroup = scheduledEntry.groupUuid in archivedGroupUuids,
             groupCreatedAt = scheduledEntry.groupCreatedAt,
             medicationSortOrder = scheduledEntry.medicationSortOrder,
@@ -857,6 +859,7 @@ private fun buildMainTodayRowsForDate(
             fulfillingEntryUuids = listOf(entry.uuid),
             loggedCount = entry.count,
             isManualRecord = true,
+            isImportedRecord = entry.importSourceApp != null,
             isFromArchivedGroup = entry.sourceGroupUuid != null &&
                     entry.sourceGroupUuid in archivedGroupUuids,
             editSnapshotEntries = listOf(entry),

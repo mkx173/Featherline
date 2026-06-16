@@ -96,6 +96,97 @@ class MedicationCompatibilityTest {
     }
 
     @Test
+    fun importedInjectionIsCompatibleOnlyWithInjectionWholeUnit() {
+        val preparation = MedicinePreparation.ImportedInjection(
+            administeredMg = 5.0,
+            ester = MedicationKey.ESTRADIOL_VALERATE,
+        )
+        val type = preparation.type
+
+        assertTrue(type.form() == MedicinePreparationForm.INJECTION)
+        assertTrue(preparation.requiredApplicationType() == MedicationApplicationType.INJECTION)
+        assertTrue(MedicationApplicationType.INJECTION.isCompatibleWith(type))
+        assertFalse(MedicationApplicationType.ORAL.isCompatibleWith(type))
+        assertFalse(MedicationApplicationType.SUBLINGUAL.isCompatibleWith(type))
+        assertFalse(MedicationApplicationType.GEL.isCompatibleWith(type))
+        assertFalse(MedicationApplicationType.PATCH_ON.isCompatibleWith(type))
+        assertFalse(MedicationApplicationType.PATCH_OFF.isCompatibleWith(type))
+
+        assertTrue(DoseInstruction.WholeUnit.isCompatibleWith(type))
+        assertFalse(DoseInstruction.TabletFraction(1, 1).isCompatibleWith(type))
+        assertFalse(DoseInstruction.VolumeMl(0.5).isCompatibleWith(type))
+        assertFalse(DoseInstruction.WeightGrams(1.0).isCompatibleWith(type))
+        assertFalse(DoseInstruction.Noop.isCompatibleWith(type))
+    }
+
+    @Test
+    fun importedGelIsCompatibleOnlyWithGelWholeUnit() {
+        val preparation = MedicinePreparation.ImportedGel(appliedEstradiolMg = 1.5)
+        val type = preparation.type
+
+        assertTrue(type.form() == MedicinePreparationForm.GEL)
+        assertTrue(preparation.requiredApplicationType() == MedicationApplicationType.GEL)
+        assertTrue(MedicationApplicationType.GEL.isCompatibleWith(type))
+        assertFalse(MedicationApplicationType.ORAL.isCompatibleWith(type))
+        assertFalse(MedicationApplicationType.SUBLINGUAL.isCompatibleWith(type))
+        assertFalse(MedicationApplicationType.INJECTION.isCompatibleWith(type))
+        assertFalse(MedicationApplicationType.PATCH_ON.isCompatibleWith(type))
+        assertFalse(MedicationApplicationType.PATCH_OFF.isCompatibleWith(type))
+
+        assertTrue(DoseInstruction.WholeUnit.isCompatibleWith(type))
+        assertFalse(DoseInstruction.TabletFraction(1, 1).isCompatibleWith(type))
+        assertFalse(DoseInstruction.VolumeMl(0.5).isCompatibleWith(type))
+        assertFalse(DoseInstruction.WeightGrams(1.0).isCompatibleWith(type))
+        assertFalse(DoseInstruction.Noop.isCompatibleWith(type))
+    }
+
+    @Test
+    fun importedInjectionRejectsInvalidAmountAndInvalidEster() {
+        val invalidAmounts = listOf(
+            0.0,
+            -1.0,
+            Double.NaN,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+        )
+
+        invalidAmounts.forEach { value ->
+            assertThrows(IllegalArgumentException::class.java) {
+                MedicinePreparation.ImportedInjection(
+                    administeredMg = value,
+                    ester = MedicationKey.ESTRADIOL_VALERATE,
+                )
+            }
+        }
+        listOf(
+            MedicationKey.ESTRADIOL_GEL,
+            MedicationKey.ESTRADIOL_PATCH,
+            MedicationKey.CYPROTERONE_ACETATE,
+        ).forEach { key ->
+            assertThrows(IllegalArgumentException::class.java) {
+                MedicinePreparation.ImportedInjection(administeredMg = 5.0, ester = key)
+            }
+        }
+    }
+
+    @Test
+    fun importedGelRejectsInvalidAppliedEstradiolAmount() {
+        val invalidAmounts = listOf(
+            0.0,
+            -1.0,
+            Double.NaN,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+        )
+
+        invalidAmounts.forEach { value ->
+            assertThrows(IllegalArgumentException::class.java) {
+                MedicinePreparation.ImportedGel(appliedEstradiolMg = value)
+            }
+        }
+    }
+
+    @Test
     fun requiredApplicationType_returnsNullOnlyForPill() {
         assertTrue(MedicinePreparation.Pill(2.0).requiredApplicationType() == null)
         assertTrue(
@@ -123,6 +214,82 @@ class MedicationCompatibilityTest {
                 .requiredApplicationType() == MedicationApplicationType.PATCH_ON,
         )
         assertTrue(MedicinePreparation.PatchOff.requiredApplicationType() == MedicationApplicationType.PATCH_OFF)
+    }
+
+    @Test
+    fun medicineRejectsImportedOnlyPreparationWithoutImportedFlag() {
+        assertThrows(IllegalArgumentException::class.java) {
+            importedMedicine(
+                preparation = MedicinePreparation.ImportedInjection(
+                    administeredMg = 5.0,
+                    ester = MedicationKey.ESTRADIOL_VALERATE,
+                ),
+                importedFromExternalTracker = false,
+            )
+        }
+    }
+
+    @Test
+    fun medicineRejectsImportedOnlyPreparationWithoutExternalTrackerCustomSelection() {
+        assertThrows(IllegalArgumentException::class.java) {
+            importedMedicine(
+                preparation = MedicinePreparation.ImportedInjection(
+                    administeredMg = 5.0,
+                    ester = MedicationKey.ESTRADIOL_VALERATE,
+                ),
+                selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),
+            )
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            importedMedicine(
+                preparation = MedicinePreparation.ImportedGel(appliedEstradiolMg = 1.5),
+                selection = MedicineSelection.Custom("NoMTF"),
+                applicationType = MedicationApplicationType.GEL,
+                compound = "ESTRADIOL_GEL",
+                doseKey = "1.5",
+            )
+        }
+    }
+
+    @Test
+    fun medicineAllowsImportedCatalogPillAndPatch() {
+        val pill = importedMedicine(
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),
+            applicationType = MedicationApplicationType.ORAL,
+            compound = "ESTRADIOL_VALERATE",
+            doseKey = "2",
+        )
+        val patch = importedMedicine(
+            preparation = MedicinePreparation.Patch(
+                specification = MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                    valueMcgPerDay = 100.0,
+                ),
+            ),
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_PATCH),
+            applicationType = MedicationApplicationType.PATCH_ON,
+            compound = "ESTRADIOL_PATCH",
+            doseKey = "100mcgPerDay",
+        )
+
+        assertTrue(pill.importedFromExternalTracker)
+        assertTrue(patch.importedFromExternalTracker)
+    }
+
+    @Test
+    fun medicineRejectsStockTrackingForImportedMedicine() {
+        assertThrows(IllegalArgumentException::class.java) {
+            importedMedicine(
+                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL),
+                importedFromExternalTracker = true,
+                stock = MedicineStock(
+                    trackingEnabled = true,
+                    unitsRemaining = 10.0,
+                    unitsLastTotal = 10.0,
+                ),
+            )
+        }
     }
 
     @Test
@@ -223,5 +390,39 @@ class MedicationCompatibilityTest {
         expectedForm: MedicinePreparationForm,
     ) {
         assertTrue(preparationType.form() == expectedForm)
+    }
+
+    private fun importedMedicine(
+        preparation: MedicinePreparation,
+        selection: MedicineSelection = MedicineSelection.Custom("External tracker"),
+        importedFromExternalTracker: Boolean = true,
+        stock: MedicineStock = MedicineStock(),
+        applicationType: MedicationApplicationType = MedicationApplicationType.INJECTION,
+        compound: String = "ESTRADIOL_VALERATE",
+        doseKey: String = "5",
+    ): Medicine {
+        val timestamp = Instant.parse("2026-05-22T00:00:00Z")
+        return Medicine(
+            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
+            selection = selection,
+            category = when (selection) {
+                is MedicineSelection.Catalog -> selection.medicationKey.category
+                is MedicineSelection.Custom -> MedicationCategory.ESTRADIOL
+                is MedicineSelection.PatchOff -> MedicationCategory.ESTRADIOL
+            },
+            preparation = preparation,
+            displayName = null,
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = applicationType,
+                compound = compound,
+                doseKey = doseKey,
+            ),
+            createdAt = timestamp,
+            updatedAt = timestamp,
+            archivedAt = null,
+            stock = stock,
+            importedFromExternalTracker = importedFromExternalTracker,
+        )
     }
 }

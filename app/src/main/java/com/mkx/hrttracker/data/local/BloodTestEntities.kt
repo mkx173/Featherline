@@ -10,7 +10,8 @@ import androidx.room.Relation
 @Entity(
     tableName = "blood_test_panels",
     indices = [
-        Index("collectedAtInstantEpochMillis")
+        Index("collectedAtInstantEpochMillis"),
+        Index(value = ["importSourceApp", "importPanelKey"], unique = true),
     ]
 )
 data class BloodTestPanelEntity(
@@ -22,6 +23,8 @@ data class BloodTestPanelEntity(
     val timeSinceLastTestosteroneDoseMillis: Long?,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
+    val importSourceApp: String? = null,
+    val importPanelKey: Long? = null,
 )
 
 @Entity(
@@ -64,7 +67,8 @@ data class CustomBloodAnalyteEntity(
         Index("customAnalyteUuid"),
         Index(value = ["panelUuid", "displayOrder"], unique = true),
         Index(value = ["panelUuid", "builtinAnalyteKey"], unique = true),
-        Index(value = ["panelUuid", "customAnalyteUuid"], unique = true)
+        Index(value = ["panelUuid", "customAnalyteUuid"], unique = true),
+        Index(value = ["importSourceApp", "importExternalId"], unique = true),
     ]
 )
 data class BloodTestResultEntity(
@@ -77,6 +81,8 @@ data class BloodTestResultEntity(
     val value: Double,
     val unitSnapshot: String,
     val canonicalValue: Double,
+    val importSourceApp: String? = null,
+    val importExternalId: String? = null,
 )
 
 data class BloodTestPanelWithResultsEntity(

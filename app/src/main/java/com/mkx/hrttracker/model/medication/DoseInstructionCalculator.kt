@@ -19,6 +19,8 @@ object DoseInstructionCalculator {
         MedicationKey.ESTRADIOL_PATCH to null,
     )
 
+    fun e2EquivalenceRatio(key: MedicationKey): Double? = equivalenceRatios[key]
+
     fun effectivePerAdministrationStockAmount(
         preparation: MedicinePreparation,
         doseInstruction: DoseInstruction,
@@ -80,6 +82,22 @@ object DoseInstructionCalculator {
             is MedicinePreparation.GelContainer -> {
                 val weight = doseInstruction as? DoseInstruction.WeightGrams ?: return null
                 preparation.concentrationPercent * 10.0 * weight.valueGrams
+            }
+
+            is MedicinePreparation.ImportedInjection -> {
+                if (doseInstruction == DoseInstruction.WholeUnit) {
+                    preparation.administeredMg
+                } else {
+                    null
+                }
+            }
+
+            is MedicinePreparation.ImportedGel -> {
+                if (doseInstruction == DoseInstruction.WholeUnit) {
+                    preparation.appliedEstradiolMg
+                } else {
+                    null
+                }
             }
 
             is MedicinePreparation.Patch -> {
@@ -196,6 +214,17 @@ object DoseInstructionCalculator {
             return null
         }
 
+        when (val preparation = medicine.preparation) {
+            is MedicinePreparation.ImportedInjection -> {
+                val amount = perUnitAmountMg(medicine, doseInstruction) ?: return null
+                val ratio = equivalenceRatios[preparation.ester] ?: return null
+                return amount * ratio
+            }
+
+            is MedicinePreparation.ImportedGel -> return perUnitAmountMg(medicine, doseInstruction)
+            else -> Unit
+        }
+
         val perUnitAmountMg = perUnitAmountMg(medicine, doseInstruction) ?: return null
         val medicationKey = (medicine.selection as? MedicineSelection.Catalog)?.medicationKey
             ?: return null
@@ -214,6 +243,26 @@ object DoseInstructionCalculator {
 
         if (medicine.category != MedicationCategory.ESTRADIOL) {
             return null
+        }
+
+        when (val preparation = medicine.preparation) {
+            is MedicinePreparation.ImportedInjection -> {
+                val amount = perUnitAmountMg(
+                    medicine = medicine,
+                    doseInstruction = doseInstruction,
+                    doseAmountDelta = doseAmountDelta,
+                ) ?: return null
+                val ratio = equivalenceRatios[preparation.ester] ?: return null
+                return amount * ratio
+            }
+
+            is MedicinePreparation.ImportedGel -> return perUnitAmountMg(
+                medicine = medicine,
+                doseInstruction = doseInstruction,
+                doseAmountDelta = doseAmountDelta,
+            )
+
+            else -> Unit
         }
 
         val perUnitAmountMg = perUnitAmountMg(

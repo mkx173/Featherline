@@ -12,6 +12,7 @@ interface MedicineDao {
         """
         SELECT * FROM medicines
         WHERE archivedAtEpochMillis IS NULL
+          AND importedFromExternalTracker = 0
         ORDER BY category ASC, updatedAtEpochMillis DESC, createdAtEpochMillis DESC
         """
     )
@@ -28,7 +29,9 @@ interface MedicineDao {
     @Query(
         """
         SELECT * FROM medicines
-        WHERE archivedAtEpochMillis IS NULL AND trackingEnabled = 1
+        WHERE archivedAtEpochMillis IS NULL
+          AND trackingEnabled = 1
+          AND importedFromExternalTracker = 0
         """
     )
     suspend fun getAllActiveTrackedEntities(): List<MedicineEntity>
@@ -75,6 +78,25 @@ interface MedicineDao {
         """
     )
     suspend fun getByIdentityKey(identityKey: String): MedicineEntity?
+
+    @Query(
+        """
+        SELECT * FROM medicines
+        WHERE identityKey = :identityKey
+          AND importedFromExternalTracker = 1
+        LIMIT 1
+        """
+    )
+    suspend fun getImportedByIdentityKey(identityKey: String): MedicineEntity?
+
+    @Query(
+        """
+        SELECT * FROM medicines
+        WHERE importedFromExternalTracker = 1
+          AND identityKey IN (:identityKeys)
+        """
+    )
+    suspend fun getImportedByIdentityKeys(identityKeys: List<String>): List<MedicineEntity>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(entity: MedicineEntity)

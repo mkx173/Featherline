@@ -65,6 +65,7 @@ internal object WidgetSnapshotCodec {
         writeLocalDateTime(row.scheduledAt)
         writeNullableString(row.trailingText)
         writeBoolean(row.isManualRecord)
+        writeBoolean(row.isImportedRecord)
         writeBoolean(row.isFromArchivedGroup)
         writeBoolean(row.contextChip != null)
         row.contextChip?.let { writeByte(it.ordinal) }
@@ -84,6 +85,7 @@ internal object WidgetSnapshotCodec {
         scheduledAt = readLocalDateTime(),
         trailingText = readNullableString(),
         isManualRecord = readBoolean(),
+        isImportedRecord = readBoolean(),
         isFromArchivedGroup = readBoolean(),
         contextChip = if (readBoolean()) WidgetDoseChip.entries[readByte().toInt() and BYTE_MASK] else null,
         groupUuid = readNullableString(),
@@ -183,5 +185,5 @@ internal object WidgetSnapshotCodec {
     }
 }
 
-private const val WIDGET_SNAPSHOT_CODEC_VERSION = 14
+private const val WIDGET_SNAPSHOT_CODEC_VERSION = 15
 private const val BYTE_MASK = 0xff

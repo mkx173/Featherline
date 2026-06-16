@@ -17,6 +17,7 @@ import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
@@ -252,10 +253,14 @@ class BackupExportService @Inject constructor(
             // (kind is CATALOG) but has no medicationKey / customName; the
             // preparationType PATCH_OFF marker rebuilds the PatchOff selection
             // on restore. Mirrors MedicineEntityMappers.toEntity.
-            medicationKey = when (val currentSelection = selection) {
-                is MedicineSelection.Catalog -> currentSelection.medicationKey.name
-                is MedicineSelection.Custom -> null
-                is MedicineSelection.PatchOff -> null
+            medicationKey = when {
+                preparation is MedicinePreparation.ImportedInjection -> preparation.ester.name
+                preparation is MedicinePreparation.ImportedGel -> MedicationKey.ESTRADIOL.name
+                else -> when (val currentSelection = selection) {
+                    is MedicineSelection.Catalog -> currentSelection.medicationKey.name
+                    is MedicineSelection.Custom -> null
+                    is MedicineSelection.PatchOff -> null
+                }
             },
             customMedicationName = when (val currentSelection = selection) {
                 is MedicineSelection.Catalog -> null
@@ -284,6 +289,7 @@ class BackupExportService @Inject constructor(
             updatedAtEpochMillis = updatedAt.toEpochMilli(),
             archivedAtEpochMillis = archivedAt?.toEpochMilli(),
             displayDoseUnit = displayDoseUnit.name,
+            importedFromExternalTracker = importedFromExternalTracker,
             stock = if (stock.trackingEnabled) {
                 BackupMedicineStockSnapshot(
                     trackingEnabled = true,
@@ -369,6 +375,8 @@ class BackupExportService @Inject constructor(
             appliedAtTimeZoneId = appliedAtTimeZoneId,
             scheduledForIso = scheduledFor?.toString(),
             count = count,
+            importSourceApp = importSourceApp,
+            importExternalId = importExternalId,
         )
     }
 
@@ -417,6 +425,16 @@ class BackupExportService @Inject constructor(
                 containerWeightGrams = containerWeightGrams,
             )
 
+            is MedicinePreparation.ImportedInjection -> BackupMedicineStorageFields(
+                preparationType = type.name,
+                strengthMgPerVial = administeredMg,
+            )
+
+            is MedicinePreparation.ImportedGel -> BackupMedicineStorageFields(
+                preparationType = type.name,
+                strengthMgPerVial = appliedEstradiolMg,
+            )
+
             is MedicinePreparation.Patch -> when (val currentSpecification = specification) {
                 is MedicinePreparation.PatchSpecification.TotalMg -> BackupMedicineStorageFields(
                     preparationType = type.name,
@@ -446,6 +464,8 @@ class BackupExportService @Inject constructor(
             timeSinceLastTestosteroneDoseMillis = timeSinceLastTestosteroneDoseMillis,
             createdAtEpochMillis = createdAt.toEpochMilli(),
             updatedAtEpochMillis = updatedAt.toEpochMilli(),
+            importSourceApp = importSourceApp,
+            importPanelKey = importPanelKey,
             results = results.map { result -> result.toBackupSnapshot() },
         )
     }
@@ -460,6 +480,8 @@ class BackupExportService @Inject constructor(
             value = value,
             unitSnapshot = unitSnapshot,
             canonicalValue = canonicalValue,
+            importSourceApp = importSourceApp,
+            importExternalId = importExternalId,
         )
     }
 
@@ -537,3 +559,4 @@ private data class BackupMedicineStorageFields(
     val patchTotalMg: Double? = null,
     val patchReleaseRateMcgPerDay: Double? = null,
 )
+

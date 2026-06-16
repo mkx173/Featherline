@@ -12,6 +12,7 @@ import java.time.ZoneId
             name = "index_medication_log_entries_category_appliedAtEpochMillis",
             value = ["category", "appliedAtEpochMillis"],
         ),
+        Index(value = ["importSourceApp", "importExternalId"], unique = true),
     ],
 )
 data class MedicationLogEntryEntity(
@@ -33,4 +34,6 @@ data class MedicationLogEntryEntity(
     val count: Int = 1,
     val gelApplicationArea: String = "DEFAULT",
     val doseAmountDelta: Double? = null,
+    val importSourceApp: String? = null,
+    val importExternalId: String? = null,
 )

@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.settings
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,6 +9,9 @@ import com.mkx.hrttracker.data.backup.BackupExportService
 import com.mkx.hrttracker.data.backup.BackupExportedFile
 import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.backup.PreparedBackupExport
+import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
+import com.mkx.hrttracker.data.importer.ExternalImportPreview
+import com.mkx.hrttracker.data.importer.ExternalImportService
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
@@ -27,7 +31,12 @@ import com.mkx.hrttracker.util.AppLockSecurityManager
 import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStream
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,10 +47,12 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @param:ApplicationContext private val applicationContext: Context,
     private val settingsRepository: SettingsRepository,
     private val userProfileRepository: UserProfileRepository,
     private val bloodTestRepository: BloodTestRepository,
@@ -50,6 +61,7 @@ class SettingsViewModel @Inject constructor(
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val backupExportService: BackupExportService,
     private val backupRestoreService: BackupRestoreService,
+    private val externalImportService: ExternalImportService,
     private val diagnosticsExportService: AppDiagnosticsExportService,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
 ) : ViewModel() {
@@ -61,14 +73,20 @@ class SettingsViewModel @Inject constructor(
     private val securityErrorMessageRes = MutableStateFlow<Int?>(null)
     private val pendingPreparedBackupExport = MutableStateFlow<PendingPreparedBackupExport?>(null)
     private val pendingRestoreRequest = MutableStateFlow<PendingBackupRestoreRequest?>(null)
+    private val pendingExternalImportPreview = MutableStateFlow<ExternalImportPreview?>(null)
     private val isBackupExportInProgress = MutableStateFlow(false)
     private val isBackupRestoreInProgress = MutableStateFlow(false)
+    private val isExternalImportInProgress = MutableStateFlow(false)
     private val isWeightMutationInProgress = MutableStateFlow(false)
     private val weightEvents = MutableSharedFlow<WeightMutationEvent>(
         replay = 1,
         extraBufferCapacity = 4,
     )
     private val settingsEvents = MutableSharedFlow<SettingsMutationEvent>(
+        replay = 1,
+        extraBufferCapacity = 4,
+    )
+    private val externalImportEventsInternal = MutableSharedFlow<ExternalImportEvent>(
         replay = 1,
         extraBufferCapacity = 4,
     )
@@ -90,8 +108,10 @@ class SettingsViewModel @Inject constructor(
         securityErrorMessageRes,
         pendingPreparedBackupExport,
         pendingRestoreRequest,
+        pendingExternalImportPreview,
         isBackupExportInProgress,
         isBackupRestoreInProgress,
+        isExternalImportInProgress,
         isWeightMutationInProgress,
     ) { values ->
         val settingsState = values[0] as SettingsState
@@ -100,9 +120,11 @@ class SettingsViewModel @Inject constructor(
         val errorRes = values[3] as Int?
         val preparedBackupExport = values[4] as PendingPreparedBackupExport?
         val restoreRequest = values[5] as PendingBackupRestoreRequest?
-        val exportInProgress = values[6] as Boolean
-        val restoreInProgress = values[7] as Boolean
-        val weightInProgress = values[8] as Boolean
+        val externalImportPreview = values[6] as ExternalImportPreview?
+        val exportInProgress = values[7] as Boolean
+        val restoreInProgress = values[8] as Boolean
+        val externalImportInProgress = values[9] as Boolean
+        val weightInProgress = values[10] as Boolean
         SettingsUiState(
             settingsState = settingsState,
             userProfile = profile ?: UserProfile(),
@@ -110,8 +132,10 @@ class SettingsViewModel @Inject constructor(
             securityErrorMessageRes = errorRes,
             pendingPreparedBackupExport = preparedBackupExport,
             pendingRestoreRequest = restoreRequest,
+            pendingExternalImportPreview = externalImportPreview,
             isBackupExportInProgress = exportInProgress,
             isBackupRestoreInProgress = restoreInProgress,
+            isExternalImportInProgress = externalImportInProgress,
             isWeightMutationInProgress = weightInProgress,
         )
     }.stateIn(
@@ -443,6 +467,8 @@ class SettingsViewModel @Inject constructor(
     val backupRestoreEvents: SharedFlow<BackupRestoreEvent> = restoreEvents.asSharedFlow()
     val weightMutationEvents: SharedFlow<WeightMutationEvent> = weightEvents.asSharedFlow()
     val settingsMutationEvents: SharedFlow<SettingsMutationEvent> = settingsEvents.asSharedFlow()
+    val externalImportEvents: SharedFlow<ExternalImportEvent> =
+        externalImportEventsInternal.asSharedFlow()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun consumeBackupRestoreEvent() {
@@ -457,6 +483,11 @@ class SettingsViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun consumeSettingsMutationEvent() {
         settingsEvents.resetReplayCache()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun consumeExternalImportEvent() {
+        externalImportEventsInternal.resetReplayCache()
     }
 
     suspend fun validateBackupFile(
@@ -485,6 +516,48 @@ class SettingsViewModel @Inject constructor(
                 encryptedBytes.fill(0)
             }
         }
+    }
+
+    suspend fun loadExternalImportPreview(
+        fileUri: Uri,
+    ): ExternalImportPreview {
+        return try {
+            val preview = withContext(Dispatchers.IO) {
+                val json = readExternalImportText(fileUri)
+                externalImportService.buildPreview(json)
+            }
+            pendingExternalImportPreview.value = preview
+            preview
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            pendingExternalImportPreview.value = null
+            externalImportEventsInternal.tryEmit(ExternalImportEvent.Failure(error))
+            throw error
+        }
+    }
+
+    fun requestExternalImport() {
+        if (isExternalImportInProgress.value) return
+        val preview = pendingExternalImportPreview.value ?: return
+        setExternalImportInProgress(true)
+        viewModelScope.launch {
+            try {
+                val result = externalImportService.commit(preview)
+                pendingExternalImportPreview.value = null
+                externalImportEventsInternal.tryEmit(ExternalImportEvent.Success(result))
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                externalImportEventsInternal.tryEmit(ExternalImportEvent.Failure(error))
+            } finally {
+                setExternalImportInProgress(false)
+            }
+        }
+    }
+
+    fun clearPendingExternalImportPreview() {
+        pendingExternalImportPreview.value = null
     }
 
     fun diagnosticsExportFileName(): String {
@@ -543,6 +616,12 @@ class SettingsViewModel @Inject constructor(
         isBackupRestoreInProgress.value = inProgress
     }
 
+    fun setExternalImportInProgress(
+        inProgress: Boolean,
+    ) {
+        isExternalImportInProgress.value = inProgress
+    }
+
     private fun preloadCalibrationData() {
         viewModelScope.launch {
             runCatching {
@@ -574,6 +653,13 @@ class SettingsViewModel @Inject constructor(
             // hooks; the settings DataStore write above is the user-visible change.
         }
     }
+
+    private fun readExternalImportText(fileUri: Uri): String {
+        return applicationContext.contentResolver.openInputStream(fileUri)
+            ?.use { inputStream -> readBoundedExternalImportBytes(inputStream) }
+            ?.let { bytes -> String(bytes, Charsets.UTF_8) }
+            ?: throw IOException("Unable to open the selected external import file.")
+    }
 }
 
 data class SettingsUiState(
@@ -583,8 +669,10 @@ data class SettingsUiState(
     val securityErrorMessageRes: Int? = null,
     val pendingPreparedBackupExport: PendingPreparedBackupExport? = null,
     val pendingRestoreRequest: PendingBackupRestoreRequest? = null,
+    val pendingExternalImportPreview: ExternalImportPreview? = null,
     val isBackupExportInProgress: Boolean = false,
     val isBackupRestoreInProgress: Boolean = false,
+    val isExternalImportInProgress: Boolean = false,
     val isWeightMutationInProgress: Boolean = false,
 )
 
@@ -606,6 +694,11 @@ sealed class SettingsMutationEvent {
     data class Failure(val error: Throwable) : SettingsMutationEvent()
 }
 
+sealed interface ExternalImportEvent {
+    data class Success(val result: ExternalImportCommitResult) : ExternalImportEvent
+    data class Failure(val error: Throwable) : ExternalImportEvent
+}
+
 class PendingBackupRestoreRequest(
     val uri: Uri,
     val displayName: String?,
@@ -619,3 +712,21 @@ class PendingBackupRestoreRequest(
      */
     val encryptedBytes: ByteArray,
 )
+
+private fun readBoundedExternalImportBytes(inputStream: InputStream): ByteArray {
+    val buffer = ByteArrayOutputStream()
+    val chunk = ByteArray(DEFAULT_BUFFER_SIZE)
+    var total = 0L
+    while (true) {
+        val bytesRead = inputStream.read(chunk)
+        if (bytesRead == -1) break
+        total += bytesRead
+        if (total > MAX_EXTERNAL_IMPORT_JSON_BYTES) {
+            throw IOException("Selected external import file exceeds the maximum supported size.")
+        }
+        buffer.write(chunk, 0, bytesRead)
+    }
+    return buffer.toByteArray()
+}
+
+private const val MAX_EXTERNAL_IMPORT_JSON_BYTES = 32L * 1024L * 1024L

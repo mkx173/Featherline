@@ -240,6 +240,17 @@ class WidgetSnapshotCodecTest {
     }
 
     @Test
+    fun `codec round-trips imported row flag`() {
+        val row = baseRecord.doseRows.first().copy(
+            isManualRecord = true,
+            isImportedRecord = true,
+        )
+        val record = baseRecord.copy(doseRows = listOf(row))
+
+        assertEquals(record, WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)))
+    }
+
+    @Test
     fun `codec round-trips isFromArchivedGroup flag`() {
         val archivedRow = baseRecord.doseRows[1].copy(isFromArchivedGroup = true)
         val activeRow = baseRecord.doseRows.first().copy(isFromArchivedGroup = false)

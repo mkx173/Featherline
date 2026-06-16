@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.ui.history
 
+import androidx.compose.ui.unit.dp
 import com.kizitonwose.calendar.core.DayPosition
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -35,6 +37,48 @@ class HistoryUiModelsTest {
     // its slot, and the fulfillment-status assertions would all degrade to
     // MISSED.
     private val estradiolMedicineUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
+
+    @Test
+    fun historyEntryIndicatorSizes_useFixedSlotWithSmallerDownloadGlyph() {
+        assertEquals(18.dp, HistoryEntryRowIndicatorSlotSize)
+        assertEquals(16.dp, historyEntryRowIndicatorGlyphSize(R.drawable.ic_download))
+        assertEquals(17.dp, historyEntryRowIndicatorGlyphSize(R.drawable.ic_edit_square))
+        assertEquals(18.dp, historyEntryRowIndicatorGlyphSize(R.drawable.ic_archive))
+        assertEquals(16.5.dp, HistoryEntryCrossZoneIndicatorGlyphSize)
+    }
+
+    @Test
+    fun historyEntryIndicatorIconRes_usesDownloadForImportedRows() {
+        val entry = testMedicationLogEntry(
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 5, 20, 9, 0)),
+        ).copy(
+            importSourceApp = "transmtf",
+            importExternalId = "dose-1",
+        )
+
+        assertEquals(R.drawable.ic_download, historyEntryIndicatorIconRes(entry))
+    }
+
+    @Test
+    fun historyEntryIndicatorIconRes_keepsEditForLocalManualRows() {
+        val entry = testMedicationLogEntry(
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 5, 20, 9, 0)),
+        )
+
+        assertEquals(R.drawable.ic_edit_square, historyEntryIndicatorIconRes(entry))
+    }
+
+    @Test
+    fun historyEntryIndicatorIconRes_omitsIconForPlannedRows() {
+        val entry = testMedicationLogEntry(
+            sourceGroupUuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
+            appliedAt = testInstant(LocalDateTime.of(2026, 5, 20, 9, 0)),
+        )
+
+        assertEquals(null, historyEntryIndicatorIconRes(entry))
+    }
 
     @Test
     fun historyEntryGroupDayFormatter_uses_compact_chinese_month_day_format() {

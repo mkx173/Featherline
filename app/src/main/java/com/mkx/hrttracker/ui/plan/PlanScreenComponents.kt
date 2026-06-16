@@ -2,6 +2,8 @@ package com.mkx.hrttracker.ui.plan
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -88,6 +91,69 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.UUID
+
+internal val SelectedDayRowIndicatorSlotSize = 14.dp
+internal val SelectedDayCrossZoneIndicatorGlyphSize = 13.dp
+
+internal fun selectedDayRowIndicatorGlyphSize(@DrawableRes iconDrawableRes: Int): Dp =
+    when (iconDrawableRes) {
+        R.drawable.ic_download -> 13.dp
+        else -> SelectedDayRowIndicatorSlotSize
+    }
+
+@DrawableRes
+internal fun selectedDayRowImportedIndicatorIconRes(row: SelectedDayRowModel): Int? =
+    when (row) {
+        is SelectedDayRowModel.Unplanned -> {
+            if (row.entry.importSourceApp != null) R.drawable.ic_download else null
+        }
+
+        is SelectedDayRowModel.Scheduled -> {
+            if (row.entry.isImportedRecord) R.drawable.ic_download else null
+        }
+    }
+
+@StringRes
+private fun selectedDayRowImportedIndicatorContentDescriptionRes(
+    row: SelectedDayRowModel,
+): Int? = when (selectedDayRowImportedIndicatorIconRes(row)) {
+    R.drawable.ic_download -> R.string.external_tracker_record_indicator
+    else -> null
+}
+
+@Composable
+private fun SelectedDayRowIndicatorIcon(
+    @DrawableRes iconDrawableRes: Int,
+    @StringRes contentDescriptionRes: Int,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.size(SelectedDayRowIndicatorSlotSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(iconDrawableRes),
+            contentDescription = stringResource(contentDescriptionRes),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(selectedDayRowIndicatorGlyphSize(iconDrawableRes)),
+        )
+    }
+}
+
+@Composable
+private fun SelectedDayCrossZoneIndicatorIcon(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.size(SelectedDayRowIndicatorSlotSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Public,
+            contentDescription = stringResource(R.string.cross_timezone_entry_indicator),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(SelectedDayCrossZoneIndicatorGlyphSize),
+        )
+    }
+}
 
 /**
  * Memoizes the sorted selected-day rows: building them does a per-unplanned-entry
@@ -324,6 +390,9 @@ private fun SelectedDayRow(
         is SelectedDayRowModel.Unplanned -> isCrossZone(row.entry)
         is SelectedDayRowModel.Scheduled -> row.entry.isLastFulfillingEntryCrossZone
     }
+    val importedIndicatorIconRes = selectedDayRowImportedIndicatorIconRes(row)
+    val importedIndicatorContentDescriptionRes =
+        selectedDayRowImportedIndicatorContentDescriptionRes(row)
     val titleText = medicationEntryTitle(row.medicine, row.applicationType)
 
     EditorSegmentedListItem(
@@ -393,24 +462,22 @@ private fun SelectedDayRow(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         if (isFromArchivedGroup) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_archive),
-                                contentDescription = stringResource(
-                                    R.string.archived_group_record_indicator
-                                ),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp)
+                            SelectedDayRowIndicatorIcon(
+                                iconDrawableRes = R.drawable.ic_archive,
+                                contentDescriptionRes = R.string.archived_group_record_indicator,
+                            )
+                        }
+                        if (
+                            importedIndicatorIconRes != null &&
+                            importedIndicatorContentDescriptionRes != null
+                        ) {
+                            SelectedDayRowIndicatorIcon(
+                                iconDrawableRes = importedIndicatorIconRes,
+                                contentDescriptionRes = importedIndicatorContentDescriptionRes,
                             )
                         }
                         if (isCrossZoneRow) {
-                            Icon(
-                                imageVector = Icons.Rounded.Public,
-                                contentDescription = stringResource(
-                                    R.string.cross_timezone_entry_indicator
-                                ),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(13.dp)
-                            )
+                            SelectedDayCrossZoneIndicatorIcon()
                         }
                         Text(
                             text = labelDisplayText,

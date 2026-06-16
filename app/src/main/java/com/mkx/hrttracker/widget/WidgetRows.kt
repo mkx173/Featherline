@@ -6,6 +6,8 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.os.Build
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.unit.Dp
@@ -65,6 +67,7 @@ internal sealed interface WidgetListItem {
 }
 
 private val WidgetShellPadding = 12.dp
+internal const val WidgetDoseRowIndicatorSlotSizeDp = 20f
 
 internal enum class WidgetRoundedShape(
     val maskRes: Int,
@@ -543,7 +546,44 @@ internal fun widgetDoseRowShowsManualTrailingIcon(
     row: WidgetDoseRow,
     hideMedicationDetails: Boolean,
 ): Boolean {
-    return row.isManualRecord && row.trailingText != null
+    return widgetDoseRowTrailingIconDrawableRes(
+        row = row,
+        hideMedicationDetails = hideMedicationDetails,
+    ) == R.drawable.ic_edit_square
+}
+
+@DrawableRes
+internal fun widgetDoseRowTrailingIconDrawableRes(
+    row: WidgetDoseRow,
+    hideMedicationDetails: Boolean,
+): Int? {
+    if (row.trailingText == null) return null
+    return when {
+        row.isImportedRecord -> R.drawable.ic_download
+        row.isManualRecord -> R.drawable.ic_edit_square
+        else -> null
+    }
+}
+
+internal fun widgetDoseRowIndicatorGlyphSizeDp(@DrawableRes drawableRes: Int): Float =
+    when (drawableRes) {
+        R.drawable.ic_download -> WidgetDoseRowIndicatorSlotSizeDp - 2f
+        R.drawable.ic_edit_square -> WidgetDoseRowIndicatorSlotSizeDp - 1f
+
+        else -> WidgetDoseRowIndicatorSlotSizeDp
+    }
+
+@StringRes
+private fun widgetDoseRowTrailingIconContentDescriptionRes(
+    row: WidgetDoseRow,
+    hideMedicationDetails: Boolean,
+): Int? {
+    if (widgetDoseRowTrailingIconDrawableRes(row, hideMedicationDetails) == null) return null
+    return when {
+        row.isImportedRecord -> R.string.external_tracker_record_indicator
+        row.isManualRecord -> R.string.plan_entry_label_manual
+        else -> null
+    }
 }
 
 internal fun widgetDoseRowTrailingText(
@@ -551,24 +591,33 @@ internal fun widgetDoseRowTrailingText(
     hideMedicationDetails: Boolean,
 ): String? {
     return when {
-        widgetDoseRowShowsManualTrailingIcon(row, hideMedicationDetails) -> null
+        widgetDoseRowTrailingIconDrawableRes(row, hideMedicationDetails) != null -> null
         hideMedicationDetails && row.isManualRecord -> null
         else -> row.trailingText
     }
 }
 
 @Composable
-internal fun WidgetManualTrailingIcon(
-    size: Dp,
+internal fun WidgetTrailingIcon(
+    @DrawableRes drawableRes: Int,
+    @StringRes contentDescriptionRes: Int,
+    scale: Float,
     modifier: GlanceModifier = GlanceModifier,
 ) {
     val colors = LocalWidgetColors.current
-    Image(
-        provider = ImageProvider(R.drawable.ic_edit_square),
-        contentDescription = LocalContext.current.getString(R.string.plan_entry_label_manual),
-        modifier = modifier.size(size),
-        colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
-    )
+    Box(
+        modifier = modifier.size((WidgetDoseRowIndicatorSlotSizeDp * scale).dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            provider = ImageProvider(drawableRes),
+            contentDescription = LocalContext.current.getString(contentDescriptionRes),
+            modifier = GlanceModifier.size(
+                (widgetDoseRowIndicatorGlyphSizeDp(drawableRes) * scale).dp
+            ),
+            colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
+        )
+    }
 }
 
 @Composable
@@ -645,7 +694,11 @@ internal fun DoseRow(
             )
         }
 
-        val showManualTrailingIcon = widgetDoseRowShowsManualTrailingIcon(
+        val trailingIconRes = widgetDoseRowTrailingIconDrawableRes(
+            row = row,
+            hideMedicationDetails = hideMedicationDetails,
+        )
+        val trailingIconContentDescriptionRes = widgetDoseRowTrailingIconContentDescriptionRes(
             row = row,
             hideMedicationDetails = hideMedicationDetails,
         )
@@ -653,26 +706,38 @@ internal fun DoseRow(
             row = row,
             hideMedicationDetails = hideMedicationDetails,
         )
+        val showTrailingIcon = trailingIconRes != null
         val showTrailingText = trailingText != null
 
         Spacer(GlanceModifier.width(8.dp))
 
         if (row.isFromArchivedGroup) {
-            Image(
-                provider = ImageProvider(R.drawable.ic_archive),
-                contentDescription = LocalContext.current.getString(
-                    R.string.archived_group_record_indicator
-                ),
-                modifier = GlanceModifier.size((20f * scale).dp),
-                colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
-            )
+            Box(
+                modifier = GlanceModifier.size((WidgetDoseRowIndicatorSlotSizeDp * scale).dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    provider = ImageProvider(R.drawable.ic_archive),
+                    contentDescription = LocalContext.current.getString(
+                        R.string.archived_group_record_indicator
+                    ),
+                    modifier = GlanceModifier.size(
+                        (widgetDoseRowIndicatorGlyphSizeDp(R.drawable.ic_archive) * scale).dp
+                    ),
+                    colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
+                )
+            }
             // Only separate the archive icon from the trailing text when that text is shown.
             // The text node is structurally retained even when empty, so an unconditional spacer
             // here would double up with the pre-button spacer and over-pad an icon-only row.
-            Spacer(GlanceModifier.width((if (showTrailingText || showManualTrailingIcon) 8 else 0).dp))
+            Spacer(GlanceModifier.width((if (showTrailingText || showTrailingIcon) 8 else 0).dp))
         }
-        if (showManualTrailingIcon) {
-            WidgetManualTrailingIcon(size = (19f * scale).dp)
+        if (trailingIconRes != null && trailingIconContentDescriptionRes != null) {
+            WidgetTrailingIcon(
+                drawableRes = trailingIconRes,
+                contentDescriptionRes = trailingIconContentDescriptionRes,
+                scale = scale,
+            )
         }
         // Keep this node even when hidden. The synchronous GlanceRemoteViews path can reuse
         // layout IDs across updates, so toggling privacy must not change the RemoteViews tree

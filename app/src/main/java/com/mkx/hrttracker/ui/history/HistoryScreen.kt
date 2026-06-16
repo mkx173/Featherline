@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -158,6 +160,65 @@ import java.util.UUID
 private const val HistoryCalendarNavigationSettleTimeoutMillis = 500L
 private val HistorySelectionFabHideScrollThreshold = 48.dp
 private val HistorySelectionFabShowScrollThreshold = 24.dp
+
+@DrawableRes
+internal fun historyEntryIndicatorIconRes(entry: MedicationLogEntry): Int? = when {
+    entry.importSourceApp != null -> R.drawable.ic_download
+    entry.sourceGroupUuid == null -> R.drawable.ic_edit_square
+    else -> null
+}
+
+internal val HistoryEntryRowIndicatorSlotSize = 18.dp
+internal val HistoryEntryCrossZoneIndicatorGlyphSize = 16.5.dp
+
+internal fun historyEntryRowIndicatorGlyphSize(@DrawableRes iconDrawableRes: Int): Dp =
+    when (iconDrawableRes) {
+        R.drawable.ic_download -> 16.dp
+        R.drawable.ic_edit_square -> 17.dp
+
+        else -> HistoryEntryRowIndicatorSlotSize
+    }
+
+@StringRes
+private fun historyEntryIndicatorContentDescriptionRes(entry: MedicationLogEntry): Int? = when {
+    entry.importSourceApp != null -> R.string.external_tracker_record_indicator
+    entry.sourceGroupUuid == null -> R.string.plan_entry_label_manual
+    else -> null
+}
+
+@Composable
+private fun HistoryEntryRowIndicatorIcon(
+    @DrawableRes iconDrawableRes: Int,
+    @StringRes contentDescriptionRes: Int,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.size(HistoryEntryRowIndicatorSlotSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(iconDrawableRes),
+            contentDescription = stringResource(contentDescriptionRes),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(historyEntryRowIndicatorGlyphSize(iconDrawableRes)),
+        )
+    }
+}
+
+@Composable
+private fun HistoryEntryCrossZoneIndicatorIcon(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.size(HistoryEntryRowIndicatorSlotSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Public,
+            contentDescription = stringResource(R.string.cross_timezone_entry_indicator),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(HistoryEntryCrossZoneIndicatorGlyphSize),
+        )
+    }
+}
 
 @Composable
 fun HistoryScreen(
@@ -2208,36 +2269,26 @@ private fun HistoryEntryCard(
         trailingContent = {
             val deviceZone = remember { ZoneId.systemDefault() }
             val crossZone = remember(entry) { isCrossZone(entry, deviceZone) }
-            val isManualEntry = entry.sourceGroupUuid == null
+            val indicatorIconRes = historyEntryIndicatorIconRes(entry)
+            val indicatorContentDescriptionRes = historyEntryIndicatorContentDescriptionRes(entry)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (isFromArchivedGroup) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_archive),
-                        contentDescription = stringResource(
-                            R.string.archived_group_record_indicator
-                        ),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
+                    HistoryEntryRowIndicatorIcon(
+                        iconDrawableRes = R.drawable.ic_archive,
+                        contentDescriptionRes = R.string.archived_group_record_indicator,
                     )
                 }
-                if (isManualEntry) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_edit_square),
-                        contentDescription = stringResource(R.string.plan_entry_label_manual),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(17.dp)
+                if (indicatorIconRes != null && indicatorContentDescriptionRes != null) {
+                    HistoryEntryRowIndicatorIcon(
+                        iconDrawableRes = indicatorIconRes,
+                        contentDescriptionRes = indicatorContentDescriptionRes,
                     )
                 }
                 if (crossZone) {
-                    Icon(
-                        imageVector = Icons.Rounded.Public,
-                        contentDescription = stringResource(R.string.cross_timezone_entry_indicator),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.5.dp)
-                    )
+                    HistoryEntryCrossZoneIndicatorIcon()
                 }
                 Text(
                     text = formatEntryWallTime(entry, timeFormatter, deviceZone),

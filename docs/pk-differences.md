@@ -126,6 +126,19 @@ should read the upstream README and its `pk_research/` workspace.
   per-compound `activeFactor` is *not* applied at dose-event
   construction or in the current runtime simulation path; equivalent-E2
   input comes from the snapshotted value or `DoseInstructionCalculator`.
+- **Imported injection/gel preparations skip fabricated package
+  geometry.** External tracker imports do not know vial concentration,
+  vial volume, gel sachet weight, or gel concentration percent. Rather
+  than inventing those fields, Featherline stores imported injection
+  and gel support medicines as `MedicinePreparation.ImportedInjection`
+  and `MedicinePreparation.ImportedGel`. `DoseInstructionCalculator`
+  reads the administered/applied mg directly for whole-unit imported
+  logs, converts imported injection esters to E2-equivalent mg with the
+  same molecular-weight table as other logged doses, and treats
+  imported gel as already-applied estradiol. `PkSimulation` maps these
+  preparations directly to `PkCompound` (`ImportedInjection.ester` or
+  `E2` for gel), so imported rows feed the simulator without requiring
+  a `Catalog` medicine selection.
 - **Duplicated molecular-weight constants.** Estradiol
   molecular-weight constants live in `PkCatalog.compounds` and again
   in

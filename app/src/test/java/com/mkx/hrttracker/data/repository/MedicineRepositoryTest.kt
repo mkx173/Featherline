@@ -7,11 +7,15 @@ import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.util.ToastManager
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -734,6 +738,127 @@ class MedicineRepositoryTest {
         }
     }
 
+    @Test
+    fun toMedicineModel_acceptsImportedInjectionWithExternalIdentity() {
+        val entity = importedInjectionEntity()
+
+        val medicine = entity.toMedicineModel()
+
+        assertTrue(medicine.importedFromExternalTracker)
+        assertEquals(MedicineSelection.Custom("External tracker"), medicine.selection)
+        assertEquals(
+            MedicinePreparation.ImportedInjection(
+                administeredMg = 5.0,
+                ester = MedicationKey.ESTRADIOL_VALERATE,
+            ),
+            medicine.preparation,
+        )
+    }
+
+    @Test
+    fun toMedicineModel_rejectsImportedMedicineWhoseDoseKeyDisagreesWithPreparation() {
+        // The imported key's sourceApp/route can't be re-derived here, but its
+        // dose-key segment can: a stored key claiming a different dose than the
+        // preparation it backs must be rejected, not silently trusted, so a dose
+        // can never be routed to a medicine of the wrong strength.
+        val tampered = importedInjectionEntity().copy(
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = "mg:10",
+            ),
+        )
+
+        assertThrows(IllegalStateException::class.java) {
+            tampered.toMedicineModel()
+        }
+    }
+
+    @Test
+    fun toMedicineModel_rejectsNonImportedMedicineWithImportedOnlyPreparation() {
+        val entity = importedInjectionEntity(importedFromExternalTracker = false)
+
+        assertThrows(Exception::class.java) {
+            entity.toMedicineModel()
+        }
+    }
+
+    @Test
+    fun toMedicineModel_rejectsImportedMedicineWithTrackedStock() {
+        val entity = importedInjectionEntity().copy(
+            trackingEnabled = true,
+            stockUnitsRemaining = 1.0,
+            stockUnitsLastTotal = 1.0,
+        )
+
+        assertThrows(Exception::class.java) {
+            entity.toMedicineModel()
+        }
+    }
+
+    @Test
+    fun toMedicineModel_rejectsImportedOnlyPreparationWithNonExternalTrackerSelection() {
+        assertThrows(Exception::class.java) {
+            importedInjectionEntity().copy(
+                selectionKind = "CATALOG",
+                customMedicationName = null,
+                customMedicationNameNormalized = null,
+            ).toMedicineModel()
+        }
+        assertThrows(Exception::class.java) {
+            importedGelEntity().copy(
+                customMedicationName = "NoMTF",
+                customMedicationNameNormalized = "nomtf",
+            ).toMedicineModel()
+        }
+    }
+
+    @Test
+    fun toMedicineModel_acceptsImportedCatalogPillAndPatchWithExternalIdentity() {
+        val pill = importedCatalogPillEntity(
+            uuid = "bbbbbbbb-0000-0000-0000-000000000003",
+        ).toMedicineModel()
+        val patch = importedCatalogPatchEntity(
+            uuid = "bbbbbbbb-0000-0000-0000-000000000004",
+        ).toMedicineModel()
+
+        assertTrue(pill.importedFromExternalTracker)
+        assertEquals(MedicineSelection.Catalog(MedicationKey.ESTRADIOL), pill.selection)
+        assertTrue(patch.importedFromExternalTracker)
+        assertEquals(MedicineSelection.Catalog(MedicationKey.ESTRADIOL_PATCH), patch.selection)
+    }
+
+    @Test
+    fun toEntity_writesImportedPreparationStorageFieldsMedicationKeyAndFlag() {
+        val injection = importedMedicine(
+            uuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000001"),
+            preparation = MedicinePreparation.ImportedInjection(
+                administeredMg = 5.0,
+                ester = MedicationKey.ESTRADIOL_VALERATE,
+            ),
+            applicationType = MedicationApplicationType.INJECTION,
+            compound = "ESTRADIOL_VALERATE",
+            doseKey = "5",
+        ).toEntity()
+        val gel = importedMedicine(
+            uuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000002"),
+            preparation = MedicinePreparation.ImportedGel(appliedEstradiolMg = 1.5),
+            applicationType = MedicationApplicationType.GEL,
+            compound = "ESTRADIOL_GEL",
+            doseKey = "1.5",
+        ).toEntity()
+
+        assertTrue(injection.importedFromExternalTracker)
+        assertEquals("IMPORTED_INJECTION", injection.preparationType)
+        assertEquals("ESTRADIOL_VALERATE", injection.medicationKey)
+        assertEquals(5.0, injection.strengthMgPerVial ?: 0.0, 0.0)
+        assertTrue(gel.importedFromExternalTracker)
+        assertEquals("IMPORTED_GEL", gel.preparationType)
+        assertEquals("ESTRADIOL", gel.medicationKey)
+        assertEquals(1.5, gel.strengthMgPerVial ?: 0.0, 0.0)
+    }
+
     // Sibling of the "Plan screen doesn't update after restore" bug. activeMedicinesFlow
     // is an Eagerly, app-scoped StateFlow built inside flatMapLatest(databaseFlow); a
     // terminal `.catch` there would complete the upstream Room observation on the first
@@ -822,6 +947,38 @@ class MedicineRepositoryTest {
 
     @kotlinx.coroutines.ExperimentalCoroutinesApi
     @Test
+    fun observeAllActive_excludesImportedMedicines() = runTest {
+        val visibleUuid = "aaaaaaaa-0000-0000-0000-000000000001"
+        val importedUuid = "aaaaaaaa-0000-0000-0000-000000000002"
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns MutableStateFlow(
+            listOf(
+                medicineEntity(uuid = visibleUuid),
+                importedCatalogPillEntity(uuid = importedUuid),
+            )
+        )
+
+        val freshRepository = MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        val result = async { freshRepository.observeAllActive().first { it.isNotEmpty() } }
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(UUID.fromString(visibleUuid)),
+            result.await().map { it.uuid },
+        )
+    }
+
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
     fun observeAllActive_rethrowsNonExceptionRoomFlowErrors() = runTest {
         val capturedError = CompletableDeferred<Throwable>()
         val handler = CoroutineExceptionHandler { _, error ->
@@ -874,6 +1031,42 @@ class MedicineRepositoryTest {
 
         assertEquals(
             listOf(UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001")),
+            result.await().map { it.uuid },
+        )
+    }
+
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeAllActiveTracked_excludesImportedMedicines() = runTest {
+        val trackedUuid = "aaaaaaaa-0000-0000-0000-000000000001"
+        val importedUuid = "aaaaaaaa-0000-0000-0000-000000000002"
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeAllActive() } returns MutableStateFlow(
+            listOf(
+                medicineEntity(uuid = trackedUuid).copy(trackingEnabled = true),
+                importedCatalogPillEntity(uuid = importedUuid).copy(
+                    trackingEnabled = true,
+                    stockUnitsRemaining = 10.0,
+                    stockUnitsLastTotal = 10.0,
+                ),
+            )
+        )
+
+        val freshRepository = MedicineRepository(
+            context = context,
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            stockMutator = stockMutator,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        val result = async { freshRepository.observeAllActiveTracked().first { it.isNotEmpty() } }
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(UUID.fromString(trackedUuid)),
             result.await().map { it.uuid },
         )
     }
@@ -1061,6 +1254,104 @@ class MedicineRepositoryTest {
             preparationType = "PATCH_OFF",
             strengthMgPerTablet = null,
             identityKey = "P|PATCH_OFF",
+        )
+    }
+
+    private fun importedCatalogPillEntity(uuid: String): MedicineEntity {
+        return medicineEntity(uuid = uuid).copy(
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.ORAL,
+                compound = "ESTRADIOL",
+                doseKey = "mg:2",
+            ),
+            importedFromExternalTracker = true,
+        )
+    }
+
+    private fun importedCatalogPatchEntity(uuid: String): MedicineEntity {
+        return medicineEntity(uuid = uuid).copy(
+            medicationKey = MedicationKey.ESTRADIOL_PATCH.name,
+            preparationType = MedicinePreparationType.PATCH.name,
+            strengthMgPerTablet = null,
+            patchReleaseRateMcgPerDay = 100.0,
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.PATCH_ON,
+                compound = "ESTRADIOL_PATCH",
+                doseKey = "rate:100",
+            ),
+            importedFromExternalTracker = true,
+        )
+    }
+
+    private fun importedInjectionEntity(
+        importedFromExternalTracker: Boolean = true,
+    ): MedicineEntity {
+        return medicineEntity().copy(
+            selectionKind = "CUSTOM",
+            medicationKey = MedicationKey.ESTRADIOL_VALERATE.name,
+            customMedicationName = "External tracker",
+            customMedicationNameNormalized = "external tracker",
+            category = MedicationCategory.ESTRADIOL.name,
+            preparationType = MedicinePreparationType.IMPORTED_INJECTION.name,
+            strengthMgPerTablet = null,
+            strengthMgPerVial = 5.0,
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = "mg:5",
+            ),
+            importedFromExternalTracker = importedFromExternalTracker,
+        )
+    }
+
+    private fun importedGelEntity(): MedicineEntity {
+        return medicineEntity().copy(
+            selectionKind = "CUSTOM",
+            medicationKey = MedicationKey.ESTRADIOL.name,
+            customMedicationName = "External tracker",
+            customMedicationNameNormalized = "external tracker",
+            category = MedicationCategory.ESTRADIOL.name,
+            preparationType = MedicinePreparationType.IMPORTED_GEL.name,
+            strengthMgPerTablet = null,
+            strengthMgPerVial = 1.5,
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.GEL,
+                compound = "ESTRADIOL_GEL",
+                doseKey = "mg:1.5",
+            ),
+            importedFromExternalTracker = true,
+        )
+    }
+
+    private fun importedMedicine(
+        uuid: UUID,
+        preparation: MedicinePreparation,
+        applicationType: MedicationApplicationType,
+        compound: String,
+        doseKey: String,
+    ): Medicine {
+        val timestamp = Instant.parse("2026-05-22T00:00:00Z")
+        return Medicine(
+            uuid = uuid,
+            selection = MedicineSelection.Custom("External tracker"),
+            category = MedicationCategory.ESTRADIOL,
+            preparation = preparation,
+            displayName = null,
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = applicationType,
+                compound = compound,
+                doseKey = doseKey,
+            ),
+            createdAt = timestamp,
+            updatedAt = timestamp,
+            archivedAt = null,
+            stock = MedicineStock(),
+            importedFromExternalTracker = true,
         )
     }
 }

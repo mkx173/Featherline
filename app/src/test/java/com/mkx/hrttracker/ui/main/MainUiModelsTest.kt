@@ -1759,6 +1759,26 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainTodaySection_flags_imported_manual_records() {
+        val appliedAt = LocalDateTime.of(2026, 4, 18, 10, 15)
+        val imported = manualEntry(appliedAt = appliedAt).copy(
+            importSourceApp = "transmtf",
+            importExternalId = "dose-1",
+        )
+
+        val todaySection = buildMainTodaySection(
+            groups = emptyList(),
+            entries = listOf(imported),
+            now = LocalDateTime.of(2026, 4, 18, 11, 0),
+            zoneId = testZoneId
+        )
+
+        val row = todaySection.rows.single()
+        assertEquals(true, row.isManualRecord)
+        assertEquals(true, row.isImportedRecord)
+    }
+
+    @Test
     fun buildMainTodaySection_attaches_cross_zone_entry_to_scheduled_slot_not_manual() {
         // Reproduce the production-reported bug: an entry logged in another zone
         // (here Tokyo) for today's scheduled slot was rendering as a separate

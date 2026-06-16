@@ -628,6 +628,7 @@ private fun CalibrationAddAnalyteSheetContent(
             HrtFilledTonalButton(
                 text = stringResource(R.string.cancel),
                 onClick = onDismissRequest,
+                compact = true
             )
         }
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))

@@ -421,6 +421,7 @@
     <string name="medication_preparation_summary_multi_use_vial">Injection · Vial · %1$s mg/mL · %2$s mL</string>
     <string name="medication_preparation_summary_gel_sachet">Gel · Sachet · %1$s%% · %2$s g</string>
     <string name="medication_preparation_summary_gel_container">Gel · Container · %1$s%% · %2$s g</string>
+    <string name="medication_preparation_summary_imported_gel">Gel · %1$s mg E2</string>
     <string name="medication_preparation_summary_patch_total">Patch · %1$s mg</string>
     <string name="medication_preparation_summary_patch_total_with_unit">Patch · %1$s %2$s</string>
     <string name="medication_preparation_summary_patch_release_rate">Patch · %1$s μg/day</string>
@@ -569,6 +570,7 @@
     <string name="settings_backup_restore">Backup &amp; restore</string>
     <string name="settings_backup_to_file">Backup to file</string>
     <string name="settings_restore_from_file">Restore from backup</string>
+    <string name="settings_import_external_tracker_json">Import external data</string>
     <string name="settings_backup_export_success">Backup saved as %1$s</string>
     <string name="settings_backup_export_failed">Unable to save backup</string>
     <string name="settings_backup_password_title">Encrypt backup</string>
@@ -587,6 +589,24 @@
     <string name="settings_backup_restore_password_message">This will replace current local data with the selected backup. Enter the backup password to continue.</string>
     <string name="settings_backup_restore_password_message_with_name">This will replace current local data with %1$s. Enter the backup password to continue.</string>
     <string name="settings_backup_restore_confirm">Restore</string>
+    <string name="external_import_review_title">Confirm import</string>
+    <string name="external_import_detected_source">Source</string>
+    <string name="external_import_summary_new">%1$d new</string>
+    <string name="external_import_summary_updated">%1$d updated</string>
+    <string name="external_import_summary_existing">%1$d existing</string>
+    <string name="external_import_medication_label">Medication rows</string>
+    <string name="external_import_lab_label">Blood test rows</string>
+    <string name="external_import_confirm">Import</string>
+    <string name="external_import_failed">Unable to import selected file</string>
+    <string name="external_import_success">External data imported</string>
+    <string name="external_tracker_record_indicator">Imported external record</string>
+    <string name="external_import_skipped_rows_title">Skipped records</string>
+    <string name="external_import_skipped_rows_copy">Copy skipped records</string>
+    <string name="external_import_skipped_rows_copied">Copied details</string>
+    <plurals name="external_import_skipped_rows_count">
+        <item quantity="one">Skipped %1$d record</item>
+        <item quantity="other">Skipped %1$d records</item>
+    </plurals>
     <string name="settings_update_failed">Unable to update setting.</string>
     <string name="settings_diagnostics">Diagnostics</string>
     <string name="settings_diagnostics_export_logs">Export diagnostic logs</string>

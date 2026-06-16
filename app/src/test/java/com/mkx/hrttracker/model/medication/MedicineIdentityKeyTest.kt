@@ -33,6 +33,97 @@ class MedicineIdentityKeyTest {
     }
 
     @Test
+    fun externalIdentityCanonicalizesDoseKeyComponents() {
+        val keys = listOf(5.0, 5.00, 5.000).map { value ->
+            MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = MedicineIdentityKey.canonicalImportedDose(value),
+            )
+        }
+
+        assertEquals("E|NoMTF|INJECTION|ESTRADIOL_VALERATE|5", keys[0])
+        assertEquals(keys[0], keys[1])
+        assertEquals(keys[0], keys[2])
+    }
+
+    @Test
+    fun externalIdentityDifferentiatesSourceRouteCompoundAndDose() {
+        val base = MedicineIdentityKey.external(
+            sourceApp = "NoMTF",
+            applicationType = MedicationApplicationType.INJECTION,
+            compound = "ESTRADIOL_VALERATE",
+            doseKey = "5",
+        )
+
+        assertNotEquals(
+            base,
+            MedicineIdentityKey.external(
+                sourceApp = "DoseLogger",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = "5",
+            ),
+        )
+        assertNotEquals(
+            base,
+            MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.GEL,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = "5",
+            ),
+        )
+        assertNotEquals(
+            base,
+            MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_CYPIONATE",
+                doseKey = "5",
+            ),
+        )
+        assertNotEquals(
+            base,
+            MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = "10",
+            ),
+        )
+    }
+
+    @Test
+    fun externalIdentityRejectsBlankComponents() {
+        assertThrows(IllegalArgumentException::class.java) {
+            MedicineIdentityKey.external(
+                sourceApp = " ",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = "5",
+            )
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = " ",
+                doseKey = "5",
+            )
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            MedicineIdentityKey.external(
+                sourceApp = "NoMTF",
+                applicationType = MedicationApplicationType.INJECTION,
+                compound = "ESTRADIOL_VALERATE",
+                doseKey = " ",
+            )
+        }
+    }
+
+    @Test
     fun customCapsuleIdentityDiffersFromCustomPillAtSameStrength() {
         val pillKey = MedicineIdentityKey.custom(
             customMedicationName = "Progesterone",
@@ -71,6 +162,95 @@ class MedicineIdentityKeyTest {
             MedicineIdentityKey.canonicalDouble(0.1 + 0.2),
         )
         assertEquals("2.5", MedicineIdentityKey.canonicalDouble(2.5000001))
+    }
+
+    @Test
+    fun canonicalDoubleRoundsToSixDecimalPlacesNotSignificantFigures() {
+        // Catalog/custom keys persisted before canonicalImportedDose existed
+        // were encoded with 6-decimal-place rounding. Recomputing them here must
+        // reproduce that exact string, or every existing medicine with a
+        // >6-significant-figure value would fail identity validation on read.
+        assertEquals("123456.789", MedicineIdentityKey.canonicalDouble(123456.789))
+        assertEquals("0.000123", MedicineIdentityKey.canonicalDouble(0.000123456789))
+    }
+
+    @Test
+    fun canonicalDoubleStripsTrailingZerosWithoutExponentNotation() {
+        assertEquals("12.34", MedicineIdentityKey.canonicalDouble(12.3400001))
+        assertEquals("100000", MedicineIdentityKey.canonicalDouble(100000.0))
+    }
+
+    @Test
+    fun canonicalImportedDoseCollapsesLogicallyEqualValues() {
+        assertEquals("5", MedicineIdentityKey.canonicalImportedDose(5.0))
+        assertEquals(
+            MedicineIdentityKey.canonicalImportedDose(5.0),
+            MedicineIdentityKey.canonicalImportedDose(5.000),
+        )
+        assertEquals("2.5", MedicineIdentityKey.canonicalImportedDose(2.5000001))
+    }
+
+    @Test
+    fun canonicalImportedDoseUsesSixSignificantFiguresAboveOne() {
+        assertEquals("123457", MedicineIdentityKey.canonicalImportedDose(123456.789))
+    }
+
+    @Test
+    fun canonicalImportedDoseUsesSixSignificantFiguresBelowOne() {
+        assertEquals("0.000123457", MedicineIdentityKey.canonicalImportedDose(0.000123456789))
+    }
+
+    @Test
+    fun importedDoseKeyDerivesTheDoseSegmentFromEachImportedPreparation() {
+        assertEquals(
+            "mg:5",
+            MedicineIdentityKey.importedDoseKey(
+                MedicinePreparation.ImportedInjection(
+                    administeredMg = 5.0,
+                    ester = MedicationKey.ESTRADIOL_VALERATE,
+                ),
+            ),
+        )
+        assertEquals(
+            "mg:1.5",
+            MedicineIdentityKey.importedDoseKey(MedicinePreparation.ImportedGel(appliedEstradiolMg = 1.5)),
+        )
+        assertEquals(
+            "mg:2",
+            MedicineIdentityKey.importedDoseKey(MedicinePreparation.Pill(strengthMgPerTablet = 2.0)),
+        )
+        assertEquals(
+            "totalmg:3.2",
+            MedicineIdentityKey.importedDoseKey(
+                MedicinePreparation.Patch(MedicinePreparation.PatchSpecification.TotalMg(3.2)),
+            ),
+        )
+        assertEquals(
+            "rate:100",
+            MedicineIdentityKey.importedDoseKey(
+                MedicinePreparation.Patch(
+                    MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(100.0),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun importedDoseKeyEqualsTheLastSegmentOfAnExternalKey() {
+        // The build and verify paths must agree: the dose segment importedDoseKey
+        // derives is exactly the trailing segment external() embeds.
+        val preparation = MedicinePreparation.ImportedInjection(
+            administeredMg = 5.0,
+            ester = MedicationKey.ESTRADIOL_VALERATE,
+        )
+        val key = MedicineIdentityKey.external(
+            sourceApp = "transmtf",
+            applicationType = MedicationApplicationType.INJECTION,
+            compound = MedicationKey.ESTRADIOL_VALERATE.name,
+            doseKey = MedicineIdentityKey.importedDoseKey(preparation),
+        )
+
+        assertEquals(MedicineIdentityKey.importedDoseKey(preparation), key.substringAfterLast("|"))
     }
 
     @Test

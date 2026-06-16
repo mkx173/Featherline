@@ -23,6 +23,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
+import com.mkx.hrttracker.model.medication.IMPORTED_INJECTION_ESTER_KEYS
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
@@ -586,6 +587,13 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 fieldPrefix = "medication group item ${medication.uuid}",
                 medicinePreparationTypesByUuid = medicinePreparationTypesByUuid,
             )
+            if (validatedMedication.medicineUuid != null) {
+                val referenced = medicineEntitiesByUuid[validatedMedication.medicineUuid]
+                require(referenced?.importedFromExternalTracker != true) {
+                    "Medication group item ${medication.uuid} references imported medicine " +
+                            "${validatedMedication.medicineUuid}."
+                }
+            }
             // Active groups must not reference archived medicines — the active
             // catalog would otherwise show an archived row that cannot be
             // re-selected without unarchiving. Skip the check for PATCH_OFF
@@ -626,10 +634,21 @@ internal fun BackupSnapshot.toValidatedSnapshot(
     }
     val logEntities = mutableListOf<MedicationLogEntryEntity>()
     val seenLogUuids = mutableSetOf<String>()
+    val seenLogImportKeys = mutableSetOf<Pair<String, String>>()
     medicationLogs.forEach { log ->
         val logUuid = log.uuid.parseUuid("medication log UUID").toString()
         require(seenLogUuids.add(logUuid)) {
             "Duplicate medication log UUID $logUuid in backup."
+        }
+        val logImportKey = validateImportPair(
+            sourceApp = log.importSourceApp,
+            externalId = log.importExternalId,
+            label = "medication log ${log.uuid}",
+        )
+        if (logImportKey != null) {
+            require(seenLogImportKeys.add(logImportKey)) {
+                "Duplicate medication log import provenance ${logImportKey.first}/${logImportKey.second}."
+            }
         }
         require(log.count > 0) {
             "Medication log ${log.uuid} must have a positive count."
@@ -646,6 +665,18 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             fieldPrefix = "medication log ${log.uuid}",
             medicinePreparationTypesByUuid = medicinePreparationTypesByUuid,
         )
+        if (logImportKey != null) {
+            val medicineUuid = validatedMedication.medicineUuid
+            if (medicineUuid == null) {
+                require(validatedMedication.applicationType == MedicationApplicationType.PATCH_OFF) {
+                    "Imported medication log ${log.uuid} without a medicine must be PATCH_OFF."
+                }
+            } else {
+                require(medicineEntitiesByUuid[medicineUuid]?.importedFromExternalTracker == true) {
+                    "Imported medication log ${log.uuid} must reference an imported medicine."
+                }
+            }
+        }
         val scheduledForIso = log.scheduledForIso?.let { value ->
             LocalDateTime.parse(value)
             value
@@ -698,6 +729,8 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             scheduledForIso = scheduledForIso,
             count = log.count,
             gelApplicationArea = validatedMedication.gelApplicationArea.name,
+            importSourceApp = logImportKey?.first,
+            importExternalId = logImportKey?.second,
         )
     }
 
@@ -705,10 +738,22 @@ internal fun BackupSnapshot.toValidatedSnapshot(
     val resultEntities = mutableListOf<BloodTestResultEntity>()
     val seenPanelUuids = mutableSetOf<String>()
     val seenResultUuids = mutableSetOf<String>()
+    val seenPanelImportKeys = mutableSetOf<Pair<String, Long>>()
+    val seenResultImportKeys = mutableSetOf<Pair<String, String>>()
     bloodTestPanels.forEach { panel ->
         val panelUuid = panel.uuid.parseUuid("blood test panel UUID").toString()
         require(seenPanelUuids.add(panelUuid)) {
             "Duplicate blood test panel UUID $panelUuid in backup."
+        }
+        val panelImportKey = validatePanelImportPair(
+            sourceApp = panel.importSourceApp,
+            panelKey = panel.importPanelKey,
+            label = "blood test panel ${panel.uuid}",
+        )
+        if (panelImportKey != null) {
+            require(seenPanelImportKeys.add(panelImportKey)) {
+                "Duplicate blood test panel import provenance ${panelImportKey.first}/${panelImportKey.second}."
+            }
         }
         requireZoneId(panel.collectedAtTimeZoneId, "blood test panel time zone")
         require(panel.results.isNotEmpty()) {
@@ -723,6 +768,8 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             timeSinceLastTestosteroneDoseMillis = panel.timeSinceLastTestosteroneDoseMillis,
             createdAtEpochMillis = panel.createdAtEpochMillis,
             updatedAtEpochMillis = panel.updatedAtEpochMillis,
+            importSourceApp = panelImportKey?.first,
+            importPanelKey = panelImportKey?.second,
         )
 
         val seenBuiltinAnalytes = mutableSetOf<String>()
@@ -731,6 +778,16 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             val resultUuid = result.uuid.parseUuid("blood test result UUID").toString()
             require(seenResultUuids.add(resultUuid)) {
                 "Duplicate blood test result UUID $resultUuid in backup."
+            }
+            val resultImportKey = validateImportPair(
+                sourceApp = result.importSourceApp,
+                externalId = result.importExternalId,
+                label = "blood test result ${result.uuid}",
+            )
+            if (resultImportKey != null) {
+                require(seenResultImportKeys.add(resultImportKey)) {
+                    "Duplicate blood test result import provenance ${resultImportKey.first}/${resultImportKey.second}."
+                }
             }
             require(result.value.isFinite()) {
                 "Blood test result ${result.uuid} value must be finite."
@@ -792,6 +849,8 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 value = result.value,
                 unitSnapshot = result.unitSnapshot,
                 canonicalValue = result.canonicalValue,
+                importSourceApp = resultImportKey?.first,
+                importExternalId = resultImportKey?.second,
             )
         }
     }
@@ -970,6 +1029,20 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
         preparationType,
         "medicine preparation type",
     )
+    val isImportedOnlyPreparation =
+        preparationType == MedicinePreparationType.IMPORTED_INJECTION ||
+                preparationType == MedicinePreparationType.IMPORTED_GEL
+    if (!importedFromExternalTracker) {
+        require(!isImportedOnlyPreparation) {
+            "Import-only preparation $preparationType for medicine $uuid requires importedFromExternalTracker."
+        }
+    } else {
+        require(identityKey.startsWith("E|")) {
+            "Imported external medicine $uuid identityKey must start with E|."
+        }
+        // The imported-medicine stock invariants are enforced once below in
+        // validateImportedMedicineInvariants(), which runs on this same path.
+    }
 
     val resolvedSelection: MedicineSelection = when {
         // PATCH_OFF preparation always implies the singleton selection,
@@ -986,6 +1059,30 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
                 "PATCH_OFF medicine $uuid must be in the ESTRADIOL category."
             }
             MedicineSelection.PatchOff
+        }
+
+        isImportedOnlyPreparation -> {
+            require(selectionKind == MedicationSelectionKind.CUSTOM) {
+                "Import-only medicine $uuid must use CUSTOM selectionKind."
+            }
+            val name = customMedicationName
+                ?.trim()
+                ?.takeUnless(String::isEmpty)
+                ?: throw IllegalArgumentException(
+                    "Import-only medicine $uuid must include External tracker custom medication name."
+                )
+            require(name == "External tracker") {
+                "Import-only medicine $uuid must use External tracker custom medication name."
+            }
+            val storedNormalized = customMedicationNameNormalized
+                ?.takeUnless(String::isBlank)
+                ?: throw IllegalArgumentException(
+                    "Import-only medicine $uuid must include its normalized custom medication name."
+                )
+            require(storedNormalized == normalizeCustomMedicationName(name)) {
+                "Import-only medicine $uuid normalized name does not match External tracker."
+            }
+            MedicineSelection.Custom(medicationName = name)
         }
 
         selectionKind == MedicationSelectionKind.CATALOG -> {
@@ -1026,6 +1123,7 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
 
     val resolvedPreparation = preparationType.toValidatedPreparation(
         medicineUuid = medicineUuid,
+        medicationKey = medicationKey,
         strengthMgPerTablet = strengthMgPerTablet,
         strengthMgPerVial = strengthMgPerVial,
         concentrationMgPerMl = concentrationMgPerMl,
@@ -1046,9 +1144,32 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
 
         is MedicineSelection.PatchOff -> MedicineIdentityKey.patchOff()
     }
-    require(identityKey == expectedIdentityKey) {
-        "Medicine $uuid identityKey does not match its selection and preparation."
+    if (!importedFromExternalTracker) {
+        require(identityKey == expectedIdentityKey) {
+            "Medicine $uuid identityKey does not match its selection and preparation."
+        }
+    } else {
+        // sourceApp and route live only inside the E| key, so it cannot be
+        // recomputed in full here; verify the dose-key segment, which IS
+        // derivable from the preparation, so a tampered backup cannot bind a
+        // dose to a medicine whose key claims a different dose.
+        require(
+            identityKey.substringAfterLast("|") ==
+                MedicineIdentityKey.importedDoseKey(resolvedPreparation)
+        ) {
+            "Imported medicine $uuid dose key does not match its preparation."
+        }
     }
+
+    validateImportedMedicineInvariants(
+        medicineUuid = uuid,
+        importedFromExternalTracker = importedFromExternalTracker,
+        selectionKind = selectionKind,
+        category = category,
+        preparationType = preparationType,
+        medicationKey = medicationKey,
+        stock = stock,
+    )
 
     require(createdAtEpochMillis >= 0) {
         "Medicine $uuid createdAt must not be negative."
@@ -1098,7 +1219,16 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
     return MedicineEntity(
         uuid = medicineUuid,
         selectionKind = selectionKind.name,
-        medicationKey = (resolvedSelection as? MedicineSelection.Catalog)?.medicationKey?.name,
+        medicationKey = when {
+            preparationType == MedicinePreparationType.IMPORTED_INJECTION ||
+                    preparationType == MedicinePreparationType.IMPORTED_GEL -> medicationKey
+
+            else -> when (resolvedSelection) {
+                is MedicineSelection.Catalog -> resolvedSelection.medicationKey.name
+                is MedicineSelection.Custom -> null
+                is MedicineSelection.PatchOff -> null
+            }
+        },
         customMedicationName = (resolvedSelection as? MedicineSelection.Custom)?.medicationName,
         customMedicationNameNormalized = (resolvedSelection as? MedicineSelection.Custom)
             ?.normalizedMedicationName,
@@ -1127,11 +1257,90 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
         openContainerAmount = normalizedStock?.openContainerAmount,
         warnAtDaysRemaining = normalizedStock?.warnAtDaysRemaining ?: 14,
         stockGeneration = normalizedStock?.stockGeneration ?: 0L,
+        importedFromExternalTracker = importedFromExternalTracker,
     )
+}
+
+private fun validateImportedMedicineInvariants(
+    medicineUuid: String,
+    importedFromExternalTracker: Boolean,
+    selectionKind: MedicationSelectionKind,
+    category: MedicationCategory,
+    preparationType: MedicinePreparationType,
+    medicationKey: String?,
+    stock: BackupMedicineStockSnapshot?,
+) {
+    if (!importedFromExternalTracker) return
+
+    require(stock?.trackingEnabled != true) {
+        "Imported external medicines cannot track stock."
+    }
+    require(stock == null) {
+        "Imported external medicines cannot include stock blocks."
+    }
+    val key = MedicationKey.fromStorageValue(medicationKey)
+    when (preparationType) {
+        MedicinePreparationType.IMPORTED_INJECTION -> {
+            require(selectionKind == MedicationSelectionKind.CUSTOM) {
+                "Imported injection medicine $medicineUuid must use CUSTOM selectionKind."
+            }
+            require(category == MedicationCategory.ESTRADIOL) {
+                "Imported injection medicine $medicineUuid must be in the ESTRADIOL category."
+            }
+            require(key in IMPORTED_INJECTION_ESTER_KEYS) {
+                "Imported injection medicine $medicineUuid has unsupported ester medicationKey $medicationKey."
+            }
+        }
+
+        MedicinePreparationType.IMPORTED_GEL -> {
+            require(selectionKind == MedicationSelectionKind.CUSTOM) {
+                "Imported gel medicine $medicineUuid must use CUSTOM selectionKind."
+            }
+            require(category == MedicationCategory.ESTRADIOL) {
+                "Imported gel medicine $medicineUuid must be in the ESTRADIOL category."
+            }
+            require(key == MedicationKey.ESTRADIOL) {
+                "Imported gel medicine $medicineUuid must carry ESTRADIOL medicationKey."
+            }
+        }
+
+        MedicinePreparationType.PILL -> {
+            require(selectionKind == MedicationSelectionKind.CATALOG) {
+                "Imported pill medicine $medicineUuid must use CATALOG selectionKind."
+            }
+            val isSupportedEstradiolPill =
+                category == MedicationCategory.ESTRADIOL &&
+                        key in IMPORTED_ESTRADIOL_PILL_KEYS
+            val isSupportedAntiandrogenPill =
+                category == MedicationCategory.ANTIANDROGEN &&
+                        key in IMPORTED_ANTIANDROGEN_PILL_KEYS
+            require(isSupportedEstradiolPill || isSupportedAntiandrogenPill) {
+                "Imported pill medicine $medicineUuid has unsupported category/key combination " +
+                        "$category/$medicationKey."
+            }
+        }
+
+        MedicinePreparationType.PATCH -> {
+            require(selectionKind == MedicationSelectionKind.CATALOG) {
+                "Imported patch medicine $medicineUuid must use CATALOG selectionKind."
+            }
+            require(category == MedicationCategory.ESTRADIOL) {
+                "Imported patch medicine $medicineUuid must be in the ESTRADIOL category."
+            }
+            require(key == MedicationKey.ESTRADIOL_PATCH) {
+                "Imported patch medicine $medicineUuid must carry ESTRADIOL_PATCH medicationKey."
+            }
+        }
+
+        else -> throw IllegalArgumentException(
+            "Imported external medicine $medicineUuid has unsupported preparation $preparationType."
+        )
+    }
 }
 
 private fun MedicinePreparationType.toValidatedPreparation(
     medicineUuid: String,
+    medicationKey: String?,
     strengthMgPerTablet: Double?,
     strengthMgPerVial: Double?,
     concentrationMgPerMl: Double?,
@@ -1206,6 +1415,27 @@ private fun MedicinePreparationType.toValidatedPreparation(
             MedicinePreparation.GelContainer(
                 concentrationPercent = checkNotNull(concentrationPercent),
                 containerWeightGrams = checkNotNull(containerWeightGrams),
+            )
+        }
+
+        MedicinePreparationType.IMPORTED_INJECTION -> {
+            requireFieldsOnly("strengthMgPerVial")
+            val ester = checkNotNull(MedicationKey.fromStorageValue(medicationKey)) {
+                "Imported injection medicine $medicineUuid is missing ester medicationKey."
+            }
+            MedicinePreparation.ImportedInjection(
+                administeredMg = checkNotNull(strengthMgPerVial),
+                ester = ester,
+            )
+        }
+
+        MedicinePreparationType.IMPORTED_GEL -> {
+            requireFieldsOnly("strengthMgPerVial")
+            require(medicationKey == MedicationKey.ESTRADIOL.name) {
+                "Imported gel medicine $medicineUuid must carry ESTRADIOL medicationKey."
+            }
+            MedicinePreparation.ImportedGel(
+                appliedEstradiolMg = checkNotNull(strengthMgPerVial),
             )
         }
 
@@ -1546,6 +1776,39 @@ private fun String?.parseUuid(fieldName: String): UUID {
         .getOrElse { throw IllegalArgumentException("Invalid $fieldName.", it) }
 }
 
+private fun validateImportPair(
+    sourceApp: String?,
+    externalId: String?,
+    label: String,
+): Pair<String, String>? {
+    require((sourceApp == null) == (externalId == null)) {
+        "$label import provenance must be either fully set or fully absent."
+    }
+    if (sourceApp == null) return null
+    require(sourceApp in SUPPORTED_IMPORT_SOURCE_APPS) {
+        "$label has unsupported import source $sourceApp."
+    }
+    require(!externalId.isNullOrBlank()) {
+        "$label import external ID must not be blank."
+    }
+    return sourceApp to externalId
+}
+
+private fun validatePanelImportPair(
+    sourceApp: String?,
+    panelKey: Long?,
+    label: String,
+): Pair<String, Long>? {
+    require((sourceApp == null) == (panelKey == null)) {
+        "$label import provenance must be either fully set or fully absent."
+    }
+    if (sourceApp == null) return null
+    require(sourceApp in SUPPORTED_IMPORT_SOURCE_APPS) {
+        "$label has unsupported import source $sourceApp."
+    }
+    return sourceApp to checkNotNull(panelKey)
+}
+
 private fun requireZoneId(
     value: String,
     fieldName: String,
@@ -1588,3 +1851,21 @@ private fun closeEnough(
 ): Boolean {
     return abs(expected - actual) <= epsilon
 }
+
+private val SUPPORTED_IMPORT_SOURCE_APPS = setOf(
+    "transmtf",
+    "oyama",
+    "nomtf",
+    "transmtf-compatible",
+)
+
+private val IMPORTED_ESTRADIOL_PILL_KEYS = setOf(
+    MedicationKey.ESTRADIOL,
+    MedicationKey.ESTRADIOL_VALERATE,
+)
+
+private val IMPORTED_ANTIANDROGEN_PILL_KEYS = setOf(
+    MedicationKey.CYPROTERONE_ACETATE,
+    MedicationKey.SPIRONOLACTONE,
+    MedicationKey.BICALUTAMIDE,
+)

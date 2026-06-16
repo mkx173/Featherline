@@ -86,6 +86,129 @@ class BackupSnapshotJsonCodecTest {
     }
 
     @Test
+    fun roundTrip_importedMedicineAndProvenanceFields_preservesAllFields() {
+        val snapshot = baselineSnapshot(
+            medicines = listOf(
+                BackupMedicineSnapshot(
+                    uuid = "33333333-3333-3333-3333-333333333331",
+                    selectionKind = "CUSTOM",
+                    medicationKey = "ESTRADIOL_VALERATE",
+                    customMedicationName = "External tracker",
+                    customMedicationNameNormalized = "external tracker",
+                    category = "ESTRADIOL",
+                    preparationType = "IMPORTED_INJECTION",
+                    strengthMgPerTablet = null,
+                    strengthMgPerVial = 5.0,
+                    concentrationMgPerMl = null,
+                    vialVolumeMl = null,
+                    concentrationPercent = null,
+                    sachetWeightGrams = null,
+                    containerWeightGrams = null,
+                    patchTotalMg = null,
+                    patchReleaseRateMcgPerDay = null,
+                    displayName = null,
+                    identityKey = "E|transmtf|INJECTION|EV|5",
+                    createdAtEpochMillis = 0L,
+                    updatedAtEpochMillis = 0L,
+                    archivedAtEpochMillis = null,
+                    importedFromExternalTracker = true,
+                    stock = null,
+                ),
+                BackupMedicineSnapshot(
+                    uuid = "33333333-3333-3333-3333-333333333332",
+                    selectionKind = "CUSTOM",
+                    medicationKey = "ESTRADIOL",
+                    customMedicationName = "External tracker",
+                    customMedicationNameNormalized = "external tracker",
+                    category = "ESTRADIOL",
+                    preparationType = "IMPORTED_GEL",
+                    strengthMgPerTablet = null,
+                    strengthMgPerVial = 0.75,
+                    concentrationMgPerMl = null,
+                    vialVolumeMl = null,
+                    concentrationPercent = null,
+                    sachetWeightGrams = null,
+                    containerWeightGrams = null,
+                    patchTotalMg = null,
+                    patchReleaseRateMcgPerDay = null,
+                    displayName = null,
+                    identityKey = "E|oyama|GEL|ESTRADIOL|0.75",
+                    createdAtEpochMillis = 0L,
+                    updatedAtEpochMillis = 0L,
+                    archivedAtEpochMillis = null,
+                    importedFromExternalTracker = true,
+                    stock = null,
+                ),
+            ),
+            medicationLogs = listOf(
+                BackupMedicationLogSnapshot(
+                    uuid = "44444444-4444-4444-4444-444444444444",
+                    category = "ESTRADIOL",
+                    medicineUuid = "33333333-3333-3333-3333-333333333331",
+                    applicationType = "INJECTION",
+                    doseInstructionKind = "WHOLE_UNIT",
+                    tabletFractionNumerator = null,
+                    tabletFractionDenominator = null,
+                    doseVolumeMl = null,
+                    doseWeightGrams = null,
+                    gelApplicationArea = "DEFAULT",
+                    equivalentE2Mg = 5.0,
+                    doseAmountDelta = null,
+                    sourceGroupUuid = null,
+                    scheduleTimeUuid = null,
+                    appliedAtEpochMillis = 1L,
+                    appliedAtTimeZoneId = "UTC",
+                    scheduledForIso = null,
+                    count = 1,
+                    importSourceApp = "transmtf",
+                    importExternalId = "dose-1",
+                )
+            ),
+            bloodTestPanels = listOf(
+                BackupBloodTestPanelSnapshot(
+                    uuid = "55555555-5555-5555-5555-555555555555",
+                    collectedAtInstantEpochMillis = 2L,
+                    collectedAtTimeZoneId = "UTC",
+                    notes = null,
+                    timeSinceLastEstradiolDoseMillis = null,
+                    timeSinceLastTestosteroneDoseMillis = null,
+                    createdAtEpochMillis = 2L,
+                    updatedAtEpochMillis = 2L,
+                    importSourceApp = "oyama",
+                    importPanelKey = 42L,
+                    results = listOf(
+                        BackupBloodTestResultSnapshot(
+                            uuid = "66666666-6666-6666-6666-666666666666",
+                            createdAtEpochMillis = 3L,
+                            displayOrder = 0,
+                            builtinAnalyteKey = "e2",
+                            customAnalyteUuid = null,
+                            value = 367.1,
+                            unitSnapshot = "pmol_l",
+                            canonicalValue = 100.0,
+                            importSourceApp = "oyama",
+                            importExternalId = "result-1",
+                        )
+                    ),
+                )
+            ),
+        )
+
+        val json = BackupSnapshotJsonCodec.encode(snapshot)
+        val decoded = BackupSnapshotJsonCodec.decode(json)!!
+
+        assertEquals(true, decoded.medicines[0].importedFromExternalTracker)
+        assertEquals("IMPORTED_INJECTION", decoded.medicines[0].preparationType)
+        assertEquals("IMPORTED_GEL", decoded.medicines[1].preparationType)
+        assertEquals("transmtf", decoded.medicationLogs.single().importSourceApp)
+        assertEquals("dose-1", decoded.medicationLogs.single().importExternalId)
+        assertEquals("oyama", decoded.bloodTestPanels.single().importSourceApp)
+        assertEquals(42L, decoded.bloodTestPanels.single().importPanelKey)
+        assertEquals("oyama", decoded.bloodTestPanels.single().results.single().importSourceApp)
+        assertEquals("result-1", decoded.bloodTestPanels.single().results.single().importExternalId)
+    }
+
+    @Test
     fun decodingLogEntryWithoutDoseAmountDelta_yieldsNullDoseAmountDelta() {
         val json = BackupSnapshotJsonCodec.encode(makeSnapshotWithSingleLog())
             .replace(""","doseAmountDelta":0.1""", "")
@@ -171,6 +294,7 @@ class BackupSnapshotJsonCodecTest {
     private fun baselineSnapshot(
         medicines: List<BackupMedicineSnapshot> = emptyList(),
         medicationLogs: List<BackupMedicationLogSnapshot> = emptyList(),
+        bloodTestPanels: List<BackupBloodTestPanelSnapshot> = emptyList(),
     ): BackupSnapshot {
         return BackupSnapshot(
             exportedAtEpochMillis = 0L,
@@ -194,7 +318,7 @@ class BackupSnapshotJsonCodecTest {
             medicationGroups = emptyList(),
             medicationLogs = medicationLogs,
             customBloodAnalytes = emptyList(),
-            bloodTestPanels = emptyList(),
+            bloodTestPanels = bloodTestPanels,
         )
     }
 }

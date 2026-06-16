@@ -3,6 +3,8 @@ package com.mkx.hrttracker.ui.medication
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicine
@@ -64,6 +66,73 @@ class MedicationUiTextTest {
                 applicationType = MedicationApplicationType.ORAL,
             ),
         )
+    }
+
+    @Test
+    fun medicineDisplayName_importedInjectionUsesLocalizedEsterNameInsteadOfSentinel() {
+        var name: String? = null
+
+        composeRule.setContent {
+            name = medicineDisplayName(
+                testCustomMedicine(
+                    medicationName = "External tracker",
+                    category = MedicationCategory.ESTRADIOL,
+                    displayName = "External tracker",
+                ).copy(
+                    preparation = MedicinePreparation.ImportedInjection(
+                        administeredMg = 5.0,
+                        ester = MedicationKey.ESTRADIOL_VALERATE,
+                    ),
+                    identityKey = "E|transmtf|INJECTION|ESTRADIOL_VALERATE|mg:5",
+                    importedFromExternalTracker = true,
+                )
+            )
+        }
+        composeRule.waitForIdle()
+
+        assertEquals("Estradiol valerate", name)
+    }
+
+    @Test
+    fun medicineDisplayName_importedGelUsesLocalizedEstradiolNameInsteadOfSentinel() {
+        var name: String? = null
+
+        composeRule.setContent {
+            name = medicineDisplayName(
+                testCustomMedicine(
+                    medicationName = "External tracker",
+                    category = MedicationCategory.ESTRADIOL,
+                    displayName = "External tracker",
+                ).copy(
+                    preparation = MedicinePreparation.ImportedGel(appliedEstradiolMg = 0.75),
+                    identityKey = "E|transmtf|GEL|ESTRADIOL|mg:0.75",
+                    importedFromExternalTracker = true,
+                )
+            )
+        }
+        composeRule.waitForIdle()
+
+        assertEquals("Estradiol", name)
+    }
+
+    @Test
+    fun medicineDisplayName_importedCatalogMedicineUsesLocalizedNameInsteadOfStoredDisplayName() {
+        var name: String? = null
+
+        composeRule.setContent {
+            name = medicineDisplayName(
+                testMedicine(
+                    key = MedicationKey.CYPROTERONE_ACETATE,
+                    displayName = "Stored English name",
+                ).copy(
+                    identityKey = "E|transmtf|ORAL|CYPROTERONE_ACETATE|mg:12.5",
+                    importedFromExternalTracker = true,
+                )
+            )
+        }
+        composeRule.waitForIdle()
+
+        assertEquals("Cyproterone acetate", name)
     }
 
     @Test

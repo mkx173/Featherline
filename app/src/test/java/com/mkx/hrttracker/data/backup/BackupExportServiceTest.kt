@@ -23,7 +23,11 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -108,9 +112,9 @@ class BackupExportServiceTest {
     @Test
     fun backupExport_versionTripwire_doseAmountDeltaRemainsAdditive() {
         // doseAmountDelta is a nullable additive field — it did NOT force a version bump
-        // (older readers default it to null). The 3→4 bump is the widget-appearance codec's
-        // (bidirectional balance); this still catches any FURTHER accidental bump.
-        assertEquals(4, CURRENT_BACKUP_SNAPSHOT_VERSION)
+        // (older readers default it to null). The 4→5 bump is for imported preparation
+        // enum values; this still catches any FURTHER accidental bump.
+        assertEquals(5, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     @Test
@@ -508,7 +512,7 @@ class BackupExportServiceTest {
         snapshot!!
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, snapshot.snapshotVersion)
-        assertEquals(4, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
+        assertEquals(5, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)
@@ -579,6 +583,191 @@ class BackupExportServiceTest {
 
         assertTrue(!json.contains("\"screenLockProtectionEnabled\""))
         assertFalse("Backup JSON should not be pretty-printed.", json.contains('\n'))
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_exportsImportedExternalMedicines() =
+        runTest {
+            val importedPillPreparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0)
+            val importedPill = Medicine(
+                uuid = UUID.fromString("00000000-0000-0000-0000-000000000050"),
+                selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL),
+                category = MedicationCategory.ESTRADIOL,
+                preparation = importedPillPreparation,
+                displayName = null,
+                identityKey = MedicineIdentityKey.external(
+                    sourceApp = "NoMTF",
+                    applicationType = MedicationApplicationType.ORAL,
+                    compound = "ESTRADIOL",
+                    doseKey = "2",
+                ),
+                createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+                updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+                archivedAt = null,
+                stock = MedicineStock(),
+                importedFromExternalTracker = true,
+            )
+            val importedInjection = Medicine(
+                uuid = UUID.fromString("00000000-0000-0000-0000-000000000051"),
+                selection = MedicineSelection.Custom("External tracker"),
+                category = MedicationCategory.ESTRADIOL,
+                preparation = MedicinePreparation.ImportedInjection(
+                    administeredMg = 5.0,
+                    ester = MedicationKey.ESTRADIOL_VALERATE,
+                ),
+                displayName = null,
+                identityKey = MedicineIdentityKey.external(
+                    sourceApp = "transmtf",
+                    applicationType = MedicationApplicationType.INJECTION,
+                    compound = "EV",
+                    doseKey = "5",
+                ),
+                createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+                updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+                archivedAt = null,
+                stock = MedicineStock(),
+                importedFromExternalTracker = true,
+            )
+            val importedGel = Medicine(
+                uuid = UUID.fromString("00000000-0000-0000-0000-000000000052"),
+                selection = MedicineSelection.Custom("External tracker"),
+                category = MedicationCategory.ESTRADIOL,
+                preparation = MedicinePreparation.ImportedGel(appliedEstradiolMg = 0.75),
+                displayName = null,
+                identityKey = MedicineIdentityKey.external(
+                    sourceApp = "oyama",
+                    applicationType = MedicationApplicationType.GEL,
+                    compound = "ESTRADIOL",
+                    doseKey = "0.75",
+                ),
+                createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+                updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+                archivedAt = null,
+                stock = MedicineStock(),
+                importedFromExternalTracker = true,
+            )
+            every { settingsRepository.onboardingCompleted } returns flowOf(false)
+            coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+            coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+            coEvery { medicineRepository.getAll() } returns listOf(
+                importedPill,
+                importedInjection,
+                importedGel,
+            )
+            coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+            coEvery { medicationLogRepository.getEntries() } returns emptyList()
+            coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+            coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+            val snapshot = BackupSnapshotJsonCodec.decode(
+                service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+            )!!
+
+            val backedUpPill = snapshot.medicines[0]
+            assertEquals(true, backedUpPill.importedFromExternalTracker)
+            assertEquals(importedPill.identityKey, backedUpPill.identityKey)
+            assertEquals("PILL", backedUpPill.preparationType)
+            assertEquals(null, backedUpPill.stock)
+
+            val backedUpInjection = snapshot.medicines[1]
+            assertEquals(true, backedUpInjection.importedFromExternalTracker)
+            assertEquals("IMPORTED_INJECTION", backedUpInjection.preparationType)
+            assertEquals("ESTRADIOL_VALERATE", backedUpInjection.medicationKey)
+            assertEquals(5.0, backedUpInjection.strengthMgPerVial!!, 1e-9)
+
+            val backedUpGel = snapshot.medicines[2]
+            assertEquals(true, backedUpGel.importedFromExternalTracker)
+            assertEquals("IMPORTED_GEL", backedUpGel.preparationType)
+            assertEquals("ESTRADIOL", backedUpGel.medicationKey)
+            assertEquals(0.75, backedUpGel.strengthMgPerVial!!, 1e-9)
+        }
+
+    @Test
+    fun buildBackupSnapshotJson_exportsImportProvenanceFromRoomEntities() = runTest {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000060")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000061")
+        val panelUuid = UUID.fromString("00000000-0000-0000-0000-000000000062")
+        val resultUuid = UUID.fromString("00000000-0000-0000-0000-000000000063")
+        val importedMedicine = Medicine(
+            uuid = medicineUuid,
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL),
+            category = MedicationCategory.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+            displayName = null,
+            identityKey = MedicineIdentityKey.external(
+                sourceApp = "nomtf",
+                applicationType = MedicationApplicationType.ORAL,
+                compound = "ESTRADIOL",
+                doseKey = "2",
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+            archivedAt = null,
+            stock = MedicineStock(),
+            importedFromExternalTracker = true,
+        )
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns listOf(importedMedicine)
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns listOf(
+            MedicationLogEntry(
+                uuid = logUuid,
+                medicine = importedMedicine,
+                category = MedicationCategory.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                equivalentE2Mg = 2.0,
+                sourceGroupUuid = null,
+                appliedAt = Instant.parse("2026-04-26T01:00:00Z"),
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                importSourceApp = "nomtf",
+                importExternalId = "dose-60",
+            )
+        )
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns listOf(
+            BloodTestPanel(
+                uuid = panelUuid,
+                collectedAt = Instant.parse("2026-04-26T02:00:00Z"),
+                collectedAtTimeZoneId = "Asia/Tokyo",
+                notes = null,
+                timeSinceLastEstradiolDoseMillis = null,
+                timeSinceLastTestosteroneDoseMillis = null,
+                results = listOf(
+                    BloodTestResult(
+                        uuid = resultUuid,
+                        createdAt = Instant.parse("2026-04-26T02:10:00Z"),
+                        displayOrder = 0,
+                        analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.E2),
+                        value = 367.1,
+                        unitSnapshot = BloodUnitKey.PMOL_L.storageValue,
+                        canonicalValue = 100.0,
+                        importSourceApp = "oyama",
+                        importExternalId = "result-60",
+                    )
+                ),
+                createdAt = Instant.parse("2026-04-26T02:00:00Z"),
+                updatedAt = Instant.parse("2026-04-26T02:00:00Z"),
+                importSourceApp = "oyama",
+                importPanelKey = 600L,
+            )
+        )
+
+        val snapshot = BackupSnapshotJsonCodec.decode(
+            service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+        )!!
+
+        val log = snapshot.medicationLogs.single()
+        assertEquals("nomtf", log.importSourceApp)
+        assertEquals("dose-60", log.importExternalId)
+        val panel = snapshot.bloodTestPanels.single()
+        assertEquals("oyama", panel.importSourceApp)
+        assertEquals(600L, panel.importPanelKey)
+        val result = panel.results.single()
+        assertEquals("oyama", result.importSourceApp)
+        assertEquals("result-60", result.importExternalId)
     }
 
     @Test

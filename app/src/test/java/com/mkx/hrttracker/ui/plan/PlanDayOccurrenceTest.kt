@@ -366,6 +366,43 @@ class PlanDayOccurrenceTest {
     }
 
     @Test
+    fun buildPlanDaySchedule_flags_imported_linked_logs_on_scheduled_rows() {
+        val zoneId = ZoneId.of("UTC")
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            )
+        )
+        val scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
+        val importedLog = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
+            medicine = group.medications.single().medicine,
+            applicationType = group.medications.single().applicationType,
+            doseInstruction = group.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
+            sourceGroupUuid = group.uuid,
+            appliedAt = scheduledFor.plusMinutes(5).atZone(zoneId).toInstant(),
+            scheduledFor = scheduledFor,
+        ).copy(
+            importSourceApp = "transmtf",
+            importExternalId = "dose-1",
+        )
+
+        val schedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = listOf(group),
+            entries = listOf(importedLog),
+            now = LocalDateTime.of(2026, 4, 18, 10, 15),
+            zoneId = zoneId,
+        )
+
+        assertTrue(schedule.scheduledEntries.single().isImportedRecord)
+    }
+
+    @Test
     fun buildPlanDaySchedule_shows_logged_slot_outside_effective_window_as_planned() {
         val scheduleTimeUuid = UUID.fromString("16d63c4d-10d2-4bc3-9f0a-934fd5aa7c74")
         val group = medicationGroup(

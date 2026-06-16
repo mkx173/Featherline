@@ -12,11 +12,15 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.util.doseInstructionText
+import com.mkx.hrttracker.util.importedExternalMedicineDisplayKey
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.rememberAppLocale
 
 @Composable
 fun medicineDisplayName(medicine: Medicine): String {
+    importedExternalMedicineDisplayKey(medicine)?.let { medicationKey ->
+        return stringResource(medicationKey.labelRes)
+    }
     medicine.displayName?.takeIf(String::isNotBlank)?.let { return it }
     return when (val selection = medicine.selection) {
         is MedicineSelection.Catalog -> stringResource(selection.medicationKey.labelRes)
@@ -73,6 +77,17 @@ fun medicinePreparationSummary(medicine: Medicine): String {
             R.string.medication_preparation_summary_gel_container,
             preparation.concentrationPercent.formatDose(appLocale),
             preparation.containerWeightGrams.formatDose(appLocale),
+        )
+
+        is MedicinePreparation.ImportedInjection -> stringResource(
+            R.string.medication_preparation_summary_single_use_vial_with_unit,
+            displayUnit.fromMg(preparation.administeredMg).formatDose(appLocale),
+            unitLabel,
+        )
+
+        is MedicinePreparation.ImportedGel -> stringResource(
+            R.string.medication_preparation_summary_imported_gel,
+            preparation.appliedEstradiolMg.formatDose(appLocale),
         )
 
         is MedicinePreparation.Patch -> when (val spec = preparation.specification) {

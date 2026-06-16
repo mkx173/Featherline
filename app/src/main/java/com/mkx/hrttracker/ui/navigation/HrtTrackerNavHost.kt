@@ -1543,6 +1543,7 @@ private fun saveMedicine(medicine: Medicine): ArrayList<Any?> {
         medicine.stock.openContainerAmount,
         medicine.stock.warnAtDaysRemaining,
         medicine.stock.generation,
+        medicine.importedFromExternalTracker,
     )
 }
 
@@ -1577,6 +1578,7 @@ private fun restoreMedicine(saved: Any): Medicine {
         updatedAt = Instant.ofEpochMilli(list[9] as Long),
         archivedAt = (list[10] as? Long)?.let(Instant::ofEpochMilli),
         stock = restoreMedicineStock(list),
+        importedFromExternalTracker = (list.getOrNull(17) as? Boolean) ?: false,
     )
 }
 
@@ -1623,6 +1625,17 @@ private fun savePreparation(preparation: MedicinePreparation): ArrayList<Any?> {
             preparation.containerWeightGrams,
         )
 
+        is MedicinePreparation.ImportedInjection -> arrayListOf(
+            preparation.type.name,
+            preparation.administeredMg,
+            preparation.ester.name,
+        )
+
+        is MedicinePreparation.ImportedGel -> arrayListOf(
+            preparation.type.name,
+            preparation.appliedEstradiolMg,
+        )
+
         is MedicinePreparation.Patch -> when (val spec = preparation.specification) {
             is MedicinePreparation.PatchSpecification.TotalMg ->
                 arrayListOf(preparation.type.name, "TOTAL", spec.valueMg)
@@ -1662,6 +1675,16 @@ private fun restorePreparation(saved: Any): MedicinePreparation {
         MedicinePreparationType.GEL_CONTAINER -> MedicinePreparation.GelContainer(
             concentrationPercent = list[1] as Double,
             containerWeightGrams = list[2] as Double,
+        )
+
+        MedicinePreparationType.IMPORTED_INJECTION -> MedicinePreparation.ImportedInjection(
+            administeredMg = list[1] as Double,
+            ester = MedicationKey.fromStorageValue(list[2] as String)
+                ?: error("Unknown imported injection ester key: ${list[2]}"),
+        )
+
+        MedicinePreparationType.IMPORTED_GEL -> MedicinePreparation.ImportedGel(
+            appliedEstradiolMg = list[1] as Double,
         )
 
         MedicinePreparationType.PATCH -> MedicinePreparation.Patch(
