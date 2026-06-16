@@ -404,6 +404,39 @@ class ExternalImportServiceTest {
     }
 
     @Test
+    fun reimportingIdenticalExportRewritesNothingInLabTables() = runTest {
+        // "Unchanged" must mean the DB is actually untouched. Bumping a panel's
+        // updatedAtEpochMillis or REPLACE-rewriting byte-identical result rows on
+        // a no-op re-import dirties the data and fires spurious home/widget
+        // recomputes despite the user being told nothing changed.
+        val json = transmtfJson(
+            events = """
+                { "id": "dose-a", "timeH": 1, "route": "oral", "ester": "E2", "doseMG": 2 }
+            """.trimIndent(),
+            labs = """
+                { "id": "lab-a", "timeH": 2, "unit": "pg/ml", "value": 120 },
+                { "id": "lab-b", "timeH": 3, "unit": "pg/ml", "value": 140 }
+            """.trimIndent(),
+        )
+        service.commit(service.buildPreview(json, now = NOW), now = NOW)
+        val panelsAfterFirstImport = database.bloodTestDao().getPanels()
+
+        // Re-import the same export with a strictly later clock: a correct no-op
+        // commit must not let that newer timestamp leak into any stored row.
+        service.commit(service.buildPreview(json, now = NOW.plusSeconds(60)), now = NOW.plusSeconds(60))
+
+        val panelsAfterSecondImport = database.bloodTestDao().getPanels()
+        assertEquals(
+            panelsAfterFirstImport.map { panel -> panel.panel },
+            panelsAfterSecondImport.map { panel -> panel.panel },
+        )
+        assertEquals(
+            panelsAfterFirstImport.flatMap { panel -> panel.results },
+            panelsAfterSecondImport.flatMap { panel -> panel.results },
+        )
+    }
+
+    @Test
     fun reimportTalliesCreatedUpdatedAndUnchangedRowsIndependently() = runTest {
         service.commit(
             service.buildPreview(

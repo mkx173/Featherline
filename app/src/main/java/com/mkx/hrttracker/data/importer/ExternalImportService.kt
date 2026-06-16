@@ -343,6 +343,20 @@ class ExternalImportService @Inject constructor(
             }
             .toMap()
 
+        // Snapshot the stored panels and results before the loop below mutates
+        // panel entities (panelStateFor) and result lists, so the upsert sets can
+        // drop rows identical to what is already persisted. Without this, a
+        // re-import of an unchanged export bumps every visited panel's updatedAt
+        // and REPLACE-rewrites byte-identical results, dirtying the DB and firing
+        // spurious home/widget recomputes despite "nothing changed".
+        val originalPanelsByUuid = panelStatesByUuid.mapValues { (_, state) -> state.panel }
+        val originalResultsByUuid = buildMap {
+            panelStatesByUuid.values.forEach { state ->
+                state.results.forEach { result -> put(result.uuid, result) }
+            }
+            importedResultsByExternalId.values.forEach { result -> put(result.uuid, result) }
+        }
+
         var created = 0
         var updated = 0
         var unchanged = 0
@@ -405,9 +419,10 @@ class ExternalImportService @Inject constructor(
             targetState.results += resultEntity
         }
 
-        val panelsToUpsert = targetPanelUuids.map { panelUuid ->
-            panelStatesByUuid.getValue(panelUuid).panel
-        }
+        // Recompute the desired imported-result rows for every affected panel,
+        // then keep only those that differ from the stored row (new, value-changed,
+        // or displayOrder-shifted). Identical rows are dropped so an unchanged
+        // re-import writes nothing.
         val resultsToUpsert = affectedPanelUuids.flatMap { panelUuid ->
             val state = panelStatesByUuid[panelUuid] ?: return@flatMap emptyList<BloodTestResultEntity>()
             val userOwnedMaxDisplayOrder = state.results
@@ -423,6 +438,21 @@ class ExternalImportService @Inject constructor(
                         displayOrder = firstImportedDisplayOrder + index,
                     )
                 }
+        }.filter { result -> originalResultsByUuid[result.uuid] != result }
+
+        // Upsert a panel only when it is new, one of its stored fields changed, or
+        // one of its results is being written. Comparing on every field except
+        // updatedAtEpochMillis lets an otherwise-identical panel keep its stored
+        // timestamp instead of being bumped on a no-op re-import.
+        val panelUuidsWithResultWrites =
+            resultsToUpsert.mapTo(mutableSetOf(), BloodTestResultEntity::panelUuid)
+        val panelsToUpsert = targetPanelUuids.mapNotNull { panelUuid ->
+            val candidate = panelStatesByUuid.getValue(panelUuid).panel
+            val original = originalPanelsByUuid[panelUuid]
+            val changed = original == null ||
+                original.copy(updatedAtEpochMillis = candidate.updatedAtEpochMillis) != candidate ||
+                panelUuid in panelUuidsWithResultWrites
+            candidate.takeIf { changed }
         }
 
         return LabReconciliationPlan(

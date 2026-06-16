@@ -1255,7 +1255,10 @@ class ExternalImportParser @Inject constructor() {
             // so external-id dedup keys stay stable. (Values beyond 2^53 already
             // lost precision when Moshi parsed them, which no formatting recovers.)
             is Number -> value.plainText()
-            is Boolean -> value.toString()
+            // A JSON boolean is never a valid id or text field. Stringifying it to
+            // "true"/"false" would mint a meaningless provenance id and collide in
+            // the external-id dedup set with a row legitimately keyed "true"/"false",
+            // silently dropping it. Treat it as absent.
             else -> null
         }?.takeIf { text -> text.isNotBlank() }
     }

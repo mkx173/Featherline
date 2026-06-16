@@ -96,6 +96,34 @@ class ExternalImportParserTest {
     }
 
     @Test
+    fun booleanExternalIdIsRejectedRatherThanStringifiedToTrueOrFalse() {
+        // A JSON boolean is never a valid external id. Stringifying {"id": true}
+        // to "true" would store a meaningless provenance id and, worse, collide
+        // in the (importSourceApp, importExternalId) dedup set with any row
+        // legitimately keyed "true" — silently dropping a real row. Such a row
+        // must be skipped as missing an id, not imported with id "true"/"false".
+        val result = parser.parse(
+            """
+            {
+              "gelProducts": [{ "id": "estrogel" }],
+              "events": [
+                { "id": true, "timeH": 12.5, "route": "gel", "ester": "E2", "doseMG": 0.75 }
+              ],
+              "labResults": [
+                { "id": false, "timeH": 18, "unit": "pg/ml", "value": 150 }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(result.medicationDoses.isEmpty())
+        assertTrue(result.labResults.isEmpty())
+        assertTrue(
+            ExternalImportWarningReason.MISSING_EXTERNAL_ID in result.warningReasons()
+        )
+    }
+
+    @Test
     fun detectsOyamaNestedModesAndImportsTransfemDataWhenActiveModeIsTransmasc() {
         val result = parser.parse(
             """
