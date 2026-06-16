@@ -49,6 +49,12 @@ interface JournalDao {
     @Query("SELECT * FROM notes WHERE dateIso = :dateIso LIMIT 1")
     fun observeNoteForDate(dateIso: String): Flow<NoteEntity?>
 
+    @Query("SELECT COUNT(*) FROM notes")
+    fun observeAllNotesCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM notes WHERE dateIso < :beforeDateIso")
+    fun observeNotesCountBefore(beforeDateIso: String): Flow<Int>
+
     @Query("SELECT * FROM notes WHERE dateIso = :dateIso LIMIT 1")
     suspend fun getNoteForDate(dateIso: String): NoteEntity?
 

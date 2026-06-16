@@ -78,6 +78,30 @@ class JournalRepository @Inject constructor(
             }
         }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun observeAllNotesCount(): Flow<Int> =
+        databaseHolder.databaseFlow.flatMapLatest { db ->
+            if (db == null) {
+                flowOf(0)
+            } else {
+                db.journalDao()
+                    .observeAllNotesCount()
+                    .catchRecoverableDatabaseError(0)
+            }
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun observeNotesCountBefore(beforeDate: LocalDate): Flow<Int> =
+        databaseHolder.databaseFlow.flatMapLatest { db ->
+            if (db == null) {
+                flowOf(0)
+            } else {
+                db.journalDao()
+                    .observeNotesCountBefore(beforeDate.toString())
+                    .catchRecoverableDatabaseError(0)
+            }
+        }
+
     suspend fun getTrackedDateEntities(): List<TrackedDateEntity> =
         databaseHolder.get().journalDao().getTrackedDates()
 

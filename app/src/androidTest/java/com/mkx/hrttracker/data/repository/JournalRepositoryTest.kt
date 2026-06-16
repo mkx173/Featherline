@@ -520,6 +520,23 @@ class JournalRepositoryTest {
     }
 
     @Test
+    fun observeAllNotesCount_countsEveryNote() = runBlocking {
+        repo.saveNoteForDate(date = LocalDate.of(2026, 6, 14), text = "old")
+        repo.saveNoteForDate(date = LocalDate.of(2026, 6, 16), text = "today")
+
+        assertEquals(2, repo.observeAllNotesCount().first())
+    }
+
+    @Test
+    fun observeNotesCountBefore_countsOnlyNotesBeforeBoundary() = runBlocking {
+        repo.saveNoteForDate(date = LocalDate.of(2026, 5, 17), text = "older")
+        repo.saveNoteForDate(date = LocalDate.of(2026, 5, 18), text = "boundary")
+        repo.saveNoteForDate(date = LocalDate.of(2026, 6, 16), text = "recent")
+
+        assertEquals(1, repo.observeNotesCountBefore(LocalDate.of(2026, 5, 18)).first())
+    }
+
+    @Test
     fun observers_emitFallbacks_whenDatabaseFlowEmitsNull() = runBlocking {
         databaseFlow.value = null
 
@@ -527,6 +544,8 @@ class JournalRepositoryTest {
         assertEquals(emptyList<String>(), repo.observePinnedTrackedDates().first().map { it.name })
         assertEquals(emptyList<String>(), repo.observeNotesOnOrAfter(today).first().map { it.text })
         assertNull(repo.observeNoteForDate(today).first())
+        assertEquals(0, repo.observeAllNotesCount().first())
+        assertEquals(0, repo.observeNotesCountBefore(today).first())
     }
 
     @Test
@@ -544,6 +563,12 @@ class JournalRepositoryTest {
         every { journalDao.observeNoteForDate(today.toString()) } returns flow {
             throw IllegalStateException("note failed")
         }
+        every { journalDao.observeAllNotesCount() } returns flow {
+            throw IllegalStateException("note count failed")
+        }
+        every { journalDao.observeNotesCountBefore(today.toString()) } returns flow {
+            throw IllegalStateException("older note count failed")
+        }
         val erroringDatabase = mockk<HrtTrackerDatabase>()
         every { erroringDatabase.journalDao() } returns journalDao
         databaseFlow.value = erroringDatabase
@@ -552,6 +577,8 @@ class JournalRepositoryTest {
         assertEquals(emptyList<String>(), repo.observePinnedTrackedDates().first().map { it.name })
         assertEquals(emptyList<String>(), repo.observeNotesOnOrAfter(today).first().map { it.text })
         assertNull(repo.observeNoteForDate(today).first())
+        assertEquals(0, repo.observeAllNotesCount().first())
+        assertEquals(0, repo.observeNotesCountBefore(today).first())
     }
 
     @Test

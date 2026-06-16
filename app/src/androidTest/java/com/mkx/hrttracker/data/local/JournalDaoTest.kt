@@ -95,6 +95,25 @@ class JournalDaoTest {
     }
 
     @Test
+    fun observeAllNotesCount_countsEveryNote() = runBlocking {
+        assertEquals(0, dao.observeAllNotesCount().first())
+
+        dao.upsertNote(note("n1", dateIso = "2026-06-16", text = "today"))
+        dao.upsertNote(note("n2", dateIso = "2026-05-01", text = "earlier"))
+
+        assertEquals(2, dao.observeAllNotesCount().first())
+    }
+
+    @Test
+    fun observeNotesCountBefore_countsOnlyNotesBeforeBoundary() = runBlocking {
+        dao.upsertNote(note("older", dateIso = "2026-05-17", text = "older"))
+        dao.upsertNote(note("boundary", dateIso = "2026-05-18", text = "boundary"))
+        dao.upsertNote(note("recent", dateIso = "2026-06-16", text = "recent"))
+
+        assertEquals(1, dao.observeNotesCountBefore("2026-05-18").first())
+    }
+
+    @Test
     fun getMaxPinnedOrder_returnsLargestPinnedOrderWithoutLoadingRows() = runBlocking {
         dao.upsertTrackedDate(trackedDate("a", dateIso = "2024-04-01", pinnedOrder = 1))
         dao.upsertTrackedDate(trackedDate("b", dateIso = "2026-03-01", pinnedOrder = null))
