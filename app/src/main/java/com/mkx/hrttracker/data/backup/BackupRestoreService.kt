@@ -448,18 +448,18 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         }
     }
 
+    // pinnedOrder is only a sort key, not a uniqueness invariant: its index is
+    // non-unique and observePinnedTrackedDates breaks ties deterministically
+    // (dateIso, createdAtEpochMillis, uuid). Pin-on-create assigns max+1, but a
+    // future reorder/unpin can legitimately leave two rows sharing an order, so
+    // rejecting duplicates here would make the app's own export un-restorable.
+    // Tolerate duplicate orders; only the UUID primary key must be unique.
     val trackedDateEntities = mutableListOf<TrackedDateEntity>()
     val seenTrackedDateUuids = mutableSetOf<String>()
-    val seenTrackedDatePinnedOrders = mutableSetOf<Int>()
     trackedDates.forEach { trackedDate ->
         val entity = trackedDate.toValidatedEntity()
         require(seenTrackedDateUuids.add(entity.uuid)) {
             "Duplicate tracked date UUID ${entity.uuid} in backup."
-        }
-        entity.pinnedOrder?.let { pinnedOrder ->
-            require(seenTrackedDatePinnedOrders.add(pinnedOrder)) {
-                "Duplicate tracked date pinned order $pinnedOrder in backup."
-            }
         }
         trackedDateEntities += entity
     }
@@ -1067,6 +1067,11 @@ private fun BackupTrackedDateSnapshot.toValidatedEntity(): TrackedDateEntity {
     require(updatedAtEpochMillis >= createdAtEpochMillis) {
         "Tracked date $trackedDateUuid updatedAt must not be before createdAt."
     }
+    // pinnedOrder is appended as max+1 (>= 0) on the write path; a negative value
+    // would sort ahead of every legitimate pin and silently steal the hero slot.
+    require(pinnedOrder == null || pinnedOrder >= 0) {
+        "Tracked date $trackedDateUuid pinnedOrder must not be negative."
+    }
     // iconKey and paletteKey are stored as-is rather than rejected: both have
     // graceful read-time fallbacks (AnchorIcon.EVENT and the slate default), so
     // a forward-compatible backup carrying an icon or palette this build does
@@ -1086,13 +1091,19 @@ private fun BackupTrackedDateSnapshot.toValidatedEntity(): TrackedDateEntity {
 private fun BackupNoteSnapshot.toValidatedEntity(): NoteEntity {
     val noteUuid = uuid.parseUuid("note UUID").toString()
     val normalizedDateIso = dateIso.parseLocalDateIso("note dateIso")
+    // Trim and reject blank like every other restored free-text field; a note row
+    // whose body is empty carries no content and the write path never creates one.
+    val normalizedText = text.trim()
+    require(normalizedText.isNotEmpty()) {
+        "Note $noteUuid text must not be blank."
+    }
     require(updatedAtEpochMillis >= createdAtEpochMillis) {
         "Note $noteUuid updatedAt must not be before createdAt."
     }
     return NoteEntity(
         uuid = noteUuid,
         dateIso = normalizedDateIso,
-        text = text,
+        text = normalizedText,
         createdAtEpochMillis = createdAtEpochMillis,
         updatedAtEpochMillis = updatedAtEpochMillis,
     )

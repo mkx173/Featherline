@@ -508,11 +508,17 @@ class BackupRestoreServiceTest {
     }
 
     @Test
-    fun restoreBackupBytes_rejectsDuplicatePinnedOrderBeforeJournalMutation() = runTest {
+    fun restoreBackupBytes_toleratesDuplicatePinnedOrder() = runTest {
+        // pinnedOrder is a sort key, not a uniqueness invariant. A reorder/unpin can
+        // legitimately leave two rows sharing an order, so a backup carrying such a
+        // pair must restore intact (read-time ordering tie-breaks) rather than abort
+        // the whole import.
+        val firstUuid = "00000000-0000-0000-0000-000000000783"
+        val secondUuid = "00000000-0000-0000-0000-000000000784"
         val snapshot = emptySnapshot().copy(
             trackedDates = listOf(
                 BackupTrackedDateSnapshot(
-                    uuid = "00000000-0000-0000-0000-000000000783",
+                    uuid = firstUuid,
                     name = "First pinned anchor",
                     iconKey = "event",
                     dateIso = "2024-04-01",
@@ -522,7 +528,7 @@ class BackupRestoreServiceTest {
                     updatedAtEpochMillis = 110L,
                 ),
                 BackupTrackedDateSnapshot(
-                    uuid = "00000000-0000-0000-0000-000000000784",
+                    uuid = secondUuid,
                     name = "Second pinned anchor",
                     iconKey = "bookmark",
                     dateIso = "2025-04-01",
@@ -533,10 +539,43 @@ class BackupRestoreServiceTest {
                 ),
             ),
         )
+        val trackedDatesSlot = slot<List<TrackedDateEntity>>()
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        coVerify(exactly = 1) { journalDao.insertTrackedDates(capture(trackedDatesSlot)) }
+        val restored = trackedDatesSlot.captured
+        assertEquals(2, restored.size)
+        assertEquals(setOf(firstUuid, secondUuid), restored.map { it.uuid }.toSet())
+        assertTrue(restored.all { it.pinnedOrder == 0 })
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsNegativePinnedOrderBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000787",
+                    name = "Negative order anchor",
+                    iconKey = "event",
+                    dateIso = "2024-04-01",
+                    paletteKey = null,
+                    pinnedOrder = -1,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
 
         val error = restoreBackupBytesFails(snapshot)
 
-        assertTrue(error.message.orEmpty().contains("Duplicate tracked date pinned order 0"))
+        assertTrue(error.message.orEmpty().contains("pinnedOrder must not be negative"))
         verifyNoJournalMutation()
     }
 
@@ -583,6 +622,53 @@ class BackupRestoreServiceTest {
         val error = restoreBackupBytesFails(snapshot)
 
         assertTrue(error.message.orEmpty().contains("Invalid tracked date dateIso."))
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_trimsNoteTextBeforeInsert() = runTest {
+        val snapshot = emptySnapshot().copy(
+            notes = listOf(
+                BackupNoteSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000788",
+                    dateIso = "2026-06-16",
+                    text = "  Felt steady today.  ",
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+        val notesSlot = slot<List<NoteEntity>>()
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        coVerify(exactly = 1) { journalDao.insertNotes(capture(notesSlot)) }
+        assertEquals("Felt steady today.", notesSlot.captured.single().text)
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsBlankNoteTextBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            notes = listOf(
+                BackupNoteSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000789",
+                    dateIso = "2026-06-16",
+                    text = "   ",
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(error.message.orEmpty().contains("text must not be blank"))
         verifyNoJournalMutation()
     }
 

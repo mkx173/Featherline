@@ -239,12 +239,14 @@ flattened into the parent's JSON.
   journal anchor UUID, `name`, `iconKey`, wall-clock `dateIso`, nullable
   `paletteKey`, nullable `pinnedOrder`, and created/updated timestamps.
   Restore validates UUID shape, trims `name`, rejects blank names,
-  rejects duplicate tracked-date UUIDs, rejects duplicate non-null
-  `pinnedOrder` values, and preserves valid pin order values so the
-  pinned tray order round-trips deterministically. `iconKey` and
-  `paletteKey` are restored as stored, even when this build does not
-  know the key yet; read-time mappers apply their fallbacks without
-  rewriting the backup value.
+  rejects duplicate tracked-date UUIDs, and rejects negative
+  `pinnedOrder` values. Duplicate `pinnedOrder` values are tolerated —
+  it is a sort key, not a uniqueness invariant, and read-time ordering
+  breaks ties deterministically — so a reorder/unpin that leaves two
+  rows sharing an order still round-trips. `iconKey` and `paletteKey`
+  are restored as stored, even when this build does not know the key
+  yet; read-time mappers apply their fallbacks without rewriting the
+  backup value.
 - `BackupNoteSnapshot` →
   [`NoteEntity`](data-model.md#noteentity); carries the note UUID,
   unique wall-clock `dateIso`, `text`, and created/updated timestamps.
@@ -333,14 +335,16 @@ incompatible files are rejected at the cheapest detection point.
      belong to its log's source group.
    - journal invariants: tracked-date UUIDs must parse and be unique;
      tracked-date names are trimmed and must not be blank; non-null
-     tracked-date `pinnedOrder` values must be unique within the file;
-     tracked-date and note `dateIso` values must parse as `LocalDate`;
-     note UUIDs must parse and be unique; and note dates must be
-     unique within the file. Restore also validates that journal
-     `updatedAtEpochMillis` values are not before their corresponding
-     `createdAtEpochMillis` values. Journal `iconKey` and `paletteKey`
-     values are preserved as stored so newer key values can round-trip;
-     the app's read-time mappers own fallbacks for unknown keys.
+     tracked-date `pinnedOrder` values must not be negative (duplicates
+     are allowed — read-time ordering tie-breaks); tracked-date and
+     note `dateIso` values must parse as `LocalDate`; note UUIDs must
+     parse and be unique; note text is trimmed and must not be blank;
+     and note dates must be unique within the file. Restore also
+     validates that journal `updatedAtEpochMillis` values are not before
+     their corresponding `createdAtEpochMillis` values. Journal
+     `iconKey` and `paletteKey` values are preserved as stored so newer
+     key values can round-trip; the app's read-time mappers own
+     fallbacks for unknown keys.
    - external-import invariants: imported medicines must use the
      `E|` identity namespace, cannot include stock blocks, cannot be
      referenced by medication groups, and are the only medicines that
