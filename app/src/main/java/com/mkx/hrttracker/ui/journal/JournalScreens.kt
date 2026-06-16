@@ -25,7 +25,9 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.HrtSectionHeader
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
+import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -112,26 +114,37 @@ fun JournalScreenContent(
                     }
                 }
 
-                item(key = "journal-notes", contentType = "journal-section") {
-                    HrtSection(
-                        title = stringResource(R.string.journal_notes_section),
-                        headerTrailing = {
-                            Text(text = stringResource(R.string.journal_notes_window_meta))
-                        },
-                    ) {
-                        item {
-                            TodayComposer(
-                                today = uiState.today,
-                                note = uiState.todayNote,
-                                onSave = onSaveTodayNote,
-                            )
+                hrtSection(
+                    key = "journal-notes",
+                    header = {
+                        HrtSectionHeader(
+                            text = stringResource(R.string.journal_notes_section),
+                            trailing = {
+                                Text(text = stringResource(R.string.journal_notes_window_meta))
+                            },
+                        )
+                    },
+                ) {
+                    item(key = "journal-today-composer") {
+                        TodayComposer(
+                            today = uiState.today,
+                            note = uiState.todayNote,
+                            onSave = onSaveTodayNote,
+                        )
+                    }
+                    if (timelineNotes.isEmpty()) {
+                        item(key = "journal-notes-empty") {
+                            EmptyRecentNotesCard()
                         }
-                        item {
-                            NotesTimeline(
-                                notes = timelineNotes,
-                                today = uiState.today,
-                                onSave = onSaveNote,
-                            )
+                    } else {
+                        timelineNotes.forEach { note ->
+                            item(key = "note-${note.id}") {
+                                NoteTimelineRow(
+                                    note = note,
+                                    onSave = onSaveNote,
+                                    today = uiState.today,
+                                )
+                            }
                         }
                     }
                 }

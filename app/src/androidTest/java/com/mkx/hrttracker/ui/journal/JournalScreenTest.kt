@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
@@ -23,6 +24,7 @@ import org.junit.Test
 import java.time.LocalDate
 
 private const val TodayComposerTextFieldTag = "today-composer-text-field"
+private const val NoteTimelineTextFieldTagPrefix = "note-timeline-text-field-"
 
 class JournalScreenTest {
     @get:Rule
@@ -267,6 +269,92 @@ class JournalScreenTest {
         composeRule.runOnIdle {
             assertFalse(todayNoteSaved)
             assertFalse(olderNoteSaved)
+        }
+    }
+
+    @Test
+    fun notesTimelineRow_rendersHumanDateLabelAndText() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val appLocale = context.resources.configuration.locales[0]
+        val today = LocalDate.of(2026, 6, 16)
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                NotesTimeline(
+                    notes = listOf(
+                        Note(
+                            id = "june-16",
+                            date = today,
+                            text = "Today timeline note",
+                        )
+                    ),
+                    today = today,
+                    onSave = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(
+            context.getString(R.string.journal_today).uppercase(appLocale)
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText("Today timeline note").assertIsDisplayed()
+        composeRule.onNodeWithText("2026-06-16").assertIsNotDisplayed()
+    }
+
+    @Test
+    fun notesTimelineRow_editsTextAndCancelsWithoutNoOpWrites() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        val savedNotes = mutableListOf<Pair<LocalDate, String>>()
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = today,
+                        recentNotes = listOf(
+                            Note(
+                                id = "june-15",
+                                date = today.minusDays(1),
+                                text = "Yesterday note",
+                            )
+                        ),
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = {},
+                    onSaveNote = { date, text ->
+                        savedNotes += date to text
+                    },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Yesterday note")
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
+            .assertIsDisplayed()
+            .assertTextContains("Yesterday note")
+        composeRule.onNodeWithText(context.getString(R.string.save)).assertIsNotEnabled()
+        composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15").performTextClearance()
+        composeRule.onNodeWithText(context.getString(R.string.save)).assertIsNotEnabled()
+        composeRule.onNodeWithText(context.getString(R.string.cancel)).performClick()
+
+        composeRule.onNodeWithText("Yesterday note")
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
+            .performTextClearance()
+        composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
+            .performTextInput("Edited yesterday")
+        composeRule.onNodeWithText(context.getString(R.string.save))
+            .assertIsEnabled()
+            .performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(listOf(today.minusDays(1) to "Edited yesterday"), savedNotes)
         }
     }
 }
