@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- You can now import your dose history and blood test results from another HRT tracker's exported file.
 
 ## [1.2.0] - 2026-06-13
 
