@@ -323,7 +323,7 @@ class BackupRestoreServiceTest {
                 BackupTrackedDateSnapshot(
                     uuid = secondTrackedDateUuid.toString(),
                     name = "Surgery consult",
-                    iconKey = "favorite",
+                    iconKey = "home_health",
                     dateIso = "2026-09-15",
                     paletteKey = null,
                     pinnedOrder = 1,
@@ -369,7 +369,7 @@ class BackupRestoreServiceTest {
         assertEquals(110L, trackedDates[0].updatedAtEpochMillis)
         assertEquals(secondTrackedDateUuid.toString(), trackedDates[1].uuid)
         assertEquals("Surgery consult", trackedDates[1].name)
-        assertEquals("favorite", trackedDates[1].iconKey)
+        assertEquals("home_health", trackedDates[1].iconKey)
         assertEquals("2026-09-15", trackedDates[1].dateIso)
         assertNull(trackedDates[1].paletteKey)
         assertEquals(1, trackedDates[1].pinnedOrder)
@@ -458,7 +458,7 @@ class BackupRestoreServiceTest {
                 BackupTrackedDateSnapshot(
                     uuid = "00000000-0000-0000-0000-000000000776",
                     name = "Second anchor",
-                    iconKey = "favorite",
+                    iconKey = "bookmark",
                     dateIso = "2025-04-01",
                     paletteKey = "ROSE",
                     pinnedOrder = 1,
