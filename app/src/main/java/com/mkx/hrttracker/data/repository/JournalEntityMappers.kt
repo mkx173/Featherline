@@ -13,9 +13,7 @@ fun TrackedDateEntity.toModel(): TrackedDate = TrackedDate(
     name = name,
     icon = AnchorIcon.fromStorageValue(iconKey),
     date = LocalDate.parse(dateIso),
-    palette = paletteKey?.let { key ->
-        MedicationGroupColorKey.entries.firstOrNull { it.name == key }
-    },
+    palette = MedicationGroupColorKey.fromStorageValueOrNull(paletteKey),
     pinnedOrder = pinnedOrder,
 )
 

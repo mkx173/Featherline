@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.model.medication
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class MedicationGroupColorKeyTest {
@@ -11,6 +12,16 @@ class MedicationGroupColorKeyTest {
             MedicationGroupColorKey.ROSE,
             MedicationGroupColorKey.fromStorageValue("UNKNOWN")
         )
+    }
+
+    @Test
+    fun fromStorageValueOrNull_returns_null_for_missing_or_unknown_values() {
+        assertEquals(
+            MedicationGroupColorKey.TEAL,
+            MedicationGroupColorKey.fromStorageValueOrNull("TEAL")
+        )
+        assertNull(MedicationGroupColorKey.fromStorageValueOrNull(null))
+        assertNull(MedicationGroupColorKey.fromStorageValueOrNull("UNKNOWN"))
     }
 
     @Test
