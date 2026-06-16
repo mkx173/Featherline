@@ -16,6 +16,7 @@ import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.data.local.UserProfileDao
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
+import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
@@ -888,6 +889,7 @@ class BackupRestoreServiceTest {
         val exportMedicationLogRepository: MedicationLogRepository = mockk()
         val exportBloodTestRepository: BloodTestRepository = mockk()
         val exportWidgetAppearanceRepository: WidgetAppearanceRepository = mockk()
+        val exportJournalRepository: JournalRepository = mockk()
 
         every { exportSettingsRepository.onboardingCompleted } returns flowOf(true)
         every { exportSettingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
@@ -905,6 +907,8 @@ class BackupRestoreServiceTest {
         coEvery { exportMedicationLogRepository.getEntries() } returns medicationLogs
         coEvery { exportBloodTestRepository.getCustomAnalytes() } returns emptyList()
         coEvery { exportBloodTestRepository.getPanels() } returns emptyList()
+        coEvery { exportJournalRepository.getTrackedDateEntities() } returns emptyList()
+        coEvery { exportJournalRepository.getNoteEntities() } returns emptyList()
 
         return BackupExportService(
             context = context,
@@ -915,6 +919,7 @@ class BackupRestoreServiceTest {
             medicationLogRepository = exportMedicationLogRepository,
             bloodTestRepository = exportBloodTestRepository,
             widgetAppearanceRepository = exportWidgetAppearanceRepository,
+            journalRepository = exportJournalRepository,
             backupCrypto = backupCrypto,
         )
     }

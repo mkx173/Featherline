@@ -66,6 +66,12 @@ class JournalRepository @Inject constructor(
             }
         }
 
+    suspend fun getTrackedDateEntities(): List<TrackedDateEntity> =
+        databaseHolder.get().journalDao().getTrackedDates()
+
+    suspend fun getNoteEntities(): List<NoteEntity> =
+        databaseHolder.get().journalDao().getNotes()
+
     suspend fun addTrackedDate(name: String, icon: String, date: LocalDate, paletteKey: String?) {
         val database = databaseHolder.get()
         database.withTransaction {
