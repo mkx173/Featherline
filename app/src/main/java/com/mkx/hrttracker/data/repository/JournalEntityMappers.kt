@@ -15,6 +15,7 @@ fun TrackedDateEntity.toModel(): TrackedDate = TrackedDate(
     date = LocalDate.parse(dateIso),
     palette = MedicationGroupColorKey.fromStorageValueOrNull(paletteKey),
     pinnedOrder = pinnedOrder,
+    createdAtEpochMillis = createdAtEpochMillis,
 )
 
 fun TrackedDate.toEntity(createdAtEpochMillis: Long, updatedAtEpochMillis: Long): TrackedDateEntity =

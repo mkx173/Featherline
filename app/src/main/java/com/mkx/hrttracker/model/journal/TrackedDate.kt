@@ -15,4 +15,5 @@ data class TrackedDate(
     val date: LocalDate,
     val palette: MedicationGroupColorKey?,
     val pinnedOrder: Int?,
+    val createdAtEpochMillis: Long = 0L,
 )

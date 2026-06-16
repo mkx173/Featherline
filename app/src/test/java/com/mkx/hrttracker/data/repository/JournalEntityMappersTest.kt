@@ -21,6 +21,7 @@ class JournalEntityMappersTest {
         assertEquals(LocalDate.of(2024, 4, 1), model.date)
         assertEquals(MedicationGroupColorKey.ROSE, model.palette)
         assertEquals(0, model.pinnedOrder)
+        assertEquals(1000L, model.createdAtEpochMillis)
     }
 
     @Test
