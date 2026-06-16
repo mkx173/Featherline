@@ -759,10 +759,12 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             }
         val doneCount = record.doneCount
         val totalCount = record.totalCount
-        // Only treat the day as "nothing scheduled" when there are no rows at all to
-        // surface — including last-night carry-overs and tonight's coming-up entries,
-        // which aren't counted in totalCount but still represent real activity.
-        val nothingScheduledToday = record.doseRows.isEmpty()
+        val manualCount = record.manualCount
+        // A day whose only rows are manual records still reads as "nothing scheduled" for
+        // the bottom panel — the manual activity surfaces in the top count instead, so the
+        // bottom matches a plan-less day. Scheduled last-night carry-overs and tonight's
+        // coming-up entries are not manual records, so they keep this false.
+        val nothingScheduledToday = mediumNothingScheduledToday(record.doseRows)
 
         // Treat LOGGED_OUT_OF_WINDOW as addressed for activeRow/all-done: the slot has an
         // entry attached (even though it's outside the fulfillment window), so prompting
@@ -824,33 +826,46 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     )
                 }
             }
-            Row(
-                modifier = GlanceModifier.fillMaxWidth()
-                    .padding(top = (-6 * scale).dp, bottom = (-4 * scale).dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        text = doneCount.toString(),
-                        style = TextStyle(
-                            color = if (allInWindow) colors.primary else colors.onSurface,
-                            fontSize = (42f * scale).sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                    )
-                    Spacer(GlanceModifier.width(2.dp))
-                    Text(
-                        text = "/$totalCount ${context.getString(R.string.main_today_summary_done_label)}",
-                        style = TextStyle(
-                            color = colors.onSurfaceVariant,
-                            fontSize = (18f * scale).sp,
-                            fontWeight = FontWeight.Medium,
-                        ),
-                        maxLines = 1,
-                    )
+            val count = widgetMediumCount(
+                doneCount = doneCount,
+                totalCount = totalCount,
+                manualCount = manualCount,
+                doneLabel = context.getString(R.string.main_today_summary_done_label),
+                manualLabel = context.getString(R.string.main_today_summary_manual_label),
+            )
+            if (count != null) {
+                Row(
+                    modifier = GlanceModifier.fillMaxWidth()
+                        .padding(top = (-6 * scale).dp, bottom = (-4 * scale).dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = count.hero,
+                            style = TextStyle(
+                                color = if (allInWindow) colors.primary else colors.onSurface,
+                                fontSize = (42f * scale).sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                        )
+                        Spacer(GlanceModifier.width(2.dp))
+                        Text(
+                            text = count.suffix,
+                            style = TextStyle(
+                                color = colors.onSurfaceVariant,
+                                fontSize = (18f * scale).sp,
+                                fontWeight = FontWeight.Medium,
+                            ),
+                            maxLines = 1,
+                        )
+                    }
+                    // The ring tracks plan adherence; with no plan there's nothing to
+                    // track, so hide it rather than draw a misleading empty track.
+                    if (totalCount > 0) {
+                        Spacer(GlanceModifier.defaultWeight())
+                        ProgressRing(doneCount = doneCount, totalCount = totalCount)
+                    }
                 }
-                Spacer(GlanceModifier.defaultWeight())
-                ProgressRing(doneCount = doneCount, totalCount = totalCount)
             }
 
             // ── Bottom panel: next dose ───────────────────────────────────────
@@ -875,11 +890,11 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         ) {
                             Image(
                                 provider = ImageProvider(
-                                    when {
-                                        nothingScheduledToday || allInWindow -> R.drawable.ic_check
-                                        everythingLogged -> R.drawable.ic_done_all
-                                        else -> R.drawable.ic_exclamation
-                                    }
+                                    mediumBadgeIconRes(
+                                        allInWindow = allInWindow,
+                                        nothingScheduledToday = nothingScheduledToday,
+                                        everythingLogged = everythingLogged,
+                                    )
                                 ),
                                 contentDescription = null,
                                 modifier = GlanceModifier.size((22f * scale).dp),
@@ -1143,16 +1158,24 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             ) {
                 Column(modifier = GlanceModifier.defaultWeight().wrapContentHeight()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        val todayLabel = context.getString(R.string.widget_today)
+                        val countLabel = widgetLargeCountLabel(
+                            doneCount = doneCount,
+                            totalCount = totalCount,
+                            manualCount = record.manualCount,
+                            doneLabel = context.getString(R.string.main_today_summary_done_label),
+                            manualLabel = context.getString(R.string.main_today_summary_manual_label),
+                        )
                         WidgetLabel(
-                            "${context.getString(R.string.widget_today)} · $doneCount/$totalCount ${
-                                context.getString(
-                                    R.string.main_today_summary_done_label
-                                )
-                            }"
+                            if (countLabel != null) "$todayLabel · $countLabel" else todayLabel
                         )
                     }
-                    Spacer(GlanceModifier.height((8 * scale).dp))
-                    ProgressBar(doneCount = doneCount, totalCount = totalCount)
+                    // The bar tracks plan adherence; hide it on plan-less days rather than
+                    // drawing a misleading empty track.
+                    if (totalCount > 0) {
+                        Spacer(GlanceModifier.height((8 * scale).dp))
+                        ProgressBar(doneCount = doneCount, totalCount = totalCount)
+                    }
                 }
                 if (e2Text != null) {
                     Spacer(GlanceModifier.width((48f * scale).dp))

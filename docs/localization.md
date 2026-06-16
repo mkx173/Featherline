@@ -96,7 +96,7 @@ Notifications and widgets have extra locale handling because they often run from
 - Stock UI strings — runway/"days remaining" labels, stock state labels, unit nouns (vials, containers, sachets, etc.), and the onboarding opt-in copy — live in `strings.xml` alongside the rest. Translate the new block and check the plural-bearing count strings.
 - `WidgetSnapshotRepository` creates a localized context from `settings.appLanguageOption.languageTag` before building snapshots. It also passes a locale-specific `localizedShortTimeFormatter`.
 - Live widget rows are built from localized string resources plus fixed separators. Review these for the new language:
-  - `HrtWidget.kt`: progress text currently builds `/$totalCount <DONE>` and `"<Today> · $doneCount/$totalCount <DONE>"`.
+  - `WidgetTodaySummary.kt`: the today count builds `/$totalCount <DONE>`, with ` ($manualCount)` inserted when manual records exist, or `$manualCount <MANUAL>` on a day with no planned doses; the large widget header prefixes it with `"<Today> · "`.
   - `HrtWidget.kt` and `WidgetRows.kt`: supporting text joins route and dose with `" · "`.
   - `WidgetE2Text.kt`: E2 summary uses literal `"E2 ~"` and a literal space before the unit; the unit label itself comes from `calibrationUnitLabel(displayUnit)`.
 

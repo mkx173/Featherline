@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - You can now import your dose history and blood test results from another HRT tracker's exported file.
 
+### Fixed
+
+- The medium home-screen widget no longer shows "0/0" above an empty panel on a day with a logged manual dose but nothing scheduled.
+
 ## [1.2.0] - 2026-06-13
 
 ### Added
