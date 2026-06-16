@@ -108,14 +108,13 @@ class JournalRepository @Inject constructor(
         val database = databaseHolder.get()
         database.withTransaction {
             val dao = database.journalDao()
-            val existing = dao.getNoteForDate(date.toString())
             val now = clock.millis()
             dao.upsertNote(
                 NoteEntity(
-                    uuid = existing?.uuid ?: UUID.randomUUID().toString(),
+                    uuid = UUID.randomUUID().toString(),
                     dateIso = date.toString(),
                     text = text,
-                    createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
+                    createdAtEpochMillis = now,
                     updatedAtEpochMillis = now,
                 )
             )

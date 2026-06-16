@@ -238,8 +238,13 @@ flattened into the parent's JSON.
   [`TrackedDateEntity`](data-model.md#trackeddateentity); carries the
   journal anchor UUID, `name`, `iconKey`, wall-clock `dateIso`, nullable
   `paletteKey`, nullable `pinnedOrder`, and created/updated timestamps.
-  Restore validates UUID shape and preserves `pinnedOrder` so the
-  pinned tray order round-trips.
+  Restore validates UUID shape, trims `name`, rejects blank names,
+  rejects duplicate tracked-date UUIDs, rejects duplicate non-null
+  `pinnedOrder` values, and preserves valid pin order values so the
+  pinned tray order round-trips deterministically. `iconKey` and
+  `paletteKey` are restored as stored, even when this build does not
+  know the key yet; read-time mappers apply their fallbacks without
+  rewriting the backup value.
 - `BackupNoteSnapshot` →
   [`NoteEntity`](data-model.md#noteentity); carries the note UUID,
   unique wall-clock `dateIso`, `text`, and created/updated timestamps.
@@ -327,10 +332,15 @@ incompatible files are rejected at the cheapest detection point.
      analyte in the same snapshot; every `scheduleTimeUuid` must
      belong to its log's source group.
    - journal invariants: tracked-date UUIDs must parse and be unique;
-     note UUIDs must parse and be unique; note `dateIso` values must
-     parse as `LocalDate` and be unique within the file. Restore also
-     validates that journal `updatedAtEpochMillis` values are not
-     before their corresponding `createdAtEpochMillis` values.
+     tracked-date names are trimmed and must not be blank; non-null
+     tracked-date `pinnedOrder` values must be unique within the file;
+     tracked-date and note `dateIso` values must parse as `LocalDate`;
+     note UUIDs must parse and be unique; and note dates must be
+     unique within the file. Restore also validates that journal
+     `updatedAtEpochMillis` values are not before their corresponding
+     `createdAtEpochMillis` values. Journal `iconKey` and `paletteKey`
+     values are preserved as stored so newer key values can round-trip;
+     the app's read-time mappers own fallbacks for unknown keys.
    - external-import invariants: imported medicines must use the
      `E|` identity namespace, cannot include stock blocks, cannot be
      referenced by medication groups, and are the only medicines that
