@@ -110,6 +110,123 @@ class JournalRepositoryTest {
     }
 
     @Test
+    fun setPinned_true_appendsToBottom_false_unpinsAndCompacts() = runBlocking {
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        repo.addTrackedDate("B", "event", LocalDate.of(2024, 2, 1), null)
+        repo.addTrackedDate("C", "event", LocalDate.of(2024, 3, 1), null)
+        val ids = repo.observePinnedTrackedDates().first().map { it.id }
+
+        repo.setPinned(ids[1], pinned = false)
+        val afterUnpin = repo.observePinnedTrackedDates().first()
+        assertEquals(listOf("A", "C"), afterUnpin.map { it.name })
+        assertEquals(listOf(0, 1), afterUnpin.map { it.pinnedOrder })
+
+        repo.setPinned(ids[1], pinned = true)
+        val afterRepin = repo.observePinnedTrackedDates().first()
+        assertEquals(listOf("A", "C", "B"), afterRepin.map { it.name })
+        assertEquals(listOf(0, 1, 2), afterRepin.map { it.pinnedOrder })
+    }
+
+    @Test
+    fun setPinned_true_onAlreadyPinned_noOpsWithoutTimestampChange() = runBlocking {
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        repo.addTrackedDate("B", "event", LocalDate.of(2024, 2, 1), null)
+        repo.addTrackedDate("C", "event", LocalDate.of(2024, 3, 1), null)
+        val before = repo.observePinnedTrackedDates().first()
+        val pinnedId = before[1].id
+        val originalUpdatedAt = db.journalDao()
+            .getTrackedDates()
+            .single { it.uuid == pinnedId }
+            .updatedAtEpochMillis
+        clock.advanceMillis(1_000)
+
+        repo.setPinned(pinnedId, pinned = true)
+
+        val after = repo.observePinnedTrackedDates().first()
+        val updatedAt = db.journalDao()
+            .getTrackedDates()
+            .single { it.uuid == pinnedId }
+            .updatedAtEpochMillis
+        assertEquals(before.map { it.id }, after.map { it.id })
+        assertEquals(before.map { it.pinnedOrder }, after.map { it.pinnedOrder })
+        assertEquals(originalUpdatedAt, updatedAt)
+    }
+
+    @Test
+    fun setPinned_false_compactsDuplicateOrdersInVisibleOrder() = runBlocking {
+        db.journalDao().insertTrackedDates(
+            listOf(
+                trackedDateEntity(
+                    uuid = "target",
+                    name = "Target",
+                    date = LocalDate.of(2024, 1, 1),
+                    pinnedOrder = 0,
+                    createdAt = 1_000L,
+                ),
+                trackedDateEntity(
+                    uuid = "later",
+                    name = "Later",
+                    date = LocalDate.of(2024, 2, 1),
+                    pinnedOrder = 1,
+                    createdAt = 2_000L,
+                ),
+                trackedDateEntity(
+                    uuid = "earlier",
+                    name = "Earlier",
+                    date = LocalDate.of(2024, 2, 1),
+                    pinnedOrder = 1,
+                    createdAt = 1_000L,
+                ),
+            )
+        )
+
+        repo.setPinned("target", pinned = false)
+
+        val pinned = repo.observePinnedTrackedDates().first()
+        assertEquals(listOf("Earlier", "Later"), pinned.map { it.name })
+        assertEquals(listOf(0, 1), pinned.map { it.pinnedOrder })
+    }
+
+    @Test
+    fun setPinned_false_onAlreadyUnpinnedOrMissing_noOpsWithoutCompacting() = runBlocking {
+        db.journalDao().insertTrackedDates(
+            listOf(
+                trackedDateEntity(
+                    uuid = "first",
+                    name = "First",
+                    date = LocalDate.of(2024, 1, 1),
+                    pinnedOrder = 0,
+                    createdAt = 1_000L,
+                ),
+                trackedDateEntity(
+                    uuid = "second",
+                    name = "Second",
+                    date = LocalDate.of(2024, 2, 1),
+                    pinnedOrder = 2,
+                    createdAt = 2_000L,
+                ),
+                trackedDateEntity(
+                    uuid = "unpinned",
+                    name = "Unpinned",
+                    date = LocalDate.of(2024, 3, 1),
+                    pinnedOrder = null,
+                    createdAt = 3_000L,
+                ),
+            )
+        )
+        clock.advanceMillis(1_000)
+
+        repo.setPinned("unpinned", pinned = false)
+        repo.setPinned("missing", pinned = false)
+
+        val rows = db.journalDao().getTrackedDates()
+        assertEquals(0, rows.single { it.uuid == "first" }.pinnedOrder)
+        assertEquals(2, rows.single { it.uuid == "second" }.pinnedOrder)
+        assertNull(rows.single { it.uuid == "unpinned" }.pinnedOrder)
+        assertEquals(3_000L, rows.single { it.uuid == "unpinned" }.updatedAtEpochMillis)
+    }
+
+    @Test
     fun addTrackedDate_normalizesIcon_andStoresPaletteAsPassed() = runBlocking {
         repo.addTrackedDate(
             name = "Unknown icon",
@@ -290,3 +407,20 @@ class JournalRepositoryTest {
         }
     }
 }
+
+private fun trackedDateEntity(
+    uuid: String,
+    name: String,
+    date: LocalDate,
+    pinnedOrder: Int?,
+    createdAt: Long,
+) = TrackedDateEntity(
+    uuid = uuid,
+    name = name,
+    iconKey = "event",
+    dateIso = date.toString(),
+    paletteKey = null,
+    pinnedOrder = pinnedOrder,
+    createdAtEpochMillis = createdAt,
+    updatedAtEpochMillis = createdAt,
+)
