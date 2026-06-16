@@ -227,6 +227,101 @@ class JournalRepositoryTest {
     }
 
     @Test
+    fun reorderPinned_rewritesOrder_heroFollows() = runBlocking {
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        repo.addTrackedDate("B", "event", LocalDate.of(2024, 2, 1), null)
+        val ids = repo.observePinnedTrackedDates().first().map { it.id }
+
+        repo.reorderPinned(listOf(ids[1], ids[0]))
+
+        val pinned = repo.observePinnedTrackedDates().first()
+        assertEquals(listOf("B", "A"), pinned.map { it.name })
+        assertEquals(0, pinned.first().pinnedOrder)
+    }
+
+    @Test
+    fun reorderPinned_rewritesThreeItemsToContiguousOrders() = runBlocking {
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        repo.addTrackedDate("B", "event", LocalDate.of(2024, 2, 1), null)
+        repo.addTrackedDate("C", "event", LocalDate.of(2024, 3, 1), null)
+        val ids = repo.observePinnedTrackedDates().first().map { it.id }
+
+        repo.reorderPinned(listOf(ids[2], ids[0], ids[1]))
+
+        val pinned = repo.observePinnedTrackedDates().first()
+        assertEquals(listOf("C", "A", "B"), pinned.map { it.name })
+        assertEquals(listOf(0, 1, 2), pinned.map { it.pinnedOrder })
+    }
+
+    @Test
+    fun reorderPinned_sameOrder_noOpsWithoutTimestampChange() = runBlocking {
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        repo.addTrackedDate("B", "event", LocalDate.of(2024, 2, 1), null)
+        repo.addTrackedDate("C", "event", LocalDate.of(2024, 3, 1), null)
+        val ids = repo.observePinnedTrackedDates().first().map { it.id }
+        val originalUpdatedAt = db.journalDao()
+            .getTrackedDates()
+            .associate { it.uuid to it.updatedAtEpochMillis }
+        clock.advanceMillis(1_000)
+
+        repo.reorderPinned(ids)
+
+        val pinned = repo.observePinnedTrackedDates().first()
+        val updatedAt = db.journalDao()
+            .getTrackedDates()
+            .associate { it.uuid to it.updatedAtEpochMillis }
+        assertEquals(ids, pinned.map { it.id })
+        assertEquals(listOf(0, 1, 2), pinned.map { it.pinnedOrder })
+        assertEquals(originalUpdatedAt, updatedAt)
+    }
+
+    @Test
+    fun reorderPinned_duplicateId_noOps() = runBlocking {
+        val ids = addThreePinnedTrackedDates()
+
+        repo.reorderPinned(listOf(ids[1], ids[1], ids[0]))
+
+        assertPinnedStateUnchanged(ids)
+    }
+
+    @Test
+    fun reorderPinned_missingId_noOps() = runBlocking {
+        val ids = addThreePinnedTrackedDates()
+
+        repo.reorderPinned(listOf(ids[1], "missing", ids[0]))
+
+        assertPinnedStateUnchanged(ids)
+    }
+
+    @Test
+    fun reorderPinned_unpinnedId_noOps() = runBlocking {
+        val ids = addThreePinnedTrackedDates()
+        db.journalDao().upsertTrackedDate(
+            trackedDateEntity(
+                uuid = "unpinned",
+                name = "Unpinned",
+                date = LocalDate.of(2024, 4, 1),
+                pinnedOrder = null,
+                createdAt = 4_000L,
+            )
+        )
+
+        repo.reorderPinned(listOf(ids[1], "unpinned", ids[0]))
+
+        assertPinnedStateUnchanged(ids)
+        assertNull(db.journalDao().getTrackedDates().single { it.uuid == "unpinned" }.pinnedOrder)
+    }
+
+    @Test
+    fun reorderPinned_omittedPinnedId_noOps() = runBlocking {
+        val ids = addThreePinnedTrackedDates()
+
+        repo.reorderPinned(listOf(ids[1], ids[0]))
+
+        assertPinnedStateUnchanged(ids)
+    }
+
+    @Test
     fun addTrackedDate_normalizesIcon_andStoresPaletteAsPassed() = runBlocking {
         repo.addTrackedDate(
             name = "Unknown icon",
@@ -359,6 +454,19 @@ class JournalRepositoryTest {
         assertEquals(listOf(emptyList<String>(), listOf("Recovered")), emissions.map { rows ->
             rows.map { it.name }
         })
+    }
+
+    private suspend fun addThreePinnedTrackedDates(): List<String> {
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        repo.addTrackedDate("B", "event", LocalDate.of(2024, 2, 1), null)
+        repo.addTrackedDate("C", "event", LocalDate.of(2024, 3, 1), null)
+        return repo.observePinnedTrackedDates().first().map { it.id }
+    }
+
+    private suspend fun assertPinnedStateUnchanged(ids: List<String>) {
+        val pinned = repo.observePinnedTrackedDates().first()
+        assertEquals(ids, pinned.map { it.id })
+        assertEquals(listOf(0, 1, 2), pinned.map { it.pinnedOrder })
     }
 
     private class MutableClock(

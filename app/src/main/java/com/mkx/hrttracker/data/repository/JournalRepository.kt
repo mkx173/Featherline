@@ -140,6 +140,37 @@ class JournalRepository @Inject constructor(
         }
     }
 
+    suspend fun reorderPinned(idsInOrder: List<String>) {
+        val database = databaseHolder.get()
+        database.withTransaction {
+            val dao = database.journalDao()
+            val pinnedRows = dao.getTrackedDates()
+                .filter { it.pinnedOrder != null }
+                .sortedWith(
+                    compareBy<TrackedDateEntity> { it.pinnedOrder ?: Int.MAX_VALUE }
+                        .thenBy { it.dateIso }
+                        .thenBy { it.createdAtEpochMillis }
+                        .thenBy { it.uuid }
+                )
+            val currentPinnedIds = pinnedRows.map { it.uuid }
+            if (idsInOrder.size != currentPinnedIds.size) return@withTransaction
+            if (idsInOrder.toSet().size != idsInOrder.size) return@withTransaction
+            if (idsInOrder.toSet() != currentPinnedIds.toSet()) return@withTransaction
+
+            val normalized = PinOrder.normalize(idsInOrder)
+            val changedOrders = pinnedRows.mapNotNull { row ->
+                val order = normalized.getValue(row.uuid)
+                if (row.pinnedOrder == order) null else row.uuid to order
+            }
+            if (changedOrders.isEmpty()) return@withTransaction
+
+            val now = clock.millis()
+            changedOrders.forEach { (uuid, order) ->
+                dao.updatePinnedOrder(uuid, order, now)
+            }
+        }
+    }
+
     suspend fun saveNoteForDate(date: LocalDate, text: String) {
         val database = databaseHolder.get()
         database.withTransaction {
