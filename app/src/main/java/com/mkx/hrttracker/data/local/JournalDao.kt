@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
@@ -12,7 +13,13 @@ interface JournalDao {
     @Query("SELECT * FROM tracked_dates ORDER BY dateIso ASC, createdAtEpochMillis ASC")
     fun observeTrackedDates(): Flow<List<TrackedDateEntity>>
 
-    @Query("SELECT * FROM tracked_dates WHERE pinnedOrder IS NOT NULL ORDER BY pinnedOrder ASC")
+    @Query(
+        """
+        SELECT * FROM tracked_dates
+        WHERE pinnedOrder IS NOT NULL
+        ORDER BY pinnedOrder ASC, dateIso ASC, createdAtEpochMillis ASC, uuid ASC
+        """
+    )
     fun observePinnedTrackedDates(): Flow<List<TrackedDateEntity>>
 
     @Query("SELECT * FROM tracked_dates ORDER BY dateIso ASC")
@@ -45,8 +52,22 @@ interface JournalDao {
     @Query("SELECT * FROM notes ORDER BY dateIso DESC")
     suspend fun getNotes(): List<NoteEntity>
 
-    @Upsert
-    suspend fun upsertNote(entity: NoteEntity)
+    @Transaction
+    suspend fun upsertNote(entity: NoteEntity) {
+        val existingForDate = getNoteForDate(entity.dateIso)
+        val entityToPersist = if (existingForDate != null && existingForDate.uuid != entity.uuid) {
+            entity.copy(
+                uuid = existingForDate.uuid,
+                createdAtEpochMillis = existingForDate.createdAtEpochMillis,
+            )
+        } else {
+            entity
+        }
+        insertOrReplaceNote(entityToPersist)
+    }
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrReplaceNote(entity: NoteEntity)
 
     @Query("DELETE FROM notes WHERE uuid = :uuid")
     suspend fun deleteNote(uuid: String)

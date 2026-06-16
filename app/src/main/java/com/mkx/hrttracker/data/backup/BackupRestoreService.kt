@@ -451,10 +451,16 @@ internal fun BackupSnapshot.toValidatedSnapshot(
 
     val trackedDateEntities = mutableListOf<TrackedDateEntity>()
     val seenTrackedDateUuids = mutableSetOf<String>()
+    val seenTrackedDatePinnedOrders = mutableSetOf<Int>()
     trackedDates.forEach { trackedDate ->
         val entity = trackedDate.toValidatedEntity()
         require(seenTrackedDateUuids.add(entity.uuid)) {
             "Duplicate tracked date UUID ${entity.uuid} in backup."
+        }
+        entity.pinnedOrder?.let { pinnedOrder ->
+            require(seenTrackedDatePinnedOrders.add(pinnedOrder)) {
+                "Duplicate tracked date pinned order $pinnedOrder in backup."
+            }
         }
         trackedDateEntities += entity
     }
@@ -1054,6 +1060,10 @@ private fun BackupCustomBloodAnalyteSnapshot.toValidatedEntity(): CustomBloodAna
 
 private fun BackupTrackedDateSnapshot.toValidatedEntity(): TrackedDateEntity {
     val trackedDateUuid = uuid.parseUuid("tracked date UUID").toString()
+    val normalizedName = name.trim()
+    require(normalizedName.isNotEmpty()) {
+        "Tracked date name must not be blank."
+    }
     val normalizedDateIso = dateIso.parseLocalDateIso("tracked date dateIso")
     val anchorIcon = requireNotNull(AnchorIcon.fromStorageValueOrNull(iconKey)) {
         "Unsupported tracked date icon key: $iconKey."
@@ -1068,7 +1078,7 @@ private fun BackupTrackedDateSnapshot.toValidatedEntity(): TrackedDateEntity {
     }
     return TrackedDateEntity(
         uuid = trackedDateUuid,
-        name = name,
+        name = normalizedName,
         iconKey = anchorIcon.storageKey,
         dateIso = normalizedDateIso,
         paletteKey = normalizedPaletteKey,

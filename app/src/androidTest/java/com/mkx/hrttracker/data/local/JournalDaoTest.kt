@@ -39,6 +39,20 @@ class JournalDaoTest {
     }
 
     @Test
+    fun observePinned_ordersDuplicatePinnedOrdersDeterministically() = runBlocking {
+        dao.upsertTrackedDate(
+            trackedDate("later", dateIso = "2026-09-15", pinnedOrder = 0, createdAt = 2000L)
+        )
+        dao.upsertTrackedDate(
+            trackedDate("earlier", dateIso = "2024-04-01", pinnedOrder = 0, createdAt = 1000L)
+        )
+
+        val pinned = dao.observePinnedTrackedDates().first()
+
+        assertEquals(listOf("earlier", "later"), pinned.map { it.uuid })
+    }
+
+    @Test
     fun getNoteForDate_returnsSameDayRow_forUpsertReuse() = runBlocking {
         dao.upsertNote(note("n1", dateIso = "2026-06-16", text = "first"))
         val existing = dao.getNoteForDate("2026-06-16")
@@ -49,9 +63,57 @@ class JournalDaoTest {
         assertEquals(1, dao.getNotes().size)
     }
 
-    private fun trackedDate(uuid: String, dateIso: String, pinnedOrder: Int?) =
-        TrackedDateEntity(uuid, "name-$uuid", "event", dateIso, null, pinnedOrder, 1000, 1000)
+    @Test
+    fun upsertNote_updatesExistingDate_whenCallerProvidesFreshUuid() = runBlocking {
+        dao.upsertNote(
+            note(
+                uuid = "n1",
+                dateIso = "2026-06-16",
+                text = "first",
+                createdAt = 1000L,
+                updatedAt = 1000L,
+            )
+        )
 
-    private fun note(uuid: String, dateIso: String, text: String) =
-        NoteEntity(uuid, dateIso, text, 1000, 1000)
+        dao.upsertNote(
+            note(
+                uuid = "n2",
+                dateIso = "2026-06-16",
+                text = "second",
+                createdAt = 2000L,
+                updatedAt = 3000L,
+            )
+        )
+
+        val updated = dao.getNoteForDate("2026-06-16")
+        assertEquals("n1", updated?.uuid)
+        assertEquals("second", updated?.text)
+        assertEquals(1000L, updated?.createdAtEpochMillis)
+        assertEquals(3000L, updated?.updatedAtEpochMillis)
+        assertEquals(1, dao.getNotes().size)
+    }
+
+    private fun trackedDate(
+        uuid: String,
+        dateIso: String,
+        pinnedOrder: Int?,
+        createdAt: Long = 1000L,
+    ) = TrackedDateEntity(
+        uuid,
+        "name-$uuid",
+        "event",
+        dateIso,
+        null,
+        pinnedOrder,
+        createdAt,
+        createdAt,
+    )
+
+    private fun note(
+        uuid: String,
+        dateIso: String,
+        text: String,
+        createdAt: Long = 1000L,
+        updatedAt: Long = 1000L,
+    ) = NoteEntity(uuid, dateIso, text, createdAt, updatedAt)
 }

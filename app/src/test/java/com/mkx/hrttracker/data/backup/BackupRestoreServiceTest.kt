@@ -385,6 +385,36 @@ class BackupRestoreServiceTest {
     }
 
     @Test
+    fun restoreBackupBytes_trimsTrackedDateNameBeforeInsert() = runTest {
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000782",
+                    name = "  Trimmed anchor  ",
+                    iconKey = "event",
+                    dateIso = "2024-04-01",
+                    paletteKey = null,
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+        val trackedDatesSlot = slot<List<TrackedDateEntity>>()
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        coVerify(exactly = 1) { journalDao.insertTrackedDates(capture(trackedDatesSlot)) }
+        assertEquals("Trimmed anchor", trackedDatesSlot.captured.single().name)
+    }
+
+    @Test
     fun restoreBackupBytes_rejectsDuplicateNoteDateBeforeJournalMutation() = runTest {
         val snapshot = emptySnapshot().copy(
             notes = listOf(
@@ -474,6 +504,62 @@ class BackupRestoreServiceTest {
             error.message.orEmpty()
                 .contains("Duplicate tracked date UUID 00000000-0000-0000-0000-000000000776")
         )
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsDuplicatePinnedOrderBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000783",
+                    name = "First pinned anchor",
+                    iconKey = "event",
+                    dateIso = "2024-04-01",
+                    paletteKey = null,
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000784",
+                    name = "Second pinned anchor",
+                    iconKey = "bookmark",
+                    dateIso = "2025-04-01",
+                    paletteKey = "ROSE",
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 120L,
+                    updatedAtEpochMillis = 130L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(error.message.orEmpty().contains("Duplicate tracked date pinned order 0"))
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsBlankTrackedDateNameBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000785",
+                    name = "  ",
+                    iconKey = "event",
+                    dateIso = "2024-04-01",
+                    paletteKey = null,
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(error.message.orEmpty().contains("Tracked date name must not be blank."))
         verifyNoJournalMutation()
     }
 
