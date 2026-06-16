@@ -106,11 +106,11 @@ class SettingsScreenExternalImportTest {
             .assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_medication_label))
             .assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.external_import_medication_summary, 2, 1))
+        composeRule.onNodeWithText(context.getString(R.string.external_import_medication_summary, 2, 1, 5))
             .assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_lab_label))
             .assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.external_import_lab_summary, 3, 4))
+        composeRule.onNodeWithText(context.getString(R.string.external_import_lab_summary, 3, 4, 6))
             .assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.external_import_skipped_rows_title))
             .assertIsDisplayed()
@@ -186,8 +186,10 @@ class SettingsScreenExternalImportTest {
             sourceAppLabel = "NoMTF",
             medicationRowsToCreate = 2,
             medicationRowsToUpdate = 1,
+            medicationRowsUnchanged = 5,
             labRowsToCreate = 3,
             labRowsToUpdate = 4,
+            labRowsUnchanged = 6,
             importedMedicinesToCreate = emptyList(),
             importedMedicinesToReuse = emptyList(),
             warnings = listOf(warning),

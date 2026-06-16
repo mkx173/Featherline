@@ -368,6 +368,95 @@ class ExternalImportServiceTest {
     }
 
     @Test
+    fun reimportingIdenticalExportReportsEveryRowAsUnchanged() = runTest {
+        // A user who re-imports the same export expects to see that nothing
+        // actually changed, rather than an alarming "everything updated" — so an
+        // identical re-import must tally as unchanged, never created or updated.
+        val json = transmtfJson(
+            events = """
+                { "id": "dose-a", "timeH": 1, "route": "oral", "ester": "E2", "doseMG": 2 }
+            """.trimIndent(),
+            labs = """
+                { "id": "lab-a", "timeH": 2, "unit": "pg/ml", "value": 120 }
+            """.trimIndent(),
+        )
+        service.commit(service.buildPreview(json, now = NOW), now = NOW)
+
+        val preview = service.buildPreview(json, now = NOW.plusSeconds(60))
+
+        assertEquals(0, preview.medicationRowsToCreate)
+        assertEquals(0, preview.medicationRowsToUpdate)
+        assertEquals(1, preview.medicationRowsUnchanged)
+        assertEquals(0, preview.labRowsToCreate)
+        assertEquals(0, preview.labRowsToUpdate)
+        assertEquals(1, preview.labRowsUnchanged)
+
+        val result = service.commit(preview, now = NOW.plusSeconds(60))
+
+        // Commit replays the same classification, so its tally must match the
+        // preview the user approved — never silently disagree.
+        assertEquals(0, result.medicationRowsCreated)
+        assertEquals(0, result.medicationRowsUpdated)
+        assertEquals(1, result.medicationRowsUnchanged)
+        assertEquals(0, result.labRowsCreated)
+        assertEquals(0, result.labRowsUpdated)
+        assertEquals(1, result.labRowsUnchanged)
+    }
+
+    @Test
+    fun reimportTalliesCreatedUpdatedAndUnchangedRowsIndependently() = runTest {
+        service.commit(
+            service.buildPreview(
+                transmtfJson(
+                    events = """
+                        { "id": "dose-a", "timeH": 1, "route": "oral", "ester": "E2", "doseMG": 2 },
+                        { "id": "dose-b", "timeH": 2, "route": "oral", "ester": "E2", "doseMG": 1 }
+                    """.trimIndent(),
+                    labs = """
+                        { "id": "lab-a", "timeH": 3, "unit": "pg/ml", "value": 120 },
+                        { "id": "lab-b", "timeH": 4, "unit": "pg/ml", "value": 140 }
+                    """.trimIndent(),
+                )
+            ),
+            now = NOW,
+        )
+
+        // dose-a / lab-a are byte-identical (unchanged); dose-b moves in time and
+        // lab-b changes value (updated); dose-c / lab-c are brand new (created).
+        val preview = service.buildPreview(
+            transmtfJson(
+                events = """
+                    { "id": "dose-a", "timeH": 1, "route": "oral", "ester": "E2", "doseMG": 2 },
+                    { "id": "dose-b", "timeH": 5, "route": "oral", "ester": "E2", "doseMG": 1 },
+                    { "id": "dose-c", "timeH": 6, "route": "oral", "ester": "E2", "doseMG": 2 }
+                """.trimIndent(),
+                labs = """
+                    { "id": "lab-a", "timeH": 3, "unit": "pg/ml", "value": 120 },
+                    { "id": "lab-b", "timeH": 4, "unit": "pg/ml", "value": 160 },
+                    { "id": "lab-c", "timeH": 7, "unit": "pg/ml", "value": 100 }
+                """.trimIndent(),
+            ),
+            now = NOW.plusSeconds(60),
+        )
+
+        assertEquals(1, preview.medicationRowsToCreate)
+        assertEquals(1, preview.medicationRowsToUpdate)
+        assertEquals(1, preview.medicationRowsUnchanged)
+        assertEquals(1, preview.labRowsToCreate)
+        assertEquals(1, preview.labRowsToUpdate)
+        assertEquals(1, preview.labRowsUnchanged)
+
+        val result = service.commit(preview, now = NOW.plusSeconds(60))
+
+        assertEquals(1, result.medicationRowsCreated)
+        assertEquals(1, result.medicationRowsUpdated)
+        assertEquals(1, result.medicationRowsUnchanged)
+        assertEquals(1, result.labRowsCreated)
+        assertEquals(1, result.labRowsUpdated)
+        assertEquals(1, result.labRowsUnchanged)
+    }
+
+    @Test
     fun deletingImportedRowsAllowsLaterReimportToRecreateThem() = runTest {
         service.commit(
             service.buildPreview(

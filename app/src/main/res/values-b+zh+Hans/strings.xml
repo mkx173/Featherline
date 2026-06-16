@@ -571,8 +571,8 @@
     <string name="settings_backup_restore_confirm">恢复</string>
     <string name="external_import_review_title">确认导入</string>
     <string name="external_import_detected_source">来源</string>
-    <string name="external_import_medication_summary">新增 %1$d · 更新 %2$d</string>
-    <string name="external_import_lab_summary">新增 %1$d · 更新 %2$d</string>
+    <string name="external_import_medication_summary">新增 %1$d · 更新 %2$d · 无变化 %3$d</string>
+    <string name="external_import_lab_summary">新增 %1$d · 更新 %2$d · 无变化 %3$d</string>
     <string name="external_import_medication_label">用药记录</string>
     <string name="external_import_lab_label">血液检查记录</string>
     <string name="external_import_confirm">导入</string>

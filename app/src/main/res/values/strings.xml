@@ -591,8 +591,8 @@
     <string name="settings_backup_restore_confirm">Restore</string>
     <string name="external_import_review_title">Confirm import</string>
     <string name="external_import_detected_source">Source</string>
-    <string name="external_import_medication_summary">%1$d new · %2$d updated</string>
-    <string name="external_import_lab_summary">%1$d new · %2$d updated</string>
+    <string name="external_import_medication_summary">%1$d new · %2$d updated · %3$d unchanged</string>
+    <string name="external_import_lab_summary">%1$d new · %2$d updated · %3$d unchanged</string>
     <string name="external_import_medication_label">Medication rows</string>
     <string name="external_import_lab_label">Blood test rows</string>
     <string name="external_import_confirm">Import</string>

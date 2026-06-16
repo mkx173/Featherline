@@ -44,13 +44,32 @@ class ExternalImportService @Inject constructor(
         // Bulk-load the existing imported rows once rather than querying per
         // dose and per medicine identity: a preview of N doses across K
         // medicines must not fan out into N+K round-trips on the preview path.
-        val existingDoseExternalIds = medicationDao.getImportedEntries(sourceApp)
-            .mapNotNull { entry -> entry.importExternalId }
-            .toHashSet()
-        val (medicationRowsToUpdate, medicationRowsToCreate) =
-            parseResult.medicationDoses.partition { dose ->
-                dose.provenance.externalId in existingDoseExternalIds
+        val existingEntriesByExternalId = medicationDao.getImportedEntries(sourceApp)
+            .mapNotNull { entry -> entry.importExternalId?.let { externalId -> externalId to entry } }
+            .toMap()
+
+        val distinctIdentities = parseResult.distinctMedicineIdentities()
+        val existingMedicinesByIdentityKey = medicineDao
+            .getImportedByIdentityKeys(distinctIdentities.map { identity -> identity.identityKey })
+            .associateBy { medicine -> medicine.identityKey }
+        val (importedMedicinesToReuse, importedMedicinesToCreate) =
+            distinctIdentities.partition { identity ->
+                identity.identityKey in existingMedicinesByIdentityKey
             }
+
+        // Classify medication rows with the same pass commit uses, so the review
+        // summary's created/updated/unchanged tally can never disagree with what
+        // commit reports. Preview resolves only already-existing medicines, so a
+        // dose that introduces a new medicine has no uuid here and is never counted
+        // unchanged — which matches commit's conclusion once it assigns that
+        // medicine a fresh uuid that cannot equal the stored row.
+        val medicationPlan = planMedicationImport(
+            doses = parseResult.medicationDoses,
+            existingEntriesByExternalId = existingEntriesByExternalId,
+            medicineUuidByIdentityKey = existingMedicinesByIdentityKey
+                .mapValues { (_, medicine) -> medicine.uuid },
+            sourceApp = sourceApp,
+        )
 
         // Run the same reconciliation commit uses, as a read-only dry run that
         // writes nothing, so the review summary's lab tally and skip warnings can
@@ -62,19 +81,8 @@ class ExternalImportService @Inject constructor(
             labResults = parseResult.labResults,
             nowEpochMillis = now.toEpochMilli(),
         )
-        val labRowsToCreate = labPlan.created
-        val labRowsToUpdate = labPlan.updated
-        val labWarnings = labPlan.warnings
 
-        val distinctIdentities = parseResult.distinctMedicineIdentities()
-        val existingMedicineIdentityKeys = medicineDao
-            .getImportedByIdentityKeys(distinctIdentities.map { identity -> identity.identityKey })
-            .mapTo(mutableSetOf()) { medicine -> medicine.identityKey }
-        val (importedMedicinesToReuse, importedMedicinesToCreate) =
-            distinctIdentities.partition { identity ->
-                identity.identityKey in existingMedicineIdentityKeys
-            }
-        val warnings = parseResult.warnings + labWarnings
+        val warnings = parseResult.warnings + labPlan.warnings
         logPreviewWarnings(
             sourceApp = parseResult.sourceApp,
             warnings = warnings,
@@ -83,10 +91,12 @@ class ExternalImportService @Inject constructor(
         return ExternalImportPreview(
             parseResult = parseResult,
             sourceAppLabel = parseResult.sourceApp.label,
-            medicationRowsToCreate = medicationRowsToCreate.size,
-            medicationRowsToUpdate = medicationRowsToUpdate.size,
-            labRowsToCreate = labRowsToCreate,
-            labRowsToUpdate = labRowsToUpdate,
+            medicationRowsToCreate = medicationPlan.created,
+            medicationRowsToUpdate = medicationPlan.updated,
+            medicationRowsUnchanged = medicationPlan.unchanged,
+            labRowsToCreate = labPlan.created,
+            labRowsToUpdate = labPlan.updated,
+            labRowsUnchanged = labPlan.unchanged,
             importedMedicinesToCreate = importedMedicinesToCreate,
             importedMedicinesToReuse = importedMedicinesToReuse,
             warnings = warnings,
@@ -177,26 +187,17 @@ class ExternalImportService @Inject constructor(
             .mapNotNull { entry -> entry.importExternalId?.let { externalId -> externalId to entry } }
             .toMap()
 
-        var medicationRowsCreated = 0
-        var medicationRowsUpdated = 0
-        val entriesToInsert = parseResult.medicationDoses.map { dose ->
-            val existing = existingEntriesByExternalId[dose.provenance.externalId]
-            if (existing == null) {
-                medicationRowsCreated += 1
-            } else {
-                medicationRowsUpdated += 1
-            }
-            dose.toEntity(
-                uuid = existing?.uuid ?: UUID.randomUUID().toString(),
-                medicineUuid = dose.medicineIdentity?.let { identity ->
-                    checkNotNull(importedMedicineByIdentityKey[identity.identityKey]) {
-                        "Imported medicine ${identity.identityKey} was not resolved."
-                    }.uuid
-                },
-                sourceApp = sourceApp,
-            )
-        }
-        medicationDao.insertEntries(entriesToInsert)
+        // Every distinct medicine identity was resolved above (created or reused),
+        // so this map covers every dose's medicine; the shared pass therefore sees
+        // the real uuid each row will store and tallies exactly as the preview did.
+        val medicationPlan = planMedicationImport(
+            doses = parseResult.medicationDoses,
+            existingEntriesByExternalId = existingEntriesByExternalId,
+            medicineUuidByIdentityKey = importedMedicineByIdentityKey
+                .mapValues { (_, medicine) -> medicine.uuid },
+            sourceApp = sourceApp,
+        )
+        medicationDao.insertEntries(medicationPlan.entriesToInsert)
 
         val labCommitResult = reconcileLabResults(
             database = database,
@@ -207,13 +208,62 @@ class ExternalImportService @Inject constructor(
 
         return ExternalImportCommitResult(
             sourceAppLabel = preview.sourceAppLabel,
-            medicationRowsCreated = medicationRowsCreated,
-            medicationRowsUpdated = medicationRowsUpdated,
+            medicationRowsCreated = medicationPlan.created,
+            medicationRowsUpdated = medicationPlan.updated,
+            medicationRowsUnchanged = medicationPlan.unchanged,
             labRowsCreated = labCommitResult.created,
             labRowsUpdated = labCommitResult.updated,
+            labRowsUnchanged = labCommitResult.unchanged,
             importedMedicinesCreated = importedMedicinesCreated,
             importedMedicinesReused = importedMedicinesReused,
             warnings = parseResult.warnings + labCommitResult.warnings,
+        )
+    }
+
+    /**
+     * Pure classification pass shared by [buildPreview] and [commitInTransaction]:
+     * builds the dose row each candidate would store and tallies it as created (no
+     * prior row for this external id), unchanged (byte-identical to the stored
+     * row), or updated (differs). Preview consumes only the counts; commit also
+     * inserts [MedicationImportPlan.entriesToInsert]. One algorithm, so the review
+     * summary can never disagree with the commit.
+     *
+     * [medicineUuidByIdentityKey] holds only medicines that already exist. A dose
+     * whose medicine is absent here will mint a fresh medicine on commit, so its
+     * candidate cannot match the stored row — it is classified updated/created,
+     * never unchanged, identically in both passes.
+     */
+    private fun planMedicationImport(
+        doses: List<ExternalImportCandidate.MedicationDose>,
+        existingEntriesByExternalId: Map<String, MedicationLogEntryEntity>,
+        medicineUuidByIdentityKey: Map<String, String>,
+        sourceApp: String,
+    ): MedicationImportPlan {
+        var created = 0
+        var updated = 0
+        var unchanged = 0
+        val entriesToInsert = doses.map { dose ->
+            val existing = existingEntriesByExternalId[dose.provenance.externalId]
+            val identityKey = dose.medicineIdentity?.identityKey
+            val resolvedMedicineUuid = identityKey?.let { medicineUuidByIdentityKey[it] }
+            val referencesUnresolvedMedicine = identityKey != null && resolvedMedicineUuid == null
+            val candidate = dose.toEntity(
+                uuid = existing?.uuid ?: UUID.randomUUID().toString(),
+                medicineUuid = resolvedMedicineUuid,
+                sourceApp = sourceApp,
+            )
+            when {
+                existing == null -> created += 1
+                !referencesUnresolvedMedicine && candidate == existing -> unchanged += 1
+                else -> updated += 1
+            }
+            candidate
+        }
+        return MedicationImportPlan(
+            created = created,
+            updated = updated,
+            unchanged = unchanged,
+            entriesToInsert = entriesToInsert,
         )
     }
 
@@ -247,6 +297,7 @@ class ExternalImportService @Inject constructor(
         return LabCommitResult(
             created = plan.created,
             updated = plan.updated,
+            unchanged = plan.unchanged,
             warnings = plan.warnings,
         )
     }
@@ -294,6 +345,7 @@ class ExternalImportService @Inject constructor(
 
         var created = 0
         var updated = 0
+        var unchanged = 0
         val warnings = mutableListOf<ExternalImportWarning>()
         val affectedPanelUuids = linkedSetOf<String>()
         val targetPanelUuids = linkedSetOf<String>()
@@ -326,8 +378,22 @@ class ExternalImportService @Inject constructor(
             affectedPanelUuids += targetState.panel.uuid
 
             val existingResult = importedResultsByExternalId[labResult.provenance.externalId]
+            val resultEntity = labResult.toEntity(
+                uuid = existingResult?.uuid ?: UUID.randomUUID().toString(),
+                panelUuid = targetState.panel.uuid,
+                createdAtEpochMillis = existingResult?.createdAtEpochMillis ?: nowEpochMillis,
+                sourceApp = sourceApp,
+            )
             if (existingResult != null) {
-                updated += 1
+                // displayOrder is assigned by the reconciliation pass below, not
+                // carried in the export, so a reading whose value/unit/analyte and
+                // target panel all match the stored row counts as unchanged even if
+                // its position within the panel shifts.
+                if (existingResult.copy(displayOrder = resultEntity.displayOrder) == resultEntity) {
+                    unchanged += 1
+                } else {
+                    updated += 1
+                }
                 affectedPanelUuids += existingResult.panelUuid
                 panelStatesByUuid[existingResult.panelUuid]
                     ?.results
@@ -335,13 +401,6 @@ class ExternalImportService @Inject constructor(
             } else {
                 created += 1
             }
-
-            val resultEntity = labResult.toEntity(
-                uuid = existingResult?.uuid ?: UUID.randomUUID().toString(),
-                panelUuid = targetState.panel.uuid,
-                createdAtEpochMillis = existingResult?.createdAtEpochMillis ?: nowEpochMillis,
-                sourceApp = sourceApp,
-            )
             targetState.results.removeAll { result -> result.uuid == resultEntity.uuid }
             targetState.results += resultEntity
         }
@@ -369,6 +428,7 @@ class ExternalImportService @Inject constructor(
         return LabReconciliationPlan(
             created = created,
             updated = updated,
+            unchanged = unchanged,
             warnings = warnings,
             panelsToUpsert = panelsToUpsert,
             resultsToUpsert = resultsToUpsert,
@@ -563,15 +623,24 @@ class ExternalImportService @Inject constructor(
         val results: MutableList<BloodTestResultEntity>,
     )
 
+    private data class MedicationImportPlan(
+        val created: Int,
+        val updated: Int,
+        val unchanged: Int,
+        val entriesToInsert: List<MedicationLogEntryEntity>,
+    )
+
     private data class LabCommitResult(
         val created: Int,
         val updated: Int,
+        val unchanged: Int,
         val warnings: List<ExternalImportWarning>,
     )
 
     private data class LabReconciliationPlan(
         val created: Int = 0,
         val updated: Int = 0,
+        val unchanged: Int = 0,
         val warnings: List<ExternalImportWarning> = emptyList(),
         val panelsToUpsert: List<BloodTestPanelEntity> = emptyList(),
         val resultsToUpsert: List<BloodTestResultEntity> = emptyList(),
