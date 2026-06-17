@@ -202,6 +202,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.constraintlayout.compose)
     implementation(libs.androidx.material3)
+    implementation(libs.reorderable)
     implementation(libs.androidx.material3.adaptive.navigation.suite)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
