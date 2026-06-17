@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -119,6 +120,10 @@ fun JournalScreenContent(
                                     onClick = onOpenMilestones,
                                 )
                             }
+                        } else if (uiState.hasTrackedDates) {
+                            item {
+                                EmptyPinnedMilestonesCard(onClick = onOpenMilestones)
+                            }
                         } else {
                             item {
                                 EmptyMilestonesCard(onAddDate = onOpenMilestones)
@@ -165,8 +170,11 @@ fun JournalScreenContent(
                 if (uiState.olderNotesCount > 0) {
                     item(key = "journal-see-all-notes", contentType = "journal-action") {
                         HrtOutlinedButton(
-                            text = "${stringResource(R.string.journal_see_all_notes)} · " +
-                                    "${uiState.olderNotesCount} earlier",
+                            text = pluralStringResource(
+                                R.plurals.journal_see_all_notes_earlier,
+                                uiState.olderNotesCount,
+                                uiState.olderNotesCount,
+                            ),
                             onClick = onOpenAllNotes,
                             modifier = Modifier
                                 .padding(top = dimensionResource(R.dimen.padding_small)),
@@ -303,7 +311,7 @@ fun MilestonesScreenContent(
                 item(key = "milestones-hero", contentType = "milestones-hero") {
                     MilestonesHero(
                         hero = uiState.hero,
-                        nextMilestoneLabel = uiState.heroNextMilestoneLabel,
+                        nextMilestone = uiState.heroNextMilestone,
                         today = uiState.today,
                     )
                 }

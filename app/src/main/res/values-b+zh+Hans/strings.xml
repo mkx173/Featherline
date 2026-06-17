@@ -193,6 +193,9 @@
     <string name="journal_no_dates">还没有日期</string>
     <string name="journal_add_date">添加日期</string>
     <string name="journal_see_all_notes">查看全部笔记</string>
+    <plurals name="journal_see_all_notes_earlier">
+        <item quantity="other">查看全部笔记 · %1$d 条更早</item>
+    </plurals>
     <string name="journal_today">今天</string>
     <string name="journal_yesterday">昨天</string>
     <string name="journal_note_date_weekday_pattern">%2$s %1$s</string>
@@ -218,6 +221,16 @@
     <string name="journal_date_palette_section">颜色</string>
     <string name="journal_date_palette_none">无颜色</string>
     <string name="journal_delete_date">删除日期</string>
+    <plurals name="journal_milestone_label_days">
+        <item quantity="other">%1$d 天</item>
+    </plurals>
+    <plurals name="journal_milestone_label_months">
+        <item quantity="other">%1$d 个月</item>
+    </plurals>
+    <plurals name="journal_next_milestone_days_to_label">
+        <item quantity="other">还有 %1$d 天到 %2$s</item>
+    </plurals>
+    <string name="journal_milestone_today">%1$s 就是今天</string>
     <plurals name="journal_milestone_days_past">
         <item quantity="other">%1$d 天</item>
     </plurals>

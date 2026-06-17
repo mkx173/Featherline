@@ -36,6 +36,16 @@ class MilestonesTest {
     }
 
     @Test
+    fun current_returnsMilestoneOnExactMilestoneDay() {
+        val start = LocalDate.of(2026, 3, 9)
+        val today = start.plusDays(100)
+        val current = Milestones.current(date = start, today = today)
+
+        assertEquals(100L, current?.dayCount)
+        assertEquals("100 days", current?.label)
+    }
+
+    @Test
     fun futureAnchor_hasNoMilestone() {
         val today = LocalDate.of(2026, 6, 16)
         assertNull(Milestones.next(date = today.plusDays(10), today = today))

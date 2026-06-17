@@ -41,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -236,9 +237,25 @@ fun EmptyMilestonesCard(
 }
 
 @Composable
+fun EmptyPinnedMilestonesCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    EditorSegmentedListItem(
+        modifier = modifier.fillMaxWidth(),
+        onClick = onClick,
+    ) {
+        Text(
+            text = stringResource(R.string.journal_nothing_pinned),
+            style = MaterialTheme.typography.titleMedium,
+        )
+    }
+}
+
+@Composable
 fun MilestonesHero(
     hero: AnchorRowUiState?,
-    nextMilestoneLabel: String?,
+    nextMilestone: NextMilestoneUiState?,
     today: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier,
 ) {
@@ -274,15 +291,43 @@ fun MilestonesHero(
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (!hero.isFuture && nextMilestoneLabel != null) {
+                if (!hero.isFuture && nextMilestone != null) {
                     MilestoneChip(
-                        text = nextMilestoneLabel,
+                        text = nextMilestone.label(),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun NextMilestoneUiState.label(): String {
+    val value = value.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    val label = when (unit) {
+        MilestoneUnit.DAYS -> pluralStringResource(
+            R.plurals.journal_milestone_label_days,
+            value,
+            value,
+        )
+
+        MilestoneUnit.MONTHS -> pluralStringResource(
+            R.plurals.journal_milestone_label_months,
+            value,
+            value,
+        )
+    }
+    if (remainingDays == 0L) {
+        return stringResource(R.string.journal_milestone_today, label)
+    }
+    val days = remainingDays.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    return pluralStringResource(
+        R.plurals.journal_next_milestone_days_to_label,
+        days,
+        days,
+        label,
+    )
 }
 
 @Composable

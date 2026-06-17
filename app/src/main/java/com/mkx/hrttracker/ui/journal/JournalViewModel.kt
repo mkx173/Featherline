@@ -33,6 +33,7 @@ class JournalViewModel @Inject constructor(
             .map { it.toLocalDate() }
             .distinctUntilChanged()
         combine(
+            journalRepository.observeTrackedDates(),
             journalRepository.observePinnedTrackedDates(),
             todayFlow.flatMapLatest { today ->
                 val windowStart = today.minusDays(29)
@@ -49,10 +50,11 @@ class JournalViewModel @Inject constructor(
                     )
                 }
             },
-        ) { pinned, dateState ->
+        ) { trackedDates, pinned, dateState ->
             JournalUiState(
                 isLoading = false,
                 today = dateState.today,
+                hasTrackedDates = trackedDates.isNotEmpty(),
                 pinnedAnchors = pinned.map { it.toAnchorRowUiState(dateState.today) },
                 recentNotes = dateState.recentNotes,
                 todayNote = dateState.todayNote,

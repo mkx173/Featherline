@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -42,12 +43,26 @@ class MilestonesScreenTest {
             807,
             807,
         )
+        val nextMilestoneLabel = context.resources.getQuantityString(
+            R.plurals.journal_next_milestone_days_to_label,
+            193,
+            193,
+            context.resources.getQuantityString(
+                R.plurals.journal_milestone_label_days,
+                1000,
+                1000,
+            ),
+        )
 
         composeRule.setContent {
             HrtTrackerTheme(dynamicColor = false) {
                 MilestonesHero(
                     hero = hero,
-                    nextMilestoneLabel = "1000 days",
+                    nextMilestone = NextMilestoneUiState(
+                        remainingDays = 193,
+                        value = 1000,
+                        unit = MilestoneUnit.DAYS,
+                    ),
                     today = today,
                 )
             }
@@ -56,7 +71,7 @@ class MilestonesScreenTest {
         composeRule.onNodeWithText("On estradiol").assertIsDisplayed()
         composeRule.onNodeWithText(dayCountLabel).assertIsDisplayed()
         composeRule.onNodeWithText(sinceLabel).assertIsDisplayed()
-        composeRule.onNodeWithText("1000 days").assertIsDisplayed()
+        composeRule.onNodeWithText(nextMilestoneLabel).assertIsDisplayed()
     }
 
     @Test
@@ -66,7 +81,7 @@ class MilestonesScreenTest {
             HrtTrackerTheme(dynamicColor = false) {
                 MilestonesHero(
                     hero = null,
-                    nextMilestoneLabel = null,
+                    nextMilestone = null,
                 )
             }
         }
@@ -288,7 +303,11 @@ class MilestonesScreenTest {
             isLoading = false,
             today = today,
             hero = estradiol,
-            heroNextMilestoneLabel = "1000 days",
+            heroNextMilestone = NextMilestoneUiState(
+                remainingDays = 193,
+                value = 1000,
+                unit = MilestoneUnit.DAYS,
+            ),
             pinnedTray = listOf(estradiol),
             timeline = listOf(
                 TimelineNodeUiState(anchor = estradiol, isPinned = true),

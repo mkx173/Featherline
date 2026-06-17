@@ -57,7 +57,9 @@ class JournalScreenTest {
         composeRule.onNodeWithText(context.getString(R.string.journal_add_date))
             .assertIsDisplayed()
             .performClick()
-        composeRule.onNodeWithText("${context.getString(R.string.journal_see_all_notes)} · 2 earlier")
+        composeRule.onNodeWithText(
+            context.resources.getQuantityString(R.plurals.journal_see_all_notes_earlier, 2, 2)
+        )
             .assertIsDisplayed()
             .performClick()
 
@@ -65,6 +67,32 @@ class JournalScreenTest {
             assertTrue(milestonesOpened)
             assertTrue(allNotesOpened)
         }
+    }
+
+    @Test
+    fun unpinnedDates_showsNothingPinnedPromptInsteadOfNoDates() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        hasTrackedDates = true,
+                        pinnedAnchors = emptyList(),
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = {},
+                    onSaveNote = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(context.getString(R.string.journal_nothing_pinned))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.journal_no_dates))
+            .assertIsNotDisplayed()
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.journal
 
 import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.util.FakeAppTimeSource
@@ -80,7 +81,7 @@ class MilestonesViewModelTest {
         assertFalse(state.isLoading)
         assertEquals(today, state.today)
         assertEquals("On estradiol", state.hero?.name)
-        assertNotNull(state.heroNextMilestoneLabel)
+        assertNotNull(state.heroNextMilestone)
         assertEquals(listOf("On estradiol"), state.pinnedTray.map { it.name })
         assertEquals(listOf("On estradiol", "Surgery"), state.timeline.map { it.anchor.name })
         assertEquals(1, state.todayDividerIndex)
@@ -106,7 +107,7 @@ class MilestonesViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals("Surgery", state.hero?.name)
-        assertNull(state.heroNextMilestoneLabel)
+        assertNull(state.heroNextMilestone)
     }
 
     @Test
@@ -193,7 +194,14 @@ class MilestonesViewModelTest {
 
         assertEquals(today, viewModel.uiState.value.today)
         assertEquals(99L, viewModel.uiState.value.hero?.dayMagnitude)
-        assertEquals("100 days", viewModel.uiState.value.heroNextMilestoneLabel)
+        assertEquals(
+            NextMilestoneUiState(
+                remainingDays = 1,
+                value = 100,
+                unit = MilestoneUnit.DAYS,
+            ),
+            viewModel.uiState.value.heroNextMilestone,
+        )
         assertEquals(1, viewModel.uiState.value.todayDividerIndex)
 
         appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 6, 17, 0, 0))
@@ -202,7 +210,14 @@ class MilestonesViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(LocalDate.of(2026, 6, 17), state.today)
         assertEquals(100L, state.hero?.dayMagnitude)
-        assertEquals("6 months", state.heroNextMilestoneLabel)
+        assertEquals(
+            NextMilestoneUiState(
+                remainingDays = 0,
+                value = 100,
+                unit = MilestoneUnit.DAYS,
+            ),
+            state.heroNextMilestone,
+        )
         assertEquals(2, state.todayDividerIndex)
     }
 

@@ -54,6 +54,18 @@ class JournalViewModelTest {
     @Test
     fun uiState_mapsPinnedAnchors_andSplitsNotesAt30Days() = runTest {
         val todayNote = Note(id = "today-note", date = today, text = "today")
+        every { repository.observeTrackedDates() } returns flowOf(
+            listOf(
+                TrackedDate(
+                    id = "estradiol",
+                    name = "On estradiol",
+                    icon = AnchorIcon.MEDICATION,
+                    date = LocalDate.of(2024, 4, 1),
+                    palette = MedicationGroupColorKey.ROSE,
+                    pinnedOrder = 0,
+                )
+            )
+        )
         every { repository.observePinnedTrackedDates() } returns flowOf(
             listOf(
                 TrackedDate(
@@ -95,6 +107,33 @@ class JournalViewModelTest {
     }
 
     @Test
+    fun uiState_tracksUnpinnedDatesForJournalEmptyState() = runTest {
+        every { repository.observeTrackedDates() } returns flowOf(
+            listOf(
+                TrackedDate(
+                    id = "unpinned",
+                    name = "Unpinned date",
+                    icon = AnchorIcon.EVENT,
+                    date = LocalDate.of(2026, 6, 1),
+                    palette = null,
+                    pinnedOrder = null,
+                )
+            )
+        )
+        every { repository.observePinnedTrackedDates() } returns flowOf(emptyList())
+        every { repository.observeNotesOnOrAfter(today.minusDays(29)) } returns flowOf(emptyList())
+        every { repository.observeNoteForDate(today) } returns flowOf(null)
+        every { repository.observeNotesCountBefore(today.minusDays(29)) } returns flowOf(0)
+
+        val viewModel = JournalViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.hasTrackedDates)
+        assertFalse(state.hasAnchors)
+    }
+
+    @Test
     fun uiState_resubscribesDateKeyedFlowsAfterLocalMidnight() = runTest {
         val june16 = LocalDate.of(2026, 6, 16)
         val june17 = LocalDate.of(2026, 6, 17)
@@ -103,6 +142,7 @@ class JournalViewModelTest {
         val pinned = MutableStateFlow(emptyList<TrackedDate>())
         val june16Note = Note(id = "june-16", date = june16, text = "june 16")
         val june17Note = Note(id = "june-17", date = june17, text = "june 17")
+        every { repository.observeTrackedDates() } returns flowOf(emptyList())
         every { repository.observePinnedTrackedDates() } returns pinned
         every { repository.observeNotesOnOrAfter(june16WindowStart) } returns flowOf(
             listOf(june16Note)
@@ -161,6 +201,7 @@ class JournalViewModelTest {
     }
 
     private fun stubEmptyObservers() {
+        every { repository.observeTrackedDates() } returns flowOf(emptyList())
         every { repository.observePinnedTrackedDates() } returns flowOf(emptyList())
         every { repository.observeNotesOnOrAfter(today.minusDays(29)) } returns flowOf(emptyList())
         every { repository.observeNoteForDate(today) } returns flowOf(null)

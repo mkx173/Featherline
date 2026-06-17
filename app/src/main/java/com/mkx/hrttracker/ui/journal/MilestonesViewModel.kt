@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.model.journal.Milestones
 import com.mkx.hrttracker.model.journal.TrackedDate
+import com.mkx.hrttracker.model.journal.dayCount
 import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,11 +45,21 @@ class MilestonesViewModel @Inject constructor(
             )
         val pinnedIds = pinned.map { it.id }.toSet()
         val hero = pinned.firstOrNull()
+        val heroRow = hero?.toAnchorRowUiState(today)
         MilestonesUiState(
             isLoading = false,
             today = today,
-            hero = hero?.toAnchorRowUiState(today),
-            heroNextMilestoneLabel = hero?.let { Milestones.next(it.date, today)?.label },
+            hero = heroRow,
+            heroNextMilestone = hero?.let { anchor ->
+                val currentDayCount = dayCount(anchor.date, today)
+                (Milestones.current(anchor.date, today) ?: Milestones.next(anchor.date, today))?.let { milestone ->
+                    NextMilestoneUiState(
+                        remainingDays = milestone.dayCount - currentDayCount.magnitude,
+                        value = milestone.value,
+                        unit = milestone.unit,
+                    )
+                }
+            },
             pinnedTray = pinned.map { it.toAnchorRowUiState(today) },
             timeline = sorted.map {
                 TimelineNodeUiState(

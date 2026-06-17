@@ -20,6 +20,7 @@ data class AnchorRowUiState(
 data class JournalUiState(
     val isLoading: Boolean = true,
     val today: LocalDate = LocalDate.now(),
+    val hasTrackedDates: Boolean = false,
     val pinnedAnchors: List<AnchorRowUiState> = emptyList(),
     val recentNotes: List<Note> = emptyList(),
     val todayNote: Note? = null,
