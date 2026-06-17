@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.journal
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -885,6 +886,7 @@ private fun PinToggle(
 ) {
     val container by animateColorAsState(
         if (checked) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        animationSpec = tween(durationMillis = 200),
         label = "pinToggleBg",
     )
     Surface(
@@ -894,7 +896,9 @@ private fun PinToggle(
     ) {
         IconToggleButton(checked = checked, onCheckedChange = onCheckedChange) {
             Icon(
-                painter = painterResource(R.drawable.ic_keep),
+                painter = painterResource(
+                    if (checked) R.drawable.ic_keep else R.drawable.ic_keep_alt,
+                ),
                 contentDescription = stringResource(R.string.journal_pin_to_home_content_description),
                 modifier = Modifier.size(20.dp),
                 tint = if (checked) {
