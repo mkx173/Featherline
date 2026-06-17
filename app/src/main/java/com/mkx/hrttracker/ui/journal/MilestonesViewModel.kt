@@ -67,7 +67,7 @@ class MilestonesViewModel @Inject constructor(
                     isPinned = it.id in pinnedIds,
                 )
             },
-            todayDividerIndex = sorted.count { !it.date.isAfter(today) },
+            todayDividerIndex = sorted.count { it.date.isBefore(today) },
             isEditMode = isEdit,
         )
     }.stateIn(

@@ -89,6 +89,34 @@ class MilestonesViewModelTest {
     }
 
     @Test
+    fun uiState_todayDatedAnchorSortsBelowDivider() = runTest {
+        val past = trackedDate(
+            id = "past", name = "First injection", icon = AnchorIcon.VACCINES,
+            date = LocalDate.of(2026, 3, 1), pinnedOrder = 0,
+        )
+        val todayAnchor = trackedDate(
+            id = "today", name = "Blood test", icon = AnchorIcon.BLOODTYPE,
+            date = today, pinnedOrder = null,
+        )
+        val future = trackedDate(
+            id = "future", name = "Surgery", icon = AnchorIcon.FLAG,
+            date = LocalDate.of(2026, 9, 15), pinnedOrder = null,
+        )
+        stubTrackedDates(all = listOf(future, todayAnchor, past), pinned = listOf(past))
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(
+            listOf("First injection", "Blood test", "Surgery"),
+            state.timeline.map { it.anchor.name },
+        )
+        // Divider sits before the first today-or-future date — i.e. before "Blood test".
+        assertEquals(1, state.todayDividerIndex)
+    }
+
+    @Test
     fun uiState_futureHeroHasNoNextMilestoneLabel() = runTest {
         val futureHero = trackedDate(
             id = "surgery",
@@ -218,7 +246,9 @@ class MilestonesViewModelTest {
             ),
             state.heroNextMilestone,
         )
-        assertEquals(2, state.todayDividerIndex)
+        // After midnight, "Labs" (2026-06-17) is today-dated, so it sorts below the
+        // divider; only the strictly-past "On estradiol" counts toward the index.
+        assertEquals(1, state.todayDividerIndex)
     }
 
     @Test
