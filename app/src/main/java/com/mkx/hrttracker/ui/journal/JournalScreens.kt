@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.journal
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,6 +15,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,9 +30,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.MilestoneUnit
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
@@ -43,6 +50,7 @@ import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.monthHeaderFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
@@ -482,4 +490,129 @@ private fun allNotesMonthLabel(month: YearMonth): String {
         monthHeaderFormatter(appLocale, currentYear = Int.MIN_VALUE)
     }
     return formatter(month.atDay(1))
+}
+
+// ---- Previews ----
+
+// Sample state for the "Since you started" previews: a hero on a long-running medication
+// (pinned, shown on Home), a second past pin, and a future goal that only appears in the
+// timeline. todayDividerIndex = 2 places the Today node before the future "Surgery" node.
+private fun previewMilestonesUiState(isEditMode: Boolean): MilestonesUiState {
+    val estradiol = AnchorRowUiState(
+        id = "estradiol", name = "On estradiol", icon = AnchorIcon.MEDICATION,
+        palette = MedicationGroupColorKey.ROSE, date = LocalDate.of(2024, 4, 1),
+        dayMagnitude = 807, isFuture = false,
+    )
+    val injection = AnchorRowUiState(
+        id = "injection", name = "First injection", icon = AnchorIcon.VACCINES,
+        palette = MedicationGroupColorKey.INDIGO, date = LocalDate.of(2026, 3, 1),
+        dayMagnitude = 108, isFuture = false,
+    )
+    val surgery = AnchorRowUiState(
+        id = "surgery", name = "Surgery", icon = AnchorIcon.FLAG,
+        palette = MedicationGroupColorKey.SAGE, date = LocalDate.of(2026, 9, 15),
+        dayMagnitude = 90, isFuture = true,
+    )
+    return MilestonesUiState(
+        isLoading = false,
+        today = LocalDate.of(2026, 6, 17),
+        hero = estradiol,
+        heroNextMilestone = NextMilestoneUiState(remainingDays = 193, value = 1000, unit = MilestoneUnit.DAYS),
+        pinnedTray = listOf(estradiol, injection),
+        timeline = listOf(
+            TimelineNodeUiState(anchor = estradiol, isPinned = true),
+            TimelineNodeUiState(anchor = injection, isPinned = false),
+            TimelineNodeUiState(anchor = surgery, isPinned = false),
+        ),
+        todayDividerIndex = 2,
+        isEditMode = isEditMode,
+    )
+}
+
+@Preview(name = "Since you started – page", showBackground = true, widthDp = 420, heightDp = 940)
+@Composable
+private fun MilestonesScreenContentPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        MilestonesScreenContent(
+            uiState = previewMilestonesUiState(isEditMode = false),
+            onNavigateBack = {},
+            onToggleEdit = {},
+            onSetPinned = { _, _ -> },
+            onReorder = {},
+            onAddDate = {},
+            onUpdateDate = {},
+        )
+    }
+}
+
+@Preview(name = "Pinned section – view", showBackground = true, widthDp = 420)
+@Composable
+private fun PinnedSectionViewPreview() {
+    MilestonesSectionPreview { state ->
+        HrtSection(title = stringResource(R.string.journal_pinned_section)) {
+            item {
+                PinnedTray(
+                    anchors = state.pinnedTray,
+                    heroNextMilestone = state.heroNextMilestone,
+                    isEditMode = state.isEditMode,
+                    onReorder = {},
+                    onSetPinned = { _, _ -> },
+                    today = state.today,
+                )
+            }
+        }
+    }
+}
+
+@Preview(name = "Pinned section – edit", showBackground = true, widthDp = 420)
+@Composable
+private fun PinnedSectionEditPreview() {
+    MilestonesSectionPreview(isEditMode = true) { state ->
+        HrtSection(title = stringResource(R.string.journal_pinned_section)) {
+            item {
+                PinnedTray(
+                    anchors = state.pinnedTray,
+                    heroNextMilestone = state.heroNextMilestone,
+                    isEditMode = state.isEditMode,
+                    onReorder = {},
+                    onSetPinned = { _, _ -> },
+                    today = state.today,
+                )
+            }
+        }
+    }
+}
+
+@Preview(name = "Timeline section", showBackground = true, widthDp = 420)
+@Composable
+private fun MilestonesTimelineSectionPreview() {
+    MilestonesSectionPreview { state ->
+        HrtSection(title = stringResource(R.string.journal_timeline_section)) {
+            item {
+                MilestonesTimeline(
+                    nodes = state.timeline,
+                    todayDividerIndex = state.todayDividerIndex,
+                    isEditMode = state.isEditMode,
+                    onSetPinned = { _, _ -> },
+                    onUpdateDate = {},
+                    today = state.today,
+                )
+            }
+        }
+    }
+}
+
+// Themed surface + content padding shared by the single-section previews.
+@Composable
+private fun MilestonesSectionPreview(
+    isEditMode: Boolean = false,
+    content: @Composable (MilestonesUiState) -> Unit,
+) {
+    HrtTrackerTheme(dynamicColor = false) {
+        Surface {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                content(previewMilestonesUiState(isEditMode = isEditMode))
+            }
+        }
+    }
 }

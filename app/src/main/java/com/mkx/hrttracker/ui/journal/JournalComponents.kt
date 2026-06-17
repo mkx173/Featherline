@@ -72,6 +72,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -79,8 +80,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.journal.Note
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -88,6 +91,7 @@ import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -1614,5 +1618,95 @@ private fun AnchorRowUiState.dayCountLabel(): String {
         pluralStringResource(R.plurals.journal_milestone_days_future, days, days)
     } else {
         pluralStringResource(R.plurals.journal_milestone_days_past, days, days)
+    }
+}
+
+// ---- Previews ----
+
+private val previewToday = LocalDate.of(2026, 6, 17)
+
+private fun previewAnchors() = listOf(
+    AnchorRowUiState(
+        id = "estradiol", name = "On estradiol", icon = AnchorIcon.MEDICATION,
+        palette = MedicationGroupColorKey.ROSE, date = LocalDate.of(2024, 4, 1),
+        dayMagnitude = 807, isFuture = false,
+    ),
+    AnchorRowUiState(
+        id = "injection", name = "First injection", icon = AnchorIcon.VACCINES,
+        palette = MedicationGroupColorKey.INDIGO, date = LocalDate.of(2026, 3, 1),
+        dayMagnitude = 108, isFuture = false,
+    ),
+    AnchorRowUiState(
+        id = "surgery", name = "Surgery", icon = AnchorIcon.FLAG,
+        palette = MedicationGroupColorKey.SAGE, date = LocalDate.of(2026, 9, 15),
+        dayMagnitude = 90, isFuture = true,
+    ),
+)
+
+private fun previewNotes() = listOf(
+    Note(id = "n1", date = LocalDate.of(2026, 6, 17), text = "Felt steadier today. Sleep is finally settling."),
+    Note(id = "n2", date = LocalDate.of(2026, 6, 14), text = "Bloodwork came back in range."),
+    Note(id = "n3", date = LocalDate.of(2026, 6, 10), text = "Started the new dose this morning."),
+)
+
+@Composable
+private fun JournalComponentPreview(content: @Composable () -> Unit) {
+    HrtTrackerTheme(dynamicColor = false) {
+        Surface {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
+            ) {
+                content()
+            }
+        }
+    }
+}
+
+@Preview(name = "MilestonesStackCard", showBackground = true, widthDp = 420)
+@Composable
+private fun MilestonesStackCardPreview() {
+    JournalComponentPreview {
+        MilestonesStackCard(today = previewToday, anchors = previewAnchors(), onClick = {})
+    }
+}
+
+@Preview(name = "SimpleHomeCard", showBackground = true, widthDp = 420)
+@Composable
+private fun SimpleHomeCardPreview() {
+    JournalComponentPreview {
+        SimpleHomeCard(anchor = previewAnchors().first(), today = previewToday, onClick = {})
+    }
+}
+
+@Preview(name = "TodayComposer", showBackground = true, widthDp = 420)
+@Composable
+private fun TodayComposerPreview() {
+    JournalComponentPreview {
+        TodayComposer(
+            today = previewToday,
+            note = Note(id = "today", date = previewToday, text = "Quiet day. Grateful for the small wins."),
+            onSave = {},
+            onDelete = {},
+        )
+    }
+}
+
+@Preview(name = "NotesTimeline", showBackground = true, widthDp = 420)
+@Composable
+private fun NotesTimelinePreview() {
+    JournalComponentPreview {
+        NotesTimeline(notes = previewNotes(), today = previewToday, onSave = { _, _ -> }, onDelete = {})
+    }
+}
+
+@Preview(name = "Journal empty states", showBackground = true, widthDp = 420)
+@Composable
+private fun JournalEmptyStatesPreview() {
+    JournalComponentPreview {
+        EmptyMilestonesCard(onAddDate = {})
+        EmptyPinnedMilestonesCard(onClick = {})
+        EmptyRecentNotesCard()
+        EmptyAllNotesCard()
     }
 }
