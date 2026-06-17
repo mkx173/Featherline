@@ -18,6 +18,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -181,6 +184,13 @@ fun MilestonesScreen(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var isAddDateSheetOpen by remember { mutableStateOf(false) }
+    var editingAnchor by remember { mutableStateOf<AnchorRowUiState?>(null) }
+    val activeEditingAnchor = editingAnchor
+    val closeDateSheet = {
+        isAddDateSheetOpen = false
+        editingAnchor = null
+    }
 
     MilestonesScreenContent(
         uiState = uiState,
@@ -188,19 +198,40 @@ fun MilestonesScreen(
         onToggleEdit = viewModel::toggleEditMode,
         onSetPinned = viewModel::setPinned,
         onReorder = viewModel::reorderPinned,
-        onAddDate = { },
-        onUpdateDate = { anchor ->
-            viewModel.updateDate(
-                id = anchor.id,
-                name = anchor.name,
-                icon = anchor.icon.storageKey,
-                date = anchor.date,
-                paletteKey = anchor.palette?.name,
-            )
-        },
+        onAddDate = { isAddDateSheetOpen = true },
+        onUpdateDate = { anchor -> editingAnchor = anchor },
         onDeleteDate = viewModel::deleteDate,
         modifier = modifier,
     )
+
+    if (isAddDateSheetOpen || activeEditingAnchor != null) {
+        AddDateSheet(
+            today = uiState.today,
+            anchor = activeEditingAnchor,
+            onDismissRequest = closeDateSheet,
+            onConfirm = { name, icon, date, paletteKey ->
+                if (activeEditingAnchor == null) {
+                    viewModel.addDate(
+                        name = name,
+                        icon = icon,
+                        date = date,
+                        paletteKey = paletteKey,
+                    )
+                } else {
+                    viewModel.updateDate(
+                        id = activeEditingAnchor.id,
+                        name = name,
+                        icon = icon,
+                        date = date,
+                        paletteKey = paletteKey,
+                    )
+                }
+            },
+            onDelete = activeEditingAnchor?.let { anchor ->
+                { viewModel.deleteDate(anchor.id) }
+            },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

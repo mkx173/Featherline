@@ -215,6 +215,15 @@
     <string name="journal_move_anchor_up">Move up %1$s</string>
     <string name="journal_move_anchor_down">Move down %1$s</string>
     <string name="journal_pin_to_home_content_description">Pin to Home</string>
+    <string name="journal_date_sheet_add_title">Add a date</string>
+    <string name="journal_date_sheet_edit_title">Edit date</string>
+    <string name="journal_date_name_label">Name</string>
+    <string name="journal_date_date_label">Date</string>
+    <string name="journal_select_date">Select date</string>
+    <string name="journal_date_icon_section">Icon</string>
+    <string name="journal_date_palette_section">Color</string>
+    <string name="journal_date_palette_none">No color</string>
+    <string name="journal_delete_date">Delete date</string>
     <plurals name="journal_milestone_days_past">
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>
