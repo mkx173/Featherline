@@ -697,7 +697,7 @@ fun MilestonesTimeline(
             )
         }
         if (dividerIndex == nodes.size) {
-            TodayDivider(today = today)
+            TodayDivider(today = today, isLast = true)
         }
     }
 }
@@ -817,44 +817,60 @@ private fun TimelineRail(
 @Composable
 private fun TodayDivider(
     today: LocalDate,
+    isLast: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val appLocale = rememberAppLocale()
-    val dateFormatter = remember(appLocale, today) {
-        dateLabelFormatter(appLocale, today)
-    }
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = dimensionResource(R.dimen.padding_small)),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .height(1.dp)
-                .weight(1f)
-                .background(MaterialTheme.colorScheme.outlineVariant),
-        )
-        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-        Text(
-            text = stringResource(R.string.journal_today).uppercase(appLocale),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_xsmall)))
-        Text(
-            text = dateFormatter(today),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-        Box(
-            modifier = Modifier
-                .height(1.dp)
-                .weight(1f)
-                .background(MaterialTheme.colorScheme.outlineVariant),
-        )
+    val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
+    Row(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        Column(
+            modifier = Modifier.width(34.dp).fillMaxHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(Modifier.height(14.dp))
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .background(MaterialTheme.colorScheme.tertiary, CircleShape)
+                    .border(4.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.16f), CircleShape),
+            )
+            if (!isLast) {
+                Box(Modifier.width(2.dp).weight(1f).background(MaterialTheme.colorScheme.outlineVariant))
+            }
+        }
+        Surface(
+            modifier = Modifier.weight(1f).padding(vertical = 5.dp),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceContainer,
+        ) {
+            Row(
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+            ) {
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                ) {
+                    Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                        Icon(painterResource(R.drawable.ic_schedule), null, Modifier.size(18.dp))
+                    }
+                }
+                Column {
+                    Text(
+                        text = stringResource(R.string.journal_today),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                    Text(
+                        text = dateFormatter(today),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
     }
 }
 

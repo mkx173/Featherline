@@ -330,6 +330,48 @@ class MilestonesScreenTest {
     }
 
     @Test
+    fun timeline_todayNodeShowsTodayAndDate() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        // The fixture's today is 2026-06-17 and carries no today-dated anchor, so
+        // journal_today renders only in the Today node. Both strings are localized
+        // (zh on the emulator): "Today" from journal_today, the date from the same
+        // dateLabelFormatter(appLocale, today) the node uses — derive both so the
+        // assertions hold regardless of device locale.
+        val today = LocalDate.of(2026, 6, 17)
+        val todayLabel = context.getString(R.string.journal_today)
+        val dateLabel = dateLabelFormatter(
+            locale = context.resources.configuration.locales[0],
+            today = today,
+        )(today)
+
+        composeRule.setContent {
+            HrtTrackerTheme {
+                MilestonesScreenContent(
+                    uiState = milestonesUiStateFixture(),  // divider at index 2, before "Surgery"
+                    onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
+                    onReorder = {}, onAddDate = {}, onUpdateDate = {},
+                )
+            }
+        }
+        composeRule.onNodeWithText(todayLabel).assertExists()
+        composeRule.onNodeWithText(dateLabel).assertExists()
+
+        // The redesigned node stacks "Today" over the date on two lines, unlike the
+        // old hairline divider that laid them out inline on a single baseline. The
+        // top-ordering check is the real RED: it fails against the inline divider and
+        // is locale-independent (no reliance on en uppercase("TODAY")).
+        val todayTop = composeRule.onNodeWithText(todayLabel, useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .top
+        val dateTop = composeRule.onNodeWithText(dateLabel, useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .top
+        assertTrue(todayTop < dateTop)
+    }
+
+    @Test
     fun timeline_pinToggleInEditModeCallsSetPinned() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val today = LocalDate.of(2026, 6, 16)
