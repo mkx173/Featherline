@@ -210,6 +210,10 @@
     <string name="journal_edit">编辑</string>
     <string name="journal_done">完成</string>
     <string name="journal_hero_badge">主项</string>
+    <string name="journal_in_prefix">还有</string>
+    <plurals name="journal_day_unit">
+        <item quantity="other">天</item>
+    </plurals>
     <string name="journal_since_date">始于 %1$s</string>
     <string name="journal_unpin_anchor">取消固定 %1$s</string>
     <string name="journal_move_anchor_up">上移 %1$s</string>

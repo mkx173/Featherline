@@ -38,9 +38,9 @@ class MilestonesScreenTest {
             today = today,
         )(hero.date)
         val sinceLabel = context.getString(R.string.journal_since_date, dateLabel)
-        val dayCountLabel = context.resources.getQuantityString(
-            R.plurals.journal_milestone_days_past,
-            807,
+        // The hero now splits the count into a big numeral + a separate unit word.
+        val dayUnitLabel = context.resources.getQuantityString(
+            R.plurals.journal_day_unit,
             807,
         )
         val nextMilestoneLabel = context.resources.getQuantityString(
@@ -69,7 +69,8 @@ class MilestonesScreenTest {
         }
 
         composeRule.onNodeWithText("On estradiol").assertIsDisplayed()
-        composeRule.onNodeWithText(dayCountLabel).assertIsDisplayed()
+        composeRule.onNodeWithText("807").assertIsDisplayed()
+        composeRule.onNodeWithText(dayUnitLabel).assertIsDisplayed()
         composeRule.onNodeWithText(sinceLabel).assertIsDisplayed()
         composeRule.onNodeWithText(nextMilestoneLabel).assertIsDisplayed()
     }
@@ -90,6 +91,41 @@ class MilestonesScreenTest {
             .assertIsDisplayed()
         composeRule.onAllNodesWithText(context.getString(R.string.journal_no_dates))
             .assertCountEquals(0)
+    }
+
+    @Test
+    fun hero_showsBigCountAndChips() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val locale = context.resources.configuration.locales[0]
+        val heroDate = LocalDate.of(2024, 4, 1)
+        // Derive the locale-dependent pill labels from resources (matching this
+        // file's convention) so the assertions hold on any device locale.
+        val sinceLabel = context.getString(
+            R.string.journal_since_date,
+            dateLabelFormatter(locale = locale, today = LocalDate.of(2026, 6, 17))(heroDate),
+        )
+        val nextMilestoneLabel = context.resources.getQuantityString(
+            R.plurals.journal_next_milestone_days_to_label,
+            106,
+            106,
+            context.resources.getQuantityString(R.plurals.journal_milestone_label_months, 30, 30),
+        )
+
+        composeRule.setContent {
+            HrtTrackerTheme {
+                MilestonesScreenContent(
+                    uiState = milestonesUiStateFixture(),
+                    onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
+                    onReorder = {}, onAddDate = {}, onUpdateDate = {},
+                )
+            }
+        }
+        // "On estradiol" appears in the hero, pinned tray, and timeline (3x) for
+        // this fixture, so scope the name check by count rather than a single node.
+        composeRule.onAllNodesWithText("On estradiol").assertCountEquals(3)
+        composeRule.onNodeWithText("807").assertIsDisplayed()        // 60px numeral
+        composeRule.onNodeWithText(sinceLabel).assertExists()
+        composeRule.onNodeWithText(nextMilestoneLabel).assertExists()
     }
 
     @Test
@@ -344,4 +380,30 @@ class MilestonesScreenTest {
         dayMagnitude = 1,
         isFuture = false,
     )
+
+    private fun milestonesUiStateFixture(
+        isEditMode: Boolean = false,
+    ): MilestonesUiState {
+        val today = LocalDate.of(2026, 6, 17)
+        fun row(id: String, name: String, icon: AnchorIcon, palette: MedicationGroupColorKey?,
+                date: LocalDate, magnitude: Long, future: Boolean) =
+            AnchorRowUiState(id, name, icon, palette, date, magnitude, future)
+        val estradiol = row("e", "On estradiol", AnchorIcon.MEDICATION,
+            MedicationGroupColorKey.ROSE, LocalDate.of(2024, 4, 1), 807, false)
+        val injection = row("i", "First injection", AnchorIcon.VACCINES,
+            MedicationGroupColorKey.INDIGO, LocalDate.of(2026, 3, 1), 108, false)
+        val surgery = row("s", "Surgery", AnchorIcon.FLAG,
+            MedicationGroupColorKey.SAGE, LocalDate.of(2026, 9, 15), 90, true)
+        return MilestonesUiState(
+            isLoading = false, today = today, hero = estradiol,
+            heroNextMilestone = NextMilestoneUiState(remainingDays = 106, value = 30, unit = MilestoneUnit.MONTHS),
+            pinnedTray = listOf(estradiol, injection),
+            timeline = listOf(
+                TimelineNodeUiState(estradiol, isPinned = true),
+                TimelineNodeUiState(injection, isPinned = false),
+                TimelineNodeUiState(surgery, isPinned = false),
+            ),
+            todayDividerIndex = 2, isEditMode = isEditMode,
+        )
+    }
 }

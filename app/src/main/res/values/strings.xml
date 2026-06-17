@@ -219,6 +219,11 @@
     <string name="journal_edit">Edit</string>
     <string name="journal_done">Done</string>
     <string name="journal_hero_badge">HERO</string>
+    <string name="journal_in_prefix">in</string>
+    <plurals name="journal_day_unit">
+        <item quantity="one">day</item>
+        <item quantity="other">days</item>
+    </plurals>
     <string name="journal_since_date">Since %1$s</string>
     <string name="journal_unpin_anchor">Unpin %1$s</string>
     <string name="journal_move_anchor_up">Move up %1$s</string>

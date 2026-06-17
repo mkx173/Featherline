@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -40,7 +41,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.journal.Note
@@ -48,6 +52,8 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
+import com.mkx.hrttracker.ui.components.HrtPill
+import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -274,32 +280,70 @@ fun MilestonesHero(
             )
             return@EditorSegmentedListItem
         }
-
         Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))) {
-            Text(
-                text = hero.name,
-                style = MaterialTheme.typography.headlineSmall,
-            )
-            Text(
-                text = hero.dayCountLabel(),
-                style = MaterialTheme.typography.headlineMedium,
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))) {
-                MilestoneChip(
-                    text = stringResource(
-                        R.string.journal_since_date,
-                        dateFormatter(hero.date),
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
+            Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))) {
+                AnchorIconChip(anchor = hero, size = 30.dp)
+                Text(text = hero.name, style = MaterialTheme.typography.titleMedium)
+            }
+            HeroCount(hero = hero)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))) {
+                HrtPill(
+                    label = stringResource(R.string.journal_since_date, dateFormatter(hero.date)),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    size = HrtPillSize.Small,
+                    icon = { Icon(painterResource(R.drawable.ic_event), null, iconModifier) },
                 )
                 if (!hero.isFuture && nextMilestone != null) {
-                    MilestoneChip(
-                        text = nextMilestone.label(),
-                        modifier = Modifier.fillMaxWidth(),
+                    HrtPill(
+                        label = nextMilestone.label(),
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        size = HrtPillSize.Small,
+                        icon = { Icon(painterResource(R.drawable.ic_flag), null, iconModifier) },
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun HeroCount(hero: AnchorRowUiState) {
+    val days = hero.dayMagnitude.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    val isToday = hero.dayMagnitude == 0L && !hero.isFuture
+    Row(verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (isToday) {
+            Text(
+                text = stringResource(R.string.journal_today),
+                style = MaterialTheme.typography.displayMedium.copy(
+                    fontFeatureSettings = "tnum",
+                ),
+                color = MaterialTheme.colorScheme.primary,
+            )
+        } else {
+            if (hero.isFuture) {
+                Text(
+                    text = stringResource(R.string.journal_in_prefix),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                text = days.toString(),
+                style = MaterialTheme.typography.displayMedium.copy(
+                    fontWeight = FontWeight.Normal,
+                    letterSpacing = (-0.5).sp,
+                    fontFeatureSettings = "tnum",
+                ),
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = pluralStringResource(R.plurals.journal_day_unit, days),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
         }
     }
 }
@@ -333,48 +377,23 @@ private fun NextMilestoneUiState.label(): String {
 }
 
 @Composable
-private fun MilestoneChip(
-    text: String,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(
-                horizontal = dimensionResource(R.dimen.padding_small),
-                vertical = dimensionResource(R.dimen.padding_xsmall),
-            ),
-            style = MaterialTheme.typography.labelMedium,
-        )
-    }
-}
-
-@Composable
 private fun AnchorIconChip(
     anchor: AnchorRowUiState,
     modifier: Modifier = Modifier,
+    size: Dp = 32.dp,
 ) {
     val colorScheme = rememberMedicationGroupColorScheme(colorKey = anchor.palette)
-
     Surface(
-        modifier = modifier.size(40.dp),
+        modifier = modifier.size(size),
         shape = MaterialTheme.shapes.small,
         color = colorScheme.primaryContainer,
         contentColor = colorScheme.onPrimaryContainer,
     ) {
-        Box(
-            modifier = Modifier.size(40.dp),
-            contentAlignment = Alignment.Center,
-        ) {
+        Box(modifier = Modifier.size(size), contentAlignment = Alignment.Center) {
             Icon(
                 painter = painterResource(anchorIconRes(anchor.icon)),
                 contentDescription = null,
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(size * 0.56f),
             )
         }
     }
