@@ -1,7 +1,9 @@
 package com.mkx.hrttracker.ui.journal
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,23 +30,30 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.HapticFeedbackConstantsCompat
+import androidx.core.view.ViewCompat
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.journal.Note
@@ -58,6 +67,7 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import sh.calvin.reorderable.ReorderableColumn
 import java.time.LocalDate
 import java.time.format.TextStyle
 
@@ -430,60 +440,20 @@ private fun AnchorSummaryText(
     }
 }
 
-private fun movedAnchorIds(
-    anchors: List<AnchorRowUiState>,
-    fromIndex: Int,
-    toIndex: Int,
-): List<String> {
-    if (fromIndex !in anchors.indices || toIndex !in anchors.indices) {
-        return anchors.map { it.id }
-    }
-    return anchors.toMutableList()
-        .apply { add(toIndex, removeAt(fromIndex)) }
-        .map { it.id }
+// Single source of reorder math for both the drag `onSettle` and the a11y
+// "move" actions: removes the item at [fromIndex] and reinserts it at [toIndex].
+// Out-of-range indices leave the list unchanged so callers can't corrupt order.
+internal fun reorderedIds(ids: List<String>, fromIndex: Int, toIndex: Int): List<String> {
+    if (fromIndex !in ids.indices || toIndex !in ids.indices) return ids
+    return ids.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
 }
 
 @Composable
-private fun ReorderButton(
-    anchor: AnchorRowUiState,
-    enabled: Boolean,
-    isMoveUp: Boolean,
-    onClick: () -> Unit,
-) {
-    val contentDescription = stringResource(
-        if (isMoveUp) R.string.journal_move_anchor_up else R.string.journal_move_anchor_down,
-        anchor.name,
-    )
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.size(36.dp),
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_arrow_downward),
-            contentDescription = contentDescription,
-            modifier = Modifier
-                .size(20.dp)
-                .then(if (isMoveUp) Modifier.rotate(180f) else Modifier),
-            tint = if (enabled) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                MaterialTheme.colorScheme.outline
-            },
-        )
-    }
-}
-
-@Composable
-private fun PinnedTrayRow(
+private fun PinnedTrayRowView(
     anchor: AnchorRowUiState,
     index: Int,
     count: Int,
-    isEditMode: Boolean,
     today: LocalDate,
-    onReorder: (List<String>) -> Unit,
-    onSetPinned: (String, Boolean) -> Unit,
-    anchors: List<AnchorRowUiState>,
 ) {
     EditorSegmentedListItem(
         index = index,
@@ -491,49 +461,12 @@ private fun PinnedTrayRow(
         modifier = Modifier.fillMaxWidth(),
         leadingContent = { AnchorIconChip(anchor = anchor) },
         trailingContent = {
-            if (isEditMode) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_drag_indicator),
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    ReorderButton(
-                        anchor = anchor,
-                        enabled = index > 0,
-                        isMoveUp = true,
-                        onClick = { onReorder(movedAnchorIds(anchors, index, index - 1)) },
-                    )
-                    ReorderButton(
-                        anchor = anchor,
-                        enabled = index < anchors.lastIndex,
-                        isMoveUp = false,
-                        onClick = { onReorder(movedAnchorIds(anchors, index, index + 1)) },
-                    )
-                    IconButton(
-                        onClick = { onSetPinned(anchor.id, false) },
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_close),
-                            contentDescription = stringResource(
-                                R.string.journal_unpin_anchor,
-                                anchor.name,
-                            ),
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            } else {
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
         },
     ) {
         AnchorSummaryText(
@@ -554,34 +487,160 @@ fun PinnedTray(
     modifier: Modifier = Modifier,
 ) {
     if (anchors.isEmpty()) {
-        if (!isEditMode) {
-            return
-        }
-        EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
-            Text(
-                text = stringResource(R.string.journal_nothing_pinned),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        if (isEditMode) {
+            EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
+                Text(
+                    text = stringResource(R.string.journal_nothing_pinned),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         return
     }
+    if (!isEditMode) {
+        Column(
+            modifier = modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
+        ) {
+            anchors.forEachIndexed { index, anchor ->
+                PinnedTrayRowView(anchor, index, anchors.size, today)
+            }
+        }
+        return
+    }
+    PinnedTrayEdit(anchors, onReorder, onSetPinned, today, modifier)
+}
 
-    Column(
+@Composable
+private fun PinnedTrayEdit(
+    anchors: List<AnchorRowUiState>,
+    onReorder: (List<String>) -> Unit,
+    onSetPinned: (String, Boolean) -> Unit,
+    today: LocalDate,
+    modifier: Modifier = Modifier,
+) {
+    val view = LocalView.current
+    // ReorderableColumn (non-lazy, sh.calvin.reorderable 2.5.1) positions each
+    // item itself: the content receiver is a ReorderableScope exposing
+    // draggableHandle directly — there is no ReorderableItem wrapper (that exists
+    // only for the lazy variants). onSettle/move both route through reorderedIds.
+    ReorderableColumn(
         modifier = modifier.fillMaxWidth(),
+        list = anchors,
+        onSettle = { fromIndex, toIndex ->
+            onReorder(reorderedIds(anchors.map { it.id }, fromIndex, toIndex))
+        },
+        onMove = {
+            ViewCompat.performHapticFeedback(
+                view,
+                HapticFeedbackConstantsCompat.SEGMENT_FREQUENT_TICK,
+            )
+        },
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
-    ) {
-        anchors.forEachIndexed { index, anchor ->
-            PinnedTrayRow(
+    ) { index, anchor, isDragging ->
+        key(anchor.id) {
+            if (index == 0) {
+                HrtPill(
+                    label = stringResource(R.string.journal_hero_badge),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    size = HrtPillSize.XSmall,
+                )
+            } else if (index == 1) {
+                Text(
+                    text = stringResource(R.string.journal_pinned_section),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            val interactionSource = remember { MutableInteractionSource() }
+            val elevation by animateDpAsState(if (isDragging) 6.dp else 0.dp, label = "drag")
+            val moveActions = pinnedRowAccessibilityActions(
                 anchor = anchor,
                 index = index,
-                count = anchors.size,
-                isEditMode = isEditMode,
-                today = today,
-                onReorder = onReorder,
-                onSetPinned = onSetPinned,
                 anchors = anchors,
+                onReorder = onReorder,
             )
+            EditorSegmentedListItem(
+                index = index,
+                count = anchors.size,
+                containerColor = if (isDragging) {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerLow
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(elevation)
+                    .semantics { customActions = moveActions },
+                leadingContent = {
+                    IconButton(
+                        onClick = {},
+                        modifier = Modifier
+                            .size(36.dp)
+                            .draggableHandle(interactionSource = interactionSource),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_drag_indicator),
+                            contentDescription = stringResource(
+                                R.string.journal_reorder_anchor,
+                                anchor.name,
+                            ),
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+                trailingContent = {
+                    IconButton(
+                        onClick = { onSetPinned(anchor.id, false) },
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_close),
+                            contentDescription = stringResource(
+                                R.string.journal_unpin_anchor,
+                                anchor.name,
+                            ),
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AnchorIconChip(anchor = anchor, size = 32.dp)
+                    Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+                    AnchorSummaryText(
+                        anchor = anchor,
+                        today = today,
+                        showDayCountInline = true,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun pinnedRowAccessibilityActions(
+    anchor: AnchorRowUiState,
+    index: Int,
+    anchors: List<AnchorRowUiState>,
+    onReorder: (List<String>) -> Unit,
+): List<CustomAccessibilityAction> {
+    val ids = anchors.map { it.id }
+    val moveUp = stringResource(R.string.journal_move_anchor_up, anchor.name)
+    val moveDown = stringResource(R.string.journal_move_anchor_down, anchor.name)
+    val moveTop = stringResource(R.string.journal_move_anchor_to_top, anchor.name)
+    return buildList {
+        if (index > 0) {
+            add(CustomAccessibilityAction(moveTop) { onReorder(reorderedIds(ids, index, 0)); true })
+            add(CustomAccessibilityAction(moveUp) { onReorder(reorderedIds(ids, index, index - 1)); true })
+        }
+        if (index < anchors.lastIndex) {
+            add(CustomAccessibilityAction(moveDown) { onReorder(reorderedIds(ids, index, index + 1)); true })
         }
     }
 }

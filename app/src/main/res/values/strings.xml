@@ -228,6 +228,8 @@
     <string name="journal_unpin_anchor">Unpin %1$s</string>
     <string name="journal_move_anchor_up">Move up %1$s</string>
     <string name="journal_move_anchor_down">Move down %1$s</string>
+    <string name="journal_reorder_anchor">Reorder %1$s</string>
+    <string name="journal_move_anchor_to_top">Move %1$s to top</string>
     <string name="journal_pin_to_home_content_description">Pin to Home</string>
     <string name="journal_date_sheet_add_title">Add a date</string>
     <string name="journal_date_sheet_edit_title">Edit date</string>
