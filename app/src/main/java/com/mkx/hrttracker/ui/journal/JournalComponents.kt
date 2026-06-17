@@ -12,10 +12,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
@@ -435,10 +433,7 @@ private fun HeroEditLayout(
                 name = anchor.name,
                 onUnpin = onUnpin,
                 modifier = with(animatedVisibilityScope) {
-                    Modifier.animateEnterExit(
-                        enter = slideInHorizontally { width -> width } + fadeIn(),
-                        exit = slideOutHorizontally { width -> width } + fadeOut(),
-                    )
+                    Modifier.animateEnterExit(enter = editTrailingEnter(), exit = editTrailingExit())
                 },
             )
         }
@@ -501,6 +496,13 @@ private fun MorphingLeadingIcon(
         )
     }
 }
+
+// Enter/exit for the edit-mode trailing controls: the cluster slides in from the end
+// (right) and fades. Shared by the hero (via animateEnterExit) and every other pinned row
+// (via AnimatedVisibility) so all rows' controls animate with the same spec.
+private fun editTrailingEnter() = slideInHorizontally { width -> width } + fadeIn()
+
+private fun editTrailingExit() = slideOutHorizontally { width -> width } + fadeOut()
 
 // Edit-mode trailing cluster: unpin first, drag grip last. Shared by the hero row and
 // the other pinned rows.
@@ -829,14 +831,13 @@ private fun PinnedRow(
                     showDayCountInline = true,
                     modifier = Modifier.weight(1f),
                 )
-                // Edit-only trailing cluster: expands in from the end so the summary
-                // reflows continuously rather than snapping. Non-hero rows keep a fixed
-                // height, so the cluster has no row resize to track and never drifts.
+                // Edit-only trailing cluster: slides in from the end (right), matching the
+                // hero row's controls via the shared editTrailingEnter/Exit spec.
                 AnimatedVisibility(
                     visible = isEditMode,
                     modifier = Modifier.align(Alignment.CenterVertically),
-                    enter = fadeIn() + expandHorizontally(),
-                    exit = shrinkHorizontally() + fadeOut(),
+                    enter = editTrailingEnter(),
+                    exit = editTrailingExit(),
                 ) {
                     EditTrailingCluster(name = anchor.name, onUnpin = onUnpin)
                 }
