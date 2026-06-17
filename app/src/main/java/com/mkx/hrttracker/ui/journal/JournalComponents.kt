@@ -164,7 +164,7 @@ fun SimpleHomeCard(
                 .padding(dimensionResource(R.dimen.padding_medium)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AnchorIconChip(anchor = anchor)
+            AnchorIconChip(anchor = anchor, size = 40.dp)
             Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
