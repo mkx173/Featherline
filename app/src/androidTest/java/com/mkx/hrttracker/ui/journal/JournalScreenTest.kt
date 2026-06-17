@@ -1,14 +1,19 @@
 package com.mkx.hrttracker.ui.journal
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.platform.app.InstrumentationRegistry
@@ -27,6 +32,7 @@ import java.time.LocalDate
 
 private const val TodayComposerTextFieldTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTagPrefix = "note-timeline-text-field-"
+private const val JournalScreenListTag = "journal-screen-list"
 
 class JournalScreenTest {
     @get:Rule
@@ -141,6 +147,53 @@ class JournalScreenTest {
         composeRule.onNodeWithText("Today note").assertIsDisplayed()
         composeRule.onNodeWithText("Yesterday note").assertIsDisplayed()
         composeRule.onNodeWithText("2026-06-16").assertIsNotDisplayed()
+    }
+
+    @Test
+    fun scrollToTopSignal_returnsJournalListToTop() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        val notes = (1..24).map { index ->
+            Note(
+                id = "older-$index",
+                date = today.minusDays(index.toLong()),
+                text = "Older note $index",
+            )
+        }
+        var scrollToTopSignal by mutableIntStateOf(0)
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = today,
+                        recentNotes = notes,
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = {},
+                    onSaveNote = { _, _ -> },
+                    scrollToTopSignal = scrollToTopSignal,
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(JournalScreenListTag)
+            .performScrollToIndex(20)
+        composeRule.onNodeWithText("Older note 18").assertIsDisplayed()
+
+        composeRule.runOnIdle {
+            scrollToTopSignal++
+        }
+
+        val milestonesHeader = context.getString(R.string.journal_milestones_section)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText(milestonesHeader)
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        composeRule.onNodeWithText(milestonesHeader).assertIsDisplayed()
     }
 
     @Test

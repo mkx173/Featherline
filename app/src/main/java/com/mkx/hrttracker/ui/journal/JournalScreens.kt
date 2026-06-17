@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -36,6 +37,7 @@ import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
+import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
@@ -46,11 +48,14 @@ import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
 import java.time.YearMonth
 
+private const val JournalScreenListTestTag = "journal-screen-list"
+
 @Composable
 fun JournalScreen(
     onOpenMilestones: () -> Unit,
     onOpenAllNotes: () -> Unit,
     modifier: Modifier = Modifier,
+    scrollToTopSignal: Int = 0,
     viewModel: JournalViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
     ),
@@ -65,6 +70,7 @@ fun JournalScreen(
         onSaveNote = viewModel::saveNote,
         onDeleteTodayNote = viewModel::deleteTodayNote,
         onDeleteNote = viewModel::deleteNote,
+        scrollToTopSignal = scrollToTopSignal,
         modifier = modifier,
     )
 }
@@ -80,10 +86,16 @@ fun JournalScreenContent(
     onDeleteTodayNote: () -> Unit = { },
     onDeleteNote: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
+    scrollToTopSignal: Int = 0,
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
     val timelineNotes = uiState.recentNotes.filter { it.date != uiState.today }
+    ScrollToTopSignalEffect(
+        signal = scrollToTopSignal,
+        topAppBarState = scrollBehavior.state,
+        listState = listState,
+    )
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -108,7 +120,9 @@ fun JournalScreenContent(
 
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag(JournalScreenListTestTag),
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
                 item(key = "journal-milestones", contentType = "journal-section") {

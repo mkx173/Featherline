@@ -440,6 +440,7 @@ fun HrtTrackerNavHost(
     val navigationLock = LocalNavigationLock.current
     var mainScrollToTopSignal by remember { mutableIntStateOf(0) }
     var planScrollToTopSignal by remember { mutableIntStateOf(0) }
+    var journalScrollToTopSignal by remember { mutableIntStateOf(0) }
     var settingsScrollToTopSignal by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
 
@@ -709,6 +710,7 @@ fun HrtTrackerNavHost(
                                 when (navItem.screen) {
                                     Screen.Main -> mainScrollToTopSignal++
                                     Screen.Plan -> planScrollToTopSignal++
+                                    Screen.Journal -> journalScrollToTopSignal++
                                     Screen.Settings -> settingsScrollToTopSignal++
                                     else -> Unit
                                 }
@@ -964,6 +966,7 @@ fun HrtTrackerNavHost(
                                     Screen.JournalAllNotes.createRoute(Screen.Journal.route)
                                 )
                             },
+                            scrollToTopSignal = journalScrollToTopSignal,
                             modifier = modifier,
                         )
                     }
