@@ -936,6 +936,17 @@ fun EmptyRecentNotesCard(
 }
 
 @Composable
+fun EmptyAllNotesCard(
+    modifier: Modifier = Modifier,
+) {
+    PreferenceSegmentedListItem(
+        modifier = modifier,
+        title = stringResource(R.string.journal_no_notes),
+        supportingText = stringResource(R.string.journal_all_notes_empty),
+    )
+}
+
+@Composable
 private fun AnchorRowUiState.dayCountLabel(): String {
     val days = dayMagnitude.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     return if (isFuture) {

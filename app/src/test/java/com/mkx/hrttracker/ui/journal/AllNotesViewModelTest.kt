@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.journal
 
 import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.model.journal.Note
+import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -19,16 +20,23 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.YearMonth
+import java.time.ZoneId
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AllNotesViewModelTest {
     private val repository: JournalRepository = mockk()
     private val dispatcher = StandardTestDispatcher()
+    private lateinit var appTimeSource: FakeAppTimeSource
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        appTimeSource = FakeAppTimeSource(
+            initialMinute = LocalDateTime.of(2026, 6, 16, 12, 0),
+            initialZone = ZoneId.of("Asia/Tokyo"),
+        )
     }
 
     @After
@@ -47,12 +55,13 @@ class AllNotesViewModelTest {
             )
         )
 
-        val viewModel = AllNotesViewModel(repository)
+        val viewModel = AllNotesViewModel(repository, appTimeSource)
         assertTrue(viewModel.uiState.value.isLoading)
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertFalse(state.isLoading)
+        assertEquals(LocalDate.of(2026, 6, 16), state.today)
         assertEquals(
             listOf(YearMonth.of(2026, 6), YearMonth.of(2026, 5)),
             state.monthGroups.map { it.month },

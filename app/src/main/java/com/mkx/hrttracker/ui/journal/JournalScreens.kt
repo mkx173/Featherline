@@ -40,7 +40,10 @@ import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.util.monthHeaderFormatter
+import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
+import java.time.YearMonth
 
 @Composable
 fun JournalScreen(
@@ -351,6 +354,111 @@ fun MilestonesScreenContent(
 fun AllNotesScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
+    viewModel: AllNotesViewModel = hiltViewModel(
+        viewModelStoreOwner = LocalActivity.current as ComponentActivity
+    ),
 ) {
-    Box(modifier = modifier.fillMaxSize())
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    AllNotesScreenContent(
+        uiState = uiState,
+        onNavigateBack = onNavigateBack,
+        onSaveNote = viewModel::saveNote,
+        today = uiState.today,
+        modifier = modifier,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AllNotesScreenContent(
+    uiState: AllNotesUiState,
+    onNavigateBack: () -> Unit,
+    onSaveNote: (LocalDate, String) -> Unit,
+    today: LocalDate = LocalDate.now(),
+    modifier: Modifier = Modifier,
+) {
+    val listState = rememberLazyListState()
+    val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
+
+    Scaffold(
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            HazeTopAppBar(
+                title = { Text(text = stringResource(R.string.journal_all_notes)) },
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.navigate_back),
+                        )
+                    }
+                },
+                scrollBehavior = scrollBehavior,
+            )
+        },
+    ) { innerPadding ->
+        AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
+                return@AppContentContainer
+            }
+
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
+            ) {
+                if (uiState.monthGroups.isEmpty()) {
+                    item(key = "all-notes-empty", contentType = "journal-empty") {
+                        EmptyAllNotesCard()
+                    }
+                } else {
+                    uiState.monthGroups.forEachIndexed { index, group ->
+                        item(
+                            key = "all-notes-${group.month}",
+                            contentType = "journal-month-section",
+                        ) {
+                            HrtSection(
+                                title = allNotesMonthLabel(group.month),
+                                topPadding = index != 0,
+                                headerTrailing = {
+                                    Text(
+                                        text = group.notes.size.toString(),
+                                        modifier = Modifier.alignByBaseline(),
+                                    )
+                                },
+                                headerTrailingAlignByBaseline = true,
+                            ) {
+                                group.notes.forEach { note ->
+                                    item {
+                                        NoteTimelineRow(
+                                            note = note,
+                                            today = today,
+                                            onSave = onSaveNote,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun allNotesMonthLabel(month: YearMonth): String {
+    val appLocale = rememberAppLocale()
+    val formatter = remember(appLocale) {
+        monthHeaderFormatter(appLocale, currentYear = Int.MIN_VALUE)
+    }
+    return formatter(month.atDay(1))
 }

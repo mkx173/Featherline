@@ -195,6 +195,8 @@
     <string name="journal_milestones_section">Milestones</string>
     <string name="journal_notes_section">Notes</string>
     <string name="journal_notes_window_meta">Last 30 days</string>
+    <string name="journal_no_notes">No notes yet</string>
+    <string name="journal_all_notes_empty">Saved daily notes will appear here.</string>
     <string name="journal_since_you_started">Since you started</string>
     <string name="journal_no_dates">No dates yet</string>
     <string name="journal_add_date">Add a date</string>
