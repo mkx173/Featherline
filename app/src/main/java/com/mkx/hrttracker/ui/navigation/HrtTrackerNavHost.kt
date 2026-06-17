@@ -786,6 +786,12 @@ fun HrtTrackerNavHost(
                                     ),
                                 )
                             },
+                            onOpenJournal = {
+                                navController.navigateToTopLevelScreen(
+                                    targetScreen = Screen.Journal,
+                                    selectedBottomScreen = selectedBottomScreen,
+                                )
+                            },
                             onQuickLogDoseClick = { request ->
                                 if (
                                     request.medicationCount > 0 &&

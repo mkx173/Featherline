@@ -1,8 +1,10 @@
 package com.mkx.hrttracker.ui.main
 
+import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
@@ -23,9 +25,11 @@ import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkTrendResult
+import com.mkx.hrttracker.ui.journal.AnchorRowUiState
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.calibrationUnitLabel
 import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
+import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -37,6 +41,31 @@ import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.roundToLong
+
+data class MainUiState(
+    val homeDataReady: Boolean = false,
+    val e2TrendReady: Boolean = false,
+    val homeSource: HomeInputSource? = null,
+    val now: LocalDateTime = LocalDateTime.now(),
+    val homeE2DisplayUnit: BloodUnitKey = BloodUnitKey.PG_ML,
+    val homeE2ChartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+    val hideReferenceRanges: Boolean = false,
+    val stockWarnings: List<MedicineStockProjection> = emptyList(),
+    val lowStockSectionExpanded: Boolean = true,
+    val homeAnchor: AnchorRowUiState? = null,
+    val e2Hero: MainE2HeroUiState = MainE2HeroUiState(),
+    val e2Chart: MainE2ChartUiState = MainE2ChartUiState(),
+    val antiandrogenCards: List<MainAntiandrogenCardUiState> = emptyList(),
+    val todaySection: MainTodaySectionUiState = MainTodaySectionUiState(
+        date = now.toLocalDate()
+    ),
+    val lastNightSection: MainLastNightSectionUiState = MainLastNightSectionUiState(),
+    val upcomingSection: MainUpcomingSectionUiState = MainUpcomingSectionUiState(),
+    val timeZoneChangeNotice: TimeZoneChangeNotice? = null,
+) {
+    val splashReady: Boolean
+        get() = homeDataReady
+}
 
 data class MainTodaySectionUiState(
     val date: LocalDate,

@@ -6,11 +6,18 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.ui.journal.AnchorRowUiState
+import com.mkx.hrttracker.ui.journal.SimpleHomeCardTestTag
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 class MainContentSkeletonTest {
@@ -110,5 +117,61 @@ class MainContentSkeletonTest {
 
         composeRule.onNodeWithText(manualLabel, useUnmergedTree = true).assertDoesNotExist()
         composeRule.onNodeWithContentDescription(manualLabel, useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun homeJournalCardIsHiddenWithoutPinnedAnchor() {
+        val anchorName = "Pinned home marker"
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                MainContent(
+                    uiState = buildMainContentPreviewUiState().copy(homeAnchor = null),
+                    scrollState = rememberScrollState(),
+                    onQuickLogDoseClick = { },
+                    onEntryClick = { },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(SimpleHomeCardTestTag, useUnmergedTree = true)
+            .assertDoesNotExist()
+        composeRule.onNodeWithText(anchorName, useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun homeJournalCardShowsPinnedAnchorAndOpensJournal() {
+        val anchorName = "Pinned home marker"
+        var openedJournal = false
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                MainContent(
+                    uiState = buildMainContentPreviewUiState().copy(
+                        homeAnchor = AnchorRowUiState(
+                            id = "home-marker",
+                            name = anchorName,
+                            icon = AnchorIcon.MEDICATION,
+                            palette = MedicationGroupColorKey.ROSE,
+                            date = LocalDate.of(2024, 4, 1),
+                            dayMagnitude = 806,
+                            isFuture = false,
+                        )
+                    ),
+                    scrollState = rememberScrollState(),
+                    onQuickLogDoseClick = { },
+                    onEntryClick = { },
+                    onOpenJournal = { openedJournal = true },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(SimpleHomeCardTestTag, useUnmergedTree = true)
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.onNodeWithText(anchorName, useUnmergedTree = true).assertIsDisplayed()
+        composeRule.runOnIdle {
+            assertTrue(openedJournal)
+        }
     }
 }

@@ -5,17 +5,20 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.data.repository.HomeInputs
 import com.mkx.hrttracker.data.repository.HomeRepository
+import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.lowStockSeverityRank
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
+import com.mkx.hrttracker.ui.journal.toAnchorRowUiState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSnapshot
 import com.mkx.hrttracker.util.AppTimeSource
@@ -46,6 +49,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val homeRepository: HomeRepository,
+    private val journalRepository: JournalRepository,
     private val settingsRepository: SettingsRepository,
     private val timeZoneChangeNoticeController: TimeZoneChangeNoticeController,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
@@ -112,43 +116,55 @@ class MainViewModel @Inject constructor(
                 )
                     .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
             },
-        gatedSnapshot,
-        timeZoneChangeNoticeController.notice,
-        settingsRepository.homeLowStockSectionExpandedFlow,
-        settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
-    ) { keyedInputs, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
-        if (!keyedInputs.key.matches(timeSnapshot)) {
-            return@combine null
-        }
-        val inputs = keyedInputs.inputs
-        if (
-            inputs.source == HomeInputSource.ROOM &&
-            inputs.stockWarnings.isEmpty() &&
-            acknowledgedWarningStates.isNotEmpty()
-        ) {
-            // Swallow DataStore failures: letting them propagate would tear
-            // down this combine -> stateIn home flow. A dropped clear is
-            // self-correcting on the next empty-ROOM emission.
-            try {
-                settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
-            } catch (error: CancellationException) {
-                throw error
-            } catch (_: Exception) {
-                // Best-effort cleanup; see comment above.
+        journalRepository.observePinnedTrackedDates(),
+    ) { keyedInputs, pinnedDates ->
+        KeyedHomeInputsWithPins(
+            keyedInputs = keyedInputs,
+            pinnedDates = pinnedDates,
+        )
+    }.let { keyedInputsWithPinsFlow ->
+        combine(
+            keyedInputsWithPinsFlow,
+            gatedSnapshot,
+            timeZoneChangeNoticeController.notice,
+            settingsRepository.homeLowStockSectionExpandedFlow,
+            settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
+        ) { keyedInputsWithPins, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
+            val keyedInputs = keyedInputsWithPins.keyedInputs
+            if (!keyedInputs.key.matches(timeSnapshot)) {
+                return@combine null
             }
-        }
-        withContext(defaultDispatcher) {
-            buildHomeUiState(
-                inputs = inputs,
-                now = timeSnapshot.minute,
-                zoneId = timeSnapshot.zone,
-                timeZoneNotice = timeZoneNotice,
-                lowStockSectionExpanded = shouldExpandLowStockSection(
-                    storedExpanded = storedLowStockSectionExpanded,
-                    stockWarnings = inputs.stockWarnings,
-                    acknowledgedWarningStates = acknowledgedWarningStates,
-                ),
-            )
+            val inputs = keyedInputs.inputs
+            if (
+                inputs.source == HomeInputSource.ROOM &&
+                inputs.stockWarnings.isEmpty() &&
+                acknowledgedWarningStates.isNotEmpty()
+            ) {
+                // Swallow DataStore failures: letting them propagate would tear
+                // down this combine -> stateIn home flow. A dropped clear is
+                // self-correcting on the next empty-ROOM emission.
+                try {
+                    settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    // Best-effort cleanup; see comment above.
+                }
+            }
+            withContext(defaultDispatcher) {
+                buildHomeUiState(
+                    inputs = inputs,
+                    pinnedDates = keyedInputsWithPins.pinnedDates,
+                    now = timeSnapshot.minute,
+                    zoneId = timeSnapshot.zone,
+                    timeZoneNotice = timeZoneNotice,
+                    lowStockSectionExpanded = shouldExpandLowStockSection(
+                        storedExpanded = storedLowStockSectionExpanded,
+                        stockWarnings = inputs.stockWarnings,
+                        acknowledgedWarningStates = acknowledgedWarningStates,
+                    ),
+                )
+            }
         }
     }
         .filterNotNull()
@@ -242,6 +258,7 @@ class MainViewModel @Inject constructor(
 
     private fun buildHomeUiState(
         inputs: HomeInputs,
+        pinnedDates: List<TrackedDate>,
         now: LocalDateTime,
         zoneId: ZoneId,
         timeZoneNotice: TimeZoneChangeNotice?,
@@ -322,6 +339,7 @@ class MainViewModel @Inject constructor(
             hideReferenceRanges = inputs.settings.hideReferenceRanges,
             stockWarnings = inputs.stockWarnings,
             lowStockSectionExpanded = lowStockSectionExpanded,
+            homeAnchor = pinnedDates.firstOrNull()?.toAnchorRowUiState(now.toLocalDate()),
             e2Hero = buildMainE2Hero(
                 // The single-row `latestEstradiolEntry` query is bounded at the
                 // frozen subscription `now`, so on its own it misses a dose the
@@ -409,6 +427,11 @@ class MainViewModel @Inject constructor(
 
     private data class KeyedHomeInputs(val key: HomeTimeKey, val inputs: HomeInputs)
 
+    private data class KeyedHomeInputsWithPins(
+        val keyedInputs: KeyedHomeInputs,
+        val pinnedDates: List<TrackedDate>,
+    )
+
     private fun HomeTimeKey.matches(snapshot: AppTimeSnapshot): Boolean {
         return date == snapshot.minute.toLocalDate() &&
                 zoneId == snapshot.zone
@@ -417,28 +440,4 @@ class MainViewModel @Inject constructor(
     private companion object {
         const val TAG = "MainViewModel"
     }
-}
-
-data class MainUiState(
-    val homeDataReady: Boolean = false,
-    val e2TrendReady: Boolean = false,
-    val homeSource: HomeInputSource? = null,
-    val now: LocalDateTime = LocalDateTime.now(),
-    val homeE2DisplayUnit: BloodUnitKey = BloodUnitKey.PG_ML,
-    val homeE2ChartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
-    val hideReferenceRanges: Boolean = false,
-    val stockWarnings: List<MedicineStockProjection> = emptyList(),
-    val lowStockSectionExpanded: Boolean = true,
-    val e2Hero: MainE2HeroUiState = MainE2HeroUiState(),
-    val e2Chart: MainE2ChartUiState = MainE2ChartUiState(),
-    val antiandrogenCards: List<MainAntiandrogenCardUiState> = emptyList(),
-    val todaySection: MainTodaySectionUiState = MainTodaySectionUiState(
-        date = now.toLocalDate()
-    ),
-    val lastNightSection: MainLastNightSectionUiState = MainLastNightSectionUiState(),
-    val upcomingSection: MainUpcomingSectionUiState = MainUpcomingSectionUiState(),
-    val timeZoneChangeNotice: TimeZoneChangeNotice? = null,
-) {
-    val splashReady: Boolean
-        get() = homeDataReady
 }

@@ -3,13 +3,17 @@ package com.mkx.hrttracker.ui.main
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.data.repository.HomeInputs
 import com.mkx.hrttracker.data.repository.HomeRepository
+import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
@@ -51,6 +55,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -64,6 +69,7 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModelTest {
     private val homeRepository: HomeRepository = mockk()
+    private val journalRepository: JournalRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val timeZoneChangeNoticeController: TimeZoneChangeNoticeController = mockk()
     private val dispatcher = StandardTestDispatcher()
@@ -72,6 +78,7 @@ class MainViewModelTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         every { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) } returns Unit
+        every { journalRepository.observePinnedTrackedDates() } returns MutableStateFlow(emptyList())
         every { timeZoneChangeNoticeController.notice } returns MutableStateFlow(null)
         every { settingsRepository.homeLowStockSectionExpandedFlow } returns MutableStateFlow(true)
         every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
@@ -96,6 +103,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -129,6 +137,117 @@ class MainViewModelTest {
         assertEquals(firstMinute.plusMinutes(2), viewModel.uiState.value.now)
     }
 
+    @Test
+    fun uiStateExposesTopPinnedAnchorForHomeCard() = runTest {
+        val now = LocalDateTime.of(2026, 6, 16, 12, 0)
+        val appTimeSource = FakeAppTimeSource(now)
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(now = now, source = HomeInputSource.ROOM)
+        )
+        every { journalRepository.observePinnedTrackedDates() } returns flowOf(
+            listOf(
+                TrackedDate(
+                    id = "estradiol-start",
+                    name = "On estradiol",
+                    icon = AnchorIcon.MEDICATION,
+                    date = LocalDate.of(2024, 4, 1),
+                    palette = MedicationGroupColorKey.ROSE,
+                    pinnedOrder = 0,
+                ),
+                TrackedDate(
+                    id = "next-checkup",
+                    name = "Next checkup",
+                    icon = AnchorIcon.FLAG,
+                    date = LocalDate.of(2026, 8, 1),
+                    palette = MedicationGroupColorKey.TEAL,
+                    pinnedOrder = 1,
+                ),
+            )
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            journalRepository = journalRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val anchor = viewModel.uiState.value.homeAnchor
+        assertEquals("estradiol-start", anchor?.id)
+        assertEquals("On estradiol", anchor?.name)
+        assertEquals(AnchorIcon.MEDICATION, anchor?.icon)
+        assertEquals(MedicationGroupColorKey.ROSE, anchor?.palette)
+        assertEquals(LocalDate.of(2024, 4, 1), anchor?.date)
+        assertEquals(806L, anchor?.dayMagnitude)
+        assertFalse(anchor?.isFuture ?: true)
+    }
+
+    @Test
+    fun uiStateHomeAnchorIsNullWhenNoPinnedAnchorExists() = runTest {
+        val now = LocalDateTime.of(2026, 6, 16, 12, 0)
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(now = now, source = HomeInputSource.ROOM)
+        )
+        every { journalRepository.observePinnedTrackedDates() } returns flowOf(emptyList())
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            journalRepository = journalRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = FakeAppTimeSource(now),
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.homeAnchor)
+    }
+
+    @Test
+    fun uiStateHomeAnchorUpdatesWhenPinnedDatesChange() = runTest {
+        val now = LocalDateTime.of(2026, 6, 16, 12, 0)
+        val pinnedDates = MutableStateFlow(emptyList<TrackedDate>())
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(now = now, source = HomeInputSource.ROOM)
+        )
+        every { journalRepository.observePinnedTrackedDates() } returns pinnedDates
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            journalRepository = journalRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = FakeAppTimeSource(now),
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.homeAnchor)
+
+        pinnedDates.value = listOf(
+            TrackedDate(
+                id = "voice-start",
+                name = "Voice training",
+                icon = AnchorIcon.SCHEDULE,
+                date = LocalDate.of(2026, 6, 1),
+                palette = MedicationGroupColorKey.TEAL,
+                pinnedOrder = 0,
+            )
+        )
+        advanceUntilIdle()
+
+        val anchor = viewModel.uiState.value.homeAnchor
+        assertEquals("voice-start", anchor?.id)
+        assertEquals("Voice training", anchor?.name)
+        assertEquals(15L, anchor?.dayMagnitude)
+        verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any(), any()) }
+    }
+
     // The intro animation is claimed atomically so that with two simultaneous
     // Home compositions exactly one plays the intro — the old file-level
     // static let the second instance read the pre-claim value but never
@@ -141,6 +260,7 @@ class MainViewModelTest {
         }
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -161,6 +281,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -213,6 +334,7 @@ class MainViewModelTest {
 
             val viewModel = MainViewModel(
                 homeRepository = homeRepository,
+                journalRepository = journalRepository,
                 settingsRepository = settingsRepository,
                 timeZoneChangeNoticeController = timeZoneChangeNoticeController,
                 appTimeSource = appTimeSource,
@@ -269,6 +391,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -301,6 +424,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -352,6 +476,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -376,6 +501,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -409,6 +535,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -432,6 +559,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -476,6 +604,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -538,6 +667,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -575,6 +705,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -618,6 +749,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -653,6 +785,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -687,6 +820,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = FakeAppTimeSource(now),
@@ -715,6 +849,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = FakeAppTimeSource(now),
@@ -743,6 +878,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = FakeAppTimeSource(now),
@@ -778,6 +914,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = FakeAppTimeSource(now),
@@ -816,6 +953,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = FakeAppTimeSource(now),
@@ -844,6 +982,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = FakeAppTimeSource(now),
@@ -877,6 +1016,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = FakeAppTimeSource(now),
@@ -910,6 +1050,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = FakeAppTimeSource(now),
@@ -941,6 +1082,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = FakeAppTimeSource(now),
@@ -974,6 +1116,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = FakeAppTimeSource(now),
@@ -1010,6 +1153,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = FakeAppTimeSource(now),
@@ -1071,6 +1215,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = FakeAppTimeSource(now),
@@ -1122,6 +1267,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = FakeAppTimeSource(now),
@@ -1152,6 +1298,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -1229,6 +1376,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
@@ -1287,6 +1435,7 @@ class MainViewModelTest {
 
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
+            journalRepository = journalRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,

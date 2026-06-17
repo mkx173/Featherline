@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.journal
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Icon
@@ -36,6 +38,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.Note
@@ -51,6 +54,7 @@ import java.time.format.TextStyle
 
 private const val TodayComposerTextFieldTestTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field-"
+internal const val SimpleHomeCardTestTag = "simple-home-card"
 
 @Composable
 fun MilestonesStackCard(
@@ -98,6 +102,65 @@ fun MilestonesStackCard(
                     dateLabel = dateFormatter(anchor.date),
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun SimpleHomeCard(
+    anchor: AnchorRowUiState,
+    today: LocalDate,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale, today) {
+        dateLabelFormatter(appLocale, today)
+    }
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(SimpleHomeCardTestTag)
+            .clickable(role = Role.Button, onClick = onClick),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(dimensionResource(R.dimen.padding_medium)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AnchorIconChip(anchor = anchor)
+            Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = anchor.name,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(
+                        R.string.journal_since_date,
+                        dateFormatter(anchor.date),
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+            Text(
+                text = anchor.dayCountLabel(),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_xsmall)))
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }
