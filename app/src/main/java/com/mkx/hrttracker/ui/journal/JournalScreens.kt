@@ -270,6 +270,7 @@ fun MilestonesScreenContent(
                     MilestonesHero(
                         hero = uiState.hero,
                         nextMilestoneLabel = uiState.heroNextMilestoneLabel,
+                        today = uiState.today,
                     )
                 }
 
@@ -281,6 +282,7 @@ fun MilestonesScreenContent(
                                 isEditMode = uiState.isEditMode,
                                 onReorder = onReorder,
                                 onSetPinned = onSetPinned,
+                                today = uiState.today,
                             )
                         }
                     }
@@ -296,6 +298,7 @@ fun MilestonesScreenContent(
                                 onSetPinned = onSetPinned,
                                 onUpdateDate = onUpdateDate,
                                 onDeleteDate = onDeleteDate,
+                                today = uiState.today,
                             )
                         }
                     }

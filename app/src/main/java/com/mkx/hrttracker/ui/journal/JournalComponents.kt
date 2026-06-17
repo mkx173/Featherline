@@ -9,12 +9,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -27,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -172,34 +176,265 @@ fun EmptyMilestonesCard(
 fun MilestonesHero(
     hero: AnchorRowUiState?,
     nextMilestoneLabel: String?,
+    today: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier,
 ) {
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale, today) {
+        dateLabelFormatter(appLocale, today)
+    }
+
     EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
         if (hero == null) {
             Text(
-                text = stringResource(R.string.journal_no_dates),
+                text = stringResource(R.string.journal_nothing_pinned),
                 style = MaterialTheme.typography.titleMedium,
             )
             return@EditorSegmentedListItem
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))) {
+        Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))) {
             Text(
                 text = hero.name,
                 style = MaterialTheme.typography.headlineSmall,
             )
             Text(
                 text = hero.dayCountLabel(),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.headlineMedium,
             )
-            if (nextMilestoneLabel != null) {
-                Text(
-                    text = nextMilestoneLabel,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+
+            Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))) {
+                MilestoneChip(
+                    text = stringResource(
+                        R.string.journal_since_date,
+                        dateFormatter(hero.date),
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (!hero.isFuture && nextMilestoneLabel != null) {
+                    MilestoneChip(
+                        text = nextMilestoneLabel,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MilestoneChip(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(
+                horizontal = dimensionResource(R.dimen.padding_small),
+                vertical = dimensionResource(R.dimen.padding_xsmall),
+            ),
+            style = MaterialTheme.typography.labelMedium,
+        )
+    }
+}
+
+@Composable
+private fun AnchorIconChip(
+    anchor: AnchorRowUiState,
+    modifier: Modifier = Modifier,
+) {
+    val colorScheme = rememberMedicationGroupColorScheme(colorKey = anchor.palette)
+
+    Surface(
+        modifier = modifier.size(40.dp),
+        shape = MaterialTheme.shapes.small,
+        color = colorScheme.primaryContainer,
+        contentColor = colorScheme.onPrimaryContainer,
+    ) {
+        Box(
+            modifier = Modifier.size(40.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(anchorIconRes(anchor.icon)),
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeroBadge(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+    ) {
+        Text(
+            text = stringResource(R.string.journal_hero_badge),
+            modifier = Modifier.padding(
+                horizontal = dimensionResource(R.dimen.padding_xsmall),
+                vertical = 2.dp,
+            ),
+            style = MaterialTheme.typography.labelSmall,
+        )
+    }
+}
+
+@Composable
+private fun AnchorSummaryText(
+    anchor: AnchorRowUiState,
+    today: LocalDate,
+    showDayCountInline: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale, today) {
+        dateLabelFormatter(appLocale, today)
+    }
+    val dateLabel = dateFormatter(anchor.date)
+    val supportingLabel = if (showDayCountInline) {
+        "$dateLabel · ${anchor.dayCountLabel()}"
+    } else {
+        dateLabel
+    }
+
+    Column(modifier = modifier) {
+        Text(
+            text = anchor.name,
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            text = supportingLabel,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private fun movedAnchorIds(
+    anchors: List<AnchorRowUiState>,
+    fromIndex: Int,
+    toIndex: Int,
+): List<String> {
+    if (fromIndex !in anchors.indices || toIndex !in anchors.indices) {
+        return anchors.map { it.id }
+    }
+    return anchors.toMutableList()
+        .apply { add(toIndex, removeAt(fromIndex)) }
+        .map { it.id }
+}
+
+@Composable
+private fun ReorderButton(
+    anchor: AnchorRowUiState,
+    enabled: Boolean,
+    isMoveUp: Boolean,
+    onClick: () -> Unit,
+) {
+    val contentDescription = stringResource(
+        if (isMoveUp) R.string.journal_move_anchor_up else R.string.journal_move_anchor_down,
+        anchor.name,
+    )
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(36.dp),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_arrow_downward),
+            contentDescription = contentDescription,
+            modifier = Modifier
+                .size(20.dp)
+                .then(if (isMoveUp) Modifier.rotate(180f) else Modifier),
+            tint = if (enabled) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.outline
+            },
+        )
+    }
+}
+
+@Composable
+private fun PinnedTrayRow(
+    anchor: AnchorRowUiState,
+    index: Int,
+    count: Int,
+    isEditMode: Boolean,
+    today: LocalDate,
+    onReorder: (List<String>) -> Unit,
+    onSetPinned: (String, Boolean) -> Unit,
+    anchors: List<AnchorRowUiState>,
+) {
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        modifier = Modifier.fillMaxWidth(),
+        leadingContent = { AnchorIconChip(anchor = anchor) },
+        trailingContent = {
+            if (isEditMode) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_drag_indicator),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    ReorderButton(
+                        anchor = anchor,
+                        enabled = index > 0,
+                        isMoveUp = true,
+                        onClick = { onReorder(movedAnchorIds(anchors, index, index - 1)) },
+                    )
+                    ReorderButton(
+                        anchor = anchor,
+                        enabled = index < anchors.lastIndex,
+                        isMoveUp = false,
+                        onClick = { onReorder(movedAnchorIds(anchors, index, index + 1)) },
+                    )
+                    IconButton(
+                        onClick = { onSetPinned(anchor.id, false) },
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_close),
+                            contentDescription = stringResource(
+                                R.string.journal_unpin_anchor,
+                                anchor.name,
+                            ),
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
                 )
             }
+        },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))) {
+            if (index == 0) {
+                HeroBadge()
+            }
+            AnchorSummaryText(
+                anchor = anchor,
+                today = today,
+                showDayCountInline = true,
+            )
         }
     }
 }
@@ -210,22 +445,35 @@ fun PinnedTray(
     isEditMode: Boolean,
     onReorder: (List<String>) -> Unit,
     onSetPinned: (String, Boolean) -> Unit,
+    today: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier,
 ) {
-    EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
-        if (anchors.isEmpty()) {
+    if (anchors.isEmpty()) {
+        EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
             Text(
                 text = stringResource(R.string.journal_nothing_pinned),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            return@EditorSegmentedListItem
         }
+        return
+    }
 
-        Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))) {
-            anchors.forEach { anchor ->
-                MilestonesBasicAnchorText(anchor = anchor)
-            }
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
+    ) {
+        anchors.forEachIndexed { index, anchor ->
+            PinnedTrayRow(
+                anchor = anchor,
+                index = index,
+                count = anchors.size,
+                isEditMode = isEditMode,
+                today = today,
+                onReorder = onReorder,
+                onSetPinned = onSetPinned,
+                anchors = anchors,
+            )
         }
     }
 }
@@ -238,47 +486,155 @@ fun MilestonesTimeline(
     onSetPinned: (String, Boolean) -> Unit,
     onUpdateDate: (AnchorRowUiState) -> Unit,
     onDeleteDate: (String) -> Unit,
+    today: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier,
 ) {
-    EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
-        if (nodes.isEmpty()) {
+    if (nodes.isEmpty()) {
+        EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
             Text(
                 text = stringResource(R.string.journal_no_dates),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            return@EditorSegmentedListItem
         }
+        return
+    }
 
-        Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))) {
-            nodes.forEachIndexed { index, node ->
-                if (index == todayDividerIndex) {
-                    Text(
-                        text = stringResource(R.string.journal_today),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                MilestonesBasicAnchorText(anchor = node.anchor)
+    val dividerIndex = todayDividerIndex.coerceIn(0, nodes.size)
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
+    ) {
+        nodes.forEachIndexed { index, node ->
+            if (index == dividerIndex) {
+                TodayDivider(today = today)
             }
+            TimelineAnchorRow(
+                node = node,
+                index = index,
+                count = nodes.size,
+                isEditMode = isEditMode,
+                today = today,
+                onSetPinned = onSetPinned,
+                onUpdateDate = onUpdateDate,
+            )
+        }
+        if (dividerIndex == nodes.size) {
+            TodayDivider(today = today)
         }
     }
 }
 
 @Composable
-private fun MilestonesBasicAnchorText(
-    anchor: AnchorRowUiState,
+private fun TimelineAnchorRow(
+    node: TimelineNodeUiState,
+    index: Int,
+    count: Int,
+    isEditMode: Boolean,
+    today: LocalDate,
+    onSetPinned: (String, Boolean) -> Unit,
+    onUpdateDate: (AnchorRowUiState) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = anchor.name,
-            style = MaterialTheme.typography.titleMedium,
+    val anchor = node.anchor
+
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        modifier = modifier.fillMaxWidth(),
+        onClick = if (isEditMode) {
+            { onUpdateDate(anchor) }
+        } else {
+            null
+        },
+        leadingContent = { AnchorIconChip(anchor = anchor) },
+        trailingContent = {
+            if (isEditMode) {
+                PinToggle(
+                    checked = node.isPinned,
+                    onCheckedChange = { onSetPinned(anchor.id, it) },
+                )
+            } else {
+                Text(
+                    text = anchor.dayCountLabel(),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+    ) {
+        AnchorSummaryText(
+            anchor = anchor,
+            today = today,
+            showDayCountInline = isEditMode,
         )
+    }
+}
+
+@Composable
+private fun TodayDivider(
+    today: LocalDate,
+    modifier: Modifier = Modifier,
+) {
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale, today) {
+        dateLabelFormatter(appLocale, today)
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = dimensionResource(R.dimen.padding_small)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .height(1.dp)
+                .weight(1f)
+                .background(MaterialTheme.colorScheme.outlineVariant),
+        )
+        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
         Text(
-            text = anchor.dayCountLabel(),
-            style = MaterialTheme.typography.bodyMedium,
+            text = stringResource(R.string.journal_today).uppercase(appLocale),
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_xsmall)))
+        Text(
+            text = dateFormatter(today),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+        Box(
+            modifier = Modifier
+                .height(1.dp)
+                .weight(1f)
+                .background(MaterialTheme.colorScheme.outlineVariant),
+        )
+    }
+}
+
+@Composable
+private fun PinToggle(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    IconToggleButton(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier.size(36.dp),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_push_pin),
+            contentDescription = stringResource(R.string.journal_pin_to_home_content_description),
+            modifier = Modifier.size(20.dp),
+            tint = if (checked) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
         )
     }
 }

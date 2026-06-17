@@ -209,6 +209,12 @@
     <string name="journal_all_notes">All notes</string>
     <string name="journal_edit">Edit</string>
     <string name="journal_done">Done</string>
+    <string name="journal_hero_badge">HERO</string>
+    <string name="journal_since_date">Since %1$s</string>
+    <string name="journal_unpin_anchor">Unpin %1$s</string>
+    <string name="journal_move_anchor_up">Move up %1$s</string>
+    <string name="journal_move_anchor_down">Move down %1$s</string>
+    <string name="journal_pin_to_home_content_description">Pin to Home</string>
     <plurals name="journal_milestone_days_past">
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>

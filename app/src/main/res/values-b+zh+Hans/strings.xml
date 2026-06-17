@@ -201,6 +201,12 @@
     <string name="journal_all_notes">全部笔记</string>
     <string name="journal_edit">编辑</string>
     <string name="journal_done">完成</string>
+    <string name="journal_hero_badge">主项</string>
+    <string name="journal_since_date">始于 %1$s</string>
+    <string name="journal_unpin_anchor">取消固定 %1$s</string>
+    <string name="journal_move_anchor_up">上移 %1$s</string>
+    <string name="journal_move_anchor_down">下移 %1$s</string>
+    <string name="journal_pin_to_home_content_description">固定到主页</string>
     <plurals name="journal_milestone_days_past">
         <item quantity="other">%1$d 天</item>
     </plurals>
