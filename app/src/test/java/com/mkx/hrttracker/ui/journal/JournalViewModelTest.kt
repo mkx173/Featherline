@@ -200,6 +200,33 @@ class JournalViewModelTest {
         coVerify(exactly = 1) { repository.saveNoteForDate(noteDate, "older note") }
     }
 
+    @Test
+    fun deleteTodayNote_usesCurrentLocalDateAfterRollover() = runTest {
+        stubEmptyObservers()
+        val tomorrow = LocalDate.of(2026, 6, 17)
+        coEvery { repository.deleteNoteForDate(tomorrow) } returns Unit
+        val viewModel = JournalViewModel(repository, appTimeSource)
+        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 6, 17, 0, 0))
+
+        viewModel.deleteTodayNote()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.deleteNoteForDate(tomorrow) }
+    }
+
+    @Test
+    fun deleteNote_usesExplicitDate() = runTest {
+        val noteDate = LocalDate.of(2026, 6, 1)
+        stubEmptyObservers()
+        coEvery { repository.deleteNoteForDate(noteDate) } returns Unit
+        val viewModel = JournalViewModel(repository, appTimeSource)
+
+        viewModel.deleteNote(noteDate)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.deleteNoteForDate(noteDate) }
+    }
+
     private fun stubEmptyObservers() {
         every { repository.observeTrackedDates() } returns flowOf(emptyList())
         every { repository.observePinnedTrackedDates() } returns flowOf(emptyList())

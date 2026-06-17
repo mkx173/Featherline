@@ -3,6 +3,8 @@ package com.mkx.hrttracker.ui.journal
 import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.util.FakeAppTimeSource
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +70,19 @@ class AllNotesViewModelTest {
         )
         assertEquals(listOf("June 15", "June 1"), state.monthGroups[0].notes.map { it.text })
         assertEquals(listOf("May 20", "May 2"), state.monthGroups[1].notes.map { it.text })
+    }
+
+    @Test
+    fun deleteNote_usesExplicitDate() = runTest {
+        val noteDate = LocalDate.of(2026, 6, 1)
+        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(emptyList())
+        coEvery { repository.deleteNoteForDate(noteDate) } returns Unit
+        val viewModel = AllNotesViewModel(repository, appTimeSource)
+
+        viewModel.deleteNote(noteDate)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.deleteNoteForDate(noteDate) }
     }
 
     private fun note(

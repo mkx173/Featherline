@@ -12,6 +12,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.monthHeaderFormatter
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -51,6 +52,7 @@ class AllNotesScreenTest {
                     ),
                     onNavigateBack = { navigatedBack = true },
                     onSaveNote = { _, _ -> },
+                    onDeleteNote = { },
                     today = LocalDate.of(2026, 6, 16),
                 )
             }
@@ -88,6 +90,49 @@ class AllNotesScreenTest {
             .performClick()
         composeRule.runOnIdle {
             assertTrue(navigatedBack)
+        }
+    }
+
+    @Test
+    fun timelineRow_deleteRequiresConfirmation() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val deletedDates = mutableListOf<LocalDate>()
+        val noteDate = LocalDate.of(2026, 6, 15)
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                AllNotesScreenContent(
+                    uiState = AllNotesUiState(
+                        isLoading = false,
+                        monthGroups = listOf(
+                            MonthGroupUiState(
+                                month = YearMonth.of(2026, 6),
+                                notes = listOf(note("june-15", noteDate, "June note")),
+                            )
+                        ),
+                    ),
+                    onNavigateBack = { },
+                    onSaveNote = { _, _ -> },
+                    onDeleteNote = { deletedDates += it },
+                    today = LocalDate.of(2026, 6, 16),
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("June note").performClick()
+        composeRule.onNodeWithText(context.getString(R.string.journal_delete_note))
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.onNodeWithText(context.getString(R.string.journal_delete_note_title))
+            .assertIsDisplayed()
+        composeRule.runOnIdle {
+            assertTrue(deletedDates.isEmpty())
+        }
+
+        composeRule.onNodeWithText(context.getString(R.string.delete_entries_confirm))
+            .performClick()
+        composeRule.runOnIdle {
+            assertEquals(listOf(noteDate), deletedDates)
         }
     }
 

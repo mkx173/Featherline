@@ -50,4 +50,8 @@ class AllNotesViewModel @Inject constructor(
     fun saveNote(date: LocalDate, text: String) = viewModelScope.launch {
         journalRepository.saveNoteForDate(date, text)
     }
+
+    fun deleteNote(date: LocalDate) = viewModelScope.launch {
+        journalRepository.deleteNoteForDate(date)
+    }
 }

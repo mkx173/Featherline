@@ -189,6 +189,9 @@
     <string name="journal_notes_window_meta">最近 30 天</string>
     <string name="journal_no_notes">还没有笔记</string>
     <string name="journal_all_notes_empty">保存的每日笔记会显示在这里。</string>
+    <string name="journal_delete_note">删除笔记</string>
+    <string name="journal_delete_note_title">要删除笔记吗？</string>
+    <string name="journal_delete_note_confirmation">这会删除这一天的笔记。</string>
     <string name="journal_since_you_started">自开始以来</string>
     <string name="journal_no_dates">还没有日期</string>
     <string name="journal_add_date">添加日期</string>

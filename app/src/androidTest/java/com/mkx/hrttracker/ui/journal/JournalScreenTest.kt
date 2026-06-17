@@ -348,6 +348,53 @@ class JournalScreenTest {
     }
 
     @Test
+    fun todaySavedNote_deleteRequiresConfirmation() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        val todayNote = Note(
+            id = "june-16",
+            date = today,
+            text = "Existing note",
+        )
+        val deletedDates = mutableListOf<LocalDate>()
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = today,
+                        todayNote = todayNote,
+                        recentNotes = listOf(todayNote),
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = {},
+                    onSaveNote = { _, _ -> },
+                    onDeleteTodayNote = { deletedDates += today },
+                    onDeleteNote = { deletedDates += it },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Existing note").performClick()
+        composeRule.onNodeWithText(context.getString(R.string.journal_delete_note))
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.onNodeWithText(context.getString(R.string.journal_delete_note_title))
+            .assertIsDisplayed()
+        composeRule.runOnIdle {
+            assertTrue(deletedDates.isEmpty())
+        }
+
+        composeRule.onNodeWithText(context.getString(R.string.delete_entries_confirm))
+            .performClick()
+        composeRule.runOnIdle {
+            assertEquals(listOf(today), deletedDates)
+        }
+    }
+
+    @Test
     fun todayPromptAndTimelineRows_doNotSaveBeforeSaveAction() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         var todayNoteSaved = false

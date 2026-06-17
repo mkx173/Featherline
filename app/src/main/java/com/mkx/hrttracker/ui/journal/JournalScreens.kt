@@ -63,6 +63,8 @@ fun JournalScreen(
         onOpenAllNotes = onOpenAllNotes,
         onSaveTodayNote = viewModel::saveTodayNote,
         onSaveNote = viewModel::saveNote,
+        onDeleteTodayNote = viewModel::deleteTodayNote,
+        onDeleteNote = viewModel::deleteNote,
         modifier = modifier,
     )
 }
@@ -75,6 +77,8 @@ fun JournalScreenContent(
     onOpenAllNotes: () -> Unit,
     onSaveTodayNote: (String) -> Unit,
     onSaveNote: (LocalDate, String) -> Unit,
+    onDeleteTodayNote: () -> Unit = { },
+    onDeleteNote: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -148,6 +152,7 @@ fun JournalScreenContent(
                             today = uiState.today,
                             note = uiState.todayNote,
                             onSave = onSaveTodayNote,
+                            onDelete = onDeleteTodayNote,
                         )
                     }
                     if (timelineNotes.isEmpty()) {
@@ -160,6 +165,7 @@ fun JournalScreenContent(
                                 NoteTimelineRow(
                                     note = note,
                                     onSave = onSaveNote,
+                                    onDelete = onDeleteNote,
                                     today = uiState.today,
                                 )
                             }
@@ -372,6 +378,7 @@ fun AllNotesScreen(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
         onSaveNote = viewModel::saveNote,
+        onDeleteNote = viewModel::deleteNote,
         today = uiState.today,
         modifier = modifier,
     )
@@ -383,6 +390,7 @@ fun AllNotesScreenContent(
     uiState: AllNotesUiState,
     onNavigateBack: () -> Unit,
     onSaveNote: (LocalDate, String) -> Unit,
+    onDeleteNote: (LocalDate) -> Unit = { },
     today: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier,
 ) {
@@ -450,6 +458,7 @@ fun AllNotesScreenContent(
                                             note = note,
                                             today = today,
                                             onSave = onSaveNote,
+                                            onDelete = onDeleteNote,
                                         )
                                     }
                                 }

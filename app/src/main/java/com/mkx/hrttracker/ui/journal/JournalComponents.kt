@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +45,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -752,6 +754,7 @@ fun TodayComposer(
     today: LocalDate,
     note: Note?,
     onSave: (String) -> Unit,
+    onDelete: () -> Unit = { },
     modifier: Modifier = Modifier,
 ) {
     var isEditing by rememberSaveable(today.toString(), note?.id, note?.text) {
@@ -759,6 +762,9 @@ fun TodayComposer(
     }
     var draftText by rememberSaveable(today.toString(), note?.id, note?.text) {
         mutableStateOf(note?.text.orEmpty())
+    }
+    var isDeleteConfirmationVisible by rememberSaveable(today.toString(), note?.id) {
+        mutableStateOf(false)
     }
     val currentText = note?.text.orEmpty()
 
@@ -778,8 +784,23 @@ fun TodayComposer(
                     isEditing = false
                 }
             },
+            onDelete = note?.let {
+                {
+                    isDeleteConfirmationVisible = true
+                }
+            },
             modifier = modifier,
         )
+        if (isDeleteConfirmationVisible) {
+            NoteDeleteConfirmationDialog(
+                onDismissRequest = { isDeleteConfirmationVisible = false },
+                onConfirm = {
+                    isDeleteConfirmationVisible = false
+                    isEditing = false
+                    onDelete()
+                },
+            )
+        }
         return
     }
 
@@ -801,6 +822,7 @@ private fun TodayComposerEditor(
     onTextChange: (String) -> Unit,
     onCancel: () -> Unit,
     onSave: () -> Unit,
+    onDelete: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val canSave = text.isNotBlank()
@@ -837,20 +859,32 @@ private fun TodayComposerEditor(
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                HrtOutlinedButton(
-                    text = stringResource(R.string.cancel),
-                    onClick = onCancel,
-                    compact = true,
-                )
-                Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-                HrtButton(
-                    text = stringResource(R.string.save),
-                    onClick = onSave,
-                    enabled = canSave,
-                    compact = true,
-                )
+                if (onDelete != null) {
+                    HrtOutlinedButton(
+                        text = stringResource(R.string.journal_delete_note),
+                        onClick = onDelete,
+                        compact = true,
+                    )
+                } else {
+                    Spacer(modifier = Modifier.width(1.dp))
+                }
+                Row {
+                    HrtOutlinedButton(
+                        text = stringResource(R.string.cancel),
+                        onClick = onCancel,
+                        compact = true,
+                    )
+                    Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+                    HrtButton(
+                        text = stringResource(R.string.save),
+                        onClick = onSave,
+                        enabled = canSave,
+                        compact = true,
+                    )
+                }
             }
         }
     }
@@ -861,6 +895,7 @@ fun NotesTimeline(
     notes: List<Note>,
     today: LocalDate,
     onSave: (LocalDate, String) -> Unit,
+    onDelete: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
@@ -871,6 +906,7 @@ fun NotesTimeline(
                 NoteTimelineRow(
                     note = note,
                     onSave = onSave,
+                    onDelete = onDelete,
                     today = today,
                 )
             }
@@ -882,6 +918,7 @@ fun NotesTimeline(
 fun NoteTimelineRow(
     note: Note,
     onSave: (LocalDate, String) -> Unit,
+    onDelete: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
 ) {
@@ -890,6 +927,9 @@ fun NoteTimelineRow(
     }
     var draftText by rememberSaveable(note.id, note.date.toString(), note.text) {
         mutableStateOf(note.text)
+    }
+    var isDeleteConfirmationVisible by rememberSaveable(note.id, note.date.toString()) {
+        mutableStateOf(false)
     }
     val dateLabel = noteTimelineDateLabel(note.date, today)
 
@@ -910,8 +950,21 @@ fun NoteTimelineRow(
                     isEditing = false
                 }
             },
+            onDelete = {
+                isDeleteConfirmationVisible = true
+            },
             modifier = modifier,
         )
+        if (isDeleteConfirmationVisible) {
+            NoteDeleteConfirmationDialog(
+                onDismissRequest = { isDeleteConfirmationVisible = false },
+                onConfirm = {
+                    isDeleteConfirmationVisible = false
+                    isEditing = false
+                    onDelete(note.date)
+                },
+            )
+        }
         return
     }
 
@@ -938,6 +991,7 @@ private fun NoteTimelineRowEditor(
     onTextChange: (String) -> Unit,
     onCancel: () -> Unit,
     onSave: () -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val trimmedText = text.trim()
@@ -966,24 +1020,57 @@ private fun NoteTimelineRowEditor(
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     HrtOutlinedButton(
-                        text = stringResource(R.string.cancel),
-                        onClick = onCancel,
+                        text = stringResource(R.string.journal_delete_note),
+                        onClick = onDelete,
                         compact = true,
                     )
-                    Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-                    HrtButton(
-                        text = stringResource(R.string.save),
-                        onClick = onSave,
-                        enabled = canSave,
-                        compact = true,
-                    )
+                    Row {
+                        HrtOutlinedButton(
+                            text = stringResource(R.string.cancel),
+                            onClick = onCancel,
+                            compact = true,
+                        )
+                        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+                        HrtButton(
+                            text = stringResource(R.string.save),
+                            onClick = onSave,
+                            enabled = canSave,
+                            compact = true,
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun NoteDeleteConfirmationDialog(
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    HazeAlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text(text = stringResource(R.string.journal_delete_note_title)) },
+        text = { Text(text = stringResource(R.string.journal_delete_note_confirmation)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(
+                    text = stringResource(R.string.delete_entries_confirm),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(text = stringResource(R.string.cancel))
+            }
+        },
+    )
 }
 
 @Composable
