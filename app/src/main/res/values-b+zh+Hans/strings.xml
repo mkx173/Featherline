@@ -224,6 +224,8 @@
     <string name="journal_date_palette_section">颜色</string>
     <string name="journal_date_palette_none">无颜色</string>
     <string name="journal_delete_date">删除日期</string>
+    <string name="journal_delete_date_title">要删除日期吗？</string>
+    <string name="journal_delete_date_confirmation">这会从日记中删除这个跟踪日期。</string>
     <plurals name="journal_milestone_label_days">
         <item quantity="other">%1$d 天</item>
     </plurals>

@@ -233,6 +233,8 @@
     <string name="journal_date_palette_section">Color</string>
     <string name="journal_date_palette_none">No color</string>
     <string name="journal_delete_date">Delete date</string>
+    <string name="journal_delete_date_title">Delete date?</string>
+    <string name="journal_delete_date_confirmation">This removes this tracked date from Journal.</string>
     <plurals name="journal_milestone_label_days">
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>

@@ -68,7 +68,7 @@ class AddDateSheetTest {
     }
 
     @Test
-    fun content_prefillsEditValuesAndDeleteCallsCallback() {
+    fun content_prefillsEditValuesAndDeleteRequiresConfirmation() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val selectedDate = LocalDate.of(2024, 4, 1)
         var deleted = false
@@ -97,6 +97,13 @@ class AddDateSheetTest {
         composeRule.onNodeWithText(MedicationGroupColorKey.ROSE.name).assertIsDisplayed()
 
         composeRule.onNodeWithText(context.getString(R.string.journal_delete_date))
+            .performClick()
+        composeRule.onNodeWithText(context.getString(R.string.journal_delete_date_title))
+            .assertIsDisplayed()
+        composeRule.runOnIdle {
+            assertTrue(!deleted)
+        }
+        composeRule.onNodeWithText(context.getString(R.string.delete_entries_confirm))
             .performClick()
         composeRule.runOnIdle {
             assertTrue(deleted)

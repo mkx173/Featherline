@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,6 +40,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -118,6 +120,7 @@ fun AddDateSheetContent(
     var selectedDate by remember(initialDate) { mutableStateOf(initialDate) }
     var selectedPalette by remember(initialPalette) { mutableStateOf(initialPalette) }
     var isDatePickerVisible by remember { mutableStateOf(false) }
+    var isDeleteConfirmationVisible by remember { mutableStateOf(false) }
     val trimmedName = name.trim()
     val canConfirm = trimmedName.isNotEmpty() && selectedDate != null
 
@@ -126,6 +129,32 @@ fun AddDateSheetContent(
             onDateSelected = { selectedDate = it },
             onDismiss = { isDatePickerVisible = false },
             initialSelectedDate = selectedDate ?: today,
+        )
+    }
+
+    if (isDeleteConfirmationVisible && onDelete != null) {
+        HazeAlertDialog(
+            onDismissRequest = { isDeleteConfirmationVisible = false },
+            title = { Text(text = stringResource(R.string.journal_delete_date_title)) },
+            text = { Text(text = stringResource(R.string.journal_delete_date_confirmation)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        isDeleteConfirmationVisible = false
+                        onDelete()
+                    },
+                ) {
+                    Text(
+                        text = stringResource(R.string.delete_entries_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isDeleteConfirmationVisible = false }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
         )
     }
 
@@ -185,7 +214,7 @@ fun AddDateSheetContent(
         if (onDelete != null) {
             HrtFilledTonalButton(
                 text = stringResource(R.string.journal_delete_date),
-                onClick = onDelete,
+                onClick = { isDeleteConfirmationVisible = true },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
