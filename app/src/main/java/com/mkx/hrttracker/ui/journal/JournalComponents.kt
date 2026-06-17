@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
@@ -609,7 +610,7 @@ private fun PinnedTrayEdit(
                         modifier = Modifier.size(36.dp),
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_close),
+                            imageVector = Icons.Rounded.Close,
                             contentDescription = stringResource(
                                 R.string.journal_unpin_anchor,
                                 anchor.name,
@@ -761,7 +762,7 @@ private fun TimelineAnchorRow(
                 nameGlyph = if (!isEditMode && node.isPinned) {
                     {
                         Icon(
-                            painter = painterResource(R.drawable.ic_push_pin),
+                            painter = painterResource(R.drawable.ic_keep),
                             contentDescription = null,
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.primary,
@@ -893,7 +894,7 @@ private fun PinToggle(
     ) {
         IconToggleButton(checked = checked, onCheckedChange = onCheckedChange) {
             Icon(
-                painter = painterResource(R.drawable.ic_push_pin),
+                painter = painterResource(R.drawable.ic_keep),
                 contentDescription = stringResource(R.string.journal_pin_to_home_content_description),
                 modifier = Modifier.size(20.dp),
                 tint = if (checked) {
