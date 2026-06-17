@@ -231,7 +231,6 @@ fun MilestonesScreen(
         onReorder = viewModel::reorderPinned,
         onAddDate = { isAddDateSheetOpen = true },
         onUpdateDate = { anchor -> editingAnchor = anchor },
-        onDeleteDate = viewModel::deleteDate,
         modifier = modifier,
     )
 
@@ -275,7 +274,6 @@ fun MilestonesScreenContent(
     onReorder: (List<String>) -> Unit,
     onAddDate: () -> Unit,
     onUpdateDate: (AnchorRowUiState) -> Unit,
-    onDeleteDate: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -359,7 +357,6 @@ fun MilestonesScreenContent(
                                 isEditMode = uiState.isEditMode,
                                 onSetPinned = onSetPinned,
                                 onUpdateDate = onUpdateDate,
-                                onDeleteDate = onDeleteDate,
                                 today = uiState.today,
                             )
                         }

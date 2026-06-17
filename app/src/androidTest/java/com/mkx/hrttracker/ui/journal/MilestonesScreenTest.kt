@@ -156,7 +156,6 @@ class MilestonesScreenTest {
                     isEditMode = false,
                     onSetPinned = { _, _ -> },
                     onUpdateDate = { },
-                    onDeleteDate = { },
                     today = today,
                 )
             }
@@ -207,7 +206,6 @@ class MilestonesScreenTest {
                     isEditMode = true,
                     onSetPinned = { id, pinned -> pinRequest = id to pinned },
                     onUpdateDate = { },
-                    onDeleteDate = { },
                     today = today,
                 )
             }
@@ -240,7 +238,6 @@ class MilestonesScreenTest {
                     onReorder = { },
                     onAddDate = { addRequests += 1 },
                     onUpdateDate = { },
-                    onDeleteDate = { },
                 )
             }
         }

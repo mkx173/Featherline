@@ -595,7 +595,6 @@ fun MilestonesTimeline(
     isEditMode: Boolean,
     onSetPinned: (String, Boolean) -> Unit,
     onUpdateDate: (AnchorRowUiState) -> Unit,
-    onDeleteDate: (String) -> Unit,
     today: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier,
 ) {
