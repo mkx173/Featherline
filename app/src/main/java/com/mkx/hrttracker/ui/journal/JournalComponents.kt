@@ -400,25 +400,6 @@ private fun AnchorIconChip(
 }
 
 @Composable
-private fun HeroBadge(modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.tertiaryContainer,
-        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-    ) {
-        Text(
-            text = stringResource(R.string.journal_hero_badge),
-            modifier = Modifier.padding(
-                horizontal = dimensionResource(R.dimen.padding_xsmall),
-                vertical = 2.dp,
-            ),
-            style = MaterialTheme.typography.labelSmall,
-        )
-    }
-}
-
-@Composable
 private fun AnchorSummaryText(
     anchor: AnchorRowUiState,
     today: LocalDate,
@@ -555,16 +536,11 @@ private fun PinnedTrayRow(
             }
         },
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))) {
-            if (index == 0) {
-                HeroBadge()
-            }
-            AnchorSummaryText(
-                anchor = anchor,
-                today = today,
-                showDayCountInline = true,
-            )
-        }
+        AnchorSummaryText(
+            anchor = anchor,
+            today = today,
+            showDayCountInline = true,
+        )
     }
 }
 
@@ -578,6 +554,9 @@ fun PinnedTray(
     modifier: Modifier = Modifier,
 ) {
     if (anchors.isEmpty()) {
+        if (!isEditMode) {
+            return
+        }
         EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
             Text(
                 text = stringResource(R.string.journal_nothing_pinned),

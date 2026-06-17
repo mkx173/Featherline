@@ -120,12 +120,37 @@ class MilestonesScreenTest {
                 )
             }
         }
-        // "On estradiol" appears in the hero, pinned tray, and timeline (3x) for
-        // this fixture, so scope the name check by count rather than a single node.
-        composeRule.onAllNodesWithText("On estradiol").assertCountEquals(3)
+        // In view mode the hero is lifted out of the pinned tray, so "On estradiol"
+        // appears in the hero card + its timeline row (2x), not the tray. Scope the
+        // name check by count rather than a single node.
+        composeRule.onAllNodesWithText("On estradiol").assertCountEquals(2)
         composeRule.onNodeWithText("807").assertIsDisplayed()        // 60px numeral
         composeRule.onNodeWithText(sinceLabel).assertExists()
         composeRule.onNodeWithText(nextMilestoneLabel).assertExists()
+    }
+
+    @Test
+    fun viewMode_showsHeroOnceAndRestInTray() {
+        composeRule.setContent {
+            HrtTrackerTheme {
+                MilestonesScreenContent(
+                    uiState = milestonesUiStateFixture(),
+                    onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
+                    onReorder = {}, onAddDate = {}, onUpdateDate = {},
+                )
+            }
+        }
+        // The hero (pinnedTray[0]) is lifted OUT of the Pinned tray in view mode, so
+        // "On estradiol" no longer renders a pinned-tray row. The timeline always
+        // renders every anchor, so the hero name still appears twice: the hero card
+        // + its timeline row (2x, down from 3x before this task).
+        composeRule.onAllNodesWithText("On estradiol").assertCountEquals(2)
+        // The remaining non-hero pin IS shown in the Pinned tray. Like every anchor
+        // it also renders a timeline row, so a pinned non-hero appears twice (tray +
+        // timeline), while a non-pinned anchor ("Surgery") appears only once (timeline).
+        // That tray-2-vs-1 contrast is what this task's split produces.
+        composeRule.onAllNodesWithText("First injection").assertCountEquals(2)
+        composeRule.onAllNodesWithText("Surgery").assertCountEquals(1)
     }
 
     @Test
@@ -146,8 +171,8 @@ class MilestonesScreenTest {
             }
         }
 
-        composeRule.onNodeWithText(context.getString(R.string.journal_hero_badge))
-            .assertIsDisplayed()
+        // The HeroBadge is removed in this task (Task 4) and reinstated for edit mode
+        // in Task 5; until then the tray renders no badge, so don't assert it here.
         val estradiolTop = composeRule.onNodeWithText("On estradiol", useUnmergedTree = true)
             .fetchSemanticsNode()
             .boundsInRoot
@@ -284,8 +309,11 @@ class MilestonesScreenTest {
         val addDate = context.getString(R.string.journal_add_date)
 
         composeRule.onNodeWithText(title).assertIsDisplayed()
-        composeRule.onAllNodesWithText("On estradiol").assertCountEquals(3)
-        composeRule.onNodeWithText("Surgery").assertIsDisplayed()
+        // View mode lifts the hero out of the tray: "On estradiol" is the hero card +
+        // its timeline row (2x). "Surgery" is the remaining non-hero pin, so it shows
+        // in the tray + timeline (2x).
+        composeRule.onAllNodesWithText("On estradiol").assertCountEquals(2)
+        composeRule.onAllNodesWithText("Surgery").assertCountEquals(2)
         composeRule.onNodeWithText(pinned).assertIsDisplayed()
         composeRule.onNodeWithText(timeline).assertIsDisplayed()
         composeRule.onNodeWithText(addDate).assertIsDisplayed()
@@ -341,10 +369,12 @@ class MilestonesScreenTest {
                 value = 1000,
                 unit = MilestoneUnit.DAYS,
             ),
-            pinnedTray = listOf(estradiol),
+            // Two pins (hero + a non-hero) so the Pinned section stays visible in
+            // view mode, where the hero is lifted out and the tray shows the rest.
+            pinnedTray = listOf(estradiol, surgery),
             timeline = listOf(
                 TimelineNodeUiState(anchor = estradiol, isPinned = true),
-                TimelineNodeUiState(anchor = surgery, isPinned = false),
+                TimelineNodeUiState(anchor = surgery, isPinned = true),
             ),
             todayDividerIndex = 1,
             isEditMode = isEditMode,

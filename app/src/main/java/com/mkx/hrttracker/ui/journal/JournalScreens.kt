@@ -338,7 +338,11 @@ fun MilestonesScreenContent(
                     HrtSection(title = stringResource(R.string.journal_pinned_section)) {
                         item {
                             PinnedTray(
-                                anchors = uiState.pinnedTray,
+                                anchors = if (uiState.isEditMode) {
+                                    uiState.pinnedTray
+                                } else {
+                                    uiState.pinnedTray.drop(1)
+                                },
                                 isEditMode = uiState.isEditMode,
                                 onReorder = onReorder,
                                 onSetPinned = onSetPinned,
