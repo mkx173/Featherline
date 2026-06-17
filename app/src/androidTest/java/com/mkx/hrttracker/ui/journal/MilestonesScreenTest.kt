@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -273,6 +274,59 @@ class MilestonesScreenTest {
             .top
         assertTrue(estradiolTop < todayTop)
         assertTrue(todayTop < surgeryTop)
+    }
+
+    @Test
+    fun timeline_showsCountsAndTodayLabel() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 17)
+        val todayAnchor = AnchorRowUiState(
+            id = "t",
+            name = "Blood test",
+            icon = AnchorIcon.BLOODTYPE,
+            palette = MedicationGroupColorKey.TEAL,
+            date = today,
+            dayMagnitude = 0,
+            isFuture = false,
+        )
+        val base = milestonesUiStateFixture()
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                MilestonesScreenContent(
+                    uiState = base.copy(
+                        timeline = base.timeline + TimelineNodeUiState(todayAnchor, isPinned = false),
+                    ),
+                    onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
+                    onReorder = {}, onAddDate = {}, onUpdateDate = {},
+                )
+            }
+        }
+
+        // Both labels are localized: "807 days" from the past-days plural and
+        // "Today" from journal_today. Derive them from resources so the
+        // assertions hold on the zh emulator. The past count appears only in
+        // the timeline row (the hero renders 807 + its unit word separately).
+        val pastCountLabel = context.resources.getQuantityString(
+            R.plurals.journal_milestone_days_past,
+            807,
+            807,
+        )
+        composeRule.onNodeWithText(pastCountLabel).assertExists()
+
+        // The today-dated anchor's count must read "Today", not the zero-day
+        // past plural. That zero label is the real RED here: before the change
+        // the row renders journal_milestone_days_past(0) ("0 days"); after, it
+        // renders journal_today. The TodayDivider also shows journal_today
+        // (uppercased), so assert the "Today" count appears (>= 1) AND the
+        // zero-past label is gone.
+        val zeroPastLabel = context.resources.getQuantityString(
+            R.plurals.journal_milestone_days_past,
+            0,
+            0,
+        )
+        val todayLabel = context.getString(R.string.journal_today)
+        composeRule.onAllNodesWithText(zeroPastLabel).assertCountEquals(0)
+        composeRule.onAllNodesWithText(todayLabel).onFirst().assertExists()
     }
 
     @Test

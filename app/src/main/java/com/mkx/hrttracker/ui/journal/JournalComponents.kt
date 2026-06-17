@@ -2,12 +2,14 @@ package com.mkx.hrttracker.ui.journal
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -415,6 +417,7 @@ private fun AnchorSummaryText(
     today: LocalDate,
     showDayCountInline: Boolean,
     modifier: Modifier = Modifier,
+    nameGlyph: (@Composable () -> Unit)? = null,
 ) {
     val appLocale = rememberAppLocale()
     val dateFormatter = remember(appLocale, today) {
@@ -428,10 +431,16 @@ private fun AnchorSummaryText(
     }
 
     Column(modifier = modifier) {
-        Text(
-            text = anchor.name,
-            style = MaterialTheme.typography.titleMedium,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall)),
+        ) {
+            Text(
+                text = anchor.name,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            nameGlyph?.invoke()
+        }
         Text(
             text = supportingLabel,
             style = MaterialTheme.typography.bodyMedium,
@@ -679,6 +688,8 @@ fun MilestonesTimeline(
                 node = node,
                 index = index,
                 count = nodes.size,
+                isLast = index == nodes.lastIndex,
+                isToday = node.anchor.date == today,
                 isEditMode = isEditMode,
                 today = today,
                 onSetPinned = onSetPinned,
@@ -696,6 +707,8 @@ private fun TimelineAnchorRow(
     node: TimelineNodeUiState,
     index: Int,
     count: Int,
+    isLast: Boolean,
+    isToday: Boolean,
     isEditMode: Boolean,
     today: LocalDate,
     onSetPinned: (String, Boolean) -> Unit,
@@ -704,36 +717,100 @@ private fun TimelineAnchorRow(
 ) {
     val anchor = node.anchor
 
-    EditorSegmentedListItem(
-        index = index,
-        count = count,
-        modifier = modifier.fillMaxWidth(),
-        onClick = if (isEditMode) {
-            { onUpdateDate(anchor) }
-        } else {
-            null
-        },
-        leadingContent = { AnchorIconChip(anchor = anchor) },
-        trailingContent = {
-            if (isEditMode) {
-                PinToggle(
-                    checked = node.isPinned,
-                    onCheckedChange = { onSetPinned(anchor.id, it) },
-                )
+    // IntrinsicSize.Min lets the rail's fillMaxHeight match the entry's height,
+    // so the connector spans exactly from this dot toward the next row's dot.
+    Row(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        TimelineRail(anchor = anchor, isLast = isLast, isToday = isToday)
+        EditorSegmentedListItem(
+            index = index,
+            count = count,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = if (isEditMode) {
+                { onUpdateDate(anchor) }
             } else {
-                Text(
-                    text = anchor.dayCountLabel(),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
+                null
+            },
+            leadingContent = { AnchorIconChip(anchor = anchor) },
+            trailingContent = {
+                if (isEditMode) {
+                    PinToggle(
+                        checked = node.isPinned,
+                        onCheckedChange = { onSetPinned(anchor.id, it) },
+                    )
+                } else {
+                    Text(
+                        text = anchor.dayCountLabel(),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontFeatureSettings = "tnum",
+                        ),
+                        color = if (anchor.isFuture) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                    )
+                }
+            },
+        ) {
+            AnchorSummaryText(
+                anchor = anchor,
+                today = today,
+                showDayCountInline = isEditMode,
+                nameGlyph = if (!isEditMode && node.isPinned) {
+                    {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_push_pin),
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                } else {
+                    null
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimelineRail(
+    anchor: AnchorRowUiState,
+    isLast: Boolean,
+    isToday: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val accent = if (isToday) {
+        MaterialTheme.colorScheme.tertiary
+    } else {
+        rememberMedicationGroupColorScheme(colorKey = anchor.palette).primary
+    }
+    Column(
+        modifier = modifier.width(34.dp).fillMaxHeight(),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        AnchorSummaryText(
-            anchor = anchor,
-            today = today,
-            showDayCountInline = isEditMode,
+        Spacer(Modifier.height(14.dp))
+        Box(
+            modifier = Modifier
+                .size(16.dp)
+                .border(2.dp, accent, CircleShape)
+                .background(
+                    color = if (anchor.isFuture && !isToday) {
+                        MaterialTheme.colorScheme.surfaceContainerLow
+                    } else {
+                        accent
+                    },
+                    shape = CircleShape,
+                ),
         )
+        if (!isLast) {
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .weight(1f)
+                    .background(MaterialTheme.colorScheme.outlineVariant),
+            )
+        }
     }
 }
 
@@ -1199,6 +1276,7 @@ fun EmptyAllNotesCard(
 
 @Composable
 private fun AnchorRowUiState.dayCountLabel(): String {
+    if (dayMagnitude == 0L && !isFuture) return stringResource(R.string.journal_today)
     val days = dayMagnitude.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     return if (isFuture) {
         pluralStringResource(R.plurals.journal_milestone_days_future, days, days)
