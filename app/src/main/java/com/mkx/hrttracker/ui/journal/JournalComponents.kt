@@ -1,8 +1,23 @@
 package com.mkx.hrttracker.ui.journal
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,6 +40,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
@@ -42,6 +58,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
@@ -52,12 +69,11 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.HapticFeedbackConstantsCompat
@@ -283,49 +299,252 @@ fun EmptyPinnedMilestonesCard(
     }
 }
 
+// The hero morphs between two layouts inside one AnimatedContent. The leading icon and the
+// title are shared elements (matched by key across the two states), so they physically
+// slide — and resize — between their positions instead of cross-fading: the icon travels
+// from the view header to the centre of the compact edit row, growing from a bare glyph
+// into a filled chip as sharedBounds cross-fades that difference. The non-shared parts (the
+// big numeral + chips, the date line, the edit controls) fade, and the card height
+// interpolates once via SizeTransform, so it collapses monotonically with no bulge.
+//   • view: header (bare glyph + title) with the celebratory block at the card's edge.
+//   • edit: a standard compact pinned row — chip + title/date + unpin/grip — with the icon
+//     and controls centred against the whole two-line card, like the other pinned rows.
+@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun MilestonesHero(
-    hero: AnchorRowUiState?,
-    nextMilestone: NextMilestoneUiState?,
-    today: LocalDate = LocalDate.now(),
+private fun HeroPinnedContent(
+    anchor: AnchorRowUiState,
+    isEditMode: Boolean,
+    heroNextMilestone: NextMilestoneUiState?,
+    today: LocalDate,
+    dateFormatter: (LocalDate) -> String,
+    onUnpin: () -> Unit,
+) {
+    val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val sizeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<IntSize>()
+    SharedTransitionLayout(modifier = Modifier.fillMaxWidth()) {
+        AnimatedContent(
+            targetState = isEditMode,
+            transitionSpec = {
+                ContentTransform(
+                    targetContentEnter = fadeIn(fadeSpec),
+                    initialContentExit = fadeOut(fadeSpec),
+                    sizeTransform = SizeTransform { _, _ -> sizeSpec },
+                )
+            },
+            contentAlignment = Alignment.TopStart,
+            label = "hero-morph",
+        ) { editing ->
+            if (editing) {
+                HeroEditLayout(
+                    anchor = anchor,
+                    dateFormatter = dateFormatter,
+                    onUnpin = onUnpin,
+                    sharedScope = this@SharedTransitionLayout,
+                    animatedVisibilityScope = this@AnimatedContent,
+                )
+            } else {
+                HeroViewLayout(
+                    anchor = anchor,
+                    heroNextMilestone = heroNextMilestone,
+                    today = today,
+                    sharedScope = this@SharedTransitionLayout,
+                    animatedVisibilityScope = this@AnimatedContent,
+                )
+            }
+        }
+    }
+}
+
+private const val HeroIconSharedKey = "hero-icon"
+private const val HeroTitleSharedKey = "hero-title"
+private const val HomePillSharedKey = "home-pill"
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun HeroViewLayout(
+    anchor: AnchorRowUiState,
+    heroNextMilestone: NextMilestoneUiState?,
+    today: LocalDate,
+    sharedScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+) {
+    with(sharedScope) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                MorphingLeadingIcon(
+                    anchor = anchor,
+                    filled = false,
+                    modifier = Modifier.sharedElement(
+                        rememberSharedContentState(key = HeroIconSharedKey),
+                        animatedVisibilityScope = animatedVisibilityScope,
+                    ),
+                )
+                Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+                HeroTitleAndHome(name = anchor.name, animatedVisibilityScope = animatedVisibilityScope)
+            }
+            Column(
+                modifier = Modifier.padding(top = dimensionResource(R.dimen.padding_small)),
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+            ) {
+                HeroCount(hero = anchor)
+                HeroChips(hero = anchor, nextMilestone = heroNextMilestone, today = today)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun HeroEditLayout(
+    anchor: AnchorRowUiState,
+    dateFormatter: (LocalDate) -> String,
+    onUnpin: () -> Unit,
+    sharedScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+) {
+    with(sharedScope) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MorphingLeadingIcon(
+                anchor = anchor,
+                filled = true,
+                modifier = Modifier.sharedElement(
+                    rememberSharedContentState(key = HeroIconSharedKey),
+                    animatedVisibilityScope = animatedVisibilityScope,
+                ),
+            )
+            Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+            Column(modifier = Modifier.weight(1f)) {
+                HeroTitleAndHome(name = anchor.name, animatedVisibilityScope = animatedVisibilityScope)
+                Text(
+                    text = "${dateFormatter(anchor.date)} · ${anchor.dayCountLabel()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            // The trailing controls have no view counterpart, so they aren't a shared
+            // element — animateEnterExit slides them in from the end (right) of the row.
+            EditTrailingCluster(
+                name = anchor.name,
+                onUnpin = onUnpin,
+                modifier = with(animatedVisibilityScope) {
+                    Modifier.animateEnterExit(
+                        enter = slideInHorizontally { width -> width } + fadeIn(),
+                        exit = slideOutHorizontally { width -> width } + fadeOut(),
+                    )
+                },
+            )
+        }
+    }
+}
+
+// The title and the Home pill are each their own shared element, so they slide
+// independently between the view header and the compact edit row.
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun SharedTransitionScope.HeroTitleAndHome(
+    name: String,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall)),
+    ) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.sharedElement(
+                rememberSharedContentState(key = HeroTitleSharedKey),
+                animatedVisibilityScope = animatedVisibilityScope,
+            ),
+        )
+        HomeTag(
+            modifier = Modifier.sharedElement(
+                rememberSharedContentState(key = HomePillSharedKey),
+                animatedVisibilityScope = animatedVisibilityScope,
+            ),
+        )
+    }
+}
+
+// The hero's leading icon: a bare tinted glyph in view (no surface), a filled chip in edit
+// (like the other pinned rows). The caller marks it as a shared element, so it slides and
+// resizes between the two states as a single continuous element rather than cross-fading.
+@Composable
+private fun MorphingLeadingIcon(
+    anchor: AnchorRowUiState,
+    filled: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val appLocale = rememberAppLocale()
-    val dateFormatter = remember(appLocale, today) {
-        dateLabelFormatter(appLocale, today)
+    val colorScheme = rememberMedicationGroupColorScheme(colorKey = anchor.palette)
+    Box(
+        modifier = modifier
+            .size(if (filled) 32.dp else 24.dp)
+            .background(
+                color = if (filled) colorScheme.primaryContainer else Color.Transparent,
+                shape = MaterialTheme.shapes.small,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(anchorIconRes(anchor.icon)),
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = if (filled) colorScheme.onPrimaryContainer else colorScheme.primary,
+        )
     }
+}
 
-    EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
-        if (hero == null) {
-            Text(
-                text = stringResource(R.string.journal_nothing_pinned),
-                style = MaterialTheme.typography.titleMedium,
+// Edit-mode trailing cluster: unpin first, drag grip last. Shared by the hero row and
+// the other pinned rows.
+@Composable
+private fun EditTrailingCluster(name: String, onUnpin: () -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        UnpinButton(name = name, onUnpin = onUnpin)
+        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_xsmall)))
+        DragGrip()
+    }
+}
+
+// Status tag on the first pinned row only: "this is the one shown on your Home
+// screen." Not a button — the hero is retargeted by dragging a row to the top.
+@Composable
+private fun HomeTag(modifier: Modifier = Modifier) {
+    HrtPill(
+        label = stringResource(R.string.journal_home_tag),
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        size = HrtPillSize.XSmall,
+        modifier = modifier,
+        icon = { Icon(painterResource(R.drawable.ic_home), null, iconModifier) },
+    )
+}
+
+@Composable
+private fun HeroChips(
+    hero: AnchorRowUiState,
+    nextMilestone: NextMilestoneUiState?,
+    today: LocalDate,
+) {
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))) {
+        HrtPill(
+            label = stringResource(R.string.journal_since_date, dateFormatter(hero.date)),
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            size = HrtPillSize.Small,
+            icon = { Icon(painterResource(R.drawable.ic_event), null, iconModifier) },
+        )
+        if (!hero.isFuture && nextMilestone != null) {
+            HrtPill(
+                label = nextMilestone.label(),
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                size = HrtPillSize.Small,
+                icon = { Icon(painterResource(R.drawable.ic_flag), null, iconModifier) },
             )
-            return@EditorSegmentedListItem
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))) {
-            Row(verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))) {
-                AnchorIconChip(anchor = hero, size = 30.dp)
-                Text(text = hero.name, style = MaterialTheme.typography.titleMedium)
-            }
-            HeroCount(hero = hero)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))) {
-                HrtPill(
-                    label = stringResource(R.string.journal_since_date, dateFormatter(hero.date)),
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    size = HrtPillSize.Small,
-                    icon = { Icon(painterResource(R.drawable.ic_event), null, iconModifier) },
-                )
-                if (!hero.isFuture && nextMilestone != null) {
-                    HrtPill(
-                        label = nextMilestone.label(),
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        size = HrtPillSize.Small,
-                        icon = { Icon(painterResource(R.drawable.ic_flag), null, iconModifier) },
-                    )
-                }
-            }
         }
     }
 }
@@ -469,178 +688,253 @@ internal fun reorderedIds(ids: List<String>, fromIndex: Int, toIndex: Int): List
 }
 
 @Composable
-private fun PinnedTrayRowView(
-    anchor: AnchorRowUiState,
-    index: Int,
-    count: Int,
-    today: LocalDate,
-) {
-    EditorSegmentedListItem(
-        index = index,
-        count = count,
-        modifier = Modifier.fillMaxWidth(),
-        leadingContent = { AnchorIconChip(anchor = anchor) },
-        trailingContent = {
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
-        },
-    ) {
-        AnchorSummaryText(
-            anchor = anchor,
-            today = today,
-            showDayCountInline = true,
-        )
-    }
-}
-
-@Composable
 fun PinnedTray(
     anchors: List<AnchorRowUiState>,
     isEditMode: Boolean,
     onReorder: (List<String>) -> Unit,
     onSetPinned: (String, Boolean) -> Unit,
+    heroNextMilestone: NextMilestoneUiState? = null,
     today: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier,
 ) {
     if (anchors.isEmpty()) {
-        if (isEditMode) {
-            EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
-                Text(
-                    text = stringResource(R.string.journal_nothing_pinned),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        PinnedHomeSlotEmpty(modifier = modifier.fillMaxWidth())
+        return
+    }
+    val view = LocalView.current
+    var isDraggingAny by remember { mutableStateOf(false) }
+    // The "Home slot" floor is painted behind the rows. The opaque first row covers
+    // it at rest; while a drag is in progress the lifted row's reserved slot turns
+    // transparent and the floor shows through at the top, making "top = Home" legible
+    // during the very gesture that changes it. ReorderableColumn is used in both modes
+    // so the hero stays the first row and morphs in place; drag is only enabled in edit.
+    Box(modifier = modifier.fillMaxWidth()) {
+        PinnedHomeSlotFloor(
+            visible = isDraggingAny,
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter),
+        )
+        ReorderableColumn(
+            modifier = Modifier.fillMaxWidth(),
+            list = anchors,
+            onSettle = { fromIndex, toIndex ->
+                onReorder(reorderedIds(anchors.map { it.id }, fromIndex, toIndex))
+            },
+            onMove = {
+                ViewCompat.performHapticFeedback(
+                    view,
+                    HapticFeedbackConstantsCompat.SEGMENT_FREQUENT_TICK,
+                )
+            },
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
+        ) { index, anchor, isDragging ->
+            key(anchor.id) {
+                val interactionSource = remember { MutableInteractionSource() }
+                val elevation by animateDpAsState(if (isDragging) 6.dp else 0.dp, label = "drag")
+                val moveActions = pinnedRowAccessibilityActions(
+                    anchor = anchor,
+                    index = index,
+                    anchors = anchors,
+                    onReorder = onReorder,
+                )
+                // Whole row is the drag handle (long-press) in edit mode, so the page
+                // can still scroll; the unpin button's tap never starts a drag.
+                val dragModifier = if (isEditMode) {
+                    Modifier.longPressDraggableHandle(
+                        interactionSource = interactionSource,
+                        onDragStarted = { isDraggingAny = true },
+                        onDragStopped = { isDraggingAny = false },
+                    )
+                } else {
+                    Modifier
+                }
+                PinnedRow(
+                    anchor = anchor,
+                    index = index,
+                    count = anchors.size,
+                    isHero = index == 0,
+                    isEditMode = isEditMode,
+                    isDragging = isDragging,
+                    heroNextMilestone = heroNextMilestone,
+                    today = today,
+                    onUnpin = { onSetPinned(anchor.id, false) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(dragModifier)
+                        .shadow(elevation, shape = MaterialTheme.shapes.large)
+                        .semantics {
+                            if (isEditMode) {
+                                customActions = moveActions
+                            }
+                        },
                 )
             }
         }
-        return
     }
-    if (!isEditMode) {
-        Column(
-            modifier = modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
-        ) {
-            anchors.forEachIndexed { index, anchor ->
-                PinnedTrayRowView(anchor, index, anchors.size, today)
-            }
-        }
-        return
-    }
-    PinnedTrayEdit(anchors, onReorder, onSetPinned, today, modifier)
 }
 
 @Composable
-private fun PinnedTrayEdit(
-    anchors: List<AnchorRowUiState>,
-    onReorder: (List<String>) -> Unit,
-    onSetPinned: (String, Boolean) -> Unit,
+private fun PinnedRow(
+    anchor: AnchorRowUiState,
+    index: Int,
+    count: Int,
+    isHero: Boolean,
+    isEditMode: Boolean,
+    isDragging: Boolean,
+    heroNextMilestone: NextMilestoneUiState?,
     today: LocalDate,
+    onUnpin: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val view = LocalView.current
-    // ReorderableColumn (non-lazy, sh.calvin.reorderable 2.5.1) positions each
-    // item itself: the content receiver is a ReorderableScope exposing
-    // draggableHandle directly — there is no ReorderableItem wrapper (that exists
-    // only for the lazy variants). onSettle/move both route through reorderedIds.
-    ReorderableColumn(
-        modifier = modifier.fillMaxWidth(),
-        list = anchors,
-        onSettle = { fromIndex, toIndex ->
-            onReorder(reorderedIds(anchors.map { it.id }, fromIndex, toIndex))
-        },
-        onMove = {
-            ViewCompat.performHapticFeedback(
-                view,
-                HapticFeedbackConstantsCompat.SEGMENT_FREQUENT_TICK,
-            )
-        },
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
-    ) { index, anchor, isDragging ->
-        key(anchor.id) {
-            if (index == 0) {
-                HrtPill(
-                    label = stringResource(R.string.journal_hero_badge),
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    size = HrtPillSize.XSmall,
-                )
-            } else if (index == 1) {
-                Text(
-                    text = stringResource(R.string.journal_pinned_section),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            val interactionSource = remember { MutableInteractionSource() }
-            val elevation by animateDpAsState(if (isDragging) 6.dp else 0.dp, label = "drag")
-            val moveActions = pinnedRowAccessibilityActions(
+    val containerColor = if (isDragging) {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    }
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
+    // Everything lives in the single content slot (no leading/trailing ListItem slots)
+    // so nothing re-centers against a mid-animation height. The hero keeps Top
+    // alignment across the morph so its icon never jumps from center to top.
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        containerColor = containerColor,
+        modifier = modifier,
+    ) {
+        if (isHero) {
+            HeroPinnedContent(
                 anchor = anchor,
-                index = index,
-                anchors = anchors,
-                onReorder = onReorder,
+                isEditMode = isEditMode,
+                heroNextMilestone = heroNextMilestone,
+                today = today,
+                dateFormatter = dateFormatter,
+                onUnpin = onUnpin,
             )
-            EditorSegmentedListItem(
-                index = index,
-                count = anchors.size,
-                containerColor = if (isDragging) {
-                    MaterialTheme.colorScheme.surfaceContainerHigh
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainerLow
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(elevation, shape = MaterialTheme.shapes.large)
-                    .semantics { customActions = moveActions },
-                leadingContent = {
-                    val reorderLabel = stringResource(
-                        R.string.journal_reorder_anchor,
-                        anchor.name,
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .draggableHandle(interactionSource = interactionSource)
-                            .clearAndSetSemantics { contentDescription = reorderLabel },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_drag_indicator),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-                trailingContent = {
-                    IconButton(
-                        onClick = { onSetPinned(anchor.id, false) },
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = stringResource(
-                                R.string.journal_unpin_anchor,
-                                anchor.name,
-                            ),
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    AnchorIconChip(anchor = anchor, size = 32.dp)
-                    Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-                    AnchorSummaryText(
-                        anchor = anchor,
-                        today = today,
-                        showDayCountInline = true,
-                    )
+                AnchorIconChip(anchor = anchor)
+                Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+                AnchorSummaryText(
+                    anchor = anchor,
+                    today = today,
+                    showDayCountInline = true,
+                    modifier = Modifier.weight(1f),
+                )
+                // Edit-only trailing cluster: expands in from the end so the summary
+                // reflows continuously rather than snapping. Non-hero rows keep a fixed
+                // height, so the cluster has no row resize to track and never drifts.
+                AnimatedVisibility(
+                    visible = isEditMode,
+                    modifier = Modifier.align(Alignment.CenterVertically),
+                    enter = fadeIn() + expandHorizontally(),
+                    exit = shrinkHorizontally() + fadeOut(),
+                ) {
+                    EditTrailingCluster(name = anchor.name, onUnpin = onUnpin)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DragGrip() {
+    Icon(
+        painter = painterResource(R.drawable.ic_drag_indicator),
+        contentDescription = null,
+        modifier = Modifier.size(20.dp),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun UnpinButton(name: String, onUnpin: () -> Unit) {
+    IconButton(
+        onClick = onUnpin,
+        modifier = Modifier.size(36.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Close,
+            contentDescription = stringResource(R.string.journal_unpin_anchor, name),
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+// Empty state: the Home slot is fully shown with teaching copy — this is where a
+// first-time user learns that pinning surfaces a milestone on Home.
+@Composable
+private fun PinnedHomeSlotEmpty(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .border(
+                width = 2.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                shape = MaterialTheme.shapes.large,
+            )
+            .padding(dimensionResource(R.dimen.padding_medium)),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_home),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
+            Text(
+                text = stringResource(R.string.journal_home_slot_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PinnedHomeSlotFloor(
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val alpha by animateFloatAsState(if (visible) 1f else 0f, label = "homeSlotFloor")
+    Box(
+        modifier = modifier
+            .height(72.dp)
+            .alpha(alpha)
+            .border(
+                width = 2.dp,
+                color = MaterialTheme.colorScheme.primary,
+                shape = MaterialTheme.shapes.large,
+            )
+            .background(
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                shape = MaterialTheme.shapes.large,
+            )
+            .padding(horizontal = dimensionResource(R.dimen.padding_medium)),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_home),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                text = stringResource(R.string.journal_home_slot_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }

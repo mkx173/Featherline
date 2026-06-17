@@ -58,11 +58,16 @@ class MilestonesScreenTest {
             ),
         )
 
+        // The hero is now the first row of the single Pinned section (no separate
+        // card), enriched in view mode with the big numeral, chips, and Home tag.
         composeRule.setContent {
             HrtTrackerTheme(dynamicColor = false) {
-                MilestonesHero(
-                    hero = hero,
-                    nextMilestone = NextMilestoneUiState(
+                PinnedTray(
+                    anchors = listOf(hero),
+                    isEditMode = false,
+                    onReorder = {},
+                    onSetPinned = { _, _ -> },
+                    heroNextMilestone = NextMilestoneUiState(
                         remainingDays = 193,
                         value = 1000,
                         unit = MilestoneUnit.DAYS,
@@ -77,24 +82,26 @@ class MilestonesScreenTest {
         composeRule.onNodeWithText(dayUnitLabel).assertIsDisplayed()
         composeRule.onNodeWithText(sinceLabel).assertIsDisplayed()
         composeRule.onNodeWithText(nextMilestoneLabel).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.journal_home_tag))
+            .assertIsDisplayed()
     }
 
     @Test
-    fun hero_emptyStateUsesPinnedCopy() {
+    fun pinnedTray_emptyShowsHomeSlotTeaching() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         composeRule.setContent {
             HrtTrackerTheme(dynamicColor = false) {
-                MilestonesHero(
-                    hero = null,
-                    nextMilestone = null,
+                PinnedTray(
+                    anchors = emptyList(),
+                    isEditMode = false,
+                    onReorder = {},
+                    onSetPinned = { _, _ -> },
                 )
             }
         }
 
-        composeRule.onNodeWithText(context.getString(R.string.journal_nothing_pinned))
+        composeRule.onNodeWithText(context.getString(R.string.journal_home_slot_empty))
             .assertIsDisplayed()
-        composeRule.onAllNodesWithText(context.getString(R.string.journal_no_dates))
-            .assertCountEquals(0)
     }
 
     @Test
@@ -124,11 +131,11 @@ class MilestonesScreenTest {
                 )
             }
         }
-        // In view mode the hero is lifted out of the pinned tray, so "On estradiol"
-        // appears in the hero card + its timeline row (2x), not the tray. Scope the
-        // name check by count rather than a single node.
+        // The hero is the first row of the single Pinned section, so "On estradiol"
+        // appears in that enriched pinned row + its timeline row (2x). Scope the name
+        // check by count rather than a single node.
         composeRule.onAllNodesWithText("On estradiol").assertCountEquals(2)
-        composeRule.onNodeWithText("807").assertIsDisplayed()        // 60px numeral
+        composeRule.onNodeWithText("807").assertIsDisplayed()        // big numeral
         composeRule.onNodeWithText(sinceLabel).assertExists()
         composeRule.onNodeWithText(nextMilestoneLabel).assertExists()
     }
@@ -144,21 +151,19 @@ class MilestonesScreenTest {
                 )
             }
         }
-        // The hero (pinnedTray[0]) is lifted OUT of the Pinned tray in view mode, so
-        // "On estradiol" no longer renders a pinned-tray row. The timeline always
-        // renders every anchor, so the hero name still appears twice: the hero card
-        // + its timeline row (2x, down from 3x before this task).
+        // The hero (pinnedTray[0]) is the first row of the single Pinned section, and
+        // the timeline always renders every anchor, so the hero name appears twice:
+        // its pinned row + its timeline row (2x).
         composeRule.onAllNodesWithText("On estradiol").assertCountEquals(2)
-        // The remaining non-hero pin IS shown in the Pinned tray. Like every anchor
-        // it also renders a timeline row, so a pinned non-hero appears twice (tray +
-        // timeline), while a non-pinned anchor ("Surgery") appears only once (timeline).
-        // That tray-2-vs-1 contrast is what this task's split produces.
+        // The non-hero pin also renders a pinned row + a timeline row (2x), while a
+        // non-pinned anchor ("Surgery") appears only once (timeline). That 2-vs-1
+        // contrast confirms the Pinned section holds every pin, hero included.
         composeRule.onAllNodesWithText("First injection").assertCountEquals(2)
         composeRule.onAllNodesWithText("Surgery").assertCountEquals(1)
     }
 
     @Test
-    fun editMode_showsHeroZoneDragHandleAndUnpin() {
+    fun editMode_showsHomeTagAndUnpin() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         composeRule.setContent {
             HrtTrackerTheme {
@@ -169,13 +174,11 @@ class MilestonesScreenTest {
                 )
             }
         }
-        // "HERO" and the "Reorder/Unpin {name}" verbs are localized — derive them
-        // from resources so the assertions hold on the zh emulator too.
-        composeRule.onNodeWithText(context.getString(R.string.journal_hero_badge)).assertExists()
-        composeRule.onNode(
-            hasContentDescription(context.getString(R.string.journal_reorder_anchor, "On estradiol")),
-            useUnmergedTree = true,
-        ).assertExists()
+        // The first pinned row carries the Home tag (the hero), and every row exposes
+        // an unpin button. Whole-row long-press drag has no per-handle node, so the
+        // reorder a11y is covered by editMode_rendersPinsInOrderAndRoutesUnpin. Both
+        // labels are localized — derive them from resources for the zh emulator.
+        composeRule.onNodeWithText(context.getString(R.string.journal_home_tag)).assertExists()
         composeRule.onNode(
             hasContentDescription(context.getString(R.string.journal_unpin_anchor, "First injection")),
             useUnmergedTree = true,
@@ -195,13 +198,13 @@ class MilestonesScreenTest {
             }
         }
 
-        // In edit mode the big hero card is replaced by row 0 of the reorderable
-        // list under the HERO zone, so the hero's bare 60px numeral ("807") must be
-        // gone. The timeline renders the day count as ONE merged node ("807 days"),
-        // never the bare "807", so "807" alone is unique to the hero card.
+        // In edit mode the hero row collapses to a compact draggable row, so its bare
+        // big numeral ("807") must be gone. The timeline renders the day count as ONE
+        // merged node ("807 days"), never the bare "807", so "807" alone was unique to
+        // the hero's enriched view-mode block.
         composeRule.onNodeWithText("807").assertDoesNotExist()
-        // The HERO zone label still represents the hero at index 0 of the list.
-        composeRule.onNodeWithText(context.getString(R.string.journal_hero_badge)).assertExists()
+        // The Home tag still marks the hero (now the first row of the list).
+        composeRule.onNodeWithText(context.getString(R.string.journal_home_tag)).assertExists()
     }
 
     @Test
@@ -221,8 +224,8 @@ class MilestonesScreenTest {
             }
         }
 
-        // The HERO zone label sits above index 0; every pin keeps its supplied order.
-        composeRule.onNodeWithText(context.getString(R.string.journal_hero_badge)).assertExists()
+        // The Home tag marks index 0 (the hero); every pin keeps its supplied order.
+        composeRule.onNodeWithText(context.getString(R.string.journal_home_tag)).assertExists()
         val estradiolTop = composeRule.onNodeWithText("On estradiol", useUnmergedTree = true)
             .fetchSemanticsNode()
             .boundsInRoot

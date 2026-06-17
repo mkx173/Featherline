@@ -219,6 +219,9 @@
     <string name="journal_edit">Edit</string>
     <string name="journal_done">Done</string>
     <string name="journal_hero_badge">HERO</string>
+    <string name="journal_home_tag">Home</string>
+    <string name="journal_home_slot_hint">Top spot — shown on your Home screen</string>
+    <string name="journal_home_slot_empty">Pin a milestone in the timeline below to show it on your Home screen</string>
     <string name="journal_in_prefix">in</string>
     <plurals name="journal_day_unit">
         <item quantity="one">day</item>

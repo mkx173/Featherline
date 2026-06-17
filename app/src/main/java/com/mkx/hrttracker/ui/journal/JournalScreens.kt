@@ -326,25 +326,12 @@ fun MilestonesScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
-                if (!uiState.isEditMode) {
-                    item(key = "milestones-hero", contentType = "milestones-hero") {
-                        MilestonesHero(
-                            hero = uiState.hero,
-                            nextMilestone = uiState.heroNextMilestone,
-                            today = uiState.today,
-                        )
-                    }
-                }
-
                 item(key = "milestones-pinned", contentType = "journal-section") {
                     HrtSection(title = stringResource(R.string.journal_pinned_section)) {
                         item {
                             PinnedTray(
-                                anchors = if (uiState.isEditMode) {
-                                    uiState.pinnedTray
-                                } else {
-                                    uiState.pinnedTray.drop(1)
-                                },
+                                anchors = uiState.pinnedTray,
+                                heroNextMilestone = uiState.heroNextMilestone,
                                 isEditMode = uiState.isEditMode,
                                 onReorder = onReorder,
                                 onSetPinned = onSetPinned,
