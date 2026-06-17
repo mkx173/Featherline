@@ -183,6 +183,28 @@ class MilestonesScreenTest {
     }
 
     @Test
+    fun editMode_hidesBigHeroCard() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        composeRule.setContent {
+            HrtTrackerTheme {
+                MilestonesScreenContent(
+                    uiState = milestonesUiStateFixture(isEditMode = true),
+                    onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
+                    onReorder = {}, onAddDate = {}, onUpdateDate = {},
+                )
+            }
+        }
+
+        // In edit mode the big hero card is replaced by row 0 of the reorderable
+        // list under the HERO zone, so the hero's bare 60px numeral ("807") must be
+        // gone. The timeline renders the day count as ONE merged node ("807 days"),
+        // never the bare "807", so "807" alone is unique to the hero card.
+        composeRule.onNodeWithText("807").assertDoesNotExist()
+        // The HERO zone label still represents the hero at index 0 of the list.
+        composeRule.onNodeWithText(context.getString(R.string.journal_hero_badge)).assertExists()
+    }
+
+    @Test
     fun editMode_rendersPinsInOrderAndRoutesUnpin() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val anchors = listOf(estradiolAnchor(), surgeryAnchor(), labsAnchor())

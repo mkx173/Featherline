@@ -326,12 +326,14 @@ fun MilestonesScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
-                item(key = "milestones-hero", contentType = "milestones-hero") {
-                    MilestonesHero(
-                        hero = uiState.hero,
-                        nextMilestone = uiState.heroNextMilestone,
-                        today = uiState.today,
-                    )
+                if (!uiState.isEditMode) {
+                    item(key = "milestones-hero", contentType = "milestones-hero") {
+                        MilestonesHero(
+                            hero = uiState.hero,
+                            nextMilestone = uiState.heroNextMilestone,
+                            today = uiState.today,
+                        )
+                    }
                 }
 
                 item(key = "milestones-pinned", contentType = "journal-section") {

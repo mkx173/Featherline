@@ -52,6 +52,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +82,11 @@ import java.time.format.TextStyle
 private const val TodayComposerTextFieldTestTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field-"
 internal const val SimpleHomeCardTestTag = "simple-home-card"
+
+// Shared between TimelineRail and TodayDivider so the today node's dot lands on the
+// same anchor rail as every other row (same width, same dot top offset).
+private val TimelineRailWidth = 34.dp
+private val TimelineRailDotTopOffset = 14.dp
 
 @Composable
 fun MilestonesStackCard(
@@ -585,21 +592,23 @@ private fun PinnedTrayEdit(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(elevation)
+                    .shadow(elevation, shape = MaterialTheme.shapes.large)
                     .semantics { customActions = moveActions },
                 leadingContent = {
-                    IconButton(
-                        onClick = {},
+                    val reorderLabel = stringResource(
+                        R.string.journal_reorder_anchor,
+                        anchor.name,
+                    )
+                    Box(
                         modifier = Modifier
                             .size(36.dp)
-                            .draggableHandle(interactionSource = interactionSource),
+                            .draggableHandle(interactionSource = interactionSource)
+                            .clearAndSetSemantics { contentDescription = reorderLabel },
+                        contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_drag_indicator),
-                            contentDescription = stringResource(
-                                R.string.journal_reorder_anchor,
-                                anchor.name,
-                            ),
+                            contentDescription = null,
                             modifier = Modifier.size(20.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -790,10 +799,10 @@ private fun TimelineRail(
         rememberMedicationGroupColorScheme(colorKey = anchor.palette).primary
     }
     Column(
-        modifier = modifier.width(34.dp).fillMaxHeight(),
+        modifier = modifier.width(TimelineRailWidth).fillMaxHeight(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(TimelineRailDotTopOffset))
         Box(
             modifier = Modifier
                 .size(16.dp)
@@ -828,10 +837,10 @@ private fun TodayDivider(
     val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
     Row(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         Column(
-            modifier = Modifier.width(34.dp).fillMaxHeight(),
+            modifier = Modifier.width(TimelineRailWidth).fillMaxHeight(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(TimelineRailDotTopOffset))
             Box(
                 modifier = Modifier
                     .size(14.dp)
