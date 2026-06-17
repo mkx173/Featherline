@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.journal
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
@@ -880,21 +882,27 @@ private fun PinToggle(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    IconToggleButton(
-        checked = checked,
-        onCheckedChange = onCheckedChange,
+    val container by animateColorAsState(
+        if (checked) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        label = "pinToggleBg",
+    )
+    Surface(
+        color = container,
+        shape = CircleShape,
         modifier = modifier.size(36.dp),
     ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_push_pin),
-            contentDescription = stringResource(R.string.journal_pin_to_home_content_description),
-            modifier = Modifier.size(20.dp),
-            tint = if (checked) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-        )
+        IconToggleButton(checked = checked, onCheckedChange = onCheckedChange) {
+            Icon(
+                painter = painterResource(R.drawable.ic_push_pin),
+                contentDescription = stringResource(R.string.journal_pin_to_home_content_description),
+                modifier = Modifier.size(20.dp),
+                tint = if (checked) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
     }
 }
 

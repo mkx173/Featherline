@@ -6,6 +6,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -369,6 +371,31 @@ class MilestonesScreenTest {
             .boundsInRoot
             .top
         assertTrue(todayTop < dateTop)
+    }
+
+    @Test
+    fun editMode_timelinePinToggleIsToggleable() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        // The pin content description is localized (zh on the emulator), so derive it
+        // from resources rather than hardcoding "Pin to Home".
+        val pinDescription = context.getString(R.string.journal_pin_to_home_content_description)
+
+        composeRule.setContent {
+            HrtTrackerTheme {
+                MilestonesScreenContent(
+                    uiState = milestonesUiStateFixture(isEditMode = true),
+                    onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
+                    onReorder = {}, onAddDate = {}, onUpdateDate = {},
+                )
+            }
+        }
+
+        // The fixture's first timeline node ("On estradiol") is pinned, so its toggle
+        // reports ON; a non-pinned node ("First injection") reports OFF. Asserting both
+        // pins the on/off semantics to the isPinned state, not just toggle existence.
+        val toggles = composeRule.onAllNodes(hasContentDescription(pinDescription))
+        toggles.onFirst().assertIsOn()
+        toggles[1].assertIsOff()
     }
 
     @Test
