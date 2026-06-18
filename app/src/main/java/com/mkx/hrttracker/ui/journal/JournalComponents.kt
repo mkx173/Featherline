@@ -11,7 +11,6 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
@@ -62,7 +61,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
@@ -95,6 +93,7 @@ import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SegmentPosition
+import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
@@ -872,7 +871,6 @@ private fun PinnedTrayRows(
     today: LocalDate,
 ) {
     val view = LocalView.current
-    var isDraggingAny by remember { mutableStateOf(false) }
     val gap = dimensionResource(R.dimen.list_segment_gap)
     val rowVisibilityStates = remember { mutableMapOf<String, MutableTransitionState<Boolean>>() }
     val rowAnchors = remember { mutableMapOf<String, AnchorRowUiState>() }
@@ -931,116 +929,97 @@ private fun PinnedTrayRows(
         homeVisibleStates.getOrPut(anchor.id) { MutableTransitionState(isHome || wasHome) }
             .targetState = isHome
     }
-    // The "Home slot" floor is painted behind the rows. The opaque first row covers
-    // it at rest; while a drag is in progress the lifted row's reserved slot turns
-    // transparent and the floor shows through at the top, making "top = Home" legible
-    // during the very gesture that changes it. ReorderableColumn is used in both modes
-    // so the hero stays the first row and morphs in place; drag is only enabled in edit.
-    Box(modifier = Modifier.fillMaxWidth()) {
-        PinnedHomeSlotFloor(
-            visible = isDraggingAny,
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.TopCenter),
-        )
-        ReorderableColumn(
-            modifier = Modifier.fillMaxWidth(),
-            list = displayAnchors,
-            onSettle = { fromIndex, toIndex ->
-                val displayOrder = displayAnchors.map { it.id }
-                onReorder(
-                    reorderedIds(displayOrder, fromIndex, toIndex)
-                        .filter { it in activeIdSet }
-                )
-            },
-            onMove = {
-                ViewCompat.performHapticFeedback(
-                    view,
-                    HapticFeedbackConstantsCompat.SEGMENT_FREQUENT_TICK,
-                )
-            },
-            verticalArrangement = if (reorderOwnsGaps) {
-                Arrangement.spacedBy(gap)
+    // ReorderableColumn is used in both modes so the hero stays the first row and
+    // morphs in place; drag is only enabled in edit mode.
+    ReorderableColumn(
+        modifier = Modifier.fillMaxWidth(),
+        list = displayAnchors,
+        onSettle = { fromIndex, toIndex ->
+            val displayOrder = displayAnchors.map { it.id }
+            onReorder(
+                reorderedIds(displayOrder, fromIndex, toIndex)
+                    .filter { it in activeIdSet }
+            )
+        },
+        onMove = {
+            ViewCompat.performHapticFeedback(
+                view,
+                HapticFeedbackConstantsCompat.SEGMENT_FREQUENT_TICK,
+            )
+        },
+        verticalArrangement = if (reorderOwnsGaps) {
+            Arrangement.spacedBy(gap)
+        } else {
+            Arrangement.Top
+        },
+    ) { index, anchor, isDragging ->
+        key(anchor.id) {
+            val activePosition = activeIds.indexOf(anchor.id)
+                .takeIf { it >= 0 }
+                ?.let { SegmentPosition(it, anchors.size) }
+            val position = activePosition ?: lastPositions.getValue(anchor.id)
+            lastPositions[anchor.id] = position
+            val hasLeadingGap = !reorderOwnsGaps &&
+                rowOrder.take(index).any { it in activeIdSet }
+            val isActive = anchor.id in activeIdSet
+            val interactionSource = remember { MutableInteractionSource() }
+            val gripInteractionSource = remember { MutableInteractionSource() }
+            val elevation by animateDpAsState(if (isDragging) 6.dp else 0.dp, label = "drag")
+            val moveActions = pinnedRowAccessibilityActions(
+                anchor = anchor,
+                index = position.index,
+                anchors = anchors,
+                onReorder = onReorder,
+            )
+            // Two ways to start a drag in edit mode. Long-press anywhere on the row
+            // (so the page can still scroll, and the unpin tap never starts a drag),
+            // or touch the trailing grip, which begins dragging immediately with no
+            // long-press. Both handles drive the same item's drag.
+            val rowDragModifier = if (isEditMode && isActive) {
+                Modifier.longPressDraggableHandle(interactionSource = interactionSource)
             } else {
-                Arrangement.Top
-            },
-        ) { index, anchor, isDragging ->
-            key(anchor.id) {
-                val activePosition = activeIds.indexOf(anchor.id)
-                    .takeIf { it >= 0 }
-                    ?.let { SegmentPosition(it, anchors.size) }
-                val position = activePosition ?: lastPositions.getValue(anchor.id)
-                lastPositions[anchor.id] = position
-                val hasLeadingGap = !reorderOwnsGaps &&
-                    rowOrder.take(index).any { it in activeIdSet }
-                val isActive = anchor.id in activeIdSet
-                val interactionSource = remember { MutableInteractionSource() }
-                val gripInteractionSource = remember { MutableInteractionSource() }
-                val elevation by animateDpAsState(if (isDragging) 6.dp else 0.dp, label = "drag")
-                val moveActions = pinnedRowAccessibilityActions(
-                    anchor = anchor,
-                    index = position.index,
-                    anchors = anchors,
-                    onReorder = onReorder,
-                )
-                // Two ways to start a drag in edit mode. Long-press anywhere on the row
-                // (so the page can still scroll, and the unpin tap never starts a drag),
-                // or touch the trailing grip, which begins dragging immediately with no
-                // long-press. Both handles drive the same item's drag.
-                val rowDragModifier = if (isEditMode && isActive) {
-                    Modifier.longPressDraggableHandle(
-                        interactionSource = interactionSource,
-                        onDragStarted = { isDraggingAny = true },
-                        onDragStopped = { isDraggingAny = false },
-                    )
-                } else {
-                    Modifier
-                }
-                val gripDragHandle = if (isEditMode && isActive) {
-                    Modifier.draggableHandle(
-                        interactionSource = gripInteractionSource,
-                        onDragStarted = { isDraggingAny = true },
-                        onDragStopped = { isDraggingAny = false },
-                    )
-                } else {
-                    Modifier
-                }
-                AnimatedVisibility(
-                    visibleState = rowVisibilityStates.getValue(anchor.id),
-                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
-                ) {
-                    Column {
-                        if (hasLeadingGap) {
-                            Spacer(modifier = Modifier.height(gap))
-                        }
-                        PinnedRow(
-                            anchor = anchor,
-                            index = position.index,
-                            count = position.count,
-                            isHero = position.index == 0,
-                            isEditMode = isEditMode,
-                            isDragging = isDragging,
-                            heroNextMilestone = heroNextMilestone,
-                            today = today,
-                            onUnpin = {
-                                if (isActive) {
-                                    onSetPinned(anchor.id, false)
+                Modifier
+            }
+            val gripDragHandle = if (isEditMode && isActive) {
+                Modifier.draggableHandle(interactionSource = gripInteractionSource)
+            } else {
+                Modifier
+            }
+            AnimatedVisibility(
+                visibleState = rowVisibilityStates.getValue(anchor.id),
+                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+            ) {
+                Column {
+                    if (hasLeadingGap) {
+                        Spacer(modifier = Modifier.height(gap))
+                    }
+                    PinnedRow(
+                        anchor = anchor,
+                        index = position.index,
+                        count = position.count,
+                        isHero = position.index == 0,
+                        isEditMode = isEditMode,
+                        isDragging = isDragging,
+                        heroNextMilestone = heroNextMilestone,
+                        today = today,
+                        onUnpin = {
+                            if (isActive) {
+                                onSetPinned(anchor.id, false)
+                            }
+                        },
+                        homeVisible = homeVisibleStates.getValue(anchor.id),
+                        dragHandle = gripDragHandle,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(rowDragModifier)
+                            .shadow(elevation, shape = MaterialTheme.shapes.large)
+                            .semantics {
+                                if (isEditMode && isActive) {
+                                    customActions = moveActions
                                 }
                             },
-                            homeVisible = homeVisibleStates.getValue(anchor.id),
-                            dragHandle = gripDragHandle,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .then(rowDragModifier)
-                                .shadow(elevation, shape = MaterialTheme.shapes.large)
-                                .semantics {
-                                    if (isEditMode && isActive) {
-                                        customActions = moveActions
-                                    }
-                                },
-                        )
-                    }
+                    )
                 }
             }
         }
@@ -1124,77 +1103,13 @@ private fun UnpinButton(name: String, onUnpin: () -> Unit) {
     }
 }
 
-// Empty state: the Home slot is fully shown with teaching copy — this is where a
-// first-time user learns that pinning surfaces a milestone on Home.
 @Composable
 private fun PinnedHomeSlotEmpty(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .border(
-                width = 2.dp,
-                color = MaterialTheme.colorScheme.outlineVariant,
-                shape = MaterialTheme.shapes.large,
-            )
-            .padding(dimensionResource(R.dimen.padding_medium)),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_home),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp),
-            )
-            Text(
-                text = stringResource(R.string.journal_home_slot_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun PinnedHomeSlotFloor(
-    visible: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val alpha by animateFloatAsState(if (visible) 1f else 0f, label = "homeSlotFloor")
-    Box(
-        modifier = modifier
-            .height(72.dp)
-            .alpha(alpha)
-            .border(
-                width = 2.dp,
-                color = MaterialTheme.colorScheme.primary,
-                shape = MaterialTheme.shapes.large,
-            )
-            .background(
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                shape = MaterialTheme.shapes.large,
-            )
-            .padding(horizontal = dimensionResource(R.dimen.padding_medium)),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_home),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                text = stringResource(R.string.journal_home_slot_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-    }
+    SupportMessageListItem(
+        text = stringResource(R.string.journal_home_slot_empty),
+        painter = painterResource(R.drawable.ic_info),
+        modifier = modifier,
+    )
 }
 
 @Composable

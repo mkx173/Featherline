@@ -4,7 +4,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -347,6 +349,10 @@ fun MilestonesScreenContent(
                             )
                         }
                     }
+                }
+
+                item(key = "milestones-pinned-timeline-spacer", contentType = "journal-spacer") {
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
 
                 item(key = "milestones-timeline", contentType = "journal-section") {
