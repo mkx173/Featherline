@@ -462,12 +462,40 @@ private fun PinnedCompactLayout(
                     HomeSuffix(visibleState = homeVisible, modifier = Modifier.alignByBaseline())
                 }
             }
-            AnimatedVisibility(
-                visible = isEditMode,
-                enter = editTrailingEnter(),
-                exit = editTrailingExit(),
-            ) {
-                EditTrailingCluster(name = anchor.name, onUnpin = onUnpin, dragHandle = dragHandle)
+            // The trailing cluster slides in/out with the edit toggle. Two paths, one spec:
+            //   • Hero: this compact layout IS the AnimatedContent edit target, recreated on
+            //     every toggle, so an inner AnimatedVisibility would be seeded already-visible
+            //     and skip its enter slide (it would only fade in on the morph). Instead tie
+            //     the cluster to the morph's scope via animateEnterExit, so it slides as the
+            //     morph brings the layout in/out. The hero reaches compact only in edit mode.
+            //   • Every other row: this layout persists across the toggle, so AnimatedVisibility
+            //     on isEditMode runs the slide. (Their AnimatedContent never transitions, so
+            //     animateEnterExit would never fire.)
+            // Both paths use editTrailingEnter/Exit, keeping the hero in sync with the rest.
+            if (isHero) {
+                EditTrailingCluster(
+                    name = anchor.name,
+                    onUnpin = onUnpin,
+                    dragHandle = dragHandle,
+                    modifier = with(animatedVisibilityScope) {
+                        Modifier.animateEnterExit(
+                            enter = editTrailingEnter(),
+                            exit = editTrailingExit(),
+                        )
+                    },
+                )
+            } else {
+                AnimatedVisibility(
+                    visible = isEditMode,
+                    enter = editTrailingEnter(),
+                    exit = editTrailingExit(),
+                ) {
+                    EditTrailingCluster(
+                        name = anchor.name,
+                        onUnpin = onUnpin,
+                        dragHandle = dragHandle,
+                    )
+                }
             }
         }
     }
