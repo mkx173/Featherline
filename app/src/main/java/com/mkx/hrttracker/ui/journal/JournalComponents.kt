@@ -121,6 +121,11 @@ private val TimelineNodeGap = 3.dp        // bg-colored ring carving the line ga
 private val TimelineCardGap = 6.dp        // vertical gap between adjacent subcards
 private val TimelineOuterPadding = 8.dp   // inner padding of the outer card
 
+// Set to false to drop the Today marker entirely (variant A: one uninterrupted
+// line, no "now" divider). The timeline's first/last rail math reads this, so the
+// continuous line stays correct either way.
+private const val ShowTodayMarker = true
+
 @Composable
 fun MilestonesStackCard(
     today: LocalDate,
@@ -1190,10 +1195,10 @@ fun MilestonesTimeline(
 
         val dividerIndex = todayDividerIndex.coerceIn(0, nodes.size)
         Column(modifier = Modifier.padding(TimelineOuterPadding)) {
-            val rowCount = nodes.size + 1   // milestones + one Today marker
+            val rowCount = nodes.size + if (ShowTodayMarker) 1 else 0
             var rendered = 0
             nodes.forEachIndexed { index, node ->
-                if (index == dividerIndex) {
+                if (ShowTodayMarker && index == dividerIndex) {
                     TodayMarkerRow(
                         today = today,
                         isFirst = rendered == 0,
@@ -1212,7 +1217,7 @@ fun MilestonesTimeline(
                 )
                 rendered++
             }
-            if (dividerIndex == nodes.size) {
+            if (ShowTodayMarker && dividerIndex == nodes.size) {
                 TodayMarkerRow(
                     today = today,
                     isFirst = rendered == 0,
@@ -1358,6 +1363,10 @@ private fun MilestoneNode(anchor: AnchorRowUiState) {
     }
 }
 
+// Quiet "dotless rule" Today marker: the rail line passes straight through (no
+// node), and the content is a faint full-width rule around a small neutral
+// "Today · date" label. To drop the Today marker entirely (variant A), set
+// ShowTodayMarker = false — the rail's first/last line math adjusts on its own.
 @Composable
 private fun TodayMarkerRow(
     today: LocalDate,
@@ -1365,8 +1374,10 @@ private fun TodayMarkerRow(
     isLast: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
     Row(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        TimelineRailCell(isFirst = isFirst, isLast = isLast) { TodayNode() }
+        TimelineRailCell(isFirst = isFirst, isLast = isLast) {}
         Row(
             modifier = Modifier
                 .weight(1f)
@@ -1375,62 +1386,28 @@ private fun TodayMarkerRow(
             horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
         ) {
             HorizontalDivider(modifier = Modifier.weight(1f))
-            TodayPill(today = today)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                // Separate Text nodes so tests match "Today" and the date exactly.
+                Text(
+                    text = stringResource(R.string.journal_today),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "·",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = dateFormatter(today),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             HorizontalDivider(modifier = Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-private fun TodayNode() {
-    // Target marker: tertiary core + tertiaryContainer halo, then a
-    // surfaceContainer ring (outer-card color) carving the gap from the line.
-    Box(
-        modifier = Modifier
-            .size(14.dp + 4.dp + TimelineNodeGap * 2)
-            .background(MaterialTheme.colorScheme.surfaceContainer, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(14.dp + 4.dp)
-                .background(MaterialTheme.colorScheme.tertiaryContainer, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(14.dp)
-                    .background(MaterialTheme.colorScheme.tertiary, CircleShape),
-            )
-        }
-    }
-}
-
-@Composable
-private fun TodayPill(today: LocalDate) {
-    val appLocale = rememberAppLocale()
-    val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.tertiaryContainer,
-        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            // Separate Text nodes so tests match "Today" and the date exactly.
-            Text(
-                text = stringResource(R.string.journal_today),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.tertiary,
-            )
-            Text(text = "·", style = MaterialTheme.typography.labelLarge)
-            Text(
-                text = dateFormatter(today),
-                style = MaterialTheme.typography.labelMedium,
-            )
         }
     }
 }
