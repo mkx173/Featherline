@@ -220,6 +220,7 @@
     <string name="journal_done">Done</string>
     <string name="journal_hero_badge">HERO</string>
     <string name="journal_home_tag">Home</string>
+    <string name="journal_hero_edit_summary">%1$s · %2$s · %3$s</string>
     <string name="journal_home_slot_hint">Top spot — shown on your Home screen</string>
     <string name="journal_home_slot_empty">Pin a milestone in the timeline below to show it on your Home screen</string>
     <string name="journal_in_prefix">in</string>

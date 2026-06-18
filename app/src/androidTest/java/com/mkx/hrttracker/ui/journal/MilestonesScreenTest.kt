@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
@@ -174,11 +175,16 @@ class MilestonesScreenTest {
                 )
             }
         }
-        // The first pinned row carries the Home tag (the hero), and every row exposes
-        // an unpin button. Whole-row long-press drag has no per-handle node, so the
-        // reorder a11y is covered by editMode_rendersPinsInOrderAndRoutesUnpin. Both
-        // labels are localized — derive them from resources for the zh emulator.
-        composeRule.onNodeWithText(context.getString(R.string.journal_home_tag)).assertExists()
+        // The first pinned row (the hero) marks itself Home inside its summary line
+        // ("date · day count · Home"), and every row exposes an unpin button. Whole-row
+        // long-press drag has no per-handle node, so the reorder a11y is covered by
+        // editMode_rendersPinsInOrderAndRoutesUnpin. Home now lives in the hero's summary
+        // rather than a standalone chip, so match the hero row by name + Home to avoid
+        // also matching the home-slot hint ("…shown on your Home screen").
+        composeRule.onNode(
+            hasText(context.getString(R.string.journal_home_tag), substring = true) and
+                hasText("On estradiol", substring = true),
+        ).assertExists()
         composeRule.onNode(
             hasContentDescription(context.getString(R.string.journal_unpin_anchor, "First injection")),
             useUnmergedTree = true,
@@ -203,8 +209,12 @@ class MilestonesScreenTest {
         // merged node ("807 days"), never the bare "807", so "807" alone was unique to
         // the hero's enriched view-mode block.
         composeRule.onNodeWithText("807").assertDoesNotExist()
-        // The Home tag still marks the hero (now the first row of the list).
-        composeRule.onNodeWithText(context.getString(R.string.journal_home_tag)).assertExists()
+        // The Home marker still identifies the hero, now embedded in its summary line.
+        // Match the hero row by name + Home so the home-slot hint isn't also caught.
+        composeRule.onNode(
+            hasText(context.getString(R.string.journal_home_tag), substring = true) and
+                hasText("On estradiol", substring = true),
+        ).assertExists()
     }
 
     @Test
@@ -224,8 +234,13 @@ class MilestonesScreenTest {
             }
         }
 
-        // The Home tag marks index 0 (the hero); every pin keeps its supplied order.
-        composeRule.onNodeWithText(context.getString(R.string.journal_home_tag)).assertExists()
+        // The Home marker (in the hero's summary line) sits at index 0; every pin keeps
+        // its supplied order. Match the hero row by name + Home so the home-slot hint
+        // ("…shown on your Home screen") isn't also caught.
+        composeRule.onNode(
+            hasText(context.getString(R.string.journal_home_tag), substring = true) and
+                hasText("On estradiol", substring = true),
+        ).assertExists()
         val estradiolTop = composeRule.onNodeWithText("On estradiol", useUnmergedTree = true)
             .fetchSemanticsNode()
             .boundsInRoot

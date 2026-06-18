@@ -320,6 +320,7 @@ private fun HeroPinnedContent(
     today: LocalDate,
     dateFormatter: (LocalDate) -> String,
     onUnpin: () -> Unit,
+    dragHandle: Modifier = Modifier,
 ) {
     val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     val sizeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<IntSize>()
@@ -341,6 +342,7 @@ private fun HeroPinnedContent(
                     anchor = anchor,
                     dateFormatter = dateFormatter,
                     onUnpin = onUnpin,
+                    dragHandle = dragHandle,
                     sharedScope = this@SharedTransitionLayout,
                     animatedVisibilityScope = this@AnimatedContent,
                 )
@@ -359,7 +361,10 @@ private fun HeroPinnedContent(
 
 private const val HeroIconSharedKey = "hero-icon"
 private const val HeroTitleSharedKey = "hero-title"
-private const val HomePillSharedKey = "home-pill"
+
+// Gap between a pinned row's leading chip and its text. Matches MedicationCard's 12dp so
+// the hero edit row and the other pinned rows read as the same component.
+private val PinnedRowLeadingGap = 12.dp
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -382,7 +387,7 @@ private fun HeroViewLayout(
                     ),
                 )
                 Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-                HeroTitleAndHome(name = anchor.name, animatedVisibilityScope = animatedVisibilityScope)
+                HeroTitle(name = anchor.name, animatedVisibilityScope = animatedVisibilityScope)
             }
             Column(
                 modifier = Modifier.padding(top = dimensionResource(R.dimen.padding_small)),
@@ -403,6 +408,7 @@ private fun HeroEditLayout(
     onUnpin: () -> Unit,
     sharedScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
+    dragHandle: Modifier = Modifier,
 ) {
     with(sharedScope) {
         Row(
@@ -417,14 +423,18 @@ private fun HeroEditLayout(
                     animatedVisibilityScope = animatedVisibilityScope,
                 ),
             )
-            Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+            Spacer(modifier = Modifier.width(PinnedRowLeadingGap))
             Column(modifier = Modifier.weight(1f)) {
-                HeroTitleAndHome(name = anchor.name, animatedVisibilityScope = animatedVisibilityScope)
+                HeroTitle(name = anchor.name, animatedVisibilityScope = animatedVisibilityScope)
                 Text(
-                    text = "${dateFormatter(anchor.date)} · ${anchor.dayCountLabel()}",
+                    text = stringResource(
+                        R.string.journal_hero_edit_summary,
+                        dateFormatter(anchor.date),
+                        anchor.dayCountLabel(),
+                        stringResource(R.string.journal_home_tag),
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
             // The trailing controls have no view counterpart, so they aren't a shared
@@ -432,6 +442,7 @@ private fun HeroEditLayout(
             EditTrailingCluster(
                 name = anchor.name,
                 onUnpin = onUnpin,
+                dragHandle = dragHandle,
                 modifier = with(animatedVisibilityScope) {
                     Modifier.animateEnterExit(enter = editTrailingEnter(), exit = editTrailingExit())
                 },
@@ -440,33 +451,23 @@ private fun HeroEditLayout(
     }
 }
 
-// The title and the Home pill are each their own shared element, so they slide
-// independently between the view header and the compact edit row.
+// The hero title is its own shared element, so it slides between the view header
+// and the compact edit row. The Home indicator is no longer adjacent to it: in view
+// mode it's a chip in the row below, in edit mode it's appended to the summary line.
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun SharedTransitionScope.HeroTitleAndHome(
+private fun SharedTransitionScope.HeroTitle(
     name: String,
     animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall)),
-    ) {
-        Text(
-            text = name,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.sharedElement(
-                rememberSharedContentState(key = HeroTitleSharedKey),
-                animatedVisibilityScope = animatedVisibilityScope,
-            ),
-        )
-        HomeTag(
-            modifier = Modifier.sharedElement(
-                rememberSharedContentState(key = HomePillSharedKey),
-                animatedVisibilityScope = animatedVisibilityScope,
-            ),
-        )
-    }
+    Text(
+        text = name,
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.sharedElement(
+            rememberSharedContentState(key = HeroTitleSharedKey),
+            animatedVisibilityScope = animatedVisibilityScope,
+        ),
+    )
 }
 
 // The hero's leading icon: a bare tinted glyph in view (no surface), a filled chip in edit
@@ -481,7 +482,9 @@ private fun MorphingLeadingIcon(
     val colorScheme = rememberMedicationGroupColorScheme(colorKey = anchor.palette)
     Box(
         modifier = modifier
-            .size(if (filled) 32.dp else 24.dp)
+            // Filled (edit) matches AnchorIconChip/MedicationCard at 36dp; the bare view
+            // glyph stays 18dp and the shared element grows the container across the morph.
+            .size(if (filled) 36.dp else 18.dp)
             .background(
                 color = if (filled) colorScheme.primaryContainer else Color.Transparent,
                 shape = MaterialTheme.shapes.small,
@@ -491,7 +494,7 @@ private fun MorphingLeadingIcon(
         Icon(
             painter = painterResource(anchorIconRes(anchor.icon)),
             contentDescription = null,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(if (filled) 20.dp else 18.dp),
             tint = if (filled) colorScheme.onPrimaryContainer else colorScheme.primary,
         )
     }
@@ -505,13 +508,19 @@ private fun editTrailingEnter() = slideInHorizontally { width -> width } + fadeI
 private fun editTrailingExit() = slideOutHorizontally { width -> width } + fadeOut()
 
 // Edit-mode trailing cluster: unpin first, drag grip last. Shared by the hero row and
-// the other pinned rows.
+// the other pinned rows. [dragHandle] turns the grip into an immediate (no long-press)
+// drag handle; it's empty when the row isn't draggable.
 @Composable
-private fun EditTrailingCluster(name: String, onUnpin: () -> Unit, modifier: Modifier = Modifier) {
+private fun EditTrailingCluster(
+    name: String,
+    onUnpin: () -> Unit,
+    dragHandle: Modifier = Modifier,
+    modifier: Modifier = Modifier,
+) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         UnpinButton(name = name, onUnpin = onUnpin)
         Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_xsmall)))
-        DragGrip()
+        DragGrip(modifier = dragHandle)
     }
 }
 
@@ -544,6 +553,7 @@ private fun HeroChips(
             size = HrtPillSize.Small,
             icon = { Icon(painterResource(R.drawable.ic_event), null, iconModifier) },
         )
+        HomeTag()
         if (!hero.isFuture && nextMilestone != null) {
             HrtPill(
                 label = nextMilestone.label(),
@@ -628,7 +638,9 @@ private fun NextMilestoneUiState.label(): String {
 private fun AnchorIconChip(
     anchor: AnchorRowUiState,
     modifier: Modifier = Modifier,
-    size: Dp = 32.dp,
+    // Matches MedicationCard's leading icon (36dp container, ~20dp glyph) so journal
+    // rows read as the same component. SimpleHomeCard overrides this with a larger size.
+    size: Dp = 36.dp,
 ) {
     val colorScheme = rememberMedicationGroupColorScheme(colorKey = anchor.palette)
     Surface(
@@ -737,6 +749,7 @@ fun PinnedTray(
         ) { index, anchor, isDragging ->
             key(anchor.id) {
                 val interactionSource = remember { MutableInteractionSource() }
+                val gripInteractionSource = remember { MutableInteractionSource() }
                 val elevation by animateDpAsState(if (isDragging) 6.dp else 0.dp, label = "drag")
                 val moveActions = pinnedRowAccessibilityActions(
                     anchor = anchor,
@@ -744,11 +757,22 @@ fun PinnedTray(
                     anchors = anchors,
                     onReorder = onReorder,
                 )
-                // Whole row is the drag handle (long-press) in edit mode, so the page
-                // can still scroll; the unpin button's tap never starts a drag.
-                val dragModifier = if (isEditMode) {
+                // Two ways to start a drag in edit mode. Long-press anywhere on the row
+                // (so the page can still scroll, and the unpin tap never starts a drag),
+                // or touch the trailing grip, which begins dragging immediately with no
+                // long-press. Both handles drive the same item's drag.
+                val rowDragModifier = if (isEditMode) {
                     Modifier.longPressDraggableHandle(
                         interactionSource = interactionSource,
+                        onDragStarted = { isDraggingAny = true },
+                        onDragStopped = { isDraggingAny = false },
+                    )
+                } else {
+                    Modifier
+                }
+                val gripDragHandle = if (isEditMode) {
+                    Modifier.draggableHandle(
+                        interactionSource = gripInteractionSource,
                         onDragStarted = { isDraggingAny = true },
                         onDragStopped = { isDraggingAny = false },
                     )
@@ -765,9 +789,10 @@ fun PinnedTray(
                     heroNextMilestone = heroNextMilestone,
                     today = today,
                     onUnpin = { onSetPinned(anchor.id, false) },
+                    dragHandle = gripDragHandle,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(dragModifier)
+                        .then(rowDragModifier)
                         .shadow(elevation, shape = MaterialTheme.shapes.large)
                         .semantics {
                             if (isEditMode) {
@@ -791,6 +816,7 @@ private fun PinnedRow(
     heroNextMilestone: NextMilestoneUiState?,
     today: LocalDate,
     onUnpin: () -> Unit,
+    dragHandle: Modifier = Modifier,
     modifier: Modifier = Modifier,
 ) {
     val containerColor = if (isDragging) {
@@ -817,6 +843,7 @@ private fun PinnedRow(
                 today = today,
                 dateFormatter = dateFormatter,
                 onUnpin = onUnpin,
+                dragHandle = dragHandle,
             )
         } else {
             Row(
@@ -824,7 +851,7 @@ private fun PinnedRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 AnchorIconChip(anchor = anchor)
-                Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+                Spacer(modifier = Modifier.width(PinnedRowLeadingGap))
                 AnchorSummaryText(
                     anchor = anchor,
                     today = today,
@@ -839,7 +866,7 @@ private fun PinnedRow(
                     enter = editTrailingEnter(),
                     exit = editTrailingExit(),
                 ) {
-                    EditTrailingCluster(name = anchor.name, onUnpin = onUnpin)
+                    EditTrailingCluster(name = anchor.name, onUnpin = onUnpin, dragHandle = dragHandle)
                 }
             }
         }
@@ -847,11 +874,11 @@ private fun PinnedRow(
 }
 
 @Composable
-private fun DragGrip() {
+private fun DragGrip(modifier: Modifier = Modifier) {
     Icon(
         painter = painterResource(R.drawable.ic_drag_indicator),
         contentDescription = null,
-        modifier = Modifier.size(20.dp),
+        modifier = modifier.size(20.dp),
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
