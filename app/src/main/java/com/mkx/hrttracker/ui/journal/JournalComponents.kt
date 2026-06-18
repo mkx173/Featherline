@@ -22,6 +22,7 @@ import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,6 +50,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -67,7 +69,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
@@ -115,11 +119,15 @@ internal const val SimpleHomeCardTestTag = "simple-home-card"
 // Shared by the timeline rail. The inter-card gap lives inside each row's
 // content cell (not as Column spacing) so the rail column is gapless and the
 // connector line is continuous from the first node to the last.
-private val TimelineRailWidth = 28.dp
-private val TimelineNodeSize = 13.dp
-private val TimelineNodeGap = 3.dp        // bg-colored ring carving the line gap around a node
+private val TimelineNodeSize = 12.dp      // milestone dot diameter
+private val TimelineNodeGap = 6.dp        // gap between a node and the line ends abutting it
+private val TimelineRailStroke = 2.dp     // connector line thickness
+// The dot's left edge starts the row (no leading inset), so this inset is both the
+// gap from the card edge to the dot (the Column's horizontal padding) and the gap
+// from the dot to the subcard — a symmetric 16dp gutter on either side of the dot.
+private val TimelineDotInset = 16.dp
+private val TimelineRailWidth = TimelineNodeSize + TimelineDotInset
 private val TimelineCardGap = 6.dp        // vertical gap between adjacent subcards
-private val TimelineOuterPadding = 8.dp   // inner padding of the outer card
 
 // Set to false to drop the Today marker entirely (variant A: one uninterrupted
 // line, no "now" divider). The timeline's first/last rail math reads this, so the
@@ -405,7 +413,9 @@ private fun HeroViewLayout(
     animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
     with(sharedScope) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        // Mirror MainE2HeroCard's content column, which carries a 6dp bottom padding
+        // below its last row so the chips don't sit flush against the card's edge.
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MorphingLeadingIcon(
                     anchor = anchor,
@@ -1171,7 +1181,7 @@ fun MilestonesTimeline(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         if (nodes.isEmpty()) {
             Box(modifier = Modifier.padding(dimensionResource(R.dimen.padding_medium))) {
@@ -1197,7 +1207,9 @@ fun MilestonesTimeline(
         // only past (or only future) dates it would sit at the very top or bottom as a
         // dangling cap, so suppress it then.
         val showToday = ShowTodayMarker && before.isNotEmpty() && after.isNotEmpty()
-        Column(modifier = Modifier.padding(TimelineOuterPadding)) {
+        // Content padding matches MainLowStockSection's card so the subcards sit with
+        // the same inset as the home low-stock list.
+        Column(modifier = Modifier.padding(horizontal = TimelineDotInset, vertical = 16.dp)) {
             val rowCount = nodes.size + if (showToday) 1 else 0
             var rendered = 0
             before.forEachIndexed { i, node ->
@@ -1256,21 +1268,27 @@ private fun TimelineMilestoneRow(
     val anchor = node.anchor
     // IntrinsicSize.Min lets the rail cell's fillMaxHeight match the row height,
     // so the rail line spans the full row and abuts its neighbours into one
-    // continuous line. The inter-card gap is the content cell's vertical padding,
-    // kept to list_segment_gap so the grouped cards read as a tight segmented run.
+    // continuous line. The inter-card gap is split across each card's top and
+    // bottom padding so two neighbours sum to list_segment_gap; the first card
+    // drops its top inset and the last drops its bottom so the run sits flush
+    // against the surrounding Column padding.
+    val halfGap = dimensionResource(R.dimen.list_segment_gap) / 2
     Row(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        TimelineRailCell(isFirst = isFirst, isLast = isLast) { MilestoneNode(anchor) }
+        TimelineRailCell(isFirst = isFirst, isLast = isLast, hasNode = true) { MilestoneNode(anchor) }
         Box(
             modifier = Modifier
                 .weight(1f)
-                .padding(vertical = dimensionResource(R.dimen.list_segment_gap) / 2),
+                .padding(
+                    top = if (isFirst) 0.dp else halfGap,
+                    bottom = if (isLast) 0.dp else halfGap,
+                ),
         ) {
             EditorSegmentedListItem(
                 index = segIndex,
                 count = segCount,
                 modifier = Modifier.fillMaxWidth(),
                 cornerShape = MaterialTheme.shapes.medium,
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
                 onClick = if (isEditMode) {
                     { onUpdateDate(anchor) }
                 } else {
@@ -1319,28 +1337,42 @@ private fun TimelineMilestoneRow(
 private fun TimelineRailCell(
     isFirst: Boolean,
     isLast: Boolean,
+    hasNode: Boolean,
     modifier: Modifier = Modifier,
     node: @Composable BoxScope.() -> Unit,
 ) {
     val line = MaterialTheme.colorScheme.outlineVariant
+    // The dot's left edge sits flush at the row's start; the connector line runs
+    // straight down the dot's centre with rounded caps. isFirst/isLast drop the
+    // segment that would dangle past the first/last node, and hasNode carves the
+    // gap around a dot (the Today marker passes false for an uninterrupted rule).
     Box(
         modifier = modifier.width(TimelineRailWidth).fillMaxHeight(),
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.CenterStart,
     ) {
-        // Two weighted halves so the node centers exactly on the seam; the ends
-        // are suppressed so the line starts at the first node and stops at the last.
-        Column(
-            modifier = Modifier.fillMaxHeight(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(
-                Modifier.width(2.dp).weight(1f)
-                    .background(if (isFirst) Color.Transparent else line),
-            )
-            Box(
-                Modifier.width(2.dp).weight(1f)
-                    .background(if (isLast) Color.Transparent else line),
-            )
+        Canvas(modifier = Modifier.matchParentSize()) {
+            val centerX = TimelineNodeSize.toPx() / 2f
+            val gap = centerX + TimelineNodeGap.toPx()
+            val stroke = TimelineRailStroke.toPx()
+            val centerY = size.height / 2f
+            if (!isFirst) {
+                drawLine(
+                    color = line,
+                    start = Offset(centerX, 0f),
+                    end = Offset(centerX, if (hasNode) centerY - gap else centerY),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round,
+                )
+            }
+            if (!isLast) {
+                drawLine(
+                    color = line,
+                    start = Offset(centerX, if (hasNode) centerY + gap else centerY),
+                    end = Offset(centerX, size.height),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round,
+                )
+            }
         }
         node()
     }
@@ -1349,28 +1381,19 @@ private fun TimelineRailCell(
 @Composable
 private fun MilestoneNode(anchor: AnchorRowUiState) {
     val accent = rememberMedicationGroupColorScheme(colorKey = anchor.palette).primary
-    // The outer ring is the outer-card color so the line appears to stop just
-    // short of the dot, leaving a small gap.
     Box(
         modifier = Modifier
-            .size(TimelineNodeSize + TimelineNodeGap * 2)
-            .background(MaterialTheme.colorScheme.surfaceContainer, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(TimelineNodeSize)
-                .background(
-                    color = if (anchor.isFuture) {
-                        MaterialTheme.colorScheme.surfaceContainer
-                    } else {
-                        accent
-                    },
-                    shape = CircleShape,
-                )
-                .border(2.dp, accent, CircleShape),
-        )
-    }
+            .size(TimelineNodeSize)
+            .background(
+                color = if (anchor.isFuture) {
+                    MaterialTheme.colorScheme.surfaceContainer
+                } else {
+                    accent
+                },
+                shape = CircleShape,
+            )
+            .border(2.dp, accent, CircleShape),
+    )
 }
 
 // Quiet "dotless rule" Today marker: the rail line passes straight through (no
@@ -1387,7 +1410,7 @@ private fun TodayMarkerRow(
     val appLocale = rememberAppLocale()
     val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
     Row(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        TimelineRailCell(isFirst = isFirst, isLast = isLast) {}
+        TimelineRailCell(isFirst = isFirst, isLast = isLast, hasNode = false) {}
         Row(
             modifier = Modifier
                 .weight(1f)
@@ -1438,7 +1461,7 @@ private fun PinToggle(
         shape = CircleShape,
         modifier = modifier.size(36.dp),
     ) {
-        IconToggleButton(checked = checked, onCheckedChange = onCheckedChange) {
+        IconToggleButton(checked = checked, onCheckedChange = onCheckedChange, colors = IconButtonDefaults.iconToggleButtonColors()) {
             Icon(
                 painter = painterResource(
                     if (checked) R.drawable.ic_keep else R.drawable.ic_keep_alt,
