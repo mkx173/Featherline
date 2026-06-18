@@ -1893,6 +1893,12 @@ private fun previewAnchors() = listOf(
     ),
 )
 
+// Pins only the first anchor (estradiol) so the preview shows the pinned glyph in
+// view mode and a mix of on/off pin toggles in edit mode.
+private fun previewTimelineNodes() = previewAnchors().mapIndexed { index, anchor ->
+    TimelineNodeUiState(anchor = anchor, isPinned = index == 0)
+}
+
 private fun previewNotes() = listOf(
     Note(id = "n1", date = LocalDate.of(2026, 6, 17), text = "Felt steadier today. Sleep is finally settling."),
     Note(id = "n2", date = LocalDate.of(2026, 6, 14), text = "Bloodwork came back in range."),
@@ -1947,6 +1953,38 @@ private fun TodayComposerPreview() {
 private fun NotesTimelinePreview() {
     JournalComponentPreview {
         NotesTimeline(notes = previewNotes(), today = previewToday, onSave = { _, _ -> }, onDelete = {})
+    }
+}
+
+// todayDividerIndex = 2 places the Today marker between the past pins and the
+// future "Surgery" node, exercising filled/today/hollow rail nodes in one frame.
+@Preview(name = "MilestonesTimeline", showBackground = true, widthDp = 420)
+@Composable
+private fun MilestonesTimelinePreview() {
+    JournalComponentPreview {
+        MilestonesTimeline(
+            nodes = previewTimelineNodes(),
+            todayDividerIndex = 2,
+            isEditMode = false,
+            onSetPinned = { _, _ -> },
+            onUpdateDate = {},
+            today = previewToday,
+        )
+    }
+}
+
+@Preview(name = "MilestonesTimeline (edit)", showBackground = true, widthDp = 420)
+@Composable
+private fun MilestonesTimelineEditPreview() {
+    JournalComponentPreview {
+        MilestonesTimeline(
+            nodes = previewTimelineNodes(),
+            todayDividerIndex = 2,
+            isEditMode = true,
+            onSetPinned = { _, _ -> },
+            onUpdateDate = {},
+            today = previewToday,
+        )
     }
 }
 
