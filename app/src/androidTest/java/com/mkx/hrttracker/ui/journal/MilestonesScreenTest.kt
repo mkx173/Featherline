@@ -507,6 +507,84 @@ class MilestonesScreenTest {
     }
 
     @Test
+    fun timeline_hidesTodayMarkerWhenAllPast() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                MilestonesTimeline(
+                    nodes = listOf(
+                        TimelineNodeUiState(estradiolAnchor(), isPinned = false),
+                        TimelineNodeUiState(labsAnchor(), isPinned = false),
+                    ),
+                    // Divider past the end: every date is in the past, so Today would
+                    // dangle at the bottom. It must be suppressed.
+                    todayDividerIndex = 2,
+                    isEditMode = false,
+                    onSetPinned = { _, _ -> },
+                    onUpdateDate = { },
+                    today = today,
+                )
+            }
+        }
+        composeRule.onAllNodesWithText(context.getString(R.string.journal_today))
+            .assertCountEquals(0)
+    }
+
+    @Test
+    fun timeline_hidesTodayMarkerWhenAllFuture() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                MilestonesTimeline(
+                    nodes = listOf(TimelineNodeUiState(surgeryAnchor(), isPinned = false)),
+                    // Divider at the start: every date is in the future, so Today would
+                    // dangle at the top. It must be suppressed.
+                    todayDividerIndex = 0,
+                    isEditMode = false,
+                    onSetPinned = { _, _ -> },
+                    onUpdateDate = { },
+                    today = today,
+                )
+            }
+        }
+        composeRule.onAllNodesWithText(context.getString(R.string.journal_today))
+            .assertCountEquals(0)
+    }
+
+    @Test
+    fun timeline_editModeKeepsCountInTrailingNotSupport() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                MilestonesTimeline(
+                    nodes = listOf(TimelineNodeUiState(estradiolAnchor(), isPinned = false)),
+                    todayDividerIndex = 1,
+                    isEditMode = true,
+                    onSetPinned = { _, _ -> },
+                    onUpdateDate = { },
+                    today = today,
+                )
+            }
+        }
+        val dateLabel = dateLabelFormatter(
+            locale = context.resources.configuration.locales[0],
+            today = today,
+        )(estradiolAnchor().date)
+        val countLabel = context.resources.getQuantityString(
+            R.plurals.journal_milestone_days_past,
+            807,
+            807,
+        )
+        // The day count stays visible in edit mode (now in the trailing slot)...
+        composeRule.onNodeWithText(countLabel).assertExists()
+        // ...and is no longer concatenated into the supporting line ("date · count").
+        composeRule.onAllNodesWithText("$dateLabel · $countLabel").assertCountEquals(0)
+    }
+
+    @Test
     fun shell_rendersHeroPinnedTimelineAndTogglesEdit() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val locale = context.resources.configuration.locales[0]

@@ -780,40 +780,31 @@ private fun AnchorIconChip(
 private fun AnchorSummaryText(
     anchor: AnchorRowUiState,
     today: LocalDate,
-    showDayCountInline: Boolean,
     modifier: Modifier = Modifier,
-    nameGlyph: (@Composable () -> Unit)? = null,
 ) {
     val appLocale = rememberAppLocale()
     val dateFormatter = remember(appLocale, today) {
         dateLabelFormatter(appLocale, today)
     }
+    // The supporting line is always just the anchor date. The day count lives in the
+    // trailing slot in both modes, so it is never duplicated inline here. The pinned
+    // glyph is gone too: a row's pin state is already shown by the Pinned section above
+    // and by the trailing pin toggle in edit mode.
     val dateLabel = dateFormatter(anchor.date)
-    val supportingLabel = if (showDayCountInline) {
-        "$dateLabel · ${anchor.dayCountLabel()}"
-    } else {
-        dateLabel
-    }
 
     Column(modifier = modifier) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall)),
-        ) {
-            Text(
-                text = anchor.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Normal,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.cjkTextOffset(anchor.name),
-            )
-            nameGlyph?.invoke()
-        }
         Text(
-            text = supportingLabel,
+            text = anchor.name,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Normal,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.cjkTextOffset(anchor.name),
+        )
+        Text(
+            text = dateLabel,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.cjkTextOffset(supportingLabel),
+            modifier = Modifier.cjkTextOffset(dateLabel),
         )
     }
 }
@@ -1202,8 +1193,12 @@ fun MilestonesTimeline(
         val dividerIndex = todayDividerIndex.coerceIn(0, nodes.size)
         val before = nodes.subList(0, dividerIndex)
         val after = nodes.subList(dividerIndex, nodes.size)
+        // Today only divides something when there are dates on both sides of it. With
+        // only past (or only future) dates it would sit at the very top or bottom as a
+        // dangling cap, so suppress it then.
+        val showToday = ShowTodayMarker && before.isNotEmpty() && after.isNotEmpty()
         Column(modifier = Modifier.padding(TimelineOuterPadding)) {
-            val rowCount = nodes.size + if (ShowTodayMarker) 1 else 0
+            val rowCount = nodes.size + if (showToday) 1 else 0
             var rendered = 0
             before.forEachIndexed { i, node ->
                 TimelineMilestoneRow(
@@ -1219,7 +1214,7 @@ fun MilestonesTimeline(
                 )
                 rendered++
             }
-            if (ShowTodayMarker) {
+            if (showToday) {
                 TodayMarkerRow(
                     today = today,
                     isFirst = rendered == 0,
@@ -1283,12 +1278,10 @@ private fun TimelineMilestoneRow(
                 },
                 leadingContent = { AnchorIconChip(anchor = anchor) },
                 trailingContent = {
-                    if (isEditMode) {
-                        PinToggle(
-                            checked = node.isPinned,
-                            onCheckedChange = { onSetPinned(anchor.id, it) },
-                        )
-                    } else {
+                    // The day count stays put in both modes; the pin toggle reveals to
+                    // its right in edit mode by expanding its width, which slides the
+                    // count leftward to make room (mirrors the pinned rows' trailing reveal).
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = anchor.dayCountLabel(),
                             style = MaterialTheme.typography.titleLarge.copy(
@@ -1300,26 +1293,23 @@ private fun TimelineMilestoneRow(
                                 MaterialTheme.colorScheme.primary
                             },
                         )
+                        AnimatedVisibility(
+                            visible = isEditMode,
+                            enter = expandHorizontally(expandFrom = Alignment.End) + fadeIn(),
+                            exit = shrinkHorizontally(shrinkTowards = Alignment.End) + fadeOut(),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+                                PinToggle(
+                                    checked = node.isPinned,
+                                    onCheckedChange = { onSetPinned(anchor.id, it) },
+                                )
+                            }
+                        }
                     }
                 },
             ) {
-                AnchorSummaryText(
-                    anchor = anchor,
-                    today = today,
-                    showDayCountInline = isEditMode,
-                    nameGlyph = if (!isEditMode && node.isPinned) {
-                        {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_keep),
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    } else {
-                        null
-                    },
-                )
+                AnchorSummaryText(anchor = anchor, today = today)
             }
         }
     }
