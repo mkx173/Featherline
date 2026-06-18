@@ -1711,3 +1711,94 @@ private fun JournalEmptyStatesPreview() {
         EmptyAllNotesCard()
     }
 }
+
+private val previewNextMilestone =
+    NextMilestoneUiState(remainingDays = 193, value = 1000, unit = MilestoneUnit.DAYS)
+
+// The hero layouts only render inside a SharedTransitionLayout/AnimatedContent, so the
+// preview supplies both scopes via a still AnimatedVisibility (visible from the start, so
+// content shows without animating).
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun HeroLayoutScope(
+    content: @Composable (
+        sharedScope: SharedTransitionScope,
+        animatedVisibilityScope: AnimatedVisibilityScope,
+    ) -> Unit,
+) {
+    SharedTransitionLayout {
+        AnimatedVisibility(visible = true) {
+            content(this@SharedTransitionLayout, this@AnimatedVisibility)
+        }
+    }
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Preview(name = "HeroViewLayout", showBackground = true, widthDp = 420)
+@Composable
+private fun HeroViewLayoutPreview() {
+    JournalComponentPreview {
+        HeroLayoutScope { sharedScope, animatedVisibilityScope ->
+            HeroViewLayout(
+                anchor = previewAnchors().first(),
+                heroNextMilestone = previewNextMilestone,
+                today = previewToday,
+                sharedScope = sharedScope,
+                animatedVisibilityScope = animatedVisibilityScope,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Preview(name = "HeroEditLayout", showBackground = true, widthDp = 420)
+@Composable
+private fun HeroEditLayoutPreview() {
+    JournalComponentPreview {
+        HeroLayoutScope { sharedScope, animatedVisibilityScope ->
+            HeroEditLayout(
+                anchor = previewAnchors().first(),
+                dateFormatter = { it.toString() },
+                onUnpin = {},
+                sharedScope = sharedScope,
+                animatedVisibilityScope = animatedVisibilityScope,
+            )
+        }
+    }
+}
+
+@Preview(name = "PinnedRow", showBackground = true, widthDp = 420)
+@Composable
+private fun PinnedRowPreview() {
+    val anchors = previewAnchors()
+    JournalComponentPreview {
+        PinnedRow(
+            anchor = anchors[0], index = 0, count = 2,
+            isHero = true, isEditMode = false, isDragging = false,
+            heroNextMilestone = previewNextMilestone, today = previewToday, onUnpin = {},
+        )
+        PinnedRow(
+            anchor = anchors[1], index = 1, count = 2,
+            isHero = false, isEditMode = false, isDragging = false,
+            heroNextMilestone = null, today = previewToday, onUnpin = {},
+        )
+    }
+}
+
+@Preview(name = "PinnedRow (edit)", showBackground = true, widthDp = 420)
+@Composable
+private fun PinnedRowEditPreview() {
+    val anchors = previewAnchors()
+    JournalComponentPreview {
+        PinnedRow(
+            anchor = anchors[0], index = 0, count = 2,
+            isHero = true, isEditMode = true, isDragging = false,
+            heroNextMilestone = previewNextMilestone, today = previewToday, onUnpin = {},
+        )
+        PinnedRow(
+            anchor = anchors[1], index = 1, count = 2,
+            isHero = false, isEditMode = true, isDragging = false,
+            heroNextMilestone = null, today = previewToday, onUnpin = {},
+        )
+    }
+}
