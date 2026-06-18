@@ -1193,21 +1193,23 @@ fun MilestonesTimeline(
             return@Surface
         }
 
+        // Split at today into a "before" (past) run and an "after" (today-dated +
+        // future) run. Each run gets its own segment index/count so its cards share
+        // grouped corners — the past block and the future block read as two groups,
+        // while a single continuous rail still threads through both (and the Today
+        // marker between them). isFirst/isLast below drive that rail's end-caps and
+        // are computed over the whole sequence, independent of the per-group shapes.
         val dividerIndex = todayDividerIndex.coerceIn(0, nodes.size)
+        val before = nodes.subList(0, dividerIndex)
+        val after = nodes.subList(dividerIndex, nodes.size)
         Column(modifier = Modifier.padding(TimelineOuterPadding)) {
             val rowCount = nodes.size + if (ShowTodayMarker) 1 else 0
             var rendered = 0
-            nodes.forEachIndexed { index, node ->
-                if (ShowTodayMarker && index == dividerIndex) {
-                    TodayMarkerRow(
-                        today = today,
-                        isFirst = rendered == 0,
-                        isLast = rendered == rowCount - 1,
-                    )
-                    rendered++
-                }
+            before.forEachIndexed { i, node ->
                 TimelineMilestoneRow(
                     node = node,
+                    segIndex = i,
+                    segCount = before.size,
                     isFirst = rendered == 0,
                     isLast = rendered == rowCount - 1,
                     isEditMode = isEditMode,
@@ -1217,11 +1219,25 @@ fun MilestonesTimeline(
                 )
                 rendered++
             }
-            if (ShowTodayMarker && dividerIndex == nodes.size) {
+            if (ShowTodayMarker) {
                 TodayMarkerRow(
                     today = today,
                     isFirst = rendered == 0,
                     isLast = rendered == rowCount - 1,
+                )
+                rendered++
+            }
+            after.forEachIndexed { j, node ->
+                TimelineMilestoneRow(
+                    node = node,
+                    segIndex = j,
+                    segCount = after.size,
+                    isFirst = rendered == 0,
+                    isLast = rendered == rowCount - 1,
+                    isEditMode = isEditMode,
+                    today = today,
+                    onSetPinned = onSetPinned,
+                    onUpdateDate = onUpdateDate,
                 )
                 rendered++
             }
@@ -1232,6 +1248,8 @@ fun MilestonesTimeline(
 @Composable
 private fun TimelineMilestoneRow(
     node: TimelineNodeUiState,
+    segIndex: Int,
+    segCount: Int,
     isFirst: Boolean,
     isLast: Boolean,
     isEditMode: Boolean,
@@ -1243,17 +1261,19 @@ private fun TimelineMilestoneRow(
     val anchor = node.anchor
     // IntrinsicSize.Min lets the rail cell's fillMaxHeight match the row height,
     // so the rail line spans the full row and abuts its neighbours into one
-    // continuous line. The inter-card gap is the content cell's vertical padding.
+    // continuous line. The inter-card gap is the content cell's vertical padding,
+    // kept to list_segment_gap so the grouped cards read as a tight segmented run.
     Row(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         TimelineRailCell(isFirst = isFirst, isLast = isLast) { MilestoneNode(anchor) }
         Box(
             modifier = Modifier
                 .weight(1f)
-                .padding(vertical = TimelineCardGap / 2),
+                .padding(vertical = dimensionResource(R.dimen.list_segment_gap) / 2),
         ) {
             EditorSegmentedListItem(
+                index = segIndex,
+                count = segCount,
                 modifier = Modifier.fillMaxWidth(),
-                fullyRounded = true,
                 cornerShape = MaterialTheme.shapes.medium,
                 containerColor = MaterialTheme.colorScheme.surface,
                 onClick = if (isEditMode) {
