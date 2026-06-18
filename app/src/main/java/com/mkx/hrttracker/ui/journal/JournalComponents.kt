@@ -28,6 +28,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -110,9 +111,15 @@ private const val TodayComposerTextFieldTestTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field-"
 internal const val SimpleHomeCardTestTag = "simple-home-card"
 
-// Shared between TimelineRail and TodayDivider so the today node's dot lands on the
-// same anchor rail as every other row (same width, same dot top offset).
-private val TimelineRailWidth = 34.dp
+// Shared by the timeline rail. The inter-card gap lives inside each row's
+// content cell (not as Column spacing) so the rail column is gapless and the
+// connector line is continuous from the first node to the last.
+private val TimelineRailWidth = 28.dp
+private val TimelineNodeSize = 13.dp
+private val TimelineNodeGap = 3.dp        // bg-colored ring carving the line gap around a node
+private val TimelineCardGap = 6.dp        // vertical gap between adjacent subcards
+private val TimelineOuterPadding = 8.dp   // inner padding of the outer card
+// Still used by the legacy TodayDivider until the Today marker is redesigned.
 private val TimelineRailDotTopOffset = 14.dp
 
 @Composable
@@ -1166,51 +1173,50 @@ fun MilestonesTimeline(
     today: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier,
 ) {
-    if (nodes.isEmpty()) {
-        EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
-            Text(
-                text = stringResource(R.string.journal_no_dates),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        return
-    }
-
-    val dividerIndex = todayDividerIndex.coerceIn(0, nodes.size)
-    Column(
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
-        nodes.forEachIndexed { index, node ->
-            if (index == dividerIndex) {
-                TodayDivider(today = today)
+        if (nodes.isEmpty()) {
+            Box(modifier = Modifier.padding(dimensionResource(R.dimen.padding_medium))) {
+                Text(
+                    text = stringResource(R.string.journal_no_dates),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            TimelineAnchorRow(
-                node = node,
-                index = index,
-                count = nodes.size,
-                isLast = index == nodes.lastIndex,
-                isToday = node.anchor.date == today,
-                isEditMode = isEditMode,
-                today = today,
-                onSetPinned = onSetPinned,
-                onUpdateDate = onUpdateDate,
-            )
+            return@Surface
         }
-        if (dividerIndex == nodes.size) {
-            TodayDivider(today = today, isLast = true)
+
+        val dividerIndex = todayDividerIndex.coerceIn(0, nodes.size)
+        Column(modifier = Modifier.padding(TimelineOuterPadding)) {
+            nodes.forEachIndexed { index, node ->
+                if (index == dividerIndex) {
+                    TodayDivider(today = today)
+                }
+                TimelineMilestoneRow(
+                    node = node,
+                    isFirst = index == 0,
+                    isLast = index == nodes.lastIndex,
+                    isEditMode = isEditMode,
+                    today = today,
+                    onSetPinned = onSetPinned,
+                    onUpdateDate = onUpdateDate,
+                )
+            }
+            if (dividerIndex == nodes.size) {
+                TodayDivider(today = today, isLast = true)
+            }
         }
     }
 }
 
 @Composable
-private fun TimelineAnchorRow(
+private fun TimelineMilestoneRow(
     node: TimelineNodeUiState,
-    index: Int,
-    count: Int,
+    isFirst: Boolean,
     isLast: Boolean,
-    isToday: Boolean,
     isEditMode: Boolean,
     today: LocalDate,
     onSetPinned: (String, Boolean) -> Unit,
@@ -1218,101 +1224,125 @@ private fun TimelineAnchorRow(
     modifier: Modifier = Modifier,
 ) {
     val anchor = node.anchor
-
-    // IntrinsicSize.Min lets the rail's fillMaxHeight match the entry's height,
-    // so the connector spans exactly from this dot toward the next row's dot.
+    // IntrinsicSize.Min lets the rail cell's fillMaxHeight match the row height,
+    // so the rail line spans the full row and abuts its neighbours into one
+    // continuous line. The inter-card gap is the content cell's vertical padding.
     Row(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        TimelineRail(anchor = anchor, isLast = isLast, isToday = isToday)
-        EditorSegmentedListItem(
-            index = index,
-            count = count,
-            modifier = Modifier.fillMaxWidth(),
-            onClick = if (isEditMode) {
-                { onUpdateDate(anchor) }
-            } else {
-                null
-            },
-            leadingContent = { AnchorIconChip(anchor = anchor) },
-            trailingContent = {
-                if (isEditMode) {
-                    PinToggle(
-                        checked = node.isPinned,
-                        onCheckedChange = { onSetPinned(anchor.id, it) },
-                    )
-                } else {
-                    Text(
-                        text = anchor.dayCountLabel(),
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontFeatureSettings = "tnum",
-                        ),
-                        color = if (anchor.isFuture) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                    )
-                }
-            },
+        TimelineRailCell(isFirst = isFirst, isLast = isLast) { MilestoneNode(anchor) }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = TimelineCardGap / 2),
         ) {
-            AnchorSummaryText(
-                anchor = anchor,
-                today = today,
-                showDayCountInline = isEditMode,
-                nameGlyph = if (!isEditMode && node.isPinned) {
-                    {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_keep),
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
+            EditorSegmentedListItem(
+                modifier = Modifier.fillMaxWidth(),
+                fullyRounded = true,
+                cornerShape = MaterialTheme.shapes.medium,
+                containerColor = MaterialTheme.colorScheme.surface,
+                onClick = if (isEditMode) {
+                    { onUpdateDate(anchor) }
                 } else {
                     null
                 },
-            )
+                leadingContent = { AnchorIconChip(anchor = anchor) },
+                trailingContent = {
+                    if (isEditMode) {
+                        PinToggle(
+                            checked = node.isPinned,
+                            onCheckedChange = { onSetPinned(anchor.id, it) },
+                        )
+                    } else {
+                        Text(
+                            text = anchor.dayCountLabel(),
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontFeatureSettings = "tnum",
+                            ),
+                            color = if (anchor.isFuture) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            },
+                        )
+                    }
+                },
+            ) {
+                AnchorSummaryText(
+                    anchor = anchor,
+                    today = today,
+                    showDayCountInline = isEditMode,
+                    nameGlyph = if (!isEditMode && node.isPinned) {
+                        {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_keep),
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun TimelineRail(
-    anchor: AnchorRowUiState,
+private fun TimelineRailCell(
+    isFirst: Boolean,
     isLast: Boolean,
-    isToday: Boolean,
     modifier: Modifier = Modifier,
+    node: @Composable BoxScope.() -> Unit,
 ) {
-    val accent = if (isToday) {
-        MaterialTheme.colorScheme.tertiary
-    } else {
-        rememberMedicationGroupColorScheme(colorKey = anchor.palette).primary
-    }
-    Column(
+    val line = MaterialTheme.colorScheme.outlineVariant
+    Box(
         modifier = modifier.width(TimelineRailWidth).fillMaxHeight(),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        contentAlignment = Alignment.Center,
     ) {
-        Spacer(Modifier.height(TimelineRailDotTopOffset))
+        // Two weighted halves so the node centers exactly on the seam; the ends
+        // are suppressed so the line starts at the first node and stops at the last.
+        Column(
+            modifier = Modifier.fillMaxHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier.width(2.dp).weight(1f)
+                    .background(if (isFirst) Color.Transparent else line),
+            )
+            Box(
+                Modifier.width(2.dp).weight(1f)
+                    .background(if (isLast) Color.Transparent else line),
+            )
+        }
+        node()
+    }
+}
+
+@Composable
+private fun MilestoneNode(anchor: AnchorRowUiState) {
+    val accent = rememberMedicationGroupColorScheme(colorKey = anchor.palette).primary
+    // The outer ring is the outer-card color so the line appears to stop just
+    // short of the dot, leaving a small gap.
+    Box(
+        modifier = Modifier
+            .size(TimelineNodeSize + TimelineNodeGap * 2)
+            .background(MaterialTheme.colorScheme.surfaceContainer, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
         Box(
             modifier = Modifier
-                .size(16.dp)
-                .border(2.dp, accent, CircleShape)
+                .size(TimelineNodeSize)
                 .background(
-                    color = if (anchor.isFuture && !isToday) {
-                        MaterialTheme.colorScheme.surfaceContainerLow
+                    color = if (anchor.isFuture) {
+                        MaterialTheme.colorScheme.surfaceContainer
                     } else {
                         accent
                     },
                     shape = CircleShape,
-                ),
+                )
+                .border(2.dp, accent, CircleShape),
         )
-        if (!isLast) {
-            Box(
-                modifier = Modifier
-                    .width(2.dp)
-                    .weight(1f)
-                    .background(MaterialTheme.colorScheme.outlineVariant),
-            )
-        }
     }
 }
 
