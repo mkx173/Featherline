@@ -14,9 +14,11 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
@@ -51,6 +53,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -91,6 +94,7 @@ import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
+import com.mkx.hrttracker.ui.components.SegmentPosition
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
@@ -810,6 +814,7 @@ internal fun reorderedIds(ids: List<String>, fromIndex: Int, toIndex: Int): List
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 fun PinnedTray(
     anchors: List<AnchorRowUiState>,
     isEditMode: Boolean,
@@ -819,12 +824,98 @@ fun PinnedTray(
     today: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier,
 ) {
-    if (anchors.isEmpty()) {
-        PinnedHomeSlotEmpty(modifier = modifier.fillMaxWidth())
-        return
+    var lastNonEmptyAnchors by remember { mutableStateOf(emptyList<AnchorRowUiState>()) }
+    val rowAnchors = if (anchors.isEmpty()) lastNonEmptyAnchors else anchors
+    SideEffect {
+        if (anchors.isNotEmpty()) {
+            lastNonEmptyAnchors = anchors
+        }
     }
+    val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val sizeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<IntSize>()
+
+    AnimatedContent(
+        targetState = anchors.isEmpty(),
+        modifier = modifier.fillMaxWidth(),
+        transitionSpec = {
+            ContentTransform(
+                targetContentEnter = fadeIn(fadeSpec),
+                initialContentExit = fadeOut(fadeSpec),
+                sizeTransform = SizeTransform { _, _ -> sizeSpec },
+            )
+        },
+        contentAlignment = Alignment.TopStart,
+        label = "pinned-tray-empty-morph",
+    ) { isEmpty ->
+        if (isEmpty) {
+            PinnedHomeSlotEmpty(modifier = Modifier.fillMaxWidth())
+        } else {
+            PinnedTrayRows(
+                anchors = rowAnchors,
+                isEditMode = isEditMode,
+                onReorder = onReorder,
+                onSetPinned = onSetPinned,
+                heroNextMilestone = heroNextMilestone,
+                today = today,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PinnedTrayRows(
+    anchors: List<AnchorRowUiState>,
+    isEditMode: Boolean,
+    onReorder: (List<String>) -> Unit,
+    onSetPinned: (String, Boolean) -> Unit,
+    heroNextMilestone: NextMilestoneUiState?,
+    today: LocalDate,
+) {
     val view = LocalView.current
     var isDraggingAny by remember { mutableStateOf(false) }
+    val gap = dimensionResource(R.dimen.list_segment_gap)
+    val rowVisibilityStates = remember { mutableMapOf<String, MutableTransitionState<Boolean>>() }
+    val rowAnchors = remember { mutableMapOf<String, AnchorRowUiState>() }
+    val rowOrder = remember { mutableListOf<String>() }
+    val lastPositions = remember { mutableMapOf<String, SegmentPosition>() }
+    val activeIds = anchors.map { it.id }
+    val activeIdSet = activeIds.toSet()
+    val initialRows = rowVisibilityStates.isEmpty()
+
+    anchors.forEachIndexed { index, anchor ->
+        rowAnchors[anchor.id] = anchor
+        rowVisibilityStates
+            .getOrPut(anchor.id) { MutableTransitionState(initialRows) }
+            .targetState = true
+        lastPositions[anchor.id] = SegmentPosition(index, anchors.size)
+    }
+    rowVisibilityStates.forEach { (id, state) ->
+        if (id !in activeIdSet) {
+            state.targetState = false
+        }
+    }
+    val exitingIds = rowOrder.filter { id ->
+        id !in activeIdSet && rowVisibilityStates[id]?.isPinnedTrayRowPresent() == true
+    }
+    val nextOrder = activeIds.toMutableList()
+    exitingIds.forEach { id ->
+        nextOrder.add(rowOrder.indexOf(id).coerceIn(0, nextOrder.size), id)
+    }
+    rowOrder.clear()
+    rowOrder.addAll(nextOrder)
+    val displayAnchors = rowOrder.mapNotNull { id ->
+        val state = rowVisibilityStates[id]
+        rowAnchors[id]?.takeIf { state?.isPinnedTrayRowPresent() == true }
+    }
+    val displayIds = displayAnchors.map { it.id }.toSet()
+    rowVisibilityStates.keys.retainAll(displayIds)
+    rowAnchors.keys.retainAll(displayIds)
+    rowOrder.retainAll(displayIds)
+    val hasTransitioningRows = displayIds.any { id ->
+        rowVisibilityStates[id]?.isIdle == false
+    }
+    val reorderOwnsGaps = isEditMode && !hasTransitioningRows
+
     // ReorderableColumn lays its rows out positionally (no per-item key), so a reorder
     // rebuilds a row's whole subtree from scratch — any AnimatedVisibility inside the row
     // would lose its transition and snap. So the "· Home" tag's visibility lives here, above
@@ -833,17 +924,19 @@ fun PinnedTray(
     // versa). targetState tracks "is this the hero (top) row"; a fresh id seeds to its
     // current position so the initial hero shows without animating in.
     val homeVisibleStates = remember { mutableMapOf<String, MutableTransitionState<Boolean>>() }
-    homeVisibleStates.keys.retainAll(anchors.map { it.id }.toSet())
-    anchors.forEachIndexed { index, anchor ->
-        homeVisibleStates.getOrPut(anchor.id) { MutableTransitionState(index == 0) }
-            .targetState = index == 0
+    homeVisibleStates.keys.retainAll(displayIds)
+    displayAnchors.forEach { anchor ->
+        val isHome = activeIds.indexOf(anchor.id) == 0
+        val wasHome = lastPositions[anchor.id]?.index == 0
+        homeVisibleStates.getOrPut(anchor.id) { MutableTransitionState(isHome || wasHome) }
+            .targetState = isHome
     }
     // The "Home slot" floor is painted behind the rows. The opaque first row covers
     // it at rest; while a drag is in progress the lifted row's reserved slot turns
     // transparent and the floor shows through at the top, making "top = Home" legible
     // during the very gesture that changes it. ReorderableColumn is used in both modes
     // so the hero stays the first row and morphs in place; drag is only enabled in edit.
-    Box(modifier = modifier.fillMaxWidth()) {
+    Box(modifier = Modifier.fillMaxWidth()) {
         PinnedHomeSlotFloor(
             visible = isDraggingAny,
             modifier = Modifier
@@ -852,9 +945,13 @@ fun PinnedTray(
         )
         ReorderableColumn(
             modifier = Modifier.fillMaxWidth(),
-            list = anchors,
+            list = displayAnchors,
             onSettle = { fromIndex, toIndex ->
-                onReorder(reorderedIds(anchors.map { it.id }, fromIndex, toIndex))
+                val displayOrder = displayAnchors.map { it.id }
+                onReorder(
+                    reorderedIds(displayOrder, fromIndex, toIndex)
+                        .filter { it in activeIdSet }
+                )
             },
             onMove = {
                 ViewCompat.performHapticFeedback(
@@ -862,15 +959,27 @@ fun PinnedTray(
                     HapticFeedbackConstantsCompat.SEGMENT_FREQUENT_TICK,
                 )
             },
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
+            verticalArrangement = if (reorderOwnsGaps) {
+                Arrangement.spacedBy(gap)
+            } else {
+                Arrangement.Top
+            },
         ) { index, anchor, isDragging ->
             key(anchor.id) {
+                val activePosition = activeIds.indexOf(anchor.id)
+                    .takeIf { it >= 0 }
+                    ?.let { SegmentPosition(it, anchors.size) }
+                val position = activePosition ?: lastPositions.getValue(anchor.id)
+                lastPositions[anchor.id] = position
+                val hasLeadingGap = !reorderOwnsGaps &&
+                    rowOrder.take(index).any { it in activeIdSet }
+                val isActive = anchor.id in activeIdSet
                 val interactionSource = remember { MutableInteractionSource() }
                 val gripInteractionSource = remember { MutableInteractionSource() }
                 val elevation by animateDpAsState(if (isDragging) 6.dp else 0.dp, label = "drag")
                 val moveActions = pinnedRowAccessibilityActions(
                     anchor = anchor,
-                    index = index,
+                    index = position.index,
                     anchors = anchors,
                     onReorder = onReorder,
                 )
@@ -878,7 +987,7 @@ fun PinnedTray(
                 // (so the page can still scroll, and the unpin tap never starts a drag),
                 // or touch the trailing grip, which begins dragging immediately with no
                 // long-press. Both handles drive the same item's drag.
-                val rowDragModifier = if (isEditMode) {
+                val rowDragModifier = if (isEditMode && isActive) {
                     Modifier.longPressDraggableHandle(
                         interactionSource = interactionSource,
                         onDragStarted = { isDraggingAny = true },
@@ -887,7 +996,7 @@ fun PinnedTray(
                 } else {
                     Modifier
                 }
-                val gripDragHandle = if (isEditMode) {
+                val gripDragHandle = if (isEditMode && isActive) {
                     Modifier.draggableHandle(
                         interactionSource = gripInteractionSource,
                         onDragStarted = { isDraggingAny = true },
@@ -896,32 +1005,50 @@ fun PinnedTray(
                 } else {
                     Modifier
                 }
-                PinnedRow(
-                    anchor = anchor,
-                    index = index,
-                    count = anchors.size,
-                    isHero = index == 0,
-                    isEditMode = isEditMode,
-                    isDragging = isDragging,
-                    heroNextMilestone = heroNextMilestone,
-                    today = today,
-                    onUnpin = { onSetPinned(anchor.id, false) },
-                    homeVisible = homeVisibleStates.getValue(anchor.id),
-                    dragHandle = gripDragHandle,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(rowDragModifier)
-                        .shadow(elevation, shape = MaterialTheme.shapes.large)
-                        .semantics {
-                            if (isEditMode) {
-                                customActions = moveActions
-                            }
-                        },
-                )
+                AnimatedVisibility(
+                    visibleState = rowVisibilityStates.getValue(anchor.id),
+                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                ) {
+                    Column {
+                        if (hasLeadingGap) {
+                            Spacer(modifier = Modifier.height(gap))
+                        }
+                        PinnedRow(
+                            anchor = anchor,
+                            index = position.index,
+                            count = position.count,
+                            isHero = position.index == 0,
+                            isEditMode = isEditMode,
+                            isDragging = isDragging,
+                            heroNextMilestone = heroNextMilestone,
+                            today = today,
+                            onUnpin = {
+                                if (isActive) {
+                                    onSetPinned(anchor.id, false)
+                                }
+                            },
+                            homeVisible = homeVisibleStates.getValue(anchor.id),
+                            dragHandle = gripDragHandle,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(rowDragModifier)
+                                .shadow(elevation, shape = MaterialTheme.shapes.large)
+                                .semantics {
+                                    if (isEditMode && isActive) {
+                                        customActions = moveActions
+                                    }
+                                },
+                        )
+                    }
+                }
             }
         }
     }
 }
+
+private fun MutableTransitionState<Boolean>.isPinnedTrayRowPresent(): Boolean =
+    currentState || targetState || !isIdle
 
 @Composable
 private fun PinnedRow(
