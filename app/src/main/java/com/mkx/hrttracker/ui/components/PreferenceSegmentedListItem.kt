@@ -30,6 +30,7 @@ fun PreferenceSegmentedListItem(
     supportingText: String? = null,
     leadingContent: (@Composable () -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
+    contentModifier: Modifier = Modifier,
     titleTextStyle: TextStyle? = null,
     supportingTextStyle: TextStyle? = null,
     titleColor: Color? = null,
@@ -53,6 +54,7 @@ fun PreferenceSegmentedListItem(
         disabledContainerColor = disabledContainerColor,
     ) {
         Row(
+            modifier = contentModifier,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (leadingContent != null) {

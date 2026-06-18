@@ -63,6 +63,50 @@ class PinnedTraySourceTest {
         )
     }
 
+    @Test
+    fun pinnedTray_emptyMorphFadesOnlyInnerContents() {
+        val source = File(
+            projectRoot(),
+            "app/src/main/java/com/mkx/hrttracker/ui/journal/JournalComponents.kt",
+        ).readText()
+        val pinnedTray = source.substringAfter("fun PinnedTray(")
+            .substringBefore("\n@Composable\nprivate fun PinnedTrayRows")
+
+        assertTrue(
+            "The empty-to-rows morph should keep the outer card fully opaque and animate size only.",
+            pinnedTray.contains("targetContentEnter = EnterTransition.None") &&
+                pinnedTray.contains("initialContentExit = ExitTransition.None") &&
+                pinnedTray.contains("sizeTransform = SizeTransform"),
+        )
+        assertFalse(
+            "Fading the AnimatedContent target fades the card surface along with its contents.",
+            pinnedTray.contains("targetContentEnter = fadeIn") ||
+                pinnedTray.contains("initialContentExit = fadeOut"),
+        )
+        assertTrue(
+            "Only the inner empty/row contents should fade during the morph.",
+            pinnedTray.contains("val contentFadeModifier = Modifier.animateEnterExit(") &&
+                pinnedTray.contains("contentModifier = contentFadeModifier"),
+        )
+    }
+
+    @Test
+    fun pinnedTray_emptyMorphClipsToRoundedCardShape() {
+        val source = File(
+            projectRoot(),
+            "app/src/main/java/com/mkx/hrttracker/ui/journal/JournalComponents.kt",
+        ).readText()
+        val pinnedTray = source.substringAfter("fun PinnedTray(")
+            .substringBefore("\n@Composable\nprivate fun PinnedTrayRows")
+
+        assertTrue(
+            "The empty-to-rows morph should clip to the card corner shape so the size animation " +
+                "cannot briefly reveal square bottom corners.",
+            pinnedTray.contains(".clip(MaterialTheme.shapes.large)") &&
+                pinnedTray.indexOf(".fillMaxWidth()") < pinnedTray.indexOf(".clip(MaterialTheme.shapes.large)"),
+        )
+    }
+
     private fun projectRoot(): File {
         var dir = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (dir.parentFile != null && !File(dir, "settings.gradle.kts").exists()) {

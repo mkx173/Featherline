@@ -32,6 +32,7 @@ fun SupportMessageListItem(
     index: Int? = null,
     count: Int? = null,
     trailingContent: (@Composable () -> Unit)? = null,
+    contentModifier: Modifier = Modifier,
     textStyle: TextStyle = MaterialTheme.typography.labelMedium,
     supportingTextStyle: TextStyle? = null,
     titleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -52,6 +53,7 @@ fun SupportMessageListItem(
             onClick = onClick,
             modifier = modifier.wrapContentHeight(),
             enabled = enabled,
+            contentModifier = contentModifier,
             leadingContent = when {
                 icon != null -> {
                     {

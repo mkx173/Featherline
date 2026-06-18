@@ -4,7 +4,9 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.SizeTransform
@@ -61,6 +63,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
@@ -835,19 +838,28 @@ fun PinnedTray(
 
     AnimatedContent(
         targetState = anchors.isEmpty(),
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large),
         transitionSpec = {
             ContentTransform(
-                targetContentEnter = fadeIn(fadeSpec),
-                initialContentExit = fadeOut(fadeSpec),
+                targetContentEnter = EnterTransition.None,
+                initialContentExit = ExitTransition.None,
                 sizeTransform = SizeTransform { _, _ -> sizeSpec },
             )
         },
         contentAlignment = Alignment.TopStart,
         label = "pinned-tray-empty-morph",
     ) { isEmpty ->
+        val contentFadeModifier = Modifier.animateEnterExit(
+            enter = fadeIn(fadeSpec),
+            exit = fadeOut(fadeSpec),
+        )
         if (isEmpty) {
-            PinnedHomeSlotEmpty(modifier = Modifier.fillMaxWidth())
+            PinnedHomeSlotEmpty(
+                modifier = Modifier.fillMaxWidth(),
+                contentModifier = contentFadeModifier,
+            )
         } else {
             PinnedTrayRows(
                 anchors = rowAnchors,
@@ -856,6 +868,7 @@ fun PinnedTray(
                 onSetPinned = onSetPinned,
                 heroNextMilestone = heroNextMilestone,
                 today = today,
+                contentModifier = contentFadeModifier,
             )
         }
     }
@@ -869,6 +882,7 @@ private fun PinnedTrayRows(
     onSetPinned: (String, Boolean) -> Unit,
     heroNextMilestone: NextMilestoneUiState?,
     today: LocalDate,
+    contentModifier: Modifier = Modifier,
 ) {
     val view = LocalView.current
     val gap = dimensionResource(R.dimen.list_segment_gap)
@@ -1010,6 +1024,7 @@ private fun PinnedTrayRows(
                         },
                         homeVisible = homeVisibleStates.getValue(anchor.id),
                         dragHandle = gripDragHandle,
+                        contentModifier = contentModifier,
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(rowDragModifier)
@@ -1042,6 +1057,7 @@ private fun PinnedRow(
     onUnpin: () -> Unit,
     homeVisible: MutableTransitionState<Boolean>,
     dragHandle: Modifier = Modifier,
+    contentModifier: Modifier = Modifier,
     modifier: Modifier = Modifier,
 ) {
     val containerColor = if (isDragging) {
@@ -1064,17 +1080,19 @@ private fun PinnedRow(
         fullyRounded = isEditMode,
         modifier = modifier,
     ) {
-        PinnedRowContent(
-            anchor = anchor,
-            isHero = isHero,
-            isEditMode = isEditMode,
-            heroNextMilestone = heroNextMilestone,
-            today = today,
-            dateFormatter = dateFormatter,
-            onUnpin = onUnpin,
-            homeVisible = homeVisible,
-            dragHandle = dragHandle,
-        )
+        Box(modifier = contentModifier) {
+            PinnedRowContent(
+                anchor = anchor,
+                isHero = isHero,
+                isEditMode = isEditMode,
+                heroNextMilestone = heroNextMilestone,
+                today = today,
+                dateFormatter = dateFormatter,
+                onUnpin = onUnpin,
+                homeVisible = homeVisible,
+                dragHandle = dragHandle,
+            )
+        }
     }
 }
 
@@ -1104,11 +1122,15 @@ private fun UnpinButton(name: String, onUnpin: () -> Unit) {
 }
 
 @Composable
-private fun PinnedHomeSlotEmpty(modifier: Modifier = Modifier) {
+private fun PinnedHomeSlotEmpty(
+    modifier: Modifier = Modifier,
+    contentModifier: Modifier = Modifier,
+) {
     SupportMessageListItem(
         text = stringResource(R.string.journal_home_slot_empty),
         painter = painterResource(R.drawable.ic_info),
         modifier = modifier,
+        contentModifier = contentModifier,
     )
 }
 
