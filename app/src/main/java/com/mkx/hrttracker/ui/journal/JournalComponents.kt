@@ -46,6 +46,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
@@ -119,8 +120,6 @@ private val TimelineNodeSize = 13.dp
 private val TimelineNodeGap = 3.dp        // bg-colored ring carving the line gap around a node
 private val TimelineCardGap = 6.dp        // vertical gap between adjacent subcards
 private val TimelineOuterPadding = 8.dp   // inner padding of the outer card
-// Still used by the legacy TodayDivider until the Today marker is redesigned.
-private val TimelineRailDotTopOffset = 14.dp
 
 @Composable
 fun MilestonesStackCard(
@@ -1191,22 +1190,35 @@ fun MilestonesTimeline(
 
         val dividerIndex = todayDividerIndex.coerceIn(0, nodes.size)
         Column(modifier = Modifier.padding(TimelineOuterPadding)) {
+            val rowCount = nodes.size + 1   // milestones + one Today marker
+            var rendered = 0
             nodes.forEachIndexed { index, node ->
                 if (index == dividerIndex) {
-                    TodayDivider(today = today)
+                    TodayMarkerRow(
+                        today = today,
+                        isFirst = rendered == 0,
+                        isLast = rendered == rowCount - 1,
+                    )
+                    rendered++
                 }
                 TimelineMilestoneRow(
                     node = node,
-                    isFirst = index == 0,
-                    isLast = index == nodes.lastIndex,
+                    isFirst = rendered == 0,
+                    isLast = rendered == rowCount - 1,
                     isEditMode = isEditMode,
                     today = today,
                     onSetPinned = onSetPinned,
                     onUpdateDate = onUpdateDate,
                 )
+                rendered++
             }
             if (dividerIndex == nodes.size) {
-                TodayDivider(today = today, isLast = true)
+                TodayMarkerRow(
+                    today = today,
+                    isFirst = rendered == 0,
+                    isLast = rendered == rowCount - 1,
+                )
+                rendered++
             }
         }
     }
@@ -1347,61 +1359,78 @@ private fun MilestoneNode(anchor: AnchorRowUiState) {
 }
 
 @Composable
-private fun TodayDivider(
+private fun TodayMarkerRow(
     today: LocalDate,
-    isLast: Boolean = false,
+    isFirst: Boolean,
+    isLast: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val appLocale = rememberAppLocale()
-    val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
     Row(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        Column(
-            modifier = Modifier.width(TimelineRailWidth).fillMaxHeight(),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        TimelineRailCell(isFirst = isFirst, isLast = isLast) { TodayNode() }
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = TimelineCardGap / 2 + 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
         ) {
-            Spacer(Modifier.height(TimelineRailDotTopOffset))
+            HorizontalDivider(modifier = Modifier.weight(1f))
+            TodayPill(today = today)
+            HorizontalDivider(modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun TodayNode() {
+    // Target marker: tertiary core + tertiaryContainer halo, then a
+    // surfaceContainer ring (outer-card color) carving the gap from the line.
+    Box(
+        modifier = Modifier
+            .size(14.dp + 4.dp + TimelineNodeGap * 2)
+            .background(MaterialTheme.colorScheme.surfaceContainer, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(14.dp + 4.dp)
+                .background(MaterialTheme.colorScheme.tertiaryContainer, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
             Box(
                 modifier = Modifier
                     .size(14.dp)
-                    .background(MaterialTheme.colorScheme.tertiary, CircleShape)
-                    .border(4.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.16f), CircleShape),
+                    .background(MaterialTheme.colorScheme.tertiary, CircleShape),
             )
-            if (!isLast) {
-                Box(Modifier.width(2.dp).weight(1f).background(MaterialTheme.colorScheme.outlineVariant))
-            }
         }
-        Surface(
-            modifier = Modifier.weight(1f).padding(vertical = 5.dp),
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surfaceContainer,
+    }
+}
+
+@Composable
+private fun TodayPill(today: LocalDate) {
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Row(
-                modifier = Modifier.padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
-            ) {
-                Surface(
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                ) {
-                    Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
-                        Icon(painterResource(R.drawable.ic_schedule), null, Modifier.size(18.dp))
-                    }
-                }
-                Column {
-                    Text(
-                        text = stringResource(R.string.journal_today),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.tertiary,
-                    )
-                    Text(
-                        text = dateFormatter(today),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            // Separate Text nodes so tests match "Today" and the date exactly.
+            Text(
+                text = stringResource(R.string.journal_today),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+            Text(text = "·", style = MaterialTheme.typography.labelLarge)
+            Text(
+                text = dateFormatter(today),
+                style = MaterialTheme.typography.labelMedium,
+            )
         }
     }
 }

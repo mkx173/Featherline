@@ -333,7 +333,6 @@ class MilestonesScreenTest {
         }
 
         val todayLabel = context.getString(R.string.journal_today)
-            .uppercase(context.resources.configuration.locales[0])
         val pastDayCountLabel = context.resources.getQuantityString(
             R.plurals.journal_milestone_days_past,
             807,
@@ -443,19 +442,16 @@ class MilestonesScreenTest {
         composeRule.onNodeWithText(todayLabel).assertExists()
         composeRule.onNodeWithText(dateLabel).assertExists()
 
-        // The redesigned node stacks "Today" over the date on two lines, unlike the
-        // old hairline divider that laid them out inline on a single baseline. The
-        // top-ordering check is the real RED: it fails against the inline divider and
-        // is locale-independent (no reliance on en uppercase("TODAY")).
+        // The redesigned Today marker is an inline pill (date beside "Today"), so it
+        // no longer stacks. Intent that still holds: the marker renders both "Today"
+        // and the date, and sits above the future milestone. "Surgery" is the only
+        // timeline node not also pinned (the fixture pins estradiol + injection), so
+        // it is a unique anchor in this full-screen layout. Ordering is locale-independent.
+        val surgeryTop = composeRule.onNodeWithText("Surgery", useUnmergedTree = true)
+            .fetchSemanticsNode().boundsInRoot.top
         val todayTop = composeRule.onNodeWithText(todayLabel, useUnmergedTree = true)
-            .fetchSemanticsNode()
-            .boundsInRoot
-            .top
-        val dateTop = composeRule.onNodeWithText(dateLabel, useUnmergedTree = true)
-            .fetchSemanticsNode()
-            .boundsInRoot
-            .top
-        assertTrue(todayTop < dateTop)
+            .fetchSemanticsNode().boundsInRoot.top
+        assertTrue(todayTop < surgeryTop)
     }
 
     @Test
