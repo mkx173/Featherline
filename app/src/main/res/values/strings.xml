@@ -500,7 +500,8 @@
     <string name="medication_preparation_summary_multi_use_vial">Injection · Vial · %1$s mg/mL · %2$s mL</string>
     <string name="medication_preparation_summary_gel_sachet">Gel · Sachet · %1$s%% · %2$s g</string>
     <string name="medication_preparation_summary_gel_container">Gel · Container · %1$s%% · %2$s g</string>
-    <string name="medication_preparation_summary_imported_gel">Gel · %1$s mg E2</string>
+    <string name="medication_preparation_summary_imported_gel">Gel · %1$s mg</string>
+    <string name="medication_preparation_summary_imported_injection">Injection · %1$s mg</string>
     <string name="medication_preparation_summary_patch_total">Patch · %1$s mg</string>
     <string name="medication_preparation_summary_patch_total_with_unit">Patch · %1$s %2$s</string>
     <string name="medication_preparation_summary_patch_release_rate">Patch · %1$s μg/day</string>

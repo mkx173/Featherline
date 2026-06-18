@@ -80,9 +80,8 @@ fun medicinePreparationSummary(medicine: Medicine): String {
         )
 
         is MedicinePreparation.ImportedInjection -> stringResource(
-            R.string.medication_preparation_summary_single_use_vial_with_unit,
-            displayUnit.fromMg(preparation.administeredMg).formatDose(appLocale),
-            unitLabel,
+            R.string.medication_preparation_summary_imported_injection,
+            preparation.administeredMg.formatDose(appLocale),
         )
 
         is MedicinePreparation.ImportedGel -> stringResource(

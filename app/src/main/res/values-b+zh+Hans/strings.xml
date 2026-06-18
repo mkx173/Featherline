@@ -475,6 +475,8 @@
     <string name="medication_preparation_summary_multi_use_vial">注射 · 西林瓶 · %1$s mg/mL · %2$s mL</string>
     <string name="medication_preparation_summary_gel_sachet">凝胶 · 小袋 · %1$s%% · %2$s g</string>
     <string name="medication_preparation_summary_gel_container">凝胶 · 容器 · %1$s%% · %2$s g</string>
+    <string name="medication_preparation_summary_imported_gel">凝胶 · %1$s mg</string>
+    <string name="medication_preparation_summary_imported_injection">注射 · %1$s mg</string>
     <string name="medication_preparation_summary_patch_total">贴片 · %1$s mg</string>
     <string name="medication_preparation_summary_patch_total_with_unit">贴片 · %1$s %2$s</string>
     <string name="medication_preparation_summary_patch_release_rate">贴片 · %1$s μg/天</string>
