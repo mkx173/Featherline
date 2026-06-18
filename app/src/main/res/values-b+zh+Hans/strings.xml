@@ -210,6 +210,11 @@
     <string name="journal_edit">编辑</string>
     <string name="journal_done">完成</string>
     <string name="journal_hero_badge">主项</string>
+    <string name="journal_home_tag">主页</string>
+    <string name="journal_hero_edit_summary">%1$s · %2$s</string>
+    <string name="journal_hero_edit_home_suffix">" · %1$s"</string>
+    <string name="journal_home_slot_hint">置顶位置 — 显示在你的主页</string>
+    <string name="journal_home_slot_empty">在下方时间线中固定一个里程碑，使其显示在你的主页</string>
     <string name="journal_in_prefix">还有</string>
     <plurals name="journal_day_unit">
         <item quantity="other">天</item>

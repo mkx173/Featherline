@@ -267,6 +267,51 @@ class MilestonesScreenTest {
     }
 
     @Test
+    fun editMode_reorderAnimatesHomeTagBetweenRows() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val homeTag = context.getString(R.string.journal_home_tag)
+        // The hero's date-line tag is "· Home"; matching the leading separator excludes the
+        // "Home slot" hint ("…your Home screen"), which would otherwise inflate the count.
+        val homeTagSuffix = context
+            .getString(R.string.journal_hero_edit_home_suffix, homeTag).trim()
+        var anchors by mutableStateOf(listOf(estradiolAnchor(), surgeryAnchor()))
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                PinnedTray(
+                    anchors = anchors,
+                    isEditMode = true,
+                    onReorder = {},
+                    onSetPinned = { _, _ -> },
+                )
+            }
+        }
+
+        fun tagCount() = composeRule
+            .onAllNodesWithText(homeTagSuffix, substring = true, useUnmergedTree = true)
+            .fetchSemanticsNodes().size
+
+        // At rest only the hero (index 0) carries the "· Home" tag.
+        assertEquals(1, tagCount())
+
+        // Pause the clock and promote a different row to hero, as a drag-reorder would.
+        composeRule.mainClock.autoAdvance = false
+        composeRule.runOnUiThread { anchors = listOf(surgeryAnchor(), estradiolAnchor()) }
+        // A couple of frames in (well short of the transition's duration), the tag must be
+        // mid-flight on BOTH rows: shrinking out of the old hero while expanding into the new
+        // one. If the reorder reset the tag (the earlier bug, since ReorderableColumn rebuilds
+        // the row) it would snap — old one gone, new one already full — leaving exactly one.
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeByFrame()
+        assertEquals(2, tagCount())
+
+        // Once the transition settles the tag lives only on the new hero.
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+        assertEquals(1, tagCount())
+    }
+
+    @Test
     fun timeline_rendersTodayDivider() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val today = LocalDate.of(2026, 6, 16)

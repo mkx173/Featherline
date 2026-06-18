@@ -27,6 +27,11 @@ fun EditorSegmentedListItem(
     disabledContainerColor: Color = containerColor,
     cornerShape: CornerBasedShape = MaterialTheme.shapes.large,
     pressedShape: Shape? = null,
+    // Detaches the row into a standalone card with all four corners rounded to
+    // [cornerShape], ignoring its segment position. Toggling it animates the
+    // corners (via segmentedListItemShapes' per-corner springs) between grouped
+    // and detached -- e.g. an editable list that separates its rows in edit mode.
+    fullyRounded: Boolean = false,
     leadingContent: (@Composable () -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
     supportingContent: (@Composable () -> Unit)? = null,
@@ -39,6 +44,7 @@ fun EditorSegmentedListItem(
         count = position.count,
         cornerShape = cornerShape,
         pressedShape = pressedShape,
+        fullyRounded = fullyRounded,
     )
     // On a haze bottom sheet the row keeps its container color as the tint of a
     // thick blur (clipped to the resting segmented shape) and draws its actual
