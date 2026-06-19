@@ -554,6 +554,44 @@ class MilestonesScreenTest {
     }
 
     @Test
+    fun timeline_suppressesTodayDividerWhenNodeIsToday() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        val todayAnchor = AnchorRowUiState(
+            id = "today",
+            name = "Blood test",
+            icon = AnchorIcon.BLOODTYPE,
+            palette = MedicationGroupColorKey.TEAL,
+            date = today,
+            dayMagnitude = 0,
+            isFuture = false,
+        )
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                MilestonesTimeline(
+                    nodes = listOf(
+                        TimelineNodeUiState(estradiolAnchor(), isPinned = false),
+                        TimelineNodeUiState(todayAnchor, isPinned = false),
+                    ),
+                    // One past date precedes today, so the divider would otherwise render
+                    // directly above the today-dated node.
+                    todayDividerIndex = 1,
+                    isEditMode = false,
+                    onSetPinned = { _, _ -> },
+                    onUpdateDate = { },
+                    today = today,
+                )
+            }
+        }
+        // The today node already marks "now" (its badge reads Today + a haloed dot), so the
+        // divider must not stack a second "Today" above it: journal_today appears exactly
+        // once — from the node's count, not a divider. Before the suppression it appeared
+        // twice (node badge + divider label).
+        composeRule.onAllNodesWithText(context.getString(R.string.journal_today))
+            .assertCountEquals(1)
+    }
+
+    @Test
     fun timeline_editModeKeepsCountInTrailingNotSupport() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val today = LocalDate.of(2026, 6, 16)

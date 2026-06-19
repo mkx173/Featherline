@@ -68,6 +68,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -128,6 +129,16 @@ private val TimelineRailStroke = 2.dp     // connector line thickness
 private val TimelineDotInset = 16.dp
 private val TimelineRailWidth = TimelineNodeSize + TimelineDotInset
 private val TimelineCardGap = 6.dp        // vertical gap between adjacent subcards
+// The today dot wears a static, soft "now" halo — a translucent disc behind it. Its
+// dot carves a wider rail gap so the connector line ends the same TimelineNodeGap
+// distance from the halo's outer rim as it does from a plain dot's edge, keeping the
+// line-to-rim spacing consistent across the rail (the cell adds nodeGap to centreX,
+// i.e. to the dot radius, so back out that radius from the rim distance). The halo
+// marks the present in place of the Today divider, which is suppressed when a node
+// already falls on today.
+private val TodayHaloRadius = 12.dp
+private val TimelineTodayNodeGap = TodayHaloRadius + TimelineNodeGap - TimelineNodeSize / 2
+private const val TodayHaloAlpha = 0.10f
 
 // Set to false to drop the Today marker entirely (variant A: one uninterrupted
 // line, no "now" divider). The timeline's first/last rail math reads this, so the
@@ -1194,29 +1205,49 @@ fun MilestonesTimeline(
             return@Surface
         }
 
-        // Split at today into a "before" (past) run and an "after" (today-dated +
-        // future) run. Each run gets its own segment index/count so its cards share
-        // grouped corners — the past block and the future block read as two groups,
-        // while a single continuous rail still threads through both (and the Today
-        // marker between them). isFirst/isLast below drive that rail's end-caps and
-        // are computed over the whole sequence, independent of the per-group shapes.
+        // Split the date-sorted nodes into three runs around today: past, today, and
+        // future. Each run gets its own segment index/count so its cards carry their own
+        // grouped corners — a lone today node becomes a fully-rounded standalone card —
+        // while one continuous rail still threads through all three. isFirst/isLast below
+        // drive that rail's end-caps and are computed over the whole sequence.
         val dividerIndex = todayDividerIndex.coerceIn(0, nodes.size)
-        val before = nodes.subList(0, dividerIndex)
-        val after = nodes.subList(dividerIndex, nodes.size)
-        // Today only divides something when there are dates on both sides of it. With
-        // only past (or only future) dates it would sit at the very top or bottom as a
-        // dangling cap, so suppress it then.
-        val showToday = ShowTodayMarker && before.isNotEmpty() && after.isNotEmpty()
+        val past = nodes.subList(0, dividerIndex)
+        val rest = nodes.subList(dividerIndex, nodes.size)
+        // Today-dated nodes are never "before" today, so they lead the rest run; peel the
+        // contiguous leading run of them off into their own section.
+        val todayCount = rest.takeWhile { it.anchor.isOnToday() }.size
+        val todayNodes = rest.subList(0, todayCount)
+        val future = rest.subList(todayCount, rest.size)
+        // The Today divider only marks "now" when it falls in the gap between a past and a
+        // future milestone. When a node already lands on today, that node is the marker
+        // (haloed dot + "Today" badge), so the rule is dropped; and with only past or only
+        // future dates it would dangle at an end, so it is dropped there too.
+        val showToday = ShowTodayMarker && past.isNotEmpty() && future.isNotEmpty() &&
+            todayNodes.isEmpty()
         // Content padding matches MainLowStockSection's card so the subcards sit with
         // the same inset as the home low-stock list.
         Column(modifier = Modifier.padding(horizontal = TimelineDotInset, vertical = 16.dp)) {
             val rowCount = nodes.size + if (showToday) 1 else 0
             var rendered = 0
-            before.forEachIndexed { i, node ->
+            past.forEachIndexed { i, node ->
                 TimelineMilestoneRow(
                     node = node,
                     segIndex = i,
-                    segCount = before.size,
+                    segCount = past.size,
+                    isFirst = rendered == 0,
+                    isLast = rendered == rowCount - 1,
+                    isEditMode = isEditMode,
+                    today = today,
+                    onSetPinned = onSetPinned,
+                    onUpdateDate = onUpdateDate,
+                )
+                rendered++
+            }
+            todayNodes.forEachIndexed { i, node ->
+                TimelineMilestoneRow(
+                    node = node,
+                    segIndex = i,
+                    segCount = todayNodes.size,
                     isFirst = rendered == 0,
                     isLast = rendered == rowCount - 1,
                     isEditMode = isEditMode,
@@ -1234,11 +1265,11 @@ fun MilestonesTimeline(
                 )
                 rendered++
             }
-            after.forEachIndexed { j, node ->
+            future.forEachIndexed { j, node ->
                 TimelineMilestoneRow(
                     node = node,
                     segIndex = j,
-                    segCount = after.size,
+                    segCount = future.size,
                     isFirst = rendered == 0,
                     isLast = rendered == rowCount - 1,
                     isEditMode = isEditMode,
@@ -1274,7 +1305,13 @@ private fun TimelineMilestoneRow(
     // against the surrounding Column padding.
     val halfGap = dimensionResource(R.dimen.list_segment_gap) / 2
     Row(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        TimelineRailCell(isFirst = isFirst, isLast = isLast, hasNode = true) { MilestoneNode(anchor) }
+        TimelineRailCell(
+            isFirst = isFirst,
+            isLast = isLast,
+            hasNode = true,
+            // The today dot widens its rail gap to make room for the breathing halo.
+            nodeGap = if (anchor.isOnToday()) TimelineTodayNodeGap else TimelineNodeGap,
+        ) { MilestoneNode(anchor) }
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -1339,6 +1376,7 @@ private fun TimelineRailCell(
     isLast: Boolean,
     hasNode: Boolean,
     modifier: Modifier = Modifier,
+    nodeGap: Dp = TimelineNodeGap,
     node: @Composable BoxScope.() -> Unit,
 ) {
     val line = MaterialTheme.colorScheme.outlineVariant
@@ -1346,13 +1384,14 @@ private fun TimelineRailCell(
     // straight down the dot's centre with rounded caps. isFirst/isLast drop the
     // segment that would dangle past the first/last node, and hasNode carves the
     // gap around a dot (the Today marker passes false for an uninterrupted rule).
+    // nodeGap widens that carve — the today dot uses a larger one for its halo.
     Box(
         modifier = modifier.width(TimelineRailWidth).fillMaxHeight(),
         contentAlignment = Alignment.CenterStart,
     ) {
         Canvas(modifier = Modifier.matchParentSize()) {
             val centerX = TimelineNodeSize.toPx() / 2f
-            val gap = centerX + TimelineNodeGap.toPx()
+            val gap = centerX + nodeGap.toPx()
             val stroke = TimelineRailStroke.toPx()
             val centerY = size.height / 2f
             if (!isFirst) {
@@ -1378,12 +1417,31 @@ private fun TimelineRailCell(
     }
 }
 
+// A node dated exactly today: magnitude 0 and not in the future. Drives the "now"
+// halo and the today timeline section.
+private fun AnchorRowUiState.isOnToday(): Boolean = dayMagnitude == 0L && !isFuture
+
 @Composable
 private fun MilestoneNode(anchor: AnchorRowUiState) {
     val accent = rememberMedicationGroupColorScheme(colorKey = anchor.palette).primary
     Box(
         modifier = Modifier
             .size(TimelineNodeSize)
+            // A today dot wears a soft "now" halo: a translucent disc drawn behind it.
+            // drawBehind keeps the measured size at TimelineNodeSize, so the dot's centre
+            // stays on the connector line while the halo overflows behind it.
+            .then(
+                if (anchor.isOnToday()) {
+                    Modifier.drawBehind {
+                        drawCircle(
+                            color = accent.copy(alpha = TodayHaloAlpha),
+                            radius = TodayHaloRadius.toPx(),
+                        )
+                    }
+                } else {
+                    Modifier
+                },
+            )
             .background(
                 color = if (anchor.isFuture) {
                     MaterialTheme.colorScheme.surfaceContainer
