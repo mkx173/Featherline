@@ -17,4 +17,5 @@ fun anchorIconRes(icon: AnchorIcon): Int = when (icon) {
     AnchorIcon.FLAG -> R.drawable.ic_flag
     AnchorIcon.BOOKMARK -> R.drawable.ic_bookmark
     AnchorIcon.HOME_HEALTH -> R.drawable.ic_home_health
+    AnchorIcon.FAVORITE -> R.drawable.ic_favorite
 }

@@ -27,7 +27,8 @@ enum class AnchorIcon(val storageKey: String) {
     SCHEDULE("schedule"),                 // a duration / "since" anchor
     FLAG("flag"),                         // a forward goal / future target counted down to
     BOOKMARK("bookmark"),                 // a marked personal date ("marked, not celebrated")
-    HOME_HEALTH("home_health");           // home / at-home care
+    HOME_HEALTH("home_health"),           // home / at-home care
+    FAVORITE("favorite");                 // a personal / loved-one milestone
 
     companion object {
         val DEFAULT = EVENT
