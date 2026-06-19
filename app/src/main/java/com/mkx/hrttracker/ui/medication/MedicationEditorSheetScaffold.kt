@@ -66,6 +66,7 @@ internal fun MedicationEditorSheetScaffold(
     onCloseClick: () -> Unit,
     fillAvailableHeight: Boolean,
     isSaving: Boolean,
+    confirmEnabled: Boolean = true,
     destructiveButtonText: String? = null,
     onDestructiveAction: (() -> Unit)? = null,
     disclaimerKinds: List<MedicalDisclaimerKind> = emptyList(),
@@ -171,6 +172,7 @@ internal fun MedicationEditorSheetScaffold(
                     HrtButton(
                         text = confirmButtonText,
                         onClick = { if (!isSaving) onConfirm() },
+                        enabled = confirmEnabled,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -178,6 +180,7 @@ internal fun MedicationEditorSheetScaffold(
                 HrtButton(
                     text = confirmButtonText,
                     onClick = { if (!isSaving) onConfirm() },
+                    enabled = confirmEnabled,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = dimensionResource(R.dimen.padding_xsmall)),
