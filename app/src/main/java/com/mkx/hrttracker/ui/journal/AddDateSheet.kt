@@ -3,13 +3,16 @@ package com.mkx.hrttracker.ui.journal
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -20,6 +23,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,7 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -38,19 +43,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.ColorPaletteSwatchGrid
 import com.mkx.hrttracker.ui.components.DatePickerModal
-import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
-import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
+import com.mkx.hrttracker.ui.components.hazeSheetBlurActive
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -172,14 +176,6 @@ private fun AddDateSheetContent(
     Column(
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_medium)),
     ) {
-        AnchorPreviewHero(
-            name = name,
-            icon = selectedIcon,
-            date = selectedDate,
-            palette = selectedPalette,
-            today = today,
-        )
-
         OutlinedTextField(
             value = name,
             onValueChange = onNameChange,
@@ -187,14 +183,23 @@ private fun AddDateSheetContent(
                 .fillMaxWidth()
                 .testTag(AddDateNameFieldTestTag),
             label = { Text(text = stringResource(R.string.journal_date_name_label)) },
+            // The leading icon previews the selected anchor icon, tinted with the
+            // chosen palette's primary so the field surfaces the colour choice.
+            leadingIcon = {
+                val scheme = rememberMedicationGroupColorScheme(colorKey = selectedPalette)
+                Icon(
+                    painter = painterResource(anchorIconRes(selectedIcon)),
+                    contentDescription = null,
+                    tint = scheme.primary,
+                )
+            },
             singleLine = true,
         )
 
-        DateSelectorRow(date = selectedDate, today = today, onClick = onDateClick)
+        DateSelectorField(date = selectedDate, today = today, onClick = onDateClick)
 
         AnchorIconGrid(
             selectedIcon = selectedIcon,
-            selectedPalette = selectedPalette,
             onIconSelected = onIconSelected,
         )
 
@@ -206,84 +211,42 @@ private fun AddDateSheetContent(
 }
 
 @Composable
-private fun AnchorPreviewHero(
-    name: String,
-    icon: AnchorIcon,
-    date: LocalDate,
-    palette: MedicationGroupColorKey?,
-    today: LocalDate,
-) {
-    val appLocale = rememberAppLocale()
-    val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
-    val trimmed = name.trim()
-
-    EditorSegmentedListItem(
-        fullyRounded = true,
-        leadingContent = { AnchorPrimaryChip(icon = icon, palette = palette) },
-        supportingContent = {
-            Text(
-                text = dateFormatter(date),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-    ) {
-        Text(
-            text = trimmed.ifEmpty { stringResource(R.string.journal_date_preview_placeholder) },
-            style = MaterialTheme.typography.titleMedium,
-            color = if (trimmed.isEmpty()) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                Color.Unspecified
-            },
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun AnchorPrimaryChip(
-    icon: AnchorIcon,
-    palette: MedicationGroupColorKey?,
-    size: Dp = 48.dp,
-) {
-    val scheme = rememberMedicationGroupColorScheme(colorKey = palette)
-    Surface(
-        modifier = Modifier.size(size),
-        shape = MaterialTheme.shapes.small,
-        color = scheme.primary,
-        contentColor = scheme.onPrimary,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                painter = painterResource(anchorIconRes(icon)),
-                contentDescription = null,
-                modifier = Modifier.size(size * 0.5f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun DateSelectorRow(
+private fun DateSelectorField(
     date: LocalDate,
     today: LocalDate,
     onClick: () -> Unit,
 ) {
     val appLocale = rememberAppLocale()
     val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
-    PreferenceSegmentedListItem(
-        title = stringResource(R.string.journal_date_date_label),
-        supportingText = dateFormatter(date),
-        onClick = onClick,
+    OutlinedTextField(
+        value = dateFormatter(date),
+        onValueChange = {},
+        readOnly = true,
+        label = { Text(text = stringResource(R.string.journal_date_date_label)) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(date) {
+                awaitEachGesture {
+                    awaitFirstDown(pass = PointerEventPass.Initial)
+                    val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
+                    if (upEvent != null) {
+                        onClick()
+                    }
+                }
+            },
+        leadingIcon = {
+            Icon(
+                painter = painterResource(R.drawable.ic_calendar_month),
+                contentDescription = stringResource(R.string.select_date),
+            )
+        },
+        singleLine = true,
     )
 }
 
 @Composable
 private fun AnchorIconGrid(
     selectedIcon: AnchorIcon,
-    selectedPalette: MedicationGroupColorKey?,
     onIconSelected: (AnchorIcon) -> Unit,
 ) {
     val columns = 6
@@ -297,19 +260,14 @@ private fun AnchorIconGrid(
         AnchorIcon.entries.chunked(columns).forEach { rowIcons ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 rowIcons.forEach { icon ->
                     AnchorIconTile(
                         icon = icon,
                         selected = icon == selectedIcon,
-                        selectedPalette = selectedPalette,
                         onClick = { onIconSelected(icon) },
-                        modifier = Modifier.weight(1f),
                     )
-                }
-                repeat(columns - rowIcons.size) {
-                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -320,28 +278,32 @@ private fun AnchorIconGrid(
 private fun AnchorIconTile(
     icon: AnchorIcon,
     selected: Boolean,
-    selectedPalette: MedicationGroupColorKey?,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    val scheme = rememberMedicationGroupColorScheme(colorKey = selectedPalette)
+    // Tiles stay neutral and selection uses the app theme primary; the chosen anchor
+    // colour is surfaced through the name field's leading icon, not the grid.
+    val hazeSheet = hazeSheetBlurActive()
     val containerColor = if (selected) {
-        scheme.primary
+        MaterialTheme.colorScheme.primary
     } else {
-        MaterialTheme.colorScheme.surfaceContainerLow
+        if (hazeSheet) {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
+        }
     }
     val contentColor = if (selected) {
-        scheme.onPrimary
+        MaterialTheme.colorScheme.onPrimary
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
     val label = stringResource(anchorIconLabelRes(icon))
     Surface(
         onClick = onClick,
-        modifier = modifier
-            .aspectRatio(1f)
+        modifier = Modifier
+            .size(36.dp)
             .semantics { this.selected = selected },
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.small,
         color = containerColor,
         contentColor = contentColor,
     ) {
@@ -349,7 +311,7 @@ private fun AnchorIconTile(
             Icon(
                 painter = painterResource(anchorIconRes(icon)),
                 contentDescription = label,
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(20.dp),
             )
         }
     }
@@ -368,6 +330,7 @@ private fun AnchorPaletteRow(
             style = MaterialTheme.typography.titleSmall,
         )
         Row(
+            modifier = Modifier.height(IntrinsicSize.Min),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_medium)),
         ) {
@@ -375,10 +338,12 @@ private fun AnchorPaletteRow(
                 selected = selectedPalette == null,
                 onClick = { onPaletteSelected(null) },
             )
+            VerticalDivider()
             ColorPaletteSwatchGrid(
                 selectedColorKey = selectedPalette,
                 onColorSelected = { onPaletteSelected(it) },
                 modifier = Modifier.weight(1f),
+                fillWidth = true,
             )
         }
     }
@@ -413,6 +378,65 @@ private fun DefaultPaletteSwatch(
                         shape = CircleShape,
                     ),
             )
+        }
+    }
+}
+
+@Preview(name = "AddDateSheet content — new", showBackground = true, widthDp = 420)
+@Composable
+private fun AddDateSheetContentNewPreview() {
+    val today = LocalDate.of(2026, 6, 19)
+    AddDateSheetPreviewContainer {
+        var name by remember { mutableStateOf("") }
+        var icon by remember { mutableStateOf(AnchorIcon.EVENT) }
+        var palette by remember { mutableStateOf<MedicationGroupColorKey?>(null) }
+        AddDateSheetContent(
+            name = name,
+            onNameChange = { name = it },
+            selectedIcon = icon,
+            onIconSelected = { icon = it },
+            selectedDate = today,
+            onDateClick = {},
+            selectedPalette = palette,
+            onPaletteSelected = { palette = it },
+            today = today,
+        )
+    }
+}
+
+@Preview(name = "AddDateSheet content — filled", showBackground = true, widthDp = 420)
+@Composable
+private fun AddDateSheetContentFilledPreview() {
+    val today = LocalDate.of(2026, 6, 19)
+    AddDateSheetPreviewContainer {
+        var name by remember { mutableStateOf("First injection") }
+        var icon by remember { mutableStateOf(AnchorIcon.VACCINES) }
+        var palette by remember { mutableStateOf<MedicationGroupColorKey?>(MedicationGroupColorKey.ROSE) }
+        AddDateSheetContent(
+            name = name,
+            onNameChange = { name = it },
+            selectedIcon = icon,
+            onIconSelected = { icon = it },
+            selectedDate = LocalDate.of(2025, 9, 1),
+            onDateClick = {},
+            selectedPalette = palette,
+            onPaletteSelected = { palette = it },
+            today = today,
+        )
+    }
+}
+
+@Composable
+private fun AddDateSheetPreviewContainer(content: @Composable () -> Unit) {
+    HrtTrackerTheme(dynamicColor = false) {
+        Surface {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(dimensionResource(R.dimen.padding_large)),
+            ) {
+                content()
+            }
         }
     }
 }

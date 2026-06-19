@@ -257,7 +257,6 @@
     <string name="journal_anchor_icon_bookmark">Bookmark</string>
     <string name="journal_anchor_icon_home_health">Home care</string>
     <string name="journal_anchor_icon_favorite">Personal</string>
-    <string name="journal_date_preview_placeholder">Name this date</string>
     <string name="journal_delete_date">Delete date</string>
     <string name="journal_delete_date_title">Delete date?</string>
     <string name="journal_delete_date_confirmation">This removes this tracked date from Journal.</string>

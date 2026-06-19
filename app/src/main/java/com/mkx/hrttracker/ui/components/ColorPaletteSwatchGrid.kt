@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -27,20 +28,33 @@ import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
  * [selectedColorKey] may be null (nothing selected); callers that always have a
  * colour pass a non-null value. Selection carves a small inner ring rather than a
  * check, so the swatch reads as a framed chip.
+ *
+ * When [fillWidth] is true the rows stretch to the available width and distribute
+ * the swatches evenly (for a full-width row beside other content); otherwise they
+ * wrap their content with a fixed gap (the default, e.g. inside a tooltip).
  */
 @Composable
 fun ColorPaletteSwatchGrid(
     selectedColorKey: MedicationGroupColorKey?,
     onColorSelected: (MedicationGroupColorKey) -> Unit,
     modifier: Modifier = Modifier,
+    fillWidth: Boolean = false,
 ) {
     val ordered = MedicationGroupColorKey.assignmentOrder
+    val rowArrangement = if (fillWidth) {
+        Arrangement.SpaceBetween
+    } else {
+        Arrangement.spacedBy(10.dp)
+    }
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         ordered.chunked(5).forEach { rowKeys ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = if (fillWidth) Modifier.fillMaxWidth() else Modifier,
+                horizontalArrangement = rowArrangement,
+            ) {
                 rowKeys.forEach { key ->
                     val absoluteIndex = ordered.indexOf(key) + 1
                     val scheme = rememberMedicationGroupColorScheme(colorKey = key)
