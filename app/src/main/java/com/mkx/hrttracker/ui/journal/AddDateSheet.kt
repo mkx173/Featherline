@@ -6,18 +6,20 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,25 +33,29 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
-import com.mkx.hrttracker.ui.components.ColorPaletteSwatch
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.hazeSheetBlurActive
@@ -323,18 +329,52 @@ private fun AnchorIconTile(
     }
 }
 
+// Color bar geometry. Segments are individually shaped and separated by
+// list_segment_gap (matching the app's segmented lists); the selection ring is
+// inset inside each segment with concentric corners.
+private val ColorBarHeight = 40.dp
+private val SegmentOuterCorner = 12.dp
+// Inner corner must clear ColorRingInset + ColorRingWidth (4dp) so the ring's inner
+// stroke edge stays rounded instead of collapsing to a square.
+private val SegmentInnerCorner = 6.dp
+private val ColorRingInset = 2.dp
+private val ColorRingWidth = 2.dp
+private val DefaultColorChipWidth = 40.dp
+
+private enum class ColorSegmentPosition { FIRST, MIDDLE, LAST, SINGLE }
+
+// (start, end) corner radii: outer on the strip's rounded ends, inner (small, so the
+// segment reads as a square) on the corners that meet a neighbour.
+private fun segmentCornerSizes(position: ColorSegmentPosition): Pair<Dp, Dp> = when (position) {
+    ColorSegmentPosition.SINGLE -> SegmentOuterCorner to SegmentOuterCorner
+    ColorSegmentPosition.FIRST -> SegmentOuterCorner to SegmentInnerCorner
+    ColorSegmentPosition.LAST -> SegmentInnerCorner to SegmentOuterCorner
+    ColorSegmentPosition.MIDDLE -> SegmentInnerCorner to SegmentInnerCorner
+}
+
+private fun segmentShape(position: ColorSegmentPosition): Shape {
+    val (start, end) = segmentCornerSizes(position)
+    return RoundedCornerShape(topStart = start, bottomStart = start, topEnd = end, bottomEnd = end)
+}
+
+// The ring is inset inside each segment with concentric corners (segment radius − inset).
+// Because inset + track ≤ the segment's corner, even the inner corners stay rounded.
+private fun selectionRingShape(position: ColorSegmentPosition): Shape {
+    val (start, end) = segmentCornerSizes(position)
+    val s = (start - ColorRingInset).coerceAtLeast(0.dp)
+    val e = (end - ColorRingInset).coerceAtLeast(0.dp)
+    return RoundedCornerShape(topStart = s, bottomStart = s, topEnd = e, bottomEnd = e)
+}
+
 @Composable
 private fun AnchorPaletteRow(
     selectedPalette: MedicationGroupColorKey?,
     onPaletteSelected: (MedicationGroupColorKey?) -> Unit,
 ) {
-    val ordered = MedicationGroupColorKey.assignmentOrder
-    // Reveal the pre-selected swatch (edit mode) by initialising the scroll position at
-    // creation; index 0 is the "none" default and colours follow at indexOf(key) + 1.
-    val initialIndex = remember {
-        selectedPalette?.let { ordered.indexOf(it) + 1 } ?: 0
-    }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+    // Display order is red → purple (enum declaration order); assignmentOrder only
+    // drives a11y indices and colour auto-assignment elsewhere.
+    val colors = MedicationGroupColorKey.entries
+    val onSelect by rememberUpdatedState(onPaletteSelected)
     Column(
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
     ) {
@@ -342,30 +382,111 @@ private fun AnchorPaletteRow(
             text = stringResource(R.string.journal_date_palette_section),
             style = MaterialTheme.typography.titleSmall,
         )
-        LazyRow(
-            state = listState,
-            verticalAlignment = Alignment.CenterVertically,
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(ColorBarHeight),
             horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
         ) {
-            item {
-                DefaultPaletteSwatch(
-                    selected = selectedPalette == null,
-                    onClick = { onPaletteSelected(null) },
-                )
-            }
-            items(ordered, key = { it }) { key ->
-                ColorPaletteSwatch(
-                    colorKey = key,
-                    selected = key == selectedPalette,
-                    onClick = { onPaletteSelected(key) },
-                )
+            DefaultColorChip(
+                selected = selectedPalette == null,
+                onClick = { onSelect(null) },
+            )
+            // The drag gesture lives on the whole strip (not per segment) so a press or
+            // drag continuously selects the colour under the finger. Segments stay
+            // individually shaped/gapped and keep their own a11y semantics.
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            var lastIndex = -1
+                            fun selectAt(x: Float) {
+                                val width = size.width
+                                if (width <= 0) return
+                                val index = ((x / width) * colors.size)
+                                    .toInt().coerceIn(0, colors.lastIndex)
+                                if (index != lastIndex) {
+                                    lastIndex = index
+                                    onSelect(colors[index])
+                                }
+                            }
+                            val down = awaitFirstDown()
+                            selectAt(down.position.x)
+                            do {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id }
+                                if (change != null) {
+                                    selectAt(change.position.x)
+                                    if (change.positionChanged()) change.consume()
+                                }
+                            } while (event.changes.any { it.pressed })
+                        }
+                    },
+                horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
+            ) {
+                colors.forEachIndexed { index, key ->
+                    val position = when {
+                        colors.size == 1 -> ColorSegmentPosition.SINGLE
+                        index == 0 -> ColorSegmentPosition.FIRST
+                        index == colors.lastIndex -> ColorSegmentPosition.LAST
+                        else -> ColorSegmentPosition.MIDDLE
+                    }
+                    ColorBarSegment(
+                        colorKey = key,
+                        selected = key == selectedPalette,
+                        position = position,
+                        onSelect = { onSelect(key) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun DefaultPaletteSwatch(
+private fun ColorBarSegment(
+    colorKey: MedicationGroupColorKey,
+    selected: Boolean,
+    position: ColorSegmentPosition,
+    onSelect: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = rememberMedicationGroupColorScheme(colorKey = colorKey)
+    val absoluteIndex = MedicationGroupColorKey.assignmentOrder.indexOf(colorKey) + 1
+    val description = stringResource(
+        if (selected) {
+            R.string.group_color_picker_swatch_selected_content_description
+        } else {
+            R.string.group_color_picker_swatch_content_description
+        },
+        absoluteIndex,
+    )
+    // No clickable here: touch is handled by the strip's drag gesture (so no ripple and
+    // drags track across segments). An onClick semantics action keeps it activatable
+    // for TalkBack and exposes the same per-colour target the tests select by.
+    Box(
+        modifier = modifier
+            .clip(segmentShape(position))
+            .background(scheme.primary)
+            .semantics {
+                contentDescription = description
+                this.selected = selected
+                onClick { onSelect(); true }
+            },
+    ) {
+        if (selected) {
+            SelectionRing(shape = selectionRingShape(position))
+        }
+    }
+}
+
+@Composable
+private fun DefaultColorChip(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -373,28 +494,38 @@ private fun DefaultPaletteSwatch(
     val description = stringResource(R.string.journal_date_palette_none)
     Box(
         modifier = Modifier
-            .size(32.dp)
-            .clip(CircleShape)
+            .width(DefaultColorChipWidth)
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(SegmentOuterCorner))
             .background(scheme.primary)
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
             .semantics {
                 this.selected = selected
                 contentDescription = description
             },
     ) {
         if (selected) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .padding(2.5.dp)
-                    .border(
-                        width = 2.5.dp,
-                        color = MaterialTheme.colorScheme.surfaceContainer,
-                        shape = CircleShape,
-                    ),
-            )
+            SelectionRing(shape = selectionRingShape(ColorSegmentPosition.SINGLE))
         }
     }
+}
+
+@Composable
+private fun BoxScope.SelectionRing(shape: Shape) {
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .padding(ColorRingInset)
+            .border(
+                width = ColorRingWidth,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                shape = shape,
+            ),
+    )
 }
 
 @Preview(name = "AddDateSheet content — new", showBackground = true, widthDp = 420)

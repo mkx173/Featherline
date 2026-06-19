@@ -58,9 +58,9 @@ fun ColorPaletteSwatch(
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .padding(2.5.dp)
+                    .padding(2.dp)
                     .border(
-                        width = 2.5.dp,
+                        width = 2.dp,
                         color = MaterialTheme.colorScheme.surfaceContainer,
                         shape = CircleShape,
                     ),
