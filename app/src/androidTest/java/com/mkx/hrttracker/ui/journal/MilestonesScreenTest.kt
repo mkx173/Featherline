@@ -6,8 +6,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -455,28 +453,32 @@ class MilestonesScreenTest {
     }
 
     @Test
-    fun editMode_timelinePinToggleIsToggleable() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        // The pin content description is localized (zh on the emulator), so derive it
-        // from resources rather than hardcoding "Pin to Home".
-        val pinDescription = context.getString(R.string.journal_pin_to_home_content_description)
+    fun editMode_rowTapTogglesPinAgainstCurrentState() {
+        val today = LocalDate.of(2026, 6, 16)
+        var pinRequest: Pair<String, Boolean>? = null
 
         composeRule.setContent {
-            HrtTrackerTheme {
-                MilestonesScreenContent(
-                    uiState = milestonesUiStateFixture(isEditMode = true),
-                    onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
-                    onReorder = {}, onAddDate = {}, onUpdateDate = {},
+            HrtTrackerTheme(dynamicColor = false) {
+                MilestonesTimeline(
+                    nodes = listOf(
+                        TimelineNodeUiState(estradiolAnchor(), isPinned = true),
+                        TimelineNodeUiState(surgeryAnchor(), isPinned = false),
+                    ),
+                    todayDividerIndex = 1,
+                    isEditMode = true,
+                    onSetPinned = { id, pinned -> pinRequest = id to pinned },
+                    onUpdateDate = { },
+                    today = today,
                 )
             }
         }
 
-        // The fixture's first timeline node ("On estradiol") is pinned, so its toggle
-        // reports ON; a non-pinned node ("First injection") reports OFF. Asserting both
-        // pins the on/off semantics to the isPinned state, not just toggle existence.
-        val toggles = composeRule.onAllNodes(hasContentDescription(pinDescription))
-        toggles.onFirst().assertIsOn()
-        toggles[1].assertIsOff()
+        // The whole row is the pin control in edit mode, and it toggles against the
+        // current state: a pinned row requests unpin, an unpinned row requests pin.
+        composeRule.onNodeWithText("On estradiol").performClick()
+        composeRule.runOnIdle { assertEquals("estradiol" to false, pinRequest) }
+        composeRule.onNodeWithText("Surgery").performClick()
+        composeRule.runOnIdle { assertEquals("surgery" to true, pinRequest) }
     }
 
     @Test
@@ -503,6 +505,37 @@ class MilestonesScreenTest {
         ).performClick()
         composeRule.runOnIdle {
             assertEquals("surgery" to true, pinRequest)
+        }
+    }
+
+    @Test
+    fun timeline_viewModeRowTapsThroughToEditorAndShowsNoPinToggle() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        var edited: AnchorRowUiState? = null
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                MilestonesTimeline(
+                    nodes = listOf(TimelineNodeUiState(anchor = surgeryAnchor(), isPinned = false)),
+                    todayDividerIndex = 0,
+                    isEditMode = false,
+                    onSetPinned = { _, _ -> },
+                    onUpdateDate = { edited = it },
+                    today = today,
+                )
+            }
+        }
+
+        // In view mode the trailing flip shows its chevron face, so the pin toggle is
+        // absent — pinning is an edit-mode-only control.
+        composeRule.onAllNodes(
+            hasContentDescription(context.getString(R.string.journal_pin_to_home_content_description))
+        ).assertCountEquals(0)
+        // And tapping the row opens the date editor for that anchor (the chevron's promise).
+        composeRule.onNodeWithText("Surgery").performClick()
+        composeRule.runOnIdle {
+            assertEquals("surgery", edited?.id)
         }
     }
 

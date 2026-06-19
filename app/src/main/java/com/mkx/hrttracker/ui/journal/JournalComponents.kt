@@ -51,7 +51,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -96,6 +95,7 @@ import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
@@ -1326,20 +1326,25 @@ private fun TimelineMilestoneRow(
                 modifier = Modifier.fillMaxWidth(),
                 cornerShape = MaterialTheme.shapes.medium,
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                // View mode: the whole row taps through to the date editor (the trailing
+                // chevron hints it). Edit mode: the whole row toggles this anchor's pin
+                // (the trailing pin icon reflects the resulting state).
                 onClick = if (isEditMode) {
-                    { onUpdateDate(anchor) }
+                    { onSetPinned(anchor.id, !node.isPinned) }
                 } else {
-                    null
+                    { onUpdateDate(anchor) }
                 },
                 leadingContent = { AnchorIconChip(anchor = anchor) },
                 trailingContent = {
-                    // The day count stays put in both modes; the pin toggle reveals to
-                    // its right in edit mode by expanding its width, which slides the
-                    // count leftward to make room (mirrors the pinned rows' trailing reveal).
+                    // The day count stays put; the trailing slot flips between a chevron
+                    // (view mode — the row taps through to the editor) and a pin icon
+                    // (edit mode — the whole row toggles the pin), a coin-flip matching the
+                    // History app bar's FlipSlot. Both faces share a 24dp footprint so the
+                    // trailing width holds across the flip.
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = anchor.dayCountLabel(),
-                            style = MaterialTheme.typography.titleLarge.copy(
+                            style = MaterialTheme.typography.titleMedium.copy(
                                 fontFeatureSettings = "tnum",
                             ),
                             color = if (anchor.isFuture) {
@@ -1348,19 +1353,45 @@ private fun TimelineMilestoneRow(
                                 MaterialTheme.colorScheme.primary
                             },
                         )
-                        AnimatedVisibility(
-                            visible = isEditMode,
-                            enter = expandHorizontally(expandFrom = Alignment.End) + fadeIn(),
-                            exit = shrinkHorizontally(shrinkTowards = Alignment.End) + fadeOut(),
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-                                PinToggle(
-                                    checked = node.isPinned,
-                                    onCheckedChange = { onSetPinned(anchor.id, it) },
-                                )
-                            }
-                        }
+                        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+                        FlipSlot(
+                            flipped = isEditMode,
+                            front = {
+                                Box(
+                                    modifier = Modifier.size(24.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ChevronRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            },
+                            back = {
+                                Box(
+                                    modifier = Modifier.size(24.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        painter = painterResource(
+                                            if (node.isPinned) {
+                                                R.drawable.ic_keep
+                                            } else {
+                                                R.drawable.ic_keep_alt
+                                            },
+                                        ),
+                                        contentDescription = stringResource(
+                                            R.string.journal_pin_to_home_content_description,
+                                        ),
+                                        // The pin glyph reads heavier than the chevron, so it
+                                        // sits a touch smaller to balance the two flip faces.
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            },
+                        )
                     }
                 },
             ) {
@@ -1499,39 +1530,6 @@ private fun TodayMarkerRow(
                 )
             }
             HorizontalDivider(modifier = Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-private fun PinToggle(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val container by animateColorAsState(
-        if (checked) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-        animationSpec = tween(durationMillis = 200),
-        label = "pinToggleBg",
-    )
-    Surface(
-        color = container,
-        shape = CircleShape,
-        modifier = modifier.size(36.dp),
-    ) {
-        IconToggleButton(checked = checked, onCheckedChange = onCheckedChange, colors = IconButtonDefaults.iconToggleButtonColors()) {
-            Icon(
-                painter = painterResource(
-                    if (checked) R.drawable.ic_keep else R.drawable.ic_keep_alt,
-                ),
-                contentDescription = stringResource(R.string.journal_pin_to_home_content_description),
-                modifier = Modifier.size(20.dp),
-                tint = if (checked) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
         }
     }
 }
