@@ -196,6 +196,28 @@ class OnboardingViewModelTest {
         assertEquals(0, viewModel.uiState.value.trackedMedicineCount)
     }
 
+    @Test
+    fun uiState_showsOnboardingWhenLoadedAndIncompleteInNonDebugBuild() {
+        val state = OnboardingUiState(
+            isLoaded = true,
+            isCompleted = false,
+            isDebugBuild = false,
+        )
+
+        assertTrue(state.shouldShowOnboarding)
+    }
+
+    @Test
+    fun uiState_hidesOnboardingWhenLoadedAndIncompleteInDebugBuild() {
+        val state = OnboardingUiState(
+            isLoaded = true,
+            isCompleted = false,
+            isDebugBuild = true,
+        )
+
+        assertFalse(state.shouldShowOnboarding)
+    }
+
     private fun createViewModel(): OnboardingViewModel {
         return OnboardingViewModel(
             settingsRepository = settingsRepository,
