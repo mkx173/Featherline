@@ -33,11 +33,13 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -66,6 +68,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -83,6 +86,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
@@ -414,6 +418,12 @@ private const val HeroTitleSharedKey = "hero-title"
 // the hero edit row and the other pinned rows read as the same component.
 private val PinnedRowLeadingGap = 12.dp
 
+// The row zeroes SegmentedListItem's built-in content padding so the hero's large glyph
+// overlay can bleed into the card's corner; each morph branch re-applies this inset to its
+// own content so positions stay identical. Mirrors SegmentedListItem's default 16dp/10dp
+// (also the inset MainE2HeroCard re-applies).
+private val PinnedRowContentInset = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun HeroViewLayout(
@@ -423,28 +433,49 @@ private fun HeroViewLayout(
     sharedScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
+    val colorScheme = rememberMedicationGroupColorScheme(colorKey = anchor.palette)
     with(sharedScope) {
-        // Mirror MainE2HeroCard's content column, which carries a 6dp bottom padding
-        // below its last row so the chips don't sit flush against the card's edge.
-        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                MorphingLeadingIcon(
-                    anchor = anchor,
-                    filled = false,
-                    modifier = Modifier.sharedElement(
-                        rememberSharedContentState(key = HeroIconSharedKey),
-                        animatedVisibilityScope = animatedVisibilityScope,
-                    ),
-                )
-                Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-                HeroTitle(name = anchor.name, animatedVisibilityScope = animatedVisibilityScope)
-            }
+        Box(modifier = Modifier.fillMaxWidth()) {
+            // A large, faint echo of the anchor's icon anchored to the top-end corner, where
+            // it bleeds past the card edge (the row zeroes its content padding for this) and is
+            // clipped by the rounded corner. Mirrors MainE2HeroCard's ic_notification_icon
+            // watermark, tinted in the anchor's palette.
+            Icon(
+                painter = painterResource(anchorIconRes(anchor.icon)),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(160.dp)
+                    .alpha(0.1f)
+                    .offset(x = 20.dp, y = (-20).dp),
+                tint = colorScheme.primary,
+            )
+            // Mirror MainE2HeroCard's content column, which carries a 6dp bottom padding
+            // below its last row so the chips don't sit flush against the card's edge.
             Column(
-                modifier = Modifier.padding(top = dimensionResource(R.dimen.padding_small)),
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(PinnedRowContentInset)
+                    .padding(bottom = 6.dp)
             ) {
-                HeroCount(hero = anchor)
-                HeroChips(hero = anchor, nextMilestone = heroNextMilestone, today = today)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MorphingLeadingIcon(
+                        anchor = anchor,
+                        filled = false,
+                        modifier = Modifier.sharedElement(
+                            rememberSharedContentState(key = HeroIconSharedKey),
+                            animatedVisibilityScope = animatedVisibilityScope,
+                        ),
+                    )
+                    Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+                    HeroTitle(name = anchor.name, animatedVisibilityScope = animatedVisibilityScope, modifier = Modifier.padding(vertical = 6.dp))
+                }
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+                ) {
+                    HeroCount(hero = anchor)
+                    HeroChips(hero = anchor, nextMilestone = heroNextMilestone, today = today)
+                }
             }
         }
     }
@@ -471,7 +502,9 @@ private fun PinnedCompactLayout(
 ) {
     with(sharedScope) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            // Re-apply the inset the row zeroes for the hero overlay, so the compact row keeps
+            // SegmentedListItem's standard content padding.
+            modifier = Modifier.fillMaxWidth().padding(PinnedRowContentInset),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             MorphingLeadingIcon(
@@ -545,6 +578,7 @@ private fun PinnedCompactLayout(
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun SharedTransitionScope.HeroTitle(
+    modifier: Modifier = Modifier,
     name: String,
     animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
@@ -553,7 +587,9 @@ private fun SharedTransitionScope.HeroTitle(
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Normal,
         color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
             .sharedElement(
                 rememberSharedContentState(key = HeroTitleSharedKey),
                 animatedVisibilityScope = animatedVisibilityScope,
@@ -1106,6 +1142,9 @@ private fun PinnedRow(
         // corners rounded; the per-corner springs animate the morph as the user
         // enters/exits edit mode. At rest the rows read as one grouped segment.
         fullyRounded = isEditMode,
+        // Drawn edge-to-edge: the hero's overlay glyph bleeds into the card corner and
+        // each morph branch re-applies PinnedRowContentInset to its own content.
+        contentPadding = PaddingValues(0.dp),
         modifier = modifier,
     ) {
         Box(modifier = contentModifier) {

@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.components
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ListItemDefaults
@@ -36,6 +37,10 @@ fun EditorSegmentedListItem(
     trailingContent: (@Composable () -> Unit)? = null,
     supportingContent: (@Composable () -> Unit)? = null,
     overlineContent: (@Composable () -> Unit)? = null,
+    // The inset applied around the content slot. Defaults to SegmentedListItem's standard
+    // padding; callers can zero it to draw content (e.g. a bleeding corner overlay) flush to
+    // the card edge and re-apply the inset to their own content.
+    contentPadding: PaddingValues = ListItemDefaults.ContentPadding,
     content: @Composable () -> Unit,
 ) {
     val position = currentSegmentPosition(explicitSegmentPosition(index, count))
@@ -96,6 +101,7 @@ fun EditorSegmentedListItem(
         trailingContent = trailingContent,
         supportingContent = supportingContent,
         overlineContent = overlineContent,
+        contentPadding = contentPadding,
         content = content,
     )
 }

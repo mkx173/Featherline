@@ -92,7 +92,7 @@ fun MainLowStockSection(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp, bottom = 6.dp),
+                        .padding(top = 10.dp, bottom = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
                 ) {
                     sortedWarnings.forEachIndexed { index, projection ->
