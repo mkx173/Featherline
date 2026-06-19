@@ -11,8 +11,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -109,6 +107,7 @@ import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.ColorPaletteSwatchGrid
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
@@ -2339,7 +2338,7 @@ private fun MedicationGroupColorPickerLeadingIcon(
             RichTooltip(
                 title = { Text(pickerTitle) },
             ) {
-                MedicationGroupColorSwatchGrid(
+                ColorPaletteSwatchGrid(
                     selectedColorKey = selectedColorKey,
                     onColorSelected = { colorKey ->
                         onColorSelected(colorKey)
@@ -2370,68 +2369,6 @@ private fun MedicationGroupColorPickerLeadingIcon(
                 contentDescription = pickerActionDescription,
                 tint = currentScheme.primary,
             )
-        }
-    }
-}
-
-@Composable
-private fun MedicationGroupColorSwatchGrid(
-    selectedColorKey: MedicationGroupColorKey,
-    onColorSelected: (MedicationGroupColorKey) -> Unit,
-) {
-    val ordered = MedicationGroupColorKey.assignmentOrder
-    Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        ordered.chunked(5).forEach { row ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                row.forEachIndexed { indexInRow, key ->
-                    val absoluteIndex = ordered.indexOf(key) + 1
-                    val scheme = rememberMedicationGroupColorScheme(colorKey = key)
-                    val isSelected = key == selectedColorKey
-                    val swatchDescription = stringResource(
-                        if (isSelected) {
-                            R.string.group_color_picker_swatch_selected_content_description
-                        } else {
-                            R.string.group_color_picker_swatch_content_description
-                        },
-                        absoluteIndex,
-                    )
-                    // Selection carves a small inner ring in the surface
-                    // colour instead of showing a check, so the swatch reads
-                    // as a framed chip.
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(scheme.primary)
-                            .clickable(onClickLabel = swatchDescription) {
-                                onColorSelected(key)
-                            },
-                    ) {
-                        if (isSelected) {
-                            Box(
-                                modifier = Modifier
-                                    .matchParentSize()
-                                    .padding(2.5.dp)
-                                    .border(
-                                        width = 2.5.dp,
-                                        color = MaterialTheme.colorScheme.surfaceContainer,
-                                        shape = CircleShape,
-                                    ),
-                            )
-                        }
-                    }
-
-                    if (indexInRow < row.lastIndex) {
-                        // No spacer needed: Row's horizontalArrangement
-                        // already handles gaps. Keeping the index check so
-                        // future tweaks (e.g. a separator) have a hook.
-                    }
-                }
-            }
         }
     }
 }
