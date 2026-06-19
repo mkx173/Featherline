@@ -6,12 +6,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -21,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +45,7 @@ import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
+import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.HrtSection
@@ -233,6 +237,12 @@ fun MilestonesScreen(
         editingAnchor = null
     }
 
+    // Edit mode lives in the Activity-scoped ViewModel, so it would otherwise persist
+    // across navigation. Reset it when leaving the screen so re-entry starts in view mode.
+    DisposableEffect(Unit) {
+        onDispose { viewModel.exitEditMode() }
+    }
+
     MilestonesScreenContent(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
@@ -304,17 +314,18 @@ fun MilestonesScreenContent(
                     }
                 },
                 actions = {
-                    TextButton(onClick = onToggleEdit) {
-                        Text(
-                            text = stringResource(
-                                if (uiState.isEditMode) {
-                                    R.string.journal_done
-                                } else {
-                                    R.string.journal_edit
-                                }
-                            )
-                        )
-                    }
+                    HrtFilledTonalButton(
+                        text = stringResource(
+                            if (uiState.isEditMode) {
+                                R.string.journal_done
+                            } else {
+                                R.string.journal_edit
+                            }
+                        ),
+                        onClick = onToggleEdit,
+                        modifier = Modifier.padding(end = 8.dp),
+                        enabled = uiState.timeline.isNotEmpty(),
+                    )
                 },
                 scrollBehavior = scrollBehavior,
             )
@@ -371,10 +382,11 @@ fun MilestonesScreenContent(
                 }
 
                 item(key = "milestones-add-date", contentType = "journal-action") {
-                    HrtFilledTonalButton(
+                    HrtButton(
                         text = stringResource(R.string.journal_add_date),
                         onClick = onAddDate,
-                        modifier = Modifier.padding(top = dimensionResource(R.dimen.padding_small)),
+                        modifier = Modifier.fillMaxWidth().padding(top = dimensionResource(R.dimen.padding_small)),
+                        icon = Icons.Rounded.Add
                     )
                 }
             }

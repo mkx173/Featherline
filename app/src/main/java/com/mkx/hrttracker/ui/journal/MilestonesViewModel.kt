@@ -80,6 +80,10 @@ class MilestonesViewModel @Inject constructor(
         editMode.value = !editMode.value
     }
 
+    fun exitEditMode() {
+        editMode.value = false
+    }
+
     fun setPinned(id: String, pinned: Boolean) = viewModelScope.launch {
         journalRepository.setPinned(id, pinned)
     }

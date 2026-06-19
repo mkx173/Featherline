@@ -663,9 +663,9 @@ private fun EditTrailingCluster(
 private fun HomeTag(modifier: Modifier = Modifier) {
     HrtPill(
         label = stringResource(R.string.journal_home_tag),
-        containerColor = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        size = HrtPillSize.XSmall,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        size = HrtPillSize.Small,
         modifier = modifier,
         icon = { Icon(painterResource(R.drawable.ic_home), null, iconModifier) },
     )
@@ -679,10 +679,15 @@ private fun HeroChips(
 ) {
     val appLocale = rememberAppLocale()
     val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         HrtPill(
             label = stringResource(R.string.journal_since_date, dateFormatter(hero.date)),
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             size = HrtPillSize.Small,
             icon = { Icon(painterResource(R.drawable.ic_event), null, iconModifier) },
         )
@@ -1138,7 +1143,7 @@ private fun UnpinButton(name: String, onUnpin: () -> Unit) {
         Icon(
             imageVector = Icons.Rounded.Close,
             contentDescription = stringResource(R.string.journal_unpin_anchor, name),
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(22.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -1189,22 +1194,19 @@ fun MilestonesTimeline(
     today: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier,
 ) {
+    if (nodes.isEmpty()) {
+        SupportMessageListItem(
+            text = stringResource(R.string.journal_no_dates),
+            painter = painterResource(R.drawable.ic_info),
+            modifier = modifier,
+        )
+        return
+    }
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
-        if (nodes.isEmpty()) {
-            Box(modifier = Modifier.padding(dimensionResource(R.dimen.padding_medium))) {
-                Text(
-                    text = stringResource(R.string.journal_no_dates),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            return@Surface
-        }
-
         // Split the date-sorted nodes into three runs around today: past, today, and
         // future. Each run gets its own segment index/count so its cards carry their own
         // grouped corners — a lone today node becomes a fully-rounded standalone card —
@@ -1342,8 +1344,9 @@ private fun TimelineMilestoneRow(
                     // History app bar's FlipSlot. Both faces share a 24dp footprint so the
                     // trailing width holds across the flip.
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        val dayCountLabelText = anchor.dayCountLabel()
                         Text(
-                            text = anchor.dayCountLabel(),
+                            text = dayCountLabelText,
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontFeatureSettings = "tnum",
                             ),
@@ -1352,6 +1355,7 @@ private fun TimelineMilestoneRow(
                             } else {
                                 MaterialTheme.colorScheme.primary
                             },
+                            modifier = Modifier.cjkTextOffset(dayCountLabelText)
                         )
                         Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
                         FlipSlot(
