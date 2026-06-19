@@ -243,8 +243,12 @@
     <string name="journal_anchor_icon_schedule">时长</string>
     <string name="journal_anchor_icon_flag">目标</string>
     <string name="journal_anchor_icon_bookmark">书签</string>
-    <string name="journal_anchor_icon_home_health">居家护理</string>
+    <string name="journal_anchor_icon_home_health">医院</string>
     <string name="journal_anchor_icon_favorite">个人</string>
+    <string name="journal_anchor_icon_stethoscope">就诊</string>
+    <string name="journal_anchor_icon_travel">旅行</string>
+    <string name="journal_anchor_icon_cake">生日</string>
+    <string name="journal_anchor_icon_star">亮点</string>
     <string name="journal_delete_date">删除日期</string>
     <string name="journal_delete_date_title">要删除日期吗？</string>
     <string name="journal_delete_date_confirmation">这会从日记中删除这个跟踪日期。</string>

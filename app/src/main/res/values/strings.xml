@@ -255,8 +255,12 @@
     <string name="journal_anchor_icon_schedule">Duration</string>
     <string name="journal_anchor_icon_flag">Goal</string>
     <string name="journal_anchor_icon_bookmark">Bookmark</string>
-    <string name="journal_anchor_icon_home_health">Home care</string>
+    <string name="journal_anchor_icon_home_health">Hospital</string>
     <string name="journal_anchor_icon_favorite">Personal</string>
+    <string name="journal_anchor_icon_stethoscope">Appointment</string>
+    <string name="journal_anchor_icon_travel">Travel</string>
+    <string name="journal_anchor_icon_cake">Birthday</string>
+    <string name="journal_anchor_icon_star">Highlight</string>
     <string name="journal_delete_date">Delete date</string>
     <string name="journal_delete_date_title">Delete date?</string>
     <string name="journal_delete_date_confirmation">This removes this tracked date from Journal.</string>

@@ -18,4 +18,8 @@ fun anchorIconLabelRes(icon: AnchorIcon): Int = when (icon) {
     AnchorIcon.BOOKMARK -> R.string.journal_anchor_icon_bookmark
     AnchorIcon.HOME_HEALTH -> R.string.journal_anchor_icon_home_health
     AnchorIcon.FAVORITE -> R.string.journal_anchor_icon_favorite
+    AnchorIcon.STETHOSCOPE -> R.string.journal_anchor_icon_stethoscope
+    AnchorIcon.TRAVEL -> R.string.journal_anchor_icon_travel
+    AnchorIcon.CAKE -> R.string.journal_anchor_icon_cake
+    AnchorIcon.STAR -> R.string.journal_anchor_icon_star
 }

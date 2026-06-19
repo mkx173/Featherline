@@ -24,10 +24,55 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 
 /**
+ * A single circular palette swatch for [colorKey]. Selection carves a small inner ring
+ * rather than a check, so the swatch reads as a framed chip. The accessibility label
+ * uses the colour's 1-based position in [MedicationGroupColorKey.assignmentOrder], so
+ * every container (grid, scroll row) exposes the same descriptions.
+ */
+@Composable
+fun ColorPaletteSwatch(
+    colorKey: MedicationGroupColorKey,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val absoluteIndex = MedicationGroupColorKey.assignmentOrder.indexOf(colorKey) + 1
+    val scheme = rememberMedicationGroupColorScheme(colorKey = colorKey)
+    val description = stringResource(
+        if (selected) {
+            R.string.group_color_picker_swatch_selected_content_description
+        } else {
+            R.string.group_color_picker_swatch_content_description
+        },
+        absoluteIndex,
+    )
+    Box(
+        modifier = modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(scheme.primary)
+            .clickable { onClick() }
+            .semantics { contentDescription = description },
+    ) {
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .padding(2.5.dp)
+                    .border(
+                        width = 2.5.dp,
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        shape = CircleShape,
+                    ),
+            )
+        }
+    }
+}
+
+/**
  * A 2×5 grid of palette swatches over [MedicationGroupColorKey.assignmentOrder].
  * [selectedColorKey] may be null (nothing selected); callers that always have a
- * colour pass a non-null value. Selection carves a small inner ring rather than a
- * check, so the swatch reads as a framed chip.
+ * colour pass a non-null value.
  *
  * When [fillWidth] is true the rows stretch to the available width and distribute
  * the swatches evenly (for a full-width row beside other content); otherwise they
@@ -56,38 +101,11 @@ fun ColorPaletteSwatchGrid(
                 horizontalArrangement = rowArrangement,
             ) {
                 rowKeys.forEach { key ->
-                    val absoluteIndex = ordered.indexOf(key) + 1
-                    val scheme = rememberMedicationGroupColorScheme(colorKey = key)
-                    val isSelected = key == selectedColorKey
-                    val swatchDescription = stringResource(
-                        if (isSelected) {
-                            R.string.group_color_picker_swatch_selected_content_description
-                        } else {
-                            R.string.group_color_picker_swatch_content_description
-                        },
-                        absoluteIndex,
+                    ColorPaletteSwatch(
+                        colorKey = key,
+                        selected = key == selectedColorKey,
+                        onClick = { onColorSelected(key) },
                     )
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(scheme.primary)
-                            .clickable { onColorSelected(key) }
-                            .semantics { contentDescription = swatchDescription },
-                    ) {
-                        if (isSelected) {
-                            Box(
-                                modifier = Modifier
-                                    .matchParentSize()
-                                    .padding(2.5.dp)
-                                    .border(
-                                        width = 2.5.dp,
-                                        color = MaterialTheme.colorScheme.surfaceContainer,
-                                        shape = CircleShape,
-                                    ),
-                            )
-                        }
-                    }
                 }
             }
         }

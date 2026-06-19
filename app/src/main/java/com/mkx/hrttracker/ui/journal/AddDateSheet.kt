@@ -9,12 +9,14 @@ import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -23,7 +25,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,7 +49,7 @@ import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
-import com.mkx.hrttracker.ui.components.ColorPaletteSwatchGrid
+import com.mkx.hrttracker.ui.components.ColorPaletteSwatch
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.hazeSheetBlurActive
@@ -249,24 +250,28 @@ private fun AnchorIconGrid(
     selectedIcon: AnchorIcon,
     onIconSelected: (AnchorIcon) -> Unit,
 ) {
-    val columns = 6
+    val columns = 8
+    val gap = dimensionResource(R.dimen.padding_small)
     Column(
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+        verticalArrangement = Arrangement.spacedBy(gap),
     ) {
         Text(
             text = stringResource(R.string.journal_date_icon_section),
             style = MaterialTheme.typography.titleSmall,
         )
+        // Tiles share the row width evenly (weight) with a small uniform gap, so the grid
+        // reads as a dense band instead of small tiles scattered by SpaceBetween.
         AnchorIcon.entries.chunked(columns).forEach { rowIcons ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(gap),
             ) {
                 rowIcons.forEach { icon ->
                     AnchorIconTile(
                         icon = icon,
                         selected = icon == selectedIcon,
                         onClick = { onIconSelected(icon) },
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -279,6 +284,7 @@ private fun AnchorIconTile(
     icon: AnchorIcon,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     // Tiles stay neutral and selection uses the app theme primary; the chosen anchor
     // colour is surfaced through the name field's leading icon, not the grid.
@@ -300,8 +306,8 @@ private fun AnchorIconTile(
     val label = stringResource(anchorIconLabelRes(icon))
     Surface(
         onClick = onClick,
-        modifier = Modifier
-            .size(36.dp)
+        modifier = modifier
+            .aspectRatio(1f)
             .semantics { this.selected = selected },
         shape = MaterialTheme.shapes.small,
         color = containerColor,
@@ -322,6 +328,13 @@ private fun AnchorPaletteRow(
     selectedPalette: MedicationGroupColorKey?,
     onPaletteSelected: (MedicationGroupColorKey?) -> Unit,
 ) {
+    val ordered = MedicationGroupColorKey.assignmentOrder
+    // Reveal the pre-selected swatch (edit mode) by initialising the scroll position at
+    // creation; index 0 is the "none" default and colours follow at indexOf(key) + 1.
+    val initialIndex = remember {
+        selectedPalette?.let { ordered.indexOf(it) + 1 } ?: 0
+    }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
     Column(
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
     ) {
@@ -329,22 +342,24 @@ private fun AnchorPaletteRow(
             text = stringResource(R.string.journal_date_palette_section),
             style = MaterialTheme.typography.titleSmall,
         )
-        Row(
-            modifier = Modifier.height(IntrinsicSize.Min),
+        LazyRow(
+            state = listState,
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_medium)),
+            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
         ) {
-            DefaultPaletteSwatch(
-                selected = selectedPalette == null,
-                onClick = { onPaletteSelected(null) },
-            )
-            VerticalDivider()
-            ColorPaletteSwatchGrid(
-                selectedColorKey = selectedPalette,
-                onColorSelected = { onPaletteSelected(it) },
-                modifier = Modifier.weight(1f),
-                fillWidth = true,
-            )
+            item {
+                DefaultPaletteSwatch(
+                    selected = selectedPalette == null,
+                    onClick = { onPaletteSelected(null) },
+                )
+            }
+            items(ordered, key = { it }) { key ->
+                ColorPaletteSwatch(
+                    colorKey = key,
+                    selected = key == selectedPalette,
+                    onClick = { onPaletteSelected(key) },
+                )
+            }
         }
     }
 }

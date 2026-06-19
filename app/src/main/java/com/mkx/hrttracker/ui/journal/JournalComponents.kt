@@ -167,7 +167,7 @@ fun MilestonesStackCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_schedule),
+                    painter = painterResource(R.drawable.ic_schedule_filled),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
