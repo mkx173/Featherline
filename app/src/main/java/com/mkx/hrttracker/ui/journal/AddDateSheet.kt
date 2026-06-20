@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -207,6 +208,7 @@ private fun AddDateSheetContent(
 
         AnchorIconGrid(
             selectedIcon = selectedIcon,
+            selectedPalette = selectedPalette,
             onIconSelected = onIconSelected,
         )
 
@@ -254,10 +256,13 @@ private fun DateSelectorField(
 @Composable
 private fun AnchorIconGrid(
     selectedIcon: AnchorIcon,
+    selectedPalette: MedicationGroupColorKey?,
     onIconSelected: (AnchorIcon) -> Unit,
 ) {
     val columns = 8
     val gap = dimensionResource(R.dimen.padding_small)
+    // The chosen colour's scheme fills the selected tile so the grid echoes the colour pick.
+    val scheme = rememberMedicationGroupColorScheme(colorKey = selectedPalette)
     Column(
         verticalArrangement = Arrangement.spacedBy(gap),
     ) {
@@ -276,6 +281,7 @@ private fun AnchorIconGrid(
                     AnchorIconTile(
                         icon = icon,
                         selected = icon == selectedIcon,
+                        scheme = scheme,
                         onClick = { onIconSelected(icon) },
                         modifier = Modifier.weight(1f),
                     )
@@ -289,23 +295,21 @@ private fun AnchorIconGrid(
 private fun AnchorIconTile(
     icon: AnchorIcon,
     selected: Boolean,
+    scheme: ColorScheme,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Tiles stay neutral and selection uses the app theme primary; the chosen anchor
-    // colour is surfaced through the name field's leading icon, not the grid.
-    val hazeSheet = hazeSheetBlurActive()
+    // Tiles stay neutral (haze-aware); only the selected tile is filled in the chosen colour, with
+    // the scheme's onPrimaryContainer as its surface and the theme's surface as its glyph.
     val containerColor = if (selected) {
-        MaterialTheme.colorScheme.primary
+        scheme.onPrimaryContainer
+    } else if (hazeSheetBlurActive()) {
+        MaterialTheme.colorScheme.surfaceContainerHigh
     } else {
-        if (hazeSheet) {
-            MaterialTheme.colorScheme.surfaceContainerHigh
-        } else {
-            MaterialTheme.colorScheme.surfaceContainer
-        }
+        MaterialTheme.colorScheme.surfaceContainer
     }
     val contentColor = if (selected) {
-        MaterialTheme.colorScheme.onPrimary
+        MaterialTheme.colorScheme.surface
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
