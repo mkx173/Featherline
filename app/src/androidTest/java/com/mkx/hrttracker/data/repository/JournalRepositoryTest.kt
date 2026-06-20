@@ -17,16 +17,20 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -492,6 +496,54 @@ class JournalRepositoryTest {
         repo.deleteTrackedDate(a.id)
 
         assertEquals(emptyList<TrackedDate>(), repo.observeTrackedDates().first())
+    }
+
+    @Test
+    fun deleteTrackedDate_refreshesSnapshotWhenCallerIsCancelledAfterMutation() = runBlocking {
+        val journalDao = mockk<JournalDao>()
+        val hero = trackedDateEntity(
+            uuid = "hero",
+            name = "Hero",
+            date = LocalDate.of(2024, 1, 1),
+            pinnedOrder = 0,
+            createdAt = 1_000L,
+        )
+        var heroReadCount = 0
+        coEvery { journalDao.getFirstPinnedTrackedDate() } coAnswers {
+            heroReadCount += 1
+            if (heroReadCount == 1) {
+                hero
+            } else {
+                yield()
+                null
+            }
+        }
+        coEvery { journalDao.deleteTrackedDate("hero") } coAnswers {
+            currentCoroutineContext()[Job]?.cancel()
+            Unit
+        }
+        val database = mockk<HrtTrackerDatabase>()
+        every { database.journalDao() } returns journalDao
+        val holder = mockk<DatabaseHolder>()
+        every { holder.get() } returns database
+        val repository = JournalRepository(
+            databaseHolder = holder,
+            clock = clock,
+            homeSnapshotRepository = homeSnapshotRepository,
+        )
+
+        val job = launch { repository.deleteTrackedDate("hero") }
+        job.join()
+
+        assertTrue(job.isCancelled)
+        coVerify(exactly = 1) { journalDao.deleteTrackedDate("hero") }
+        coVerify(exactly = 1) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(
+                now = any(),
+                force = true,
+                zoneId = any(),
+            )
+        }
     }
 
     @Test

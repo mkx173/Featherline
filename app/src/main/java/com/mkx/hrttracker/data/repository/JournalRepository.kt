@@ -11,11 +11,13 @@ import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.TrackedDate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import java.time.Clock
 import java.time.LocalDate
 import java.util.UUID
@@ -118,9 +120,11 @@ class JournalRepository @Inject constructor(
     private suspend fun <T> refreshingSnapshotIfHeroChanges(block: suspend () -> T): T {
         val before = databaseHolder.get().journalDao().getFirstPinnedTrackedDate()
         val result = block()
-        val after = databaseHolder.get().journalDao().getFirstPinnedTrackedDate()
-        if (before != after) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
+        withContext(NonCancellable) {
+            val after = databaseHolder.get().journalDao().getFirstPinnedTrackedDate()
+            if (before != after) {
+                homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
+            }
         }
         return result
     }
