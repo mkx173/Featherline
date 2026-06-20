@@ -50,6 +50,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -916,6 +917,83 @@ class HomeRepositoryTest {
 
         assertEquals(HomeInputSource.ROOM, inputs.source)
         assertEquals(hero, inputs.homeAnchor)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun observeHomeInputs_dedupsRepeatedPinnedDateEmissionsBeforeProjectionWork() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val zoneId = ZoneId.systemDefault()
+        val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.PG_ML)
+        val hero = heroTrackedDate()
+        val pinnedDates = MutableSharedFlow<List<TrackedDate>>(replay = 1)
+        pinnedDates.emit(listOf(hero))
+        var projectionCalls = 0
+
+        every { databaseHolder.get() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        every { homeDao.observeActiveGroups() } returns flowOf(emptyList())
+        every { homeDao.observeScheduleEntries(any(), any(), any(), any()) } returns flowOf(
+            emptyList()
+        )
+        every { homeDao.observeLatestAntiandrogenEntriesOnOrBefore(any()) } returns flowOf(
+            emptyList()
+        )
+        every { homeDao.observeEstradiolPkEntries(any(), any()) } returns flowOf(emptyList())
+        every { homeDao.observeLatestEstradiolEntryOnOrBefore(any()) } returns flowOf(null)
+        every { homeDao.observeProfile() } returns flowOf(null)
+        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every { settingsRepository.homeE2ChartWindowOptionFlow } returns MutableStateFlow(
+            settings.homeE2ChartWindowOption
+        )
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(null)
+        every { homeSnapshotRepository.decodeProjection(null, any(), any()) } returns null
+        every { journalRepository.observePinnedTrackedDates() } returns pinnedDates
+        every {
+            medicineStockRepository.projectAll(any(), any(), any(), any(), any())
+        } answers {
+            projectionCalls += 1
+            emptyList()
+        }
+
+        val emissions = mutableListOf<HomeInputs>()
+        val firstEmissionObserved = CompletableDeferred<Unit>()
+        val secondEmissionObserved = CompletableDeferred<Unit>()
+        val repository = HomeRepository(
+            databaseHolder = databaseHolder,
+            settingsRepository = settingsRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
+        )
+        val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeHomeInputs(
+                date = now.toLocalDate(),
+                nowFlow = MutableStateFlow(now),
+                zoneId = zoneId,
+            ).collect { inputs ->
+                emissions += inputs
+                firstEmissionObserved.complete(Unit)
+                if (emissions.size >= 2) {
+                    secondEmissionObserved.complete(Unit)
+                }
+            }
+        }
+
+        firstEmissionObserved.await()
+        assertEquals(hero, emissions.single().homeAnchor)
+        assertEquals(1, projectionCalls)
+
+        pinnedDates.emit(listOf(hero))
+        val duplicateEmission = withTimeoutOrNull(250) { secondEmissionObserved.await() }
+
+        assertEquals(null, duplicateEmission)
+        assertEquals(1, projectionCalls)
+        collectJob.cancel()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

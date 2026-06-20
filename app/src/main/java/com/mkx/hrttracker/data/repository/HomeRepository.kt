@@ -20,12 +20,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
@@ -185,13 +187,15 @@ class HomeRepository @Inject constructor(
         }
         val stockAndAnchorInputsFlow = combine(
             stockInputsFlow,
-            journalRepository.observePinnedTrackedDates(),
-        ) { stockInputs, pinnedDates ->
+            journalRepository.observePinnedTrackedDates()
+                .map { pinnedDates -> pinnedDates.firstOrNull() }
+                .distinctUntilChanged(),
+        ) { stockInputs, homeAnchor ->
             val (trackedMedicines, stockFulfillmentEntries) = stockInputs
             HomeRoomStockAndAnchorInputs(
                 trackedMedicines = trackedMedicines,
                 stockFulfillmentEntries = stockFulfillmentEntries,
-                pinnedDates = pinnedDates,
+                homeAnchor = homeAnchor,
             )
         }
         return combine(
@@ -258,7 +262,7 @@ class HomeRepository @Inject constructor(
                         estradiolPkEntries = simulationEntries.real,
                         estradiolPkPlannedEntries = simulationEntries.planned,
                         stockWarnings = stockWarnings,
-                        homeAnchor = stockAndAnchorInputs.pinnedDates.firstOrNull(),
+                        homeAnchor = stockAndAnchorInputs.homeAnchor,
                         source = HomeInputSource.ROOM,
                         now = now,
                     )
@@ -542,7 +546,7 @@ private data class LatestEstradiolEntryEmission(val entry: MedicationLogEntry?)
 private data class HomeRoomStockAndAnchorInputs(
     val trackedMedicines: List<com.mkx.hrttracker.model.medication.Medicine>,
     val stockFulfillmentEntries: List<MedicationLogEntry>,
-    val pinnedDates: List<TrackedDate>,
+    val homeAnchor: TrackedDate?,
 )
 
 private fun List<MedicineStockProjection>.stockWarningsOnly(): List<MedicineStockProjection> {
