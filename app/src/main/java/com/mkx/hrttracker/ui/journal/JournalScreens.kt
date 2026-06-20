@@ -393,42 +393,45 @@ fun MilestonesScreenContent(
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
                 item(key = "milestones-pinned", contentType = "journal-section") {
-                    HrtSection(
-                        title = stringResource(R.string.journal_pinned_section),
-                        headerTrailing = if (uiState.hero != null) {
-                            {
-                                val titleStyle = MaterialTheme.typography.titleSmall
-                                val density = LocalDensity.current
-                                val iconSize = with(density) {
-                                    titleStyle.lineHeight.takeOrElse { titleStyle.fontSize }.toDp()
+                    Column {
+                        HrtSectionHeader(
+                            text = stringResource(R.string.journal_pinned_section),
+                            trailing = if (uiState.hero != null) {
+                                {
+                                    val titleStyle = MaterialTheme.typography.titleSmall
+                                    val density = LocalDensity.current
+                                    val iconSize = with(density) {
+                                        titleStyle.lineHeight.takeOrElse { titleStyle.fontSize }.toDp()
+                                    }
+                                    IconButton(
+                                        onClick = onOpenHeroBackground,
+                                        modifier = Modifier.size(48.dp),
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_wand_stars),
+                                            contentDescription = stringResource(
+                                                R.string.journal_hero_background_action,
+                                            ),
+                                            modifier = Modifier.size(iconSize),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
                                 }
-                                IconButton(
-                                    onClick = onOpenHeroBackground,
-                                    modifier = Modifier.size(48.dp),
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_wand_stars),
-                                        contentDescription = stringResource(
-                                            R.string.journal_hero_background_action,
-                                        ),
-                                        modifier = Modifier.size(iconSize),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
+                            } else {
+                                null
+                            },
+                        )
+                        HrtSection(title = null) {
+                            item {
+                                PinnedTray(
+                                    anchors = uiState.pinnedTray,
+                                    heroNextMilestone = uiState.heroNextMilestone,
+                                    isEditMode = uiState.isEditMode,
+                                    onReorder = onReorder,
+                                    onSetPinned = onSetPinned,
+                                    today = uiState.today,
+                                )
                             }
-                        } else {
-                            null
-                        },
-                    ) {
-                        item {
-                            PinnedTray(
-                                anchors = uiState.pinnedTray,
-                                heroNextMilestone = uiState.heroNextMilestone,
-                                isEditMode = uiState.isEditMode,
-                                onReorder = onReorder,
-                                onSetPinned = onSetPinned,
-                                today = uiState.today,
-                            )
                         }
                     }
                 }
