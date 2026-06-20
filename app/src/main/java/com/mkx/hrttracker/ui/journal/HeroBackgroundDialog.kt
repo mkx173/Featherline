@@ -1,5 +1,8 @@
 package com.mkx.hrttracker.ui.journal
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -7,12 +10,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,6 +45,24 @@ private val SwatchVisualSize = 44.dp
 // Selection ring, scaled 1.5x off ColorPaletteSwatch's 2dp/2dp to suit the larger swatch.
 private val SwatchSelectionRingWidth = 3.dp
 private val SwatchSelectionRingInset = 3.dp
+// A swatch reads as a circle when idle and morphs to a rounded square once picked. Corners are
+// expressed as a percent so the same shape fits both the 48dp touch target and the 44dp visual.
+private const val SwatchCircleCornerPercent = 50
+private const val SwatchSelectedCornerPercent = 40
+
+// The spring gives the circle->rounded-square morph a brief, lively settle on selection.
+@Composable
+private fun swatchShape(selected: Boolean): RoundedCornerShape {
+    val cornerPercent by animateIntAsState(
+        targetValue = if (selected) SwatchSelectedCornerPercent else SwatchCircleCornerPercent,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "swatchCornerPercent",
+    )
+    return RoundedCornerShape(cornerPercent)
+}
 
 @Composable
 fun FlagSwatch(
@@ -56,10 +78,11 @@ fun FlagSwatch(
         HeroBackgroundColors.paletteSeeds(flag.seeds).map { Color(it) }
     }
     val description = stringResource(prideFlagLabelRes(flag))
+    val shape = swatchShape(selected)
     Box(
         modifier = modifier
             .size(SwatchTouchTargetSize)
-            .clip(CircleShape) // clip the tap ripple to the circular swatch
+            .clip(shape) // clip the tap ripple to the morphing swatch
             .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
@@ -67,7 +90,8 @@ fun FlagSwatch(
         Box(
             Modifier
                 .size(SwatchVisualSize)
-                .clip(CircleShape),
+                .then(if (selected) Modifier.aspectRatio(1f) else Modifier)
+                .clip(shape),
         ) {
             Row(Modifier.matchParentSize()) {
                 strips.forEach { color ->
@@ -82,7 +106,7 @@ fun FlagSwatch(
                         .border(
                             SwatchSelectionRingWidth,
                             MaterialTheme.colorScheme.surfaceContainer,
-                            CircleShape,
+                            shape,
                         ),
                 )
             }
@@ -100,10 +124,11 @@ fun NoneSwatch(
     val fill = MaterialTheme.colorScheme.primaryContainer
     val mark = MaterialTheme.colorScheme.onPrimaryContainer
     val ringColor = MaterialTheme.colorScheme.surfaceContainer
+    val shape = swatchShape(selected)
     Box(
         modifier = modifier
             .size(SwatchTouchTargetSize)
-            .clip(CircleShape) // clip the tap ripple to the circular swatch
+            .clip(shape) // clip the tap ripple to the morphing swatch
             .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
@@ -111,7 +136,8 @@ fun NoneSwatch(
         Box(
             Modifier
                 .size(SwatchVisualSize)
-                .clip(CircleShape)
+                .then(if (selected) Modifier.aspectRatio(1f) else Modifier)
+                .clip(shape)
                 .background(fill),
             contentAlignment = Alignment.Center,
         ) {
@@ -126,7 +152,7 @@ fun NoneSwatch(
                     Modifier
                         .matchParentSize()
                         .padding(SwatchSelectionRingInset)
-                        .border(SwatchSelectionRingWidth, ringColor, CircleShape),
+                        .border(SwatchSelectionRingWidth, ringColor, shape),
                 )
             }
         }
