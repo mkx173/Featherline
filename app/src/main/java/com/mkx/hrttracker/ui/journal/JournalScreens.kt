@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -18,12 +19,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,17 +34,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.takeOrElse
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.MilestoneUnit
+import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
@@ -231,6 +238,7 @@ fun MilestonesScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var isAddDateSheetOpen by remember { mutableStateOf(false) }
     var editingAnchor by remember { mutableStateOf<AnchorRowUiState?>(null) }
+    var heroBackgroundDialogTargetId by remember { mutableStateOf<String?>(null) }
     val activeEditingAnchor = editingAnchor
     val closeDateSheet = {
         isAddDateSheetOpen = false
@@ -251,6 +259,9 @@ fun MilestonesScreen(
         onReorder = viewModel::reorderPinned,
         onAddDate = { isAddDateSheetOpen = true },
         onUpdateDate = { anchor -> editingAnchor = anchor },
+        onOpenHeroBackground = {
+            heroBackgroundDialogTargetId = uiState.hero?.id
+        },
         modifier = modifier,
     )
 
@@ -282,6 +293,39 @@ fun MilestonesScreen(
             },
         )
     }
+
+    HeroBackgroundDialogHost(
+        hero = uiState.hero,
+        targetHeroId = heroBackgroundDialogTargetId,
+        onTargetHeroIdChange = { heroBackgroundDialogTargetId = it },
+        onSetHeroBackground = viewModel::setHeroBackground,
+    )
+}
+
+@Composable
+internal fun HeroBackgroundDialogHost(
+    hero: AnchorRowUiState?,
+    targetHeroId: String?,
+    onTargetHeroIdChange: (String?) -> Unit,
+    onSetHeroBackground: (String, PrideFlag?) -> Unit,
+) {
+    val target = hero?.takeIf { it.id == targetHeroId }
+    LaunchedEffect(hero?.id, targetHeroId) {
+        if (targetHeroId != null && target == null) {
+            onTargetHeroIdChange(null)
+        }
+    }
+
+    if (target != null) {
+        HeroBackgroundDialog(
+            current = target.heroBackground,
+            onConfirm = { flag ->
+                onSetHeroBackground(target.id, flag)
+                onTargetHeroIdChange(null)
+            },
+            onDismissRequest = { onTargetHeroIdChange(null) },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -294,6 +338,7 @@ fun MilestonesScreenContent(
     onReorder: (List<String>) -> Unit,
     onAddDate: () -> Unit,
     onUpdateDate: (AnchorRowUiState) -> Unit,
+    onOpenHeroBackground: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -348,7 +393,33 @@ fun MilestonesScreenContent(
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
                 item(key = "milestones-pinned", contentType = "journal-section") {
-                    HrtSection(title = stringResource(R.string.journal_pinned_section)) {
+                    HrtSection(
+                        title = stringResource(R.string.journal_pinned_section),
+                        headerTrailing = if (uiState.hero != null) {
+                            {
+                                val titleStyle = MaterialTheme.typography.titleSmall
+                                val density = LocalDensity.current
+                                val iconSize = with(density) {
+                                    titleStyle.lineHeight.takeOrElse { titleStyle.fontSize }.toDp()
+                                }
+                                IconButton(
+                                    onClick = onOpenHeroBackground,
+                                    modifier = Modifier.size(48.dp),
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_wand_stars),
+                                        contentDescription = stringResource(
+                                            R.string.journal_hero_background_action,
+                                        ),
+                                        modifier = Modifier.size(iconSize),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        } else {
+                            null
+                        },
+                    ) {
                         item {
                             PinnedTray(
                                 anchors = uiState.pinnedTray,
@@ -559,6 +630,7 @@ private fun MilestonesScreenContentPreview() {
             onReorder = {},
             onAddDate = {},
             onUpdateDate = {},
+            onOpenHeroBackground = {},
         )
     }
 }

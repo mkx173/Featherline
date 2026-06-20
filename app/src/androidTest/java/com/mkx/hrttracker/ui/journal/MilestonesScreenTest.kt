@@ -127,6 +127,7 @@ class MilestonesScreenTest {
                     uiState = milestonesUiStateFixture(),
                     onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
                     onReorder = {}, onAddDate = {}, onUpdateDate = {},
+                    onOpenHeroBackground = {},
                 )
             }
         }
@@ -147,6 +148,7 @@ class MilestonesScreenTest {
                     uiState = milestonesUiStateFixture(),
                     onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
                     onReorder = {}, onAddDate = {}, onUpdateDate = {},
+                    onOpenHeroBackground = {},
                 )
             }
         }
@@ -170,6 +172,7 @@ class MilestonesScreenTest {
                     uiState = milestonesUiStateFixture(isEditMode = true),
                     onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
                     onReorder = {}, onAddDate = {}, onUpdateDate = {},
+                    onOpenHeroBackground = {},
                 )
             }
         }
@@ -198,6 +201,7 @@ class MilestonesScreenTest {
                     uiState = milestonesUiStateFixture(isEditMode = true),
                     onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
                     onReorder = {}, onAddDate = {}, onUpdateDate = {},
+                    onOpenHeroBackground = {},
                 )
             }
         }
@@ -382,6 +386,7 @@ class MilestonesScreenTest {
                     ),
                     onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
                     onReorder = {}, onAddDate = {}, onUpdateDate = {},
+                    onOpenHeroBackground = {},
                 )
             }
         }
@@ -434,6 +439,7 @@ class MilestonesScreenTest {
                     uiState = milestonesUiStateFixture(),  // divider at index 2, before "Surgery"
                     onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
                     onReorder = {}, onAddDate = {}, onUpdateDate = {},
+                    onOpenHeroBackground = {},
                 )
             }
         }
@@ -674,6 +680,7 @@ class MilestonesScreenTest {
                     onReorder = { },
                     onAddDate = { addRequests += 1 },
                     onUpdateDate = { },
+                    onOpenHeroBackground = {},
                 )
             }
         }
