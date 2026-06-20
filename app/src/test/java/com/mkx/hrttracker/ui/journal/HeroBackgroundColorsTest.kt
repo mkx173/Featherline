@@ -42,13 +42,39 @@ class HeroBackgroundColorsTest {
     }
 
     @Test
-    fun swatchColors_useALowerToneThanBloom_soHuesStayDistinct() {
-        val seeds = PrideFlag.BISEXUAL.seeds
-        val bloom = HeroBackgroundColors.bloomColors(seeds, isDark = false)
-        val swatch = HeroBackgroundColors.swatchColors(seeds, isDark = false)
-        val bloomTone = Hct.fromInt(bloom.first()).tone
-        val swatchTone = Hct.fromInt(swatch.first()).tone
-        assertTrue("swatch tone < bloom tone (light)", swatchTone < bloomTone)
+    fun paletteSeeds_dropsPureNeutrals_whenEnoughChromaticRemain() {
+        // Trans = blue, pink, white. The white is neutral and is dropped; blue + pink remain so
+        // the wash reads as colour, not a washed-out near-white band.
+        val palette = HeroBackgroundColors.paletteSeeds(PrideFlag.TRANSGENDER.seeds)
+        assertEquals(2, palette.size)
+        assertTrue(
+            "all remaining seeds are chromatic",
+            palette.all { Hct.fromInt(it).chroma >= HeroBackgroundColors.NeutralChromaThreshold },
+        )
+    }
+
+    @Test
+    fun paletteSeeds_keepsEveryChromaticFlagIntact() {
+        // Rainbow has no neutral seeds — every colour survives.
+        assertEquals(
+            PrideFlag.RAINBOW.seeds.size,
+            HeroBackgroundColors.paletteSeeds(PrideFlag.RAINBOW.seeds).size,
+        )
+    }
+
+    @Test
+    fun paletteSeeds_restoresGreyestNeutral_whenTooFewChromatic() {
+        // Asexual = black, grey, white, purple. Only purple is chromatic, so the neutral nearest
+        // mid-grey (the grey — not black or white) is restored so the flag still blooms as a pair.
+        val palette = HeroBackgroundColors.paletteSeeds(PrideFlag.ASEXUAL.seeds)
+        assertEquals(2, palette.size)
+        val neutral = palette.single {
+            Hct.fromInt(it).chroma < HeroBackgroundColors.NeutralChromaThreshold
+        }
+        assertTrue(
+            "restored neutral is mid-grey, not black or white",
+            Hct.fromInt(neutral).tone in 40.0..85.0,
+        )
     }
 
     private fun List<Double>.unwrapHueRun(): List<Double> {
