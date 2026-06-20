@@ -27,6 +27,15 @@ object HeroBackgroundColors {
     // When a flag is too sparse to bloom, restore the neutrals nearest mid-grey first.
     const val NeutralRestoreTone = 55.0
 
+    // A date palette is mono-hue (primary + primaryContainer share the seed's hue), so it can't get
+    // depth from hue spread the way a multi-hue flag does. Pull its darker seed this many tone units
+    // below the bloom tone so the wash reads as a gradient, not a flat, over-intense single hue.
+    const val DateToneSpread = 14.0
+
+    // A mono-hue date wash reads more intensely than a multi-hue flag at equal chroma (one solid hue
+    // vs a blend), so the date palette uses this fraction of the flag bloom chroma to feel as soft.
+    const val DateChromaScale = 0.50
+
     data class ThemeParams(val chroma: Double, val tone: Double, val alpha: Float)
 
     // Per-theme bloom params, from the hero-background-placements design (Aurora band).
@@ -89,7 +98,18 @@ object HeroBackgroundColors {
         return hueSorted(paletteSeeds(seeds)).map { normalize(it, params.chroma, params.tone) }
     }
 
-    /** Date palette bloom colours use the same normalization path as pride flag seed colours. */
-    fun dateColorBloomColors(primary: Int, primaryContainer: Int, isDark: Boolean): List<Int> =
-        bloomColors(listOf(primary, primaryContainer), isDark)
+    /**
+     * Date palette bloom colours. Chroma is capped *below* the flag bloom chroma ([DateChromaScale])
+     * because a mono-hue wash reads more intensely than a multi-hue flag blend, and the two seeds are
+     * held at distinct tones ([params.tone] and [params.tone] - [DateToneSpread]) so the pair reads
+     * as a gradient with depth instead of collapsing to one flat, over-intense colour. Opaque.
+     */
+    fun dateColorBloomColors(primary: Int, primaryContainer: Int, isDark: Boolean): List<Int> {
+        val params = bloomParams(isDark)
+        val chroma = params.chroma * DateChromaScale
+        return listOf(
+            normalize(primary, chroma, params.tone),
+            normalize(primaryContainer, chroma, params.tone - DateToneSpread),
+        )
+    }
 }

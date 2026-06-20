@@ -78,14 +78,36 @@ class HeroBackgroundColorsTest {
     }
 
     @Test
-    fun dateColorBloomColors_usesTheSameNormalizationPipelineAsFlags() {
+    fun dateColorBloomColors_normalizesChromaButSpreadsToneForDepth() {
+        // A date palette is mono-hue (primary + primaryContainer share the seed's hue), so unlike a
+        // multi-hue flag it cannot get its depth from hue spread. It must come from tone instead —
+        // otherwise the two seeds collapse to one colour and the wash reads as a flat, over-intense
+        // single hue rather than a gradient.
         val primary = 0xFFCE2C31.toInt()
         val primaryContainer = 0xFFFFDBDC.toInt()
+        val params = HeroBackgroundColors.bloomParams(isDark = false)
 
-        assertEquals(
-            HeroBackgroundColors.bloomColors(listOf(primary, primaryContainer), isDark = false),
-            HeroBackgroundColors.dateColorBloomColors(primary, primaryContainer, isDark = false),
-        )
+        val out = HeroBackgroundColors.dateColorBloomColors(primary, primaryContainer, isDark = false)
+        assertEquals(2, out.size)
+        val light = Hct.fromInt(out[0])
+        val dark = Hct.fromInt(out[1])
+
+        // A mono-hue date wash reads more intensely than a multi-hue flag at equal chroma (one solid
+        // hue vs a blend), so its chroma is capped *below* the flag bloom chroma to feel as soft —
+        // yet both seeds stay clearly chromatic rather than collapsing to grey. (HCT gamut-clamps the
+        // realized chroma, so this asserts the cap and the floor, not an exact value.)
+        val dateChromaCap = params.chroma * HeroBackgroundColors.DateChromaScale
+        assertTrue("date chroma is below flag chroma", dateChromaCap < params.chroma)
+        assertTrue("light chroma capped", light.chroma <= dateChromaCap + 1.0)
+        assertTrue("dark chroma capped", dark.chroma <= dateChromaCap + 1.0)
+        assertTrue("light stays chromatic", light.chroma >= HeroBackgroundColors.NeutralChromaThreshold)
+        assertTrue("dark stays chromatic", dark.chroma >= HeroBackgroundColors.NeutralChromaThreshold)
+
+        // The lighter seed sits at the bloom tone (flag brightness ceiling); the partner is pulled
+        // darker by DateToneSpread so the band reads as a gradient with depth.
+        assertEquals(params.tone, light.tone, 1.0)
+        assertEquals(params.tone - HeroBackgroundColors.DateToneSpread, dark.tone, 1.0)
+        assertTrue("date palette spreads tone for depth", light.tone - dark.tone > 1.0)
     }
 
     private fun List<Double>.unwrapHueRun(): List<Double> {
