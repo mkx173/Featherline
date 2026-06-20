@@ -71,10 +71,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
@@ -90,6 +101,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
@@ -97,6 +109,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.journal.Note
+import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.FlipSlot
@@ -109,13 +122,23 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SegmentPosition
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.isHazeBlurSupported
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.blur.blurEffect
+import dev.chrisbanes.haze.blur.materials.HazeMaterials
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import sh.calvin.reorderable.ReorderableColumn
 import java.time.LocalDate
 import java.time.format.TextStyle
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 private const val TodayComposerTextFieldTestTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field-"
@@ -434,22 +457,55 @@ private fun HeroViewLayout(
     animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
     val colorScheme = rememberMedicationGroupColorScheme(colorKey = anchor.palette)
+    val heroHazeState = rememberHazeState()
+    val hazeBlurSupported = isHazeBlurSupported()
+    // HazeMaterials.* are @Composable, so build the frost style here and capture it in the
+    // (non-composable) blurEffect lambda below. A thin material keeps the wash visible.
+    val frostStyle = HazeMaterials.thin(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    )
     with(sharedScope) {
         Box(modifier = Modifier.fillMaxWidth()) {
-            // A large, faint echo of the anchor's icon anchored to the top-end corner, where
-            // it bleeds past the card edge (the row zeroes its content padding for this) and is
-            // clipped by the rounded corner. Mirrors MainE2HeroCard's ic_notification_icon
-            // watermark, tinted in the anchor's palette.
-            Icon(
-                painter = painterResource(anchorIconRes(anchor.icon)),
-                contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .size(160.dp)
-                    .alpha(0.1f)
-                    .offset(x = 20.dp, y = (-20).dp),
-                tint = colorScheme.primary,
-            )
+            val heroBackground = anchor.heroBackground
+            if (heroBackground != null) {
+                // The flag wash is always drawn when a hero background is set. On API 31+ it also
+                // acts as the haze source for the frosted foreground card and corner watermark.
+                HeroColorBackground(
+                    flag = heroBackground,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .hazeSource(heroHazeState),
+                )
+                // Haze blur on the foreground card (API 31+ only; deliberately independent of the
+                // blur preference, unlike effectiveHazeBlurEnabled).
+                if (hazeBlurSupported) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .hazeEffect(heroHazeState) {
+                                blurEffect { this.style = frostStyle }
+                            },
+                    )
+                }
+            }
+            // The large corner glyph. With a flag on API 31+ it's a frosted, icon-shaped haze over
+            // the wash (thick glass, surfaceContainerHigh); otherwise it stays a faint flat tint.
+            // Anchored top-end, bleeding past the card edge (the row zeroes its content padding for
+            // this) and clipped by the rounded corner. Mirrors MainE2HeroCard's watermark.
+            if (heroBackground != null && hazeBlurSupported) {
+                HeroBackgroundWatermark(anchor = anchor, hazeState = heroHazeState)
+            } else {
+                Icon(
+                    painter = painterResource(anchorIconRes(anchor.icon)),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(160.dp)
+                        .alpha(0.1f)
+                        .offset(x = 20.dp, y = (-20).dp),
+                    tint = colorScheme.primary,
+                )
+            }
             // Mirror MainE2HeroCard's content column, which carries a 6dp bottom padding
             // below its last row so the chips don't sit flush against the card's edge.
             Column(
@@ -479,6 +535,94 @@ private fun HeroViewLayout(
             }
         }
     }
+}
+
+// The hero colour background: flag hues normalised by [HeroBackgroundColors], then placed as soft
+// radial blooms fanned into the top-end corner ("Corner glow" placement, right side).
+private const val CornerGlowFanRadiusFrac = 0.30 // bloom-centre fan radius, fraction of w/h
+private const val CornerGlowFalloffFrac = 0.55f  // bloom edge, fraction of the farthest corner
+
+@Composable
+private fun HeroColorBackground(flag: PrideFlag, modifier: Modifier = Modifier) {
+    // Read the actual scheme (covers system dark, the in-app theme override, and AMOLED).
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val alpha = HeroBackgroundColors.bloomParams(isDark).alpha
+    val colors = remember(flag, isDark) {
+        HeroBackgroundColors.bloomColors(flag.seeds, isDark).map { Color(it).copy(alpha = alpha) }
+    }
+    Box(
+        modifier = modifier.drawBehind {
+            val n = colors.size
+            colors.forEachIndexed { i, color ->
+                // Fan the bloom centres 10°->80° off the top-end corner (right side).
+                val t = if (n == 1) 0.5 else i.toDouble() / (n - 1)
+                val theta = Math.toRadians(10.0 + t * 70.0)
+                val cx = (1.0 - CornerGlowFanRadiusFrac * cos(theta)).toFloat() * size.width
+                val cy = (CornerGlowFanRadiusFrac * sin(theta)).toFloat() * size.height
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(color, color.copy(alpha = 0f)),
+                        center = Offset(cx, cy),
+                        radius = CornerGlowFalloffFrac * farthestCorner(cx, cy, size),
+                    ),
+                )
+            }
+        },
+    )
+}
+
+// Distance from [cx],[cy] to the farthest corner of [size] — matches a CSS radial-gradient's
+// default "farthest-corner" sizing, so the falloff fraction lands where the mockup put it.
+private fun farthestCorner(cx: Float, cy: Float, size: Size): Float {
+    val w = size.width
+    val h = size.height
+    return maxOf(
+        sqrt(cx * cx + cy * cy),
+        sqrt((w - cx) * (w - cx) + cy * cy),
+        sqrt(cx * cx + (h - cy) * (h - cy)),
+        sqrt((w - cx) * (w - cx) + (h - cy) * (h - cy)),
+    )
+}
+
+// The large corner glyph as a frosted, icon-shaped haze: a haze region the size of the watermark,
+// masked to the icon silhouette via DstIn so only the glyph shape shows the frosted aurora behind
+// it (thick glass, tinted with surfaceContainerHigh). A Painter can't draw with a BlendMode, so
+// the DstIn mask needs the glyph rasterised to an ImageBitmap first; the offscreen layer keeps
+// DstIn from punching through to the layers behind. Placement mirrors the faint-icon overlay.
+@Composable
+private fun BoxScope.HeroBackgroundWatermark(
+    anchor: AnchorRowUiState,
+    hazeState: HazeState,
+) {
+    val iconPainter = painterResource(anchorIconRes(anchor.icon))
+    val density = LocalDensity.current
+    val sizePx = with(density) { 160.dp.roundToPx() }
+    // HazeMaterials.* are @Composable; build the tinted style here and capture it below.
+    val watermarkStyle = HazeMaterials.ultraThin(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    )
+    val iconMask = remember(anchor.icon, sizePx, iconPainter) {
+        val bitmap = ImageBitmap(sizePx, sizePx)
+        val maskSize = Size(sizePx.toFloat(), sizePx.toFloat())
+        CanvasDrawScope().draw(density, LayoutDirection.Ltr, GraphicsCanvas(bitmap), maskSize) {
+            with(iconPainter) { draw(size = maskSize) }
+        }
+        bitmap
+    }
+    Box(
+        modifier = Modifier
+            .align(Alignment.TopEnd)
+            .size(160.dp)
+            .offset(x = 20.dp, y = (-20).dp)
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                drawImage(image = iconMask, blendMode = BlendMode.DstIn)
+            }
+            .hazeEffect(hazeState) {
+                blurEffect { this.style = watermarkStyle }
+            },
+    )
 }
 
 // The compact pinned row, shared by every row (the hero in edit mode and all normal rows).
@@ -1988,7 +2132,7 @@ private fun previewAnchors() = listOf(
     AnchorRowUiState(
         id = "estradiol", name = "On estradiol", icon = AnchorIcon.MEDICATION,
         palette = MedicationGroupColorKey.ROSE, date = LocalDate.of(2024, 4, 1),
-        dayMagnitude = 807, isFuture = false,
+        dayMagnitude = 807, isFuture = false, heroBackground = PrideFlag.TRANSGENDER,
     ),
     AnchorRowUiState(
         id = "injection", name = "First injection", icon = AnchorIcon.VACCINES,
