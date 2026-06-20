@@ -123,6 +123,7 @@ class JournalRepository @Inject constructor(
         withContext(NonCancellable) {
             val after = databaseHolder.get().journalDao().getFirstPinnedTrackedDate()
             if (before != after) {
+                homeSnapshotRepository.invalidateHomeSnapshot()
                 homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
             }
         }

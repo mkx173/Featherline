@@ -13,6 +13,7 @@ import io.mockk.Runs
 import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -408,6 +409,9 @@ class JournalRepositoryTest {
                 zoneId = any(),
             )
         }
+        coVerify(exactly = 0) {
+            homeSnapshotRepository.invalidateHomeSnapshot()
+        }
     }
 
     @Test
@@ -539,6 +543,49 @@ class JournalRepositoryTest {
         coVerify(exactly = 1) { journalDao.deleteTrackedDate("hero") }
         coVerify(exactly = 1) {
             homeSnapshotRepository.refreshHomeSnapshotAsync(
+                now = any(),
+                force = true,
+                zoneId = any(),
+            )
+        }
+    }
+
+    @Test
+    fun deleteTrackedDate_invalidatesSnapshotBeforeRefreshWhenHeroChanges() = runBlocking {
+        val journalDao = mockk<JournalDao>()
+        val hero = trackedDateEntity(
+            uuid = "hero",
+            name = "Hero",
+            date = LocalDate.of(2024, 1, 1),
+            pinnedOrder = 0,
+            createdAt = 1_000L,
+        )
+        coEvery { journalDao.getFirstPinnedTrackedDate() } returnsMany listOf(hero, null)
+        coEvery { journalDao.deleteTrackedDate("hero") } just Runs
+        val database = mockk<HrtTrackerDatabase>()
+        every { database.journalDao() } returns journalDao
+        val holder = mockk<DatabaseHolder>()
+        every { holder.get() } returns database
+        val snapshotRepository = mockk<HomeSnapshotRepository>()
+        coEvery { snapshotRepository.invalidateHomeSnapshot() } just Runs
+        every {
+            snapshotRepository.refreshHomeSnapshotAsync(
+                now = any(),
+                force = true,
+                zoneId = any(),
+            )
+        } just Runs
+        val repository = JournalRepository(
+            databaseHolder = holder,
+            clock = clock,
+            homeSnapshotRepository = snapshotRepository,
+        )
+
+        repository.deleteTrackedDate("hero")
+
+        coVerifyOrder {
+            snapshotRepository.invalidateHomeSnapshot()
+            snapshotRepository.refreshHomeSnapshotAsync(
                 now = any(),
                 force = true,
                 zoneId = any(),
