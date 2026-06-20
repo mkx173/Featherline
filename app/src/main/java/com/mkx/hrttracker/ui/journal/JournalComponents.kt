@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.journal
 
+import android.animation.ValueAnimator
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
@@ -11,8 +12,13 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
@@ -82,6 +88,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
@@ -103,6 +110,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.lerp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
 import com.mkx.hrttracker.R
@@ -136,9 +144,9 @@ import dev.chrisbanes.haze.rememberHazeState
 import sh.calvin.reorderable.ReorderableColumn
 import java.time.LocalDate
 import java.time.format.TextStyle
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 private const val TodayComposerTextFieldTestTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field-"
@@ -537,10 +545,15 @@ private fun HeroViewLayout(
     }
 }
 
-// The hero colour background: flag hues normalised by [HeroBackgroundColors], then placed as soft
-// radial blooms fanned into the top-end corner ("Corner glow" placement, right side).
-private const val CornerGlowFanRadiusFrac = 0.30 // bloom-centre fan radius, fraction of w/h
-private const val CornerGlowFalloffFrac = 0.55f  // bloom edge, fraction of the farthest corner
+// The hero colour background: an "aurora band" — flag hues normalised by [HeroBackgroundColors],
+// hue-sorted, and laid out as a soft linear spectrum sweep across the top-end, masked so the wash
+// fades down before it reaches the text. A slow "breathing" glow (a gentle opacity + scale pulse
+// anchored at the top-end) animates it, dropped to a static rest under the system "remove
+// animations" setting. See the hero-background-placements design (Aurora band).
+private const val AuroraAngleDegrees = 110.0 // linear-sweep angle: rightward, tilted slightly down
+private const val AuroraMaskOpaqueStop = 0.32f // fully visible from the top down to here…
+private const val AuroraMaskFadeStop = 0.78f   // …then faded out by here, clearing the text below
+private const val AuroraPulseDurationMillis = 8000
 
 @Composable
 private fun HeroColorBackground(flag: PrideFlag, modifier: Modifier = Modifier) {
@@ -550,37 +563,63 @@ private fun HeroColorBackground(flag: PrideFlag, modifier: Modifier = Modifier) 
     val colors = remember(flag, isDark) {
         HeroBackgroundColors.bloomColors(flag.seeds, isDark).map { Color(it).copy(alpha = alpha) }
     }
+    // Slow "breathing": opacity 0.85->1 and a faint 1->1.05 scale, anchored top-end. Honour the
+    // system animator setting ("remove animations" / animator-duration-scale 0) by resting static.
+    val animatorsEnabled = remember { ValueAnimator.areAnimatorsEnabled() }
+    val pulse = if (animatorsEnabled) {
+        val transition = rememberInfiniteTransition(label = "aurora")
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = AuroraPulseDurationMillis, easing = EaseInOut),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "aurora-pulse",
+        ).value
+    } else {
+        0f
+    }
+    val pulseAlpha = if (animatorsEnabled) lerp(0.85f, 1f, pulse) else 1f
+    val pulseScale = if (animatorsEnabled) lerp(1f, 1.05f, pulse) else 1f
+    // Vertical fade mask: opaque across the top, gone before the text. Applied via DstIn below.
+    val fadeMask = remember {
+        Brush.verticalGradient(
+            0f to Color.Black,
+            AuroraMaskOpaqueStop to Color.Black,
+            AuroraMaskFadeStop to Color.Transparent,
+            1f to Color.Transparent,
+        )
+    }
     Box(
-        modifier = modifier.drawBehind {
-            val n = colors.size
-            colors.forEachIndexed { i, color ->
-                // Fan the bloom centres 10°->80° off the top-end corner (right side).
-                val t = if (n == 1) 0.5 else i.toDouble() / (n - 1)
-                val theta = Math.toRadians(10.0 + t * 70.0)
-                val cx = (1.0 - CornerGlowFanRadiusFrac * cos(theta)).toFloat() * size.width
-                val cy = (CornerGlowFanRadiusFrac * sin(theta)).toFloat() * size.height
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(color, color.copy(alpha = 0f)),
-                        center = Offset(cx, cy),
-                        radius = CornerGlowFalloffFrac * farthestCorner(cx, cy, size),
-                    ),
-                )
+        modifier = modifier
+            .graphicsLayer {
+                this.alpha = pulseAlpha
+                scaleX = pulseScale
+                scaleY = pulseScale
+                transformOrigin = TransformOrigin(0.8f, 0f)
+                // Offscreen so the DstIn mask clips the band instead of punching through behind.
+                compositingStrategy = CompositingStrategy.Offscreen
             }
-        },
-    )
-}
-
-// Distance from [cx],[cy] to the farthest corner of [size] — matches a CSS radial-gradient's
-// default "farthest-corner" sizing, so the falloff fraction lands where the mockup put it.
-private fun farthestCorner(cx: Float, cy: Float, size: Size): Float {
-    val w = size.width
-    val h = size.height
-    return maxOf(
-        sqrt(cx * cx + cy * cy),
-        sqrt((w - cx) * (w - cx) + cy * cy),
-        sqrt(cx * cx + (h - cy) * (h - cy)),
-        sqrt((w - cx) * (w - cx) + (h - cy) * (h - cy)),
+            .drawBehind {
+                if (colors.isEmpty()) return@drawBehind
+                // CSS linear-gradient angle -> a start/end line through the centre; the gradient
+                // length |w·sinθ| + |h·cosθ| lands the end stops at the box's projection.
+                val rad = Math.toRadians(AuroraAngleDegrees)
+                val dx = sin(rad)
+                val dy = -cos(rad)
+                val half = (abs(size.width * dx) + abs(size.height * dy)).toFloat() / 2f
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val start = Offset(center.x - (dx * half).toFloat(), center.y - (dy * half).toFloat())
+                val end = Offset(center.x + (dx * half).toFloat(), center.y + (dy * half).toFloat())
+                val band = if (colors.size == 1) {
+                    Brush.linearGradient(listOf(colors.first(), colors.first()), start = start, end = end)
+                } else {
+                    Brush.linearGradient(colors = colors, start = start, end = end)
+                }
+                drawRect(brush = band)
+                drawRect(brush = fadeMask, blendMode = BlendMode.DstIn)
+            },
     )
 }
 
