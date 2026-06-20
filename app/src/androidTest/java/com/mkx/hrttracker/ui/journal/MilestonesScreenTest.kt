@@ -118,7 +118,7 @@ class MilestonesScreenTest {
             R.plurals.journal_next_milestone_days_to_label,
             106,
             106,
-            context.resources.getQuantityString(R.plurals.journal_milestone_label_months, 30, 30),
+            context.resources.getQuantityString(R.plurals.journal_milestone_label_years, 2, 2),
         )
 
         composeRule.setContent {
@@ -808,7 +808,7 @@ class MilestonesScreenTest {
             MedicationGroupColorKey.SAGE, LocalDate.of(2026, 9, 15), 90, true)
         return MilestonesUiState(
             isLoading = false, today = today, hero = estradiol,
-            heroNextMilestone = NextMilestoneUiState(remainingDays = 106, value = 30, unit = MilestoneUnit.MONTHS),
+            heroNextMilestone = NextMilestoneUiState(remainingDays = 106, value = 2, unit = MilestoneUnit.YEARS),
             pinnedTray = listOf(estradiol, injection),
             timeline = listOf(
                 TimelineNodeUiState(estradiol, isPinned = true),

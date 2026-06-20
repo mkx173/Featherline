@@ -978,8 +978,8 @@ private fun NextMilestoneUiState.label(): String {
             value,
         )
 
-        MilestoneUnit.MONTHS -> pluralStringResource(
-            R.plurals.journal_milestone_label_months,
+        MilestoneUnit.YEARS -> pluralStringResource(
+            R.plurals.journal_milestone_label_years,
             value,
             value,
         )
@@ -1572,10 +1572,10 @@ private fun TimelineMilestoneRow(
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontFeatureSettings = "tnum",
                             ),
-                            color = if (anchor.isFuture) {
-                                MaterialTheme.colorScheme.onSurface
+                            color = if (anchor.isOnToday()) {
+                                MaterialTheme.colorScheme.tertiary
                             } else {
-                                MaterialTheme.colorScheme.primary
+                                MaterialTheme.colorScheme.onSurface
                             },
                             modifier = Modifier.cjkTextOffset(dayCountLabelText)
                         )

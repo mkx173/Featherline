@@ -5,7 +5,7 @@ import java.time.temporal.ChronoUnit
 
 enum class MilestoneUnit {
     DAYS,
-    MONTHS,
+    YEARS,
 }
 
 /** A derived, never-stored milestone for a past anchor. */
@@ -17,13 +17,19 @@ data class Milestone(
     val label: String
         get() = when (unit) {
             MilestoneUnit.DAYS -> "$value days"
-            MilestoneUnit.MONTHS -> "$value months"
+            MilestoneUnit.YEARS -> "$value years"
         }
 }
 
 object Milestones {
-    val ROUND_DAYS = listOf(100L, 200L, 300L, 500L, 800L, 1000L, 1500L)
-    val ANNIVERSARY_MONTHS = listOf(6, 12, 18, 24, 30, 36)
+    /** Early day-count markers, before the schedule switches to yearly anniversaries. */
+    val DAY_MARKERS = listOf(7L, 30L, 60L, 90L, 100L, 180L)
+
+    /**
+     * Yearly anniversaries are generated up to this many years. The cap only needs to
+     * stay ahead of any realistic anchor age so [next] always has an upcoming goal.
+     */
+    const val MAX_ANNIVERSARY_YEARS = 50
 
     fun current(date: LocalDate, today: LocalDate): Milestone? {
         val current = dayCount(date = date, today = today)
@@ -42,19 +48,19 @@ object Milestones {
     }
 
     private fun milestonesFor(date: LocalDate): List<Milestone> {
-        val roundMilestones = ROUND_DAYS.map { days ->
+        val dayMilestones = DAY_MARKERS.map { days ->
             Milestone(dayCount = days, value = days, unit = MilestoneUnit.DAYS)
         }
-        val anniversaryMilestones = ANNIVERSARY_MONTHS.map { months ->
-            val anniversaryDate = date.plusMonths(months.toLong())
+        val anniversaryMilestones = (1..MAX_ANNIVERSARY_YEARS).map { years ->
+            val anniversaryDate = date.plusYears(years.toLong())
             Milestone(
                 dayCount = ChronoUnit.DAYS.between(date, anniversaryDate),
-                value = months.toLong(),
-                unit = MilestoneUnit.MONTHS,
+                value = years.toLong(),
+                unit = MilestoneUnit.YEARS,
             )
         }
 
-        return (roundMilestones + anniversaryMilestones)
+        return (dayMilestones + anniversaryMilestones)
             .sortedBy { it.dayCount }
     }
 }

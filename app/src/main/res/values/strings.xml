@@ -281,9 +281,9 @@
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>
     </plurals>
-    <plurals name="journal_milestone_label_months">
-        <item quantity="one">%1$d month</item>
-        <item quantity="other">%1$d months</item>
+    <plurals name="journal_milestone_label_years">
+        <item quantity="one">%1$d year</item>
+        <item quantity="other">%1$d years</item>
     </plurals>
     <plurals name="journal_next_milestone_days_to_label">
         <item quantity="one">%1$d day to %2$s</item>

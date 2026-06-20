@@ -268,8 +268,8 @@
     <plurals name="journal_milestone_label_days">
         <item quantity="other">%1$d 天</item>
     </plurals>
-    <plurals name="journal_milestone_label_months">
-        <item quantity="other">%1$d 个月</item>
+    <plurals name="journal_milestone_label_years">
+        <item quantity="other">%1$d 年</item>
     </plurals>
     <plurals name="journal_next_milestone_days_to_label">
         <item quantity="other">还有 %1$d 天到 %2$s</item>
