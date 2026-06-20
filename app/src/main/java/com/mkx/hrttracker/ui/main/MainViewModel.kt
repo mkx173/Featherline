@@ -5,13 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.data.repository.HomeInputs
 import com.mkx.hrttracker.data.repository.HomeRepository
-import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
-import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.lowStockSeverityRank
@@ -49,7 +47,6 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val homeRepository: HomeRepository,
-    private val journalRepository: JournalRepository,
     private val settingsRepository: SettingsRepository,
     private val timeZoneChangeNoticeController: TimeZoneChangeNoticeController,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
@@ -97,8 +94,8 @@ class MainViewModel @Inject constructor(
     // wall-clock refreshes are fed to HomeRepository as a combine input so
     // now-sensitive projections re-anchor without tearing down the Room flows.
     @OptIn(ExperimentalCoroutinesApi::class)
-    private fun buildUiStateFlow(): Flow<MainUiState> = combine(
-        gatedSnapshot
+    private fun buildUiStateFlow(): Flow<MainUiState> {
+        val keyedInputsFlow = gatedSnapshot
             .map { snapshot ->
                 HomeTimeKey(
                     now = snapshot.minute,
@@ -115,22 +112,15 @@ class MainViewModel @Inject constructor(
                     zoneId = key.zoneId,
                 )
                     .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
-            },
-        journalRepository.observePinnedTrackedDates(),
-    ) { keyedInputs, pinnedDates ->
-        KeyedHomeInputsWithPins(
-            keyedInputs = keyedInputs,
-            pinnedDates = pinnedDates,
-        )
-    }.let { keyedInputsWithPinsFlow ->
-        combine(
-            keyedInputsWithPinsFlow,
+            }
+
+        return combine(
+            keyedInputsFlow,
             gatedSnapshot,
             timeZoneChangeNoticeController.notice,
             settingsRepository.homeLowStockSectionExpandedFlow,
             settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
-        ) { keyedInputsWithPins, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
-            val keyedInputs = keyedInputsWithPins.keyedInputs
+        ) { keyedInputs, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
             if (!keyedInputs.key.matches(timeSnapshot)) {
                 return@combine null
             }
@@ -154,7 +144,6 @@ class MainViewModel @Inject constructor(
             withContext(defaultDispatcher) {
                 buildHomeUiState(
                     inputs = inputs,
-                    pinnedDates = keyedInputsWithPins.pinnedDates,
                     now = timeSnapshot.minute,
                     zoneId = timeSnapshot.zone,
                     timeZoneNotice = timeZoneNotice,
@@ -166,8 +155,8 @@ class MainViewModel @Inject constructor(
                 )
             }
         }
+            .filterNotNull()
     }
-        .filterNotNull()
 
     private val _highlightRequest = MutableStateFlow<DoseRowHighlightRequest?>(null)
     val highlightRequest: StateFlow<DoseRowHighlightRequest?> = _highlightRequest.asStateFlow()
@@ -258,7 +247,6 @@ class MainViewModel @Inject constructor(
 
     private fun buildHomeUiState(
         inputs: HomeInputs,
-        pinnedDates: List<TrackedDate>,
         now: LocalDateTime,
         zoneId: ZoneId,
         timeZoneNotice: TimeZoneChangeNotice?,
@@ -339,7 +327,7 @@ class MainViewModel @Inject constructor(
             hideReferenceRanges = inputs.settings.hideReferenceRanges,
             stockWarnings = inputs.stockWarnings,
             lowStockSectionExpanded = lowStockSectionExpanded,
-            homeAnchor = pinnedDates.firstOrNull()?.toAnchorRowUiState(now.toLocalDate()),
+            homeAnchor = inputs.homeAnchor?.toAnchorRowUiState(now.toLocalDate()),
             e2Hero = buildMainE2Hero(
                 // The single-row `latestEstradiolEntry` query is bounded at the
                 // frozen subscription `now`, so on its own it misses a dose the
@@ -426,11 +414,6 @@ class MainViewModel @Inject constructor(
     )
 
     private data class KeyedHomeInputs(val key: HomeTimeKey, val inputs: HomeInputs)
-
-    private data class KeyedHomeInputsWithPins(
-        val keyedInputs: KeyedHomeInputs,
-        val pinnedDates: List<TrackedDate>,
-    )
 
     private fun HomeTimeKey.matches(snapshot: AppTimeSnapshot): Boolean {
         return date == snapshot.minute.toLocalDate() &&
