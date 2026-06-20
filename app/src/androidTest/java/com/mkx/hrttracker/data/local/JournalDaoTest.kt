@@ -141,14 +141,15 @@ class JournalDaoTest {
         pinnedOrder: Int?,
         createdAt: Long = 1000L,
     ) = TrackedDateEntity(
-        uuid,
-        "name-$uuid",
-        "event",
-        dateIso,
-        null,
-        pinnedOrder,
-        createdAt,
-        createdAt,
+        uuid = uuid,
+        name = "name-$uuid",
+        iconKey = "event",
+        dateIso = dateIso,
+        paletteKey = null,
+        heroBackgroundKey = null,
+        pinnedOrder = pinnedOrder,
+        createdAtEpochMillis = createdAt,
+        updatedAtEpochMillis = createdAt,
     )
 
     private fun note(

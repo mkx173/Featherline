@@ -120,6 +120,7 @@ class JournalRepository @Inject constructor(
                     iconKey = AnchorIcon.fromStorageValue(icon).storageKey,
                     dateIso = date.toString(),
                     paletteKey = paletteKey,
+                    heroBackgroundKey = null,
                     pinnedOrder = PinOrder.appendOrderAfterMax(dao.getMaxPinnedOrder()),
                     createdAtEpochMillis = now,
                     updatedAtEpochMillis = now,

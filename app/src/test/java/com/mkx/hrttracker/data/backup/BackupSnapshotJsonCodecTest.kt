@@ -240,6 +240,7 @@ class BackupSnapshotJsonCodecTest {
                 iconKey = "medication",
                 dateIso = "2024-04-01",
                 paletteKey = "ROSE",
+                heroBackgroundKey = "TRANSGENDER",
                 pinnedOrder = 0,
                 createdAtEpochMillis = 1_000L,
                 updatedAtEpochMillis = 2_000L,
@@ -289,8 +290,8 @@ class BackupSnapshotJsonCodecTest {
     }
 
     @Test
-    fun currentBackupSnapshotVersion_remainsFiveForAdditiveJournalFields() {
-        assertEquals(5, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    fun currentBackupSnapshotVersion_isSixForHeroBackgroundPersistence() {
+        assertEquals(6, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     private fun makeSnapshotWithSingleMedicine(

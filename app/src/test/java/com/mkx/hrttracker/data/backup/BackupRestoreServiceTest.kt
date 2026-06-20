@@ -693,10 +693,11 @@ class BackupRestoreServiceTest {
     }
 
     @Test
-    fun restoreBackupBytes_preservesUnknownTrackedDateIconAndPaletteKeys() = runTest {
-        // A forward-compatible backup may carry an icon or palette key this
-        // build does not know yet. It must restore intact (read-time mapping
-        // falls back gracefully) rather than failing the whole import.
+    fun restoreBackupBytes_preservesUnknownTrackedDateIconPaletteAndHeroBackgroundKeys() = runTest {
+        // A forward-compatible backup may carry an icon, palette, or hero
+        // background key this build does not know yet. It must restore intact
+        // (read-time mapping falls back gracefully) rather than failing the
+        // whole import.
         val snapshot = emptySnapshot().copy(
             trackedDates = listOf(
                 BackupTrackedDateSnapshot(
@@ -705,6 +706,7 @@ class BackupRestoreServiceTest {
                     iconKey = "syringe",
                     dateIso = "2024-04-01",
                     paletteKey = "AMBER",
+                    heroBackgroundKey = "PROGRESS",
                     pinnedOrder = 0,
                     createdAtEpochMillis = 100L,
                     updatedAtEpochMillis = 110L,
@@ -725,6 +727,7 @@ class BackupRestoreServiceTest {
         val restored = trackedDatesSlot.captured.single()
         assertEquals("syringe", restored.iconKey)
         assertEquals("AMBER", restored.paletteKey)
+        assertEquals("PROGRESS", restored.heroBackgroundKey)
     }
 
     @Test

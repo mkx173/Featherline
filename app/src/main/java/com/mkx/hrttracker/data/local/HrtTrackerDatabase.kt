@@ -20,7 +20,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TrackedDateEntity::class,
         NoteEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
@@ -189,5 +189,14 @@ internal val MIGRATION_7_8: Migration = object : Migration(7, 8) {
             """.trimIndent()
         )
         db.execSQL("CREATE UNIQUE INDEX index_notes_dateIso ON notes(dateIso)")
+    }
+}
+
+// v8 -> v9: adds nullable `heroBackgroundKey` to `tracked_dates`. Rows that
+// pre-date this column default to NULL, which the mapper reads as PrideFlag =
+// None (no hero background), matching the model default for existing anchors.
+internal val MIGRATION_8_9: Migration = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE tracked_dates ADD COLUMN heroBackgroundKey TEXT")
     }
 }

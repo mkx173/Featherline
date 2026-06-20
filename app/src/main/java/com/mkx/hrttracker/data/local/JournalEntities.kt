@@ -19,6 +19,8 @@ data class TrackedDateEntity(
     val dateIso: String,
     // MedicationGroupColorKey.name(), or null for the slate default.
     val paletteKey: String?,
+    // PrideFlag.name(), or null for None (no hero background).
+    val heroBackgroundKey: String?,
     // null = unpinned; ascending non-null values are the tray order.
     val pinnedOrder: Int?,
     val createdAtEpochMillis: Long,

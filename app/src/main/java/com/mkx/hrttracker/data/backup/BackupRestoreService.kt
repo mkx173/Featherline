@@ -1072,16 +1072,17 @@ private fun BackupTrackedDateSnapshot.toValidatedEntity(): TrackedDateEntity {
     require(pinnedOrder == null || pinnedOrder >= 0) {
         "Tracked date $trackedDateUuid pinnedOrder must not be negative."
     }
-    // iconKey and paletteKey are stored as-is rather than rejected: both have
-    // graceful read-time fallbacks (AnchorIcon.EVENT and the slate default), so
-    // a forward-compatible backup carrying an icon or palette this build does
-    // not know yet restores intact instead of failing the whole import.
+    // iconKey, paletteKey, and heroBackgroundKey are stored as-is rather than
+    // rejected: all have graceful read-time fallbacks, so a forward-compatible
+    // backup carrying a key this build does not know yet restores intact
+    // instead of failing the whole import.
     return TrackedDateEntity(
         uuid = trackedDateUuid,
         name = normalizedName,
         iconKey = iconKey,
         dateIso = normalizedDateIso,
         paletteKey = paletteKey,
+        heroBackgroundKey = heroBackgroundKey,
         pinnedOrder = pinnedOrder,
         createdAtEpochMillis = createdAtEpochMillis,
         updatedAtEpochMillis = updatedAtEpochMillis,

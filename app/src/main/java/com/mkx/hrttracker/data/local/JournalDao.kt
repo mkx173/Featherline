@@ -34,6 +34,9 @@ interface JournalDao {
     @Query("UPDATE tracked_dates SET pinnedOrder = :pinnedOrder, updatedAtEpochMillis = :updatedAt WHERE uuid = :uuid")
     suspend fun updatePinnedOrder(uuid: String, pinnedOrder: Int?, updatedAt: Long)
 
+    @Query("UPDATE tracked_dates SET heroBackgroundKey = :heroBackgroundKey, updatedAtEpochMillis = :updatedAt WHERE uuid = :uuid")
+    suspend fun updateHeroBackground(uuid: String, heroBackgroundKey: String?, updatedAt: Long)
+
     @Query("DELETE FROM tracked_dates WHERE uuid = :uuid")
     suspend fun deleteTrackedDate(uuid: String)
 

@@ -12,8 +12,13 @@ class JournalEntityMappersTest {
     @Test
     fun trackedDateEntity_toModel_parsesKeysAndDate() {
         val entity = TrackedDateEntity(
-            uuid = "a", name = "On estradiol", iconKey = "medication",
-            dateIso = "2024-04-01", paletteKey = "ROSE", pinnedOrder = 0,
+            uuid = "a",
+            name = "On estradiol",
+            iconKey = "medication",
+            dateIso = "2024-04-01",
+            paletteKey = "ROSE",
+            heroBackgroundKey = null,
+            pinnedOrder = 0,
             createdAtEpochMillis = 1000, updatedAtEpochMillis = 1000,
         )
         val model = entity.toModel()
@@ -27,8 +32,13 @@ class JournalEntityMappersTest {
     @Test
     fun trackedDateEntity_unknownKeys_fallBackSafely() {
         val entity = TrackedDateEntity(
-            uuid = "a", name = "x", iconKey = "???",
-            dateIso = "2024-04-01", paletteKey = "???", pinnedOrder = null,
+            uuid = "a",
+            name = "x",
+            iconKey = "???",
+            dateIso = "2024-04-01",
+            paletteKey = "???",
+            heroBackgroundKey = null,
+            pinnedOrder = null,
             createdAtEpochMillis = 1000, updatedAtEpochMillis = 1000,
         )
         val model = entity.toModel()
