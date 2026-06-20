@@ -4,19 +4,24 @@ import androidx.room.withTransaction
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.NoteEntity
 import com.mkx.hrttracker.data.local.TrackedDateEntity
+import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.journal.PinOrder
 import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.TrackedDate
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 import java.time.Clock
 import java.time.LocalDate
@@ -29,7 +34,64 @@ class JournalRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val clock: Clock,
     private val homeSnapshotRepository: HomeSnapshotRepository,
+    @AppScope appScope: CoroutineScope,
 ) {
+    // Warm, synchronously-readable caches of the journal's reactive sources.
+    // Eagerly shared on appScope (the repository is constructed at app start via
+    // HomeRepository), so they hold real data long before the user opens the
+    // Journal tab. The Journal ViewModel seeds its first frame from these to
+    // avoid flashing the loading indicator while its own cold combine spins up.
+    // null = not yet loaded (the genuine cold-start loading state); the live
+    // observe* flows below are unchanged and remain the UI's reactive source.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val trackedDatesCache: StateFlow<List<TrackedDate>?> =
+        databaseHolder.databaseFlow.flatMapLatest { db ->
+            if (db == null) {
+                flowOf<List<TrackedDate>?>(null)
+            } else {
+                db.journalDao()
+                    .observeTrackedDates()
+                    .map<List<TrackedDateEntity>, List<TrackedDate>?> { rows ->
+                        rows.map { it.toModel() }
+                    }
+                    .catchRecoverableDatabaseError(emptyList())
+            }
+        }.stateIn(appScope, SharingStarted.Eagerly, null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val pinnedTrackedDatesCache: StateFlow<List<TrackedDate>?> =
+        databaseHolder.databaseFlow.flatMapLatest { db ->
+            if (db == null) {
+                flowOf<List<TrackedDate>?>(null)
+            } else {
+                db.journalDao()
+                    .observePinnedTrackedDates()
+                    .map<List<TrackedDateEntity>, List<TrackedDate>?> { rows ->
+                        rows.map { it.toModel() }
+                    }
+                    .catchRecoverableDatabaseError(emptyList())
+            }
+        }.stateIn(appScope, SharingStarted.Eagerly, null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val notesCache: StateFlow<List<Note>?> =
+        databaseHolder.databaseFlow.flatMapLatest { db ->
+            if (db == null) {
+                flowOf<List<Note>?>(null)
+            } else {
+                db.journalDao()
+                    .observeNotes()
+                    .map<List<NoteEntity>, List<Note>?> { rows -> rows.map { it.toModel() } }
+                    .catchRecoverableDatabaseError(emptyList())
+            }
+        }.stateIn(appScope, SharingStarted.Eagerly, null)
+
+    fun getCachedTrackedDates(): List<TrackedDate>? = trackedDatesCache.value
+
+    fun getCachedPinnedTrackedDates(): List<TrackedDate>? = pinnedTrackedDatesCache.value
+
+    fun getCachedNotes(): List<Note>? = notesCache.value
+
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeTrackedDates(): Flow<List<TrackedDate>> =
         databaseHolder.databaseFlow.flatMapLatest { db ->

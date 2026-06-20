@@ -44,6 +44,12 @@ class JournalViewModelTest {
             initialMinute = LocalDateTime.of(2026, 6, 16, 12, 0),
             initialZone = ZoneId.of("Asia/Tokyo"),
         )
+        // The uiState initial value seeds from the repository's warm caches; a
+        // null cache reproduces the cold-start "starts loading" state the
+        // existing tests assume.
+        every { repository.getCachedTrackedDates() } returns null
+        every { repository.getCachedPinnedTrackedDates() } returns null
+        every { repository.getCachedNotes() } returns null
     }
 
     @After
@@ -104,6 +110,40 @@ class JournalViewModelTest {
         assertEquals(1, state.olderNotesCount)
         assertEquals("today", state.todayNote?.text)
         assertTrue(state.hasAnchors)
+    }
+
+    @Test
+    fun uiState_seedsFirstFrameFromWarmCaches_withoutLoadingFlash() = runTest {
+        val anchor = TrackedDate(
+            id = "estradiol",
+            name = "On estradiol",
+            icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1),
+            palette = MedicationGroupColorKey.ROSE,
+            pinnedOrder = 0,
+        )
+        val recentNote = Note(id = "recent", date = today, text = "recent")
+        val olderNote = Note(id = "older", date = today.minusDays(40), text = "older")
+        // notesCache is ordered dateIso DESC, matching the live windowed queries.
+        every { repository.getCachedTrackedDates() } returns listOf(anchor)
+        every { repository.getCachedPinnedTrackedDates() } returns listOf(anchor)
+        every { repository.getCachedNotes() } returns listOf(recentNote, olderNote)
+        // The live combine still resolves these at construction; they are
+        // irrelevant to the seeded first frame asserted below.
+        stubEmptyObservers()
+
+        val viewModel = JournalViewModel(repository, appTimeSource)
+
+        // Asserted BEFORE advanceUntilIdle: the very first frame comes straight
+        // from the seed, so a ready database renders content with no loading flash.
+        val state = viewModel.uiState.value
+        assertFalse(state.isLoading)
+        assertEquals(today, state.today)
+        assertEquals("estradiol", state.pinnedAnchors.single().id)
+        assertTrue(state.hasTrackedDates)
+        assertEquals(listOf("recent"), state.recentNotes.map { it.text })
+        assertEquals("recent", state.todayNote?.text)
+        assertEquals(1, state.olderNotesCount)
     }
 
     @Test

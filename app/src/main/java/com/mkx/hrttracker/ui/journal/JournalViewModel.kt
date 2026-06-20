@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.model.journal.Note
+import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -63,7 +64,40 @@ class JournalViewModel @Inject constructor(
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
-            initialValue = JournalUiState(today = initialToday),
+            // Seed the first frame from the repository's warm caches (loaded at
+            // app start) so an already-ready database renders real data instead
+            // of flashing the loading indicator for the frames until the cold
+            // combine above lands its first emission.
+            initialValue = buildSeedUiState(
+                trackedDatesOrNull = journalRepository.getCachedTrackedDates(),
+                pinnedOrNull = journalRepository.getCachedPinnedTrackedDates(),
+                notesOrNull = journalRepository.getCachedNotes(),
+                today = initialToday,
+            ),
+        )
+    }
+
+    // Mirrors the live combine's mapping, but derives the date-windowed note
+    // values in memory from the full cached note list. A null cache means that
+    // source has not loaded yet, so the seed stays in the loading state.
+    private fun buildSeedUiState(
+        trackedDatesOrNull: List<TrackedDate>?,
+        pinnedOrNull: List<TrackedDate>?,
+        notesOrNull: List<Note>?,
+        today: LocalDate,
+    ): JournalUiState {
+        if (trackedDatesOrNull == null || pinnedOrNull == null || notesOrNull == null) {
+            return JournalUiState(today = today)
+        }
+        val windowStart = today.minusDays(29)
+        return JournalUiState(
+            isLoading = false,
+            today = today,
+            hasTrackedDates = trackedDatesOrNull.isNotEmpty(),
+            pinnedAnchors = pinnedOrNull.map { it.toAnchorRowUiState(today) },
+            recentNotes = notesOrNull.filter { !it.date.isBefore(windowStart) },
+            todayNote = notesOrNull.firstOrNull { it.date == today },
+            olderNotesCount = notesOrNull.count { it.date.isBefore(windowStart) },
         )
     }
 

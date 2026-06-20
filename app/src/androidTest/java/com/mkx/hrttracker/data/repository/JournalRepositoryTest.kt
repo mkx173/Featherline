@@ -17,8 +17,11 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.currentCoroutineContext
@@ -55,6 +58,7 @@ class JournalRepositoryTest {
     private lateinit var databaseFlow: MutableStateFlow<HrtTrackerDatabase?>
     private lateinit var homeSnapshotRepository: HomeSnapshotRepository
     private lateinit var clock: MutableClock
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val zone = ZoneId.of("UTC")
     private val today = LocalDate.of(2026, 6, 16)
 
@@ -74,11 +78,15 @@ class JournalRepositoryTest {
             databaseHolder = databaseHolder,
             clock = clock,
             homeSnapshotRepository = homeSnapshotRepository,
+            appScope = appScope,
         )
     }
 
     @After
-    fun tearDown() = db.close()
+    fun tearDown() {
+        appScope.cancel()
+        db.close()
+    }
 
     @Test
     fun addTrackedDate_pinsByDefault_appendedToBottom() = runBlocking {
@@ -111,6 +119,7 @@ class JournalRepositoryTest {
             databaseHolder = databaseHolder,
             clock = transactionClock,
             homeSnapshotRepository = homeSnapshotRepository,
+            appScope = appScope,
         )
 
         listOf("First", "Second")
@@ -530,10 +539,14 @@ class JournalRepositoryTest {
         every { database.journalDao() } returns journalDao
         val holder = mockk<DatabaseHolder>()
         every { holder.get() } returns database
+        // The warm caches observe databaseFlow at construction; a null source
+        // keeps them dormant so they don't touch the narrowly-mocked dao here.
+        every { holder.databaseFlow } returns MutableStateFlow(null)
         val repository = JournalRepository(
             databaseHolder = holder,
             clock = clock,
             homeSnapshotRepository = homeSnapshotRepository,
+            appScope = appScope,
         )
 
         val job = launch { repository.deleteTrackedDate("hero") }
@@ -566,6 +579,9 @@ class JournalRepositoryTest {
         every { database.journalDao() } returns journalDao
         val holder = mockk<DatabaseHolder>()
         every { holder.get() } returns database
+        // The warm caches observe databaseFlow at construction; a null source
+        // keeps them dormant so they don't touch the narrowly-mocked dao here.
+        every { holder.databaseFlow } returns MutableStateFlow(null)
         val snapshotRepository = mockk<HomeSnapshotRepository>()
         coEvery { snapshotRepository.invalidateHomeSnapshot() } just Runs
         every {
@@ -579,6 +595,7 @@ class JournalRepositoryTest {
             databaseHolder = holder,
             clock = clock,
             homeSnapshotRepository = snapshotRepository,
+            appScope = appScope,
         )
 
         repository.deleteTrackedDate("hero")
@@ -650,10 +667,14 @@ class JournalRepositoryTest {
         every { database.journalDao() } returns journalDao
         val holder = mockk<DatabaseHolder>()
         every { holder.get() } returns database
+        // The warm caches observe databaseFlow at construction; a null source
+        // keeps them dormant so they don't touch the narrowly-mocked dao here.
+        every { holder.databaseFlow } returns MutableStateFlow(null)
         val repository = JournalRepository(
             databaseHolder = holder,
             clock = clock,
             homeSnapshotRepository = homeSnapshotRepository,
+            appScope = appScope,
         )
 
         repository.deleteNoteForDate(today)

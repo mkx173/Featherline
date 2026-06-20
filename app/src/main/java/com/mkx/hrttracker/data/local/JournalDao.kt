@@ -56,6 +56,9 @@ interface JournalDao {
     @Query("DELETE FROM tracked_dates")
     suspend fun deleteAllTrackedDates()
 
+    @Query("SELECT * FROM notes ORDER BY dateIso DESC")
+    fun observeNotes(): Flow<List<NoteEntity>>
+
     @Query("SELECT * FROM notes WHERE dateIso >= :fromDateIso ORDER BY dateIso DESC")
     fun observeNotesOnOrAfter(fromDateIso: String): Flow<List<NoteEntity>>
 
