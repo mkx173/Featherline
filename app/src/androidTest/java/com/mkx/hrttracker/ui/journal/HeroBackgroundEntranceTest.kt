@@ -1,14 +1,17 @@
 package com.mkx.hrttracker.ui.journal
 
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.takeOrElse
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
@@ -62,9 +65,16 @@ class HeroBackgroundEntranceTest {
     }
 
     @Test
-    fun wandTouchTargetIsAtLeast48Dp_whenHeroExists() {
+    fun wandHeaderButtonMatchesSectionTitleLineHeight_whenHeroExists() {
+        var expectedHeaderActionSize = 0.dp
         composeRule.setContent {
             HrtTrackerTheme(dynamicColor = false) {
+                val titleStyle = MaterialTheme.typography.titleSmall
+                val density = LocalDensity.current
+                expectedHeaderActionSize = with(density) {
+                    titleStyle.lineHeight.takeOrElse { titleStyle.fontSize }.toDp()
+                }
+
                 MilestonesScreenContent(
                     uiState = MilestonesUiState(
                         isLoading = false,
@@ -84,8 +94,8 @@ class HeroBackgroundEntranceTest {
 
         composeRule
             .onNodeWithContentDescription(context.getString(R.string.journal_hero_background_action))
-            .assertWidthIsAtLeast(48.dp)
-            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsEqualTo(expectedHeaderActionSize)
+            .assertHeightIsEqualTo(expectedHeaderActionSize)
     }
 
     @Test

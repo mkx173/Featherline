@@ -19,12 +19,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,6 +43,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.takeOrElse
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -395,6 +398,7 @@ fun MilestonesScreenContent(
                 item(key = "milestones-pinned", contentType = "journal-section") {
                     Column {
                         HrtSectionHeader(
+                            topPadding = false,
                             text = stringResource(R.string.journal_pinned_section),
                             trailing = if (uiState.hero != null) {
                                 {
@@ -403,18 +407,22 @@ fun MilestonesScreenContent(
                                     val iconSize = with(density) {
                                         titleStyle.lineHeight.takeOrElse { titleStyle.fontSize }.toDp()
                                     }
-                                    IconButton(
-                                        onClick = onOpenHeroBackground,
-                                        modifier = Modifier.size(48.dp),
+                                    CompositionLocalProvider(
+                                        LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
                                     ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.ic_wand_stars),
-                                            contentDescription = stringResource(
-                                                R.string.journal_hero_background_action,
-                                            ),
+                                        IconButton(
+                                            onClick = onOpenHeroBackground,
                                             modifier = Modifier.size(iconSize),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_wand_stars),
+                                                contentDescription = stringResource(
+                                                    R.string.journal_hero_background_action,
+                                                ),
+                                                modifier = Modifier.size(iconSize),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     }
                                 }
                             } else {

@@ -29,6 +29,35 @@ class MilestonesHeaderSourceTest {
         )
     }
 
+    @Test
+    fun pinnedHeaderWandUsesStockSectionActionSizing() {
+        val source = File(
+            projectRoot(),
+            "app/src/main/java/com/mkx/hrttracker/ui/journal/JournalScreens.kt",
+        ).readText()
+        val pinnedSection = source.substringAfter("item(key = \"milestones-pinned\"")
+            .substringBefore("item(key = \"milestones-pinned-timeline-spacer\"")
+        val iconSizeModifierCount = Regex("""modifier = Modifier\.size\(iconSize\)""")
+            .findAll(pinnedSection)
+            .count()
+
+        assertTrue(
+            "The hero background wand should suppress Material's default minimum touch target, " +
+                "matching StockSection's compact header action sizing.",
+            pinnedSection.contains("LocalMinimumInteractiveComponentSize provides Dp.Unspecified"),
+        )
+        assertTrue(
+            "The wand button and icon should both match the section title line height.",
+            pinnedSection.contains("IconButton(") &&
+                iconSizeModifierCount >= 2 &&
+                pinnedSection.contains("Icon("),
+        )
+        assertFalse(
+            "Using a fixed 48.dp button makes the journal header taller than StockSection.",
+            pinnedSection.contains("Modifier.size(48.dp)"),
+        )
+    }
+
     private fun projectRoot(): File {
         var dir = File(requireNotNull(System.getProperty("user.dir"))).canonicalFile
         while (dir.parentFile != null && !File(dir, "settings.gradle.kts").exists()) {
