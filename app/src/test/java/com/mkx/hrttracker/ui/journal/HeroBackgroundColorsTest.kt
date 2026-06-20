@@ -77,6 +77,17 @@ class HeroBackgroundColorsTest {
         )
     }
 
+    @Test
+    fun dateColorBloomColors_usesTheSameNormalizationPipelineAsFlags() {
+        val primary = 0xFFCE2C31.toInt()
+        val primaryContainer = 0xFFFFDBDC.toInt()
+
+        assertEquals(
+            HeroBackgroundColors.bloomColors(listOf(primary, primaryContainer), isDark = false),
+            HeroBackgroundColors.dateColorBloomColors(primary, primaryContainer, isDark = false),
+        )
+    }
+
     private fun List<Double>.unwrapHueRun(): List<Double> {
         var offset = 0.0
         var previous = firstOrNull() ?: return emptyList()

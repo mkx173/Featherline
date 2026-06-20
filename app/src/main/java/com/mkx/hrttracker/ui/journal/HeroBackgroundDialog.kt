@@ -171,8 +171,7 @@ fun DateColorSwatch(
 ) {
     val description = stringResource(R.string.journal_hero_background_date_color)
     val colorScheme = rememberMedicationGroupColorScheme(colorKey = colorKey)
-    val fill = colorScheme.primaryContainer
-    val mark = colorScheme.primary
+    val fill = colorScheme.primary
     val ringColor = MaterialTheme.colorScheme.surfaceContainer
     val shape = swatchShape(selected)
     Box(
@@ -191,12 +190,6 @@ fun DateColorSwatch(
                 .background(fill),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_palette),
-                contentDescription = null,
-                tint = mark,
-                modifier = Modifier.size(24.dp),
-            )
             if (selected) {
                 Box(
                     Modifier

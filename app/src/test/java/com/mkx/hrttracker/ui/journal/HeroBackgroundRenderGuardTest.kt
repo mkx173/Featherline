@@ -21,6 +21,14 @@ class HeroBackgroundRenderGuardTest {
             "HeroDateColorBackground must render the date palette selection.",
             source.contains("fun HeroDateColorBackground(colorScheme: ColorScheme"),
         )
+        val dateColorBackground = source.substringAfter("private fun HeroDateColorBackground(")
+            .substringBefore("\n@Composable\nprivate fun HeroAuroraBackground")
+        assertTrue(
+            "Date color must use the same bloom normalization pipeline as flag backgrounds.",
+            dateColorBackground.contains("HeroBackgroundColors.dateColorBloomColors(") &&
+                dateColorBackground.contains("colorScheme.primary.toArgb()") &&
+                dateColorBackground.contains("colorScheme.primaryContainer.toArgb()"),
+        )
         val heroView = source.substringAfter("private fun HeroViewLayout(")
             .substringBefore("private fun ")
         assertTrue(

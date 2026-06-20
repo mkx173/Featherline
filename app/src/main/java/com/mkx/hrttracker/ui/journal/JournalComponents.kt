@@ -93,6 +93,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -582,9 +583,11 @@ private fun HeroDateColorBackground(colorScheme: ColorScheme, modifier: Modifier
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val alpha = HeroBackgroundColors.bloomParams(isDark).alpha
     val colors = remember(colorScheme.primary, colorScheme.primaryContainer, alpha) {
-        listOf(colorScheme.primary, colorScheme.primaryContainer)
-            .distinct()
-            .map { it.copy(alpha = alpha) }
+        HeroBackgroundColors.dateColorBloomColors(
+            primary = colorScheme.primary.toArgb(),
+            primaryContainer = colorScheme.primaryContainer.toArgb(),
+            isDark = isDark,
+        ).map { Color(it).copy(alpha = alpha) }
     }
     HeroAuroraBackground(colors = colors, modifier = modifier)
 }

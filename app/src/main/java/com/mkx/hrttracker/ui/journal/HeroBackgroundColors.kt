@@ -88,4 +88,8 @@ object HeroBackgroundColors {
         val params = bloomParams(isDark)
         return hueSorted(paletteSeeds(seeds)).map { normalize(it, params.chroma, params.tone) }
     }
+
+    /** Date palette bloom colours use the same normalization path as pride flag seed colours. */
+    fun dateColorBloomColors(primary: Int, primaryContainer: Int, isDark: Boolean): List<Int> =
+        bloomColors(listOf(primary, primaryContainer), isDark)
 }
