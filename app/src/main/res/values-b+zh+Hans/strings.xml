@@ -2,7 +2,7 @@
     <string name="app_name">Featherline</string>
     <string name="tab_main">主页</string>
     <string name="tab_plan">计划</string>
-    <string name="tab_journal">日志</string>
+    <string name="tab_journal">日记</string>
     <string name="tab_history">历史</string>
     <string name="tab_settings">设置</string>
     <string name="navigate_back">返回</string>
@@ -184,7 +184,7 @@
     <plurals name="history_delete_selected_entries_success">
         <item quantity="other">已删除 %1$d 条记录</item>
     </plurals>
-    <string name="journal_milestones_section">里程碑</string>
+    <string name="journal_milestones_section">时间线</string>
     <string name="journal_notes_section">笔记</string>
     <string name="journal_notes_window_meta">最近 30 天</string>
     <string name="journal_no_notes">还没有笔记</string>
@@ -192,7 +192,7 @@
     <string name="journal_delete_note">删除笔记</string>
     <string name="journal_delete_note_title">要删除笔记吗？</string>
     <string name="journal_delete_note_confirmation">这会删除这一天的笔记。</string>
-    <string name="journal_since_you_started">自开始以来</string>
+    <string name="journal_since_you_started">时间线</string>
     <string name="journal_no_dates">还没有日期</string>
     <string name="journal_add_date">添加日期</string>
     <string name="journal_see_all_notes">查看全部笔记</string>
@@ -205,7 +205,7 @@
     <string name="journal_write_about_today">记录今天…</string>
     <string name="journal_nothing_pinned">还没有固定内容。请在下方时间线中固定日期。</string>
     <string name="journal_pinned_section">已固定</string>
-    <string name="journal_timeline_section">时间线</string>
+    <string name="journal_timeline_section">所有日期</string>
     <string name="journal_all_notes">全部笔记</string>
     <string name="journal_edit">编辑</string>
     <string name="journal_done">完成</string>
@@ -218,7 +218,7 @@
     <plurals name="journal_day_unit">
         <item quantity="other">天</item>
     </plurals>
-    <string name="journal_since_date">始于 %1$s</string>
+    <string name="journal_since_date">开始于 %1$s</string>
     <string name="journal_unpin_anchor">取消固定 %1$s</string>
     <string name="journal_move_anchor_up">上移 %1$s</string>
     <string name="journal_move_anchor_down">下移 %1$s</string>
@@ -226,8 +226,8 @@
     <string name="journal_move_anchor_to_top">将%1$s移到顶部</string>
     <string name="journal_pin_to_home_content_description">固定到主页</string>
     <!-- Hero background (pride colour wash) feature -->
-    <string name="journal_hero_background_action">选择主卡背景</string>
-    <string name="journal_hero_background_title">主卡背景</string>
+    <string name="journal_hero_background_action">自定义背景</string>
+    <string name="journal_hero_background_title">背景颜色</string>
     <string name="journal_hero_background_none">无</string>
     <string name="journal_pride_flag_transgender">跨性别</string>
     <string name="journal_pride_flag_rainbow">彩虹</string>
@@ -247,11 +247,11 @@
     <string name="journal_date_palette_section">颜色</string>
     <string name="journal_date_palette_none">无颜色</string>
     <string name="journal_anchor_icon_event">事件</string>
-    <string name="journal_anchor_icon_medication">用药</string>
-    <string name="journal_anchor_icon_pill">口服药</string>
+    <string name="journal_anchor_icon_medication">药物</string>
+    <string name="journal_anchor_icon_pill">胶囊</string>
     <string name="journal_anchor_icon_vaccines">注射</string>
-    <string name="journal_anchor_icon_bloodtype">抽血</string>
-    <string name="journal_anchor_icon_labs">化验</string>
+    <string name="journal_anchor_icon_bloodtype">水滴</string>
+    <string name="journal_anchor_icon_labs">检验</string>
     <string name="journal_anchor_icon_monitor_weight">体重</string>
     <string name="journal_anchor_icon_schedule">时长</string>
     <string name="journal_anchor_icon_flag">目标</string>
@@ -262,9 +262,9 @@
     <string name="journal_anchor_icon_travel">旅行</string>
     <string name="journal_anchor_icon_cake">生日</string>
     <string name="journal_anchor_icon_star">亮点</string>
-    <string name="journal_delete_date">删除日期</string>
-    <string name="journal_delete_date_title">要删除日期吗？</string>
-    <string name="journal_delete_date_confirmation">这会从日记中删除这个跟踪日期。</string>
+    <string name="journal_delete_date">删除</string>
+    <string name="journal_delete_date_title">删除日期</string>
+    <string name="journal_delete_date_confirmation">要删除这个日期吗</string>
     <plurals name="journal_milestone_label_days">
         <item quantity="other">%1$d 天</item>
     </plurals>
@@ -279,7 +279,7 @@
         <item quantity="other">%1$d 天</item>
     </plurals>
     <plurals name="journal_milestone_days_future">
-        <item quantity="other">%1$d 天后</item>
+        <item quantity="other">还有 %1$d 天</item>
     </plurals>
     <string name="history_delete_selected_entries_failure">无法删除所选记录</string>
     <plurals name="history_delete_all_entries_confirmation">

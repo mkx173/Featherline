@@ -192,7 +192,7 @@
         <item quantity="one">Deleted %1$d record.</item>
         <item quantity="other">Deleted %1$d records.</item>
     </plurals>
-    <string name="journal_milestones_section">Milestones</string>
+    <string name="journal_milestones_section">Timeline</string>
     <string name="journal_notes_section">Notes</string>
     <string name="journal_notes_window_meta">Last 30 days</string>
     <string name="journal_no_notes">No notes yet</string>
@@ -200,7 +200,7 @@
     <string name="journal_delete_note">Delete note</string>
     <string name="journal_delete_note_title">Delete note?</string>
     <string name="journal_delete_note_confirmation">This removes the note for this day.</string>
-    <string name="journal_since_you_started">Since you started</string>
+    <string name="journal_since_you_started">Timeline</string>
     <string name="journal_no_dates">No dates yet</string>
     <string name="journal_add_date">Add a date</string>
     <string name="journal_see_all_notes">See all notes</string>
@@ -214,7 +214,7 @@
     <string name="journal_write_about_today">Write about today…</string>
     <string name="journal_nothing_pinned">Nothing pinned yet. Pin a date in the timeline below.</string>
     <string name="journal_pinned_section">Pinned</string>
-    <string name="journal_timeline_section">Timeline</string>
+    <string name="journal_timeline_section">All dates</string>
     <string name="journal_all_notes">All notes</string>
     <string name="journal_edit">Edit</string>
     <string name="journal_done">Done</string>
@@ -238,8 +238,8 @@
     <string name="journal_move_anchor_to_top">Move %1$s to top</string>
     <string name="journal_pin_to_home_content_description">Pin to Home</string>
     <!-- Hero background (pride colour wash) feature -->
-    <string name="journal_hero_background_action">Choose hero background</string>
-    <string name="journal_hero_background_title">Hero background</string>
+    <string name="journal_hero_background_action">Customize background</string>
+    <string name="journal_hero_background_title">Background color</string>
     <string name="journal_hero_background_none">None</string>
     <string name="journal_pride_flag_transgender">Transgender</string>
     <string name="journal_pride_flag_rainbow">Rainbow</string>
@@ -262,7 +262,7 @@
     <string name="journal_anchor_icon_medication">Medication</string>
     <string name="journal_anchor_icon_pill">Pill</string>
     <string name="journal_anchor_icon_vaccines">Injection</string>
-    <string name="journal_anchor_icon_bloodtype">Blood draw</string>
+    <string name="journal_anchor_icon_bloodtype">Waterdrop</string>
     <string name="journal_anchor_icon_labs">Labs</string>
     <string name="journal_anchor_icon_monitor_weight">Weight</string>
     <string name="journal_anchor_icon_schedule">Duration</string>
@@ -274,9 +274,9 @@
     <string name="journal_anchor_icon_travel">Travel</string>
     <string name="journal_anchor_icon_cake">Birthday</string>
     <string name="journal_anchor_icon_star">Highlight</string>
-    <string name="journal_delete_date">Delete date</string>
-    <string name="journal_delete_date_title">Delete date?</string>
-    <string name="journal_delete_date_confirmation">This removes this tracked date from Journal.</string>
+    <string name="journal_delete_date">Delete</string>
+    <string name="journal_delete_date_title">Delete date</string>
+    <string name="journal_delete_date_confirmation">Delete this date?</string>
     <plurals name="journal_milestone_label_days">
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>
