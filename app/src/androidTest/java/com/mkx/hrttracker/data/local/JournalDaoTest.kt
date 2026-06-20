@@ -54,6 +54,32 @@ class JournalDaoTest {
     }
 
     @Test
+    fun getFirstPinnedTrackedDate_returnsLowestPinnedOrder() = runBlocking {
+        dao.upsertTrackedDate(
+            trackedDate("b", dateIso = "2020-01-01", pinnedOrder = 1, createdAt = 1L)
+        )
+        dao.upsertTrackedDate(
+            trackedDate("a", dateIso = "2021-06-06", pinnedOrder = 0, createdAt = 2L)
+        )
+        dao.upsertTrackedDate(
+            trackedDate("u", dateIso = "2019-01-01", pinnedOrder = null, createdAt = 3L)
+        )
+
+        val first = dao.getFirstPinnedTrackedDate()
+
+        assertEquals("a", first?.uuid)
+    }
+
+    @Test
+    fun getFirstPinnedTrackedDate_returnsNullWhenNothingPinned() = runBlocking {
+        dao.upsertTrackedDate(
+            trackedDate("u", dateIso = "2019-01-01", pinnedOrder = null, createdAt = 1L)
+        )
+
+        assertEquals(null, dao.getFirstPinnedTrackedDate())
+    }
+
+    @Test
     fun getNoteForDate_returnsSameDayRow_forUpsertReuse() = runBlocking {
         dao.upsertNote(note("n1", dateIso = "2026-06-16", text = "first"))
         val existing = dao.getNoteForDate("2026-06-16")

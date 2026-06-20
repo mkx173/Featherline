@@ -22,6 +22,16 @@ interface JournalDao {
     )
     fun observePinnedTrackedDates(): Flow<List<TrackedDateEntity>>
 
+    @Query(
+        """
+        SELECT * FROM tracked_dates
+        WHERE pinnedOrder IS NOT NULL
+        ORDER BY pinnedOrder ASC, dateIso ASC, createdAtEpochMillis ASC, uuid ASC
+        LIMIT 1
+        """
+    )
+    suspend fun getFirstPinnedTrackedDate(): TrackedDateEntity?
+
     @Query("SELECT * FROM tracked_dates ORDER BY dateIso ASC")
     suspend fun getTrackedDates(): List<TrackedDateEntity>
 
