@@ -1,8 +1,8 @@
 package com.mkx.hrttracker.ui.journal
 
 import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.Note
-import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.journal.dayCount
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
@@ -16,7 +16,7 @@ data class AnchorRowUiState(
     val date: LocalDate,
     val dayMagnitude: Long,
     val isFuture: Boolean,
-    val heroBackground: PrideFlag? = null,
+    val heroBackground: HeroBackground = HeroBackground.DateColor,
 )
 
 data class JournalUiState(

@@ -1,13 +1,12 @@
 package com.mkx.hrttracker.model.journal
 
 /**
- * A pride flag a journal anchor can wear as its hero background. Persisted by [name];
- * `null` (no enum value) means "None" - no background. Unknown or forward-compatible
- * stored names decode to null via [fromStorageValueOrNull], so a value this build does
- * not know reads as None instead of crashing. [seeds] are the flag's distinct stripe
- * colours as packed ARGB ints (including neutrals) and are the single source of truth
- * shared by the dialog swatches and the hero bloom. Progress is intentionally excluded
- * (its chevron does not fit a colour-wash model).
+ * A pride flag a journal anchor can wear as its hero background. Persisted by [name] through
+ * [HeroBackground.Flag]. Unknown or forward-compatible stored names decode to null via
+ * [fromStorageValueOrNull], then [HeroBackground.fromStorageValue] treats them as explicit None
+ * instead of crashing. [seeds] are the flag's distinct stripe colours as packed ARGB ints
+ * (including neutrals) and are the single source of truth shared by the dialog swatches and the
+ * hero bloom. Progress is intentionally excluded (its chevron does not fit a colour-wash model).
  */
 enum class PrideFlag(val seeds: List<Int>) {
     TRANSGENDER(listOf(0xFF5BCEFA.toInt(), 0xFFF5A9B8.toInt(), 0xFFFFFFFF.toInt())),

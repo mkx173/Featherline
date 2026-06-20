@@ -12,29 +12,40 @@ class HeroBackgroundRenderGuardTest {
     ).readText()
 
     @Test
-    fun heroColorBackgroundTakesAFlagAndIsGatedOnNonNull() {
+    fun heroViewRendersDateColorAndFlagBackgrounds() {
         assertTrue(
-            "HeroColorBackground must take a PrideFlag (no more hard-coded seeds).",
+            "HeroColorBackground must still take a PrideFlag for flag selections.",
             source.contains("fun HeroColorBackground(flag: PrideFlag"),
+        )
+        assertTrue(
+            "HeroDateColorBackground must render the date palette selection.",
+            source.contains("fun HeroDateColorBackground(colorScheme: ColorScheme"),
         )
         val heroView = source.substringAfter("private fun HeroViewLayout(")
             .substringBefore("private fun ")
         assertTrue(
-            "HeroViewLayout must capture the hero's flag before rendering the wash.",
+            "HeroViewLayout must capture the hero background selection before rendering the wash.",
             heroView.contains("val heroBackground = anchor.heroBackground"),
         )
-        val heroBackgroundGate = heroView.blockAfter("if (heroBackground != null)")
         assertTrue(
-            "The wash must be gated on the hero's flag being set.",
-            heroBackgroundGate.contains("HeroColorBackground("),
+            "Date color should render from the row's medication-group palette.",
+            heroView.contains("HeroBackground.DateColor ->") &&
+                heroView.contains("HeroDateColorBackground(") &&
+                heroView.contains("colorScheme = colorScheme"),
         )
         assertTrue(
-            "HeroColorBackground must be driven by the captured flag.",
-            heroBackgroundGate.contains("flag = heroBackground"),
+            "Flag selections should still render through HeroColorBackground.",
+            heroView.contains("is HeroBackground.Flag ->") &&
+                heroView.contains("flag = heroBackground.flag"),
         )
         assertTrue(
-            "The frosted watermark must be gated on both a flag and haze support.",
-            heroView.contains("if (heroBackground != null && hazeBlurSupported)"),
+            "Explicit None should skip the background wash.",
+            heroView.contains("HeroBackground.None -> Unit"),
+        )
+        assertTrue(
+            "The frosted watermark must be gated on any active background and haze support.",
+            heroView.contains("val drawsHeroBackground = heroBackground != HeroBackground.None") &&
+                heroView.contains("if (drawsHeroBackground && hazeBlurSupported)"),
         )
     }
 
@@ -64,22 +75,4 @@ class HeroBackgroundRenderGuardTest {
         return dir
     }
 
-    private fun String.blockAfter(marker: String): String {
-        val markerIndex = indexOf(marker)
-        assertTrue("Expected to find `$marker`.", markerIndex >= 0)
-        val openBrace = indexOf('{', startIndex = markerIndex)
-        assertTrue("Expected `$marker` to open a block.", openBrace >= 0)
-
-        var depth = 0
-        for (index in openBrace until length) {
-            when (this[index]) {
-                '{' -> depth++
-                '}' -> {
-                    depth--
-                    if (depth == 0) return substring(openBrace + 1, index)
-                }
-            }
-        }
-        throw AssertionError("Expected `$marker` block to close.")
-    }
 }

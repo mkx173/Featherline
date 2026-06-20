@@ -37,8 +37,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.PrideFlag
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
+import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 
 private val SwatchTouchTargetSize = 48.dp
 private val SwatchVisualSize = 44.dp
@@ -159,14 +162,62 @@ fun NoneSwatch(
     }
 }
 
+@Composable
+fun DateColorSwatch(
+    colorKey: MedicationGroupColorKey?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val description = stringResource(R.string.journal_hero_background_date_color)
+    val colorScheme = rememberMedicationGroupColorScheme(colorKey = colorKey)
+    val fill = colorScheme.primaryContainer
+    val mark = colorScheme.primary
+    val ringColor = MaterialTheme.colorScheme.surfaceContainer
+    val shape = swatchShape(selected)
+    Box(
+        modifier = modifier
+            .size(SwatchTouchTargetSize)
+            .clip(shape)
+            .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .size(SwatchVisualSize)
+                .then(if (selected) Modifier.aspectRatio(1f) else Modifier)
+                .clip(shape)
+                .background(fill),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_palette),
+                contentDescription = null,
+                tint = mark,
+                modifier = Modifier.size(24.dp),
+            )
+            if (selected) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .padding(SwatchSelectionRingInset)
+                        .border(SwatchSelectionRingWidth, ringColor, shape),
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HeroBackgroundDialog(
-    current: PrideFlag?,
-    onConfirm: (PrideFlag?) -> Unit,
+    current: HeroBackground,
+    dateColorKey: MedicationGroupColorKey?,
+    onConfirm: (HeroBackground) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
-    var selected by remember { mutableStateOf(current) }
+    var selected by remember(current) { mutableStateOf(current) }
     HazeAlertDialog(
         onDismissRequest = onDismissRequest,
         title = { Text(stringResource(R.string.journal_hero_background_title)) },
@@ -177,14 +228,20 @@ fun HeroBackgroundDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 NoneSwatch(
-                    selected = selected == null,
-                    onClick = { selected = null },
+                    selected = selected == HeroBackground.None,
+                    onClick = { selected = HeroBackground.None },
+                )
+                DateColorSwatch(
+                    colorKey = dateColorKey,
+                    selected = selected == HeroBackground.DateColor,
+                    onClick = { selected = HeroBackground.DateColor },
                 )
                 PrideFlag.entries.forEach { flag ->
+                    val option = HeroBackground.Flag(flag)
                     FlagSwatch(
                         flag = flag,
-                        selected = selected == flag,
-                        onClick = { selected = flag },
+                        selected = selected == option,
+                        onClick = { selected = option },
                     )
                 }
             }

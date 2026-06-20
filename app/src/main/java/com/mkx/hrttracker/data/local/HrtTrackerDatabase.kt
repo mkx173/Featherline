@@ -193,8 +193,8 @@ internal val MIGRATION_7_8: Migration = object : Migration(7, 8) {
 }
 
 // v8 -> v9: adds nullable `heroBackgroundKey` to `tracked_dates`. Rows that
-// pre-date this column default to NULL, which the mapper reads as PrideFlag =
-// None (no hero background), matching the model default for existing anchors.
+// pre-date this column default to NULL, which the mapper now reads as the Date
+// color background default.
 internal val MIGRATION_8_9: Migration = object : Migration(8, 9) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE tracked_dates ADD COLUMN heroBackgroundKey TEXT")

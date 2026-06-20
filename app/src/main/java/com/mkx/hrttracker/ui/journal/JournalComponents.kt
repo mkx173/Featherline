@@ -54,6 +54,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -115,6 +116,7 @@ import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.journal.PrideFlag
@@ -475,32 +477,41 @@ private fun HeroViewLayout(
     with(sharedScope) {
         Box(modifier = Modifier.fillMaxWidth()) {
             val heroBackground = anchor.heroBackground
-            if (heroBackground != null) {
-                // The flag wash is always drawn when a hero background is set. On API 31+ it also
-                // acts as the haze source for the frosted foreground card and corner watermark.
-                HeroColorBackground(
-                    flag = heroBackground,
+            val drawsHeroBackground = heroBackground != HeroBackground.None
+            // The wash is always drawn when a hero background is active. On API 31+ it also acts as
+            // the haze source for the frosted foreground card and corner watermark.
+            when (heroBackground) {
+                HeroBackground.DateColor -> HeroDateColorBackground(
+                    colorScheme = colorScheme,
                     modifier = Modifier
                         .matchParentSize()
                         .hazeSource(heroHazeState),
                 )
-                // Haze blur on the foreground card (API 31+ only; deliberately independent of the
-                // blur preference, unlike effectiveHazeBlurEnabled).
-                if (hazeBlurSupported) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .hazeEffect(heroHazeState) {
-                                blurEffect { this.style = frostStyle }
-                            },
-                    )
-                }
+                is HeroBackground.Flag -> HeroColorBackground(
+                    flag = heroBackground.flag,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .hazeSource(heroHazeState),
+                )
+                HeroBackground.None -> Unit
             }
-            // The large corner glyph. With a flag on API 31+ it's a frosted, icon-shaped haze over
-            // the wash (thick glass, surfaceContainerHigh); otherwise it stays a faint flat tint.
+            // Haze blur on the foreground card (API 31+ only; deliberately independent of the
+            // blur preference, unlike effectiveHazeBlurEnabled).
+            if (drawsHeroBackground && hazeBlurSupported) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .hazeEffect(heroHazeState) {
+                            blurEffect { this.style = frostStyle }
+                        },
+                )
+            }
+            // The large corner glyph. With a background on API 31+ it's a frosted, icon-shaped
+            // haze over the wash (thick glass, surfaceContainerHigh); otherwise it stays a faint
+            // flat tint.
             // Anchored top-end, bleeding past the card edge (the row zeroes its content padding for
             // this) and clipped by the rounded corner. Mirrors MainE2HeroCard's watermark.
-            if (heroBackground != null && hazeBlurSupported) {
+            if (drawsHeroBackground && hazeBlurSupported) {
                 HeroBackgroundWatermark(anchor = anchor, hazeState = heroHazeState)
             } else {
                 Icon(
@@ -563,6 +574,23 @@ private fun HeroColorBackground(flag: PrideFlag, modifier: Modifier = Modifier) 
     val colors = remember(flag, isDark) {
         HeroBackgroundColors.bloomColors(flag.seeds, isDark).map { Color(it).copy(alpha = alpha) }
     }
+    HeroAuroraBackground(colors = colors, modifier = modifier)
+}
+
+@Composable
+private fun HeroDateColorBackground(colorScheme: ColorScheme, modifier: Modifier = Modifier) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val alpha = HeroBackgroundColors.bloomParams(isDark).alpha
+    val colors = remember(colorScheme.primary, colorScheme.primaryContainer, alpha) {
+        listOf(colorScheme.primary, colorScheme.primaryContainer)
+            .distinct()
+            .map { it.copy(alpha = alpha) }
+    }
+    HeroAuroraBackground(colors = colors, modifier = modifier)
+}
+
+@Composable
+private fun HeroAuroraBackground(colors: List<Color>, modifier: Modifier = Modifier) {
     // Slow "breathing": opacity 0.85->1 and a faint 1->1.05 scale, anchored top-end. Honour the
     // system animator setting ("remove animations" / animator-duration-scale 0) by resting static.
     val animatorsEnabled = remember { ValueAnimator.areAnimatorsEnabled() }
@@ -2171,7 +2199,8 @@ private fun previewAnchors() = listOf(
     AnchorRowUiState(
         id = "estradiol", name = "On estradiol", icon = AnchorIcon.MEDICATION,
         palette = MedicationGroupColorKey.ROSE, date = LocalDate.of(2024, 4, 1),
-        dayMagnitude = 807, isFuture = false, heroBackground = PrideFlag.TRANSGENDER,
+        dayMagnitude = 807, isFuture = false,
+        heroBackground = HeroBackground.Flag(PrideFlag.TRANSGENDER),
     ),
     AnchorRowUiState(
         id = "injection", name = "First injection", icon = AnchorIcon.VACCINES,

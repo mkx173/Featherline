@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.data.local.TrackedDateEntity
+import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.PrideFlag
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -21,19 +22,37 @@ class HeroBackgroundMapperTest {
 
     @Test
     fun toModel_decodesKnownFlag() {
-        assertEquals(PrideFlag.TRANSGENDER, entity("TRANSGENDER").toModel().heroBackground)
+        assertEquals(
+            HeroBackground.Flag(PrideFlag.TRANSGENDER),
+            entity("TRANSGENDER").toModel().heroBackground,
+        )
     }
 
     @Test
-    fun toModel_decodesUnknownOrNullToNone() {
-        assertNull(entity(null).toModel().heroBackground)
-        assertNull(entity("PROGRESS").toModel().heroBackground)
+    fun toModel_decodesNullToDateColorDefault() {
+        assertEquals(HeroBackground.DateColor, entity(null).toModel().heroBackground)
     }
 
     @Test
-    fun toEntity_encodesFlagName_andNullForNone() {
+    fun toModel_decodesExplicitNoneAndUnknownToNone() {
+        assertEquals(HeroBackground.None, entity("NONE").toModel().heroBackground)
+        assertEquals(HeroBackground.None, entity("PROGRESS").toModel().heroBackground)
+    }
+
+    @Test
+    fun toEntity_encodesFlagName_nullForDateColorDefault_andSentinelForNone() {
         val model = entity("LESBIAN").toModel()
         assertEquals("LESBIAN", model.toEntity(1000L, 1000L).heroBackgroundKey)
-        assertNull(model.copy(heroBackground = null).toEntity(1000L, 1000L).heroBackgroundKey)
+        assertNull(
+            model.copy(heroBackground = HeroBackground.DateColor)
+                .toEntity(1000L, 1000L)
+                .heroBackgroundKey,
+        )
+        assertEquals(
+            "NONE",
+            model.copy(heroBackground = HeroBackground.None)
+                .toEntity(1000L, 1000L)
+                .heroBackgroundKey,
+        )
     }
 }

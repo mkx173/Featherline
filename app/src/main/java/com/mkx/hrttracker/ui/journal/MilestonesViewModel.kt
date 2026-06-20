@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.model.journal.Milestones
-import com.mkx.hrttracker.model.journal.PrideFlag
+import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.journal.dayCount
 import com.mkx.hrttracker.util.AppTimeSource
@@ -89,8 +89,8 @@ class MilestonesViewModel @Inject constructor(
         journalRepository.setPinned(id, pinned)
     }
 
-    fun setHeroBackground(id: String, flag: PrideFlag?) = viewModelScope.launch {
-        journalRepository.setHeroBackground(id, flag)
+    fun setHeroBackground(id: String, background: HeroBackground) = viewModelScope.launch {
+        journalRepository.setHeroBackground(id, background)
     }
 
     fun reorderPinned(ids: List<String>) = viewModelScope.launch {

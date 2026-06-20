@@ -50,8 +50,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.MilestoneUnit
-import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
@@ -310,7 +310,7 @@ internal fun HeroBackgroundDialogHost(
     hero: AnchorRowUiState?,
     targetHeroId: String?,
     onTargetHeroIdChange: (String?) -> Unit,
-    onSetHeroBackground: (String, PrideFlag?) -> Unit,
+    onSetHeroBackground: (String, HeroBackground) -> Unit,
 ) {
     val target = hero?.takeIf { it.id == targetHeroId }
     LaunchedEffect(hero?.id, targetHeroId) {
@@ -322,8 +322,9 @@ internal fun HeroBackgroundDialogHost(
     if (target != null) {
         HeroBackgroundDialog(
             current = target.heroBackground,
-            onConfirm = { flag ->
-                onSetHeroBackground(target.id, flag)
+            dateColorKey = target.palette,
+            onConfirm = { background ->
+                onSetHeroBackground(target.id, background)
                 onTargetHeroIdChange(null)
             },
             onDismissRequest = { onTargetHeroIdChange(null) },

@@ -241,6 +241,7 @@
     <string name="journal_hero_background_action">Customize background</string>
     <string name="journal_hero_background_title">Background color</string>
     <string name="journal_hero_background_none">None</string>
+    <string name="journal_hero_background_date_color">Date color</string>
     <string name="journal_pride_flag_transgender">Transgender</string>
     <string name="journal_pride_flag_rainbow">Rainbow</string>
     <string name="journal_pride_flag_bisexual">Bisexual</string>

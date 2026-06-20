@@ -7,7 +7,7 @@ import com.mkx.hrttracker.data.local.TrackedDateEntity
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.journal.PinOrder
-import com.mkx.hrttracker.model.journal.PrideFlag
+import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.TrackedDate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -193,8 +193,8 @@ class JournalRepository @Inject constructor(
         }
     }
 
-    suspend fun setHeroBackground(id: String, flag: PrideFlag?) {
-        databaseHolder.get().journalDao().updateHeroBackground(id, flag?.name, clock.millis())
+    suspend fun setHeroBackground(id: String, background: HeroBackground) {
+        databaseHolder.get().journalDao().updateHeroBackground(id, background.storageKey, clock.millis())
     }
 
     suspend fun reorderPinned(idsInOrder: List<String>) {
