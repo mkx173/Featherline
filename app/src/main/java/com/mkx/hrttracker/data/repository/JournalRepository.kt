@@ -26,6 +26,7 @@ import javax.inject.Singleton
 class JournalRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val clock: Clock,
+    private val homeSnapshotRepository: HomeSnapshotRepository,
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeTrackedDates(): Flow<List<TrackedDate>> =
@@ -109,26 +110,42 @@ class JournalRepository @Inject constructor(
     suspend fun getNoteEntities(): List<NoteEntity> =
         databaseHolder.get().journalDao().getNotes()
 
-    suspend fun addTrackedDate(name: String, icon: String, date: LocalDate, paletteKey: String?) {
-        val database = databaseHolder.get()
-        database.withTransaction {
-            val dao = database.journalDao()
-            val now = clock.millis()
-            dao.upsertTrackedDate(
-                TrackedDateEntity(
-                    uuid = UUID.randomUUID().toString(),
-                    name = name,
-                    iconKey = AnchorIcon.fromStorageValue(icon).storageKey,
-                    dateIso = date.toString(),
-                    paletteKey = paletteKey,
-                    heroBackgroundKey = null,
-                    pinnedOrder = PinOrder.appendOrderAfterMax(dao.getMaxPinnedOrder()),
-                    createdAtEpochMillis = now,
-                    updatedAtEpochMillis = now,
-                )
-            )
+    // The snapshot caches only the FIRST pinned date (the Home hero). Rebuild it
+    // exactly when that date's identity or rendered content changes — comparing the
+    // whole entity also catches hero rename / icon / date / palette / background edits.
+    // Async because the live UI already reads the anchor from the Room source; this
+    // only refreshes the cold-start cache for next launch.
+    private suspend fun <T> refreshingSnapshotIfHeroChanges(block: suspend () -> T): T {
+        val before = databaseHolder.get().journalDao().getFirstPinnedTrackedDate()
+        val result = block()
+        val after = databaseHolder.get().journalDao().getFirstPinnedTrackedDate()
+        if (before != after) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
         }
+        return result
     }
+
+    suspend fun addTrackedDate(name: String, icon: String, date: LocalDate, paletteKey: String?) =
+        refreshingSnapshotIfHeroChanges {
+            val database = databaseHolder.get()
+            database.withTransaction {
+                val dao = database.journalDao()
+                val now = clock.millis()
+                dao.upsertTrackedDate(
+                    TrackedDateEntity(
+                        uuid = UUID.randomUUID().toString(),
+                        name = name,
+                        iconKey = AnchorIcon.fromStorageValue(icon).storageKey,
+                        dateIso = date.toString(),
+                        paletteKey = paletteKey,
+                        heroBackgroundKey = null,
+                        pinnedOrder = PinOrder.appendOrderAfterMax(dao.getMaxPinnedOrder()),
+                        createdAtEpochMillis = now,
+                        updatedAtEpochMillis = now,
+                    )
+                )
+            }
+        }
 
     suspend fun updateTrackedDate(
         id: String,
@@ -136,7 +153,7 @@ class JournalRepository @Inject constructor(
         icon: String,
         date: LocalDate,
         paletteKey: String?,
-    ) {
+    ) = refreshingSnapshotIfHeroChanges {
         val database = databaseHolder.get()
         database.withTransaction {
             val dao = database.journalDao()
@@ -153,11 +170,11 @@ class JournalRepository @Inject constructor(
         }
     }
 
-    suspend fun deleteTrackedDate(id: String) {
+    suspend fun deleteTrackedDate(id: String) = refreshingSnapshotIfHeroChanges {
         databaseHolder.get().journalDao().deleteTrackedDate(id)
     }
 
-    suspend fun setPinned(id: String, pinned: Boolean) {
+    suspend fun setPinned(id: String, pinned: Boolean) = refreshingSnapshotIfHeroChanges {
         val database = databaseHolder.get()
         database.withTransaction {
             val dao = database.journalDao()
@@ -193,11 +210,11 @@ class JournalRepository @Inject constructor(
         }
     }
 
-    suspend fun setHeroBackground(id: String, background: HeroBackground) {
+    suspend fun setHeroBackground(id: String, background: HeroBackground) = refreshingSnapshotIfHeroChanges {
         databaseHolder.get().journalDao().updateHeroBackground(id, background.storageKey, clock.millis())
     }
 
-    suspend fun reorderPinned(idsInOrder: List<String>) {
+    suspend fun reorderPinned(idsInOrder: List<String>) = refreshingSnapshotIfHeroChanges {
         val database = databaseHolder.get()
         database.withTransaction {
             val dao = database.journalDao()

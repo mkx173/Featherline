@@ -10,6 +10,7 @@ import com.mkx.hrttracker.data.local.TrackedDateEntity
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.TrackedDate
 import io.mockk.Runs
+import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -47,6 +48,7 @@ class JournalRepositoryTest {
     private lateinit var repo: JournalRepository
     private lateinit var databaseHolder: DatabaseHolder
     private lateinit var databaseFlow: MutableStateFlow<HrtTrackerDatabase?>
+    private lateinit var homeSnapshotRepository: HomeSnapshotRepository
     private lateinit var clock: MutableClock
     private val zone = ZoneId.of("UTC")
     private val today = LocalDate.of(2026, 6, 16)
@@ -61,8 +63,13 @@ class JournalRepositoryTest {
         databaseHolder = mockk()
         every { databaseHolder.get() } returns db
         every { databaseHolder.databaseFlow } returns databaseFlow
+        homeSnapshotRepository = mockk(relaxed = true)
         clock = MutableClock(today.atStartOfDay(zone).toInstant(), zone)
-        repo = JournalRepository(databaseHolder = databaseHolder, clock = clock)
+        repo = JournalRepository(
+            databaseHolder = databaseHolder,
+            clock = clock,
+            homeSnapshotRepository = homeSnapshotRepository,
+        )
     }
 
     @After
@@ -95,7 +102,11 @@ class JournalRepositoryTest {
             zone = zone,
             inTransaction = { db.inTransaction() },
         )
-        repo = JournalRepository(databaseHolder = databaseHolder, clock = transactionClock)
+        repo = JournalRepository(
+            databaseHolder = databaseHolder,
+            clock = transactionClock,
+            homeSnapshotRepository = homeSnapshotRepository,
+        )
 
         listOf("First", "Second")
             .map { name ->
@@ -342,6 +353,60 @@ class JournalRepositoryTest {
     }
 
     @Test
+    fun pinningFirstDate_triggersSnapshotRefresh() = runBlocking {
+        repo.addTrackedDate(
+            "HRT start",
+            AnchorIcon.entries.first().storageKey,
+            LocalDate.of(2025, 3, 14),
+            null,
+        )
+
+        coVerify(atLeast = 1) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(
+                now = any(),
+                force = true,
+                zoneId = any(),
+            )
+        }
+    }
+
+    @Test
+    fun renamingNonHeroDate_doesNotTriggerSnapshotRefresh() = runBlocking {
+        repo.addTrackedDate(
+            "Hero",
+            AnchorIcon.entries.first().storageKey,
+            LocalDate.of(2020, 1, 1),
+            null,
+        )
+        repo.addTrackedDate(
+            "Other",
+            AnchorIcon.entries.first().storageKey,
+            LocalDate.of(2021, 1, 1),
+            null,
+        )
+        clearMocks(homeSnapshotRepository, answers = false)
+
+        val otherId = repo.observeTrackedDates().first { rows -> rows.any { it.name == "Other" } }
+            .first { it.name == "Other" }
+            .id
+        repo.updateTrackedDate(
+            otherId,
+            "Other renamed",
+            AnchorIcon.entries.first().storageKey,
+            LocalDate.of(2021, 1, 1),
+            null,
+        )
+
+        coVerify(exactly = 0) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(
+                now = any(),
+                force = true,
+                zoneId = any(),
+            )
+        }
+    }
+
+    @Test
     fun updateTrackedDate_keepsPinAndCreatedAt() = runBlocking {
         repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
         val a = repo.observeTrackedDates().first().single()
@@ -486,7 +551,11 @@ class JournalRepositoryTest {
         every { database.journalDao() } returns journalDao
         val holder = mockk<DatabaseHolder>()
         every { holder.get() } returns database
-        val repository = JournalRepository(databaseHolder = holder, clock = clock)
+        val repository = JournalRepository(
+            databaseHolder = holder,
+            clock = clock,
+            homeSnapshotRepository = homeSnapshotRepository,
+        )
 
         repository.deleteNoteForDate(today)
 
