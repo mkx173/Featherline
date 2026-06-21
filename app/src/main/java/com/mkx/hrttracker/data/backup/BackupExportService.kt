@@ -4,7 +4,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import com.mkx.hrttracker.data.local.NoteEntity
+import com.mkx.hrttracker.data.local.TrackedDateEntity
 import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
@@ -45,6 +48,7 @@ class BackupExportService @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val bloodTestRepository: BloodTestRepository,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
+    private val journalRepository: JournalRepository,
     private val backupCrypto: BackupCrypto,
 ) {
     internal suspend fun buildBackupSnapshotJson(
@@ -181,6 +185,8 @@ class BackupExportService @Inject constructor(
         val medicationLogs = medicationLogRepository.getEntries()
         val customBloodAnalytes = bloodTestRepository.getCustomAnalytes()
         val bloodTestPanels = bloodTestRepository.getPanels()
+        val trackedDates = journalRepository.getTrackedDateEntities()
+        val notes = journalRepository.getNoteEntities()
 
         return BackupSnapshot(
             exportedAtEpochMillis = exportedAt.toEpochMilli(),
@@ -241,6 +247,8 @@ class BackupExportService @Inject constructor(
                 )
             },
             bloodTestPanels = bloodTestPanels.map { panel -> panel.toBackupSnapshot() },
+            trackedDates = trackedDates.map { trackedDate -> trackedDate.toBackupSnapshot() },
+            notes = notes.map { note -> note.toBackupSnapshot() },
         )
     }
 
@@ -485,6 +493,29 @@ class BackupExportService @Inject constructor(
         )
     }
 
+    private fun TrackedDateEntity.toBackupSnapshot(): BackupTrackedDateSnapshot {
+        return BackupTrackedDateSnapshot(
+            uuid = uuid,
+            name = name,
+            iconKey = iconKey,
+            dateIso = dateIso,
+            paletteKey = paletteKey,
+            pinnedOrder = pinnedOrder,
+            createdAtEpochMillis = createdAtEpochMillis,
+            updatedAtEpochMillis = updatedAtEpochMillis,
+        )
+    }
+
+    private fun NoteEntity.toBackupSnapshot(): BackupNoteSnapshot {
+        return BackupNoteSnapshot(
+            uuid = uuid,
+            dateIso = dateIso,
+            text = text,
+            createdAtEpochMillis = createdAtEpochMillis,
+            updatedAtEpochMillis = updatedAtEpochMillis,
+        )
+    }
+
     private fun persistDirectoryAccess(directoryUri: Uri) {
         runCatching {
             context.contentResolver.takePersistableUriPermission(
@@ -559,4 +590,3 @@ private data class BackupMedicineStorageFields(
     val patchTotalMg: Double? = null,
     val patchReleaseRateMcgPerDay: Double? = null,
 )
-

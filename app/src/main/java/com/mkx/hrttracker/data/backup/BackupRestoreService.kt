@@ -12,6 +12,8 @@ import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWeeklyDayEntity
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.data.local.MedicineEntity
+import com.mkx.hrttracker.data.local.NoteEntity
+import com.mkx.hrttracker.data.local.TrackedDateEntity
 import com.mkx.hrttracker.data.local.UserProfileEntity
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
@@ -233,6 +235,8 @@ class BackupRestoreService @Inject constructor(
                 database.bloodTestDao().deleteAllPanels()
                 database.bloodTestDao().deleteAllCustomAnalytes()
                 database.userProfileDao().deleteProfile()
+                database.journalDao().deleteAllNotes()
+                database.journalDao().deleteAllTrackedDates()
 
                 if (validatedSnapshot.customBloodAnalytes.isNotEmpty()) {
                     database.bloodTestDao()
@@ -268,6 +272,12 @@ class BackupRestoreService @Inject constructor(
                 }
                 if (validatedSnapshot.medicationLogs.isNotEmpty()) {
                     database.medicationLogDao().insertEntries(validatedSnapshot.medicationLogs)
+                }
+                if (validatedSnapshot.trackedDates.isNotEmpty()) {
+                    database.journalDao().insertTrackedDates(validatedSnapshot.trackedDates)
+                }
+                if (validatedSnapshot.notes.isNotEmpty()) {
+                    database.journalDao().insertNotes(validatedSnapshot.notes)
                 }
                 validatedSnapshot.userProfile?.let { profile ->
                     database.userProfileDao().upsertProfile(profile)
@@ -436,6 +446,36 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         require(normalizedCustomPairs.add(entity.normalizedName to entity.normalizedUnitLabel)) {
             "Duplicate custom analyte name/unit pair in backup."
         }
+    }
+
+    // pinnedOrder is only a sort key, not a uniqueness invariant: its index is
+    // non-unique and observePinnedTrackedDates breaks ties deterministically
+    // (dateIso, createdAtEpochMillis, uuid). Pin-on-create assigns max+1, but a
+    // future reorder/unpin can legitimately leave two rows sharing an order, so
+    // rejecting duplicates here would make the app's own export un-restorable.
+    // Tolerate duplicate orders; only the UUID primary key must be unique.
+    val trackedDateEntities = mutableListOf<TrackedDateEntity>()
+    val seenTrackedDateUuids = mutableSetOf<String>()
+    trackedDates.forEach { trackedDate ->
+        val entity = trackedDate.toValidatedEntity()
+        require(seenTrackedDateUuids.add(entity.uuid)) {
+            "Duplicate tracked date UUID ${entity.uuid} in backup."
+        }
+        trackedDateEntities += entity
+    }
+
+    val noteEntities = mutableListOf<NoteEntity>()
+    val seenNoteUuids = mutableSetOf<String>()
+    val seenNoteDates = mutableSetOf<String>()
+    notes.forEach { note ->
+        val entity = note.toValidatedEntity()
+        require(seenNoteUuids.add(entity.uuid)) {
+            "Duplicate note UUID ${entity.uuid} in backup."
+        }
+        require(seenNoteDates.add(entity.dateIso)) {
+            "Duplicate note date ${entity.dateIso} in backup."
+        }
+        noteEntities += entity
     }
 
     // Validate medicines before any item/log so the FK-validation set is
@@ -867,6 +907,8 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         customBloodAnalytes = customAnalytesByUuid.values.toList(),
         bloodTestPanels = panelEntities,
         bloodTestResults = resultEntities,
+        trackedDates = trackedDateEntities,
+        notes = noteEntities,
     )
 }
 
@@ -1012,6 +1054,58 @@ private fun BackupCustomBloodAnalyteSnapshot.toValidatedEntity(): CustomBloodAna
         createdAtEpochMillis = createdAtEpochMillis,
         updatedAtEpochMillis = updatedAtEpochMillis,
         archivedAtEpochMillis = archivedAtEpochMillis,
+    )
+}
+
+private fun BackupTrackedDateSnapshot.toValidatedEntity(): TrackedDateEntity {
+    val trackedDateUuid = uuid.parseUuid("tracked date UUID").toString()
+    val normalizedName = name.trim()
+    require(normalizedName.isNotEmpty()) {
+        "Tracked date name must not be blank."
+    }
+    val normalizedDateIso = dateIso.parseLocalDateIso("tracked date dateIso")
+    require(updatedAtEpochMillis >= createdAtEpochMillis) {
+        "Tracked date $trackedDateUuid updatedAt must not be before createdAt."
+    }
+    // pinnedOrder is appended as max+1 (>= 0) on the write path; a negative value
+    // would sort ahead of every legitimate pin and silently steal the hero slot.
+    require(pinnedOrder == null || pinnedOrder >= 0) {
+        "Tracked date $trackedDateUuid pinnedOrder must not be negative."
+    }
+    // iconKey and paletteKey are stored as-is rather than rejected: both have
+    // graceful read-time fallbacks (AnchorIcon.EVENT and the slate default), so
+    // a forward-compatible backup carrying an icon or palette this build does
+    // not know yet restores intact instead of failing the whole import.
+    return TrackedDateEntity(
+        uuid = trackedDateUuid,
+        name = normalizedName,
+        iconKey = iconKey,
+        dateIso = normalizedDateIso,
+        paletteKey = paletteKey,
+        pinnedOrder = pinnedOrder,
+        createdAtEpochMillis = createdAtEpochMillis,
+        updatedAtEpochMillis = updatedAtEpochMillis,
+    )
+}
+
+private fun BackupNoteSnapshot.toValidatedEntity(): NoteEntity {
+    val noteUuid = uuid.parseUuid("note UUID").toString()
+    val normalizedDateIso = dateIso.parseLocalDateIso("note dateIso")
+    // Trim and reject blank like every other restored free-text field; a note row
+    // whose body is empty carries no content and the write path never creates one.
+    val normalizedText = text.trim()
+    require(normalizedText.isNotEmpty()) {
+        "Note $noteUuid text must not be blank."
+    }
+    require(updatedAtEpochMillis >= createdAtEpochMillis) {
+        "Note $noteUuid updatedAt must not be before createdAt."
+    }
+    return NoteEntity(
+        uuid = noteUuid,
+        dateIso = normalizedDateIso,
+        text = normalizedText,
+        createdAtEpochMillis = createdAtEpochMillis,
+        updatedAtEpochMillis = updatedAtEpochMillis,
     )
 }
 
@@ -1522,6 +1616,8 @@ internal data class ValidatedBackupSnapshot(
     val customBloodAnalytes: List<CustomBloodAnalyteEntity>,
     val bloodTestPanels: List<BloodTestPanelEntity>,
     val bloodTestResults: List<BloodTestResultEntity>,
+    val trackedDates: List<TrackedDateEntity>,
+    val notes: List<NoteEntity>,
 )
 
 internal data class ValidatedBackupSettings(
@@ -1773,6 +1869,11 @@ private inline fun <reified T : Enum<T>> requireEnumName(
 
 private fun String?.parseUuid(fieldName: String): UUID {
     return runCatching { UUID.fromString(requireNotNull(this)) }
+        .getOrElse { throw IllegalArgumentException("Invalid $fieldName.", it) }
+}
+
+private fun String.parseLocalDateIso(fieldName: String): String {
+    return runCatching { LocalDate.parse(this).toString() }
         .getOrElse { throw IllegalArgumentException("Invalid $fieldName.", it) }
 }
 

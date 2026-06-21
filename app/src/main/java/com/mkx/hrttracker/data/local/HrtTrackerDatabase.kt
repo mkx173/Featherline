@@ -17,8 +17,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BloodTestPanelEntity::class,
         BloodTestResultEntity::class,
         CustomBloodAnalyteEntity::class,
+        TrackedDateEntity::class,
+        NoteEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
@@ -28,6 +30,7 @@ abstract class HrtTrackerDatabase : RoomDatabase() {
     abstract fun userProfileDao(): UserProfileDao
     abstract fun bloodTestDao(): BloodTestDao
     abstract fun homeDao(): HomeDao
+    abstract fun journalDao(): JournalDao
 }
 
 // v1 → v2: adds `displayDoseUnit` to `medicines`. Rows that pre-date this
@@ -153,5 +156,38 @@ internal val MIGRATION_6_7: Migration = object : Migration(6, 7) {
             ON blood_test_results(importSourceApp, importExternalId)
             """.trimIndent()
         )
+    }
+}
+
+internal val MIGRATION_7_8: Migration = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE tracked_dates (
+                uuid TEXT NOT NULL PRIMARY KEY,
+                name TEXT NOT NULL,
+                iconKey TEXT NOT NULL,
+                dateIso TEXT NOT NULL,
+                paletteKey TEXT,
+                pinnedOrder INTEGER,
+                createdAtEpochMillis INTEGER NOT NULL,
+                updatedAtEpochMillis INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX index_tracked_dates_pinnedOrder ON tracked_dates(pinnedOrder)")
+        db.execSQL("CREATE INDEX index_tracked_dates_dateIso ON tracked_dates(dateIso)")
+        db.execSQL(
+            """
+            CREATE TABLE notes (
+                uuid TEXT NOT NULL PRIMARY KEY,
+                dateIso TEXT NOT NULL,
+                text TEXT NOT NULL,
+                createdAtEpochMillis INTEGER NOT NULL,
+                updatedAtEpochMillis INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE UNIQUE INDEX index_notes_dateIso ON notes(dateIso)")
     }
 }

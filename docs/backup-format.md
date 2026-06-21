@@ -2,23 +2,22 @@
 
 How Featherline exports user data to a single encrypted file and how
 that file is read back. The whole subsystem lives in
-[`data/backup/`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/data/backup)
-(five files, ~2 600 LOC).
+[`data/backup/`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/data/backup).
 
 ## Two version numbers
 
 - **Envelope format version** —
-  [`CURRENT_BACKUP_CONTAINER_VERSION = 3`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L406).
+  [`CURRENT_BACKUP_CONTAINER_VERSION = 3`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt).
   Describes the on-disk byte layout. Bumps are rare and crypto-
   breaking — they cover changes to the framing or to the
   cryptographic primitives.
 - **Snapshot JSON version** —
-  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 5`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt#L252).
+  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 5`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt).
   Describes the plaintext payload — the `BackupSnapshot` data-class
   tree serialized as JSON. Bumps are reserved for renames, removals,
   or semantic changes to existing fields. The restore path also
   enforces a floor of
-  [`MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt#L891):
+  [`MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt):
   v1 files are rejected with no migration path, because the medicine-
   identity refactor renamed and removed denormalized fields on group
   items and log entries (see "Cross-version restore matrix" below).
@@ -31,9 +30,9 @@ stored as-is. Writers only emit version `3`.
 
 One contiguous byte sequence: a 65-byte header followed by AES-GCM
 ciphertext with its 16-byte tag appended. Built by
-[`buildArgon2Header`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L203)
+[`buildArgon2Header`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)
 and parsed by
-[`parseContainer`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L227):
+[`parseContainer`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt):
 
 ```text
 offset  size  field
@@ -60,18 +59,18 @@ The full 65-byte header is fed to AES-GCM as Additional Authenticated
 Data, so tampering with any declared parameter fails the auth check at
 decrypt time. Salt and nonce lengths are read from the header rather
 than assumed, so differently-sized envelopes still parse.
-[`FIXED_HEADER_LENGTH_V3 = 37`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L422)
+[`FIXED_HEADER_LENGTH_V3 = 37`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)
 gates the minimum-bytes check; the legacy v2 header was 28 bytes.
 
 ## Encryption
 
 ### Key derivation
 
-[`BackupArgon2KeyDeriver`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L437)
+[`BackupArgon2KeyDeriver`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)
 wraps the [argon2kt][argon2kt] library and calls `Argon2Mode.ARGON2_ID`
 with the parameters read from the header and a 16-byte random salt.
 Defaults from
-[`DEFAULT_ARGON2_PARAMETERS`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L407):
+[`DEFAULT_ARGON2_PARAMETERS`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt):
 time cost `3` iterations, memory cost `65 536` KiB (64 MiB),
 parallelism `1` lane, hash length `32` bytes (matches AES-256 key
 length), mode Argon2id. Storing parameters in the envelope rather than
@@ -88,7 +87,7 @@ not a defence against an in-process attacker.
 ### Symmetric encryption
 
 `AES/GCM/NoPadding` via platform JCA in
-[`encryptWithAesGcm`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L175):
+[`encryptWithAesGcm`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt):
 32-byte key from Argon2; 12-byte nonce fresh per export from
 `SecureRandom`, never reused; 128-bit auth tag appended to the
 ciphertext by JCA. The full 65-byte header is the AAD, so tampering
@@ -100,12 +99,12 @@ distinguished externally.
 The plaintext fed into AES-GCM is `gzip(json)`, not the JSON. The
 header's uncompressed-length field is the pre-gzip JSON byte count;
 gunzip refuses payloads that don't match or that exceed the
-[`MAX_BACKUP_JSON_BYTES = 128 MiB`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L423)
+[`MAX_BACKUP_JSON_BYTES = 128 MiB`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)
 cap (decompression-bomb defence).
 
 ## Snapshot tree
 
-Fourteen `@JsonClass` data classes in
+Sixteen `@JsonClass` data classes in
 [`BackupSnapshot.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt).
 The tree is the wire-format mirror of the Room schema documented in
 [`data-model.md`](data-model.md#entities); each row maps one
@@ -116,7 +115,13 @@ flattened into the parent's JSON.
   `exportedAtEpochMillis`, plus the sub-snapshots below. The
   `medicines` list is positioned ahead of `medicationGroups` and
   `medicationLogs` so the importer can build its valid-medicine FK set
-  before walking any item or log that references one.
+  before walking any item or log that references one. The
+  `trackedDates` and `notes` lists are defaulted to `emptyList()` so
+  old backups restore with an empty Journal. A same-version pre-field
+  v5 reader may also restore a v5 backup containing those keys and
+  ignore them; future snapshot versions are still rejected by version
+  checks. They are additive fields, so
+  `CURRENT_BACKUP_SNAPSHOT_VERSION` remains `5`.
 - `BackupAppSnapshot` — just `packageName`; exports write the stable
   backup identity (`com.mkx.hrttracker`), and restore rejects other app
   identities.
@@ -229,6 +234,25 @@ flattened into the parent's JSON.
   carries either `builtinAnalyteKey` or `customAnalyteUuid`
   (exclusive), `value` + `unitSnapshot`, `canonicalValue`, and
   nullable `importSourceApp` / `importExternalId` provenance.
+- `BackupTrackedDateSnapshot` →
+  [`TrackedDateEntity`](data-model.md#trackeddateentity); carries the
+  journal anchor UUID, `name`, `iconKey`, wall-clock `dateIso`, nullable
+  `paletteKey`, nullable `pinnedOrder`, and created/updated timestamps.
+  Restore validates UUID shape, trims `name`, rejects blank names,
+  rejects duplicate tracked-date UUIDs, and rejects negative
+  `pinnedOrder` values. Duplicate `pinnedOrder` values are tolerated —
+  it is a sort key, not a uniqueness invariant, and read-time ordering
+  breaks ties deterministically — so a reorder/unpin that leaves two
+  rows sharing an order still round-trips. `iconKey` and `paletteKey`
+  are restored as stored, even when this build does not know the key
+  yet; read-time mappers apply their fallbacks without rewriting the
+  backup value.
+- `BackupNoteSnapshot` →
+  [`NoteEntity`](data-model.md#noteentity); carries the note UUID,
+  unique wall-clock `dateIso`, `text`, and created/updated timestamps.
+  Restore rejects duplicate note UUIDs and duplicate note dates in the
+  same file, preserving the one-note-per-day invariant before SQLite's
+  unique index is reached.
 
 Serialization is by Moshi via
 [`BackupSnapshotJsonCodec`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshotJsonCodec.kt)
@@ -240,7 +264,8 @@ explicitly and distinguishable from missing-on-read.
 [`BackupExportService.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupExportService.kt)
 runs on `Dispatchers.IO`:
 
-1. Read every backed-up table via its repository.
+1. Read every backed-up table via its repository, including journal
+   tracked dates and notes through `JournalRepository`.
 2. Build the in-memory `BackupSnapshot`, mapping each Room entity to
    its `Backup*Snapshot`.
 3. Encode to JSON via `BackupSnapshotJsonCodec.encode`.
@@ -270,14 +295,14 @@ incompatible files are rejected at the cheapest detection point.
    bytes are read into memory up front; later passes re-read the
    buffer.
 2. **Pass 1 — envelope shape.**
-   [`validateEncryptedBackupContainer`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L58)
+   [`validateEncryptedBackupContainer`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)
    parses magic, version, KDF / cipher / compression identifiers, and
    Argon2 parameters. Failures wrap as
    `IncompatibleBackupFileException` so the UI can distinguish "not a
    backup" from "wrong password". Runs before the password dialog
    opens.
 3. **Pass 2 — decrypt + auth-tag verify.**
-   [`decrypt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L109)
+   [`decrypt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)
    derives the key from the entered password and the envelope's salt,
    runs AES-GCM with the header as AAD.
 4. **Pass 3 — decompress + JSON decode.** Gunzip refuses payloads
@@ -285,7 +310,7 @@ incompatible files are rejected at the cheapest detection point.
    the 128 MiB cap; `BackupSnapshotJsonCodec.decode` throws on
    missing required fields.
 5. **Pass 4 — semantic validation.**
-   [`toValidatedSnapshot`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt#L417)
+   [`toValidatedSnapshot`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt)
    runs these checks:
    - version + identity: `snapshotVersion` must fall in
      `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION`
@@ -308,6 +333,18 @@ incompatible files are rejected at the cheapest detection point.
      group; every custom-analyte-keyed result must reference a custom
      analyte in the same snapshot; every `scheduleTimeUuid` must
      belong to its log's source group.
+   - journal invariants: tracked-date UUIDs must parse and be unique;
+     tracked-date names are trimmed and must not be blank; non-null
+     tracked-date `pinnedOrder` values must not be negative (duplicates
+     are allowed — read-time ordering tie-breaks); tracked-date and
+     note `dateIso` values must parse as `LocalDate`; note UUIDs must
+     parse and be unique; note text is trimmed and must not be blank;
+     and note dates must be unique within the file. Restore also
+     validates that journal `updatedAtEpochMillis` values are not before
+     their corresponding `createdAtEpochMillis` values. Journal
+     `iconKey` and `paletteKey` values are preserved as stored so newer
+     key values can round-trip; the app's read-time mappers own
+     fallbacks for unknown keys.
    - external-import invariants: imported medicines must use the
      `E|` identity namespace, cannot include stock blocks, cannot be
      referenced by medication groups, and are the only medicines that
@@ -322,7 +359,7 @@ incompatible files are rejected at the cheapest detection point.
      have `value == canonicalValue`
 
    The settings sub-pass
-   [`toValidatedSettings`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt#L893)
+   [`toValidatedSettings`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt)
    constructs each unit choice through `AllowedAnalyteUnit.of`, so an
    unsupported unit fails before the database is touched. It also
    parses `homeE2ChartWindow` as a `HomeE2ChartWindowOption`, so an
@@ -334,7 +371,10 @@ incompatible files are rejected at the cheapest detection point.
 7. **Restore in one transaction.** Wrapped in
    `homeSnapshotRepository.runHomeDataMutation { databaseHolder
    .runTransaction { … } }`. The transaction deletes every backed-up
-   table in dependency order, then inserts the validated entities.
+   table in dependency order, including `notes` and `tracked_dates`,
+   then inserts the validated entities. Journal rows are restored via
+   `JournalDao.insertTrackedDates` and `JournalDao.insertNotes` after
+   the core medication and blood-test rows are back in place.
    Either the whole import lands or none of it does.
 8. **Restore settings.** `settingsRepository.restoreSettings` writes
    the validated `BackupSettingsSnapshot` to DataStore. Outside the
@@ -357,6 +397,14 @@ default. This is how `lastSeenTimeZoneId`, `hideReferenceRanges`,
 the optional `BackupMedicineSnapshot.stock` object (the entire stock
 feature), and `BackupMedicationLogSnapshot.doseAmountDelta` (the
 actual-amount feature) all shipped without a snapshot-version bump.
+`BackupSnapshot.trackedDates` and `BackupSnapshot.notes` are the same
+kind of additive change: both top-level lists default to `emptyList()`,
+so v2-v5 backups that omit them restore with no journal rows, and
+a same-version pre-field v5 reader may restore a v5 backup containing
+them and ignore the unknown keys. This does not apply to future
+snapshot versions, which are rejected by version checks. Because they
+are additive/defaulted, the snapshot version stays
+`CURRENT_BACKUP_SNAPSHOT_VERSION = 5`.
 Removing or renaming a field is *not* in this bucket.
 The external-import provenance fields themselves are nullable/defaulted
 (`BackupMedicineSnapshot.importedFromExternalTracker`,
@@ -397,8 +445,8 @@ worth it.
 
 **Bumping the envelope version (crypto break).** Required when framing
 or primitives change. KDF and cipher are recorded as identifier bytes
-([`KDF_ARGON2_ID = 2`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L416),
-[`CIPHER_AES_256_GCM = 1`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt#L417)),
+([`KDF_ARGON2_ID = 2`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt),
+[`CIPHER_AES_256_GCM = 1`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)),
 so additions can extend the readable set without bumping. A bump is
 reserved for changes that break parser invariants — different field
 ordering, a different fixed-header length, a different AAD contract.
@@ -412,16 +460,19 @@ inner snapshot version moved.
 | v2 | v2, v3, v4, or v5 | This version | Restores. Legacy framing, payload uncompressed. |
 | v3 | v2 | This version | Restores normally. |
 | v3 | v3, v4, or v5 | This version | Restores normally. |
-| v3 | v3 with omitted optional fields | This version | Restores; missing fields take their data-class defaults. |
+| v3 | v3 with omitted optional fields | This version | Restores; missing fields take their data-class defaults, including omitted journal `trackedDates` / `notes` lists defaulting empty. |
 | v3 | v4 or v5 with omitted external-import fields | This version | Restores; missing import fields default to non-imported rows. |
+| v3 | v5 with additive same-version fields, such as `trackedDates` / `notes` | Same-version pre-field v5 reader | May restore after the version gate; Moshi ignores unknown keys, so the additive data is not imported. |
 | Any | v1 | This version | Rejected by `toValidatedSnapshot`'s floor check — `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2`. No migration path: the medicine-identity refactor removed the denormalized fields v1 carried. |
 | Future | any | This version | Rejected at `parseContainer` (`IllegalArgumentException("Unsupported backup file version: …")`). |
 | v3 | Future snapshot version | This version | Rejected by `toValidatedSnapshot`'s `snapshotVersion` range check. |
 
 Writers only emit current envelope + current snapshot version. The
-asymmetry — older-into-newer supported down to the declared floor,
-newer-into-older rejected — is enforced by version-number checks, not
-heuristics.
+asymmetry is intentional: older-into-newer restores are supported down
+to the declared floor; future envelope versions and future
+non-additive snapshot versions are rejected by version checks; and
+additive fields kept on the same snapshot version may be accepted by
+same-version pre-field readers and ignored by design.
 
 ## Relation to Room migrations
 

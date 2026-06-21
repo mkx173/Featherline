@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.data.backup
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -230,6 +231,68 @@ class BackupSnapshotJsonCodecTest {
         assertNull(medicine.stock)
     }
 
+    @Test
+    fun roundTrip_trackedDatesAndNotes_preservesAllFields() {
+        val trackedDates = listOf(
+            BackupTrackedDateSnapshot(
+                uuid = "77777777-7777-7777-7777-777777777777",
+                name = "Started estradiol",
+                iconKey = "medication",
+                dateIso = "2024-04-01",
+                paletteKey = "ROSE",
+                pinnedOrder = 0,
+                createdAtEpochMillis = 1_000L,
+                updatedAtEpochMillis = 2_000L,
+            ),
+            BackupTrackedDateSnapshot(
+                uuid = "88888888-8888-8888-8888-888888888888",
+                name = "Follow-up appointment",
+                iconKey = "calendar",
+                dateIso = "2026-06-16",
+                paletteKey = null,
+                pinnedOrder = null,
+                createdAtEpochMillis = 3_000L,
+                updatedAtEpochMillis = 4_000L,
+            ),
+        )
+        val notes = listOf(
+            BackupNoteSnapshot(
+                uuid = "99999999-9999-9999-9999-999999999999",
+                dateIso = "2026-06-16",
+                text = "Slept well.",
+                createdAtEpochMillis = 5_000L,
+                updatedAtEpochMillis = 6_000L,
+            )
+        )
+        val snapshot = baselineSnapshot().copy(
+            trackedDates = trackedDates,
+            notes = notes,
+        )
+
+        val decoded = BackupSnapshotJsonCodec.decode(BackupSnapshotJsonCodec.encode(snapshot))
+
+        assertEquals(trackedDates, decoded?.trackedDates)
+        assertEquals(notes, decoded?.notes)
+    }
+
+    @Test
+    fun decodingBackupWithoutTrackedDatesAndNotes_defaultsToEmptyLists() {
+        val json = legacyV5JsonWithoutJournalFields()
+
+        assertFalse(json.contains(""""trackedDates""""))
+        assertFalse(json.contains(""""notes""""))
+
+        val decoded = BackupSnapshotJsonCodec.decode(json)
+
+        assertEquals(emptyList<BackupTrackedDateSnapshot>(), decoded?.trackedDates)
+        assertEquals(emptyList<BackupNoteSnapshot>(), decoded?.notes)
+    }
+
+    @Test
+    fun currentBackupSnapshotVersion_remainsFiveForAdditiveJournalFields() {
+        assertEquals(5, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    }
+
     private fun makeSnapshotWithSingleMedicine(
         stock: BackupMedicineStockSnapshot?,
     ): BackupSnapshot {
@@ -320,5 +383,37 @@ class BackupSnapshotJsonCodecTest {
             customBloodAnalytes = emptyList(),
             bloodTestPanels = bloodTestPanels,
         )
+    }
+
+    private fun legacyV5JsonWithoutJournalFields(): String {
+        return """
+            {
+              "snapshotVersion": 5,
+              "exportedAtEpochMillis": 0,
+              "app": {
+                "packageName": "com.mkx.hrttracker"
+              },
+              "settings": {
+                "darkModeOption": "FOLLOW_SYSTEM",
+                "adaptiveColorEnabled": true,
+                "remindersEnabled": false,
+                "appLockGracePeriodOption": "ONE_MINUTE",
+                "hideScreenContentEnabled": false,
+                "onboardingCompleted": true,
+                "appLanguageOption": "ENGLISH",
+                "calibrationDefaultUnits": {}
+              },
+              "userProfile": {
+                "weightKg": null,
+                "weightOriginalValue": null,
+                "weightOriginalUnit": "KILOGRAMS"
+              },
+              "medicines": [],
+              "medicationGroups": [],
+              "medicationLogs": [],
+              "customBloodAnalytes": [],
+              "bloodTestPanels": []
+            }
+        """.trimIndent()
     }
 }

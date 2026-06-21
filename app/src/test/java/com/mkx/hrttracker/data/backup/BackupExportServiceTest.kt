@@ -1,7 +1,10 @@
 package com.mkx.hrttracker.data.backup
 
 import android.content.Context
+import com.mkx.hrttracker.data.local.NoteEntity
+import com.mkx.hrttracker.data.local.TrackedDateEntity
 import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
@@ -72,6 +75,7 @@ class BackupExportServiceTest {
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val bloodTestRepository: BloodTestRepository = mockk()
     private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
+    private val journalRepository: JournalRepository = mockk()
 
     private lateinit var backupCrypto: BackupCrypto
     private lateinit var service: BackupExportService
@@ -90,6 +94,8 @@ class BackupExportServiceTest {
         coEvery {
             widgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
         } returns false
+        coEvery { journalRepository.getTrackedDateEntities() } returns emptyList()
+        coEvery { journalRepository.getNoteEntities() } returns emptyList()
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
         service = BackupExportService(
             context = context,
@@ -100,6 +106,7 @@ class BackupExportServiceTest {
             medicationLogRepository = medicationLogRepository,
             bloodTestRepository = bloodTestRepository,
             widgetAppearanceRepository = widgetAppearanceRepository,
+            journalRepository = journalRepository,
             backupCrypto = backupCrypto,
         )
     }
@@ -168,6 +175,58 @@ class BackupExportServiceTest {
         assertEquals(appearance.contentScale, snapshot.settings.widgetContentScale, 1e-9f)
         assertEquals(appearance.backgroundAlpha, snapshot.settings.widgetBackgroundAlpha, 1e-9f)
         assertEquals(appearance.darkMode.name, snapshot.settings.widgetDarkModeOption)
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_exportsJournalTrackedDatesAndNotes() = runTest {
+        val trackedDate = TrackedDateEntity(
+            uuid = "tracked-date-1",
+            name = "On estradiol",
+            iconKey = "medication",
+            dateIso = "2024-04-01",
+            paletteKey = "ROSE",
+            pinnedOrder = 0,
+            createdAtEpochMillis = 1_000L,
+            updatedAtEpochMillis = 2_000L,
+        )
+        val note = NoteEntity(
+            uuid = "note-1",
+            dateIso = "2026-06-16",
+            text = "Slept well.",
+            createdAtEpochMillis = 3_000L,
+            updatedAtEpochMillis = 4_000L,
+        )
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+        coEvery { journalRepository.getTrackedDateEntities() } returns listOf(trackedDate)
+        coEvery { journalRepository.getNoteEntities() } returns listOf(note)
+
+        val snapshot = BackupSnapshotJsonCodec.decode(
+            service.buildBackupSnapshotJson(Instant.parse("2026-06-17T03:04:05Z"))
+        )!!
+
+        val exportedTrackedDate = snapshot.trackedDates.single()
+        assertEquals(trackedDate.uuid, exportedTrackedDate.uuid)
+        assertEquals(trackedDate.name, exportedTrackedDate.name)
+        assertEquals(trackedDate.iconKey, exportedTrackedDate.iconKey)
+        assertEquals(trackedDate.dateIso, exportedTrackedDate.dateIso)
+        assertEquals(trackedDate.paletteKey, exportedTrackedDate.paletteKey)
+        assertEquals(trackedDate.pinnedOrder, exportedTrackedDate.pinnedOrder)
+        assertEquals(trackedDate.createdAtEpochMillis, exportedTrackedDate.createdAtEpochMillis)
+        assertEquals(trackedDate.updatedAtEpochMillis, exportedTrackedDate.updatedAtEpochMillis)
+
+        val exportedNote = snapshot.notes.single()
+        assertEquals(note.uuid, exportedNote.uuid)
+        assertEquals(note.dateIso, exportedNote.dateIso)
+        assertEquals(note.text, exportedNote.text)
+        assertEquals(note.createdAtEpochMillis, exportedNote.createdAtEpochMillis)
+        assertEquals(note.updatedAtEpochMillis, exportedNote.updatedAtEpochMillis)
     }
 
     @Test

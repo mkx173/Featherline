@@ -8,14 +8,18 @@ import com.mkx.hrttracker.data.local.BloodTestPanelEntity
 import com.mkx.hrttracker.data.local.BloodTestResultEntity
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
+import com.mkx.hrttracker.data.local.JournalDao
 import com.mkx.hrttracker.data.local.MedicationGroupDao
 import com.mkx.hrttracker.data.local.MedicationLogDao
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
+import com.mkx.hrttracker.data.local.NoteEntity
+import com.mkx.hrttracker.data.local.TrackedDateEntity
 import com.mkx.hrttracker.data.local.UserProfileDao
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
+import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
@@ -72,6 +76,7 @@ class BackupRestoreServiceTest {
     private val medicineDao: MedicineDao = mockk(relaxed = true)
     private val bloodTestDao: BloodTestDao = mockk(relaxed = true)
     private val userProfileDao: UserProfileDao = mockk(relaxed = true)
+    private val journalDao: JournalDao = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
@@ -92,6 +97,7 @@ class BackupRestoreServiceTest {
         every { database.medicineDao() } returns medicineDao
         every { database.bloodTestDao() } returns bloodTestDao
         every { database.userProfileDao() } returns userProfileDao
+        every { database.journalDao() } returns journalDao
         every { databaseHolder.get() } returns database
         coEvery { medicationLogDao.getEntries() } returns emptyList()
         coEvery { bloodTestDao.getPanels() } returns emptyList()
@@ -295,6 +301,430 @@ class BackupRestoreServiceTest {
         val restoredLog = logsSlot.captured.single()
         assertEquals(logUuid.toString(), restoredLog.uuid)
         assertNull(restoredLog.doseAmountDelta)
+    }
+
+    @Test
+    fun restoreBackupBytes_restoresJournalTrackedDatesAndNotesIntoInsertedEntities() = runTest {
+        val firstTrackedDateUuid = UUID.fromString("00000000-0000-0000-0000-000000000770")
+        val secondTrackedDateUuid = UUID.fromString("00000000-0000-0000-0000-000000000771")
+        val noteUuid = UUID.fromString("00000000-0000-0000-0000-000000000772")
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = firstTrackedDateUuid.toString(),
+                    name = "HRT start",
+                    iconKey = "event",
+                    dateIso = "2024-04-01",
+                    paletteKey = "TEAL",
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+                BackupTrackedDateSnapshot(
+                    uuid = secondTrackedDateUuid.toString(),
+                    name = "Surgery consult",
+                    iconKey = "home_health",
+                    dateIso = "2026-09-15",
+                    paletteKey = null,
+                    pinnedOrder = 1,
+                    createdAtEpochMillis = 200L,
+                    updatedAtEpochMillis = 220L,
+                ),
+            ),
+            notes = listOf(
+                BackupNoteSnapshot(
+                    uuid = noteUuid.toString(),
+                    dateIso = "2026-06-16",
+                    text = "Felt steady today.",
+                    createdAtEpochMillis = 300L,
+                    updatedAtEpochMillis = 350L,
+                )
+            ),
+        )
+        val trackedDatesSlot = slot<List<TrackedDateEntity>>()
+        val notesSlot = slot<List<NoteEntity>>()
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        coVerify(exactly = 1) { journalDao.deleteAllNotes() }
+        coVerify(exactly = 1) { journalDao.deleteAllTrackedDates() }
+        coVerify(exactly = 1) { journalDao.insertTrackedDates(capture(trackedDatesSlot)) }
+        coVerify(exactly = 1) { journalDao.insertNotes(capture(notesSlot)) }
+
+        val trackedDates = trackedDatesSlot.captured
+        assertEquals(2, trackedDates.size)
+        assertEquals(firstTrackedDateUuid.toString(), trackedDates[0].uuid)
+        assertEquals("HRT start", trackedDates[0].name)
+        assertEquals("event", trackedDates[0].iconKey)
+        assertEquals("2024-04-01", trackedDates[0].dateIso)
+        assertEquals("TEAL", trackedDates[0].paletteKey)
+        assertEquals(0, trackedDates[0].pinnedOrder)
+        assertEquals(100L, trackedDates[0].createdAtEpochMillis)
+        assertEquals(110L, trackedDates[0].updatedAtEpochMillis)
+        assertEquals(secondTrackedDateUuid.toString(), trackedDates[1].uuid)
+        assertEquals("Surgery consult", trackedDates[1].name)
+        assertEquals("home_health", trackedDates[1].iconKey)
+        assertEquals("2026-09-15", trackedDates[1].dateIso)
+        assertNull(trackedDates[1].paletteKey)
+        assertEquals(1, trackedDates[1].pinnedOrder)
+        assertEquals(200L, trackedDates[1].createdAtEpochMillis)
+        assertEquals(220L, trackedDates[1].updatedAtEpochMillis)
+
+        val restoredNote = notesSlot.captured.single()
+        assertEquals(noteUuid.toString(), restoredNote.uuid)
+        assertEquals("2026-06-16", restoredNote.dateIso)
+        assertEquals("Felt steady today.", restoredNote.text)
+        assertEquals(300L, restoredNote.createdAtEpochMillis)
+        assertEquals(350L, restoredNote.updatedAtEpochMillis)
+    }
+
+    @Test
+    fun restoreBackupBytes_trimsTrackedDateNameBeforeInsert() = runTest {
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000782",
+                    name = "  Trimmed anchor  ",
+                    iconKey = "event",
+                    dateIso = "2024-04-01",
+                    paletteKey = null,
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+        val trackedDatesSlot = slot<List<TrackedDateEntity>>()
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        coVerify(exactly = 1) { journalDao.insertTrackedDates(capture(trackedDatesSlot)) }
+        assertEquals("Trimmed anchor", trackedDatesSlot.captured.single().name)
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsDuplicateNoteDateBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            notes = listOf(
+                BackupNoteSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000773",
+                    dateIso = "2026-06-16",
+                    text = "Morning note.",
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+                BackupNoteSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000774",
+                    dateIso = "2026-06-16",
+                    text = "Evening note.",
+                    createdAtEpochMillis = 120L,
+                    updatedAtEpochMillis = 130L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(error.message.orEmpty().contains("Duplicate note date 2026-06-16"))
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsDuplicateNoteUuidBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            notes = listOf(
+                BackupNoteSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000775",
+                    dateIso = "2026-06-16",
+                    text = "First note.",
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+                BackupNoteSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000775",
+                    dateIso = "2026-06-17",
+                    text = "Second note.",
+                    createdAtEpochMillis = 120L,
+                    updatedAtEpochMillis = 130L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(
+            error.message.orEmpty()
+                .contains("Duplicate note UUID 00000000-0000-0000-0000-000000000775")
+        )
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsDuplicateTrackedDateUuidBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000776",
+                    name = "First anchor",
+                    iconKey = "event",
+                    dateIso = "2024-04-01",
+                    paletteKey = null,
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000776",
+                    name = "Second anchor",
+                    iconKey = "bookmark",
+                    dateIso = "2025-04-01",
+                    paletteKey = "ROSE",
+                    pinnedOrder = 1,
+                    createdAtEpochMillis = 120L,
+                    updatedAtEpochMillis = 130L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(
+            error.message.orEmpty()
+                .contains("Duplicate tracked date UUID 00000000-0000-0000-0000-000000000776")
+        )
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_toleratesDuplicatePinnedOrder() = runTest {
+        // pinnedOrder is a sort key, not a uniqueness invariant. A reorder/unpin can
+        // legitimately leave two rows sharing an order, so a backup carrying such a
+        // pair must restore intact (read-time ordering tie-breaks) rather than abort
+        // the whole import.
+        val firstUuid = "00000000-0000-0000-0000-000000000783"
+        val secondUuid = "00000000-0000-0000-0000-000000000784"
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = firstUuid,
+                    name = "First pinned anchor",
+                    iconKey = "event",
+                    dateIso = "2024-04-01",
+                    paletteKey = null,
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+                BackupTrackedDateSnapshot(
+                    uuid = secondUuid,
+                    name = "Second pinned anchor",
+                    iconKey = "bookmark",
+                    dateIso = "2025-04-01",
+                    paletteKey = "ROSE",
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 120L,
+                    updatedAtEpochMillis = 130L,
+                ),
+            ),
+        )
+        val trackedDatesSlot = slot<List<TrackedDateEntity>>()
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        coVerify(exactly = 1) { journalDao.insertTrackedDates(capture(trackedDatesSlot)) }
+        val restored = trackedDatesSlot.captured
+        assertEquals(2, restored.size)
+        assertEquals(setOf(firstUuid, secondUuid), restored.map { it.uuid }.toSet())
+        assertTrue(restored.all { it.pinnedOrder == 0 })
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsNegativePinnedOrderBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000787",
+                    name = "Negative order anchor",
+                    iconKey = "event",
+                    dateIso = "2024-04-01",
+                    paletteKey = null,
+                    pinnedOrder = -1,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(error.message.orEmpty().contains("pinnedOrder must not be negative"))
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsBlankTrackedDateNameBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000785",
+                    name = "  ",
+                    iconKey = "event",
+                    dateIso = "2024-04-01",
+                    paletteKey = null,
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(error.message.orEmpty().contains("Tracked date name must not be blank."))
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsInvalidTrackedDateIsoBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000778",
+                    name = "Bad anchor date",
+                    iconKey = "event",
+                    dateIso = "not-a-date",
+                    paletteKey = null,
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(error.message.orEmpty().contains("Invalid tracked date dateIso."))
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_trimsNoteTextBeforeInsert() = runTest {
+        val snapshot = emptySnapshot().copy(
+            notes = listOf(
+                BackupNoteSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000788",
+                    dateIso = "2026-06-16",
+                    text = "  Felt steady today.  ",
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+        val notesSlot = slot<List<NoteEntity>>()
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        coVerify(exactly = 1) { journalDao.insertNotes(capture(notesSlot)) }
+        assertEquals("Felt steady today.", notesSlot.captured.single().text)
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsBlankNoteTextBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            notes = listOf(
+                BackupNoteSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000789",
+                    dateIso = "2026-06-16",
+                    text = "   ",
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(error.message.orEmpty().contains("text must not be blank"))
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_rejectsInvalidNoteDateIsoBeforeJournalMutation() = runTest {
+        val snapshot = emptySnapshot().copy(
+            notes = listOf(
+                BackupNoteSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000779",
+                    dateIso = "not-a-date",
+                    text = "Bad note date.",
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+
+        val error = restoreBackupBytesFails(snapshot)
+
+        assertTrue(error.message.orEmpty().contains("Invalid note dateIso."))
+        verifyNoJournalMutation()
+    }
+
+    @Test
+    fun restoreBackupBytes_preservesUnknownTrackedDateIconAndPaletteKeys() = runTest {
+        // A forward-compatible backup may carry an icon or palette key this
+        // build does not know yet. It must restore intact (read-time mapping
+        // falls back gracefully) rather than failing the whole import.
+        val snapshot = emptySnapshot().copy(
+            trackedDates = listOf(
+                BackupTrackedDateSnapshot(
+                    uuid = "00000000-0000-0000-0000-000000000786",
+                    name = "Forward-compatible anchor",
+                    iconKey = "syringe",
+                    dateIso = "2024-04-01",
+                    paletteKey = "AMBER",
+                    pinnedOrder = 0,
+                    createdAtEpochMillis = 100L,
+                    updatedAtEpochMillis = 110L,
+                ),
+            ),
+        )
+        val trackedDatesSlot = slot<List<TrackedDateEntity>>()
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        coVerify(exactly = 1) { journalDao.insertTrackedDates(capture(trackedDatesSlot)) }
+        val restored = trackedDatesSlot.captured.single()
+        assertEquals("syringe", restored.iconKey)
+        assertEquals("AMBER", restored.paletteKey)
     }
 
     @Test
@@ -877,6 +1307,29 @@ class BackupRestoreServiceTest {
         return base.copy(settings = base.settings.copy(widgetContentScale = scale))
     }
 
+    private suspend fun restoreBackupBytesFails(snapshot: BackupSnapshot): IllegalArgumentException {
+        return try {
+            service.restoreBackupBytes(
+                encryptedBytes = backupCrypto.encryptSnapshotJson(
+                    json = BackupSnapshotJsonCodec.encode(snapshot),
+                    password = "password".toCharArray(),
+                ),
+                password = "password",
+            )
+            fail("Expected restore to reject the snapshot.")
+            throw AssertionError("unreachable")
+        } catch (error: IllegalArgumentException) {
+            error
+        }
+    }
+
+    private fun verifyNoJournalMutation() {
+        coVerify(exactly = 0) { journalDao.deleteAllNotes() }
+        coVerify(exactly = 0) { journalDao.deleteAllTrackedDates() }
+        coVerify(exactly = 0) { journalDao.insertTrackedDates(any()) }
+        coVerify(exactly = 0) { journalDao.insertNotes(any()) }
+    }
+
     private fun backupExportServiceFor(
         medicines: List<Medicine>,
         medicationLogs: List<MedicationLogEntry>,
@@ -888,6 +1341,7 @@ class BackupRestoreServiceTest {
         val exportMedicationLogRepository: MedicationLogRepository = mockk()
         val exportBloodTestRepository: BloodTestRepository = mockk()
         val exportWidgetAppearanceRepository: WidgetAppearanceRepository = mockk()
+        val exportJournalRepository: JournalRepository = mockk()
 
         every { exportSettingsRepository.onboardingCompleted } returns flowOf(true)
         every { exportSettingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
@@ -905,6 +1359,8 @@ class BackupRestoreServiceTest {
         coEvery { exportMedicationLogRepository.getEntries() } returns medicationLogs
         coEvery { exportBloodTestRepository.getCustomAnalytes() } returns emptyList()
         coEvery { exportBloodTestRepository.getPanels() } returns emptyList()
+        coEvery { exportJournalRepository.getTrackedDateEntities() } returns emptyList()
+        coEvery { exportJournalRepository.getNoteEntities() } returns emptyList()
 
         return BackupExportService(
             context = context,
@@ -915,6 +1371,7 @@ class BackupRestoreServiceTest {
             medicationLogRepository = exportMedicationLogRepository,
             bloodTestRepository = exportBloodTestRepository,
             widgetAppearanceRepository = exportWidgetAppearanceRepository,
+            journalRepository = exportJournalRepository,
             backupCrypto = backupCrypto,
         )
     }

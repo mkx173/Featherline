@@ -10,14 +10,15 @@ format used for manual backups, see [backup-format.md](backup-format.md).
 ## Database setup
 
 - [`HrtTrackerDatabase`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt)
-  is the Room database at schema version 7. It declares 10 entities
-  and exposes 6 DAOs. `exportSchema` is off — schemas are tracked via
+  is the Room database at schema version 8. It declares 12 entities
+  and exposes 7 DAOs. `exportSchema` is off — schemas are tracked via
   migration objects in source rather than committed schema JSON.
 - [`DatabaseHolder`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/DatabaseHolder.kt)
   builds the database via `Room.databaseBuilder`, installs a
   `SupportOpenHelperFactory` from SQLCipher's `net.zetetic` artifact,
   and registers `MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4`,
-  `MIGRATION_4_5`, `MIGRATION_5_6`, and `MIGRATION_6_7`.
+  `MIGRATION_4_5`, `MIGRATION_5_6`, `MIGRATION_6_7`, and
+  `MIGRATION_7_8`.
   No `fallbackToDestructiveMigration`
   is wired — a missing migration crashes loudly in every build, debug
   and release, so silent data loss can't slip through.
@@ -31,7 +32,7 @@ format used for manual backups, see [backup-format.md](backup-format.md).
 
 ## Entities
 
-Ten `@Entity` classes across five files. Each blurb names the table,
+Twelve `@Entity` classes across six files. Each blurb names the table,
 what one row represents, key non-PK columns, FK relationships, and any
 notable invariant.
 
@@ -277,6 +278,29 @@ present in the builtin `BloodTestCatalog`. Stores raw `name` /
 factor, so `BloodTestResultEntity.canonicalValue` for a custom-analyte
 row is the raw value (no conversion).
 
+### `TrackedDateEntity`
+
+Defined in [`JournalEntities.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/JournalEntities.kt).
+Annotated `@Entity(tableName = "tracked_dates")` — one row per journal
+anchor date the user tracks. The primary key is a UUID string. Stores
+`name`, the curated `iconKey`, wall-clock `dateIso` (ISO-8601 local
+date, no time zone), nullable `paletteKey` (null means the slate
+default), nullable `pinnedOrder` (null means unpinned; ascending
+non-null values are the pinned tray order), and created/updated epoch
+millisecond timestamps. Indexed on `pinnedOrder`, which backs the
+pinned-tray Flow and lets unpinned rows stay outside the ordered pin
+set, and on `dateIso`, which backs the date-ordered tracked-date reads.
+
+### `NoteEntity`
+
+Defined in [`JournalEntities.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/JournalEntities.kt).
+Annotated `@Entity(tableName = "notes")` — one row per daily journal
+note, keyed by UUID. Stores wall-clock `dateIso`, free-form `text`,
+and created/updated epoch millisecond timestamps. The unique index on
+`dateIso` is the one-note-per-`LocalDate` invariant: a second row for
+the same day is rejected by SQLite, and repository upserts reuse the
+existing row's UUID for edits.
+
 ### Projection / join data classes
 
 Three `data class` declarations in the same files are not themselves
@@ -342,7 +366,7 @@ have the same display dose.
 
 Mass-equivalent dosing — what gets snapshotted into
 `equivalentE2Mg` on each log row — is computed by
-[`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt)
+[`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/medication/DoseInstructionCalculator.kt)
 from the medicine's preparation plus the dose instruction. It
 replaces the per-entry estradiol math that used to live in
 `EstradiolEquivalentCalculator` (deleted). Patch release-rate doses
@@ -389,7 +413,7 @@ Patterns shared across entities:
 
 ## DAOs
 
-Six DAO interfaces, each backing the entities in its namesake area.
+Seven DAO interfaces, each backing the entities in its namesake area.
 
 - [`MedicineDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicineDao.kt)
   — catalog of `medicines`. Active/archived list observers,
@@ -435,6 +459,13 @@ Six DAO interfaces, each backing the entities in its namesake area.
   feed the chart. Import helpers read panels/results by provenance,
   enumerate all imported panels for a source, and delete empty
   imported panels left behind after a moved result.
+- [`JournalDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/JournalDao.kt)
+  — tracked dates and daily notes. It exposes Flow observers for all
+  tracked dates, pinned tracked dates, notes after a cutoff date, and
+  the note for one `LocalDate`; one-shot reads for backup/export and
+  one-note-per-day upserts; `upsertTrackedDate` / `upsertNote`;
+  targeted `updatePinnedOrder` changes for pin/reorder operations; and
+  restore helpers that bulk insert or delete all journal rows.
 - [`HomeDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HomeDao.kt)
   — the composite queries feeding the home screen:
   `observeActiveGroups`, `observeScheduleEntries`,
@@ -453,7 +484,8 @@ abandoned mid-flight and the database was collapsed to v1, with
 fresh at v1 and bumps via `Migration` objects declared inline in
 [`HrtTrackerDatabase.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt).
 The chain today is `MIGRATION_1_2` → `MIGRATION_2_3` → `MIGRATION_3_4`
-→ `MIGRATION_4_5` → `MIGRATION_5_6` → `MIGRATION_6_7`.
+→ `MIGRATION_4_5` → `MIGRATION_5_6` → `MIGRATION_6_7` →
+`MIGRATION_7_8`.
 `MIGRATION_1_2` adds the `displayDoseUnit` column to `medicines` with a
 `MG` default. `MIGRATION_2_3` adds the stock feature: the six stock
 columns on `medicines` (see [`MedicineEntity`](#medicineentity) above),
@@ -472,14 +504,17 @@ serves category/latest reads and the latest-antiandrogen home snapshot
 query. `MIGRATION_6_7` adds `importedFromExternalTracker` to
 `medicines`, import provenance columns to medication logs, blood-test
 panels, and blood-test results, and creates unique provenance indices
-for medication logs, imported panels, and imported results. The
-reset deliberately did not register a `MIGRATION_29_*` shim, and no
+for medication logs, imported panels, and imported results.
+`MIGRATION_7_8` adds the Journal phase-1 tables: `tracked_dates`
+with its `pinnedOrder` and `dateIso` indices, and `notes` with its
+unique `dateIso` index. It is additive and does not rewrite existing tables. The reset
+deliberately did not register a `MIGRATION_29_*` shim, and no
 `fallbackToDestructiveMigration` is wired in any build flavor: a
 pre-refactor database does not migrate, it fails to open at startup
 (in debug as well as release). The user has to manually clear app
 data or reinstall to recover, so silent data loss is impossible. The
-app is pre-release, so this only affects users who side-loaded a
-pre-refactor build during development.
+reset predates the public release, so this only affects users who
+side-loaded a pre-refactor build during development.
 
 Cross-version compatibility for exports is the responsibility of the
 [backup format](backup-format.md), not of Room migrations alone. The

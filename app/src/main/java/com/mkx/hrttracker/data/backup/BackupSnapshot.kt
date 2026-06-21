@@ -16,6 +16,8 @@ data class BackupSnapshot(
     val medicationLogs: List<BackupMedicationLogSnapshot>,
     val customBloodAnalytes: List<BackupCustomBloodAnalyteSnapshot>,
     val bloodTestPanels: List<BackupBloodTestPanelSnapshot>,
+    val trackedDates: List<BackupTrackedDateSnapshot> = emptyList(),
+    val notes: List<BackupNoteSnapshot> = emptyList(),
 )
 
 @JsonClass(generateAdapter = true)
@@ -229,13 +231,37 @@ data class BackupBloodTestResultSnapshot(
     val importExternalId: String? = null,
 )
 
+@JsonClass(generateAdapter = true)
+data class BackupTrackedDateSnapshot(
+    val uuid: String,
+    val name: String,
+    val iconKey: String,
+    val dateIso: String,
+    val paletteKey: String?,
+    val pinnedOrder: Int?,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
+)
+
+@JsonClass(generateAdapter = true)
+data class BackupNoteSnapshot(
+    val uuid: String,
+    val dateIso: String,
+    val text: String,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
+)
+
 // Bump this when a schema change isn't safely readable by an older app —
 // e.g., a new REQUIRED field, a removed field that something downstream still
 // dereferences, or a semantic change to an existing field. Nullable optional
 // fields (e.g., BackupMedicineSnapshot.displayDoseUnit, added when the custom-
 // medicine unit picker shipped, and BackupMedicationLogSnapshot.doseAmountDelta,
-// added for the actual-amount feature) are additive and don't require a bump;
-// missing values fall through their defaults on restore.
+// added for the actual-amount feature, and BackupSettingsSnapshot.widgetAppearance)
+// are additive and don't require a bump; missing values fall through their
+// defaults on restore. Defaulted top-level lists such as trackedDates and notes
+// (added for the Journal feature) are also additive: absent keys default to
+// emptyList() on restore, and older apps ignore the unknown keys.
 //
 // The 2→3 bump added the CAPSULE preparationType enum value. Older apps
 // coerce unknown preparationType strings to PILL on restore, which would

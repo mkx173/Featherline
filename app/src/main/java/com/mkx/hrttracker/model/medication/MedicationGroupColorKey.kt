@@ -26,8 +26,12 @@ enum class MedicationGroupColorKey {
             VIOLET
         )
 
+        fun fromStorageValueOrNull(value: String?): MedicationGroupColorKey? {
+            return entries.firstOrNull { it.name == value }
+        }
+
         fun fromStorageValue(value: String?): MedicationGroupColorKey {
-            return entries.firstOrNull { it.name == value } ?: ROSE
+            return fromStorageValueOrNull(value) ?: ROSE
         }
     }
 }
