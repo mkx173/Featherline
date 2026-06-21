@@ -12,7 +12,7 @@ User data lives in three places under the app sandbox:
 
 - The encrypted Room database `hrt_tracker.db`, with the SQLite WAL/SHM siblings `hrt_tracker.db-shm` and `hrt_tracker.db-wal`. Contents are described in [data-model.md](data-model.md).
 - The `SharedPreferences` file [`hrt_tracker_secure_storage.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/DatabasePassphraseProvider.kt#L132). Holds the AES-GCM-wrapped SQLCipher passphrase. No user-visible data, only the wrapped key envelope.
-- Six DataStore files under `datastore/`: `settings.preferences_pb`, `home_snapshot.pb`, `widget_snapshot.pb`, `home_snapshot_metadata.preferences_pb`, `reminder_schedule.preferences_pb`, `medication_reminder_snoozes.preferences_pb`. Settings, home-screen cache, widget cache, and reminder bookkeeping.
+- Seven DataStore files under `datastore/`: `settings.preferences_pb`, `widget_appearance.preferences_pb`, `home_snapshot.pb`, `widget_snapshot.pb`, `home_snapshot_metadata.preferences_pb`, `reminder_schedule.preferences_pb`, `medication_reminder_snoozes.preferences_pb`. Settings, widget appearance, home-screen cache, widget cache, and reminder bookkeeping.
 
 **Debug builds only** also write a rolling diagnostics log at `files/diagnostics/app-diagnostics.log`. The [`AppDiagnosticsLogger`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/util/AppDiagnosticsLogger.kt) defaults to `enabled = BuildConfig.DEBUG`, and the export service that surfaces this file refuses to run unless `BuildConfig.DEBUG` is true. Release builds neither write nor expose this file. The log records timestamps, tags, and short event strings (reminder fires, snapshot rebuilds, widget refresh reasons) and is not user-visible in release builds.
 
@@ -40,15 +40,15 @@ The manifest declares [`android:allowBackup="true"`](https://github.com/mkx173/F
 
 Two sensitive DataStore files are excluded to prevent device-to-device de-sync and re-identification:
 
-- `datastore/home_snapshot.pb`: Cached dose status for home screen display. Contains encrypted medical data derived from the medication schedule (dose completion, estimated E2 level). Encrypted at rest with AES-256-GCM. Excluded to prevent inconsistency when transferring to a device where the cached state no longer matches the authoritative database.
+- `datastore/home_snapshot.pb`: Cached home screen state. Contains encrypted medical data derived from the medication schedule (dose completion, estimated E2 level) and the first pinned Journal date. Encrypted at rest with AES-256-GCM. Excluded to prevent inconsistency when transferring to a device where the cached state no longer matches the authoritative database.
 - `datastore/widget_snapshot.pb`: Cached dose status for widget display. Contains encrypted medical data derived from the medication schedule (dose completion status, E2 estimate). Encrypted at rest with AES-256-GCM. Excluded to prevent widget state divergence and re-identification risk if transferred alongside backup data.
 
 The following rules enforce these exclusions across all Android versions:
 
-- [`res/xml/data_extraction_rules.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/res/xml/data_extraction_rules.xml) (API 31+) excludes `hrt_tracker.db` + WAL/SHM siblings, `hrt_tracker_secure_storage.xml`, the six DataStore files, and the `files/diagnostics/` directory from both `<cloud-backup>` and `<device-transfer>`.
+- [`res/xml/data_extraction_rules.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/res/xml/data_extraction_rules.xml) (API 31+) excludes `hrt_tracker.db` + WAL/SHM siblings, `hrt_tracker_secure_storage.xml`, the sensitive/cache DataStore files named in the rule (all except `widget_appearance.preferences_pb`), and the `files/diagnostics/` directory from both `<cloud-backup>` and `<device-transfer>`.
 - [`res/xml/backup_rules.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/res/xml/backup_rules.xml) (pre-API-31 fallback) applies the same exclusions to `<full-backup-content>`.
 
-Net effect: Google Auto Backup copies the app binary and resources but no user data. Android-to-Android device transfer copies no user data either. The `allowBackup="true"` flag is kept rather than set to `false` because Android lint discourages a blanket `false` when granular rules are available, and the granular rules document the policy more clearly.
+Net effect: Google Auto Backup copies the app binary, resources, and widget appearance preferences, but no database, cache, reminder, or diagnostics data. Android-to-Android device transfer follows the same exclusions. The `allowBackup="true"` flag is kept rather than set to `false` because Android lint discourages a blanket `false` when granular rules are available, and the granular rules document the policy more clearly.
 
 Even if Auto Backup did copy `hrt_tracker.db` (it doesn't), the file would be useless on a new device because the Keystore-wrapped passphrase is bound to the original device's secure element.
 

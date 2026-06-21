@@ -111,7 +111,7 @@ should read the upstream README and its `pk_research/` workspace.
 - **Active-mg conversion on the data path.** Upstream resolves dose
   events directly inside its simulator. Featherline computes the
   per-event active-mg-as-E2 upstream of the simulator in
-  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt),
+  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/medication/DoseInstructionCalculator.kt),
   which resolves a `Medicine`'s `MedicinePreparation` +
   `DoseInstruction` into mg-as-E2 using the calculator's own
   per-compound molecular-weight constants and persists it on the log
@@ -142,7 +142,7 @@ should read the upstream README and its `pk_research/` workspace.
 - **Duplicated molecular-weight constants.** Estradiol
   molecular-weight constants live in `PkCatalog.compounds` and again
   in
-  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt),
+  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/medication/DoseInstructionCalculator.kt),
   which log creation uses to snapshot `equivalentE2Mg` and planned PK
   entries use to rederive it when no snapshot exists. Medication UI
   code also uses the calculator for raw dose amount and patch
@@ -181,7 +181,7 @@ The PK engine swap gates three deferred refactors, all enumerated in
 
 - Consolidate the fragmented PK math (constants, three-compartment
   simulation, dose-equivalence) so `PkCatalog` and
-  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/DoseInstructionCalculator.kt)'s
+  [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/medication/DoseInstructionCalculator.kt)'s
   overlapping molecular-weight constants collapse into one source of
   truth.
 - Untangle the projection cache from `HomeSnapshotRepository` so PK
