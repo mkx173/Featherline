@@ -18,8 +18,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -667,8 +665,7 @@ fun HrtTrackerNavHost(
         hasPendingStockOptInSheet = optInTarget != null || optInResolving,
     )
 
-    val navigationSuiteType =
-        NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfoV2())
+    val navigationSuiteType = rememberNavigationSuiteType()
     val navigationChromeHazeState = rememberChromeHazeState()
 
     EdgeToEdgeNavigationSuiteScaffold(
