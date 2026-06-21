@@ -67,6 +67,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -77,6 +78,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
@@ -1470,14 +1472,20 @@ fun PinnedTray(
     }
     val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     val sizeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<IntSize>()
+    // A row being dragged is the only time the container clip below is dropped.
+    var draggingRowCount by remember { mutableStateOf(0) }
 
     AnimatedContent(
         targetState = anchors.isEmpty(),
-        // No container clip here: each row (and the empty card) rounds its own corners, and
-        // SizeTransform(clip = true) contains the empty<->rows morph. A clip at this level
-        // would instead crop the dragged row's elevation shadow at the tray's left/right edges.
+        // Clip the empty<->rows size morph to the rounded card shape so the size animation
+        // can't briefly reveal square bottom corners. Dropped only while a row is being
+        // dragged, so the lifted row's elevation shadow isn't cropped at the tray's left/right
+        // edges — a drag never coincides with the empty<->rows morph, so the two never fight.
         modifier = modifier
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .then(
+                if (draggingRowCount > 0) Modifier else Modifier.clip(MaterialTheme.shapes.large)
+            ),
         transitionSpec = {
             ContentTransform(
                 targetContentEnter = EnterTransition.None,
@@ -1506,6 +1514,7 @@ fun PinnedTray(
                 heroNextMilestone = heroNextMilestone,
                 today = today,
                 contentModifier = contentFadeModifier,
+                onDraggingRowCountChange = { delta -> draggingRowCount += delta },
             )
         }
     }
@@ -1520,6 +1529,9 @@ private fun PinnedTrayRows(
     heroNextMilestone: NextMilestoneUiState?,
     today: LocalDate,
     contentModifier: Modifier = Modifier,
+    // Reports +1 when a row starts dragging and -1 when it stops, so PinnedTray can
+    // drop its shadow-cropping clip for the duration of the drag.
+    onDraggingRowCountChange: (Int) -> Unit = {},
 ) {
     val view = LocalView.current
     val gap = dimensionResource(R.dimen.list_segment_gap)
@@ -1605,6 +1617,12 @@ private fun PinnedTrayRows(
         },
     ) { index, anchor, isDragging ->
         key(anchor.id) {
+            if (isDragging) {
+                DisposableEffect(Unit) {
+                    onDraggingRowCountChange(1)
+                    onDispose { onDraggingRowCountChange(-1) }
+                }
+            }
             val activePosition = activeIds.indexOf(anchor.id)
                 .takeIf { it >= 0 }
                 ?.let { SegmentPosition(it, anchors.size) }
