@@ -132,6 +132,7 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
+import com.mkx.hrttracker.ui.components.LocalSegmentPosition
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SegmentPosition
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
@@ -202,9 +203,18 @@ fun PinnedDatesCard(
         dateLabelFormatter(appLocale, today)
     }
 
+    // Inherit the segment position from the enclosing HrtSection so this card and the
+    // hero above it round into a single grouped stack (the hero is index 0, this card
+    // the last segment); a standalone card outside a section stays fully rounded.
+    val position = LocalSegmentPosition.current ?: SegmentPosition(0, 1)
+
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = segmentedListItemShape(
+            index = position.index,
+            count = position.count,
+            cornerShape = MaterialTheme.shapes.large,
+        ),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         onClick = onClick,
     ) {
@@ -406,7 +416,11 @@ private fun PinnedDateRow(
             Text(
                 text = dayCountLabel,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (anchor.isOnToday()) {
+                    MaterialTheme.colorScheme.tertiary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 modifier = Modifier.cjkTextOffset(dayCountLabel),
             )
         }
@@ -523,15 +537,23 @@ fun JournalHeroCard(
     // (non-composable) blurEffect lambda below. A thin material keeps the wash visible.
     val frostStyle = HazeMaterials.thin(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
 
+    // Inherit the segment position from the enclosing HrtSection so the hero rounds into
+    // a grouped stack with the PinnedDatesCard below it (hero index 0); a standalone hero
+    // (no pinned card) stays fully rounded.
+    val position = LocalSegmentPosition.current ?: SegmentPosition(0, 1)
+
     EditorSegmentedListItem(
         modifier = modifier.fillMaxWidth(),
         onClick = onClick,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        cornerShape = MaterialTheme.shapes.extraLarge,
-        fullyRounded = true,
-        // Pin the pressed shape to the resting extraLarge so SegmentedListItem's default
-        // press morph doesn't reshape the edge-to-edge wash on tap.
-        pressedShape = MaterialTheme.shapes.extraLarge,
+        cornerShape = MaterialTheme.shapes.large,
+        // Pin the pressed shape to the resting segmented shape so SegmentedListItem's
+        // default press morph doesn't reshape the edge-to-edge wash on tap.
+        pressedShape = segmentedListItemShape(
+            index = position.index,
+            count = position.count,
+            cornerShape = MaterialTheme.shapes.large,
+        ),
         // Drawn edge-to-edge so the wash bleeds into the corners; the row re-applies its inset.
         contentPadding = PaddingValues(0.dp),
     ) {
