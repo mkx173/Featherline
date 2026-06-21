@@ -60,6 +60,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -123,6 +124,7 @@ import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -352,15 +354,22 @@ private fun MilestonesStackAnchorRow(
     val colorScheme = rememberMedicationGroupColorScheme(colorKey = anchor.palette)
     val dayCountLabel = anchor.dayCountLabel()
 
-    EditorSegmentedListItem(
-        index = index,
-        count = itemCount,
+    // A non-clickable Surface: it draws the segmented card but installs no clickable, so taps
+    // pass through to the outer card's onClick. The whole MilestonesStackCard stays one touch
+    // target (an interactive SegmentedListItem here would swallow the row's tap instead).
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        cornerShape = MaterialTheme.shapes.large,
+        shape = segmentedListItemShape(
+            index = index,
+            count = itemCount,
+            cornerShape = MaterialTheme.shapes.large,
+        ),
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(ListItemDefaults.ContentPadding),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -441,6 +450,46 @@ private fun MilestonesStackEmptyMessage(text: String) {
         painter = painterResource(R.drawable.ic_info),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
     )
+}
+
+// The top-level Journal page hero card. Reuses the Milestones page's HeroViewLayout, which
+// needs a SharedTransitionScope and AnimatedVisibilityScope for its icon/title shared
+// elements; here there is no edit-mode morph, so a constant-target AnimatedContent supplies
+// those scopes without ever animating. Tapping the card opens the milestones screen.
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+fun JournalHeroCard(
+    hero: AnchorRowUiState,
+    heroNextMilestone: NextMilestoneUiState?,
+    today: LocalDate,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    EditorSegmentedListItem(
+        modifier = modifier.fillMaxWidth(),
+        onClick = onClick,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        cornerShape = MaterialTheme.shapes.extraLarge,
+        fullyRounded = true,
+        // Pin the pressed shape to the resting extraLarge so SegmentedListItem's default
+        // press morph doesn't reshape the edge-to-edge hero background on tap.
+        pressedShape = MaterialTheme.shapes.extraLarge,
+        // Drawn edge-to-edge so the hero's overlay glyph bleeds into the corner; HeroViewLayout
+        // re-applies its own content inset.
+        contentPadding = PaddingValues(0.dp),
+    ) {
+        SharedTransitionLayout(modifier = Modifier.fillMaxWidth()) {
+            AnimatedContent(targetState = Unit, label = "journal-hero") { _ ->
+                HeroViewLayout(
+                    anchor = hero,
+                    heroNextMilestone = heroNextMilestone,
+                    today = today,
+                    sharedScope = this@SharedTransitionLayout,
+                    animatedVisibilityScope = this@AnimatedContent,
+                )
+            }
+        }
+    }
 }
 
 // Every pinned row renders through this one structure so that becoming (or ceasing to be)

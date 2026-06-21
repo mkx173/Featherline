@@ -57,6 +57,9 @@ class JournalViewModel @Inject constructor(
                 today = dateState.today,
                 hasTrackedDates = trackedDates.isNotEmpty(),
                 pinnedAnchors = pinned.map { it.toAnchorRowUiState(dateState.today) },
+                heroNextMilestone = pinned.firstOrNull()?.let {
+                    nextMilestoneUiState(it.date, dateState.today)
+                },
                 recentNotes = dateState.recentNotes,
                 todayNote = dateState.todayNote,
                 olderNotesCount = dateState.olderNotesCount,
@@ -95,6 +98,9 @@ class JournalViewModel @Inject constructor(
             today = today,
             hasTrackedDates = trackedDatesOrNull.isNotEmpty(),
             pinnedAnchors = pinnedOrNull.map { it.toAnchorRowUiState(today) },
+            heroNextMilestone = pinnedOrNull.firstOrNull()?.let {
+                nextMilestoneUiState(it.date, today)
+            },
             recentNotes = notesOrNull.filter { !it.date.isBefore(windowStart) },
             todayNote = notesOrNull.firstOrNull { it.date == today },
             olderNotesCount = notesOrNull.count { it.date.isBefore(windowStart) },

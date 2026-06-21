@@ -24,6 +24,7 @@ data class JournalUiState(
     val today: LocalDate = LocalDate.now(),
     val hasTrackedDates: Boolean = false,
     val pinnedAnchors: List<AnchorRowUiState> = emptyList(),
+    val heroNextMilestone: NextMilestoneUiState? = null,
     val recentNotes: List<Note> = emptyList(),
     val todayNote: Note? = null,
     val olderNotesCount: Int = 0,

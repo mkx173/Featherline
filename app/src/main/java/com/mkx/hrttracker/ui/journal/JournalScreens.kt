@@ -156,11 +156,22 @@ fun JournalScreenContent(
                     ) {
                         if (uiState.hasAnchors) {
                             item {
-                                MilestonesStackCard(
+                                JournalHeroCard(
+                                    hero = uiState.pinnedAnchors.first(),
+                                    heroNextMilestone = uiState.heroNextMilestone,
                                     today = uiState.today,
-                                    anchors = uiState.pinnedAnchors,
                                     onClick = onOpenMilestones,
                                 )
+                            }
+                            val subsequentAnchors = uiState.pinnedAnchors.drop(1)
+                            if (subsequentAnchors.isNotEmpty()) {
+                                item {
+                                    MilestonesStackCard(
+                                        today = uiState.today,
+                                        anchors = subsequentAnchors,
+                                        onClick = onOpenMilestones,
+                                    )
+                                }
                             }
                         } else if (uiState.hasTrackedDates) {
                             item {
