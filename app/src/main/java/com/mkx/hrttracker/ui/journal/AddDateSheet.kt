@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -43,6 +45,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -51,6 +54,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -88,20 +92,11 @@ fun AddDateSheet(
     var selectedIcon by remember(anchor) { mutableStateOf(anchor?.icon ?: AnchorIcon.EVENT) }
     var selectedDate by remember(anchor) { mutableStateOf(anchor?.date ?: today) }
     var selectedPalette by remember(anchor) { mutableStateOf(anchor?.palette) }
-    var isDatePickerVisible by remember { mutableStateOf(false) }
     var isDeleteConfirmationVisible by remember { mutableStateOf(false) }
 
     val trimmedName = name.trim()
     // Date always has a value (defaults to today), so name is the only gate.
     val canConfirm = trimmedName.isNotEmpty()
-
-    if (isDatePickerVisible) {
-        DatePickerModal(
-            onDateSelected = { selectedDate = it },
-            onDismiss = { isDatePickerVisible = false },
-            initialSelectedDate = selectedDate,
-        )
-    }
 
     if (isDeleteConfirmationVisible && onDelete != null) {
         HazeAlertDialog(
@@ -161,7 +156,7 @@ fun AddDateSheet(
             selectedIcon = selectedIcon,
             onIconSelected = { selectedIcon = it },
             selectedDate = selectedDate,
-            onDateClick = { isDatePickerVisible = true },
+            onDateSelected = { selectedDate = it },
             selectedPalette = selectedPalette,
             onPaletteSelected = { selectedPalette = it },
             today = today,
@@ -176,11 +171,27 @@ private fun AddDateSheetContent(
     selectedIcon: AnchorIcon,
     onIconSelected: (AnchorIcon) -> Unit,
     selectedDate: LocalDate,
-    onDateClick: () -> Unit,
+    onDateSelected: (LocalDate) -> Unit,
     selectedPalette: MedicationGroupColorKey?,
     onPaletteSelected: (MedicationGroupColorKey?) -> Unit,
     today: LocalDate,
 ) {
+    // The date picker lives in the sheet content (not the host) so its focusManager shares the
+    // sheet's focus owner; clearing focus on dismiss then actually drops the date field's focus.
+    val focusManager = LocalFocusManager.current
+    var isDatePickerVisible by remember { mutableStateOf(false) }
+
+    if (isDatePickerVisible) {
+        DatePickerModal(
+            onDateSelected = onDateSelected,
+            onDismiss = {
+                isDatePickerVisible = false
+                focusManager.clearFocus()
+            },
+            initialSelectedDate = selectedDate,
+        )
+    }
+
     Column(
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_medium)),
     ) {
@@ -191,6 +202,8 @@ private fun AddDateSheetContent(
                 .fillMaxWidth()
                 .testTag(AddDateNameFieldTestTag),
             label = { Text(text = stringResource(R.string.journal_date_name_label)) },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
             // The leading icon previews the selected anchor icon, tinted with the
             // chosen palette's primary so the field surfaces the colour choice.
             leadingIcon = {
@@ -204,7 +217,11 @@ private fun AddDateSheetContent(
             singleLine = true,
         )
 
-        DateSelectorField(date = selectedDate, today = today, onClick = onDateClick)
+        DateSelectorField(
+            date = selectedDate,
+            today = today,
+            onClick = { isDatePickerVisible = true },
+        )
 
         AnchorIconGrid(
             selectedIcon = selectedIcon,
@@ -546,7 +563,7 @@ private fun AddDateSheetContentNewPreview() {
             selectedIcon = icon,
             onIconSelected = { icon = it },
             selectedDate = today,
-            onDateClick = {},
+            onDateSelected = {},
             selectedPalette = palette,
             onPaletteSelected = { palette = it },
             today = today,
@@ -568,7 +585,7 @@ private fun AddDateSheetContentFilledPreview() {
             selectedIcon = icon,
             onIconSelected = { icon = it },
             selectedDate = LocalDate.of(2025, 9, 1),
-            onDateClick = {},
+            onDateSelected = {},
             selectedPalette = palette,
             onPaletteSelected = { palette = it },
             today = today,
