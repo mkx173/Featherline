@@ -14,12 +14,8 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -71,6 +67,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -954,22 +951,24 @@ private fun HeroAuroraBackground(
     modifier: Modifier = Modifier,
     angleDegrees: Double = AuroraAngleDegrees,
 ) {
-    // Slow "breathing": opacity 0.85->1 and a faint 1->1.05 scale, anchored top-end. Honour the
-    // system animator setting ("remove animations" / animator-duration-scale 0) by resting static.
+    // "Breathing": opacity dips to AuroraPulseMinAlpha and the band zooms to AuroraPulseScale,
+    // anchored top-end. Honour the system animator setting ("remove animations" /
+    // animator-duration-scale 0) by resting static.
     val animatorsEnabled = remember { ValueAnimator.areAnimatorsEnabled() }
-    val pulse = if (animatorsEnabled) {
-        val transition = rememberInfiniteTransition(label = "aurora")
-        transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = AuroraPulseDurationMillis, easing = EaseInOut),
-                repeatMode = RepeatMode.Reverse,
-            ),
-            label = "aurora-pulse",
-        ).value
-    } else {
-        0f
+    // Drive the pulse off the monotonic animation clock rather than a rememberInfiniteTransition, so
+    // the breath stays phase-continuous: navigating away disposes this composable, but the clock
+    // keeps running, so on return the wash resumes mid-breath instead of restarting from its dim
+    // floor. A 0..1 eased triangle over a full in+out period reproduces the old Reverse-mode curve.
+    val pulse by produceState(initialValue = 1f, animatorsEnabled) {
+        if (!animatorsEnabled) return@produceState
+        val periodMillis = AuroraPulseDurationMillis * 2
+        while (true) {
+            withInfiniteAnimationFrameMillis { frameMillis ->
+                val phase = (frameMillis % periodMillis).toFloat() / periodMillis
+                val triangle = if (phase < 0.5f) phase * 2f else (1f - phase) * 2f
+                value = EaseInOut.transform(triangle)
+            }
+        }
     }
     val pulseAlpha = if (animatorsEnabled) lerp(AuroraPulseMinAlpha, 1f, pulse) else 1f
     val pulseScale = if (animatorsEnabled) lerp(1f, AuroraPulseScale, pulse) else 1f
