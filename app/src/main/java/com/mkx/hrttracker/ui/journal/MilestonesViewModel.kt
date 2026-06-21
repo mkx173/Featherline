@@ -13,7 +13,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
@@ -28,20 +30,23 @@ class MilestonesViewModel @Inject constructor(
         .map { it.toLocalDate() }
         .distinctUntilChanged()
 
+    // The Room flow re-emits only after a write commits. Reflecting reorders and
+    // hero-background saves through this overlay makes them appear instantly, so the
+    // tray never waits on Room latency — which otherwise lets a quick "finish" snap
+    // the reorder back, or delays the saved background. Entries are dropped once the
+    // source catches up (see reconcilePendingEdits).
+    private val pendingEdits = MutableStateFlow(PendingEdits())
+
     val uiState: StateFlow<MilestonesUiState> = combine(
-        journalRepository.observeTrackedDates(),
+        journalRepository.observeTrackedDates()
+            .onEach { all -> pendingEdits.update { reconcilePendingEdits(it, all) } },
         editMode,
         todayFlow,
-    ) { all, isEdit, today ->
-        val sorted = all.sortedWith(compareBy<TrackedDate> { it.date }.thenBy { it.name })
-        val pinned = all
-            .filter { it.pinnedOrder != null }
-            .sortedWith(
-                compareBy<TrackedDate> { it.pinnedOrder ?: Int.MAX_VALUE }
-                    .thenBy { it.date }
-                    .thenBy { it.createdAtEpochMillis }
-                    .thenBy { it.id }
-            )
+        pendingEdits,
+    ) { all, isEdit, today, pending ->
+        val effective = applyPendingEdits(all, pending)
+        val sorted = effective.sortedWith(compareBy<TrackedDate> { it.date }.thenBy { it.name })
+        val pinned = pinnedSorted(effective)
         val pinnedIds = pinned.map { it.id }.toSet()
         val hero = pinned.firstOrNull()
         val heroRow = hero?.toAnchorRowUiState(today)
@@ -78,12 +83,14 @@ class MilestonesViewModel @Inject constructor(
         journalRepository.setPinned(id, pinned)
     }
 
-    fun setHeroBackground(id: String, background: HeroBackground) = viewModelScope.launch {
-        journalRepository.setHeroBackground(id, background)
+    fun setHeroBackground(id: String, background: HeroBackground) {
+        pendingEdits.update { it.copy(heroBackground = it.heroBackground + (id to background)) }
+        viewModelScope.launch { journalRepository.setHeroBackground(id, background) }
     }
 
-    fun reorderPinned(ids: List<String>) = viewModelScope.launch {
-        journalRepository.reorderPinned(ids)
+    fun reorderPinned(ids: List<String>) {
+        pendingEdits.update { it.copy(pinnedOrder = ids) }
+        viewModelScope.launch { journalRepository.reorderPinned(ids) }
     }
 
     fun addDate(
@@ -108,4 +115,66 @@ class MilestonesViewModel @Inject constructor(
     fun deleteDate(id: String) = viewModelScope.launch {
         journalRepository.deleteTrackedDate(id)
     }
+
+    private fun pinnedSorted(dates: List<TrackedDate>): List<TrackedDate> =
+        dates
+            .filter { it.pinnedOrder != null }
+            .sortedWith(
+                compareBy<TrackedDate> { it.pinnedOrder ?: Int.MAX_VALUE }
+                    .thenBy { it.date }
+                    .thenBy { it.createdAtEpochMillis }
+                    .thenBy { it.id }
+            )
+
+    private fun applyPendingEdits(
+        dates: List<TrackedDate>,
+        pending: PendingEdits,
+    ): List<TrackedDate> {
+        val withBackground = if (pending.heroBackground.isEmpty()) {
+            dates
+        } else {
+            dates.map { date ->
+                pending.heroBackground[date.id]?.let { date.copy(heroBackground = it) } ?: date
+            }
+        }
+        val order = pending.pinnedOrder ?: return withBackground
+        val pinnedIds = withBackground.filter { it.pinnedOrder != null }.map { it.id }
+        // Only apply an order that still describes exactly the current pinned set;
+        // a pin/unpin landing first makes the override stale, so defer to the source.
+        if (order.toSet() != pinnedIds.toSet()) return withBackground
+        val indexById = order.withIndex().associate { (index, id) -> id to index }
+        return withBackground.map { date ->
+            indexById[date.id]?.let { date.copy(pinnedOrder = it) } ?: date
+        }
+    }
+
+    // Drop overrides the source already reflects (so a later independent change
+    // wins) and ones it can no longer apply (the pinned set changed underneath).
+    private fun reconcilePendingEdits(
+        pending: PendingEdits,
+        source: List<TrackedDate>,
+    ): PendingEdits {
+        val byId = source.associateBy { it.id }
+        val remainingBackground = pending.heroBackground.filterNot { (id, background) ->
+            val date = byId[id]
+            date == null || date.heroBackground == background
+        }
+        val sourcePinnedOrder = pinnedSorted(source).map { it.id }
+        val remainingOrder = pending.pinnedOrder?.takeUnless { order ->
+            order == sourcePinnedOrder || order.toSet() != sourcePinnedOrder.toSet()
+        }
+        return if (
+            remainingBackground == pending.heroBackground &&
+            remainingOrder == pending.pinnedOrder
+        ) {
+            pending
+        } else {
+            PendingEdits(pinnedOrder = remainingOrder, heroBackground = remainingBackground)
+        }
+    }
+
+    private data class PendingEdits(
+        val pinnedOrder: List<String>? = null,
+        val heroBackground: Map<String, HeroBackground> = emptyMap(),
+    )
 }

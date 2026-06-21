@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.journal
 
 import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
@@ -12,6 +13,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -320,6 +322,119 @@ class MilestonesViewModelTest {
             )
         }
         coVerify(exactly = 1) { repository.deleteTrackedDate("date-1") }
+    }
+
+    // A reorder writes to the repository but the Room flow re-emits only after the
+    // transaction commits. The tray must show the new order immediately so exiting
+    // edit mode (which recreates the reorder state from this list) can't snap back
+    // to the pre-drag order.
+    @Test
+    fun reorderPinned_reflectsNewOrderBeforeRepositoryFlowReemits() = runTest {
+        val a = trackedDate(
+            id = "a", name = "Anchor A", icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
+        )
+        val b = trackedDate(
+            id = "b", name = "Anchor B", icon = AnchorIcon.FLAG,
+            date = LocalDate.of(2024, 5, 1), pinnedOrder = 1,
+        )
+        val dates = MutableStateFlow(listOf(a, b))
+        every { repository.observeTrackedDates() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b))
+        coEvery { repository.reorderPinned(any()) } returns Unit
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        assertEquals(listOf("Anchor A", "Anchor B"), viewModel.uiState.value.pinnedTray.map { it.name })
+
+        // The write is in flight; the Room flow has NOT re-emitted the new order.
+        viewModel.reorderPinned(listOf("b", "a"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("Anchor B", "Anchor A"), viewModel.uiState.value.pinnedTray.map { it.name })
+        assertEquals("Anchor B", viewModel.uiState.value.hero?.name)
+    }
+
+    // Saving a hero background writes to the repository; the hero must repaint with
+    // the new background immediately instead of after the Room flow re-emits.
+    @Test
+    fun setHeroBackground_reflectsNewBackgroundBeforeRepositoryFlowReemits() = runTest {
+        val hero = trackedDate(
+            id = "a", name = "Anchor A", icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
+        )
+        val dates = MutableStateFlow(listOf(hero))
+        every { repository.observeTrackedDates() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
+        coEvery { repository.setHeroBackground(any(), any()) } returns Unit
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        assertEquals(HeroBackground.DateColor, viewModel.uiState.value.hero?.heroBackground)
+
+        viewModel.setHeroBackground("a", HeroBackground.None)
+        advanceUntilIdle()
+
+        assertEquals(HeroBackground.None, viewModel.uiState.value.hero?.heroBackground)
+    }
+
+    // The optimistic order must be discarded once the source reflects it, so a later
+    // independent source change wins instead of being masked forever.
+    @Test
+    fun reorderPinned_optimisticOverrideClearsOnceRepositoryFlowCatchesUp() = runTest {
+        val a = trackedDate(
+            id = "a", name = "Anchor A", icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
+        )
+        val b = trackedDate(
+            id = "b", name = "Anchor B", icon = AnchorIcon.FLAG,
+            date = LocalDate.of(2024, 5, 1), pinnedOrder = 1,
+        )
+        val dates = MutableStateFlow(listOf(a, b))
+        every { repository.observeTrackedDates() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b))
+        coEvery { repository.reorderPinned(any()) } returns Unit
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        viewModel.reorderPinned(listOf("b", "a"))
+        advanceUntilIdle()
+        assertEquals(listOf("Anchor B", "Anchor A"), viewModel.uiState.value.pinnedTray.map { it.name })
+
+        // The source catches up to the persisted order.
+        dates.value = listOf(b.copy(pinnedOrder = 0), a.copy(pinnedOrder = 1))
+        advanceUntilIdle()
+        assertEquals(listOf("Anchor B", "Anchor A"), viewModel.uiState.value.pinnedTray.map { it.name })
+
+        // A later independent source change must win — the override is gone.
+        dates.value = listOf(a.copy(pinnedOrder = 0), b.copy(pinnedOrder = 1))
+        advanceUntilIdle()
+        assertEquals(listOf("Anchor A", "Anchor B"), viewModel.uiState.value.pinnedTray.map { it.name })
+    }
+
+    @Test
+    fun setHeroBackground_optimisticOverrideClearsOnceRepositoryFlowCatchesUp() = runTest {
+        val hero = trackedDate(
+            id = "a", name = "Anchor A", icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
+        )
+        val dates = MutableStateFlow(listOf(hero))
+        every { repository.observeTrackedDates() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
+        coEvery { repository.setHeroBackground(any(), any()) } returns Unit
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        viewModel.setHeroBackground("a", HeroBackground.None)
+        advanceUntilIdle()
+        assertEquals(HeroBackground.None, viewModel.uiState.value.hero?.heroBackground)
+
+        // The source catches up, then a later independent change must win.
+        dates.value = listOf(hero.copy(heroBackground = HeroBackground.None))
+        advanceUntilIdle()
+        dates.value = listOf(hero.copy(heroBackground = HeroBackground.DateColor))
+        advanceUntilIdle()
+        assertEquals(HeroBackground.DateColor, viewModel.uiState.value.hero?.heroBackground)
     }
 
     private fun stubTrackedDates(
