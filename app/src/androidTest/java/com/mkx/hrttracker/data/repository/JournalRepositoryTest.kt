@@ -89,7 +89,9 @@ class JournalRepositoryTest {
     }
 
     @Test
-    fun addTrackedDate_pinsByDefault_appendedToBottom() = runBlocking {
+    fun addTrackedDate_autoPinsOnlyTheFirstDate_laterDatesUnpinned() = runBlocking {
+        // The first date (nothing pinned yet) auto-pins so a fresh journal has a hero;
+        // the second is added unpinned (timeline-only) since the pinned list is non-empty.
         repo.addTrackedDate(
             name = "On estradiol",
             icon = "medication",
@@ -104,12 +106,15 @@ class JournalRepositoryTest {
         )
 
         val pinned = repo.observePinnedTrackedDates().first()
-        assertEquals(listOf("On estradiol", "Surgery"), pinned.map { it.name })
-        assertEquals(listOf(0, 1), pinned.map { it.pinnedOrder })
+        assertEquals(listOf("On estradiol"), pinned.map { it.name })
+        assertEquals(listOf(0), pinned.map { it.pinnedOrder })
+
+        val all = repo.observeTrackedDates().first()
+        assertNull(all.single { it.name == "Surgery" }.pinnedOrder)
     }
 
     @Test
-    fun addTrackedDate_concurrentAdds_assignDistinctPinnedOrdersInsideTransaction() = runBlocking {
+    fun addTrackedDate_concurrentAdds_onlyOnePinsInsideTransaction() = runBlocking {
         val transactionClock = TransactionRaceClock(
             instant = today.atStartOfDay(zone).toInstant(),
             zone = zone,
@@ -135,17 +140,17 @@ class JournalRepositoryTest {
             }
             .awaitAll()
 
-        val pinnedOrders = db.journalDao().getTrackedDates().mapNotNull { it.pinnedOrder }.sorted()
-        assertEquals(listOf(0, 1), pinnedOrders)
+        // The transaction serializes the two adds, so the second sees the first's pin and
+        // stays unpinned: exactly one pinned at 0, never both pinning at 0 from a shared read.
+        val rows = db.journalDao().getTrackedDates()
+        assertEquals(listOf(0), rows.mapNotNull { it.pinnedOrder }.sorted())
+        assertEquals(1, rows.count { it.pinnedOrder == null })
         assertEquals(0, transactionClock.nonTransactionMillisCalls.get())
     }
 
     @Test
     fun setPinned_true_appendsToBottom_false_unpinsAndCompacts() = runBlocking {
-        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
-        repo.addTrackedDate("B", "event", LocalDate.of(2024, 2, 1), null)
-        repo.addTrackedDate("C", "event", LocalDate.of(2024, 3, 1), null)
-        val ids = repo.observePinnedTrackedDates().first().map { it.id }
+        val ids = addThreePinnedTrackedDates()
 
         repo.setPinned(ids[1], pinned = false)
         val afterUnpin = repo.observePinnedTrackedDates().first()
@@ -160,9 +165,7 @@ class JournalRepositoryTest {
 
     @Test
     fun setPinned_true_onAlreadyPinned_noOpsWithoutTimestampChange() = runBlocking {
-        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
-        repo.addTrackedDate("B", "event", LocalDate.of(2024, 2, 1), null)
-        repo.addTrackedDate("C", "event", LocalDate.of(2024, 3, 1), null)
+        addThreePinnedTrackedDates()
         val before = repo.observePinnedTrackedDates().first()
         val pinnedId = before[1].id
         val originalUpdatedAt = db.journalDao()
@@ -259,8 +262,12 @@ class JournalRepositoryTest {
 
     @Test
     fun reorderPinned_rewritesOrder_heroFollows() = runBlocking {
-        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
-        repo.addTrackedDate("B", "event", LocalDate.of(2024, 2, 1), null)
+        db.journalDao().insertTrackedDates(
+            listOf(
+                trackedDateEntity("a", "A", LocalDate.of(2024, 1, 1), pinnedOrder = 0, createdAt = 1_000L),
+                trackedDateEntity("b", "B", LocalDate.of(2024, 2, 1), pinnedOrder = 1, createdAt = 2_000L),
+            )
+        )
         val ids = repo.observePinnedTrackedDates().first().map { it.id }
 
         repo.reorderPinned(listOf(ids[1], ids[0]))
@@ -272,10 +279,7 @@ class JournalRepositoryTest {
 
     @Test
     fun reorderPinned_rewritesThreeItemsToContiguousOrders() = runBlocking {
-        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
-        repo.addTrackedDate("B", "event", LocalDate.of(2024, 2, 1), null)
-        repo.addTrackedDate("C", "event", LocalDate.of(2024, 3, 1), null)
-        val ids = repo.observePinnedTrackedDates().first().map { it.id }
+        val ids = addThreePinnedTrackedDates()
 
         repo.reorderPinned(listOf(ids[2], ids[0], ids[1]))
 
@@ -286,10 +290,7 @@ class JournalRepositoryTest {
 
     @Test
     fun reorderPinned_sameOrder_noOpsWithoutTimestampChange() = runBlocking {
-        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
-        repo.addTrackedDate("B", "event", LocalDate.of(2024, 2, 1), null)
-        repo.addTrackedDate("C", "event", LocalDate.of(2024, 3, 1), null)
-        val ids = repo.observePinnedTrackedDates().first().map { it.id }
+        val ids = addThreePinnedTrackedDates()
         val originalUpdatedAt = db.journalDao()
             .getTrackedDates()
             .associate { it.uuid to it.updatedAtEpochMillis }
@@ -811,10 +812,16 @@ class JournalRepositoryTest {
         })
     }
 
+    // addTrackedDate only auto-pins the first date, so seed three pinned rows directly to
+    // exercise the multi-pin setPinned/reorder paths.
     private suspend fun addThreePinnedTrackedDates(): List<String> {
-        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
-        repo.addTrackedDate("B", "event", LocalDate.of(2024, 2, 1), null)
-        repo.addTrackedDate("C", "event", LocalDate.of(2024, 3, 1), null)
+        db.journalDao().insertTrackedDates(
+            listOf(
+                trackedDateEntity("a", "A", LocalDate.of(2024, 1, 1), pinnedOrder = 0, createdAt = 1_000L),
+                trackedDateEntity("b", "B", LocalDate.of(2024, 2, 1), pinnedOrder = 1, createdAt = 2_000L),
+                trackedDateEntity("c", "C", LocalDate.of(2024, 3, 1), pinnedOrder = 2, createdAt = 3_000L),
+            )
+        )
         return repo.observePinnedTrackedDates().first().map { it.id }
     }
 

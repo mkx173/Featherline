@@ -198,6 +198,14 @@ class JournalRepository @Inject constructor(
             database.withTransaction {
                 val dao = database.journalDao()
                 val now = clock.millis()
+                // Auto-pin only the first date — when nothing is pinned yet — so a fresh
+                // journal still has a hero. Once anything is pinned, later dates are added
+                // unpinned (timeline-only) and the user pins them explicitly.
+                val pinnedOrder = if (dao.getMaxPinnedOrder() == null) {
+                    PinOrder.appendOrderAfterMax(null)
+                } else {
+                    null
+                }
                 dao.upsertTrackedDate(
                     TrackedDateEntity(
                         uuid = UUID.randomUUID().toString(),
@@ -206,7 +214,7 @@ class JournalRepository @Inject constructor(
                         dateIso = date.toString(),
                         paletteKey = paletteKey,
                         heroBackgroundKey = null,
-                        pinnedOrder = PinOrder.appendOrderAfterMax(dao.getMaxPinnedOrder()),
+                        pinnedOrder = pinnedOrder,
                         createdAtEpochMillis = now,
                         updatedAtEpochMillis = now,
                     )
