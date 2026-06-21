@@ -85,12 +85,18 @@ class MilestonesViewModel @Inject constructor(
 
     fun setHeroBackground(id: String, background: HeroBackground) {
         pendingEdits.update { it.copy(heroBackground = it.heroBackground + (id to background)) }
-        viewModelScope.launch { journalRepository.setHeroBackground(id, background) }
+        viewModelScope.launch {
+            journalRepository.setHeroBackground(id, background)
+            reconcilePendingAgainstSource()
+        }
     }
 
     fun reorderPinned(ids: List<String>) {
         pendingEdits.update { it.copy(pinnedOrder = ids) }
-        viewModelScope.launch { journalRepository.reorderPinned(ids) }
+        viewModelScope.launch {
+            journalRepository.reorderPinned(ids)
+            reconcilePendingAgainstSource()
+        }
     }
 
     fun addDate(
@@ -146,6 +152,15 @@ class MilestonesViewModel @Inject constructor(
         return withBackground.map { date ->
             indexById[date.id]?.let { date.copy(pinnedOrder = it) } ?: date
         }
+    }
+
+    // A no-op write (a reorder the repository rejected, a background save for a
+    // since-deleted id) doesn't re-emit, so the onEach reconcile above never runs for
+    // it. Reconcile against the warm cache once the write settles so a stale override
+    // can't linger and later resurrect over the real source order.
+    private fun reconcilePendingAgainstSource() {
+        val source = journalRepository.getCachedTrackedDates() ?: return
+        pendingEdits.update { reconcilePendingEdits(it, source) }
     }
 
     // Drop overrides the source already reflects (so a later independent change

@@ -340,6 +340,7 @@ class MilestonesViewModelTest {
         )
         val dates = MutableStateFlow(listOf(a, b))
         every { repository.observeTrackedDates() } returns dates
+        every { repository.getCachedTrackedDates() } answers { dates.value }
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b))
         coEvery { repository.reorderPinned(any()) } returns Unit
 
@@ -365,6 +366,7 @@ class MilestonesViewModelTest {
         )
         val dates = MutableStateFlow(listOf(hero))
         every { repository.observeTrackedDates() } returns dates
+        every { repository.getCachedTrackedDates() } answers { dates.value }
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
         coEvery { repository.setHeroBackground(any(), any()) } returns Unit
 
@@ -392,6 +394,7 @@ class MilestonesViewModelTest {
         )
         val dates = MutableStateFlow(listOf(a, b))
         every { repository.observeTrackedDates() } returns dates
+        every { repository.getCachedTrackedDates() } answers { dates.value }
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b))
         coEvery { repository.reorderPinned(any()) } returns Unit
 
@@ -420,6 +423,7 @@ class MilestonesViewModelTest {
         )
         val dates = MutableStateFlow(listOf(hero))
         every { repository.observeTrackedDates() } returns dates
+        every { repository.getCachedTrackedDates() } answers { dates.value }
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
         coEvery { repository.setHeroBackground(any(), any()) } returns Unit
 
@@ -437,12 +441,59 @@ class MilestonesViewModelTest {
         assertEquals(HeroBackground.DateColor, viewModel.uiState.value.hero?.heroBackground)
     }
 
+    // A reorder can be rejected by the repository (the pinned set changed underneath,
+    // e.g. a row was just unpinned), and a rejected write doesn't re-emit. The optimistic
+    // override must not survive that, or it resurrects the rejected order once the set
+    // matches again.
+    @Test
+    fun reorderPinned_overrideDoesNotResurrectAfterRepositoryRejectsStaleOrder() = runTest {
+        val a = trackedDate(
+            id = "a", name = "Anchor A", icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
+        )
+        val b = trackedDate(
+            id = "b", name = "Anchor B", icon = AnchorIcon.FLAG,
+            date = LocalDate.of(2024, 5, 1), pinnedOrder = 1,
+        )
+        val c = trackedDate(
+            id = "c", name = "Anchor C", icon = AnchorIcon.EVENT,
+            date = LocalDate.of(2024, 6, 1), pinnedOrder = 2,
+        )
+        val dates = MutableStateFlow(listOf(a, b, c))
+        every { repository.observeTrackedDates() } returns dates
+        every { repository.getCachedTrackedDates() } answers { dates.value }
+        every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b, c))
+        // The stale reorder is rejected, so the source never re-emits for this write.
+        coEvery { repository.reorderPinned(any()) } returns Unit
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        // The pinned set changes underneath: C is unpinned (and that emission settles).
+        dates.value = listOf(a, b, c.copy(pinnedOrder = null))
+        advanceUntilIdle()
+        // A drag computed from the stale tray still submits the old {a,b,c} order; the
+        // repository rejects it with no further emission.
+        viewModel.reorderPinned(listOf("c", "b", "a"))
+        advanceUntilIdle()
+        assertEquals(listOf("Anchor A", "Anchor B"), viewModel.uiState.value.pinnedTray.map { it.name })
+
+        // C is pinned again — the rejected [c,b,a] override must not come back to life.
+        dates.value = listOf(a, b, c)
+        advanceUntilIdle()
+        assertEquals(
+            listOf("Anchor A", "Anchor B", "Anchor C"),
+            viewModel.uiState.value.pinnedTray.map { it.name },
+        )
+    }
+
     private fun stubTrackedDates(
         all: List<TrackedDate> = emptyList(),
         pinned: List<TrackedDate> = emptyList(),
     ) {
         every { repository.observeTrackedDates() } returns flowOf(all)
         every { repository.observePinnedTrackedDates() } returns flowOf(pinned)
+        every { repository.getCachedTrackedDates() } returns all
     }
 
     private fun trackedDate(
