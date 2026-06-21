@@ -1579,10 +1579,12 @@ private fun PinnedTrayRows(
     }
     // The reorderable library calls onSettle (and so onReorder, which applies the new
     // order) only AFTER its drop spring finishes. If edit mode is exited inside that
-    // window, the gap arrangement below would flip — changing ReorderableColumn's
-    // remember(list, spacing) key, rebuilding its state from the not-yet-reordered list,
-    // and snapping the rows back. Holding the reorder gaps through the settle keeps that
-    // key stable so the just-dragged order survives until onSettle lands it.
+    // window, the rows would react to the not-yet-reordered list: the gap arrangement
+    // would flip (changing ReorderableColumn's remember(list, spacing) key, rebuilding
+    // its state and snapping the order back), and the hero would morph in using the old
+    // top row before re-morphing once the new order lands. So keep treating the rows as
+    // in edit mode until the settle completes — gaps, drag handles and the hero transform
+    // all wait for onSettle.
     var settlingAfterDrag by remember { mutableStateOf(false) }
     LaunchedEffect(settlingAfterDrag) {
         if (settlingAfterDrag) {
@@ -1592,7 +1594,8 @@ private fun PinnedTrayRows(
             settlingAfterDrag = false
         }
     }
-    val reorderOwnsGaps = (isEditMode || settlingAfterDrag) && !hasTransitioningRows
+    val editingOrSettling = isEditMode || settlingAfterDrag
+    val reorderOwnsGaps = editingOrSettling && !hasTransitioningRows
 
     // ReorderableColumn lays its rows out positionally (no per-item key), so a reorder
     // rebuilds a row's whole subtree from scratch — any AnimatedVisibility inside the row
@@ -1667,7 +1670,7 @@ private fun PinnedTrayRows(
             // Mark the settle as in-flight here so the gap arrangement holds until the
             // reorder is applied, instead of snapping if edit mode is exited meanwhile.
             val onDragStopped: (Float) -> Unit = { settlingAfterDrag = true }
-            val rowDragModifier = if (isEditMode && isActive) {
+            val rowDragModifier = if (editingOrSettling && isActive) {
                 Modifier.longPressDraggableHandle(
                     interactionSource = interactionSource,
                     onDragStopped = onDragStopped,
@@ -1675,7 +1678,7 @@ private fun PinnedTrayRows(
             } else {
                 Modifier
             }
-            val gripDragHandle = if (isEditMode && isActive) {
+            val gripDragHandle = if (editingOrSettling && isActive) {
                 Modifier.draggableHandle(
                     interactionSource = gripInteractionSource,
                     onDragStopped = onDragStopped,
@@ -1697,7 +1700,7 @@ private fun PinnedTrayRows(
                         index = position.index,
                         count = position.count,
                         isHero = position.index == 0,
-                        isEditMode = isEditMode,
+                        isEditMode = editingOrSettling,
                         isDragging = isDragging,
                         heroNextMilestone = heroNextMilestone,
                         today = today,
@@ -1714,7 +1717,7 @@ private fun PinnedTrayRows(
                             .then(rowDragModifier)
                             .shadow(elevation, shape = MaterialTheme.shapes.large)
                             .semantics {
-                                if (isEditMode && isActive) {
+                                if (editingOrSettling && isActive) {
                                     customActions = moveActions
                                 }
                             },
