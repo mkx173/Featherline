@@ -37,9 +37,19 @@ class MilestonesViewModel @Inject constructor(
     // source catches up (see reconcilePendingEdits).
     private val pendingEdits = MutableStateFlow(PendingEdits())
 
+    // The most recent tracked dates this ViewModel has observed — the exact snapshot
+    // uiState is built from. reconcilePendingAgainstSource() reconciles against this
+    // (not the repository's separate warm cache, which can lag or be null and so miss
+    // a pin-set change the screen already saw). Main-confined: written in onEach and
+    // read from the post-write continuation, both on viewModelScope.
+    private var latestTrackedDates: List<TrackedDate>? = null
+
     val uiState: StateFlow<MilestonesUiState> = combine(
         journalRepository.observeTrackedDates()
-            .onEach { all -> pendingEdits.update { reconcilePendingEdits(it, all) } },
+            .onEach { all ->
+                latestTrackedDates = all
+                pendingEdits.update { reconcilePendingEdits(it, all) }
+            },
         editMode,
         todayFlow,
         pendingEdits,
@@ -156,10 +166,10 @@ class MilestonesViewModel @Inject constructor(
 
     // A no-op write (a reorder the repository rejected, a background save for a
     // since-deleted id) doesn't re-emit, so the onEach reconcile above never runs for
-    // it. Reconcile against the warm cache once the write settles so a stale override
-    // can't linger and later resurrect over the real source order.
+    // it. Reconcile against the last observed snapshot once the write settles so a stale
+    // override can't linger and later resurrect over the real source order.
     private fun reconcilePendingAgainstSource() {
-        val source = journalRepository.getCachedTrackedDates() ?: return
+        val source = latestTrackedDates ?: return
         pendingEdits.update { reconcilePendingEdits(it, source) }
     }
 

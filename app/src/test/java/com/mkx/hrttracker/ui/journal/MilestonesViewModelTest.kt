@@ -340,7 +340,6 @@ class MilestonesViewModelTest {
         )
         val dates = MutableStateFlow(listOf(a, b))
         every { repository.observeTrackedDates() } returns dates
-        every { repository.getCachedTrackedDates() } answers { dates.value }
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b))
         coEvery { repository.reorderPinned(any()) } returns Unit
 
@@ -366,7 +365,6 @@ class MilestonesViewModelTest {
         )
         val dates = MutableStateFlow(listOf(hero))
         every { repository.observeTrackedDates() } returns dates
-        every { repository.getCachedTrackedDates() } answers { dates.value }
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
         coEvery { repository.setHeroBackground(any(), any()) } returns Unit
 
@@ -394,7 +392,6 @@ class MilestonesViewModelTest {
         )
         val dates = MutableStateFlow(listOf(a, b))
         every { repository.observeTrackedDates() } returns dates
-        every { repository.getCachedTrackedDates() } answers { dates.value }
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b))
         coEvery { repository.reorderPinned(any()) } returns Unit
 
@@ -423,7 +420,6 @@ class MilestonesViewModelTest {
         )
         val dates = MutableStateFlow(listOf(hero))
         every { repository.observeTrackedDates() } returns dates
-        every { repository.getCachedTrackedDates() } answers { dates.value }
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
         coEvery { repository.setHeroBackground(any(), any()) } returns Unit
 
@@ -461,8 +457,11 @@ class MilestonesViewModelTest {
         )
         val dates = MutableStateFlow(listOf(a, b, c))
         every { repository.observeTrackedDates() } returns dates
-        every { repository.getCachedTrackedDates() } answers { dates.value }
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b, c))
+        // The repository's separate warm cache lags the screen's observed flow — here it
+        // never advances past the original {a,b,c}. Reconciliation must use the observed
+        // source, not this cache, or the rejected order survives and later resurrects.
+        every { repository.getCachedTrackedDates() } returns listOf(a, b, c)
         // The stale reorder is rejected, so the source never re-emits for this write.
         coEvery { repository.reorderPinned(any()) } returns Unit
 
@@ -493,7 +492,6 @@ class MilestonesViewModelTest {
     ) {
         every { repository.observeTrackedDates() } returns flowOf(all)
         every { repository.observePinnedTrackedDates() } returns flowOf(pinned)
-        every { repository.getCachedTrackedDates() } returns all
     }
 
     private fun trackedDate(
