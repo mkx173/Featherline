@@ -77,7 +77,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
@@ -1474,9 +1473,11 @@ fun PinnedTray(
 
     AnimatedContent(
         targetState = anchors.isEmpty(),
+        // No container clip here: each row (and the empty card) rounds its own corners, and
+        // SizeTransform(clip = true) contains the empty<->rows morph. A clip at this level
+        // would instead crop the dragged row's elevation shadow at the tray's left/right edges.
         modifier = modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.large),
+            .fillMaxWidth(),
         transitionSpec = {
             ContentTransform(
                 targetContentEnter = EnterTransition.None,
