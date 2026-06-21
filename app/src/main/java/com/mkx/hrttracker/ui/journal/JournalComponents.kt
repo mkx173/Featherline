@@ -617,6 +617,7 @@ private fun JournalHeroPills(
     nextMilestone: NextMilestoneUiState?,
     dateLabel: String,
 ) {
+    val colorScheme = rememberMedicationGroupColorScheme(colorKey = hero.palette)
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -629,9 +630,12 @@ private fun JournalHeroPills(
             icon = { Icon(painterResource(R.drawable.ic_event), null, iconModifier) },
         )
         if (!hero.isFuture && nextMilestone != null) {
+            // The milestone pill carries the date color (RegimenMedicationChip's scheme).
             HrtPill(
                 label = nextMilestone.label(),
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                containerColor = colorScheme.primaryContainer,
+                contentColor = colorScheme.onPrimaryContainer,
+                labelColor = colorScheme.onPrimaryFixed,
                 size = HrtPillSize.Small,
                 icon = { Icon(painterResource(R.drawable.ic_flag), null, iconModifier) },
             )
@@ -1239,6 +1243,7 @@ private fun HeroChips(
 ) {
     val appLocale = rememberAppLocale()
     val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
+    val colorScheme = rememberMedicationGroupColorScheme(colorKey = hero.palette)
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -1253,9 +1258,12 @@ private fun HeroChips(
         )
         HomeTag()
         if (!hero.isFuture && nextMilestone != null) {
+            // The milestone pill carries the date color (RegimenMedicationChip's scheme).
             HrtPill(
                 label = nextMilestone.label(),
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                containerColor = colorScheme.primaryContainer,
+                contentColor = colorScheme.onPrimaryContainer,
+                labelColor = colorScheme.onPrimaryFixed,
                 size = HrtPillSize.Small,
                 icon = { Icon(painterResource(R.drawable.ic_flag), null, iconModifier) },
             )
@@ -1268,8 +1276,9 @@ private fun HeroCount(hero: AnchorRowUiState) {
     val days = hero.dayMagnitude.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     val isToday = hero.dayMagnitude == 0L && !hero.isFuture
     // The big count mirrors MainE2HeroCard's hero value: displayLarge/Medium in the
-    // primary color with a titleMedium supporting unit, aligned to the value's
+    // date's primary color with a titleMedium supporting unit, aligned to the value's
     // baseline (alignByBaseline) rather than nudged with bottom padding.
+    val datePrimary = rememberMedicationGroupColorScheme(colorKey = hero.palette).primary
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (isToday) {
             Text(
@@ -1278,7 +1287,7 @@ private fun HeroCount(hero: AnchorRowUiState) {
                     fontFeatureSettings = "tnum",
                 ),
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.primary,
+                color = datePrimary,
                 modifier = Modifier.alignByBaseline(),
             )
         } else {
@@ -1296,7 +1305,7 @@ private fun HeroCount(hero: AnchorRowUiState) {
                     fontFeatureSettings = "tnum",
                 ),
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.primary,
+                color = datePrimary,
                 modifier = Modifier.alignByBaseline(),
             )
             Text(
