@@ -486,6 +486,79 @@ class MilestonesViewModelTest {
         )
     }
 
+    // Editing an existing date (name/icon/date/palette) writes to the repository; the row
+    // must repaint with the edits immediately instead of after the Room flow re-emits.
+    @Test
+    fun updateDate_reflectsEditedFieldsBeforeRepositoryFlowReemits() = runTest {
+        val original = trackedDate(
+            id = "a", name = "Old name", icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1), palette = MedicationGroupColorKey.ROSE,
+            pinnedOrder = 0,
+        )
+        val dates = MutableStateFlow(listOf(original))
+        every { repository.observeTrackedDates() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(listOf(original))
+        coEvery { repository.updateTrackedDate(any(), any(), any(), any(), any()) } returns Unit
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        assertEquals(MedicationGroupColorKey.ROSE, viewModel.uiState.value.hero?.palette)
+
+        val newDate = LocalDate.of(2024, 5, 2)
+        viewModel.updateDate(
+            id = "a",
+            name = "New name",
+            icon = AnchorIcon.FLAG.storageKey,
+            date = newDate,
+            paletteKey = MedicationGroupColorKey.TEAL.name,
+        )
+        advanceUntilIdle()
+
+        val hero = viewModel.uiState.value.hero
+        assertEquals("New name", hero?.name)
+        assertEquals(AnchorIcon.FLAG, hero?.icon)
+        assertEquals(newDate, hero?.date)
+        assertEquals(MedicationGroupColorKey.TEAL, hero?.palette)
+    }
+
+    @Test
+    fun updateDate_optimisticOverrideClearsOnceRepositoryFlowCatchesUp() = runTest {
+        val original = trackedDate(
+            id = "a", name = "Old name", icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1), palette = MedicationGroupColorKey.ROSE,
+            pinnedOrder = 0,
+        )
+        val dates = MutableStateFlow(listOf(original))
+        every { repository.observeTrackedDates() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(listOf(original))
+        coEvery { repository.updateTrackedDate(any(), any(), any(), any(), any()) } returns Unit
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        viewModel.updateDate(
+            id = "a",
+            name = "New name",
+            icon = AnchorIcon.FLAG.storageKey,
+            date = original.date,
+            paletteKey = MedicationGroupColorKey.TEAL.name,
+        )
+        advanceUntilIdle()
+        assertEquals(MedicationGroupColorKey.TEAL, viewModel.uiState.value.hero?.palette)
+
+        // The source catches up to the edit.
+        dates.value = listOf(
+            original.copy(name = "New name", icon = AnchorIcon.FLAG, palette = MedicationGroupColorKey.TEAL),
+        )
+        advanceUntilIdle()
+        // A later independent change to the same date must win — the override is gone.
+        dates.value = listOf(
+            original.copy(name = "External edit", icon = AnchorIcon.FLAG, palette = MedicationGroupColorKey.ROSE),
+        )
+        advanceUntilIdle()
+        assertEquals("External edit", viewModel.uiState.value.hero?.name)
+        assertEquals(MedicationGroupColorKey.ROSE, viewModel.uiState.value.hero?.palette)
+    }
+
     private fun stubTrackedDates(
         all: List<TrackedDate> = emptyList(),
         pinned: List<TrackedDate> = emptyList(),

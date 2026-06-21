@@ -3,8 +3,10 @@ package com.mkx.hrttracker.ui.journal
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.JournalRepository
+import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.TrackedDate
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -124,8 +126,20 @@ class MilestonesViewModel @Inject constructor(
         icon: String,
         date: LocalDate,
         paletteKey: String?,
-    ) = viewModelScope.launch {
-        journalRepository.updateTrackedDate(id, name, icon, date, paletteKey)
+    ) {
+        // Convert the storage strings to model values the same way the Room mapper does,
+        // so the overlay matches what observeTrackedDates will eventually emit.
+        val edit = PendingDateEdit(
+            name = name,
+            icon = AnchorIcon.fromStorageValue(icon),
+            date = date,
+            palette = MedicationGroupColorKey.fromStorageValueOrNull(paletteKey),
+        )
+        pendingEdits.update { it.copy(dateEdits = it.dateEdits + (id to edit)) }
+        viewModelScope.launch {
+            journalRepository.updateTrackedDate(id, name, icon, date, paletteKey)
+            reconcilePendingAgainstSource()
+        }
     }
 
     fun deleteDate(id: String) = viewModelScope.launch {
@@ -146,20 +160,25 @@ class MilestonesViewModel @Inject constructor(
         dates: List<TrackedDate>,
         pending: PendingEdits,
     ): List<TrackedDate> {
-        val withBackground = if (pending.heroBackground.isEmpty()) {
+        val withFields = if (pending.heroBackground.isEmpty() && pending.dateEdits.isEmpty()) {
             dates
         } else {
             dates.map { date ->
-                pending.heroBackground[date.id]?.let { date.copy(heroBackground = it) } ?: date
+                var edited = date
+                pending.heroBackground[date.id]?.let { edited = edited.copy(heroBackground = it) }
+                pending.dateEdits[date.id]?.let { e ->
+                    edited = edited.copy(name = e.name, icon = e.icon, date = e.date, palette = e.palette)
+                }
+                edited
             }
         }
-        val order = pending.pinnedOrder ?: return withBackground
-        val pinnedIds = withBackground.filter { it.pinnedOrder != null }.map { it.id }
+        val order = pending.pinnedOrder ?: return withFields
+        val pinnedIds = withFields.filter { it.pinnedOrder != null }.map { it.id }
         // Only apply an order that still describes exactly the current pinned set;
         // a pin/unpin landing first makes the override stale, so defer to the source.
-        if (order.toSet() != pinnedIds.toSet()) return withBackground
+        if (order.toSet() != pinnedIds.toSet()) return withFields
         val indexById = order.withIndex().associate { (index, id) -> id to index }
-        return withBackground.map { date ->
+        return withFields.map { date ->
             indexById[date.id]?.let { date.copy(pinnedOrder = it) } ?: date
         }
     }
@@ -184,22 +203,44 @@ class MilestonesViewModel @Inject constructor(
             val date = byId[id]
             date == null || date.heroBackground == background
         }
+        val remainingDateEdits = pending.dateEdits.filterNot { (id, edit) ->
+            val date = byId[id]
+            date == null || (
+                date.name == edit.name &&
+                    date.icon == edit.icon &&
+                    date.date == edit.date &&
+                    date.palette == edit.palette
+                )
+        }
         val sourcePinnedOrder = pinnedSorted(source).map { it.id }
         val remainingOrder = pending.pinnedOrder?.takeUnless { order ->
             order == sourcePinnedOrder || order.toSet() != sourcePinnedOrder.toSet()
         }
         return if (
             remainingBackground == pending.heroBackground &&
+            remainingDateEdits == pending.dateEdits &&
             remainingOrder == pending.pinnedOrder
         ) {
             pending
         } else {
-            PendingEdits(pinnedOrder = remainingOrder, heroBackground = remainingBackground)
+            PendingEdits(
+                pinnedOrder = remainingOrder,
+                heroBackground = remainingBackground,
+                dateEdits = remainingDateEdits,
+            )
         }
     }
 
     private data class PendingEdits(
         val pinnedOrder: List<String>? = null,
         val heroBackground: Map<String, HeroBackground> = emptyMap(),
+        val dateEdits: Map<String, PendingDateEdit> = emptyMap(),
+    )
+
+    private data class PendingDateEdit(
+        val name: String,
+        val icon: AnchorIcon,
+        val date: LocalDate,
+        val palette: MedicationGroupColorKey?,
     )
 }
