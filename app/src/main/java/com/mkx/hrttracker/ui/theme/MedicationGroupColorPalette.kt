@@ -1,16 +1,20 @@
 package com.mkx.hrttracker.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import com.materialkolor.ktx.harmonize
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 
 @Composable
 fun rememberMedicationGroupColorScheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    // Derive darkness from the resolved theme, not isSystemInDarkTheme(): on API < 31 the
+    // in-app dark-mode override is applied only via AppCompatDelegate.setDefaultNightMode and
+    // is never baked into the Configuration isSystemInDarkTheme() reads, so the system value
+    // ignores the override. The hero background colors resolve the same way.
+    darkTheme: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f,
     colorKey: MedicationGroupColorKey?,
     harmonize: Boolean = false,
 ): ColorScheme {
