@@ -8,25 +8,58 @@ import org.junit.Test
 
 class HeroBackgroundColorsTest {
     @Test
-    fun bloomParams_dimsAlphaWhenUnblurred_keepingChromaAndTone() {
+    fun bloomParams_dimsAlphaAndChromaWhenUnblurred_keepingTone() {
         listOf(false, true).forEach { isDark ->
             val blurred = HeroBackgroundColors.bloomParams(isDark = isDark, blurred = true)
             val unblurred = HeroBackgroundColors.bloomParams(isDark = isDark, blurred = false)
-            // Without the haze blur to diffuse it, the wash reads stronger, so it must be fainter.
+            // Without the haze blur to diffuse it, the wash reads stronger, so it is both fainter
+            // and a little less saturated; only the tone (lightness) is preserved.
             assertTrue(unblurred.alpha < blurred.alpha)
             assertEquals(
                 blurred.alpha * HeroBackgroundColors.UnblurredAlphaScale,
                 unblurred.alpha,
                 1e-6f,
             )
-            // Only the opacity drops; the colour itself (chroma/tone) is unchanged.
-            assertEquals(blurred.chroma, unblurred.chroma, 0.0)
+            assertTrue(unblurred.chroma < blurred.chroma)
+            assertEquals(
+                blurred.chroma * HeroBackgroundColors.UnblurredChromaScale,
+                unblurred.chroma,
+                1e-9,
+            )
             assertEquals(blurred.tone, unblurred.tone, 0.0)
         }
         // The default is the blurred (API 31+) look.
         assertEquals(
             HeroBackgroundColors.bloomParams(isDark = false, blurred = true),
             HeroBackgroundColors.bloomParams(isDark = false),
+        )
+    }
+
+    @Test
+    fun bloomColors_useUnblurredBloomParamsWhenNotBlurred() {
+        val seeds = listOf(0xFF5BCEFA.toInt(), 0xFFF5A9B8.toInt())
+        val params = HeroBackgroundColors.bloomParams(isDark = false, blurred = false)
+        val expected = HeroBackgroundColors.hueSorted(HeroBackgroundColors.paletteSeeds(seeds))
+            .map { HeroBackgroundColors.normalize(it, params.chroma, params.tone) }
+        assertEquals(
+            expected,
+            HeroBackgroundColors.bloomColors(seeds, isDark = false, blurred = false),
+        )
+    }
+
+    @Test
+    fun dateColorBloomColors_useUnblurredBloomParamsWhenNotBlurred() {
+        val primary = 0xFF5BCEFA.toInt()
+        val container = 0xFFF5A9B8.toInt()
+        val params = HeroBackgroundColors.bloomParams(isDark = false, blurred = false)
+        val chroma = params.chroma * HeroBackgroundColors.DateChromaScale
+        val expected = listOf(
+            HeroBackgroundColors.normalize(primary, chroma, params.tone),
+            HeroBackgroundColors.normalize(container, chroma, params.tone - HeroBackgroundColors.DateToneSpread),
+        )
+        assertEquals(
+            expected,
+            HeroBackgroundColors.dateColorBloomColors(primary, container, isDark = false, blurred = false),
         )
     }
 

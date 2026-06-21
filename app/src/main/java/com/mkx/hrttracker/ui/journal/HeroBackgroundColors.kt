@@ -43,13 +43,22 @@ object HeroBackgroundColors {
     val DarkBloom = ThemeParams(chroma = 58.0, tone = 66.0, alpha = 0.42f)
 
     // Without the haze blur to diffuse it (API < 31), the wash is drawn sharp over the card and
-    // reads stronger, so its opacity is scaled down by this fraction to feel closer to the
-    // blurred look. Colour (chroma/tone) is left alone; only the bloom's opacity drops.
-    const val UnblurredAlphaScale = 0.6f
+    // reads stronger, so it's scaled down to feel closer to the blurred look: fainter
+    // ([UnblurredAlphaScale]) and a little less saturated ([UnblurredChromaScale]). Tone
+    // (lightness) is left alone so the wash keeps its place against the card.
+    const val UnblurredAlphaScale = 0.4f
+    const val UnblurredChromaScale = 0.8f
 
     fun bloomParams(isDark: Boolean, blurred: Boolean = true): ThemeParams {
         val base = if (isDark) DarkBloom else LightBloom
-        return if (blurred) base else base.copy(alpha = base.alpha * UnblurredAlphaScale)
+        return if (blurred) {
+            base
+        } else {
+            base.copy(
+                chroma = base.chroma * UnblurredChromaScale,
+                alpha = base.alpha * UnblurredAlphaScale,
+            )
+        }
     }
 
     /**
@@ -101,8 +110,8 @@ object HeroBackgroundColors {
     }
 
     /** Bloom seed colours: chromatic palette, hue-sorted, normalised at the bloom chroma/tone. Opaque. */
-    fun bloomColors(seeds: List<Int>, isDark: Boolean): List<Int> {
-        val params = bloomParams(isDark)
+    fun bloomColors(seeds: List<Int>, isDark: Boolean, blurred: Boolean = true): List<Int> {
+        val params = bloomParams(isDark, blurred)
         return hueSorted(paletteSeeds(seeds)).map { normalize(it, params.chroma, params.tone) }
     }
 
@@ -112,8 +121,13 @@ object HeroBackgroundColors {
      * held at distinct tones ([params.tone] and [params.tone] - [DateToneSpread]) so the pair reads
      * as a gradient with depth instead of collapsing to one flat, over-intense colour. Opaque.
      */
-    fun dateColorBloomColors(primary: Int, primaryContainer: Int, isDark: Boolean): List<Int> {
-        val params = bloomParams(isDark)
+    fun dateColorBloomColors(
+        primary: Int,
+        primaryContainer: Int,
+        isDark: Boolean,
+        blurred: Boolean = true,
+    ): List<Int> {
+        val params = bloomParams(isDark, blurred)
         val chroma = params.chroma * DateChromaScale
         return listOf(
             normalize(primary, chroma, params.tone),
