@@ -164,7 +164,7 @@ class MilestonesScreenTest {
     }
 
     @Test
-    fun editMode_showsHomeTagAndUnpin() {
+    fun editMode_showsUnpinButton() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         composeRule.setContent {
             HrtTrackerTheme {
@@ -176,16 +176,9 @@ class MilestonesScreenTest {
                 )
             }
         }
-        // The first pinned row (the hero) marks itself Home inside its summary line
-        // ("date · day count · Home"), and every row exposes an unpin button. Whole-row
-        // long-press drag has no per-handle node, so the reorder a11y is covered by
-        // editMode_rendersPinsInOrderAndRoutesUnpin. Home now lives in the hero's summary
-        // rather than a standalone chip, so match the hero row by name + Home to avoid
-        // also matching the home-slot hint ("…shown on your Home screen").
-        composeRule.onNode(
-            hasText(context.getString(R.string.journal_home_tag), substring = true) and
-                hasText("On estradiol", substring = true),
-        ).assertExists()
+        // Every pinned row exposes an unpin button in edit mode. Whole-row long-press drag
+        // has no per-handle node, so the reorder a11y is covered by
+        // editMode_rendersPinsInOrderAndRoutesUnpin.
         composeRule.onNode(
             hasContentDescription(context.getString(R.string.journal_unpin_anchor, "First injection")),
             useUnmergedTree = true,
@@ -194,7 +187,6 @@ class MilestonesScreenTest {
 
     @Test
     fun editMode_hidesBigHeroCard() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
         composeRule.setContent {
             HrtTrackerTheme {
                 MilestonesScreenContent(
@@ -211,12 +203,6 @@ class MilestonesScreenTest {
         // merged node ("807 days"), never the bare "807", so "807" alone was unique to
         // the hero's enriched view-mode block.
         composeRule.onNodeWithText("807").assertDoesNotExist()
-        // The Home marker still identifies the hero, now embedded in its summary line.
-        // Match the hero row by name + Home so the home-slot hint isn't also caught.
-        composeRule.onNode(
-            hasText(context.getString(R.string.journal_home_tag), substring = true) and
-                hasText("On estradiol", substring = true),
-        ).assertExists()
     }
 
     @Test
@@ -236,13 +222,7 @@ class MilestonesScreenTest {
             }
         }
 
-        // The Home marker (in the hero's summary line) sits at index 0; every pin keeps
-        // its supplied order. Match the hero row by name + Home so the home-slot hint
-        // ("…shown on your Home screen") isn't also caught.
-        composeRule.onNode(
-            hasText(context.getString(R.string.journal_home_tag), substring = true) and
-                hasText("On estradiol", substring = true),
-        ).assertExists()
+        // Every pin keeps its supplied order, hero first.
         val estradiolTop = composeRule.onNodeWithText("On estradiol", useUnmergedTree = true)
             .fetchSemanticsNode()
             .boundsInRoot
@@ -266,51 +246,6 @@ class MilestonesScreenTest {
         composeRule.runOnIdle {
             assertEquals(listOf("surgery" to false), unpinned)
         }
-    }
-
-    @Test
-    fun editMode_reorderAnimatesHomeTagBetweenRows() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val homeTag = context.getString(R.string.journal_home_tag)
-        // The hero's date-line tag is "· Home"; matching the leading separator excludes the
-        // "Home slot" hint ("…your Home screen"), which would otherwise inflate the count.
-        val homeTagSuffix = context
-            .getString(R.string.journal_hero_edit_home_suffix, homeTag).trim()
-        var anchors by mutableStateOf(listOf(estradiolAnchor(), surgeryAnchor()))
-
-        composeRule.setContent {
-            HrtTrackerTheme(dynamicColor = false) {
-                PinnedTray(
-                    anchors = anchors,
-                    isEditMode = true,
-                    onReorder = {},
-                    onSetPinned = { _, _ -> },
-                )
-            }
-        }
-
-        fun tagCount() = composeRule
-            .onAllNodesWithText(homeTagSuffix, substring = true, useUnmergedTree = true)
-            .fetchSemanticsNodes().size
-
-        // At rest only the hero (index 0) carries the "· Home" tag.
-        assertEquals(1, tagCount())
-
-        // Pause the clock and promote a different row to hero, as a drag-reorder would.
-        composeRule.mainClock.autoAdvance = false
-        composeRule.runOnUiThread { anchors = listOf(surgeryAnchor(), estradiolAnchor()) }
-        // A couple of frames in (well short of the transition's duration), the tag must be
-        // mid-flight on BOTH rows: shrinking out of the old hero while expanding into the new
-        // one. If the reorder reset the tag (the earlier bug, since ReorderableColumn rebuilds
-        // the row) it would snap — old one gone, new one already full — leaving exactly one.
-        composeRule.mainClock.advanceTimeByFrame()
-        composeRule.mainClock.advanceTimeByFrame()
-        assertEquals(2, tagCount())
-
-        // Once the transition settles the tag lives only on the new hero.
-        composeRule.mainClock.autoAdvance = true
-        composeRule.waitForIdle()
-        assertEquals(1, tagCount())
     }
 
     @Test

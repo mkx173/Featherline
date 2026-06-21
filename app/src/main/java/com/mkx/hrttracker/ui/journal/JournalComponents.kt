@@ -20,11 +20,9 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -571,13 +569,12 @@ fun JournalHeroCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(PinnedRowContentInset)
-                    .padding(bottom = 6.dp),
+                    .padding(PinnedRowContentInset),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Column(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).padding(bottom = 6.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
                         MorphingLeadingIcon(anchor = hero, filled = false)
@@ -716,7 +713,6 @@ private fun PinnedRowContent(
     today: LocalDate,
     dateFormatter: (LocalDate) -> String,
     onUnpin: () -> Unit,
-    homeVisible: MutableTransitionState<Boolean>,
     dragHandle: Modifier = Modifier,
 ) {
     val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
@@ -752,7 +748,6 @@ private fun PinnedRowContent(
                     isEditMode = isEditMode,
                     dateFormatter = dateFormatter,
                     onUnpin = onUnpin,
-                    homeVisible = homeVisible,
                     dragHandle = dragHandle,
                     sharedScope = this@SharedTransitionLayout,
                     animatedVisibilityScope = this@AnimatedContent,
@@ -1017,9 +1012,7 @@ private fun BoxScope.HeroBackgroundWatermark(
 // The compact pinned row, shared by every row (the hero in edit mode and all normal rows).
 // The leading icon and title carry the hero's shared-element keys unconditionally: for the
 // hero they morph against HeroViewLayout, for a normal row there's no counterpart so they
-// just render in place. The trailing controls reveal with [isEditMode]; the "· Home" tag
-// reveals with [homeVisible] (driven by "is this the hero"), whose state is hoisted to
-// PinnedTray so a reorder rebuilding this row doesn't reset the tag's transition.
+// just render in place. The trailing controls reveal with [isEditMode].
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun PinnedCompactLayout(
@@ -1028,7 +1021,6 @@ private fun PinnedCompactLayout(
     isEditMode: Boolean,
     dateFormatter: (LocalDate) -> String,
     onUnpin: () -> Unit,
-    homeVisible: MutableTransitionState<Boolean>,
     sharedScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     dragHandle: Modifier = Modifier,
@@ -1054,15 +1046,12 @@ private fun PinnedCompactLayout(
                     dateFormatter(anchor.date),
                     anchor.dayCountLabel(),
                 )
-                Row {
-                    Text(
-                        text = baseSummary,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.alignByBaseline().cjkTextOffset(baseSummary),
-                    )
-                    HomeSuffix(visibleState = homeVisible, modifier = Modifier.alignByBaseline())
-                }
+                Text(
+                    text = baseSummary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.cjkTextOffset(baseSummary),
+                )
             }
             // The trailing cluster slides in/out with the edit toggle. Two paths, one spec:
             //   • Hero: this compact layout IS the AnimatedContent edit target, recreated on
@@ -1104,8 +1093,8 @@ private fun PinnedCompactLayout(
 }
 
 // The hero title is its own shared element, so it slides between the view header
-// and the compact edit row. The Home indicator is no longer adjacent to it: in view
-// mode it's a chip in the row below, in edit mode it's appended to the summary line.
+// and the compact edit row. The Home indicator (a chip in the view-mode row below)
+// is not adjacent to it.
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun SharedTransitionScope.HeroTitle(
@@ -1204,47 +1193,6 @@ private fun MorphingLeadingIcon(
 private fun editTrailingEnter() = slideInHorizontally { width -> width } + fadeIn()
 
 private fun editTrailingExit() = slideOutHorizontally { width -> width } + fadeOut()
-
-// Enter/exit for the "· Home" tag. Anchored at the start (the end of the date string), it
-// expands rightward out of the date line on enter and collapses back leftward into it on
-// exit, so the tag reads as sliding into/out of the date string rather than just fading.
-private fun homeSuffixEnter() = expandHorizontally(expandFrom = Alignment.Start) + fadeIn()
-
-private fun homeSuffixExit() = shrinkHorizontally(shrinkTowards = Alignment.Start) + fadeOut()
-
-// The "· Home" tag appended to a pinned row's date line, marking the row shown on the Home
-// screen. [visibleState] is hoisted to PinnedTray (keyed by anchor id) rather than remembered
-// here, because ReorderableColumn rebuilds this row's subtree on every reorder; resuming the
-// transition from the hoisted state is what lets the tag slide in/out as the hero changes,
-// the same way the trailing controls slide when edit mode toggles.
-@Composable
-private fun HomeSuffix(
-    visibleState: MutableTransitionState<Boolean>,
-    modifier: Modifier = Modifier,
-) {
-    val homeSuffix = stringResource(
-        R.string.journal_hero_edit_home_suffix,
-        stringResource(R.string.journal_home_tag),
-    )
-    // [modifier] carries the row's alignByBaseline so the tag sits on the date line's
-    // baseline; expandHorizontally only animates width, so the baseline stays put. The text
-    // keeps cjkTextOffset to match the base summary's CJK nudge.
-    AnimatedVisibility(
-        visibleState = visibleState,
-        modifier = modifier,
-        enter = homeSuffixEnter(),
-        exit = homeSuffixExit(),
-    ) {
-        Text(
-            text = homeSuffix,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            softWrap = false,
-            modifier = Modifier.cjkTextOffset(homeSuffix),
-        )
-    }
-}
 
 // Edit-mode trailing cluster: unpin first, drag grip last. Shared by the hero row and
 // the other pinned rows. [dragHandle] turns the grip into an immediate (no long-press)
@@ -1597,21 +1545,6 @@ private fun PinnedTrayRows(
     val editingOrSettling = isEditMode || settlingAfterDrag
     val reorderOwnsGaps = editingOrSettling && !hasTransitioningRows
 
-    // ReorderableColumn lays its rows out positionally (no per-item key), so a reorder
-    // rebuilds a row's whole subtree from scratch — any AnimatedVisibility inside the row
-    // would lose its transition and snap. So the "· Home" tag's visibility lives here, above
-    // the column, keyed by anchor id: the state survives the rebuild, and the new row's
-    // AnimatedVisibility resumes it (current=true, target=false ⇒ animates out, and vice
-    // versa). targetState tracks "is this the hero (top) row"; a fresh id seeds to its
-    // current position so the initial hero shows without animating in.
-    val homeVisibleStates = remember { mutableMapOf<String, MutableTransitionState<Boolean>>() }
-    homeVisibleStates.keys.retainAll(displayIds)
-    displayAnchors.forEach { anchor ->
-        val isHome = activeIds.indexOf(anchor.id) == 0
-        val wasHome = lastPositions[anchor.id]?.index == 0
-        homeVisibleStates.getOrPut(anchor.id) { MutableTransitionState(isHome || wasHome) }
-            .targetState = isHome
-    }
     // ReorderableColumn is used in both modes so the hero stays the first row and
     // morphs in place; drag is only enabled in edit mode.
     ReorderableColumn(
@@ -1709,7 +1642,6 @@ private fun PinnedTrayRows(
                                 onSetPinned(anchor.id, false)
                             }
                         },
-                        homeVisible = homeVisibleStates.getValue(anchor.id),
                         dragHandle = gripDragHandle,
                         contentModifier = contentModifier,
                         modifier = Modifier
@@ -1742,7 +1674,6 @@ private fun PinnedRow(
     heroNextMilestone: NextMilestoneUiState?,
     today: LocalDate,
     onUnpin: () -> Unit,
-    homeVisible: MutableTransitionState<Boolean>,
     dragHandle: Modifier = Modifier,
     contentModifier: Modifier = Modifier,
     modifier: Modifier = Modifier,
@@ -1779,7 +1710,6 @@ private fun PinnedRow(
                 today = today,
                 dateFormatter = dateFormatter,
                 onUnpin = onUnpin,
-                homeVisible = homeVisible,
                 dragHandle = dragHandle,
             )
         }
@@ -2795,7 +2725,6 @@ private fun PinnedCompactLayoutPreview() {
                 isEditMode = true,
                 dateFormatter = { it.toString() },
                 onUnpin = {},
-                homeVisible = remember { MutableTransitionState(true) },
                 sharedScope = sharedScope,
                 animatedVisibilityScope = animatedVisibilityScope,
             )
@@ -2812,13 +2741,11 @@ private fun PinnedRowPreview() {
             anchor = anchors[0], index = 0, count = 2,
             isHero = true, isEditMode = false, isDragging = false,
             heroNextMilestone = previewNextMilestone, today = previewToday, onUnpin = {},
-            homeVisible = remember { MutableTransitionState(true) },
         )
         PinnedRow(
             anchor = anchors[1], index = 1, count = 2,
             isHero = false, isEditMode = false, isDragging = false,
             heroNextMilestone = null, today = previewToday, onUnpin = {},
-            homeVisible = remember { MutableTransitionState(false) },
         )
     }
 }
@@ -2832,13 +2759,11 @@ private fun PinnedRowEditPreview() {
             anchor = anchors[0], index = 0, count = 2,
             isHero = true, isEditMode = true, isDragging = false,
             heroNextMilestone = previewNextMilestone, today = previewToday, onUnpin = {},
-            homeVisible = remember { MutableTransitionState(true) },
         )
         PinnedRow(
             anchor = anchors[1], index = 1, count = 2,
             isHero = false, isEditMode = true, isDragging = false,
             heroNextMilestone = null, today = previewToday, onUnpin = {},
-            homeVisible = remember { MutableTransitionState(false) },
         )
     }
 }
