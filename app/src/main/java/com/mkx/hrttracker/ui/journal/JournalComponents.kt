@@ -902,10 +902,15 @@ private fun HeroViewLayout(
 // fades down before it reaches the text. A slow "breathing" glow (a gentle opacity + scale pulse
 // anchored at the top-end) animates it, dropped to a static rest under the system "remove
 // animations" setting. See the hero-background-placements design (Aurora band).
-private const val AuroraAngleDegrees = 110.0 // linear-sweep angle: rightward, tilted slightly down
+// Default linear-sweep angle: rightward, tilted slightly down. 90° = straight rightward; above 90
+// tilts the sweep downward, below 90 tilts it up. Per-call overridable (the date wash uses its own).
+private const val AuroraAngleDegrees = 110.0
 private const val AuroraMaskOpaqueStop = 0.32f // fully visible from the top down to here…
 private const val AuroraMaskFadeStop = 0.78f   // …then faded out by here, clearing the text below
 private const val AuroraPulseDurationMillis = 8000
+// The mono-hue date wash uses a flatter, near-horizontal sweep so both seeds read across the whole
+// top edge instead of one hue dominating a corner the way the steeper flag angle would.
+private const val DateAuroraAngleDegrees = 95.0
 
 @Composable
 private fun HeroColorBackground(flag: PrideFlag, modifier: Modifier = Modifier) {
@@ -927,18 +932,24 @@ private fun HeroDateColorBackground(colorScheme: ColorScheme, modifier: Modifier
     val blurred = isHazeBlurSupported()
     val alpha = HeroBackgroundColors.bloomParams(isDark, blurred).alpha
     val colors = remember(colorScheme.primary, colorScheme.primaryContainer, isDark, blurred, alpha) {
+        // Reversed so the brighter `primary` lands on the right (sparse content side) and the deeper
+        // `primaryContainer` on the left, rather than the other way round.
         HeroBackgroundColors.dateColorBloomColors(
             primary = colorScheme.primary.toArgb(),
             primaryContainer = colorScheme.primaryContainer.toArgb(),
             isDark = isDark,
             blurred = blurred,
-        ).map { Color(it).copy(alpha = alpha) }
+        ).asReversed().map { Color(it).copy(alpha = alpha) }
     }
-    HeroAuroraBackground(colors = colors, modifier = modifier)
+    HeroAuroraBackground(colors = colors, angleDegrees = DateAuroraAngleDegrees, modifier = modifier)
 }
 
 @Composable
-private fun HeroAuroraBackground(colors: List<Color>, modifier: Modifier = Modifier) {
+private fun HeroAuroraBackground(
+    colors: List<Color>,
+    modifier: Modifier = Modifier,
+    angleDegrees: Double = AuroraAngleDegrees,
+) {
     // Slow "breathing": opacity 0.85->1 and a faint 1->1.05 scale, anchored top-end. Honour the
     // system animator setting ("remove animations" / animator-duration-scale 0) by resting static.
     val animatorsEnabled = remember { ValueAnimator.areAnimatorsEnabled() }
@@ -981,7 +992,7 @@ private fun HeroAuroraBackground(colors: List<Color>, modifier: Modifier = Modif
                 if (colors.isEmpty()) return@drawBehind
                 // CSS linear-gradient angle -> a start/end line through the centre; the gradient
                 // length |w·sinθ| + |h·cosθ| lands the end stops at the box's projection.
-                val rad = Math.toRadians(AuroraAngleDegrees)
+                val rad = Math.toRadians(angleDegrees)
                 val dx = sin(rad)
                 val dy = -cos(rad)
                 val half = (abs(size.width * dx) + abs(size.height * dy)).toFloat() / 2f
