@@ -759,6 +759,11 @@ class JournalRepositoryTest {
         every { journalDao.observeNotesCountBefore(today.toString()) } returns flow {
             throw IllegalStateException("older note count failed")
         }
+        // The notes warm cache also observes this; without a stub the mock throws a
+        // MockKException (not a recoverable flow error), crashing the appScope collector.
+        every { journalDao.observeNotes() } returns flow {
+            throw IllegalStateException("all notes failed")
+        }
         val erroringDatabase = mockk<HrtTrackerDatabase>()
         every { erroringDatabase.journalDao() } returns journalDao
         databaseFlow.value = erroringDatabase
@@ -776,6 +781,14 @@ class JournalRepositoryTest {
         val journalDao = mockk<JournalDao>()
         every { journalDao.observeTrackedDates() } returns flow {
             throw IllegalStateException("tracked dates failed")
+        }
+        // The Eagerly-collected pinned/notes warm caches also observe this database; stub them
+        // so the appScope collectors hit a recoverable flow error, not an unstubbed-mock crash.
+        every { journalDao.observePinnedTrackedDates() } returns flow {
+            throw IllegalStateException("pinned tracked dates failed")
+        }
+        every { journalDao.observeNotes() } returns flow {
+            throw IllegalStateException("all notes failed")
         }
         val erroringDatabase = mockk<HrtTrackerDatabase>()
         every { erroringDatabase.journalDao() } returns journalDao
