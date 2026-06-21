@@ -14,7 +14,8 @@ class MilestonesTest {
         val today = start.plusDays(65)
         val next = Milestones.next(date = start, today = today)
         assertEquals(90L, next?.dayCount)
-        assertEquals("90 days", next?.label)
+        assertEquals(MilestoneUnit.DAYS, next?.unit)
+        assertEquals(90L, next?.value)
     }
 
     @Test
@@ -48,7 +49,7 @@ class MilestonesTest {
         val today = start.plusDays(400) // past the 1-year anniversary
         val next = Milestones.next(date = start, today = today)
         assertEquals(2L, next?.value)
-        assertEquals("2 years", next?.label)
+        assertEquals(MilestoneUnit.YEARS, next?.unit)
     }
 
     @Test
@@ -58,7 +59,8 @@ class MilestonesTest {
         val current = Milestones.current(date = start, today = today)
 
         assertEquals(100L, current?.dayCount)
-        assertEquals("100 days", current?.label)
+        assertEquals(MilestoneUnit.DAYS, current?.unit)
+        assertEquals(100L, current?.value)
     }
 
     @Test
@@ -86,5 +88,55 @@ class MilestonesTest {
         assertNotNull(next)
         assertEquals(MilestoneUnit.YEARS, next?.unit)
         assertEquals(17L, next?.value)
+    }
+
+    @Test
+    fun next_returnsAnniversary_forAnchorOlderThanFiftyYears() {
+        // Anniversaries are generated on demand, so an anchor older than any fixed cap
+        // (e.g. a birthday tracked for decades) still has an upcoming yearly goal rather
+        // than silently dropping its milestone.
+        val start = LocalDate.of(1970, 6, 22)
+        val today = start.plusYears(55).plusDays(10)
+        val next = Milestones.next(date = start, today = today)
+        assertNotNull(next)
+        assertEquals(MilestoneUnit.YEARS, next?.unit)
+        assertEquals(56L, next?.value)
+    }
+
+    @Test
+    fun current_returnsAnniversary_onLeapDayAnchorAdjustedToFeb28() {
+        // 2024-02-29 + 1 year adjusts to 2025-02-28, which IS the first anniversary.
+        // Viewing on it must report year 1; ChronoUnit.YEARS.between(start, today) alone
+        // returns 0 here (the day-of-month drops 29->28) and would wrongly drop the milestone.
+        val start = LocalDate.of(2024, 2, 29)
+        val today = LocalDate.of(2025, 2, 28)
+        val current = Milestones.current(date = start, today = today)
+        assertNotNull(current)
+        assertEquals(MilestoneUnit.YEARS, current?.unit)
+        assertEquals(1L, current?.value)
+    }
+
+    @Test
+    fun next_returnsFollowingAnniversary_onLeapDayAnchorAdjustedToFeb28() {
+        // On the adjusted first anniversary (2025-02-28) the *next* milestone is year 2
+        // (2026-02-28), not year 1 again — next must look strictly past today rather than
+        // returning the current anniversary with zero remaining days.
+        val start = LocalDate.of(2024, 2, 29)
+        val today = LocalDate.of(2025, 2, 28)
+        val next = Milestones.next(date = start, today = today)
+        assertNotNull(next)
+        assertEquals(MilestoneUnit.YEARS, next?.unit)
+        assertEquals(2L, next?.value)
+        assertEquals(ChronoUnit.DAYS.between(start, LocalDate.of(2026, 2, 28)), next?.dayCount)
+    }
+
+    @Test
+    fun current_returnsAnniversary_forAnchorOlderThanFiftyYears() {
+        val start = LocalDate.of(1970, 6, 22)
+        val today = start.plusYears(55)
+        val current = Milestones.current(date = start, today = today)
+        assertNotNull(current)
+        assertEquals(MilestoneUnit.YEARS, current?.unit)
+        assertEquals(55L, current?.value)
     }
 }

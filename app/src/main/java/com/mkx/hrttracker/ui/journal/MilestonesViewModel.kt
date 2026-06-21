@@ -46,16 +46,18 @@ class MilestonesViewModel @Inject constructor(
     // read from the post-write continuation, both on viewModelScope.
     private var latestTrackedDates: List<TrackedDate>? = null
 
-    val uiState: StateFlow<MilestonesUiState> = combine(
+    // The date-derived state (sort, pinned set, timeline nodes, hero). Kept separate from
+    // editMode so that toggling edit mode — a pure UI flag — doesn't re-sort and rebuild the
+    // whole node list; only a real dates/today/pendingEdits change recomputes this.
+    private val core = combine(
         journalRepository.observeTrackedDates()
             .onEach { all ->
                 latestTrackedDates = all
                 pendingEdits.update { reconcilePendingEdits(it, all) }
             },
-        editMode,
         todayFlow,
         pendingEdits,
-    ) { all, isEdit, today, pending ->
+    ) { all, today, pending ->
         val effective = applyPendingEdits(all, pending)
         val sorted = effective.sortedWith(compareBy<TrackedDate> { it.date }.thenBy { it.name })
         val pinned = pinnedSorted(effective)
@@ -75,8 +77,11 @@ class MilestonesViewModel @Inject constructor(
                 )
             },
             todayDividerIndex = sorted.count { it.date.isBefore(today) },
-            isEditMode = isEdit,
         )
+    }
+
+    val uiState: StateFlow<MilestonesUiState> = combine(core, editMode) { state, isEdit ->
+        state.copy(isEditMode = isEdit)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,

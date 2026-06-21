@@ -91,7 +91,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -141,6 +140,7 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.isHazeBlurSupported
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.ui.theme.isAppInDarkTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -452,7 +452,6 @@ fun EmptyMilestonesCard(
         icon = painterResource(R.drawable.ic_calendar_today),
         title = stringResource(R.string.journal_no_dates),
         subtitle = stringResource(R.string.journal_no_dates_subtitle),
-        actionLabel = stringResource(R.string.journal_add_date),
         onClick = onAddDate,
         modifier = modifier,
     )
@@ -467,7 +466,6 @@ fun EmptyPinnedMilestonesCard(
         icon = painterResource(R.drawable.ic_keep_alt),
         title = stringResource(R.string.journal_nothing_pinned_title),
         subtitle = stringResource(R.string.journal_nothing_pinned_subtitle),
-        actionLabel = stringResource(R.string.journal_open),
         onClick = onClick,
         modifier = modifier,
     )
@@ -481,7 +479,6 @@ private fun MilestonesEmptyCard(
     icon: Painter,
     title: String,
     subtitle: String,
-    actionLabel: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -660,6 +657,31 @@ private fun JournalHeroPills(
     )
 }
 
+// The today/future/past pieces a hero day count is built from. Shared by CompactHeroDayCount
+// and HeroCount so the magnitude conversion, today test, and string lookups live in one place;
+// each composable styles the pieces its own way.
+private data class HeroDayCountParts(
+    val isToday: Boolean,
+    val isFuture: Boolean,
+    val value: Int,
+    val todayText: String,
+    val inPrefix: String,
+    val dayUnit: String,
+)
+
+@Composable
+private fun heroDayCountParts(hero: AnchorRowUiState): HeroDayCountParts {
+    val value = hero.dayMagnitude.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    return HeroDayCountParts(
+        isToday = hero.isOnToday(),
+        isFuture = hero.isFuture,
+        value = value,
+        todayText = stringResource(R.string.journal_today),
+        inPrefix = stringResource(R.string.journal_in_prefix),
+        dayUnit = pluralStringResource(R.plurals.journal_day_unit, value),
+    )
+}
+
 // The hero's trailing day count: the magnitude as an emphasized number (palette primary) with
 // the unit beside it, on a single baseline-aligned line. Mirrors HeroCount's past/future/today
 // handling at a compact size.
@@ -668,31 +690,25 @@ private fun CompactHeroDayCount(
     hero: AnchorRowUiState,
     valueColor: Color,
 ) {
-    val isToday = hero.dayMagnitude == 0L && !hero.isFuture
-    val days = hero.dayMagnitude.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-
+    val parts = heroDayCountParts(hero)
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
-    val todayText = stringResource(R.string.journal_today)
-    val inPrefix = stringResource(R.string.journal_in_prefix)
-    val dayUnit = pluralStringResource(R.plurals.journal_day_unit, days)
-
     val tertiary = MaterialTheme.colorScheme.tertiary
     val text = buildAnnotatedString {
-        if (isToday) {
+        if (parts.isToday) {
             withStyle(SpanStyle(color = tertiary, fontWeight = FontWeight.Medium)) {
-                append(todayText)
+                append(parts.todayText)
             }
         } else {
             // A normal space joins the parts so they share one baseline and shape together.
-            if (hero.isFuture) {
-                withStyle(SpanStyle(color = onSurfaceVariant, fontWeight = FontWeight.Medium)) { append(inPrefix) }
+            if (parts.isFuture) {
+                withStyle(SpanStyle(color = onSurfaceVariant, fontWeight = FontWeight.Medium)) { append(parts.inPrefix) }
                 append(" ")
             }
             withStyle(SpanStyle(color = valueColor, fontWeight = FontWeight.Medium)) {
-                append(days.toString())
+                append(parts.value.toString())
             }
             append(" ")
-            withStyle(SpanStyle(color = onSurfaceVariant, fontWeight = FontWeight.Medium)) { append(dayUnit) }
+            withStyle(SpanStyle(color = onSurfaceVariant, fontWeight = FontWeight.Medium)) { append(parts.dayUnit) }
         }
     }
 
@@ -703,7 +719,7 @@ private fun CompactHeroDayCount(
         style = MaterialTheme.typography.titleLarge.copy(
             fontSize = 20.sp
         ),
-        modifier = Modifier.cjkTextOffset(if (isToday) todayText else dayUnit),
+        modifier = Modifier.cjkTextOffset(if (parts.isToday) parts.todayText else parts.dayUnit),
     )
 }
 
@@ -916,7 +932,7 @@ private const val DateAuroraAngleDegrees = 95.0
 @Composable
 private fun HeroColorBackground(flag: PrideFlag, modifier: Modifier = Modifier) {
     // Read the actual scheme (covers system dark, the in-app theme override, and AMOLED).
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val isDark = isAppInDarkTheme()
     // No haze blur below API 31, so the unblurred wash is dimmed and desaturated a touch.
     val blurred = isHazeBlurSupported()
     val alpha = HeroBackgroundColors.bloomParams(isDark, blurred).alpha
@@ -928,7 +944,7 @@ private fun HeroColorBackground(flag: PrideFlag, modifier: Modifier = Modifier) 
 
 @Composable
 private fun HeroDateColorBackground(colorScheme: ColorScheme, modifier: Modifier = Modifier) {
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val isDark = isAppInDarkTheme()
     // No haze blur below API 31, so the unblurred wash is dimmed and desaturated a touch.
     val blurred = isHazeBlurSupported()
     val alpha = HeroBackgroundColors.bloomParams(isDark, blurred).alpha
@@ -1308,38 +1324,37 @@ private fun HeroChips(
 
 @Composable
 private fun HeroCount(hero: AnchorRowUiState) {
-    val days = hero.dayMagnitude.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-    val isToday = hero.dayMagnitude == 0L && !hero.isFuture
+    val parts = heroDayCountParts(hero)
     // The big count mirrors MainE2HeroCard's hero value: displayLarge/Medium in the
     // date's primary color with a titleMedium supporting unit, aligned to the value's
     // baseline (alignByBaseline) rather than nudged with bottom padding.
     val datePrimary = rememberMedicationGroupColorScheme(colorKey = hero.palette).primary
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (isToday) {
+        if (parts.isToday) {
             Text(
-                text = stringResource(R.string.journal_today),
+                text = parts.todayText,
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.tertiary,
             )
         } else {
-            if (hero.isFuture) {
+            if (parts.isFuture) {
                 Text(
-                    text = stringResource(R.string.journal_in_prefix),
+                    text = parts.inPrefix,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.alignByBaseline(),
                 )
             }
             Text(
-                text = days.toString(),
+                text = parts.value.toString(),
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Medium,
                 color = datePrimary,
                 modifier = Modifier.alignByBaseline(),
             )
             Text(
-                text = pluralStringResource(R.plurals.journal_day_unit, days),
+                text = parts.dayUnit,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.alignByBaseline(),
@@ -2578,7 +2593,7 @@ fun EmptyAllNotesCard(
 
 @Composable
 private fun AnchorRowUiState.dayCountLabel(): String {
-    if (dayMagnitude == 0L && !isFuture) return stringResource(R.string.journal_today)
+    if (isOnToday()) return stringResource(R.string.journal_today)
     val days = dayMagnitude.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     return if (isFuture) {
         pluralStringResource(R.plurals.journal_milestone_days_future, days, days)
