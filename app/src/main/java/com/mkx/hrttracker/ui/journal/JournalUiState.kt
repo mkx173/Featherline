@@ -16,7 +16,7 @@ data class AnchorRowUiState(
     val date: LocalDate,
     val dayMagnitude: Long,
     val isFuture: Boolean,
-    val heroBackground: HeroBackground = HeroBackground.DateColor,
+    val heroBackground: HeroBackground = HeroBackground.None,
 )
 
 data class JournalUiState(

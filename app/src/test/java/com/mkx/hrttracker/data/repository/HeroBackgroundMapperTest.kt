@@ -29,28 +29,29 @@ class HeroBackgroundMapperTest {
     }
 
     @Test
-    fun toModel_decodesNullToDateColorDefault() {
-        assertEquals(HeroBackground.DateColor, entity(null).toModel().heroBackground)
+    fun toModel_decodesNullToNoneDefault() {
+        assertEquals(HeroBackground.None, entity(null).toModel().heroBackground)
     }
 
     @Test
-    fun toModel_decodesExplicitNoneAndUnknownToNone() {
+    fun toModel_decodesDateColorLegacyNoneAndUnknownToNone() {
+        assertEquals(HeroBackground.DateColor, entity("DATE_COLOR").toModel().heroBackground)
         assertEquals(HeroBackground.None, entity("NONE").toModel().heroBackground)
         assertEquals(HeroBackground.None, entity("PROGRESS").toModel().heroBackground)
     }
 
     @Test
-    fun toEntity_encodesFlagName_nullForDateColorDefault_andSentinelForNone() {
+    fun toEntity_encodesFlagName_nullForNoneDefault_andSentinelForDateColor() {
         val model = entity("LESBIAN").toModel()
         assertEquals("LESBIAN", model.toEntity(1000L, 1000L).heroBackgroundKey)
         assertNull(
-            model.copy(heroBackground = HeroBackground.DateColor)
+            model.copy(heroBackground = HeroBackground.None)
                 .toEntity(1000L, 1000L)
                 .heroBackgroundKey,
         )
         assertEquals(
-            "NONE",
-            model.copy(heroBackground = HeroBackground.None)
+            "DATE_COLOR",
+            model.copy(heroBackground = HeroBackground.DateColor)
                 .toEntity(1000L, 1000L)
                 .heroBackgroundKey,
         )

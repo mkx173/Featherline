@@ -6,12 +6,14 @@ import org.junit.Test
 
 class HeroBackgroundTest {
     @Test
-    fun fromStorageValue_mapsMissingValueToDateColorDefault() {
-        assertEquals(HeroBackground.DateColor, HeroBackground.fromStorageValue(null))
+    fun fromStorageValue_mapsMissingValueToNoneDefault() {
+        assertEquals(HeroBackground.None, HeroBackground.fromStorageValue(null))
     }
 
     @Test
-    fun fromStorageValue_decodesExplicitNoneAndFlags() {
+    fun fromStorageValue_decodesDateColorLegacyNoneAndFlags() {
+        assertEquals(HeroBackground.DateColor, HeroBackground.fromStorageValue("DATE_COLOR"))
+        // Legacy rows persisted before None became the null-backed default.
         assertEquals(HeroBackground.None, HeroBackground.fromStorageValue("NONE"))
         assertEquals(
             HeroBackground.Flag(PrideFlag.TRANSGENDER),
@@ -26,9 +28,9 @@ class HeroBackgroundTest {
     }
 
     @Test
-    fun storageKey_encodesDateColorAsNullAndNoneAsSentinel() {
-        assertNull(HeroBackground.DateColor.storageKey)
-        assertEquals("NONE", HeroBackground.None.storageKey)
+    fun storageKey_encodesNoneAsNullAndDateColorAsSentinel() {
+        assertNull(HeroBackground.None.storageKey)
+        assertEquals("DATE_COLOR", HeroBackground.DateColor.storageKey)
         assertEquals(PrideFlag.LESBIAN.name, HeroBackground.Flag(PrideFlag.LESBIAN).storageKey)
     }
 }

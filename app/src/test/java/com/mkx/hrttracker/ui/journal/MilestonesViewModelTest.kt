@@ -370,12 +370,12 @@ class MilestonesViewModelTest {
 
         val viewModel = MilestonesViewModel(repository, appTimeSource)
         advanceUntilIdle()
-        assertEquals(HeroBackground.DateColor, viewModel.uiState.value.hero?.heroBackground)
+        assertEquals(HeroBackground.None, viewModel.uiState.value.hero?.heroBackground)
 
-        viewModel.setHeroBackground("a", HeroBackground.None)
+        viewModel.setHeroBackground("a", HeroBackground.DateColor)
         advanceUntilIdle()
 
-        assertEquals(HeroBackground.None, viewModel.uiState.value.hero?.heroBackground)
+        assertEquals(HeroBackground.DateColor, viewModel.uiState.value.hero?.heroBackground)
     }
 
     // The optimistic order must be discarded once the source reflects it, so a later
