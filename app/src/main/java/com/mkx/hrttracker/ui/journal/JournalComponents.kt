@@ -907,7 +907,11 @@ private fun HeroViewLayout(
 private const val AuroraAngleDegrees = 110.0
 private const val AuroraMaskOpaqueStop = 0.32f // fully visible from the top down to here…
 private const val AuroraMaskFadeStop = 0.78f   // …then faded out by here, clearing the text below
-private const val AuroraPulseDurationMillis = 8000
+private const val AuroraPulseDurationMillis = 6000
+// "Breathing" amplitude: opacity dips to this floor (peaking at 1f) and the band zooms to this scale
+// (resting at 1f). Wide enough to read as a live glow rather than a static wash.
+private const val AuroraPulseMinAlpha = 0.55f
+private const val AuroraPulseScale = 1.12f
 // The mono-hue date wash uses a flatter, near-horizontal sweep so both seeds read across the whole
 // top edge instead of one hue dominating a corner the way the steeper flag angle would.
 private const val DateAuroraAngleDegrees = 95.0
@@ -967,8 +971,8 @@ private fun HeroAuroraBackground(
     } else {
         0f
     }
-    val pulseAlpha = if (animatorsEnabled) lerp(0.85f, 1f, pulse) else 1f
-    val pulseScale = if (animatorsEnabled) lerp(1f, 1.05f, pulse) else 1f
+    val pulseAlpha = if (animatorsEnabled) lerp(AuroraPulseMinAlpha, 1f, pulse) else 1f
+    val pulseScale = if (animatorsEnabled) lerp(1f, AuroraPulseScale, pulse) else 1f
     // Vertical fade mask: opaque across the top, gone before the text. Applied via DstIn below.
     val fadeMask = remember {
         Brush.verticalGradient(
