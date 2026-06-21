@@ -59,8 +59,7 @@ class JournalScreenTest {
             }
         }
 
-        composeRule.onNodeWithText(context.getString(R.string.journal_no_dates)).assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.journal_add_date))
+        composeRule.onNodeWithText(context.getString(R.string.journal_no_dates))
             .assertIsDisplayed()
             .performClick()
         composeRule.onNodeWithText(

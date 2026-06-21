@@ -195,41 +195,90 @@ fun MilestonesStackCard(
         dateLabelFormatter(appLocale, today)
     }
 
-    EditorSegmentedListItem(
+    MilestonesStackOuterCard(onClick = onClick, modifier = modifier) {
+        anchors.forEachIndexed { index, anchor ->
+            MilestonesStackAnchorRow(
+                anchor = anchor,
+                dateLabel = dateFormatter(anchor.date),
+                index = index,
+                itemCount = anchors.size,
+            )
+        }
+    }
+}
+
+// The shared shell for the milestones section: the rounded surface, the "since you
+// started" header with its enter-screen chevron, and the inner segment stack. Both the
+// populated stack and the empty states render through this so they read as one card.
+@Composable
+private fun MilestonesStackOuterCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Surface(
         modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         onClick = onClick,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_schedule_filled),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-                Text(
-                    text = stringResource(R.string.journal_since_you_started),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-            anchors.forEach { anchor ->
-                MilestonesStackAnchorRow(
-                    anchor = anchor,
-                    dateLabel = dateFormatter(anchor.date),
-                )
-            }
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            MilestonesStackCardHeader(
+                modifier = Modifier.padding(vertical = 6.dp),
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
+                content = { content() },
+            )
         }
+    }
+}
+
+@Composable
+private fun MilestonesStackCardHeader(
+    modifier: Modifier = Modifier,
+) {
+    val title = stringResource(R.string.journal_since_you_started)
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier.size(18.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_schedule_filled),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .cjkTextOffset(title),
+        )
+
+        Icon(
+            imageVector = Icons.Rounded.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -296,49 +345,70 @@ fun SimpleHomeCard(
 private fun MilestonesStackAnchorRow(
     anchor: AnchorRowUiState,
     dateLabel: String,
+    index: Int,
+    itemCount: Int,
     modifier: Modifier = Modifier,
 ) {
     val colorScheme = rememberMedicationGroupColorScheme(colorKey = anchor.palette)
+    val dayCountLabel = anchor.dayCountLabel()
 
-    Row(
+    EditorSegmentedListItem(
+        index = index,
+        count = itemCount,
         modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        cornerShape = MaterialTheme.shapes.large,
     ) {
-        Surface(
-            modifier = Modifier.size(36.dp),
-            shape = MaterialTheme.shapes.small,
-            color = colorScheme.primaryContainer,
-            contentColor = colorScheme.onPrimaryContainer,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Box(
+            Surface(
                 modifier = Modifier.size(36.dp),
-                contentAlignment = Alignment.Center,
+                shape = MaterialTheme.shapes.small,
+                color = colorScheme.primaryContainer,
+                contentColor = colorScheme.onPrimaryContainer,
             ) {
-                Icon(
-                    painter = painterResource(anchorIconRes(anchor.icon)),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+                Box(
+                    modifier = Modifier.size(36.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(anchorIconRes(anchor.icon)),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = anchor.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Normal,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.cjkTextOffset(anchor.name),
+                )
+                Text(
+                    text = dateLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.cjkTextOffset(dateLabel),
                 )
             }
-        }
-        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-        Column(modifier = Modifier.weight(1f)) {
+
             Text(
-                text = anchor.name,
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                text = dateLabel,
-                style = MaterialTheme.typography.bodySmall,
+                text = dayCountLabel,
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.cjkTextOffset(dayCountLabel),
             )
         }
-        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-        Text(
-            text = anchor.dayCountLabel(),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
@@ -347,18 +417,8 @@ fun EmptyMilestonesCard(
     onAddDate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
-        Column {
-            Text(
-                text = stringResource(R.string.journal_no_dates),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-            HrtButton(
-                text = stringResource(R.string.journal_add_date),
-                onClick = onAddDate,
-            )
-        }
+    MilestonesStackOuterCard(onClick = onAddDate, modifier = modifier) {
+        MilestonesStackEmptyMessage(text = stringResource(R.string.journal_no_dates))
     }
 }
 
@@ -367,15 +427,20 @@ fun EmptyPinnedMilestonesCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    EditorSegmentedListItem(
-        modifier = modifier.fillMaxWidth(),
-        onClick = onClick,
-    ) {
-        Text(
-            text = stringResource(R.string.journal_nothing_pinned),
-            style = MaterialTheme.typography.titleMedium,
-        )
+    MilestonesStackOuterCard(onClick = onClick, modifier = modifier) {
+        MilestonesStackEmptyMessage(text = stringResource(R.string.journal_nothing_pinned))
     }
+}
+
+// Empty-state row for the milestones shell. Uses the same surfaceContainer segment as the
+// populated anchor rows so the empty card stays visually consistent with the stack.
+@Composable
+private fun MilestonesStackEmptyMessage(text: String) {
+    SupportMessageListItem(
+        text = text,
+        painter = painterResource(R.drawable.ic_info),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    )
 }
 
 // Every pinned row renders through this one structure so that becoming (or ceasing to be)
