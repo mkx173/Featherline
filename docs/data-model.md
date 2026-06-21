@@ -289,7 +289,7 @@ default), nullable `pinnedOrder` (null means unpinned; ascending
 non-null values are the pinned tray order), and created/updated epoch
 millisecond timestamps. Indexed on `pinnedOrder`, which backs the
 pinned-tray Flow and lets unpinned rows stay outside the ordered pin
-set.
+set, and on `dateIso`, which backs the date-ordered tracked-date reads.
 
 ### `NoteEntity`
 
@@ -506,8 +506,8 @@ query. `MIGRATION_6_7` adds `importedFromExternalTracker` to
 panels, and blood-test results, and creates unique provenance indices
 for medication logs, imported panels, and imported results.
 `MIGRATION_7_8` adds the Journal phase-1 tables: `tracked_dates`
-with its `pinnedOrder` index, and `notes` with its unique `dateIso`
-index. It is additive and does not rewrite existing tables. The reset
+with its `pinnedOrder` and `dateIso` indices, and `notes` with its
+unique `dateIso` index. It is additive and does not rewrite existing tables. The reset
 deliberately did not register a `MIGRATION_29_*` shim, and no
 `fallbackToDestructiveMigration` is wired in any build flavor: a
 pre-refactor database does not migrate, it fails to open at startup
