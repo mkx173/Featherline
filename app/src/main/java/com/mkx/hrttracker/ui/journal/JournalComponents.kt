@@ -251,7 +251,7 @@ private fun PinnedDatesCardHeader(
                 painter = painterResource(R.drawable.ic_keep),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(18.dp),
             )
         }
 
@@ -759,7 +759,11 @@ private fun PinnedRowContent(
     }
 }
 
-private const val HeroIconSharedKey = "hero-icon"
+// The leading icon is two nested shared targets: the surface (chip background) morphs and
+// crossfades via sharedBounds, while the glyph itself is a single continuous sharedElement so
+// it slides/resizes without being crossfaded (doubled) against itself.
+private const val HeroIconSurfaceSharedKey = "hero-icon-surface"
+private const val HeroIconGlyphSharedKey = "hero-icon-glyph"
 private const val HeroTitleSharedKey = "hero-title"
 
 // Gap between a pinned row's leading chip and its text. Matches MedicationCard's 12dp so
@@ -852,10 +856,8 @@ private fun HeroViewLayout(
                     MorphingLeadingIcon(
                         anchor = anchor,
                         filled = false,
-                        modifier = Modifier.sharedElement(
-                            rememberSharedContentState(key = HeroIconSharedKey),
-                            animatedVisibilityScope = animatedVisibilityScope,
-                        ),
+                        sharedScope = sharedScope,
+                        animatedVisibilityScope = animatedVisibilityScope,
                     )
                     Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
                     HeroTitle(name = anchor.name, animatedVisibilityScope = animatedVisibilityScope, heroView = true, modifier = Modifier.padding(vertical = 6.dp))
@@ -1038,10 +1040,8 @@ private fun PinnedCompactLayout(
             MorphingLeadingIcon(
                 anchor = anchor,
                 filled = true,
-                modifier = Modifier.sharedElement(
-                    rememberSharedContentState(key = HeroIconSharedKey),
-                    animatedVisibilityScope = animatedVisibilityScope,
-                ),
+                sharedScope = sharedScope,
+                animatedVisibilityScope = animatedVisibilityScope,
             )
             Spacer(modifier = Modifier.width(PinnedRowLeadingGap))
             Column(modifier = Modifier.weight(1f)) {
@@ -1128,19 +1128,55 @@ private fun SharedTransitionScope.HeroTitle(
 }
 
 // The hero's leading icon: a bare tinted glyph in view (no surface), a filled chip in edit
-// (like the other pinned rows). The caller marks it as a shared element, so it slides and
-// resizes between the two states as a single continuous element rather than cross-fading.
+// (like the other pinned rows). The two states differ in two independent ways, so they get two
+// nested shared targets (see NestedSharedBoundsSample):
+//   • The surface (chip background) uses sharedBounds — its presence/size differs between
+//     states, so we want both ends rendered and crossfaded while the bounds morph. The surface
+//     is a background, so RemeasureToBounds keeps the corner radius crisp as it resizes (rather
+//     than scaleToBounds, which would graphically stretch the rounded rect).
+//   • The glyph is identical in both states, so it's a single continuous sharedElement: it
+//     slides/resizes as one element instead of being crossfaded against itself (which is what
+//     made it balloon then fade). sharedElement must be the innermost target on the glyph.
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun MorphingLeadingIcon(
     anchor: AnchorRowUiState,
     filled: Boolean,
     modifier: Modifier = Modifier,
+    sharedScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
 ) {
     val colorScheme = rememberMedicationGroupColorScheme(colorKey = anchor.palette)
+    // The morphing hero ⇄ compact rows pass both scopes so the surface and glyph become shared
+    // targets; the standalone journal hero card passes neither and just renders in place. The
+    // null-ness is fixed per call site, so the conditional remember calls are stable.
+    val shared = sharedScope != null && animatedVisibilityScope != null
+    val surfaceShared = if (shared) {
+        with(sharedScope!!) {
+            Modifier.sharedBounds(
+                rememberSharedContentState(key = HeroIconSurfaceSharedKey),
+                animatedVisibilityScope = animatedVisibilityScope!!,
+                resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds,
+            )
+        }
+    } else {
+        Modifier
+    }
+    val glyphShared = if (shared) {
+        with(sharedScope!!) {
+            Modifier.sharedElement(
+                rememberSharedContentState(key = HeroIconGlyphSharedKey),
+                animatedVisibilityScope = animatedVisibilityScope!!,
+            )
+        }
+    } else {
+        Modifier
+    }
     Box(
         modifier = modifier
+            .then(surfaceShared)
             // Filled (edit) matches AnchorIconChip/MedicationCard at 36dp; the bare view
-            // glyph stays 18dp and the shared element grows the container across the morph.
+            // glyph stays 18dp and sharedBounds morphs the surface across the two sizes.
             .size(if (filled) 36.dp else 18.dp)
             .background(
                 color = if (filled) colorScheme.primaryContainer else Color.Transparent,
@@ -1151,7 +1187,9 @@ private fun MorphingLeadingIcon(
         Icon(
             painter = painterResource(anchorIconRes(anchor.icon)),
             contentDescription = null,
-            modifier = Modifier.size(if (filled) 20.dp else 18.dp),
+            modifier = Modifier
+                .size(if (filled) 20.dp else 18.dp)
+                .then(glyphShared),
             tint = if (filled) colorScheme.onPrimaryContainer else colorScheme.primary,
         )
     }
