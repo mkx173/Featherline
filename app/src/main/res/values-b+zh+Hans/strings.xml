@@ -203,7 +203,10 @@
     <string name="journal_yesterday">昨天</string>
     <string name="journal_note_date_weekday_pattern">%2$s %1$s</string>
     <string name="journal_write_about_today">记录今天…</string>
-    <string name="journal_nothing_pinned">还没有固定内容。请在下方时间线中固定日期。</string>
+    <string name="journal_no_dates_subtitle">添加你的第一个里程碑日期。</string>
+    <string name="journal_nothing_pinned_title">还没有固定内容</string>
+    <string name="journal_nothing_pinned_subtitle">固定一个日期以在此展示。</string>
+    <string name="journal_open">打开</string>
     <string name="journal_pinned_section">已固定</string>
     <string name="journal_timeline_section">所有日期</string>
     <string name="journal_all_notes">全部笔记</string>

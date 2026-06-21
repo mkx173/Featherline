@@ -94,7 +94,7 @@ class JournalScreenTest {
             }
         }
 
-        composeRule.onNodeWithText(context.getString(R.string.journal_nothing_pinned))
+        composeRule.onNodeWithText(context.getString(R.string.journal_nothing_pinned_title))
             .assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.journal_no_dates))
             .assertIsNotDisplayed()
@@ -196,7 +196,7 @@ class JournalScreenTest {
     }
 
     @Test
-    fun milestonesStackCard_rendersPinnedAnchorsInOrderAndOpensMilestones() {
+    fun pinnedDatesCard_rendersPinnedAnchorsInOrderAndOpensMilestones() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val today = LocalDate.of(2024, 6, 16)
         val expectedDateLabel = dateLabelFormatter(
@@ -207,7 +207,7 @@ class JournalScreenTest {
 
         composeRule.setContent {
             HrtTrackerTheme(dynamicColor = false) {
-                MilestonesStackCard(
+                PinnedDatesCard(
                     today = today,
                     anchors = listOf(
                         AnchorRowUiState(
@@ -243,7 +243,7 @@ class JournalScreenTest {
             }
         }
 
-        composeRule.onNodeWithText(context.getString(R.string.journal_since_you_started))
+        composeRule.onNodeWithText(context.getString(R.string.journal_pinned_section))
             .assertIsDisplayed()
         composeRule.onNodeWithText("On estradiol").assertIsDisplayed()
         composeRule.onNodeWithText("Surgery").assertIsDisplayed()
@@ -274,7 +274,7 @@ class JournalScreenTest {
         ).assertIsDisplayed()
         composeRule.onNodeWithText("100 days").assertIsNotDisplayed()
 
-        composeRule.onNodeWithText(context.getString(R.string.journal_since_you_started))
+        composeRule.onNodeWithText(context.getString(R.string.journal_pinned_section))
             .performClick()
         composeRule.runOnIdle {
             assertTrue(opened)

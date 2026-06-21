@@ -166,7 +166,7 @@ fun JournalScreenContent(
                             val subsequentAnchors = uiState.pinnedAnchors.drop(1)
                             if (subsequentAnchors.isNotEmpty()) {
                                 item {
-                                    MilestonesStackCard(
+                                    PinnedDatesCard(
                                         today = uiState.today,
                                         anchors = subsequentAnchors,
                                         onClick = onOpenMilestones,

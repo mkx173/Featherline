@@ -87,6 +87,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
@@ -185,8 +186,11 @@ private const val TodayHaloAlpha = 0.10f
 // continuous line stays correct either way.
 private const val ShowTodayMarker = true
 
+// The pinned-dates card on the journal page: a rounded surface with a "Pinned" header
+// (enter-screen chevron) over a segmented stack of the subsequent pinned anchors. The hero
+// is rendered separately above this; the empty states use their own card.
 @Composable
-fun MilestonesStackCard(
+fun PinnedDatesCard(
     today: LocalDate,
     anchors: List<AnchorRowUiState>,
     onClick: () -> Unit,
@@ -197,27 +201,6 @@ fun MilestonesStackCard(
         dateLabelFormatter(appLocale, today)
     }
 
-    MilestonesStackOuterCard(onClick = onClick, modifier = modifier) {
-        anchors.forEachIndexed { index, anchor ->
-            MilestonesStackAnchorRow(
-                anchor = anchor,
-                dateLabel = dateFormatter(anchor.date),
-                index = index,
-                itemCount = anchors.size,
-            )
-        }
-    }
-}
-
-// The shared shell for the milestones section: the rounded surface, the "since you
-// started" header with its enter-screen chevron, and the inner segment stack. Both the
-// populated stack and the empty states render through this so they read as one card.
-@Composable
-private fun MilestonesStackOuterCard(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -227,7 +210,7 @@ private fun MilestonesStackOuterCard(
         Column(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
-            MilestonesStackCardHeader(
+            PinnedDatesCardHeader(
                 modifier = Modifier.padding(vertical = 6.dp),
             )
 
@@ -236,17 +219,25 @@ private fun MilestonesStackOuterCard(
                     .fillMaxWidth()
                     .padding(top = 10.dp, bottom = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
-                content = { content() },
-            )
+            ) {
+                anchors.forEachIndexed { index, anchor ->
+                    PinnedDateRow(
+                        anchor = anchor,
+                        dateLabel = dateFormatter(anchor.date),
+                        index = index,
+                        itemCount = anchors.size,
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun MilestonesStackCardHeader(
+private fun PinnedDatesCardHeader(
     modifier: Modifier = Modifier,
 ) {
-    val title = stringResource(R.string.journal_since_you_started)
+    val title = stringResource(R.string.journal_pinned_section)
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -257,7 +248,7 @@ private fun MilestonesStackCardHeader(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_schedule_filled),
+                painter = painterResource(R.drawable.ic_keep),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp),
@@ -344,7 +335,7 @@ fun SimpleHomeCard(
 }
 
 @Composable
-private fun MilestonesStackAnchorRow(
+private fun PinnedDateRow(
     anchor: AnchorRowUiState,
     dateLabel: String,
     index: Int,
@@ -355,7 +346,7 @@ private fun MilestonesStackAnchorRow(
     val dayCountLabel = anchor.dayCountLabel()
 
     // A non-clickable Surface: it draws the segmented card but installs no clickable, so taps
-    // pass through to the outer card's onClick. The whole MilestonesStackCard stays one touch
+    // pass through to the outer card's onClick. The whole PinnedDatesCard stays one touch
     // target (an interactive SegmentedListItem here would swallow the row's tap instead).
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -426,9 +417,14 @@ fun EmptyMilestonesCard(
     onAddDate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    MilestonesStackOuterCard(onClick = onAddDate, modifier = modifier) {
-        MilestonesStackEmptyMessage(text = stringResource(R.string.journal_no_dates))
-    }
+    MilestonesEmptyCard(
+        icon = painterResource(R.drawable.ic_calendar_month),
+        title = stringResource(R.string.journal_no_dates),
+        subtitle = stringResource(R.string.journal_no_dates_subtitle),
+        actionLabel = stringResource(R.string.journal_add_date),
+        onClick = onAddDate,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -436,27 +432,79 @@ fun EmptyPinnedMilestonesCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    MilestonesStackOuterCard(onClick = onClick, modifier = modifier) {
-        MilestonesStackEmptyMessage(text = stringResource(R.string.journal_nothing_pinned))
-    }
-}
-
-// Empty-state row for the milestones shell. Uses the same surfaceContainer segment as the
-// populated anchor rows so the empty card stays visually consistent with the stack.
-@Composable
-private fun MilestonesStackEmptyMessage(text: String) {
-    SupportMessageListItem(
-        text = text,
-        painter = painterResource(R.drawable.ic_info),
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    MilestonesEmptyCard(
+        icon = painterResource(R.drawable.ic_keep),
+        title = stringResource(R.string.journal_nothing_pinned_title),
+        subtitle = stringResource(R.string.journal_nothing_pinned_subtitle),
+        actionLabel = stringResource(R.string.journal_open),
+        onClick = onClick,
+        modifier = modifier,
     )
 }
 
-// The top-level Journal page hero card. Reuses the Milestones page's HeroViewLayout, which
-// needs a SharedTransitionScope and AnimatedVisibilityScope for its icon/title shared
-// elements; here there is no edit-mode morph, so a constant-target AnimatedContent supplies
-// those scopes without ever animating. Tapping the card opens the milestones screen.
-@OptIn(ExperimentalSharedTransitionApi::class)
+// A dedicated empty card for the timeline section (not the pinned shell): a leading icon, a
+// title + subtitle, and a trailing outlined action. The whole card is also tappable, opening
+// the milestones screen / add-date flow.
+@Composable
+private fun MilestonesEmptyCard(
+    icon: Painter,
+    title: String,
+    subtitle: String,
+    actionLabel: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        onClick = onClick,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Icon(
+                painter = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.cjkTextOffset(title),
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.cjkTextOffset(subtitle),
+                )
+            }
+            HrtOutlinedButton(
+                text = actionLabel,
+                onClick = onClick,
+                compact = true,
+            )
+        }
+    }
+}
+
+// The top-level Journal page hero card: a tappable, frosted summary of the first pinned
+// anchor. It keeps the palette aurora wash + haze frost (the same blur as the Milestones
+// hero) for identity but drops the watermark glyph. A small inline glyph precedes the title,
+// the since-date and next-milestone pills sit under it, and a compact day count + chevron
+// trail. The Milestones screen still shows the full HeroViewLayout.
 @Composable
 fun JournalHeroCard(
     hero: AnchorRowUiState,
@@ -465,6 +513,15 @@ fun JournalHeroCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colorScheme = rememberMedicationGroupColorScheme(colorKey = hero.palette)
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale, today) { dateLabelFormatter(appLocale, today) }
+    val heroHazeState = rememberHazeState()
+    val hazeBlurSupported = isHazeBlurSupported()
+    // HazeMaterials.* are @Composable, so build the frost style here and capture it in the
+    // (non-composable) blurEffect lambda below. A thin material keeps the wash visible.
+    val frostStyle = HazeMaterials.thin(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+
     EditorSegmentedListItem(
         modifier = modifier.fillMaxWidth(),
         onClick = onClick,
@@ -472,22 +529,161 @@ fun JournalHeroCard(
         cornerShape = MaterialTheme.shapes.extraLarge,
         fullyRounded = true,
         // Pin the pressed shape to the resting extraLarge so SegmentedListItem's default
-        // press morph doesn't reshape the edge-to-edge hero background on tap.
+        // press morph doesn't reshape the edge-to-edge wash on tap.
         pressedShape = MaterialTheme.shapes.extraLarge,
-        // Drawn edge-to-edge so the hero's overlay glyph bleeds into the corner; HeroViewLayout
-        // re-applies its own content inset.
+        // Drawn edge-to-edge so the wash bleeds into the corners; the row re-applies its inset.
         contentPadding = PaddingValues(0.dp),
     ) {
-        SharedTransitionLayout(modifier = Modifier.fillMaxWidth()) {
-            AnimatedContent(targetState = Unit, label = "journal-hero") { _ ->
-                HeroViewLayout(
-                    anchor = hero,
-                    heroNextMilestone = heroNextMilestone,
-                    today = today,
-                    sharedScope = this@SharedTransitionLayout,
-                    animatedVisibilityScope = this@AnimatedContent,
+        Box(modifier = Modifier.fillMaxWidth()) {
+            val heroBackground = hero.heroBackground
+            val drawsHeroBackground = heroBackground != HeroBackground.None
+            // The wash is the haze source for the frosted foreground card on API 31+.
+            when (heroBackground) {
+                HeroBackground.DateColor -> HeroDateColorBackground(
+                    colorScheme = colorScheme,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .hazeSource(heroHazeState),
+                )
+
+                is HeroBackground.Flag -> HeroColorBackground(
+                    flag = heroBackground.flag,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .hazeSource(heroHazeState),
+                )
+
+                HeroBackground.None -> Unit
+            }
+            // Haze blur over the wash (API 31+ only), matching the Milestones hero's frost.
+            if (drawsHeroBackground && hazeBlurSupported) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .hazeEffect(heroHazeState) {
+                            blurEffect { this.style = frostStyle }
+                        },
                 )
             }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(PinnedRowContentInset)
+                    .padding(bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
+                        MorphingLeadingIcon(anchor = hero, filled = false)
+                        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+                        Text(
+                            text = hero.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .weight(1f)
+                                .cjkTextOffset(hero.name),
+                        )
+                    }
+                    JournalHeroPills(
+                        hero = hero,
+                        nextMilestone = null,
+                        dateLabel = dateFormatter(hero.date),
+                    )
+                }
+                CompactHeroDayCount(hero = hero, valueColor = colorScheme.primary)
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+// The hero's pills: a since-date pill and, for past anchors with an upcoming milestone, the
+// next-milestone pill. Mirrors HeroChips (minus the Home tag) so the journal hero reads the
+// same as the Milestones hero.
+@Composable
+private fun JournalHeroPills(
+    hero: AnchorRowUiState,
+    nextMilestone: NextMilestoneUiState?,
+    dateLabel: String,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        HrtPill(
+            label = stringResource(R.string.journal_since_date, dateLabel),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            size = HrtPillSize.Small,
+            icon = { Icon(painterResource(R.drawable.ic_event), null, iconModifier) },
+        )
+        if (!hero.isFuture && nextMilestone != null) {
+            HrtPill(
+                label = nextMilestone.label(),
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                size = HrtPillSize.Small,
+                icon = { Icon(painterResource(R.drawable.ic_flag), null, iconModifier) },
+            )
+        }
+    }
+}
+
+// The hero's trailing day count: the magnitude as an emphasized number (palette primary) with
+// the unit beside it, on a single baseline-aligned line. Mirrors HeroCount's past/future/today
+// handling at a compact size.
+@Composable
+private fun CompactHeroDayCount(
+    hero: AnchorRowUiState,
+    valueColor: Color,
+) {
+    val isToday = hero.dayMagnitude == 0L && !hero.isFuture
+    val days = hero.dayMagnitude.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (isToday) {
+            val todayText = stringResource(R.string.journal_today)
+            Text(
+                text = todayText,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.alignByBaseline().cjkTextOffset(todayText),
+            )
+        } else {
+            // The unit ("days") is the only part that can be CJK; offset all three by it so the
+            // number and prefix shift in lockstep and the baseline stays aligned.
+            val dayUnit = pluralStringResource(R.plurals.journal_day_unit, days)
+            if (hero.isFuture) {
+                Text(
+                    text = stringResource(R.string.journal_in_prefix),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.alignByBaseline().cjkTextOffset(dayUnit),
+                )
+            }
+            Text(
+                text = days.toString(),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Medium,
+                color = valueColor,
+                modifier = Modifier.alignByBaseline().cjkTextOffset(dayUnit),
+            )
+            Text(
+                text = dayUnit,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alignByBaseline().cjkTextOffset(dayUnit),
+            )
         }
     }
 }
@@ -2357,11 +2553,24 @@ private fun JournalComponentPreview(content: @Composable () -> Unit) {
     }
 }
 
-@Preview(name = "MilestonesStackCard", showBackground = true, widthDp = 420)
+@Preview(name = "PinnedDatesCard", showBackground = true, widthDp = 420)
 @Composable
-private fun MilestonesStackCardPreview() {
+private fun PinnedDatesCardPreview() {
     JournalComponentPreview {
-        MilestonesStackCard(today = previewToday, anchors = previewAnchors(), onClick = {})
+        PinnedDatesCard(today = previewToday, anchors = previewAnchors(), onClick = {})
+    }
+}
+
+@Preview(name = "JournalHeroCard", showBackground = true, widthDp = 420)
+@Composable
+private fun JournalHeroCardPreview() {
+    JournalComponentPreview {
+        JournalHeroCard(
+            hero = previewAnchors().first(),
+            heroNextMilestone = previewNextMilestone,
+            today = previewToday,
+            onClick = {},
+        )
     }
 }
 

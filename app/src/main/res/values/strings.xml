@@ -212,7 +212,10 @@
     <string name="journal_yesterday">Yesterday</string>
     <string name="journal_note_date_weekday_pattern">%1$s, %2$s</string>
     <string name="journal_write_about_today">Write about today…</string>
-    <string name="journal_nothing_pinned">Nothing pinned yet. Pin a date in the timeline below.</string>
+    <string name="journal_no_dates_subtitle">Add your first milestone date.</string>
+    <string name="journal_nothing_pinned_title">Nothing pinned yet</string>
+    <string name="journal_nothing_pinned_subtitle">Pin a date to feature it here.</string>
+    <string name="journal_open">Open</string>
     <string name="journal_pinned_section">Pinned</string>
     <string name="journal_timeline_section">All dates</string>
     <string name="journal_all_notes">All notes</string>
