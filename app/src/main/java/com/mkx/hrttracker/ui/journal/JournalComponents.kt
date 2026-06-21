@@ -68,6 +68,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -154,6 +155,7 @@ import java.time.format.TextStyle
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlinx.coroutines.delay
 
 private const val TodayComposerTextFieldTestTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field-"
@@ -1575,7 +1577,22 @@ private fun PinnedTrayRows(
     val hasTransitioningRows = displayIds.any { id ->
         rowVisibilityStates[id]?.isIdle == false
     }
-    val reorderOwnsGaps = isEditMode && !hasTransitioningRows
+    // The reorderable library calls onSettle (and so onReorder, which applies the new
+    // order) only AFTER its drop spring finishes. If edit mode is exited inside that
+    // window, the gap arrangement below would flip — changing ReorderableColumn's
+    // remember(list, spacing) key, rebuilding its state from the not-yet-reordered list,
+    // and snapping the rows back. Holding the reorder gaps through the settle keeps that
+    // key stable so the just-dragged order survives until onSettle lands it.
+    var settlingAfterDrag by remember { mutableStateOf(false) }
+    LaunchedEffect(settlingAfterDrag) {
+        if (settlingAfterDrag) {
+            // Safety net for a drop with no reorder (onSettle never fires): the spring is
+            // StiffnessMediumLow, so this comfortably outlasts it without lingering long.
+            delay(1000)
+            settlingAfterDrag = false
+        }
+    }
+    val reorderOwnsGaps = (isEditMode || settlingAfterDrag) && !hasTransitioningRows
 
     // ReorderableColumn lays its rows out positionally (no per-item key), so a reorder
     // rebuilds a row's whole subtree from scratch — any AnimatedVisibility inside the row
@@ -1603,6 +1620,8 @@ private fun PinnedTrayRows(
                 reorderedIds(displayOrder, fromIndex, toIndex)
                     .filter { it in activeIdSet }
             )
+            // The new order is now applied; the gaps can follow edit mode again.
+            settlingAfterDrag = false
         },
         onMove = {
             ViewCompat.performHapticFeedback(
@@ -1644,13 +1663,23 @@ private fun PinnedTrayRows(
             // (so the page can still scroll, and the unpin tap never starts a drag),
             // or touch the trailing grip, which begins dragging immediately with no
             // long-press. Both handles drive the same item's drag.
+            // onDragStopped fires at release, before the drop spring (and so onSettle).
+            // Mark the settle as in-flight here so the gap arrangement holds until the
+            // reorder is applied, instead of snapping if edit mode is exited meanwhile.
+            val onDragStopped: (Float) -> Unit = { settlingAfterDrag = true }
             val rowDragModifier = if (isEditMode && isActive) {
-                Modifier.longPressDraggableHandle(interactionSource = interactionSource)
+                Modifier.longPressDraggableHandle(
+                    interactionSource = interactionSource,
+                    onDragStopped = onDragStopped,
+                )
             } else {
                 Modifier
             }
             val gripDragHandle = if (isEditMode && isActive) {
-                Modifier.draggableHandle(interactionSource = gripInteractionSource)
+                Modifier.draggableHandle(
+                    interactionSource = gripInteractionSource,
+                    onDragStopped = onDragStopped,
+                )
             } else {
                 Modifier
             }

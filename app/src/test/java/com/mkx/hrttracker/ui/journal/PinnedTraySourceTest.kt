@@ -17,8 +17,13 @@ class PinnedTraySourceTest {
 
         assertTrue(
             "Settled edit-mode rows should let ReorderableColumn own gaps so drag " +
-                "offsets include the same spacing the user sees.",
-            pinnedTrayRows.contains("val reorderOwnsGaps = isEditMode && !hasTransitioningRows") &&
+                "offsets include the same spacing the user sees. The gaps also hold " +
+                "through the post-drop settle (settlingAfterDrag) so exiting edit mode " +
+                "before onSettle lands doesn't change spacing, rebuild the reorder state " +
+                "from the stale list, and snap the order back.",
+            pinnedTrayRows.contains(
+                "val reorderOwnsGaps = (isEditMode || settlingAfterDrag) && !hasTransitioningRows"
+            ) &&
                 pinnedTrayRows.contains("verticalArrangement = if (reorderOwnsGaps)") &&
                 pinnedTrayRows.contains("Arrangement.spacedBy(gap)"),
         )
