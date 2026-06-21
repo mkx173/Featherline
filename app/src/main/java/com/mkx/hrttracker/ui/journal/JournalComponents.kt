@@ -581,9 +581,9 @@ fun JournalHeroCard(
                         Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
                         Text(
                             text = hero.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Normal,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
@@ -858,7 +858,7 @@ private fun HeroViewLayout(
                         ),
                     )
                     Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-                    HeroTitle(name = anchor.name, animatedVisibilityScope = animatedVisibilityScope, modifier = Modifier.padding(vertical = 6.dp))
+                    HeroTitle(name = anchor.name, animatedVisibilityScope = animatedVisibilityScope, heroView = true, modifier = Modifier.padding(vertical = 6.dp))
                 }
                 Column(
                     verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
@@ -1109,16 +1109,17 @@ private fun SharedTransitionScope.HeroTitle(
     modifier: Modifier = Modifier,
     name: String,
     animatedVisibilityScope: AnimatedVisibilityScope,
+    heroView: Boolean = false,
 ) {
     Text(
         text = name,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Normal,
-        color = MaterialTheme.colorScheme.onSurface,
+        style = if (heroView) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleMedium,
+        fontWeight = if (heroView) FontWeight.SemiBold else FontWeight.Normal,
+        color = if (heroView) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
-            .sharedElement(
+            .sharedBounds(
                 rememberSharedContentState(key = HeroTitleSharedKey),
                 animatedVisibilityScope = animatedVisibilityScope,
             )
