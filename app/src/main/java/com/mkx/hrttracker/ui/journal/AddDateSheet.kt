@@ -65,6 +65,7 @@ import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.hazeSheetBlurActive
 import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.medication.LocalSheetDismissFocusRequester
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
@@ -177,8 +178,14 @@ private fun AddDateSheetContent(
     today: LocalDate,
 ) {
     // The date picker lives in the sheet content (not the host) so its focusManager shares the
-    // sheet's focus owner; clearing focus on dismiss then actually drops the date field's focus.
+    // sheet's focus owner; dismissing focus then actually drops the date field's focus.
     val focusManager = LocalFocusManager.current
+    // Park on the sheet's non-text anchor instead of clearing focus: on API 26
+    // clearFocus jumps focus back to the first field rather than dismissing.
+    val dismissFocusAnchor = LocalSheetDismissFocusRequester.current
+    val dismissKeyboard: () -> Unit = {
+        dismissFocusAnchor?.requestFocus() ?: focusManager.clearFocus()
+    }
     var isDatePickerVisible by remember { mutableStateOf(false) }
 
     if (isDatePickerVisible) {
@@ -186,7 +193,7 @@ private fun AddDateSheetContent(
             onDateSelected = onDateSelected,
             onDismiss = {
                 isDatePickerVisible = false
-                focusManager.clearFocus()
+                dismissKeyboard()
             },
             initialSelectedDate = selectedDate,
         )
@@ -203,7 +210,7 @@ private fun AddDateSheetContent(
                 .testTag(AddDateNameFieldTestTag),
             label = { Text(text = stringResource(R.string.journal_date_name_label)) },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+            keyboardActions = KeyboardActions(onDone = { dismissKeyboard() }),
             // The leading icon previews the selected anchor icon, tinted with the
             // chosen palette's primary so the field surfaces the colour choice.
             leadingIcon = {
