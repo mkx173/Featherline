@@ -8,6 +8,29 @@ import org.junit.Test
 
 class HeroBackgroundColorsTest {
     @Test
+    fun bloomParams_dimsAlphaWhenUnblurred_keepingChromaAndTone() {
+        listOf(false, true).forEach { isDark ->
+            val blurred = HeroBackgroundColors.bloomParams(isDark = isDark, blurred = true)
+            val unblurred = HeroBackgroundColors.bloomParams(isDark = isDark, blurred = false)
+            // Without the haze blur to diffuse it, the wash reads stronger, so it must be fainter.
+            assertTrue(unblurred.alpha < blurred.alpha)
+            assertEquals(
+                blurred.alpha * HeroBackgroundColors.UnblurredAlphaScale,
+                unblurred.alpha,
+                1e-6f,
+            )
+            // Only the opacity drops; the colour itself (chroma/tone) is unchanged.
+            assertEquals(blurred.chroma, unblurred.chroma, 0.0)
+            assertEquals(blurred.tone, unblurred.tone, 0.0)
+        }
+        // The default is the blurred (API 31+) look.
+        assertEquals(
+            HeroBackgroundColors.bloomParams(isDark = false, blurred = true),
+            HeroBackgroundColors.bloomParams(isDark = false),
+        )
+    }
+
+    @Test
     fun normalize_forcesThemeToneAndKeepsHue_forChromaticSeed() {
         val blue = 0xFF5BCEFA.toInt()
         val original = Hct.fromInt(blue)

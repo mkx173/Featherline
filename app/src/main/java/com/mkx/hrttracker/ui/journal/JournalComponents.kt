@@ -885,7 +885,8 @@ private const val AuroraPulseDurationMillis = 8000
 private fun HeroColorBackground(flag: PrideFlag, modifier: Modifier = Modifier) {
     // Read the actual scheme (covers system dark, the in-app theme override, and AMOLED).
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val alpha = HeroBackgroundColors.bloomParams(isDark).alpha
+    // No haze blur below API 31, so the unblurred wash is dimmed to avoid reading too strong.
+    val alpha = HeroBackgroundColors.bloomParams(isDark, blurred = isHazeBlurSupported()).alpha
     val colors = remember(flag, isDark) {
         HeroBackgroundColors.bloomColors(flag.seeds, isDark).map { Color(it).copy(alpha = alpha) }
     }
@@ -895,7 +896,8 @@ private fun HeroColorBackground(flag: PrideFlag, modifier: Modifier = Modifier) 
 @Composable
 private fun HeroDateColorBackground(colorScheme: ColorScheme, modifier: Modifier = Modifier) {
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val alpha = HeroBackgroundColors.bloomParams(isDark).alpha
+    // No haze blur below API 31, so the unblurred wash is dimmed to avoid reading too strong.
+    val alpha = HeroBackgroundColors.bloomParams(isDark, blurred = isHazeBlurSupported()).alpha
     val colors = remember(colorScheme.primary, colorScheme.primaryContainer, alpha) {
         HeroBackgroundColors.dateColorBloomColors(
             primary = colorScheme.primary.toArgb(),

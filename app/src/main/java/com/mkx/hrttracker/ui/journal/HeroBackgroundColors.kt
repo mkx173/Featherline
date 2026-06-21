@@ -42,7 +42,15 @@ object HeroBackgroundColors {
     val LightBloom = ThemeParams(chroma = 44.0, tone = 82.0, alpha = 0.55f)
     val DarkBloom = ThemeParams(chroma = 58.0, tone = 66.0, alpha = 0.42f)
 
-    fun bloomParams(isDark: Boolean): ThemeParams = if (isDark) DarkBloom else LightBloom
+    // Without the haze blur to diffuse it (API < 31), the wash is drawn sharp over the card and
+    // reads stronger, so its opacity is scaled down by this fraction to feel closer to the
+    // blurred look. Colour (chroma/tone) is left alone; only the bloom's opacity drops.
+    const val UnblurredAlphaScale = 0.6f
+
+    fun bloomParams(isDark: Boolean, blurred: Boolean = true): ThemeParams {
+        val base = if (isDark) DarkBloom else LightBloom
+        return if (blurred) base else base.copy(alpha = base.alpha * UnblurredAlphaScale)
+    }
 
     /**
      * Normalise one ARGB [seed]: chromatic -> (hue, [chroma], [tone]); neutral -> (hue, 0,
