@@ -107,13 +107,17 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
@@ -534,7 +538,6 @@ private fun MilestonesEmptyCard(
 @Composable
 fun JournalHeroCard(
     hero: AnchorRowUiState,
-    heroNextMilestone: NextMilestoneUiState?,
     today: LocalDate,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -670,43 +673,41 @@ private fun CompactHeroDayCount(
 ) {
     val isToday = hero.dayMagnitude == 0L && !hero.isFuture
     val days = hero.dayMagnitude.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    val todayText = stringResource(R.string.journal_today)
+    val inPrefix = stringResource(R.string.journal_in_prefix)
+    val dayUnit = pluralStringResource(R.plurals.journal_day_unit, days)
+
+    val tertiary = MaterialTheme.colorScheme.tertiary
+    val text = buildAnnotatedString {
         if (isToday) {
-            val todayText = stringResource(R.string.journal_today)
-            Text(
-                text = todayText,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.tertiary,
-                modifier = Modifier.alignByBaseline().cjkTextOffset(todayText),
-            )
-        } else {
-            // The unit ("days") is the only part that can be CJK; offset all three by it so the
-            // number and prefix shift in lockstep and the baseline stays aligned.
-            val dayUnit = pluralStringResource(R.plurals.journal_day_unit, days)
-            if (hero.isFuture) {
-                Text(
-                    text = stringResource(R.string.journal_in_prefix),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.alignByBaseline().cjkTextOffset(dayUnit),
-                )
+            withStyle(SpanStyle(color = tertiary, fontWeight = FontWeight.Medium)) {
+                append(todayText)
             }
-            Text(
-                text = days.toString(),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Medium,
-                color = valueColor,
-                modifier = Modifier.alignByBaseline().cjkTextOffset(dayUnit),
-            )
-            Text(
-                text = dayUnit,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.alignByBaseline().cjkTextOffset(dayUnit),
-            )
+        } else {
+            // A normal space joins the parts so they share one baseline and shape together.
+            if (hero.isFuture) {
+                withStyle(SpanStyle(color = onSurfaceVariant, fontWeight = FontWeight.Medium)) { append(inPrefix) }
+                append(" ")
+            }
+            withStyle(SpanStyle(color = valueColor, fontWeight = FontWeight.Medium)) {
+                append(days.toString())
+            }
+            append(" ")
+            withStyle(SpanStyle(color = onSurfaceVariant, fontWeight = FontWeight.Medium)) { append(dayUnit) }
         }
     }
+
+    // The unit ("days") is the only part that can be CJK; offsetting the whole line by it shifts
+    // the number and prefix in lockstep. Today is a single span, so offset by it instead.
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleLarge.copy(
+            fontSize = 20.sp
+        ),
+        modifier = Modifier.cjkTextOffset(if (isToday) todayText else dayUnit),
+    )
 }
 
 // Every pinned row renders through this one structure so that becoming (or ceasing to be)
@@ -2635,7 +2636,6 @@ private fun JournalHeroCardPreview() {
     JournalComponentPreview {
         JournalHeroCard(
             hero = previewAnchors().first(),
-            heroNextMilestone = previewNextMilestone,
             today = previewToday,
             onClick = {},
         )

@@ -158,7 +158,6 @@ fun JournalScreenContent(
                             item {
                                 JournalHeroCard(
                                     hero = uiState.pinnedAnchors.first(),
-                                    heroNextMilestone = uiState.heroNextMilestone,
                                     today = uiState.today,
                                     onClick = onOpenMilestones,
                                 )
