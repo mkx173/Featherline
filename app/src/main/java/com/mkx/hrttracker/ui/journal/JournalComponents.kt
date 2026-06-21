@@ -135,6 +135,7 @@ import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.LocalSegmentPosition
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SegmentPosition
+import com.mkx.hrttracker.ui.components.StockStatusIndicator
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.isHazeBlurSupported
@@ -302,45 +303,59 @@ fun SimpleHomeCard(
         modifier = modifier
             .fillMaxWidth()
             .testTag(SimpleHomeCardTestTag)
-            .clickable(role = Role.Button, onClick = onClick),
-        shape = RoundedCornerShape(28.dp),
+            .clip(MaterialTheme.shapes.extraLarge)
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(dimensionResource(R.dimen.padding_medium)),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            AnchorIconChip(anchor = anchor, size = 40.dp)
-            Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+            AnchorIconChip(anchor = anchor)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = anchor.name,
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Normal,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.cjkTextOffset(anchor.name),
+                )
+                val supportingTextLabel = stringResource(
+                    R.string.journal_since_date,
+                    dateFormatter(anchor.date),
                 )
                 Text(
-                    text = stringResource(
-                        R.string.journal_since_date,
-                        dateFormatter(anchor.date),
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = supportingTextLabel,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.cjkTextOffset(supportingTextLabel),
+                    )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val dayCountLabel = anchor.dayCountLabel()
+                Text(
+                    text = dayCountLabel,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (anchor.isOnToday()) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.cjkTextOffset(dayCountLabel),
+                )
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-            Text(
-                text = anchor.dayCountLabel(),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_xsmall)))
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
         }
     }
 }
@@ -610,17 +625,20 @@ fun JournalHeroCard(
                         )
                     }
                     JournalHeroPills(
-                        hero = hero,
-                        nextMilestone = null,
                         dateLabel = dateFormatter(hero.date),
                     )
                 }
-                CompactHeroDayCount(hero = hero, valueColor = colorScheme.primary)
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CompactHeroDayCount(hero = hero, valueColor = colorScheme.primary)
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -631,34 +649,15 @@ fun JournalHeroCard(
 // same as the Milestones hero.
 @Composable
 private fun JournalHeroPills(
-    hero: AnchorRowUiState,
-    nextMilestone: NextMilestoneUiState?,
     dateLabel: String,
 ) {
-    val colorScheme = rememberMedicationGroupColorScheme(colorKey = hero.palette)
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        HrtPill(
-            label = stringResource(R.string.journal_since_date, dateLabel),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            size = HrtPillSize.Small,
-            icon = { Icon(painterResource(R.drawable.ic_event), null, iconModifier) },
-        )
-        if (!hero.isFuture && nextMilestone != null) {
-            // The milestone pill carries the date color (RegimenMedicationChip's scheme).
-            HrtPill(
-                label = nextMilestone.label(),
-                containerColor = colorScheme.primaryContainer,
-                contentColor = colorScheme.onPrimaryContainer,
-                labelColor = colorScheme.onPrimaryFixed,
-                size = HrtPillSize.Small,
-                icon = { Icon(painterResource(R.drawable.ic_flag), null, iconModifier) },
-            )
-        }
-    }
+    HrtPill(
+        label = stringResource(R.string.journal_since_date, dateLabel),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        size = HrtPillSize.Small,
+        icon = { Icon(painterResource(R.drawable.ic_event), null, iconModifier) },
+    )
 }
 
 // The hero's trailing day count: the magnitude as an emphasized number (palette primary) with
@@ -1300,16 +1299,13 @@ private fun HeroCount(hero: AnchorRowUiState) {
     // date's primary color with a titleMedium supporting unit, aligned to the value's
     // baseline (alignByBaseline) rather than nudged with bottom padding.
     val datePrimary = rememberMedicationGroupColorScheme(colorKey = hero.palette).primary
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (isToday) {
             Text(
                 text = stringResource(R.string.journal_today),
-                style = MaterialTheme.typography.displayLarge.copy(
-                    fontFeatureSettings = "tnum",
-                ),
+                style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Medium,
-                color = datePrimary,
-                modifier = Modifier.alignByBaseline(),
+                color = MaterialTheme.colorScheme.tertiary,
             )
         } else {
             if (hero.isFuture) {
@@ -1322,9 +1318,7 @@ private fun HeroCount(hero: AnchorRowUiState) {
             }
             Text(
                 text = days.toString(),
-                style = MaterialTheme.typography.displayLarge.copy(
-                    fontFeatureSettings = "tnum",
-                ),
+                style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Medium,
                 color = datePrimary,
                 modifier = Modifier.alignByBaseline(),
@@ -1382,11 +1376,11 @@ private fun AnchorIconChip(
         color = colorScheme.primaryContainer,
         contentColor = colorScheme.onPrimaryContainer,
     ) {
-        Box(modifier = Modifier.size(size), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
             Icon(
                 painter = painterResource(anchorIconRes(anchor.icon)),
                 contentDescription = null,
-                modifier = Modifier.size(size * 0.56f),
+                modifier = Modifier.size(24.dp),
             )
         }
     }
@@ -1986,13 +1980,11 @@ private fun TimelineMilestoneRow(
                         val dayCountLabelText = anchor.dayCountLabel()
                         Text(
                             text = dayCountLabelText,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontFeatureSettings = "tnum",
-                            ),
+                            style = MaterialTheme.typography.titleMedium,
                             color = if (anchor.isOnToday()) {
                                 MaterialTheme.colorScheme.tertiary
                             } else {
-                                MaterialTheme.colorScheme.onSurface
+                                MaterialTheme.colorScheme.onSurfaceVariant
                             },
                             modifier = Modifier.cjkTextOffset(dayCountLabelText)
                         )

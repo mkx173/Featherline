@@ -138,15 +138,6 @@ fun MainContent(
                 hideReferenceRanges = uiState.hideReferenceRanges,
             )
 
-            uiState.homeAnchor?.let { anchor ->
-                Spacer(modifier = Modifier.height(8.dp))
-                SimpleHomeCard(
-                    anchor = anchor,
-                    today = today,
-                    onClick = onOpenJournal,
-                )
-            }
-
             Spacer(modifier = Modifier.height(8.dp))
             MainE2ChartCard(
                 section = uiState.e2Chart,
@@ -169,6 +160,15 @@ fun MainContent(
                     now = uiState.now,
                     dateFormatter = dateFormatter,
                     timeFormatter = timeFormatter,
+                )
+            }
+
+            uiState.homeAnchor?.let { anchor ->
+                Spacer(modifier = Modifier.height(8.dp))
+                SimpleHomeCard(
+                    anchor = anchor,
+                    today = today,
+                    onClick = onOpenJournal,
                 )
             }
 
