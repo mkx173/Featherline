@@ -58,13 +58,42 @@ class MilestonesViewModel @Inject constructor(
         todayFlow,
         pendingEdits,
     ) { all, today, pending ->
+        buildUiState(all, today, pending)
+    }
+
+    val uiState: StateFlow<MilestonesUiState> = combine(core, editMode) { state, isEdit ->
+        state.copy(isEditMode = isEdit)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        // Seed the first frame from the repository's warm cache (loaded at app start) so an
+        // already-ready database renders real data instead of flashing the loading indicator
+        // for the frames until the cold combine lands its first emission. A null cache stays
+        // in the loading state. The warm cache is fine for this one-frame seed even though
+        // reconciliation deliberately avoids it (the live flow replaces it immediately).
+        initialValue = seedUiState(appTimeSource.currentMinute.value.toLocalDate()),
+    )
+
+    private fun seedUiState(today: LocalDate): MilestonesUiState {
+        val cached = journalRepository.getCachedTrackedDates()
+            ?: return MilestonesUiState(today = today)
+        return buildUiState(cached, today, PendingEdits())
+    }
+
+    // The date-derived UI state (sort, pinned set, hero, timeline). Shared by the live flow
+    // and the warm-cache seed so the two can't drift; isEditMode is applied separately.
+    private fun buildUiState(
+        all: List<TrackedDate>,
+        today: LocalDate,
+        pending: PendingEdits,
+    ): MilestonesUiState {
         val effective = applyPendingEdits(all, pending)
         val sorted = effective.sortedWith(compareBy<TrackedDate> { it.date }.thenBy { it.name })
         val pinned = pinnedSorted(effective)
         val pinnedIds = pinned.map { it.id }.toSet()
         val hero = pinned.firstOrNull()
         val heroRow = hero?.toAnchorRowUiState(today)
-        MilestonesUiState(
+        return MilestonesUiState(
             isLoading = false,
             today = today,
             hero = heroRow,
@@ -79,14 +108,6 @@ class MilestonesViewModel @Inject constructor(
             todayDividerIndex = sorted.count { it.date.isBefore(today) },
         )
     }
-
-    val uiState: StateFlow<MilestonesUiState> = combine(core, editMode) { state, isEdit ->
-        state.copy(isEditMode = isEdit)
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.Eagerly,
-        initialValue = MilestonesUiState(today = appTimeSource.currentMinute.value.toLocalDate()),
-    )
 
     fun toggleEditMode() {
         editMode.value = !editMode.value

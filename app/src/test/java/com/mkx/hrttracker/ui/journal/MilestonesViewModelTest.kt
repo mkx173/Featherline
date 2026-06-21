@@ -46,6 +46,9 @@ class MilestonesViewModelTest {
             initialMinute = LocalDateTime.of(2026, 6, 16, 12, 0),
             initialZone = ZoneId.of("Asia/Tokyo"),
         )
+        // Default to a cold warm-cache so the initial state seeds the loading placeholder;
+        // tests exercising the seed override this.
+        every { repository.getCachedTrackedDates() } returns null
     }
 
     @After
@@ -88,6 +91,39 @@ class MilestonesViewModelTest {
         assertEquals(listOf("On estradiol", "Surgery"), state.timeline.map { it.anchor.name })
         assertEquals(1, state.todayDividerIndex)
         assertEquals(listOf(true, false), state.timeline.map { it.isPinned })
+    }
+
+    // Opening Milestones with an already-warm cache must render real data on the very first
+    // frame instead of flashing the loading indicator until the cold Room flow lands — the
+    // same seeding JournalViewModel/PlanViewModel do. Regression for the entry loading-flash.
+    @Test
+    fun uiState_seedsFromWarmCache_noLoadingFlashOnEntry() = runTest {
+        val estradiol = trackedDate(
+            id = "estradiol",
+            name = "On estradiol",
+            icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1),
+            palette = MedicationGroupColorKey.ROSE,
+            pinnedOrder = 0,
+        )
+        val surgery = trackedDate(
+            id = "surgery",
+            name = "Surgery",
+            icon = AnchorIcon.FLAG,
+            date = LocalDate.of(2026, 9, 15),
+            pinnedOrder = null,
+        )
+        stubTrackedDates(all = listOf(surgery, estradiol), pinned = listOf(estradiol))
+        every { repository.getCachedTrackedDates() } returns listOf(surgery, estradiol)
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+
+        // Read the initial value before the cold combine advances: it must already be loaded.
+        val initial = viewModel.uiState.value
+        assertFalse(initial.isLoading)
+        assertEquals("On estradiol", initial.hero?.name)
+        assertEquals(listOf("On estradiol", "Surgery"), initial.timeline.map { it.anchor.name })
+        assertEquals(1, initial.todayDividerIndex)
     }
 
     @Test
