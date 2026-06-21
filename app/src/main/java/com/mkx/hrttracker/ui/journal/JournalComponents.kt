@@ -1534,12 +1534,28 @@ private fun PinnedTrayRows(
     // in edit mode until the settle completes — gaps, drag handles and the hero transform
     // all wait for onSettle.
     var settlingAfterDrag by remember { mutableStateOf(false) }
+    // onSettle records the just-settled order here instead of clearing the hold directly.
+    // A reorder rebuilds the moved row's subtree at its new position, so releasing the hold
+    // in that same composition would seed the fresh top row straight into the hero view with
+    // no morph (a snap). Instead release the hold one composition LATER — once the reordered
+    // list has rendered with the hold still on, so the new top is compact for a frame and
+    // then morphs into the hero view.
+    var settledOrder by remember { mutableStateOf<List<String>?>(null) }
+    val displayOrderIds = displayAnchors.map { it.id }
+    val settledOrderLanded = settledOrder == displayOrderIds
+    LaunchedEffect(settledOrderLanded) {
+        if (settledOrderLanded) {
+            settlingAfterDrag = false
+            settledOrder = null
+        }
+    }
     LaunchedEffect(settlingAfterDrag) {
         if (settlingAfterDrag) {
-            // Safety net for a drop with no reorder (onSettle never fires): the spring is
-            // StiffnessMediumLow, so this comfortably outlasts it without lingering long.
+            // Safety net for a drop with no reorder (onSettle never fires, so settledOrder
+            // never lands): the spring is StiffnessMediumLow, so this outlasts it.
             delay(1000)
             settlingAfterDrag = false
+            settledOrder = null
         }
     }
     val editingOrSettling = isEditMode || settlingAfterDrag
@@ -1552,12 +1568,12 @@ private fun PinnedTrayRows(
         list = displayAnchors,
         onSettle = { fromIndex, toIndex ->
             val displayOrder = displayAnchors.map { it.id }
-            onReorder(
-                reorderedIds(displayOrder, fromIndex, toIndex)
-                    .filter { it in activeIdSet }
-            )
-            // The new order is now applied; the gaps can follow edit mode again.
-            settlingAfterDrag = false
+            val newOrder = reorderedIds(displayOrder, fromIndex, toIndex)
+                .filter { it in activeIdSet }
+            onReorder(newOrder)
+            // Release the hold only after this newOrder has rendered (see settledOrder above),
+            // so the reordered top row morphs into the hero view instead of snapping into it.
+            settledOrder = newOrder
         },
         onMove = {
             ViewCompat.performHapticFeedback(
