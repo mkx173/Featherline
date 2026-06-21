@@ -124,8 +124,8 @@ fun NoneSwatch(
     modifier: Modifier = Modifier,
 ) {
     val description = stringResource(R.string.journal_hero_background_none)
-    val fill = MaterialTheme.colorScheme.primaryContainer
-    val mark = MaterialTheme.colorScheme.onPrimaryContainer
+    val fill = MaterialTheme.colorScheme.secondaryContainer
+    val mark = MaterialTheme.colorScheme.onSecondaryContainer
     val ringColor = MaterialTheme.colorScheme.surfaceContainer
     val shape = swatchShape(selected)
     Box(
