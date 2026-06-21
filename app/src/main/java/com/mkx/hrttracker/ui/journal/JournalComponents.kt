@@ -839,7 +839,15 @@ private fun HeroViewLayout(
                         .size(160.dp)
                         .alpha(0.1f)
                         .offset(x = 20.dp, y = (-20).dp),
-                    tint = colorScheme.primary,
+                    // Tint to the date colour only when there's no background. This branch is
+                    // reached with a background only below API 31 (no frosted watermark there);
+                    // keep the glyph neutral then — onSurfaceVariant, the same tint the API 31+
+                    // watermark glass uses — instead of washing it in the date hue on the wash.
+                    tint = if (drawsHeroBackground) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        colorScheme.primary
+                    },
                 )
             }
             // Mirror MainE2HeroCard's content column, which carries a 6dp bottom padding

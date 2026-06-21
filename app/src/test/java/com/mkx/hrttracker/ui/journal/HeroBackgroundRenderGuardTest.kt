@@ -58,6 +58,24 @@ class HeroBackgroundRenderGuardTest {
     }
 
     @Test
+    fun heroViewGlyphTintsToDateColorOnlyWithoutBackground() {
+        val heroView = source.substringAfter("private fun HeroViewLayout(")
+            .substringBefore("private fun ")
+        // The fallback corner glyph is drawn whenever there's no frosted watermark — i.e. no
+        // background, or a background below API 31. It must tint to the date colour only when no
+        // background is active (matching API 31+); with a background it stays neutral instead of
+        // washing the glyph in the date hue on top of the coloured background.
+        assertTrue(
+            "The fallback hero glyph must tint to the date colour only when no background is set.",
+            heroView.contains("tint = if (drawsHeroBackground)"),
+        )
+        assertFalse(
+            "The fallback hero glyph must not unconditionally tint to the date colour.",
+            heroView.contains("tint = colorScheme.primary,"),
+        )
+    }
+
+    @Test
     fun compactRowNeverRendersTheWash() {
         val compact = source.substringAfter("private fun PinnedCompactLayout(")
             .substringBefore("\nprivate fun ")
