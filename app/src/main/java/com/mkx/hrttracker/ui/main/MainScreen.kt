@@ -126,7 +126,7 @@ fun MainScreen(
     onEntryClick: (MainEditEntryRequest) -> Unit = { },
     onMedicineDetailClick: (UUID) -> Unit = { },
     onAddEntryClick: () -> Unit = { },
-    onOpenJournal: () -> Unit = { },
+    onOpenTimeline: () -> Unit = { },
     viewModel: MainViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
     )
@@ -233,7 +233,7 @@ fun MainScreen(
                 onDismissTimeZoneChangeNotice = viewModel::dismissTimeZoneChangeNotice,
                 onE2ChartWindowOptionSelected = viewModel::setHomeE2ChartWindowOption,
                 onLowStockSectionExpandedChange = viewModel::setLowStockSectionExpanded,
-                onOpenJournal = onOpenJournal,
+                onOpenTimeline = onOpenTimeline,
                 claimE2ChartIntroAnimation = viewModel::claimHomeE2ChartIntroAnimation,
                 modifier = Modifier.fillMaxSize(),
             )

@@ -785,10 +785,14 @@ fun HrtTrackerNavHost(
                                     ),
                                 )
                             },
-                            onOpenJournal = {
-                                navController.navigateToTopLevelScreen(
-                                    targetScreen = Screen.Journal,
-                                    selectedBottomScreen = selectedBottomScreen,
+                            onOpenTimeline = {
+                                // Open the timeline (Milestones) page on top of the current
+                                // home tab rather than switching to the Journal tab, so the
+                                // bottom bar stays on Home and Back returns here.
+                                navController.navigate(
+                                    Screen.JournalMilestones.createRoute(
+                                        topLevelParentRoute = selectedBottomScreen.route,
+                                    ),
                                 )
                             },
                             onQuickLogDoseClick = { request ->

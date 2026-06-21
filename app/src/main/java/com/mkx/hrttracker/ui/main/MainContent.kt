@@ -67,7 +67,7 @@ fun MainContent(
     onDismissTimeZoneChangeNotice: () -> Unit = { },
     onE2ChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
     onLowStockSectionExpandedChange: (Boolean) -> Unit = { },
-    onOpenJournal: () -> Unit = { },
+    onOpenTimeline: () -> Unit = { },
     claimE2ChartIntroAnimation: () -> Boolean = { false },
     contentPadding: PaddingValues? = null,
 ) {
@@ -168,7 +168,7 @@ fun MainContent(
                 SimpleHomeCard(
                     anchor = anchor,
                     today = today,
-                    onClick = onOpenJournal,
+                    onClick = onOpenTimeline,
                 )
             }
 

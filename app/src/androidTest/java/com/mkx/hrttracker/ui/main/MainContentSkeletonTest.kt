@@ -140,9 +140,9 @@ class MainContentSkeletonTest {
     }
 
     @Test
-    fun homeJournalCardShowsPinnedAnchorAndOpensJournal() {
+    fun homeJournalCardShowsPinnedAnchorAndOpensTimeline() {
         val anchorName = "Pinned home marker"
-        var openedJournal = false
+        var openedTimeline = false
 
         composeRule.setContent {
             HrtTrackerTheme(dynamicColor = false) {
@@ -161,7 +161,7 @@ class MainContentSkeletonTest {
                     scrollState = rememberScrollState(),
                     onQuickLogDoseClick = { },
                     onEntryClick = { },
-                    onOpenJournal = { openedJournal = true },
+                    onOpenTimeline = { openedTimeline = true },
                 )
             }
         }
@@ -171,7 +171,7 @@ class MainContentSkeletonTest {
             .performClick()
         composeRule.onNodeWithText(anchorName, useUnmergedTree = true).assertIsDisplayed()
         composeRule.runOnIdle {
-            assertTrue(openedJournal)
+            assertTrue(openedTimeline)
         }
     }
 }

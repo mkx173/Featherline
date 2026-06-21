@@ -670,7 +670,7 @@ private fun CompactHeroDayCount(
 ) {
     val isToday = hero.dayMagnitude == 0L && !hero.isFuture
     val days = hero.dayMagnitude.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (isToday) {
             val todayText = stringResource(R.string.journal_today)
             Text(
