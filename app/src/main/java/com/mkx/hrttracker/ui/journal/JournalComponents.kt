@@ -433,7 +433,7 @@ fun EmptyMilestonesCard(
     modifier: Modifier = Modifier,
 ) {
     MilestonesEmptyCard(
-        icon = painterResource(R.drawable.ic_calendar_month),
+        icon = painterResource(R.drawable.ic_calendar_today),
         title = stringResource(R.string.journal_no_dates),
         subtitle = stringResource(R.string.journal_no_dates_subtitle),
         actionLabel = stringResource(R.string.journal_add_date),
@@ -448,7 +448,7 @@ fun EmptyPinnedMilestonesCard(
     modifier: Modifier = Modifier,
 ) {
     MilestonesEmptyCard(
-        icon = painterResource(R.drawable.ic_keep),
+        icon = painterResource(R.drawable.ic_keep_alt),
         title = stringResource(R.string.journal_nothing_pinned_title),
         subtitle = stringResource(R.string.journal_nothing_pinned_subtitle),
         actionLabel = stringResource(R.string.journal_open),

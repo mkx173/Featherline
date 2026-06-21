@@ -201,7 +201,7 @@
     <string name="journal_delete_note_title">Delete note?</string>
     <string name="journal_delete_note_confirmation">This removes the note for this day.</string>
     <string name="journal_since_you_started">Timeline</string>
-    <string name="journal_no_dates">No dates yet</string>
+    <string name="journal_no_dates">No tracked dates yet</string>
     <string name="journal_add_date">Add a date</string>
     <string name="journal_see_all_notes">See all notes</string>
     <plurals name="journal_see_all_notes_earlier">
@@ -212,9 +212,9 @@
     <string name="journal_yesterday">Yesterday</string>
     <string name="journal_note_date_weekday_pattern">%1$s, %2$s</string>
     <string name="journal_write_about_today">Write about today…</string>
-    <string name="journal_no_dates_subtitle">Add your first milestone date.</string>
-    <string name="journal_nothing_pinned_title">Nothing pinned yet</string>
-    <string name="journal_nothing_pinned_subtitle">Pin a date to feature it here.</string>
+    <string name="journal_no_dates_subtitle">Add your first date.</string>
+    <string name="journal_nothing_pinned_title">No pinned dates yet</string>
+    <string name="journal_nothing_pinned_subtitle">Pinned dates appear here.</string>
     <string name="journal_open">Open</string>
     <string name="journal_pinned_section">Pinned</string>
     <string name="journal_timeline_section">All dates</string>
@@ -226,7 +226,7 @@
     <string name="journal_hero_edit_summary">%1$s · %2$s</string>
     <!-- Appended after journal_hero_edit_summary; animates in/out on edit-mode toggle, so the
          separator lives here and disappears with the tag. Quoted to keep the leading space. -->
-    <string name="journal_home_slot_empty">Pin a milestone in the timeline below to show it on your Home screen</string>
+    <string name="journal_home_slot_empty">First pinned date appears on Home.</string>
     <string name="journal_in_prefix">in</string>
     <plurals name="journal_day_unit">
         <item quantity="one">day</item>

@@ -193,7 +193,7 @@
     <string name="journal_delete_note_title">要删除笔记吗？</string>
     <string name="journal_delete_note_confirmation">这会删除这一天的笔记。</string>
     <string name="journal_since_you_started">时间线</string>
-    <string name="journal_no_dates">还没有日期</string>
+    <string name="journal_no_dates">暂无追踪的日期</string>
     <string name="journal_add_date">添加日期</string>
     <string name="journal_see_all_notes">查看全部笔记</string>
     <plurals name="journal_see_all_notes_earlier">
@@ -203,9 +203,9 @@
     <string name="journal_yesterday">昨天</string>
     <string name="journal_note_date_weekday_pattern">%2$s %1$s</string>
     <string name="journal_write_about_today">记录今天…</string>
-    <string name="journal_no_dates_subtitle">添加你的第一个里程碑日期。</string>
-    <string name="journal_nothing_pinned_title">还没有固定内容</string>
-    <string name="journal_nothing_pinned_subtitle">固定一个日期以在此展示。</string>
+    <string name="journal_no_dates_subtitle">添加第一个日期</string>
+    <string name="journal_nothing_pinned_title">暂无已固定的日期</string>
+    <string name="journal_nothing_pinned_subtitle">已固定的日期会显示在这里</string>
     <string name="journal_open">打开</string>
     <string name="journal_pinned_section">已固定</string>
     <string name="journal_timeline_section">所有日期</string>
@@ -215,7 +215,7 @@
     <string name="journal_hero_badge">主项</string>
     <string name="journal_home_tag">主页</string>
     <string name="journal_hero_edit_summary">%1$s · %2$s</string>
-    <string name="journal_home_slot_empty">在下方时间线中固定一个里程碑，使其显示在你的主页</string>
+    <string name="journal_home_slot_empty">置顶的日期会显示在主页</string>
     <string name="journal_in_prefix">还有</string>
     <plurals name="journal_day_unit">
         <item quantity="other">天</item>
