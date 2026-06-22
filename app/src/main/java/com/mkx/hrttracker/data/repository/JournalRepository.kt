@@ -175,15 +175,17 @@ class JournalRepository @Inject constructor(
         databaseHolder.get().journalDao().getNotes()
 
     // The snapshot caches only the FIRST pinned date (the Home hero). Rebuild it
-    // exactly when that date's identity or rendered content changes — comparing the
-    // whole entity also catches hero rename / icon / date / palette / background edits.
-    // Async because the live UI already reads the anchor from the Room source; this
-    // only refreshes the cold-start cache for next launch.
+    // exactly when that date's rendered content changes — name / icon / date / palette /
+    // background / pin identity. Compare the mapped model rather than the raw entity:
+    // every write bumps updatedAtEpochMillis (which the model drops), so comparing
+    // entities would force a full rebuild on every hero-row write — even a no-op re-save
+    // — producing an identical snapshot. Async because the live UI already reads the
+    // anchor from the Room source; this only refreshes the cold-start cache for next launch.
     private suspend fun <T> refreshingSnapshotIfHeroChanges(block: suspend () -> T): T {
-        val before = databaseHolder.get().journalDao().getFirstPinnedTrackedDate()
+        val before = databaseHolder.get().journalDao().getFirstPinnedTrackedDate()?.toModel()
         val result = block()
         withContext(NonCancellable) {
-            val after = databaseHolder.get().journalDao().getFirstPinnedTrackedDate()
+            val after = databaseHolder.get().journalDao().getFirstPinnedTrackedDate()?.toModel()
             if (before != after) {
                 homeSnapshotRepository.invalidateHomeSnapshot()
                 homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)

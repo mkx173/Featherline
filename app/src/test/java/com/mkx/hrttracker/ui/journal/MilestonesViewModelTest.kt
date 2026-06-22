@@ -522,6 +522,64 @@ class MilestonesViewModelTest {
         )
     }
 
+    // Pinning writes to the repository but the Room flow re-emits only after the write
+    // commits. The tray and hero must reflect the pin immediately so it doesn't lag the
+    // rename/icon edit applied in the same gesture (which already shows optimistically).
+    @Test
+    fun setPinned_reflectsPinBeforeRepositoryFlowReemits() = runTest {
+        val a = trackedDate(
+            id = "a", name = "Anchor A", icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1), pinnedOrder = null,
+        )
+        val dates = MutableStateFlow(listOf(a))
+        every { repository.observeTrackedDates() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(emptyList())
+        coEvery { repository.setPinned(any(), any()) } returns Unit
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.pinnedTray.isEmpty())
+
+        // The write is in flight; the Room flow has NOT re-emitted the pinned row.
+        viewModel.setPinned("a", true)
+        advanceUntilIdle()
+
+        assertEquals(listOf("Anchor A"), viewModel.uiState.value.pinnedTray.map { it.name })
+        assertEquals("Anchor A", viewModel.uiState.value.hero?.name)
+    }
+
+    // Unpinning reflects immediately too, and the optimistic override must be dropped once
+    // the source catches up so a later independent re-pin still wins (no resurrection).
+    @Test
+    fun setPinned_optimisticUnpinClearsOnceRepositoryFlowCatchesUp() = runTest {
+        val a = trackedDate(
+            id = "a", name = "Anchor A", icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
+        )
+        val dates = MutableStateFlow(listOf(a))
+        every { repository.observeTrackedDates() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a))
+        coEvery { repository.setPinned(any(), any()) } returns Unit
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        assertEquals(listOf("Anchor A"), viewModel.uiState.value.pinnedTray.map { it.name })
+
+        viewModel.setPinned("a", false)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.pinnedTray.isEmpty())
+
+        // The source catches up to the unpin.
+        dates.value = listOf(a.copy(pinnedOrder = null))
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.pinnedTray.isEmpty())
+
+        // A later independent re-pin must win — the override is gone.
+        dates.value = listOf(a.copy(pinnedOrder = 0))
+        advanceUntilIdle()
+        assertEquals(listOf("Anchor A"), viewModel.uiState.value.pinnedTray.map { it.name })
+    }
+
     // Editing an existing date (name/icon/date/palette) writes to the repository; the row
     // must repaint with the edits immediately instead of after the Room flow re-emits.
     @Test

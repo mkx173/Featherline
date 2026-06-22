@@ -32,11 +32,12 @@ class MilestonesViewModel @Inject constructor(
         .map { it.toLocalDate() }
         .distinctUntilChanged()
 
-    // The Room flow re-emits only after a write commits. Reflecting reorders and
-    // hero-background saves through this overlay makes them appear instantly, so the
-    // tray never waits on Room latency — which otherwise lets a quick "finish" snap
-    // the reorder back, or delays the saved background. Entries are dropped once the
-    // source catches up (see reconcilePendingEdits).
+    // The Room flow re-emits only after a write commits. Reflecting every tracked-date
+    // mutation — pin/unpin, reorder, hero-background, and field edits — through this
+    // overlay makes them appear instantly, so the tray never waits on Room latency,
+    // which otherwise lets a quick "finish" snap a reorder back, delays a saved
+    // background, or makes a pin toggle lag the rename it was applied with. Entries are
+    // dropped once the source catches up (see reconcilePendingEdits).
     private val pendingEdits = MutableStateFlow(PendingEdits())
 
     // The most recent tracked dates this ViewModel has observed — the exact snapshot
@@ -117,8 +118,12 @@ class MilestonesViewModel @Inject constructor(
         editMode.value = false
     }
 
-    fun setPinned(id: String, pinned: Boolean) = viewModelScope.launch {
-        journalRepository.setPinned(id, pinned)
+    fun setPinned(id: String, pinned: Boolean) {
+        pendingEdits.update { it.copy(pinnedState = it.pinnedState + (id to pinned)) }
+        viewModelScope.launch {
+            journalRepository.setPinned(id, pinned)
+            reconcilePendingAgainstSource()
+        }
     }
 
     fun setHeroBackground(id: String, background: HeroBackground) {
@@ -199,13 +204,29 @@ class MilestonesViewModel @Inject constructor(
                 edited
             }
         }
-        val order = pending.pinnedOrder ?: return withFields
-        val pinnedIds = withFields.filter { it.pinnedOrder != null }.map { it.id }
+        // Apply optimistic pin/unpin before the order override so a freshly-pinned row is
+        // part of the pinned set the order is matched against. A newly-pinned row appends
+        // after the current max order (mirrors JournalRepository.setPinned); unpinning
+        // clears the order.
+        val withPins = if (pending.pinnedState.isEmpty()) {
+            withFields
+        } else {
+            var nextOrder = (withFields.mapNotNull { it.pinnedOrder }.maxOrNull() ?: -1) + 1
+            withFields.map { date ->
+                when (pending.pinnedState[date.id]) {
+                    true -> if (date.pinnedOrder == null) date.copy(pinnedOrder = nextOrder++) else date
+                    false -> if (date.pinnedOrder != null) date.copy(pinnedOrder = null) else date
+                    null -> date
+                }
+            }
+        }
+        val order = pending.pinnedOrder ?: return withPins
+        val pinnedIds = withPins.filter { it.pinnedOrder != null }.map { it.id }
         // Only apply an order that still describes exactly the current pinned set;
         // a pin/unpin landing first makes the override stale, so defer to the source.
-        if (order.toSet() != pinnedIds.toSet()) return withFields
+        if (order.toSet() != pinnedIds.toSet()) return withPins
         val indexById = order.withIndex().associate { (index, id) -> id to index }
-        return withFields.map { date ->
+        return withPins.map { date ->
             indexById[date.id]?.let { date.copy(pinnedOrder = it) } ?: date
         }
     }
@@ -226,6 +247,10 @@ class MilestonesViewModel @Inject constructor(
         source: List<TrackedDate>,
     ): PendingEdits {
         val byId = source.associateBy { it.id }
+        val remainingPinnedState = pending.pinnedState.filterNot { (id, pinned) ->
+            val date = byId[id]
+            date == null || (date.pinnedOrder != null) == pinned
+        }
         val remainingBackground = pending.heroBackground.filterNot { (id, background) ->
             val date = byId[id]
             date == null || date.heroBackground == background
@@ -244,6 +269,7 @@ class MilestonesViewModel @Inject constructor(
             order == sourcePinnedOrder || order.toSet() != sourcePinnedOrder.toSet()
         }
         return if (
+            remainingPinnedState == pending.pinnedState &&
             remainingBackground == pending.heroBackground &&
             remainingDateEdits == pending.dateEdits &&
             remainingOrder == pending.pinnedOrder
@@ -252,6 +278,7 @@ class MilestonesViewModel @Inject constructor(
         } else {
             PendingEdits(
                 pinnedOrder = remainingOrder,
+                pinnedState = remainingPinnedState,
                 heroBackground = remainingBackground,
                 dateEdits = remainingDateEdits,
             )
@@ -260,6 +287,7 @@ class MilestonesViewModel @Inject constructor(
 
     private data class PendingEdits(
         val pinnedOrder: List<String>? = null,
+        val pinnedState: Map<String, Boolean> = emptyMap(),
         val heroBackground: Map<String, HeroBackground> = emptyMap(),
         val dateEdits: Map<String, PendingDateEdit> = emptyMap(),
     )

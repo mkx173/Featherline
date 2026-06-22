@@ -975,7 +975,7 @@ private fun HeroAuroraBackground(
     // the breath stays phase-continuous: navigating away disposes this composable, but the clock
     // keeps running, so on return the wash resumes mid-breath instead of restarting from its dim
     // floor. A 0..1 eased triangle over a full in+out period reproduces the old Reverse-mode curve.
-    val pulse by produceState(initialValue = 1f, animatorsEnabled) {
+    val pulse = produceState(initialValue = 1f, animatorsEnabled) {
         if (!animatorsEnabled) return@produceState
         val periodMillis = AuroraPulseDurationMillis * 2
         while (true) {
@@ -986,8 +986,6 @@ private fun HeroAuroraBackground(
             }
         }
     }
-    val pulseAlpha = if (animatorsEnabled) lerp(AuroraPulseMinAlpha, 1f, pulse) else 1f
-    val pulseScale = if (animatorsEnabled) lerp(1f, AuroraPulseScale, pulse) else 1f
     // Vertical fade mask: opaque across the top, gone before the text. Applied via DstIn below.
     val fadeMask = remember {
         Brush.verticalGradient(
@@ -1000,9 +998,14 @@ private fun HeroAuroraBackground(
     Box(
         modifier = modifier
             .graphicsLayer {
-                this.alpha = pulseAlpha
-                scaleX = pulseScale
-                scaleY = pulseScale
+                // Read the pulse inside the layer block (a deferred snapshot read) so each
+                // animation frame only re-runs this lambda and invalidates the layer, instead
+                // of recomposing the whole composable ~60fps.
+                val p = if (animatorsEnabled) pulse.value else 1f
+                this.alpha = if (animatorsEnabled) lerp(AuroraPulseMinAlpha, 1f, p) else 1f
+                val scale = if (animatorsEnabled) lerp(1f, AuroraPulseScale, p) else 1f
+                scaleX = scale
+                scaleY = scale
                 transformOrigin = TransformOrigin(0.8f, 0f)
                 // Offscreen so the DstIn mask clips the band instead of punching through behind.
                 compositingStrategy = CompositingStrategy.Offscreen

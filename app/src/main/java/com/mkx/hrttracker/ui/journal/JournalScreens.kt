@@ -281,10 +281,15 @@ fun MilestonesScreen(
     if (isAddDateSheetOpen || activeEditingAnchor != null) {
         // Default the toggle: a new date pins only when nothing is pinned yet; editing a date
         // reflects its current pin state. Either way the user can flip it in the sheet.
-        val initiallyPinned = if (activeEditingAnchor == null) {
-            uiState.pinnedTray.isEmpty()
-        } else {
-            uiState.pinnedTray.any { it.id == activeEditingAnchor.id }
+        // Captured once when the sheet opens (keyed like the sheet's own `pinned` state) so a
+        // tray change under the open sheet can't desync the `pinned != initiallyPinned`
+        // comparison in onConfirm.
+        val initiallyPinned = remember(activeEditingAnchor?.id, isAddDateSheetOpen) {
+            if (activeEditingAnchor == null) {
+                uiState.pinnedTray.isEmpty()
+            } else {
+                uiState.pinnedTray.any { it.id == activeEditingAnchor.id }
+            }
         }
         AddDateSheet(
             today = uiState.today,
