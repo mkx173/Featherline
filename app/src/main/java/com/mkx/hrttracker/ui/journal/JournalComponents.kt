@@ -15,7 +15,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -50,11 +49,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -168,9 +170,6 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlinx.coroutines.delay
 
-// Shared duration so the composer text field's height and the controls' reveal animate
-// in lockstep (a fixed tween finishes together, unlike two distance-dependent springs).
-private const val ComposerEditAnimationMillis = 250
 private const val TodayComposerTextFieldTestTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field-"
 internal const val SimpleHomeCardTestTag = "simple-home-card"
@@ -2233,6 +2232,12 @@ fun TodayComposer(
     var isDeleteConfirmationVisible by rememberSaveable(today.toString(), note?.id) {
         mutableStateOf(false)
     }
+    // Whether the current edit targets a note that already existed. Captured when editing
+    // begins (the prompt tap / field focus below) and held for the whole session, including
+    // the closing animation. Saving a brand-new note flips [note] from null to non-null right
+    // as the editor collapses, so deriving the delete button from [note] directly would pop it
+    // in mid-close; this snapshot keeps it hidden for a note first created in this session.
+    var editingExistingNote by remember { mutableStateOf(note != null) }
     val currentText = note?.text.orEmpty()
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
@@ -2269,16 +2274,26 @@ fun TodayComposer(
                 label = "today-composer",
             ) { fieldShown ->
                 if (fieldShown) {
+                    // One filled, rounded box holds the text field and—while editing—the
+                    // buttons, so the editing surface reads as a single card that grows and
+                    // shrinks. The field reserves a minimum height when editing and hugs the
+                    // text otherwise; the buttons reveal below it on the same spring, so the
+                    // box resizes as one motion.
                     Column(
-                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.large)
+                            .background(MaterialTheme.colorScheme.surfaceContainer)
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
                     ) {
                         ComposerTextField(
                             value = draftText,
                             onValueChange = { draftText = it },
                             focusRequester = focusRequester,
-                            onFocused = { isEditing = true },
-                            // While editing, reserve room to write; in view mode the box
-                            // hugs the saved text. The height change animates.
+                            onFocused = {
+                                editingExistingNote = note != null
+                                isEditing = true
+                            },
                             expanded = isEditing,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2286,18 +2301,31 @@ fun TodayComposer(
                         )
                         AnimatedVisibility(
                             visible = isEditing,
+                            // The box makes room on [sizeSpec]; the buttons fade on a slower
+                            // spring so the fade lags the height reveal (otherwise they snap
+                            // to full opacity while the box is still clipping them in, which
+                            // reads as a wipe, not a fade). On exit the fade leads the shrink
+                            // so they fade out before the box closes over them.
                             enter = expandVertically(
-                                animationSpec = tween(ComposerEditAnimationMillis, easing = EaseInOut),
+                                animationSpec = sizeSpec,
                                 expandFrom = Alignment.Top,
-                            ) + fadeIn(tween(ComposerEditAnimationMillis)),
+                            ) + fadeIn(MaterialTheme.motionScheme.slowEffectsSpec()),
                             exit = shrinkVertically(
-                                animationSpec = tween(ComposerEditAnimationMillis, easing = EaseInOut),
+                                animationSpec = sizeSpec,
                                 shrinkTowards = Alignment.Top,
-                            ) + fadeOut(tween(ComposerEditAnimationMillis)),
+                            ) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
                         ) {
                             TodayComposerControls(
+                                // Gap above the buttons, inside the reveal so it animates too.
+                                modifier = Modifier.padding(
+                                    top = dimensionResource(R.dimen.padding_small),
+                                ),
                                 canSave = draftText.isNotBlank(),
-                                onDelete = note?.let { { isDeleteConfirmationVisible = true } },
+                                onDelete = if (editingExistingNote) {
+                                    { isDeleteConfirmationVisible = true }
+                                } else {
+                                    null
+                                },
                                 onCancel = {
                                     // An existing note's field stays mounted, so revert the
                                     // draft to the saved text. A new note's field animates back
@@ -2320,6 +2348,7 @@ fun TodayComposer(
                     TodayComposerPrompt(
                         onClick = {
                             draftText = currentText
+                            editingExistingNote = note != null
                             isEditing = true
                         },
                     )
@@ -2394,27 +2423,36 @@ private fun TodayComposerControls(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (onDelete != null) {
-            HrtOutlinedButton(
-                text = stringResource(R.string.journal_delete_note),
-                onClick = onDelete,
-                compact = true,
-            )
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = stringResource(R.string.journal_delete_note),
+                )
+            }
         } else {
             Spacer(modifier = Modifier.width(1.dp))
         }
-        Row {
-            HrtOutlinedButton(
-                text = stringResource(R.string.cancel),
-                onClick = onCancel,
-                compact = true,
-            )
-            Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-            HrtButton(
-                text = stringResource(R.string.save),
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onCancel) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = stringResource(R.string.cancel),
+                )
+            }
+            FilledTonalIconButton(
                 onClick = onSave,
                 enabled = canSave,
-                compact = true,
-            )
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = stringResource(R.string.save),
+                    tint = if (canSave) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.outline
+                    },
+                )
+            }
         }
     }
 }
@@ -2449,9 +2487,11 @@ private fun TodayComposerPrompt(
     }
 }
 
-// Borderless filled multiline input matching the composer's inset prompt (no outline,
-// surfaceContainer fill, rounded). Gaining focus (a tap) signals edit mode via [onFocused];
-// the parent drives [focusRequester] when edit mode is entered some other way (the prompt).
+// Borderless multiline input for the composer. The parent draws the filled, rounded box and
+// its padding; this just lays out the text and reserves a minimum writing height while
+// editing. Gaining focus (a tap) signals edit mode via [onFocused]; the parent drives
+// [focusRequester] when edit mode is entered some other way (the prompt).
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ComposerTextField(
     value: String,
@@ -2462,12 +2502,13 @@ private fun ComposerTextField(
     expanded: Boolean = false,
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    // Edit mode reserves ~3 lines; view mode hugs the text. Animating the min height
-    // (rather than toggling minLines) grows/shrinks the box smoothly instead of snapping,
-    // and doesn't re-animate on every keystroke.
+    // Edit mode reserves ~3 lines of writing room; view mode hugs the text. Animating the
+    // min height (rather than toggling minLines) grows/shrinks smoothly instead of snapping,
+    // and doesn't re-animate on every keystroke. Uses the motionScheme effects spring — the
+    // same one the buttons reveal on — so the field and buttons move together as one resize.
     val minHeight by animateDpAsState(
-        targetValue = if (expanded) 96.dp else 0.dp,
-        animationSpec = tween(ComposerEditAnimationMillis, easing = EaseInOut),
+        targetValue = if (expanded) 72.dp else 0.dp,
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Dp>(),
         label = "composer-field-min-height",
     )
     BasicTextField(
@@ -2479,14 +2520,7 @@ private fun ComposerTextField(
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = colorScheme.onSurface),
         cursorBrush = SolidColor(colorScheme.primary),
         decorationBox = { innerTextField ->
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.large)
-                    .background(colorScheme.surfaceContainer)
-                    .heightIn(min = minHeight)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-            ) {
+            Box(modifier = Modifier.fillMaxWidth().heightIn(min = minHeight)) {
                 innerTextField()
             }
         },

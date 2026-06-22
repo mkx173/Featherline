@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -313,10 +314,10 @@ class JournalScreenTest {
             .performClick()
 
         composeRule.onNodeWithTag(TodayComposerTextFieldTag).assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.save)).assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertIsNotEnabled()
 
         composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextInput("A new day")
-        composeRule.onNodeWithText(context.getString(R.string.save))
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save))
             .assertIsEnabled()
             .performClick()
 
@@ -355,7 +356,7 @@ class JournalScreenTest {
         composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
             .performClick()
         composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextInput("Unsaved draft")
-        composeRule.onNodeWithText(context.getString(R.string.cancel)).performClick()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.cancel)).performClick()
 
         composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
             .assertIsDisplayed()
@@ -430,7 +431,7 @@ class JournalScreenTest {
         }
 
         composeRule.onNodeWithText("Existing note").performClick()
-        composeRule.onNodeWithText(context.getString(R.string.journal_delete_note))
+        composeRule.onNodeWithContentDescription(context.getString(R.string.journal_delete_note))
             .assertIsDisplayed()
             .performClick()
         composeRule.onNodeWithText(context.getString(R.string.journal_delete_note_title))
