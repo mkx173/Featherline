@@ -39,15 +39,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
@@ -78,6 +82,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
@@ -87,6 +93,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
@@ -2202,6 +2209,7 @@ private fun TodayMarkerRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun TodayComposer(
     today: LocalDate,
@@ -2220,57 +2228,119 @@ fun TodayComposer(
         mutableStateOf(false)
     }
     val currentText = note?.text.orEmpty()
-
-    if (isEditing) {
-        TodayComposerEditor(
-            today = today,
-            text = draftText,
-            onTextChange = { draftText = it },
-            onCancel = {
-                draftText = currentText
-                isEditing = false
-            },
-            onSave = {
-                val text = draftText.trim()
-                if (text.isNotEmpty()) {
-                    onSave(text)
-                    isEditing = false
-                }
-            },
-            onDelete = note?.let {
-                {
-                    isDeleteConfirmationVisible = true
-                }
-            },
-            modifier = modifier,
-        )
-        if (isDeleteConfirmationVisible) {
-            NoteDeleteConfirmationDialog(
-                onDismissRequest = { isDeleteConfirmationVisible = false },
-                onConfirm = {
-                    isDeleteConfirmationVisible = false
-                    isEditing = false
-                    onDelete()
-                },
-            )
-        }
-        return
+    val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val sizeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<IntSize>()
+    val enterEdit = {
+        draftText = currentText
+        isEditing = true
     }
 
-    PreferenceSegmentedListItem(
-        modifier = modifier,
-        title = stringResource(R.string.journal_today),
-        supportingText = note?.text ?: stringResource(R.string.journal_write_about_today),
-        onClick = {
-            draftText = currentText
-            isEditing = true
-        },
-    )
+    EditorSegmentedListItem(
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+        ) {
+            TodayComposerHeader(today = today)
+            AnimatedContent(
+                targetState = isEditing,
+                transitionSpec = {
+                    ContentTransform(
+                        targetContentEnter = fadeIn(fadeSpec),
+                        initialContentExit = fadeOut(fadeSpec),
+                        sizeTransform = SizeTransform { _, _ -> sizeSpec },
+                    )
+                },
+                contentAlignment = Alignment.TopStart,
+                label = "today-composer",
+            ) { editing ->
+                if (editing) {
+                    TodayComposerEditorBody(
+                        text = draftText,
+                        onTextChange = { draftText = it },
+                        // Don't reset draftText here: AnimatedContent keeps this editor
+                        // composed while it animates out, so clearing the text mid-exit makes
+                        // it blank/jump before shrinking. enterEdit re-seeds draftText on the
+                        // next open, so the stale draft never surfaces.
+                        onCancel = { isEditing = false },
+                        onSave = {
+                            val text = draftText.trim()
+                            if (text.isNotEmpty()) {
+                                onSave(text)
+                                isEditing = false
+                            }
+                        },
+                        onDelete = note?.let {
+                            {
+                                isDeleteConfirmationVisible = true
+                            }
+                        },
+                    )
+                } else if (note != null) {
+                    Text(
+                        text = note.text,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.large)
+                            .clickable(onClick = enterEdit)
+                            .padding(vertical = dimensionResource(R.dimen.padding_small)),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                } else {
+                    TodayComposerPrompt(onClick = enterEdit)
+                }
+            }
+        }
+    }
+
+    if (isDeleteConfirmationVisible) {
+        NoteDeleteConfirmationDialog(
+            onDismissRequest = { isDeleteConfirmationVisible = false },
+            onConfirm = {
+                isDeleteConfirmationVisible = false
+                isEditing = false
+                onDelete()
+            },
+        )
+    }
 }
 
 @Composable
-private fun TodayComposerEditor(
+private fun TodayComposerHeader(
     today: LocalDate,
+    modifier: Modifier = Modifier,
+) {
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale, today) {
+        dateLabelFormatter(appLocale, today)
+    }
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.EditNote,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+        Text(
+            text = stringResource(R.string.journal_today),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = dateFormatter(today),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun TodayComposerEditorBody(
     text: String,
     onTextChange: (String) -> Unit,
     onCancel: () -> Unit,
@@ -2279,68 +2349,112 @@ private fun TodayComposerEditor(
     modifier: Modifier = Modifier,
 ) {
     val canSave = text.isNotBlank()
-    val appLocale = rememberAppLocale()
-    val dateFormatter = remember(appLocale, today) {
-        dateLabelFormatter(appLocale, today)
-    }
 
-    EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+    ) {
+        ComposerTextField(
+            value = text,
+            onValueChange = onTextChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(TodayComposerTextFieldTestTag),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column {
-                Text(
-                    text = stringResource(R.string.journal_today),
-                    style = MaterialTheme.typography.titleMedium,
+            if (onDelete != null) {
+                HrtOutlinedButton(
+                    text = stringResource(R.string.journal_delete_note),
+                    onClick = onDelete,
+                    compact = true,
                 )
-                Text(
-                    text = dateFormatter(today),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            } else {
+                Spacer(modifier = Modifier.width(1.dp))
             }
-            OutlinedTextField(
-                value = text,
-                onValueChange = onTextChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag(TodayComposerTextFieldTestTag),
-                placeholder = {
-                    Text(text = stringResource(R.string.journal_write_about_today))
-                },
-                minLines = 3,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (onDelete != null) {
-                    HrtOutlinedButton(
-                        text = stringResource(R.string.journal_delete_note),
-                        onClick = onDelete,
-                        compact = true,
-                    )
-                } else {
-                    Spacer(modifier = Modifier.width(1.dp))
-                }
-                Row {
-                    HrtOutlinedButton(
-                        text = stringResource(R.string.cancel),
-                        onClick = onCancel,
-                        compact = true,
-                    )
-                    Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-                    HrtButton(
-                        text = stringResource(R.string.save),
-                        onClick = onSave,
-                        enabled = canSave,
-                        compact = true,
-                    )
-                }
+            Row {
+                HrtOutlinedButton(
+                    text = stringResource(R.string.cancel),
+                    onClick = onCancel,
+                    compact = true,
+                )
+                Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+                HrtButton(
+                    text = stringResource(R.string.save),
+                    onClick = onSave,
+                    enabled = canSave,
+                    compact = true,
+                )
             }
         }
     }
+}
+
+// Collapsed "write about today" affordance — a filled inset that reads as a tappable field.
+@Composable
+private fun TodayComposerPrompt(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(onClick = onClick)
+            .padding(dimensionResource(R.dimen.padding_medium)),
+        horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Add,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = stringResource(R.string.journal_write_about_today),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+// Borderless filled multiline input matching the composer's inset prompt (no outline,
+// surfaceContainer fill, rounded). Auto-focuses so a tapped prompt is ready to type into.
+@Composable
+private fun ComposerTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        runCatching { focusRequester.requestFocus() }
+    }
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier.focusRequester(focusRequester),
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = colorScheme.onSurface),
+        cursorBrush = SolidColor(colorScheme.primary),
+        decorationBox = { innerTextField ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.large)
+                    .background(colorScheme.surfaceContainer)
+                    .heightIn(min = 96.dp)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                innerTextField()
+            }
+        },
+    )
 }
 
 @Composable
@@ -2429,7 +2543,6 @@ fun NoteTimelineRow(
             draftText = note.text
             isEditing = true
         },
-        leadingContent = { NoteTimelineMarker() },
         titleTextStyle = MaterialTheme.typography.labelMedium,
         supportingTextStyle = MaterialTheme.typography.bodyMedium,
         titleColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2451,50 +2564,45 @@ private fun NoteTimelineRowEditor(
     val canSave = trimmedText.isNotEmpty() && trimmedText != note.text.trim()
 
     EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
-        Row {
-            NoteTimelineMarker()
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+        Column(
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+        ) {
+            Text(
+                text = dateLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedTextField(
+                value = text,
+                onValueChange = onTextChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("$NoteTimelineTextFieldTestTagPrefix${note.id}"),
+                minLines = 3,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = dateLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                HrtOutlinedButton(
+                    text = stringResource(R.string.journal_delete_note),
+                    onClick = onDelete,
+                    compact = true,
                 )
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = onTextChange,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("$NoteTimelineTextFieldTestTagPrefix${note.id}"),
-                    minLines = 3,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                Row {
                     HrtOutlinedButton(
-                        text = stringResource(R.string.journal_delete_note),
-                        onClick = onDelete,
+                        text = stringResource(R.string.cancel),
+                        onClick = onCancel,
                         compact = true,
                     )
-                    Row {
-                        HrtOutlinedButton(
-                            text = stringResource(R.string.cancel),
-                            onClick = onCancel,
-                            compact = true,
-                        )
-                        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-                        HrtButton(
-                            text = stringResource(R.string.save),
-                            onClick = onSave,
-                            enabled = canSave,
-                            compact = true,
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+                    HrtButton(
+                        text = stringResource(R.string.save),
+                        onClick = onSave,
+                        enabled = canSave,
+                        compact = true,
+                    )
                 }
             }
         }
@@ -2524,28 +2632,6 @@ private fun NoteDeleteConfirmationDialog(
             }
         },
     )
-}
-
-@Composable
-private fun NoteTimelineMarker(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .width(16.dp)
-            .height(48.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .width(1.dp)
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.outlineVariant),
-        )
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .background(MaterialTheme.colorScheme.primary, CircleShape),
-        )
-    }
 }
 
 @Composable

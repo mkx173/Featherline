@@ -120,6 +120,8 @@ fun HrtOutlinedButton(
     iconModifier: Modifier = Modifier,
     iconSpacing: Dp = 8.dp,
     iconContentDescription: String? = null,
+    trailingIcon: ImageVector? = null,
+    trailingIconContentDescription: String? = null,
     colors: ButtonColors = ButtonDefaults.outlinedButtonColors(),
     border: BorderStroke? = ButtonDefaults.outlinedButtonBorder(enabled = enabled),
     compact: Boolean = false,
@@ -149,6 +151,13 @@ fun HrtOutlinedButton(
                 Spacer(modifier = Modifier.size(iconSpacing))
             }
             LocalizedButtonLabelText(text = text)
+            if (trailingIcon != null) {
+                Spacer(modifier = Modifier.size(iconSpacing))
+                Icon(
+                    imageVector = trailingIcon,
+                    contentDescription = trailingIconContentDescription,
+                )
+            }
         }
     }
 }

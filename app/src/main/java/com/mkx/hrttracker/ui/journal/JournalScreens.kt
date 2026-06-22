@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -203,20 +204,14 @@ fun JournalScreenContent(
                             onDelete = onDeleteTodayNote,
                         )
                     }
-                    if (timelineNotes.isEmpty()) {
-                        item(key = "journal-notes-empty") {
-                            EmptyRecentNotesCard()
-                        }
-                    } else {
-                        timelineNotes.forEach { note ->
-                            item(key = "note-${note.id}") {
-                                NoteTimelineRow(
-                                    note = note,
-                                    onSave = onSaveNote,
-                                    onDelete = onDeleteNote,
-                                    today = uiState.today,
-                                )
-                            }
+                    timelineNotes.forEach { note ->
+                        item(key = "note-${note.id}") {
+                            NoteTimelineRow(
+                                note = note,
+                                onSave = onSaveNote,
+                                onDelete = onDeleteNote,
+                                today = uiState.today,
+                            )
                         }
                     }
                 }
@@ -230,6 +225,7 @@ fun JournalScreenContent(
                                 uiState.olderNotesCount,
                             ),
                             onClick = onOpenAllNotes,
+                            trailingIcon = Icons.Rounded.ChevronRight,
                             modifier = Modifier
                                 .padding(top = dimensionResource(R.dimen.padding_small)),
                         )
