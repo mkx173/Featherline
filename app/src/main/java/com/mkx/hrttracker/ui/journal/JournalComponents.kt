@@ -2352,9 +2352,8 @@ private fun NoteEditorCard(
                             modifier = Modifier.padding(
                                 top = dimensionResource(R.dimen.padding_small),
                             ),
-                            // Disabled until the text is non-blank and actually changed, so a
-                            // save is never a no-op.
-                            canSave = draftText.isNotBlank() && draftText.trim() != text.trim(),
+                            hasSaveableChanges = draftText.isNotBlank() &&
+                                draftText.trim() != text.trim(),
                             onDelete = if (editingExistingNote) {
                                 { isDeleteConfirmationVisible = true }
                             } else {
@@ -2447,7 +2446,7 @@ private fun TodayComposerHeader(
 
 @Composable
 private fun TodayComposerControls(
-    canSave: Boolean,
+    hasSaveableChanges: Boolean,
     onDelete: (() -> Unit)?,
     onCancel: () -> Unit,
     onSave: () -> Unit,
@@ -2463,6 +2462,7 @@ private fun TodayComposerControls(
                 Icon(
                     imageVector = Icons.Rounded.Delete,
                     contentDescription = stringResource(R.string.journal_delete_note),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         } else {
@@ -2473,20 +2473,18 @@ private fun TodayComposerControls(
                 Icon(
                     imageVector = Icons.Rounded.Close,
                     contentDescription = stringResource(R.string.cancel),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             FilledTonalIconButton(
-                onClick = onSave,
-                enabled = canSave,
+                onClick = {
+                    if (hasSaveableChanges) onSave()
+                },
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Check,
                     contentDescription = stringResource(R.string.save),
-                    tint = if (canSave) {
-                        MaterialTheme.colorScheme.onSecondaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.outline
-                    },
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
             }
         }

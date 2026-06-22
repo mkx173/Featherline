@@ -7,7 +7,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -323,7 +322,12 @@ class JournalScreenTest {
             .performClick()
 
         composeRule.onNodeWithTag(TodayComposerTextFieldTag).assertIsDisplayed()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save))
+            .assertIsEnabled()
+            .performClick()
+        composeRule.runOnIdle {
+            assertTrue(savedTexts.isEmpty())
+        }
 
         composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextInput("A new day")
         composeRule.onNodeWithContentDescription(context.getString(R.string.save))
@@ -407,6 +411,47 @@ class JournalScreenTest {
         composeRule.onNodeWithTag(TodayComposerTextFieldTag)
             .assertIsDisplayed()
             .assertTextContains("Existing note")
+    }
+
+    @Test
+    fun todaySavedNote_saveButtonStaysEnabledButUnchangedSaveIsNoOp() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        val todayNote = Note(
+            id = "june-16",
+            date = today,
+            text = "Existing note",
+        )
+        val savedTexts = mutableListOf<String>()
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = today,
+                        todayNote = todayNote,
+                        recentNotes = listOf(todayNote),
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = { savedTexts += it },
+                    onSaveNote = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Existing note").performClick()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save))
+            .assertIsEnabled()
+            .performClick()
+
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag)
+            .assertIsDisplayed()
+            .assertTextContains("Existing note")
+        composeRule.runOnIdle {
+            assertTrue(savedTexts.isEmpty())
+        }
     }
 
     @Test
@@ -656,9 +701,17 @@ class JournalScreenTest {
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
             .assertIsDisplayed()
             .assertTextContains("Yesterday note")
-        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertIsEnabled()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).performClick()
+        composeRule.runOnIdle {
+            assertTrue(savedNotes.isEmpty())
+        }
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15").performTextClearance()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertIsEnabled()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).performClick()
+        composeRule.runOnIdle {
+            assertTrue(savedNotes.isEmpty())
+        }
         composeRule.onNodeWithContentDescription(context.getString(R.string.cancel)).performClick()
 
         composeRule.onNodeWithText("Yesterday note")
