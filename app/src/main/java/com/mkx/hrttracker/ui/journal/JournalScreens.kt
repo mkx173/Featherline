@@ -62,6 +62,7 @@ import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
+import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
@@ -185,8 +186,11 @@ fun JournalScreenContent(
                     }
                 }
 
+                // The Today composer is its own standalone section (count 1 -> fully
+                // rounded). The recent notes — or the empty-state message — form a
+                // separate section below it following the normal hrtSection grouping.
                 hrtSection(
-                    key = "journal-notes",
+                    key = "journal-today",
                     header = {
                         HrtSectionHeader(
                             text = stringResource(R.string.journal_notes_section),
@@ -204,14 +208,35 @@ fun JournalScreenContent(
                             onDelete = onDeleteTodayNote,
                         )
                     }
-                    timelineNotes.forEach { note ->
-                        item(key = "note-${note.id}") {
-                            NoteTimelineRow(
-                                note = note,
-                                onSave = onSaveNote,
-                                onDelete = onDeleteNote,
-                                today = uiState.today,
+                }
+
+                if (uiState.recentNotes.isEmpty() && uiState.olderNotesCount == 0) {
+                    item(key = "journal-notes-empty-gap") {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                    }
+                    hrtSection(key = "journal-notes-empty") {
+                        item(key = "journal-notes-empty-item") {
+                            SupportMessageListItem(
+                                text = stringResource(R.string.journal_no_notes),
+                                supportingText = stringResource(R.string.journal_all_notes_empty),
+                                painter = painterResource(R.drawable.ic_info),
                             )
+                        }
+                    }
+                } else if (timelineNotes.isNotEmpty()) {
+                    item(key = "journal-notes-list-gap") {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                    }
+                    hrtSection(key = "journal-notes-list") {
+                        timelineNotes.forEach { note ->
+                            item(key = "note-${note.id}") {
+                                NoteTimelineRow(
+                                    note = note,
+                                    onSave = onSaveNote,
+                                    onDelete = onDeleteNote,
+                                    today = uiState.today,
+                                )
+                            }
                         }
                     }
                 }
