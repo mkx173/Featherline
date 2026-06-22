@@ -8,10 +8,12 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -72,6 +74,7 @@ import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
+import kotlin.math.ceil
 
 const val AddDateNameFieldTestTag = "add-date-name-field"
 
@@ -277,14 +280,24 @@ private fun DateSelectorField(
     )
 }
 
+// Smallest column count whose tile width is <= maxTile (so a wide sheet gains columns
+// rather than inflating tiles around the fixed glyph), floored at 8 so phones keep their
+// two-row layout. All values in dp. Visible for unit testing.
+internal fun anchorIconColumnCount(availableWidthDp: Float, gapDp: Float, maxTileDp: Float): Int =
+    maxOf(8, ceil((availableWidthDp + gapDp) / (maxTileDp + gapDp)).toInt())
+
 @Composable
 private fun AnchorIconGrid(
     selectedIcon: AnchorIcon,
     selectedPalette: MedicationGroupColorKey?,
     onIconSelected: (AnchorIcon) -> Unit,
 ) {
-    val columns = 8
     val gap = dimensionResource(R.dimen.padding_small)
+    // Cap tile size so a wide sheet (tablet) gains columns instead of inflating each tile
+    // around the fixed-size glyph. ~44dp keeps tablet tiles close to a phone's natural
+    // 8-column tile (~36-40dp at 24dp side padding), so the grid reads the same on both;
+    // normal phone widths stay at 8 columns (their tiles are already below this).
+    val maxTile = 44.dp
     // The chosen colour's scheme fills the selected tile so the grid echoes the colour pick.
     val scheme = rememberMedicationGroupColorScheme(colorKey = selectedPalette)
     Column(
@@ -295,20 +308,31 @@ private fun AnchorIconGrid(
             style = MaterialTheme.typography.titleSmall,
         )
         // Tiles share the row width evenly (weight) with a small uniform gap, so the grid
-        // reads as a dense band instead of small tiles scattered by SpaceBetween.
-        AnchorIcon.entries.chunked(columns).forEach { rowIcons ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(gap),
-            ) {
-                rowIcons.forEach { icon ->
-                    AnchorIconTile(
-                        icon = icon,
-                        selected = icon == selectedIcon,
-                        scheme = scheme,
-                        onClick = { onIconSelected(icon) },
-                        modifier = Modifier.weight(1f),
-                    )
+        // reads as a dense band instead of small tiles scattered by SpaceBetween. The column
+        // count grows with the available width so tile size stays bounded by maxTile.
+        BoxWithConstraints {
+            val columns = anchorIconColumnCount(maxWidth.value, gap.value, maxTile.value)
+            Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+                AnchorIcon.entries.chunked(columns).forEach { rowIcons ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(gap),
+                    ) {
+                        rowIcons.forEach { icon ->
+                            AnchorIconTile(
+                                icon = icon,
+                                selected = icon == selectedIcon,
+                                scheme = scheme,
+                                onClick = { onIconSelected(icon) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        // Pad a short final row with empty cells so its tiles keep the same
+                        // size as the full rows instead of stretching to fill the width.
+                        repeat(columns - rowIcons.size) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
                 }
             }
         }
