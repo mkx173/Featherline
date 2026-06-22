@@ -500,6 +500,7 @@ class BackupExportService @Inject constructor(
             iconKey = iconKey,
             dateIso = dateIso,
             paletteKey = paletteKey,
+            heroBackgroundKey = heroBackgroundKey,
             pinnedOrder = pinnedOrder,
             createdAtEpochMillis = createdAtEpochMillis,
             updatedAtEpochMillis = updatedAtEpochMillis,

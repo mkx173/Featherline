@@ -24,11 +24,11 @@ class TopLevelNavigationItemsTest {
     }
 
     @Test
-    fun `topLevelNavigationItems is non-empty`() {
+    fun `topLevelNavigationItems contains expected screens in order`() {
         assertEquals(
-            "Expected three top-level destinations (Main, Plan, Settings)",
-            3,
-            topLevelNavigationItems.size,
+            "Expected four top-level destinations (Main, Plan, Journal, Settings)",
+            listOf(Screen.Main, Screen.Plan, Screen.Journal, Screen.Settings),
+            topLevelNavigationItems.map { it.screen },
         )
     }
 }

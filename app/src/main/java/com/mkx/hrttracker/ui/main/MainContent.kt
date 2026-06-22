@@ -40,6 +40,7 @@ import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.journal.SimpleHomeCard
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -66,6 +67,7 @@ fun MainContent(
     onDismissTimeZoneChangeNotice: () -> Unit = { },
     onE2ChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
     onLowStockSectionExpandedChange: (Boolean) -> Unit = { },
+    onOpenTimeline: () -> Unit = { },
     claimE2ChartIntroAnimation: () -> Boolean = { false },
     contentPadding: PaddingValues? = null,
 ) {
@@ -158,6 +160,15 @@ fun MainContent(
                     now = uiState.now,
                     dateFormatter = dateFormatter,
                     timeFormatter = timeFormatter,
+                )
+            }
+
+            uiState.homeAnchor?.let { anchor ->
+                Spacer(modifier = Modifier.height(8.dp))
+                SimpleHomeCard(
+                    anchor = anchor,
+                    today = today,
+                    onClick = onOpenTimeline,
                 )
             }
 

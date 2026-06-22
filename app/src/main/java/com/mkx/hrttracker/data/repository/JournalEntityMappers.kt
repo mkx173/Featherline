@@ -3,6 +3,7 @@ package com.mkx.hrttracker.data.repository
 import com.mkx.hrttracker.data.local.NoteEntity
 import com.mkx.hrttracker.data.local.TrackedDateEntity
 import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
@@ -14,7 +15,9 @@ fun TrackedDateEntity.toModel(): TrackedDate = TrackedDate(
     icon = AnchorIcon.fromStorageValue(iconKey),
     date = LocalDate.parse(dateIso),
     palette = MedicationGroupColorKey.fromStorageValueOrNull(paletteKey),
+    heroBackground = HeroBackground.fromStorageValue(heroBackgroundKey),
     pinnedOrder = pinnedOrder,
+    createdAtEpochMillis = createdAtEpochMillis,
 )
 
 fun TrackedDate.toEntity(createdAtEpochMillis: Long, updatedAtEpochMillis: Long): TrackedDateEntity =
@@ -24,6 +27,7 @@ fun TrackedDate.toEntity(createdAtEpochMillis: Long, updatedAtEpochMillis: Long)
         iconKey = icon.storageKey,
         dateIso = date.toString(),
         paletteKey = palette?.name,
+        heroBackgroundKey = heroBackground.storageKey,
         pinnedOrder = pinnedOrder,
         createdAtEpochMillis = createdAtEpochMillis,
         updatedAtEpochMillis = updatedAtEpochMillis,

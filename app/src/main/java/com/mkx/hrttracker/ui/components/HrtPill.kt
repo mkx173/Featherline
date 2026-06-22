@@ -148,6 +148,9 @@ fun HrtPill(
     containerColor: Color,
     modifier: Modifier = Modifier,
     contentColor: Color = contentColorFor(containerColor),
+    // Overrides only the label's color (e.g. onPrimaryFixed for a colored pill) while the
+    // icon keeps [contentColor]. Defaults to Unspecified so the label inherits [contentColor].
+    labelColor: Color = Color.Unspecified,
     size: HrtPillSize = HrtPillSize.Medium,
     fontWeight: FontWeight? = null,
     icon: (@Composable HrtPillScope.() -> Unit)? = null,
@@ -167,6 +170,7 @@ fun HrtPill(
         Text(
             text = label,
             style = tokens.textStyle,
+            color = labelColor,
             fontWeight = fontWeight,
             maxLines = 1,
             // The trailing pad only balances a leading icon's optical weight; a

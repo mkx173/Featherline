@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
@@ -19,12 +20,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
@@ -45,6 +48,7 @@ class HomeRepository @Inject constructor(
     private val medicineStockRepository: MedicineStockRepository,
     private val medicineRepository: MedicineRepository,
     private val medicationLogRepository: MedicationLogRepository,
+    private val journalRepository: JournalRepository,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     fun observeHomeInputs(
@@ -148,6 +152,7 @@ class HomeRepository @Inject constructor(
                     estradiolPkEntries = simulationEntries.real,
                     estradiolPkPlannedEntries = simulationEntries.planned,
                     stockWarnings = stockWarnings,
+                    homeAnchor = usable.homeAnchor,
                     source = HomeInputSource.SNAPSHOT,
                     now = now,
                 )
@@ -180,18 +185,30 @@ class HomeRepository @Inject constructor(
         ) { trackedMedicines, stockFulfillmentEntries ->
             trackedMedicines to stockFulfillmentEntries
         }
+        val stockAndAnchorInputsFlow = combine(
+            stockInputsFlow,
+            journalRepository.observePinnedTrackedDates()
+                .map { pinnedDates -> pinnedDates.firstOrNull() }
+                .distinctUntilChanged(),
+        ) { stockInputs, homeAnchor ->
+            val (trackedMedicines, stockFulfillmentEntries) = stockInputs
+            HomeRoomStockAndAnchorInputs(
+                trackedMedicines = trackedMedicines,
+                stockFulfillmentEntries = stockFulfillmentEntries,
+                homeAnchor = homeAnchor,
+            )
+        }
         return combine(
             roomBasicsFlow,
             homeSnapshotRepository.observeHomeSnapshot(),
             settingsRepository.homeE2ChartWindowOptionFlow,
-            stockInputsFlow,
+            stockAndAnchorInputsFlow,
             nowFlow,
-        ) { inputs, snapshot, option, stockInputs, now ->
+        ) { inputs, snapshot, option, stockAndAnchorInputs, now ->
             suppressInconsistentHomeEmission("room_inputs") {
                 if (inputs.settings.homeE2ChartWindowOption != option) {
                     null
                 } else {
-                    val (trackedMedicines, stockFulfillmentEntries) = stockInputs
                     val nowInstant = now.atZone(zoneId).toInstant()
                     val pkHorizon = date
                         .plusDays(option.projectionFutureDays())
@@ -214,9 +231,9 @@ class HomeRepository @Inject constructor(
                         }
                         ?.pkProjection
                     val stockWarnings = medicineStockRepository.projectAll(
-                        medicines = trackedMedicines,
+                        medicines = stockAndAnchorInputs.trackedMedicines,
                         activeGroups = inputs.activeGroups,
-                        logEntries = stockFulfillmentEntries,
+                        logEntries = stockAndAnchorInputs.stockFulfillmentEntries,
                         now = nowInstant,
                         zoneId = zoneId,
                     ).stockWarningsOnly()
@@ -245,6 +262,7 @@ class HomeRepository @Inject constructor(
                         estradiolPkEntries = simulationEntries.real,
                         estradiolPkPlannedEntries = simulationEntries.planned,
                         stockWarnings = stockWarnings,
+                        homeAnchor = stockAndAnchorInputs.homeAnchor,
                         source = HomeInputSource.ROOM,
                         now = now,
                     )
@@ -525,6 +543,12 @@ class HomeRepository @Inject constructor(
 // (the wrapper itself filtered out as null).
 private data class LatestEstradiolEntryEmission(val entry: MedicationLogEntry?)
 
+private data class HomeRoomStockAndAnchorInputs(
+    val trackedMedicines: List<com.mkx.hrttracker.model.medication.Medicine>,
+    val stockFulfillmentEntries: List<MedicationLogEntry>,
+    val homeAnchor: TrackedDate?,
+)
+
 private fun List<MedicineStockProjection>.stockWarningsOnly(): List<MedicineStockProjection> {
     return filter { projection ->
         projection.state == MedicineStockState.OUT ||
@@ -564,6 +588,7 @@ data class HomeInputs(
     val estradiolPkEntries: List<MedicationLogEntry>,
     val estradiolPkPlannedEntries: List<MedicationLogEntry> = emptyList(),
     val stockWarnings: List<MedicineStockProjection> = emptyList(),
+    val homeAnchor: TrackedDate? = null,
     val source: HomeInputSource,
     val now: LocalDateTime,
 )

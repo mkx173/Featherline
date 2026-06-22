@@ -6,10 +6,14 @@ import com.mkx.hrttracker.data.repository.HomeRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.HeroBackground
+import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
@@ -51,6 +55,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -127,6 +132,144 @@ class MainViewModelTest {
         verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any(), any()) }
         verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) }
         assertEquals(firstMinute.plusMinutes(2), viewModel.uiState.value.now)
+    }
+
+    @Test
+    fun uiStateExposesTopPinnedAnchorForHomeCard() = runTest {
+        val now = LocalDateTime.of(2026, 6, 16, 12, 0)
+        val appTimeSource = FakeAppTimeSource(now)
+        val hero = TrackedDate(
+            id = "estradiol-start",
+            name = "On estradiol",
+            icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1),
+            palette = MedicationGroupColorKey.ROSE,
+            pinnedOrder = 0,
+        )
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(
+                now = now,
+                source = HomeInputSource.ROOM,
+                homeAnchor = hero,
+            )
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val anchor = viewModel.uiState.value.homeAnchor
+        assertEquals("estradiol-start", anchor?.id)
+        assertEquals("On estradiol", anchor?.name)
+        assertEquals(AnchorIcon.MEDICATION, anchor?.icon)
+        assertEquals(MedicationGroupColorKey.ROSE, anchor?.palette)
+        assertEquals(LocalDate.of(2024, 4, 1), anchor?.date)
+        assertEquals(806L, anchor?.dayMagnitude)
+        assertFalse(anchor?.isFuture ?: true)
+    }
+
+    @Test
+    fun uiStateHomeAnchorIsNullWhenNoPinnedAnchorExists() = runTest {
+        val now = LocalDateTime.of(2026, 6, 16, 12, 0)
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(
+                now = now,
+                source = HomeInputSource.ROOM,
+                homeAnchor = null,
+            )
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = FakeAppTimeSource(now),
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.homeAnchor)
+    }
+
+    @Test
+    fun uiStateHomeAnchorUpdatesWhenPinnedDatesChange() = runTest {
+        val now = LocalDateTime.of(2026, 6, 16, 12, 0)
+        val inputs = MutableStateFlow(
+            homeInputs(
+                now = now,
+                source = HomeInputSource.ROOM,
+                homeAnchor = null,
+            )
+        )
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns inputs
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = FakeAppTimeSource(now),
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.homeAnchor)
+
+        inputs.value = homeInputs(
+            now = now,
+            source = HomeInputSource.ROOM,
+            homeAnchor = TrackedDate(
+                id = "voice-start",
+                name = "Voice training",
+                icon = AnchorIcon.SCHEDULE,
+                date = LocalDate.of(2026, 6, 1),
+                palette = MedicationGroupColorKey.TEAL,
+                pinnedOrder = 0,
+            ),
+        )
+        advanceUntilIdle()
+
+        val anchor = viewModel.uiState.value.homeAnchor
+        assertEquals("voice-start", anchor?.id)
+        assertEquals("Voice training", anchor?.name)
+        assertEquals(15L, anchor?.dayMagnitude)
+        verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any(), any()) }
+    }
+
+    @Test
+    fun coldStart_emitsHomeAnchorFromSnapshotWithoutAnyRoomEmission() = runTest {
+        val now = LocalDateTime.of(2026, 6, 20, 9, 0)
+        val hero = TrackedDate(
+            id = "hero-1",
+            name = "HRT start",
+            icon = AnchorIcon.entries.first(),
+            date = LocalDate.of(2025, 3, 14),
+            palette = null,
+            heroBackground = HeroBackground.DateColor,
+            pinnedOrder = 0,
+            createdAtEpochMillis = 1L,
+        )
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(now = now, source = HomeInputSource.SNAPSHOT, homeAnchor = hero)
+        )
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = FakeAppTimeSource(now),
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val anchor = viewModel.uiState.value.homeAnchor
+        assertEquals("hero-1", anchor?.id)
     }
 
     // The intro animation is claimed atomically so that with two simultaneous
@@ -1362,6 +1505,7 @@ class MainViewModelTest {
         estradiolPkPlannedEntries: List<MedicationLogEntry> = emptyList(),
         scheduleEntries: List<MedicationLogEntry> = emptyList(),
         stockWarnings: List<MedicineStockProjection> = emptyList(),
+        homeAnchor: TrackedDate? = null,
         source: HomeInputSource = HomeInputSource.SNAPSHOT,
     ): HomeInputs {
         return HomeInputs(
@@ -1376,6 +1520,7 @@ class MainViewModelTest {
             estradiolPkEntries = estradiolPkEntries,
             estradiolPkPlannedEntries = estradiolPkPlannedEntries,
             stockWarnings = stockWarnings,
+            homeAnchor = homeAnchor,
             source = source,
             now = now,
         )

@@ -1,39 +1,53 @@
 package com.mkx.hrttracker.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import com.materialkolor.ktx.harmonize
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 
+// Derive darkness from the resolved theme, not isSystemInDarkTheme(): on API < 31 the
+// in-app dark-mode override is applied only via AppCompatDelegate.setDefaultNightMode and
+// is never baked into the Configuration isSystemInDarkTheme() reads, so the system value
+// ignores the override. The hero background colors resolve the same way.
+@Composable
+fun isAppInDarkTheme(): Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
 @Composable
 fun rememberMedicationGroupColorScheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = isAppInDarkTheme(),
     colorKey: MedicationGroupColorKey?,
     harmonize: Boolean = false,
 ): ColorScheme {
-    val palette = MedicationGroupPalettes.getValue(colorKey)
-    val container = if (darkTheme) palette.darkContainer else palette.lightContainer
-    val accent = if (darkTheme) palette.darkAccent else palette.lightAccent
-    val onContainer = if (darkTheme) palette.darkOnContainer else palette.lightOnContainer
-    val onPrimary = if (darkTheme) palette.lightOnContainer else palette.darkOnContainer
-    val (finalContainer, finalAccent, finalOnContainer, finalOnPrimary) = if (harmonize) {
-        val target = MaterialTheme.colorScheme.primary
-        listOf(container, accent, onContainer, onPrimary).map { it.harmonize(target) }
-    } else {
-        listOf(container, accent, onContainer, onPrimary)
+    // Read the base scheme outside remember so a theme change (its identity flips) re-derives;
+    // the HCT math + copy() below is otherwise pure in (baseScheme, darkTheme, colorKey,
+    // harmonize), so caching it skips the per-recomposition work on every row that uses it.
+    val baseScheme = MaterialTheme.colorScheme
+    return remember(baseScheme, darkTheme, colorKey, harmonize) {
+        val palette = MedicationGroupPalettes.getValue(colorKey)
+        val container = if (darkTheme) palette.darkContainer else palette.lightContainer
+        val accent = if (darkTheme) palette.darkAccent else palette.lightAccent
+        val onContainer = if (darkTheme) palette.darkOnContainer else palette.lightOnContainer
+        val onPrimary = if (darkTheme) palette.lightOnContainer else palette.darkOnContainer
+        val (finalContainer, finalAccent, finalOnContainer, finalOnPrimary) = if (harmonize) {
+            val target = baseScheme.primary
+            listOf(container, accent, onContainer, onPrimary).map { it.harmonize(target) }
+        } else {
+            listOf(container, accent, onContainer, onPrimary)
+        }
+        baseScheme.copy(
+            primary = finalAccent.desaturateHct(),
+            onPrimary = finalOnPrimary,
+            primaryContainer = finalContainer.desaturateHct(),
+            onPrimaryContainer = finalAccent.desaturateHct(),
+            // Carries the high-contrast text-on-container color (used for chip body text;
+            // icons keep using onPrimaryContainer = accent).
+            onPrimaryFixed = finalOnContainer,
+        )
     }
-    return MaterialTheme.colorScheme.copy(
-        primary = finalAccent.desaturateHct(),
-        onPrimary = finalOnPrimary,
-        primaryContainer = finalContainer.desaturateHct(),
-        onPrimaryContainer = finalAccent.desaturateHct(),
-        // Carries the high-contrast text-on-container color (used for chip body text;
-        // icons keep using onPrimaryContainer = accent).
-        onPrimaryFixed = finalOnContainer,
-    )
 }
 
 internal data class HuePalette(

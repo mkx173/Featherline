@@ -238,6 +238,7 @@ data class BackupTrackedDateSnapshot(
     val iconKey: String,
     val dateIso: String,
     val paletteKey: String?,
+    val heroBackgroundKey: String? = null,
     val pinnedOrder: Int?,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
@@ -255,13 +256,12 @@ data class BackupNoteSnapshot(
 // Bump this when a schema change isn't safely readable by an older app —
 // e.g., a new REQUIRED field, a removed field that something downstream still
 // dereferences, or a semantic change to an existing field. Nullable optional
-// fields (e.g., BackupMedicineSnapshot.displayDoseUnit, added when the custom-
-// medicine unit picker shipped, and BackupMedicationLogSnapshot.doseAmountDelta,
-// added for the actual-amount feature, and BackupSettingsSnapshot.widgetAppearance)
-// are additive and don't require a bump; missing values fall through their
-// defaults on restore. Defaulted top-level lists such as trackedDates and notes
-// (added for the Journal feature) are also additive: absent keys default to
-// emptyList() on restore, and older apps ignore the unknown keys.
+// fields usually don't require a bump; missing values fall through their
+// defaults on restore. Examples include BackupMedicineSnapshot.displayDoseUnit,
+// BackupMedicationLogSnapshot.doseAmountDelta, and
+// BackupSettingsSnapshot.widgetAppearance. Defaulted top-level lists such as
+// trackedDates and notes are also additive: absent keys default to emptyList()
+// on restore, and older apps ignore the unknown keys.
 //
 // The 2→3 bump added the CAPSULE preparationType enum value. Older apps
 // coerce unknown preparationType strings to PILL on restore, which would
@@ -275,7 +275,11 @@ data class BackupNoteSnapshot(
 // The 4→5 bump added IMPORTED_INJECTION and IMPORTED_GEL preparationType enum
 // values. Older apps coerce unknown preparationType strings to PILL on restore,
 // which would silently misclassify imported medicines.
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 5
+//
+// The 5→6 bump added BackupTrackedDateSnapshot.heroBackgroundKey so journal
+// hero backgrounds are included in the backup compatibility gate alongside
+// local Room persistence.
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 6
 
 // Stable logical app identity for backups. Do not derive this from
 // Context.packageName: build variants may add an install suffix, but their

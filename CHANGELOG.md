@@ -10,11 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - You can now import your dose history and blood test results from another HRT tracker's exported file.
-- Added the data layer for tracked journal dates and daily notes, including encrypted storage and backup round-trip support.
+- A new Journal tab lets you track meaningful dates, each with a custom icon and color, and see how long it has been on a timeline with upcoming milestones.
+- You can write a short note for each day from the Journal tab, then browse, edit, or delete past notes.
 
 ### Fixed
 
 - The medium home-screen widget no longer shows "0/0" above an empty panel on a day with a logged manual dose but nothing scheduled.
+- Custom medication group and journal date colors now follow the in-app dark/light theme instead of the system setting.
+- On Android 12 and below, the navigation bar no longer keeps the wrong width for one rotation before correcting itself.
 
 ## [1.2.0] - 2026-06-13
 

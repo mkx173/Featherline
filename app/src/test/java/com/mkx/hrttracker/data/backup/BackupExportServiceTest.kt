@@ -117,11 +117,10 @@ class BackupExportServiceTest {
     }
 
     @Test
-    fun backupExport_versionTripwire_doseAmountDeltaRemainsAdditive() {
-        // doseAmountDelta is a nullable additive field — it did NOT force a version bump
-        // (older readers default it to null). The 4→5 bump is for imported preparation
-        // enum values; this still catches any FURTHER accidental bump.
-        assertEquals(5, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    fun backupExport_versionTripwire_heroBackgroundBumpedSnapshotVersion() {
+        // The 5→6 bump is intentional for journal hero background persistence.
+        // Keep this tripwire aligned with BackupSnapshot.kt's compatibility notes.
+        assertEquals(6, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     @Test
@@ -185,6 +184,7 @@ class BackupExportServiceTest {
             iconKey = "medication",
             dateIso = "2024-04-01",
             paletteKey = "ROSE",
+            heroBackgroundKey = "TRANSGENDER",
             pinnedOrder = 0,
             createdAtEpochMillis = 1_000L,
             updatedAtEpochMillis = 2_000L,
@@ -217,6 +217,7 @@ class BackupExportServiceTest {
         assertEquals(trackedDate.iconKey, exportedTrackedDate.iconKey)
         assertEquals(trackedDate.dateIso, exportedTrackedDate.dateIso)
         assertEquals(trackedDate.paletteKey, exportedTrackedDate.paletteKey)
+        assertEquals(trackedDate.heroBackgroundKey, exportedTrackedDate.heroBackgroundKey)
         assertEquals(trackedDate.pinnedOrder, exportedTrackedDate.pinnedOrder)
         assertEquals(trackedDate.createdAtEpochMillis, exportedTrackedDate.createdAtEpochMillis)
         assertEquals(trackedDate.updatedAtEpochMillis, exportedTrackedDate.updatedAtEpochMillis)
@@ -571,7 +572,7 @@ class BackupExportServiceTest {
         snapshot!!
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, snapshot.snapshotVersion)
-        assertEquals(5, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
+        assertEquals(6, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)

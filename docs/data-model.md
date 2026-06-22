@@ -10,15 +10,15 @@ format used for manual backups, see [backup-format.md](backup-format.md).
 ## Database setup
 
 - [`HrtTrackerDatabase`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt)
-  is the Room database at schema version 8. It declares 12 entities
+  is the Room database at schema version 9. It declares 12 entities
   and exposes 7 DAOs. `exportSchema` is off — schemas are tracked via
   migration objects in source rather than committed schema JSON.
 - [`DatabaseHolder`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/DatabaseHolder.kt)
   builds the database via `Room.databaseBuilder`, installs a
   `SupportOpenHelperFactory` from SQLCipher's `net.zetetic` artifact,
   and registers `MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4`,
-  `MIGRATION_4_5`, `MIGRATION_5_6`, `MIGRATION_6_7`, and
-  `MIGRATION_7_8`.
+  `MIGRATION_4_5`, `MIGRATION_5_6`, `MIGRATION_6_7`, `MIGRATION_7_8`,
+  and `MIGRATION_8_9`.
   No `fallbackToDestructiveMigration`
   is wired — a missing migration crashes loudly in every build, debug
   and release, so silent data loss can't slip through.
@@ -285,7 +285,9 @@ Annotated `@Entity(tableName = "tracked_dates")` — one row per journal
 anchor date the user tracks. The primary key is a UUID string. Stores
 `name`, the curated `iconKey`, wall-clock `dateIso` (ISO-8601 local
 date, no time zone), nullable `paletteKey` (null means the slate
-default), nullable `pinnedOrder` (null means unpinned; ascending
+default), nullable `heroBackgroundKey` (null means no hero background;
+otherwise a `PrideFlag` enum name or `DATE_COLOR` for the date-color
+wash), nullable `pinnedOrder` (null means unpinned; ascending
 non-null values are the pinned tray order), and created/updated epoch
 millisecond timestamps. Indexed on `pinnedOrder`, which backs the
 pinned-tray Flow and lets unpinned rows stay outside the ordered pin
@@ -461,11 +463,13 @@ Seven DAO interfaces, each backing the entities in its namesake area.
   imported panels left behind after a moved result.
 - [`JournalDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/JournalDao.kt)
   — tracked dates and daily notes. It exposes Flow observers for all
-  tracked dates, pinned tracked dates, notes after a cutoff date, and
-  the note for one `LocalDate`; one-shot reads for backup/export and
-  one-note-per-day upserts; `upsertTrackedDate` / `upsertNote`;
-  targeted `updatePinnedOrder` changes for pin/reorder operations; and
-  restore helpers that bulk insert or delete all journal rows.
+  tracked dates, pinned tracked dates, notes and note counts, plus the
+  note for one `LocalDate`; one-shot reads for backup/export and the
+  first pinned Home anchor; one-note-per-day upserts;
+  `upsertTrackedDate` / `upsertNote`; targeted `updatePinnedOrder` /
+  `updateHeroBackground` changes for pin/reorder/hero operations; note
+  deletes by date or UUID; and restore helpers that bulk insert or
+  delete all journal rows.
 - [`HomeDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HomeDao.kt)
   — the composite queries feeding the home screen:
   `observeActiveGroups`, `observeScheduleEntries`,
@@ -485,7 +489,7 @@ fresh at v1 and bumps via `Migration` objects declared inline in
 [`HrtTrackerDatabase.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt).
 The chain today is `MIGRATION_1_2` → `MIGRATION_2_3` → `MIGRATION_3_4`
 → `MIGRATION_4_5` → `MIGRATION_5_6` → `MIGRATION_6_7` →
-`MIGRATION_7_8`.
+`MIGRATION_7_8` → `MIGRATION_8_9`.
 `MIGRATION_1_2` adds the `displayDoseUnit` column to `medicines` with a
 `MG` default. `MIGRATION_2_3` adds the stock feature: the six stock
 columns on `medicines` (see [`MedicineEntity`](#medicineentity) above),
@@ -507,7 +511,9 @@ panels, and blood-test results, and creates unique provenance indices
 for medication logs, imported panels, and imported results.
 `MIGRATION_7_8` adds the Journal phase-1 tables: `tracked_dates`
 with its `pinnedOrder` and `dateIso` indices, and `notes` with its
-unique `dateIso` index. It is additive and does not rewrite existing tables. The reset
+unique `dateIso` index. `MIGRATION_8_9` adds the nullable
+`heroBackgroundKey` column to `tracked_dates`. Both are additive and do
+not rewrite existing tables. The reset
 deliberately did not register a `MIGRATION_29_*` shim, and no
 `fallbackToDestructiveMigration` is wired in any build flavor: a
 pre-refactor database does not migrate, it fails to open at startup

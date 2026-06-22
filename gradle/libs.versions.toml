@@ -34,6 +34,7 @@ workRuntimeKtx = "2.10.1"
 kmp-wheel-picker = "0.3.0"
 benchmarkMacroJunit4 = "1.4.1"
 uiautomator = "2.3.0"
+reorderable = "2.5.1"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
@@ -88,6 +89,7 @@ swmansion-kmp-wheel-picker = { module = "com.swmansion.kmpwheelpicker:kmp-wheel-
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workRuntimeKtx" }
 androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmarkMacroJunit4" }
 androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
+reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -51,7 +51,7 @@ are organized by role:
   `JournalEntityMappers` helpers, plus the stock-projection helpers
   (see below). `JournalRepository` owns the phase-1 journal
   tracked-date and daily-note data surface.
-- [`ui`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui) — Compose UI. Ten feature
+- [`ui`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui) — Compose UI. Eleven feature
   sub-packages plus `components`, `navigation`, `theme`.
 - [`di`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/di) — Hilt modules. Two files.
 - [`reminder`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/reminder) — AlarmManager pipeline,
@@ -160,13 +160,15 @@ entities stay inside `data/`.
 [`data/local`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/data/local)
 holds the Room database, the 12 `@Entity` data classes, the 7 DAOs,
 the migration objects, and the SQLCipher passphrase provider. The
-current schema is version 8 (the medicine-identity refactor reset the
+current schema is version 9 (the medicine-identity refactor reset the
 schema and dropped the legacy v1–v29 migration chain; `MIGRATION_2_3`
 and `MIGRATION_3_4` then added the stock columns on `medicines`,
 `MIGRATION_4_5` added the `doseAmountDelta` column,
 `MIGRATION_5_6` added the medication-log `(category, appliedAtEpochMillis)`
-index, `MIGRATION_6_7` added external-import provenance, and
-`MIGRATION_7_8` added the `tracked_dates` and `notes` journal tables).
+index, `MIGRATION_6_7` added external-import provenance,
+`MIGRATION_7_8` added the `tracked_dates` and `notes` journal tables,
+and `MIGRATION_8_9` added the `heroBackgroundKey` column to
+`tracked_dates`).
 See
 [data-model.md](data-model.md) for the per-entity breakdown.
 
@@ -237,6 +239,9 @@ Feature sub-packages, one screen tree each:
   (`ui/catalog`).
 - [`ui/history`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/history) — the log-entries history
   screen.
+- [`ui/journal`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/ui/journal) — the journal tab: tracked-date
+  timeline, add-date sheet, milestones screen, all-notes list, and
+  hero-background picker.
 - [`ui/calibration`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/calibration) — blood-test panel list, panel
   editor, per-unit settings.
 - [`ui/settings`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/settings) — the settings tab.
@@ -327,9 +332,10 @@ stores are `@Singleton` and constructor-injected.
 Navigation is single-Activity, single-NavHost. The entry point is
 [`HrtTrackerNavHost`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt),
 which routes between Compose destinations declared via a `Screen`
-sealed class. At time of writing the app exposes 12 top-level
+sealed class. At time of writing the app exposes 15 `Screen`
 destinations, grouped by feature area: `Main`, `Plan` (plus
-`PlanBatchAdd`, `PlanArchivedGroups`), `History`, `Settings` (plus
+`PlanBatchAdd`, `PlanArchivedGroups`), `Journal` (plus
+`JournalMilestones`, `JournalAllNotes`), `History`, `Settings` (plus
 `SettingsCalibration`, `SettingsCalibrationUnits`,
 `SettingsCalibrationEntry`), `EditMedicationGroup`, and the catalog
 pair `Medicines` and `MedicineDetail` (the medicine manager opens
@@ -344,7 +350,7 @@ above the bar via `LocalAppContentBottomInset`. Layout configuration
 changes (rotation, fold posture, window resize) are declared in
 `configChanges` and handled in place by recomposition rather than
 activity recreation. The
-suite surfaces three of the destinations (Main, Plan, Settings) from
+suite surfaces four of the destinations (Main, Plan, Journal, Settings) from
 the `topLevelNavigationItems` list; the rest are reached via in-screen
 actions and tracked back to their top-level parent via the
 `topLevelParent` nav-argument.
@@ -400,7 +406,8 @@ an LLM can resolve every step:
   reading the cached `HomeSnapshotRecord` from
   `HomeSnapshotRepository.observeHomeSnapshot()`, and a `ROOM` path
   reading live Flows from `HomeDao`, `MedicationLogDao`,
-  `UserProfileDao`, and the selected settings.
+  `UserProfileDao`, `JournalRepository`'s pinned dates, and the
+  selected settings.
 - When the cached projection in the snapshot is absent, expired, or
   fingerprinted for a different home E2 chart window,
   `MainViewModel` falls back to `PkMedicationSimulation.simulateMainEstradiolTrend()`
@@ -433,12 +440,14 @@ The home screen has two cached layers, both observed by
   update) routes through `runHomeDataMutation`, which holds a mutex,
   bumps the durable generation counter via `HomeSnapshotGenerationStore`,
   runs the mutation, and then asynchronously refreshes the snapshot.
+  Journal hero-anchor changes invalidate and refresh the same snapshot
+  from `JournalRepository`.
 - [`HomeSnapshotStore`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/HomeSnapshotStore.kt)
   persists the snapshot as an encrypted DataStore file
   (`home_snapshot.pb`) so the home screen paints from cache on cold
   start before live Room observation catches up. The persisted record
   is `HomeSnapshotRecord`. The snapshot codec is at
-  `SNAPSHOT_CODEC_VERSION = 19` and the schema record at
+  `SNAPSHOT_CODEC_VERSION = 22` and the schema record at
   `HOME_SNAPSHOT_SCHEMA_VERSION = 7`; both moved through the
   medicine-identity refactor (slots and log entries now reference a
   medicine by UUID, and the PATCH_OFF singleton round-trips), and the
@@ -452,7 +461,9 @@ The home screen has two cached layers, both observed by
   medicines across the whole window. v18 appends an `archivedGroups`
   field so Home and the widget can mirror the Plan page's archived-group
   doses without re-reading Room. v19 appends `doseAmountDelta` to log
-  entries so cached stock deltas survive a cold start.
+  entries so cached stock deltas survive a cold start. v20 appends
+  external-import medicine payloads, v21 appends medication-log import
+  provenance, and v22 appends the cached Home hero anchor tracked date.
 
 The persisted snapshot also bundles a `HomePkProjectionRecord` — the
 result of the most recent

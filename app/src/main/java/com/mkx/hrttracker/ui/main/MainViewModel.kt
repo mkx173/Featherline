@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.medication.lowStockSeverityRank
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
+import com.mkx.hrttracker.ui.journal.toAnchorRowUiState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSnapshot
 import com.mkx.hrttracker.util.AppTimeSource
@@ -93,8 +94,8 @@ class MainViewModel @Inject constructor(
     // wall-clock refreshes are fed to HomeRepository as a combine input so
     // now-sensitive projections re-anchor without tearing down the Room flows.
     @OptIn(ExperimentalCoroutinesApi::class)
-    private fun buildUiStateFlow(): Flow<MainUiState> = combine(
-        gatedSnapshot
+    private fun buildUiStateFlow(): Flow<MainUiState> {
+        val keyedInputsFlow = gatedSnapshot
             .map { snapshot ->
                 HomeTimeKey(
                     now = snapshot.minute,
@@ -111,47 +112,51 @@ class MainViewModel @Inject constructor(
                     zoneId = key.zoneId,
                 )
                     .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
-            },
-        gatedSnapshot,
-        timeZoneChangeNoticeController.notice,
-        settingsRepository.homeLowStockSectionExpandedFlow,
-        settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
-    ) { keyedInputs, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
-        if (!keyedInputs.key.matches(timeSnapshot)) {
-            return@combine null
-        }
-        val inputs = keyedInputs.inputs
-        if (
-            inputs.source == HomeInputSource.ROOM &&
-            inputs.stockWarnings.isEmpty() &&
-            acknowledgedWarningStates.isNotEmpty()
-        ) {
-            // Swallow DataStore failures: letting them propagate would tear
-            // down this combine -> stateIn home flow. A dropped clear is
-            // self-correcting on the next empty-ROOM emission.
-            try {
-                settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
-            } catch (error: CancellationException) {
-                throw error
-            } catch (_: Exception) {
-                // Best-effort cleanup; see comment above.
+            }
+
+        return combine(
+            keyedInputsFlow,
+            gatedSnapshot,
+            timeZoneChangeNoticeController.notice,
+            settingsRepository.homeLowStockSectionExpandedFlow,
+            settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
+        ) { keyedInputs, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
+            if (!keyedInputs.key.matches(timeSnapshot)) {
+                return@combine null
+            }
+            val inputs = keyedInputs.inputs
+            if (
+                inputs.source == HomeInputSource.ROOM &&
+                inputs.stockWarnings.isEmpty() &&
+                acknowledgedWarningStates.isNotEmpty()
+            ) {
+                // Swallow DataStore failures: letting them propagate would tear
+                // down this combine -> stateIn home flow. A dropped clear is
+                // self-correcting on the next empty-ROOM emission.
+                try {
+                    settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    // Best-effort cleanup; see comment above.
+                }
+            }
+            withContext(defaultDispatcher) {
+                buildHomeUiState(
+                    inputs = inputs,
+                    now = timeSnapshot.minute,
+                    zoneId = timeSnapshot.zone,
+                    timeZoneNotice = timeZoneNotice,
+                    lowStockSectionExpanded = shouldExpandLowStockSection(
+                        storedExpanded = storedLowStockSectionExpanded,
+                        stockWarnings = inputs.stockWarnings,
+                        acknowledgedWarningStates = acknowledgedWarningStates,
+                    ),
+                )
             }
         }
-        withContext(defaultDispatcher) {
-            buildHomeUiState(
-                inputs = inputs,
-                now = timeSnapshot.minute,
-                zoneId = timeSnapshot.zone,
-                timeZoneNotice = timeZoneNotice,
-                lowStockSectionExpanded = shouldExpandLowStockSection(
-                    storedExpanded = storedLowStockSectionExpanded,
-                    stockWarnings = inputs.stockWarnings,
-                    acknowledgedWarningStates = acknowledgedWarningStates,
-                ),
-            )
-        }
+            .filterNotNull()
     }
-        .filterNotNull()
 
     private val _highlightRequest = MutableStateFlow<DoseRowHighlightRequest?>(null)
     val highlightRequest: StateFlow<DoseRowHighlightRequest?> = _highlightRequest.asStateFlow()
@@ -322,6 +327,7 @@ class MainViewModel @Inject constructor(
             hideReferenceRanges = inputs.settings.hideReferenceRanges,
             stockWarnings = inputs.stockWarnings,
             lowStockSectionExpanded = lowStockSectionExpanded,
+            homeAnchor = inputs.homeAnchor?.toAnchorRowUiState(now.toLocalDate()),
             e2Hero = buildMainE2Hero(
                 // The single-row `latestEstradiolEntry` query is bounded at the
                 // frozen subscription `now`, so on its own it misses a dose the
@@ -417,28 +423,4 @@ class MainViewModel @Inject constructor(
     private companion object {
         const val TAG = "MainViewModel"
     }
-}
-
-data class MainUiState(
-    val homeDataReady: Boolean = false,
-    val e2TrendReady: Boolean = false,
-    val homeSource: HomeInputSource? = null,
-    val now: LocalDateTime = LocalDateTime.now(),
-    val homeE2DisplayUnit: BloodUnitKey = BloodUnitKey.PG_ML,
-    val homeE2ChartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
-    val hideReferenceRanges: Boolean = false,
-    val stockWarnings: List<MedicineStockProjection> = emptyList(),
-    val lowStockSectionExpanded: Boolean = true,
-    val e2Hero: MainE2HeroUiState = MainE2HeroUiState(),
-    val e2Chart: MainE2ChartUiState = MainE2ChartUiState(),
-    val antiandrogenCards: List<MainAntiandrogenCardUiState> = emptyList(),
-    val todaySection: MainTodaySectionUiState = MainTodaySectionUiState(
-        date = now.toLocalDate()
-    ),
-    val lastNightSection: MainLastNightSectionUiState = MainLastNightSectionUiState(),
-    val upcomingSection: MainUpcomingSectionUiState = MainUpcomingSectionUiState(),
-    val timeZoneChangeNotice: TimeZoneChangeNotice? = null,
-) {
-    val splashReady: Boolean
-        get() = homeDataReady
 }

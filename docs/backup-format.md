@@ -12,7 +12,7 @@ that file is read back. The whole subsystem lives in
   breaking — they cover changes to the framing or to the
   cryptographic primitives.
 - **Snapshot JSON version** —
-  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 5`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt).
+  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 6`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt).
   Describes the plaintext payload — the `BackupSnapshot` data-class
   tree serialized as JSON. Bumps are reserved for renames, removals,
   or semantic changes to existing fields. The restore path also
@@ -117,11 +117,10 @@ flattened into the parent's JSON.
   `medicationLogs` so the importer can build its valid-medicine FK set
   before walking any item or log that references one. The
   `trackedDates` and `notes` lists are defaulted to `emptyList()` so
-  old backups restore with an empty Journal. A same-version pre-field
-  v5 reader may also restore a v5 backup containing those keys and
-  ignore them; future snapshot versions are still rejected by version
-  checks. They are additive fields, so
-  `CURRENT_BACKUP_SNAPSHOT_VERSION` remains `5`.
+  old backups restore with an empty Journal. The 5→6 bump added
+  `BackupTrackedDateSnapshot.heroBackgroundKey`, so journal hero
+  backgrounds round-trip through backups; it too defaults to `null` so
+  older backups restore cleanly.
 - `BackupAppSnapshot` — just `packageName`; exports write the stable
   backup identity (`com.mkx.hrttracker`), and restore rejects other app
   identities.
@@ -237,16 +236,17 @@ flattened into the parent's JSON.
 - `BackupTrackedDateSnapshot` →
   [`TrackedDateEntity`](data-model.md#trackeddateentity); carries the
   journal anchor UUID, `name`, `iconKey`, wall-clock `dateIso`, nullable
-  `paletteKey`, nullable `pinnedOrder`, and created/updated timestamps.
+  `paletteKey`, nullable `heroBackgroundKey`, nullable `pinnedOrder`,
+  and created/updated timestamps.
   Restore validates UUID shape, trims `name`, rejects blank names,
   rejects duplicate tracked-date UUIDs, and rejects negative
   `pinnedOrder` values. Duplicate `pinnedOrder` values are tolerated —
   it is a sort key, not a uniqueness invariant, and read-time ordering
   breaks ties deterministically — so a reorder/unpin that leaves two
-  rows sharing an order still round-trips. `iconKey` and `paletteKey`
-  are restored as stored, even when this build does not know the key
-  yet; read-time mappers apply their fallbacks without rewriting the
-  backup value.
+  rows sharing an order still round-trips. `iconKey`, `paletteKey`, and
+  `heroBackgroundKey` are restored as stored, even when this build does
+  not know the key yet; read-time mappers apply their fallbacks without
+  rewriting the backup value.
 - `BackupNoteSnapshot` →
   [`NoteEntity`](data-model.md#noteentity); carries the note UUID,
   unique wall-clock `dateIso`, `text`, and created/updated timestamps.
@@ -314,7 +314,7 @@ incompatible files are rejected at the cheapest detection point.
    runs these checks:
    - version + identity: `snapshotVersion` must fall in
      `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION`
-     (currently `2..5`); v1 backups are rejected here with no
+     (currently `2..6`); v1 backups are rejected here with no
      migration path because the medicine-identity refactor removed
      the denormalized identity fields older payloads relied on.
      `app.packageName` must match the stable backup identity
@@ -342,9 +342,9 @@ incompatible files are rejected at the cheapest detection point.
      and note dates must be unique within the file. Restore also
      validates that journal `updatedAtEpochMillis` values are not before
      their corresponding `createdAtEpochMillis` values. Journal
-     `iconKey` and `paletteKey` values are preserved as stored so newer
-     key values can round-trip; the app's read-time mappers own
-     fallbacks for unknown keys.
+     `iconKey`, `paletteKey`, and `heroBackgroundKey` values are
+     preserved as stored so newer key values can round-trip; the app's
+     read-time mappers own fallbacks for unknown keys.
    - external-import invariants: imported medicines must use the
      `E|` identity namespace, cannot include stock blocks, cannot be
      referenced by medication groups, and are the only medicines that
@@ -402,9 +402,11 @@ kind of additive change: both top-level lists default to `emptyList()`,
 so v2-v5 backups that omit them restore with no journal rows, and
 a same-version pre-field v5 reader may restore a v5 backup containing
 them and ignore the unknown keys. This does not apply to future
-snapshot versions, which are rejected by version checks. Because they
-are additive/defaulted, the snapshot version stays
-`CURRENT_BACKUP_SNAPSHOT_VERSION = 5`.
+snapshot versions, which are rejected by version checks. The later
+`BackupTrackedDateSnapshot.heroBackgroundKey` field is nullable and
+defaulted too, but shipped with a v5→v6 gate so older apps reject
+backups carrying journal hero backgrounds instead of silently dropping
+that choice.
 Removing or renaming a field is *not* in this bucket.
 The external-import provenance fields themselves are nullable/defaulted
 (`BackupMedicineSnapshot.importedFromExternalTracker`,
@@ -437,7 +439,9 @@ with the `widgetAppearance` codec's own v3 → v4 (bidirectional light
 balance), per the caveat above. The v4 → v5 bump added
 `IMPORTED_INJECTION` and `IMPORTED_GEL` to `preparationType`; older
 apps would coerce unknown preparation types to `PILL`, silently
-corrupting imported medicine semantics. The validator gates
+corrupting imported medicine semantics. The v5 → v6 bump added
+`BackupTrackedDateSnapshot.heroBackgroundKey` so journal hero
+backgrounds are preserved across backup restore. The validator gates
 on `snapshotVersion in MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION`,
 so bumping `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION` is how we drop
 support for a version when carrying its reader logic is no longer
@@ -457,11 +461,11 @@ inner snapshot version moved.
 
 | Envelope | Snapshot | Reader | Outcome |
 | --- | --- | --- | --- |
-| v2 | v2, v3, v4, or v5 | This version | Restores. Legacy framing, payload uncompressed. |
+| v2 | v2, v3, v4, v5, or v6 | This version | Restores. Legacy framing, payload uncompressed. |
 | v3 | v2 | This version | Restores normally. |
-| v3 | v3, v4, or v5 | This version | Restores normally. |
+| v3 | v3, v4, v5, or v6 | This version | Restores normally. |
 | v3 | v3 with omitted optional fields | This version | Restores; missing fields take their data-class defaults, including omitted journal `trackedDates` / `notes` lists defaulting empty. |
-| v3 | v4 or v5 with omitted external-import fields | This version | Restores; missing import fields default to non-imported rows. |
+| v3 | v4, v5, or v6 with omitted external-import fields | This version | Restores; missing import fields default to non-imported rows. |
 | v3 | v5 with additive same-version fields, such as `trackedDates` / `notes` | Same-version pre-field v5 reader | May restore after the version gate; Moshi ignores unknown keys, so the additive data is not imported. |
 | Any | v1 | This version | Rejected by `toValidatedSnapshot`'s floor check — `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2`. No migration path: the medicine-identity refactor removed the denormalized fields v1 carried. |
 | Future | any | This version | Rejected at `parseContainer` (`IllegalArgumentException("Unsupported backup file version: …")`). |

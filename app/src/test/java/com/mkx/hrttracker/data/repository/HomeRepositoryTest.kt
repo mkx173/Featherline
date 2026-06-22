@@ -12,6 +12,9 @@ import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.data.local.UserProfileEntity
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.HeroBackground
+import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -47,6 +50,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -67,6 +71,7 @@ class HomeRepositoryTest {
     private val medicineStockRepository: MedicineStockRepository = mockk()
     private val medicineRepository: MedicineRepository = mockk()
     private val medicationLogRepository: MedicationLogRepository = mockk()
+    private val journalRepository: JournalRepository = mockk()
     private val database: HrtTrackerDatabase = mockk()
     private val homeDao: HomeDao = mockk()
     private val medicineDao: MedicineDao = mockk(relaxed = true)
@@ -87,6 +92,7 @@ class HomeRepositoryTest {
         every {
             medicineStockRepository.projectAll(any(), any(), any(), any(), any())
         } returns emptyList()
+        every { journalRepository.observePinnedTrackedDates() } returns flowOf(emptyList())
     }
 
     @Test
@@ -159,6 +165,7 @@ class HomeRepositoryTest {
             medicineStockRepository = medicineStockRepository,
             medicineRepository = medicineRepository,
             medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
         ).observeHomeStartupInputs(now, zoneId).first()
 
         assertEquals(1, inputs.activeGroups.size)
@@ -246,6 +253,7 @@ class HomeRepositoryTest {
             medicineStockRepository = medicineStockRepository,
             medicineRepository = medicineRepository,
             medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
         ).observeHomeStartupInputs(now, providedZone).first()
 
         verify(exactly = 1) {
@@ -288,6 +296,7 @@ class HomeRepositoryTest {
             medicineStockRepository = medicineStockRepository,
             medicineRepository = medicineRepository,
             medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
         ).observeHomeStartupInputs(now, zoneId).first()
 
         assertTrue(inputs.estradiolPkPlannedEntries.isEmpty())
@@ -366,6 +375,7 @@ class HomeRepositoryTest {
             medicineStockRepository = medicineStockRepository,
             medicineRepository = medicineRepository,
             medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
             diagnosticsLogger = diagnosticsLogger,
         )
         val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -501,6 +511,7 @@ class HomeRepositoryTest {
             medicineStockRepository = medicineStockRepository,
             medicineRepository = medicineRepository,
             medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
         ).observeHomeSnapshotInputs(now, zoneId).first()
 
         assertEquals(HomeInputSource.SNAPSHOT, inputs.source)
@@ -592,6 +603,7 @@ class HomeRepositoryTest {
             medicineStockRepository = medicineStockRepository,
             medicineRepository = medicineRepository,
             medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
         ).observeHomeSnapshotInputs(now, providedZone).first()
 
         assertEquals(HomeInputSource.SNAPSHOT, inputs.source)
@@ -626,6 +638,63 @@ class HomeRepositoryTest {
                 zoneId = providedZone,
             )
         }
+    }
+
+    @Test
+    fun snapshotSource_surfacesHomeAnchorFromRecord() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val zoneId = ZoneId.systemDefault()
+        val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.NG_DL)
+        val hero = heroTrackedDate()
+        val snapshot = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+            anchorDateEpochDay = now.toLocalDate().toEpochDay(),
+            zoneId = zoneId.id,
+            pkProjection = null,
+            activeGroups = emptyList(),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+            homeAnchor = hero,
+        )
+
+        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every { settingsRepository.homeE2ChartWindowOptionFlow } returns MutableStateFlow(settings.homeE2ChartWindowOption)
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(snapshot)
+        every {
+            homeSnapshotRepository.isSnapshotUsable(
+                snapshot = snapshot,
+                now = now,
+                zoneId = zoneId,
+                option = settings.homeE2ChartWindowOption,
+            )
+        } returns true
+        every {
+            homeSnapshotRepository.scheduleEntriesForHome(
+                snapshot = snapshot,
+                now = now,
+                zoneId = zoneId,
+            )
+        } returns emptyList()
+        every {
+            homeSnapshotRepository.decodeProjection(
+                projectionRecord = null,
+                now = now,
+                zoneId = zoneId,
+            )
+        } returns null
+
+        val inputs = HomeRepository(
+            databaseHolder = databaseHolder,
+            settingsRepository = settingsRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
+        ).observeHomeSnapshotInputs(now, zoneId).first()
+
+        assertEquals(hero, inputs.homeAnchor)
     }
 
     @Test
@@ -687,6 +756,7 @@ class HomeRepositoryTest {
                 medicineStockRepository = medicineStockRepository,
                 medicineRepository = medicineRepository,
                 medicationLogRepository = medicationLogRepository,
+                journalRepository = journalRepository,
             ).observeHomeInputs(
                 date = now.toLocalDate(),
                 nowFlow = MutableStateFlow(now),
@@ -723,6 +793,7 @@ class HomeRepositoryTest {
             medicineStockRepository = medicineStockRepository,
             medicineRepository = medicineRepository,
             medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
         ).refreshHomeSnapshotAsync(now = now, force = true, zoneId = zoneId)
 
         verify(exactly = 1) {
@@ -794,6 +865,7 @@ class HomeRepositoryTest {
             medicineStockRepository = medicineStockRepository,
             medicineRepository = medicineRepository,
             medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
         ).observeHomeInputs(
             date = now.toLocalDate(),
             nowFlow = MutableStateFlow(now),
@@ -802,6 +874,126 @@ class HomeRepositoryTest {
 
         assertEquals(HomeInputSource.ROOM, inputs.source)
         assertEquals(listOf(projection), inputs.stockWarnings)
+    }
+
+    @Test
+    fun roomSource_surfacesFirstPinnedDateAsHomeAnchor() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val zoneId = ZoneId.systemDefault()
+        val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.PG_ML)
+        val hero = heroTrackedDate()
+
+        every { databaseHolder.get() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        every { homeDao.observeActiveGroups() } returns flowOf(emptyList())
+        every { homeDao.observeScheduleEntries(any(), any(), any(), any()) } returns flowOf(
+            emptyList()
+        )
+        every { homeDao.observeLatestAntiandrogenEntriesOnOrBefore(any()) } returns flowOf(emptyList())
+        every { homeDao.observeEstradiolPkEntries(any(), any()) } returns flowOf(emptyList())
+        every { homeDao.observeLatestEstradiolEntryOnOrBefore(any()) } returns flowOf(null)
+        every { homeDao.observeProfile() } returns flowOf(null)
+        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every { settingsRepository.homeE2ChartWindowOptionFlow } returns MutableStateFlow(settings.homeE2ChartWindowOption)
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(null)
+        every { homeSnapshotRepository.decodeProjection(null, any(), any()) } returns null
+        every { journalRepository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
+
+        val inputs = HomeRepository(
+            databaseHolder = databaseHolder,
+            settingsRepository = settingsRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
+        ).observeHomeInputs(
+            date = now.toLocalDate(),
+            nowFlow = MutableStateFlow(now),
+            zoneId = zoneId,
+        ).first()
+
+        assertEquals(HomeInputSource.ROOM, inputs.source)
+        assertEquals(hero, inputs.homeAnchor)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun observeHomeInputs_dedupsRepeatedPinnedDateEmissionsBeforeProjectionWork() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val zoneId = ZoneId.systemDefault()
+        val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.PG_ML)
+        val hero = heroTrackedDate()
+        val pinnedDates = MutableSharedFlow<List<TrackedDate>>(replay = 1)
+        pinnedDates.emit(listOf(hero))
+        var projectionCalls = 0
+
+        every { databaseHolder.get() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        every { homeDao.observeActiveGroups() } returns flowOf(emptyList())
+        every { homeDao.observeScheduleEntries(any(), any(), any(), any()) } returns flowOf(
+            emptyList()
+        )
+        every { homeDao.observeLatestAntiandrogenEntriesOnOrBefore(any()) } returns flowOf(
+            emptyList()
+        )
+        every { homeDao.observeEstradiolPkEntries(any(), any()) } returns flowOf(emptyList())
+        every { homeDao.observeLatestEstradiolEntryOnOrBefore(any()) } returns flowOf(null)
+        every { homeDao.observeProfile() } returns flowOf(null)
+        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every { settingsRepository.homeE2ChartWindowOptionFlow } returns MutableStateFlow(
+            settings.homeE2ChartWindowOption
+        )
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(null)
+        every { homeSnapshotRepository.decodeProjection(null, any(), any()) } returns null
+        every { journalRepository.observePinnedTrackedDates() } returns pinnedDates
+        every {
+            medicineStockRepository.projectAll(any(), any(), any(), any(), any())
+        } answers {
+            projectionCalls += 1
+            emptyList()
+        }
+
+        val emissions = mutableListOf<HomeInputs>()
+        val firstEmissionObserved = CompletableDeferred<Unit>()
+        val secondEmissionObserved = CompletableDeferred<Unit>()
+        val repository = HomeRepository(
+            databaseHolder = databaseHolder,
+            settingsRepository = settingsRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
+        )
+        val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeHomeInputs(
+                date = now.toLocalDate(),
+                nowFlow = MutableStateFlow(now),
+                zoneId = zoneId,
+            ).collect { inputs ->
+                emissions += inputs
+                firstEmissionObserved.complete(Unit)
+                if (emissions.size >= 2) {
+                    secondEmissionObserved.complete(Unit)
+                }
+            }
+        }
+
+        firstEmissionObserved.await()
+        assertEquals(hero, emissions.single().homeAnchor)
+        assertEquals(1, projectionCalls)
+
+        pinnedDates.emit(listOf(hero))
+        val duplicateEmission = withTimeoutOrNull(250) { secondEmissionObserved.await() }
+
+        assertEquals(null, duplicateEmission)
+        assertEquals(1, projectionCalls)
+        collectJob.cancel()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -897,6 +1089,7 @@ class HomeRepositoryTest {
                 medicineStockRepository = medicineStockRepository,
                 medicineRepository = medicineRepository,
                 medicationLogRepository = medicationLogRepository,
+                journalRepository = journalRepository,
             )
             val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
                 repository.observeHomeInputs(
@@ -990,6 +1183,7 @@ class HomeRepositoryTest {
                 medicineStockRepository = medicineStockRepository,
                 medicineRepository = medicineRepository,
                 medicationLogRepository = medicationLogRepository,
+                journalRepository = journalRepository,
             )
             val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
                 repository.observeHomeInputs(
@@ -1095,6 +1289,7 @@ class HomeRepositoryTest {
             medicineStockRepository = medicineStockRepository,
             medicineRepository = medicineRepository,
             medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
         ).observeHomeSnapshotInputs(now, zoneId).first()
 
         assertEquals(HomeInputSource.SNAPSHOT, inputs.source)
@@ -1175,6 +1370,7 @@ class HomeRepositoryTest {
             medicineStockRepository = medicineStockRepository,
             medicineRepository = medicineRepository,
             medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
         )
         val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             repository.observeHomeInputs(
@@ -1247,6 +1443,7 @@ class HomeRepositoryTest {
             medicineStockRepository = medicineStockRepository,
             medicineRepository = medicineRepository,
             medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
         )
         val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             repository.observeHomeInputs(
@@ -1302,6 +1499,19 @@ class HomeRepositoryTest {
             .map { inputs -> inputs.estradiolPkEntries.map { entry -> entry.uuid.toString() } }
         assertEquals(listOf(listOf(thirtyDayPkEntry.uuid)), thirtyDayEmissions)
         collectJob.cancel()
+    }
+
+    private fun heroTrackedDate(): TrackedDate {
+        return TrackedDate(
+            id = "hero-1",
+            name = "HRT start",
+            icon = AnchorIcon.entries.first(),
+            date = LocalDate.of(2025, 3, 14),
+            palette = null,
+            heroBackground = HeroBackground.DateColor,
+            pinnedOrder = 0,
+            createdAtEpochMillis = 1L,
+        )
     }
 
     private fun groupWithItems(

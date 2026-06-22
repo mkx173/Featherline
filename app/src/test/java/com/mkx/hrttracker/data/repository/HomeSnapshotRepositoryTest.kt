@@ -3,6 +3,7 @@ package com.mkx.hrttracker.data.repository
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HomeDao
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
+import com.mkx.hrttracker.data.local.JournalDao
 import com.mkx.hrttracker.data.local.MedicationGroupEntity
 import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
@@ -11,6 +12,7 @@ import com.mkx.hrttracker.data.local.MedicationLogDao
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
+import com.mkx.hrttracker.data.local.TrackedDateEntity
 import com.mkx.hrttracker.data.local.UserProfileDao
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -170,6 +172,40 @@ class HomeSnapshotRepositoryTest {
         coVerify(exactly = 1) { homeSnapshotStore.clearSnapshot() }
     }
 
+    // The chart-window observer runs on appScope, which has no exception handler. A DataStore
+    // failure during invalidation must be best-effort: swallowed, not allowed to tear down the
+    // long-lived collector — otherwise later option changes would silently stop refreshing.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun optionChangeObserver_survivesInvalidationFailure() = runTest {
+        var clearCalls = 0
+        coEvery { homeSnapshotStore.clearSnapshot() } coAnswers {
+            clearCalls += 1
+            if (clearCalls == 1) throw IOException("simulated DataStore failure")
+        }
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher),
+            defaultDispatcher = dispatcher,
+        )
+        // The initial SEVEN_DAYS emission is the baseline and is ignored.
+        advanceUntilIdle()
+
+        // First toggle: the observer's invalidate throws, but it is swallowed (best-effort).
+        chartWindowOptionState.value = HomeE2ChartWindowOption.THIRTY_DAYS
+        advanceUntilIdle()
+
+        // Second toggle: only reaches clearSnapshot again if the collector survived the failure.
+        chartWindowOptionState.value = HomeE2ChartWindowOption.SEVEN_DAYS
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { homeSnapshotStore.clearSnapshot() }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun runHomeDataMutation_rebuildContainsUpdatedDisplayNameForEveryGroupSlot() = runTest {
@@ -180,6 +216,7 @@ class HomeSnapshotRepositoryTest {
         val medicineDao: MedicineDao = mockk()
         val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
+        val journalDao: JournalDao = mockk()
         val writtenSnapshot = slot<HomeSnapshotRecord>()
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001")
         var displayName: String? = null
@@ -192,6 +229,7 @@ class HomeSnapshotRepositoryTest {
         every { database.medicineDao() } returns medicineDao
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
+        every { database.journalDao() } returns journalDao
         coEvery { homeDao.getActiveGroups() } returns listOf(
             groupWithTwoSlotsReferencing(medicineUuid)
         )
@@ -203,6 +241,7 @@ class HomeSnapshotRepositoryTest {
         coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
         coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
         coEvery { userProfileDao.getProfile() } returns null
+        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
         coEvery { medicineDao.getByUuids(listOf(medicineUuid.toString())) } coAnswers {
             listOf(medicineEntity(uuid = medicineUuid, displayName = displayName))
         }
@@ -248,11 +287,13 @@ class HomeSnapshotRepositoryTest {
         val medicineDao: MedicineDao = mockk()
         val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
+        val journalDao: JournalDao = mockk()
         every { databaseHolder.get() } returns database
         every { database.homeDao() } returns homeDao
         every { database.medicineDao() } returns medicineDao
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
+        every { database.journalDao() } returns journalDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
@@ -263,6 +304,7 @@ class HomeSnapshotRepositoryTest {
         coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
         coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
         coEvery { userProfileDao.getProfile() } returns null
+        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
         coEvery { homeSnapshotStore.writeSnapshot(any()) } returns Unit
         val repository = HomeSnapshotRepository(
             databaseHolder = databaseHolder,
@@ -328,6 +370,7 @@ class HomeSnapshotRepositoryTest {
         val medicineDao: MedicineDao = mockk()
         val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
+        val journalDao: JournalDao = mockk()
         val mutationCommitted = CompletableDeferred<Unit>()
 
         coEvery { homeSnapshotStore.readSnapshot() } returns null
@@ -341,6 +384,7 @@ class HomeSnapshotRepositoryTest {
         every { database.medicineDao() } returns medicineDao
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
+        every { database.journalDao() } returns journalDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
@@ -351,6 +395,7 @@ class HomeSnapshotRepositoryTest {
         coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
         coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
         coEvery { userProfileDao.getProfile() } returns null
+        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
         val repository = HomeSnapshotRepository(
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
@@ -540,6 +585,7 @@ class HomeSnapshotRepositoryTest {
         val medicineDao: MedicineDao = mockk()
         val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
+        val journalDao: JournalDao = mockk()
         val writtenSnapshot = slot<HomeSnapshotRecord>()
         val scheduledStartIso = slot<String>()
         val scheduledEndIso = slot<String>()
@@ -557,6 +603,7 @@ class HomeSnapshotRepositoryTest {
         every { database.medicineDao() } returns medicineDao
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
+        every { database.journalDao() } returns journalDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery {
@@ -574,6 +621,7 @@ class HomeSnapshotRepositoryTest {
         coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
         coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
         coEvery { userProfileDao.getProfile() } returns null
+        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
 
         HomeSnapshotRepository(
             databaseHolder = databaseHolder,
@@ -608,6 +656,61 @@ class HomeSnapshotRepositoryTest {
     }
 
     @Test
+    fun buildSnapshot_storesFirstPinnedTrackedDateAsHomeAnchor() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val database: HrtTrackerDatabase = mockk()
+        val homeDao: HomeDao = mockk()
+        val medicineDao: MedicineDao = mockk()
+        val medicationLogDao: MedicationLogDao = mockk()
+        val userProfileDao: UserProfileDao = mockk()
+        val journalDao: JournalDao = mockk()
+        val writtenSnapshot = slot<HomeSnapshotRecord>()
+
+        coEvery { homeSnapshotStore.readSnapshot() } returns null
+        coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
+        every { databaseHolder.get() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        every { database.medicationLogDao() } returns medicationLogDao
+        every { database.userProfileDao() } returns userProfileDao
+        every { database.journalDao() } returns journalDao
+        coEvery { homeDao.getActiveGroups() } returns emptyList()
+        coEvery { homeDao.getArchivedGroups() } returns emptyList()
+        coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
+        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
+        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
+        coEvery { userProfileDao.getProfile() } returns null
+        coEvery { journalDao.getFirstPinnedTrackedDate() } returns TrackedDateEntity(
+            uuid = "hero-1",
+            name = "HRT start",
+            iconKey = "favorite",
+            dateIso = "2025-03-14",
+            paletteKey = null,
+            heroBackgroundKey = null,
+            pinnedOrder = 0,
+            createdAtEpochMillis = 10L,
+            updatedAtEpochMillis = 10L,
+        )
+
+        HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher),
+            defaultDispatcher = dispatcher,
+        ).refreshHomeSnapshotIfNeeded(now = now, force = true)
+
+        assertEquals("hero-1", writtenSnapshot.captured.homeAnchor?.id)
+        assertEquals(LocalDate.of(2025, 3, 14), writtenSnapshot.captured.homeAnchor?.date)
+    }
+
+    @Test
     fun refreshHomeSnapshotIfNeeded_usesProvidedZoneForSnapshotWindows() = runTest {
         val originalTimeZone = TimeZone.getDefault()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
@@ -621,6 +724,7 @@ class HomeSnapshotRepositoryTest {
             val medicineDao: MedicineDao = mockk()
             val medicationLogDao: MedicationLogDao = mockk()
             val userProfileDao: UserProfileDao = mockk()
+            val journalDao: JournalDao = mockk()
             val writtenSnapshot = slot<HomeSnapshotRecord>()
             val manualStartEpochMillis = slot<Long>()
             val manualEndEpochMillis = slot<Long>()
@@ -632,6 +736,7 @@ class HomeSnapshotRepositoryTest {
             every { database.medicineDao() } returns medicineDao
             every { database.medicationLogDao() } returns medicationLogDao
             every { database.userProfileDao() } returns userProfileDao
+            every { database.journalDao() } returns journalDao
             coEvery { homeDao.getActiveGroups() } returns emptyList()
             coEvery { homeDao.getArchivedGroups() } returns emptyList()
             coEvery {
@@ -654,6 +759,7 @@ class HomeSnapshotRepositoryTest {
                 )
             } returns emptyList()
             coEvery { userProfileDao.getProfile() } returns null
+            coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
 
             HomeSnapshotRepository(
                 databaseHolder = databaseHolder,
@@ -688,6 +794,7 @@ class HomeSnapshotRepositoryTest {
         val medicineDao: MedicineDao = mockk()
         val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
+        val journalDao: JournalDao = mockk()
         val writtenSnapshot = slot<HomeSnapshotRecord>()
         val stockStartIso = slot<String>()
         val stockEndIso = slot<String>()
@@ -712,6 +819,7 @@ class HomeSnapshotRepositoryTest {
         every { database.medicineDao() } returns medicineDao
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
+        every { database.journalDao() } returns journalDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
@@ -727,6 +835,7 @@ class HomeSnapshotRepositoryTest {
             )
         } returns listOf(stockEntry)
         coEvery { userProfileDao.getProfile() } returns null
+        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
 
         HomeSnapshotRepository(
             databaseHolder = databaseHolder,
@@ -768,6 +877,7 @@ class HomeSnapshotRepositoryTest {
         val medicineDao: MedicineDao = mockk()
         val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
+        val journalDao: JournalDao = mockk()
         val writeStarted = CompletableDeferred<Unit>()
         val allowWrite = CompletableDeferred<Unit>()
 
@@ -782,6 +892,7 @@ class HomeSnapshotRepositoryTest {
         every { database.medicineDao() } returns medicineDao
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
+        every { database.journalDao() } returns journalDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
@@ -792,6 +903,7 @@ class HomeSnapshotRepositoryTest {
         coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
         coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
         coEvery { userProfileDao.getProfile() } returns null
+        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
         val repository = HomeSnapshotRepository(
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,

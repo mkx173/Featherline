@@ -14,5 +14,7 @@ data class TrackedDate(
     val icon: AnchorIcon,
     val date: LocalDate,
     val palette: MedicationGroupColorKey?,
+    val heroBackground: HeroBackground = HeroBackground.None,
     val pinnedOrder: Int?,
+    val createdAtEpochMillis: Long = 0L,
 )

@@ -6,8 +6,8 @@ Test suite layout and how to run.
 
 Two test source roots:
 
-- [`app/src/test/`](https://github.com/mkx173/Featherline/tree/096ce12612596e7968dd8314bd18b3566b2c2ed1/app/src/test) — JVM unit tests. About a hundred test classes mirror the main-package tree (`data/`, `model/`, `reminder/`, `startup/`, `ui/`, `util/`). Pure-Kotlin domain math, repository wiring with mocks, validation logic. The cheapest tests to add and run; runs as part of every `:app` JVM build.
-- [`app/src/androidTest/`](https://github.com/mkx173/Featherline/tree/096ce12612596e7968dd8314bd18b3566b2c2ed1/app/src/androidTest) — instrumented tests that need an Android runtime (device or emulator). Currently small; UI tests use `androidx.compose.ui.test.junit4`. Most behaviour stays unit-testable, so this directory grows slowly.
+- [`app/src/test/`](https://github.com/mkx173/Featherline/tree/096ce12612596e7968dd8314bd18b3566b2c2ed1/app/src/test) — JVM unit tests. 200+ test classes mirror the main-package tree (`data/`, `model/`, `reminder/`, `startup/`, `ui/`, `util/`). Pure-Kotlin domain math, repository wiring with mocks, validation logic. The cheapest tests to add and run; runs as part of every `:app` JVM build.
+- [`app/src/androidTest/`](https://github.com/mkx173/Featherline/tree/096ce12612596e7968dd8314bd18b3566b2c2ed1/app/src/androidTest) — instrumented tests that need an Android runtime (device or emulator). Smaller Android-runtime coverage lives here; UI tests use `androidx.compose.ui.test.junit4`. Most behaviour stays unit-testable, so this directory grows slowly.
 
 ## How to run
 

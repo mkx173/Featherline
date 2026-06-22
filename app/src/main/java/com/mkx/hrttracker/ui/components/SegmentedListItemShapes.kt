@@ -28,6 +28,11 @@ import androidx.compose.ui.platform.LocalDensity
  * Per corner: a standalone row (count <= 1) is fully [cornerShape]; the first row
  * rounds its top corners and the last row its bottom corners, with the remaining
  * corners falling back to [middleShape]; middle rows use [middleShape] throughout.
+ *
+ * [fullyRounded] overrides the segment math and rounds all four corners to
+ * [cornerShape] regardless of position -- e.g. an editable list that detaches its
+ * rows into standalone cards. Toggling it re-targets the same per-corner springs,
+ * so rows morph between grouped and detached in lockstep.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -36,6 +41,7 @@ private fun animatedSegmentedCornerShape(
     count: Int,
     cornerShape: CornerBasedShape,
     middleShape: CornerBasedShape,
+    fullyRounded: Boolean = false,
 ): Shape {
     val density = LocalDensity.current
 
@@ -43,8 +49,8 @@ private fun animatedSegmentedCornerShape(
     // so corner px is size-independent and Size.Zero resolves them correctly.
     fun px(corner: CornerSize) = corner.toPx(Size.Zero, density)
 
-    val isTop = count <= 1 || index == 0
-    val isBottom = count <= 1 || index == count - 1
+    val isTop = fullyRounded || count <= 1 || index == 0
+    val isBottom = fullyRounded || count <= 1 || index == count - 1
     val topCorners = if (isTop) cornerShape else middleShape
     val bottomCorners = if (isBottom) cornerShape else middleShape
 
@@ -85,6 +91,7 @@ fun segmentedListItemShapes(
     count: Int,
     cornerShape: CornerBasedShape = MaterialTheme.shapes.large,
     pressedShape: Shape? = null,
+    fullyRounded: Boolean = false,
 ): ListItemShapes {
     val defaultShapes = if (pressedShape != null) {
         ListItemDefaults.shapes(pressedShape = pressedShape)
@@ -101,6 +108,12 @@ fun segmentedListItemShapes(
     // ListItemShapes is value-equal across recompositions, so that interaction morph
     // is preserved; only an index/count change drives the corner animation.
     return defaultShapes.copy(
-        shape = animatedSegmentedCornerShape(index, count, cornerShape, defaultBaseShape),
+        shape = animatedSegmentedCornerShape(
+            index = index,
+            count = count,
+            cornerShape = cornerShape,
+            middleShape = defaultBaseShape,
+            fullyRounded = fullyRounded,
+        ),
     )
 }

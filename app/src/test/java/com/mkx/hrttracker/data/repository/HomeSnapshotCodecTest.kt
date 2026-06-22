@@ -1,5 +1,9 @@
 package com.mkx.hrttracker.data.repository
 
+import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.HeroBackground
+import com.mkx.hrttracker.model.journal.PrideFlag
+import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -21,6 +25,7 @@ import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -34,6 +39,61 @@ import java.time.LocalTime
 import java.util.UUID
 
 class HomeSnapshotCodecTest {
+    private fun minimalRecord() = HomeSnapshotRecord(
+        schemaVersion = 7,
+        generatedAtEpochMillis = 1L,
+        anchorDateEpochDay = 0L,
+        zoneId = "Asia/Tokyo",
+        pkProjection = null,
+        activeGroups = emptyList(),
+        scheduleEntries = emptyList(),
+        antiandrogenHistoryEntries = emptyList(),
+    )
+
+    @Test
+    fun encodeDecode_roundTripsHomeAnchorAcrossHeroBackgrounds() {
+        val base = TrackedDate(
+            id = "anchor-1",
+            name = "HRT start",
+            icon = AnchorIcon.entries.first(),
+            date = LocalDate.of(2025, 3, 14),
+            palette = MedicationGroupColorKey.entries.first(),
+            heroBackground = HeroBackground.DateColor,
+            pinnedOrder = 0,
+            createdAtEpochMillis = 1_700_000_000L,
+        )
+        listOf(
+            HeroBackground.DateColor,
+            HeroBackground.None,
+            HeroBackground.Flag(PrideFlag.entries.first()),
+        ).forEach { hero ->
+            val anchor = base.copy(heroBackground = hero)
+            val record = minimalRecord().copy(homeAnchor = anchor)
+            val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+            assertEquals(anchor, decoded.homeAnchor)
+            assertEquals(record, decoded)
+        }
+    }
+
+    @Test
+    fun encodeDecode_roundTripsNullHomeAnchorAndNullPalette() {
+        val anchor = TrackedDate(
+            id = "anchor-2",
+            name = "Anniversary",
+            icon = AnchorIcon.entries.first(),
+            date = LocalDate.of(2024, 1, 1),
+            palette = null,
+            heroBackground = HeroBackground.DateColor,
+            pinnedOrder = 3,
+            createdAtEpochMillis = 5L,
+        )
+        assertEquals(
+            anchor,
+            HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(minimalRecord().copy(homeAnchor = anchor))).homeAnchor,
+        )
+        assertNull(HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(minimalRecord())).homeAnchor)
+    }
+
     @Test
     fun encodeDecode_preservesHomeSnapshotPayload() {
         val medicine = testMedicine(

@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.components
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ListItemDefaults
@@ -27,10 +28,19 @@ fun EditorSegmentedListItem(
     disabledContainerColor: Color = containerColor,
     cornerShape: CornerBasedShape = MaterialTheme.shapes.large,
     pressedShape: Shape? = null,
+    // Detaches the row into a standalone card with all four corners rounded to
+    // [cornerShape], ignoring its segment position. Toggling it animates the
+    // corners (via segmentedListItemShapes' per-corner springs) between grouped
+    // and detached -- e.g. an editable list that separates its rows in edit mode.
+    fullyRounded: Boolean = false,
     leadingContent: (@Composable () -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
     supportingContent: (@Composable () -> Unit)? = null,
     overlineContent: (@Composable () -> Unit)? = null,
+    // The inset applied around the content slot. Defaults to SegmentedListItem's standard
+    // padding; callers can zero it to draw content (e.g. a bleeding corner overlay) flush to
+    // the card edge and re-apply the inset to their own content.
+    contentPadding: PaddingValues = ListItemDefaults.ContentPadding,
     content: @Composable () -> Unit,
 ) {
     val position = currentSegmentPosition(explicitSegmentPosition(index, count))
@@ -39,6 +49,7 @@ fun EditorSegmentedListItem(
         count = position.count,
         cornerShape = cornerShape,
         pressedShape = pressedShape,
+        fullyRounded = fullyRounded,
     )
     // On a haze bottom sheet the row keeps its container color as the tint of a
     // thick blur (clipped to the resting segmented shape) and draws its actual
@@ -90,6 +101,7 @@ fun EditorSegmentedListItem(
         trailingContent = trailingContent,
         supportingContent = supportingContent,
         overlineContent = overlineContent,
+        contentPadding = contentPadding,
         content = content,
     )
 }

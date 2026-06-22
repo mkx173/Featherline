@@ -103,7 +103,7 @@ the IV length, the IV, and then the ciphertext. A
 rather than crashing the launcher.
 
 Wire-format compatibility is gated by `WIDGET_SNAPSHOT_SCHEMA_VERSION`
-(currently `14`). `observeSnapshot()` and `readSnapshot()` both filter
+(currently `15`). `observeSnapshot()` and `readSnapshot()` both filter
 records whose `schemaVersion` doesn't match and log a diagnostic — the
 widget then falls back to its empty-setup composable rather than
 rendering against an obsolete shape.
@@ -457,9 +457,8 @@ deduct medicine stock for tracking-enabled medicines just like an
 in-app log, and the callback then shows the same worst-severity
 low-stock toast as the notification "Log all" action (see
 [reminders.md](reminders.md#notify)). The widget snapshot itself carries
-no stock data — `WidgetSnapshotRecord` is unchanged and
-`WIDGET_SNAPSHOT_SCHEMA_VERSION` stays `13`; low-stock state surfaces in
-the app (home section + toasts), not on the widget.
+no stock data; low-stock state surfaces in the app (home section +
+toasts), not on the widget.
 
 ### Archived-group doses
 

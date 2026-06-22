@@ -11,6 +11,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.HeroBackground
+import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -157,6 +160,10 @@ data class HomeSnapshotRecord(
     // future planned dose). Encoded with medicine dedup since a daily doser
     // repeats the same one or two medicines across the whole window.
     val pkEntries: List<MedicationLogEntry> = emptyList(),
+    // First pinned tracked date (the Home hero anchor), cached so cold start can
+    // render the hero on the first frame instead of waiting on Room. Null when no
+    // date is pinned. Defaulted for forward-compat with pre-field snapshots.
+    val homeAnchor: TrackedDate? = null,
 )
 
 data class HomePkProjectionRecord(
@@ -274,6 +281,7 @@ internal object HomeSnapshotCodec {
                 )
             }
             stream.writePooledMedicationLogEntries(record.pkEntries)
+            stream.writeTrackedDate(record.homeAnchor)
         }
         return output.toByteArray()
     }
@@ -300,6 +308,7 @@ internal object HomeSnapshotCodec {
                 stockMedicines = stream.readList { readMedicine() },
                 stockFulfillmentEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
                 pkEntries = stream.readPooledMedicationLogEntries(),
+                homeAnchor = stream.readTrackedDate(),
             )
         }
     }
@@ -502,6 +511,34 @@ internal object HomeSnapshotCodec {
             val medicine = medicinePool.getOrNull(medicineIndex)
             readMedicationLogEntryBody(uuid = uuid, medicine = medicine)
         }
+    }
+
+    private fun DataOutputStream.writeTrackedDate(date: TrackedDate?) {
+        writeBoolean(date != null)
+        date ?: return
+        writeString(date.id)
+        writeString(date.name)
+        writeString(date.icon.storageKey)
+        writeLong(date.date.toEpochDay())
+        writeNullableString(date.palette?.name)
+        writeNullableString(date.heroBackground.storageKey)
+        writeBoolean(date.pinnedOrder != null)
+        date.pinnedOrder?.let { writeInt(it) }
+        writeLong(date.createdAtEpochMillis)
+    }
+
+    private fun DataInputStream.readTrackedDate(): TrackedDate? {
+        if (!readBoolean()) return null
+        return TrackedDate(
+            id = readString(),
+            name = readString(),
+            icon = AnchorIcon.fromStorageValue(readString()),
+            date = LocalDate.ofEpochDay(readLong()),
+            palette = readNullableString()?.let(MedicationGroupColorKey::fromStorageValueOrNull),
+            heroBackground = HeroBackground.fromStorageValue(readNullableString()),
+            pinnedOrder = if (readBoolean()) readInt() else null,
+            createdAtEpochMillis = readLong(),
+        )
     }
 
     private fun DataOutputStream.writeMedicationLogEntryBody(entry: MedicationLogEntry) {
@@ -990,7 +1027,8 @@ private const val TAG = "HomeSnapshotStore"
 // v20 appends importedFromExternalTracker to cached Medicine and adds imported
 // injection/gel preparation payloads.
 // v21 appends medication log import provenance.
-private const val SNAPSHOT_CODEC_VERSION = 21
+// v22 appends the cached Home hero anchor tracked date.
+private const val SNAPSHOT_CODEC_VERSION = 22
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0

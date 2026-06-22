@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
@@ -159,9 +160,10 @@ data class OnboardingUiState(
     val activeGroupCount: Int = 0,
     val trackedMedicineCount: Int = 0,
     val remindersEnabled: Boolean = false,
+    val isDebugBuild: Boolean = BuildConfig.DEBUG,
 ) {
     val shouldShowOnboarding: Boolean
-        get() = isLoaded && !isCompleted
+        get() = isLoaded && !isCompleted && !isDebugBuild
 }
 
 sealed class OnboardingMutationEvent {

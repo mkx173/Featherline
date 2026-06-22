@@ -3,6 +3,7 @@ package com.mkx.hrttracker.data.repository
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.di.DefaultDispatcher
+import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
@@ -67,8 +68,21 @@ class HomeSnapshotRepository @Inject constructor(
                         TAG,
                         "home_snapshot_option_changed previous=$old current=$option"
                     )
-                    invalidateHomeSnapshot()
-                    refreshHomeSnapshotAsync(force = true)
+                    // Best-effort: appScope has no exception handler, so a DataStore failure
+                    // during invalidation must not tear down this long-lived collector.
+                    runCatching {
+                        invalidateHomeSnapshot()
+                        refreshHomeSnapshotAsync(force = true)
+                    }.onFailure { throwable ->
+                        if (throwable is CancellationException) {
+                            throw throwable
+                        }
+                        diagnosticsLogger.warning(
+                            TAG,
+                            "home_snapshot_option_change_refresh_failed previous=$old current=$option",
+                            throwable
+                        )
+                    }
                 }
             }
         }
@@ -519,6 +533,7 @@ class HomeSnapshotRepository @Inject constructor(
                 scheduledStartIso = stockWindowStartIso,
                 scheduledEndIso = stockWindowEndIso,
             )
+            val homeAnchor = database.journalDao().getFirstPinnedTrackedDate()?.toModel()
 
             val groupMedicinesByUuid = database.resolveMedicinesForGroups(
                 activeGroupEntities + archivedGroupEntities
@@ -562,6 +577,7 @@ class HomeSnapshotRepository @Inject constructor(
                     ?: UserProfile(),
                 stockMedicines = stockMedicines,
                 stockFulfillmentEntries = stockFulfillmentEntries,
+                homeAnchor = homeAnchor,
             )
         }
         diagnosticsLogger.info(
@@ -683,6 +699,7 @@ class HomeSnapshotRepository @Inject constructor(
             stockMedicines = inputs.stockMedicines,
             stockFulfillmentEntries = inputs.stockFulfillmentEntries,
             pkEntries = inputs.pkEntries,
+            homeAnchor = inputs.homeAnchor,
         )
 
         withContext(Dispatchers.IO) {
@@ -721,6 +738,7 @@ class HomeSnapshotRepository @Inject constructor(
         val profile: UserProfile,
         val stockMedicines: List<Medicine>,
         val stockFulfillmentEntries: List<MedicationLogEntry>,
+        val homeAnchor: TrackedDate? = null,
     )
 
     // Full projection-cache window: past-days back from today's midnight, plus

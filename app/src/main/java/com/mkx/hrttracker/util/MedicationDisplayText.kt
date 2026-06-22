@@ -102,7 +102,7 @@ fun medicinePreparationSummary(medicine: Medicine, context: Context): String {
         )
 
         is MedicinePreparation.ImportedInjection -> context.getString(
-            R.string.medication_preparation_summary_single_use_vial,
+            R.string.medication_preparation_summary_imported_injection,
             preparation.administeredMg.formatDose(locale),
         )
 

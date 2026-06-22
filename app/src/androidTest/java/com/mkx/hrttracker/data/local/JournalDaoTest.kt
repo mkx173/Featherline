@@ -54,6 +54,32 @@ class JournalDaoTest {
     }
 
     @Test
+    fun getFirstPinnedTrackedDate_returnsLowestPinnedOrder() = runBlocking {
+        dao.upsertTrackedDate(
+            trackedDate("b", dateIso = "2020-01-01", pinnedOrder = 1, createdAt = 1L)
+        )
+        dao.upsertTrackedDate(
+            trackedDate("a", dateIso = "2021-06-06", pinnedOrder = 0, createdAt = 2L)
+        )
+        dao.upsertTrackedDate(
+            trackedDate("u", dateIso = "2019-01-01", pinnedOrder = null, createdAt = 3L)
+        )
+
+        val first = dao.getFirstPinnedTrackedDate()
+
+        assertEquals("a", first?.uuid)
+    }
+
+    @Test
+    fun getFirstPinnedTrackedDate_returnsNullWhenNothingPinned() = runBlocking {
+        dao.upsertTrackedDate(
+            trackedDate("u", dateIso = "2019-01-01", pinnedOrder = null, createdAt = 1L)
+        )
+
+        assertEquals(null, dao.getFirstPinnedTrackedDate())
+    }
+
+    @Test
     fun getNoteForDate_returnsSameDayRow_forUpsertReuse() = runBlocking {
         dao.upsertNote(note("n1", dateIso = "2026-06-16", text = "first"))
         val existing = dao.getNoteForDate("2026-06-16")
@@ -95,6 +121,25 @@ class JournalDaoTest {
     }
 
     @Test
+    fun observeAllNotesCount_countsEveryNote() = runBlocking {
+        assertEquals(0, dao.observeAllNotesCount().first())
+
+        dao.upsertNote(note("n1", dateIso = "2026-06-16", text = "today"))
+        dao.upsertNote(note("n2", dateIso = "2026-05-01", text = "earlier"))
+
+        assertEquals(2, dao.observeAllNotesCount().first())
+    }
+
+    @Test
+    fun observeNotesCountBefore_countsOnlyNotesBeforeBoundary() = runBlocking {
+        dao.upsertNote(note("older", dateIso = "2026-05-17", text = "older"))
+        dao.upsertNote(note("boundary", dateIso = "2026-05-18", text = "boundary"))
+        dao.upsertNote(note("recent", dateIso = "2026-06-16", text = "recent"))
+
+        assertEquals(1, dao.observeNotesCountBefore("2026-05-18").first())
+    }
+
+    @Test
     fun getMaxPinnedOrder_returnsLargestPinnedOrderWithoutLoadingRows() = runBlocking {
         dao.upsertTrackedDate(trackedDate("a", dateIso = "2024-04-01", pinnedOrder = 1))
         dao.upsertTrackedDate(trackedDate("b", dateIso = "2026-03-01", pinnedOrder = null))
@@ -122,14 +167,15 @@ class JournalDaoTest {
         pinnedOrder: Int?,
         createdAt: Long = 1000L,
     ) = TrackedDateEntity(
-        uuid,
-        "name-$uuid",
-        "event",
-        dateIso,
-        null,
-        pinnedOrder,
-        createdAt,
-        createdAt,
+        uuid = uuid,
+        name = "name-$uuid",
+        iconKey = "event",
+        dateIso = dateIso,
+        paletteKey = null,
+        heroBackgroundKey = null,
+        pinnedOrder = pinnedOrder,
+        createdAtEpochMillis = createdAt,
+        updatedAtEpochMillis = createdAt,
     )
 
     private fun note(
