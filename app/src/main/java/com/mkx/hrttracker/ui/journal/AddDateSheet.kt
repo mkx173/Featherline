@@ -26,6 +26,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -65,6 +66,7 @@ import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.hazeSheetBlurActive
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.LocalSheetDismissFocusRequester
@@ -83,8 +85,9 @@ const val AddDateNameFieldTestTag = "add-date-name-field"
 fun AddDateSheet(
     today: LocalDate,
     anchor: AnchorRowUiState?,
+    initiallyPinned: Boolean,
     onDismissRequest: () -> Unit,
-    onConfirm: (name: String, icon: String, date: LocalDate, paletteKey: String?) -> Unit,
+    onConfirm: (name: String, icon: String, date: LocalDate, paletteKey: String?, pinned: Boolean) -> Unit,
     modifier: Modifier = Modifier,
     onDelete: (() -> Unit)? = null,
 ) {
@@ -96,6 +99,7 @@ fun AddDateSheet(
     var selectedIcon by remember(anchor) { mutableStateOf(anchor?.icon ?: AnchorIcon.EVENT) }
     var selectedDate by remember(anchor) { mutableStateOf(anchor?.date ?: today) }
     var selectedPalette by remember(anchor) { mutableStateOf(anchor?.palette) }
+    var pinned by remember(anchor) { mutableStateOf(initiallyPinned) }
     var isDeleteConfirmationVisible by remember { mutableStateOf(false) }
 
     val trimmedName = name.trim()
@@ -149,7 +153,7 @@ fun AddDateSheet(
         onDestructiveAction = onDelete?.let { { isDeleteConfirmationVisible = true } },
         onConfirm = {
             if (canConfirm) {
-                onConfirm(trimmedName, selectedIcon.storageKey, selectedDate, selectedPalette?.name)
+                onConfirm(trimmedName, selectedIcon.storageKey, selectedDate, selectedPalette?.name, pinned)
                 closeSheet()
             }
         },
@@ -163,6 +167,8 @@ fun AddDateSheet(
             onDateSelected = { selectedDate = it },
             selectedPalette = selectedPalette,
             onPaletteSelected = { selectedPalette = it },
+            pinned = pinned,
+            onPinnedChange = { pinned = it },
             today = today,
         )
     }
@@ -178,6 +184,8 @@ private fun AddDateSheetContent(
     onDateSelected: (LocalDate) -> Unit,
     selectedPalette: MedicationGroupColorKey?,
     onPaletteSelected: (MedicationGroupColorKey?) -> Unit,
+    pinned: Boolean,
+    onPinnedChange: (Boolean) -> Unit,
     today: LocalDate,
 ) {
     // The date picker lives in the sheet content (not the host) so its focusManager shares the
@@ -202,9 +210,7 @@ private fun AddDateSheetContent(
         )
     }
 
-    Column(
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_medium)),
-    ) {
+    Column {
         OutlinedTextField(
             value = name,
             onValueChange = onNameChange,
@@ -227,11 +233,15 @@ private fun AddDateSheetContent(
             singleLine = true,
         )
 
+        Spacer(modifier = Modifier.height(8.dp))
+
         DateSelectorField(
             date = selectedDate,
             today = today,
             onClick = { isDatePickerVisible = true },
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         AnchorIconGrid(
             selectedIcon = selectedIcon,
@@ -239,9 +249,32 @@ private fun AddDateSheetContent(
             onIconSelected = onIconSelected,
         )
 
+        Spacer(modifier = Modifier.height(16.dp))
+
         AnchorPaletteRow(
             selectedPalette = selectedPalette,
             onPaletteSelected = onPaletteSelected,
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Whether to pin the date (it joins the pinned tray / hero). A checkbox, not a switch,
+        // because the choice only takes effect on Save. Defaulted by the caller: on for the
+        // first date, off once something is already pinned; editable here either way.
+        PreferenceSegmentedListItem(
+            title = stringResource(R.string.journal_pin_date),
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            leadingContent = {
+                Icon(
+                    painter = painterResource(R.drawable.ic_keep),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            onClick = { onPinnedChange(!pinned) },
+            trailingContent = {
+                Checkbox(checked = pinned, onCheckedChange = onPinnedChange)
+            },
         )
     }
 }
@@ -306,6 +339,7 @@ private fun AnchorIconGrid(
         Text(
             text = stringResource(R.string.journal_date_icon_section),
             style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         // Tiles share the row width evenly (weight) with a small uniform gap, so the grid
         // reads as a dense band instead of small tiles scattered by SpaceBetween. The column
@@ -433,6 +467,7 @@ private fun AnchorPaletteRow(
         Text(
             text = stringResource(R.string.journal_date_palette_section),
             style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Row(
             modifier = Modifier
@@ -588,6 +623,7 @@ private fun AddDateSheetContentNewPreview() {
         var name by remember { mutableStateOf("") }
         var icon by remember { mutableStateOf(AnchorIcon.EVENT) }
         var palette by remember { mutableStateOf<MedicationGroupColorKey?>(null) }
+        var pinned by remember { mutableStateOf(true) }
         AddDateSheetContent(
             name = name,
             onNameChange = { name = it },
@@ -597,6 +633,8 @@ private fun AddDateSheetContentNewPreview() {
             onDateSelected = {},
             selectedPalette = palette,
             onPaletteSelected = { palette = it },
+            pinned = pinned,
+            onPinnedChange = { pinned = it },
             today = today,
         )
     }
@@ -610,6 +648,7 @@ private fun AddDateSheetContentFilledPreview() {
         var name by remember { mutableStateOf("First injection") }
         var icon by remember { mutableStateOf(AnchorIcon.VACCINES) }
         var palette by remember { mutableStateOf<MedicationGroupColorKey?>(MedicationGroupColorKey.ROSE) }
+        var pinned by remember { mutableStateOf(false) }
         AddDateSheetContent(
             name = name,
             onNameChange = { name = it },
@@ -619,6 +658,8 @@ private fun AddDateSheetContentFilledPreview() {
             onDateSelected = {},
             selectedPalette = palette,
             onPaletteSelected = { palette = it },
+            pinned = pinned,
+            onPinnedChange = { pinned = it },
             today = today,
         )
     }

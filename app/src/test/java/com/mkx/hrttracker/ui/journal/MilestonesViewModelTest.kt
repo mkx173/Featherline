@@ -316,7 +316,7 @@ class MilestonesViewModelTest {
         coEvery { repository.setPinned("date-1", true) } returns Unit
         coEvery { repository.reorderPinned(listOf("date-2", "date-1")) } returns Unit
         coEvery {
-            repository.addTrackedDate("Labs", AnchorIcon.LABS.storageKey, addDate, "TEAL")
+            repository.addTrackedDate("Labs", AnchorIcon.LABS.storageKey, addDate, "TEAL", pinned = true)
         } returns Unit
         coEvery {
             repository.updateTrackedDate(
@@ -332,7 +332,7 @@ class MilestonesViewModelTest {
 
         viewModel.setPinned("date-1", true)
         viewModel.reorderPinned(listOf("date-2", "date-1"))
-        viewModel.addDate("Labs", AnchorIcon.LABS.storageKey, addDate, "TEAL")
+        viewModel.addDate("Labs", AnchorIcon.LABS.storageKey, addDate, "TEAL", pinned = true)
         viewModel.updateDate(
             id = "date-1",
             name = "Updated labs",
@@ -346,7 +346,7 @@ class MilestonesViewModelTest {
         coVerify(exactly = 1) { repository.setPinned("date-1", true) }
         coVerify(exactly = 1) { repository.reorderPinned(listOf("date-2", "date-1")) }
         coVerify(exactly = 1) {
-            repository.addTrackedDate("Labs", AnchorIcon.LABS.storageKey, addDate, "TEAL")
+            repository.addTrackedDate("Labs", AnchorIcon.LABS.storageKey, addDate, "TEAL", pinned = true)
         }
         coVerify(exactly = 1) {
             repository.updateTrackedDate(

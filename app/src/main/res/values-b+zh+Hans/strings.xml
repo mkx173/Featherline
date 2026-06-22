@@ -227,6 +227,7 @@
     <string name="journal_reorder_anchor">重新排序%1$s</string>
     <string name="journal_move_anchor_to_top">将%1$s移到顶部</string>
     <string name="journal_pin_to_home_content_description">固定到主页</string>
+    <string name="journal_pin_date">固定此日期</string>
     <!-- Hero background (pride colour wash) feature -->
     <string name="journal_hero_background_action">自定义背景</string>
     <string name="journal_hero_background_title">背景颜色</string>

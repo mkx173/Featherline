@@ -48,9 +48,10 @@ class AddDateSheetTest {
                 AddDateSheet(
                     today = today,
                     anchor = null,
+                    initiallyPinned = true,
                     onDismissRequest = {},
-                    onConfirm = { name, icon, date, paletteKey ->
-                        submitted = SubmittedDate(name, icon, date, paletteKey)
+                    onConfirm = { name, icon, date, paletteKey, pinned ->
+                        submitted = SubmittedDate(name, icon, date, paletteKey, pinned)
                     },
                 )
             }
@@ -77,9 +78,43 @@ class AddDateSheetTest {
                     icon = AnchorIcon.PILL.storageKey,
                     date = today,
                     paletteKey = MedicationGroupColorKey.ROSE.name,
+                    pinned = true,
                 ),
                 submitted,
             )
+        }
+    }
+
+    @Test
+    fun pinToggleStartsFromInitialState_andReturnsChosenValue() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        var submitted: SubmittedDate? = null
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                AddDateSheet(
+                    today = today,
+                    anchor = null,
+                    initiallyPinned = true,
+                    onDismissRequest = {},
+                    onConfirm = { name, icon, date, paletteKey, pinned ->
+                        submitted = SubmittedDate(name, icon, date, paletteKey, pinned)
+                    },
+                )
+            }
+        }
+        composeRule.awaitSheetReady(context)
+
+        composeRule.onNodeWithTag(AddDateNameFieldTestTag).performTextInput("Anniversary")
+        Espresso.closeSoftKeyboard()
+        composeRule.waitForIdle()
+        // Defaulted on (initiallyPinned = true); tapping the row flips it off.
+        composeRule.onNodeWithText(context.getString(R.string.journal_pin_date)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.save)).performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(false, submitted?.pinned)
         }
     }
 
@@ -91,8 +126,9 @@ class AddDateSheetTest {
                 AddDateSheet(
                     today = LocalDate.of(2026, 6, 16),
                     anchor = null,
+                    initiallyPinned = false,
                     onDismissRequest = {},
-                    onConfirm = { _, _, _, _ -> },
+                    onConfirm = { _, _, _, _, _ -> },
                 )
             }
         }
@@ -122,8 +158,9 @@ class AddDateSheetTest {
                 AddDateSheet(
                     today = LocalDate.of(2026, 6, 16),
                     anchor = anchor,
+                    initiallyPinned = true,
                     onDismissRequest = {},
-                    onConfirm = { _, _, _, _ -> },
+                    onConfirm = { _, _, _, _, _ -> },
                     onDelete = { deleted = true },
                 )
             }
@@ -159,6 +196,7 @@ class AddDateSheetTest {
         val icon: String,
         val date: LocalDate,
         val paletteKey: String?,
+        val pinned: Boolean,
     )
 }
 

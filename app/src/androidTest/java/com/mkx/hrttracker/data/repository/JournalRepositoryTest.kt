@@ -89,20 +89,22 @@ class JournalRepositoryTest {
     }
 
     @Test
-    fun addTrackedDate_autoPinsOnlyTheFirstDate_laterDatesUnpinned() = runBlocking {
-        // The first date (nothing pinned yet) auto-pins so a fresh journal has a hero;
-        // the second is added unpinned (timeline-only) since the pinned list is non-empty.
+    fun addTrackedDate_honorsPinnedFlag() = runBlocking {
+        // The caller decides pinning; a pinned date joins the home tray, an unpinned one is
+        // timeline-only. (The "first date pins, later ones don't" default lives in the UI.)
         repo.addTrackedDate(
             name = "On estradiol",
             icon = "medication",
             date = LocalDate.of(2024, 4, 1),
             paletteKey = "ROSE",
+            pinned = true,
         )
         repo.addTrackedDate(
             name = "Surgery",
             icon = "event",
             date = LocalDate.of(2026, 9, 15),
             paletteKey = "SAGE",
+            pinned = false,
         )
 
         val pinned = repo.observePinnedTrackedDates().first()
@@ -114,7 +116,17 @@ class JournalRepositoryTest {
     }
 
     @Test
-    fun addTrackedDate_concurrentAdds_onlyOnePinsInsideTransaction() = runBlocking {
+    fun addTrackedDate_pinned_appendsToBottom() = runBlocking {
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null, pinned = true)
+        repo.addTrackedDate("B", "event", LocalDate.of(2024, 2, 1), null, pinned = true)
+
+        val pinned = repo.observePinnedTrackedDates().first()
+        assertEquals(listOf("A", "B"), pinned.map { it.name })
+        assertEquals(listOf(0, 1), pinned.map { it.pinnedOrder })
+    }
+
+    @Test
+    fun addTrackedDate_concurrentPinnedAdds_assignDistinctPinnedOrdersInsideTransaction() = runBlocking {
         val transactionClock = TransactionRaceClock(
             instant = today.atStartOfDay(zone).toInstant(),
             zone = zone,
@@ -135,16 +147,16 @@ class JournalRepositoryTest {
                         icon = "event",
                         date = LocalDate.of(2026, 1, 1),
                         paletteKey = null,
+                        pinned = true,
                     )
                 }
             }
             .awaitAll()
 
-        // The transaction serializes the two adds, so the second sees the first's pin and
-        // stays unpinned: exactly one pinned at 0, never both pinning at 0 from a shared read.
-        val rows = db.journalDao().getTrackedDates()
-        assertEquals(listOf(0), rows.mapNotNull { it.pinnedOrder }.sorted())
-        assertEquals(1, rows.count { it.pinnedOrder == null })
+        // getMaxPinnedOrder + insert run inside one transaction, so two concurrent pinned adds
+        // get distinct orders (0 and 1) instead of colliding on a shared max read.
+        val pinnedOrders = db.journalDao().getTrackedDates().mapNotNull { it.pinnedOrder }.sorted()
+        assertEquals(listOf(0, 1), pinnedOrders)
         assertEquals(0, transactionClock.nonTransactionMillisCalls.get())
     }
 
@@ -360,6 +372,7 @@ class JournalRepositoryTest {
             icon = "unknown",
             date = LocalDate.of(2026, 1, 1),
             paletteKey = "CUSTOM",
+            pinned = true,
         )
 
         val row = db.journalDao().getTrackedDates().single()
@@ -374,6 +387,7 @@ class JournalRepositoryTest {
             AnchorIcon.entries.first().storageKey,
             LocalDate.of(2025, 3, 14),
             null,
+            pinned = true,
         )
 
         coVerify(atLeast = 1) {
@@ -392,12 +406,14 @@ class JournalRepositoryTest {
             AnchorIcon.entries.first().storageKey,
             LocalDate.of(2020, 1, 1),
             null,
+            pinned = true,
         )
         repo.addTrackedDate(
             "Other",
             AnchorIcon.entries.first().storageKey,
             LocalDate.of(2021, 1, 1),
             null,
+            pinned = false,
         )
         clearMocks(homeSnapshotRepository, answers = false)
 
@@ -426,7 +442,7 @@ class JournalRepositoryTest {
 
     @Test
     fun updateTrackedDate_keepsPinAndCreatedAt() = runBlocking {
-        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null, pinned = true)
         val a = repo.observeTrackedDates().first().single()
         val originalRow = db.journalDao().getTrackedDates().single { it.uuid == a.id }
         clock.advanceMillis(1_000)
@@ -451,7 +467,7 @@ class JournalRepositoryTest {
 
     @Test
     fun updateTrackedDate_missingId_noOpsWithoutChangingExistingRows() = runBlocking {
-        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null, pinned = true)
         val beforeRows = db.journalDao().getTrackedDates()
         clock.advanceMillis(1_000)
 
@@ -468,7 +484,7 @@ class JournalRepositoryTest {
 
     @Test
     fun updateTrackedDate_normalizesUnknownIconAndPreservesUnknownPaletteInStorage() = runBlocking {
-        repo.addTrackedDate("A", "flag", LocalDate.of(2024, 1, 1), "ROSE")
+        repo.addTrackedDate("A", "flag", LocalDate.of(2024, 1, 1), "ROSE", pinned = true)
         val a = repo.observeTrackedDates().first().single()
 
         repo.updateTrackedDate(
@@ -489,7 +505,7 @@ class JournalRepositoryTest {
 
     @Test
     fun deleteTrackedDate_removesRow() = runBlocking {
-        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null, pinned = true)
         val a = repo.observeTrackedDates().first().single()
 
         repo.deleteTrackedDate(a.id)
@@ -499,7 +515,7 @@ class JournalRepositoryTest {
 
     @Test
     fun deleteTrackedDate_missingAndDoubleDelete_areIdempotent() = runBlocking {
-        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null)
+        repo.addTrackedDate("A", "event", LocalDate.of(2024, 1, 1), null, pinned = true)
         val a = repo.observeTrackedDates().first().single()
 
         repo.deleteTrackedDate("missing")
@@ -618,12 +634,14 @@ class JournalRepositoryTest {
             icon = "event",
             date = LocalDate.of(2026, 9, 15),
             paletteKey = null,
+            pinned = true,
         )
         repo.addTrackedDate(
             name = "Past",
             icon = "medication",
             date = LocalDate.of(2024, 4, 1),
             paletteKey = "ROSE",
+            pinned = false,
         )
 
         val trackedDates = repo.observeTrackedDates().first()

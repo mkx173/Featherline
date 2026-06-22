@@ -142,8 +142,9 @@ class MilestonesViewModel @Inject constructor(
         icon: String,
         date: LocalDate,
         paletteKey: String?,
+        pinned: Boolean,
     ) = viewModelScope.launch {
-        journalRepository.addTrackedDate(name, icon, date, paletteKey)
+        journalRepository.addTrackedDate(name, icon, date, paletteKey, pinned)
     }
 
     fun updateDate(

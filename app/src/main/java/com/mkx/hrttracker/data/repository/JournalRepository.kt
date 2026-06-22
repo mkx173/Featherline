@@ -192,17 +192,23 @@ class JournalRepository @Inject constructor(
         return result
     }
 
-    suspend fun addTrackedDate(name: String, icon: String, date: LocalDate, paletteKey: String?) =
+    suspend fun addTrackedDate(
+        name: String,
+        icon: String,
+        date: LocalDate,
+        paletteKey: String?,
+        pinned: Boolean,
+    ) =
         refreshingSnapshotIfHeroChanges {
             val database = databaseHolder.get()
             database.withTransaction {
                 val dao = database.journalDao()
                 val now = clock.millis()
-                // Auto-pin only the first date — when nothing is pinned yet — so a fresh
-                // journal still has a hero. Once anything is pinned, later dates are added
-                // unpinned (timeline-only) and the user pins them explicitly.
-                val pinnedOrder = if (dao.getMaxPinnedOrder() == null) {
-                    PinOrder.appendOrderAfterMax(null)
+                // The caller decides whether to pin (the add sheet's toggle, defaulted so the
+                // first date pins and later ones don't). Pin-on-create appends to the bottom of
+                // the pinned list; an unpinned date is timeline-only.
+                val pinnedOrder = if (pinned) {
+                    PinOrder.appendOrderAfterMax(dao.getMaxPinnedOrder())
                 } else {
                     null
                 }

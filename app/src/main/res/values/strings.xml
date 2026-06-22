@@ -239,6 +239,7 @@
     <string name="journal_reorder_anchor">Reorder %1$s</string>
     <string name="journal_move_anchor_to_top">Move %1$s to top</string>
     <string name="journal_pin_to_home_content_description">Pin to Home</string>
+    <string name="journal_pin_date">Pin this date</string>
     <!-- Hero background (pride colour wash) feature -->
     <string name="journal_hero_background_action">Customize background</string>
     <string name="journal_hero_background_title">Background color</string>

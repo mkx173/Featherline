@@ -279,17 +279,26 @@ fun MilestonesScreen(
     )
 
     if (isAddDateSheetOpen || activeEditingAnchor != null) {
+        // Default the toggle: a new date pins only when nothing is pinned yet; editing a date
+        // reflects its current pin state. Either way the user can flip it in the sheet.
+        val initiallyPinned = if (activeEditingAnchor == null) {
+            uiState.pinnedTray.isEmpty()
+        } else {
+            uiState.pinnedTray.any { it.id == activeEditingAnchor.id }
+        }
         AddDateSheet(
             today = uiState.today,
             anchor = activeEditingAnchor,
+            initiallyPinned = initiallyPinned,
             onDismissRequest = closeDateSheet,
-            onConfirm = { name, icon, date, paletteKey ->
+            onConfirm = { name, icon, date, paletteKey, pinned ->
                 if (activeEditingAnchor == null) {
                     viewModel.addDate(
                         name = name,
                         icon = icon,
                         date = date,
                         paletteKey = paletteKey,
+                        pinned = pinned,
                     )
                 } else {
                     viewModel.updateDate(
@@ -299,6 +308,9 @@ fun MilestonesScreen(
                         date = date,
                         paletteKey = paletteKey,
                     )
+                    if (pinned != initiallyPinned) {
+                        viewModel.setPinned(activeEditingAnchor.id, pinned)
+                    }
                 }
             },
             onDelete = activeEditingAnchor?.let { anchor ->
