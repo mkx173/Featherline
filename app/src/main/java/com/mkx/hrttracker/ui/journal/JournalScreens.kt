@@ -228,15 +228,13 @@ fun JournalScreenContent(
                         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
                     }
                     hrtSection(key = "journal-notes-list") {
-                        timelineNotes.forEach { note ->
-                            item(key = "note-${note.id}") {
-                                NoteTimelineRow(
-                                    note = note,
-                                    onSave = onSaveNote,
-                                    onDelete = onDeleteNote,
-                                    today = uiState.today,
-                                )
-                            }
+                        item(key = "journal-notes-timeline") {
+                            NotesTimeline(
+                                notes = timelineNotes,
+                                today = uiState.today,
+                                onSave = onSaveNote,
+                                onDelete = onDeleteNote,
+                            )
                         }
                     }
                 }
@@ -613,15 +611,13 @@ fun AllNotesScreenContent(
                                 },
                                 headerTrailingAlignByBaseline = true,
                             ) {
-                                group.notes.forEach { note ->
-                                    item {
-                                        NoteTimelineRow(
-                                            note = note,
-                                            today = today,
-                                            onSave = onSaveNote,
-                                            onDelete = onDeleteNote,
-                                        )
-                                    }
+                                item {
+                                    NotesTimeline(
+                                        notes = group.notes,
+                                        today = today,
+                                        onSave = onSaveNote,
+                                        onDelete = onDeleteNote,
+                                    )
                                 }
                             }
                         }

@@ -8,13 +8,14 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.platform.app.InstrumentationRegistry
@@ -179,9 +180,11 @@ class JournalScreenTest {
             }
         }
 
+        // The notes now render as one rail item rather than one item per note, so scroll by
+        // content to the oldest note (bottom of the rail) to push the top off-screen.
         composeRule.onNodeWithTag(JournalScreenListTag)
-            .performScrollToIndex(20)
-        composeRule.onNodeWithText("Older note 18").assertIsDisplayed()
+            .performScrollToNode(hasText("Older note 24"))
+        composeRule.onNodeWithText("Older note 24").assertIsDisplayed()
 
         composeRule.runOnIdle {
             scrollToTopSignal++
@@ -553,10 +556,10 @@ class JournalScreenTest {
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
             .assertIsDisplayed()
             .assertTextContains("Yesterday note")
-        composeRule.onNodeWithText(context.getString(R.string.save)).assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertIsNotEnabled()
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15").performTextClearance()
-        composeRule.onNodeWithText(context.getString(R.string.save)).assertIsNotEnabled()
-        composeRule.onNodeWithText(context.getString(R.string.cancel)).performClick()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.cancel)).performClick()
 
         composeRule.onNodeWithText("Yesterday note")
             .assertIsDisplayed()
@@ -565,7 +568,7 @@ class JournalScreenTest {
             .performTextClearance()
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
             .performTextInput("Edited yesterday")
-        composeRule.onNodeWithText(context.getString(R.string.save))
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save))
             .assertIsEnabled()
             .performClick()
 
