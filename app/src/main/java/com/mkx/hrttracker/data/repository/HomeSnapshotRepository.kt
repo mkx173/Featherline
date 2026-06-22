@@ -68,8 +68,21 @@ class HomeSnapshotRepository @Inject constructor(
                         TAG,
                         "home_snapshot_option_changed previous=$old current=$option"
                     )
-                    invalidateHomeSnapshot()
-                    refreshHomeSnapshotAsync(force = true)
+                    // Best-effort: appScope has no exception handler, so a DataStore failure
+                    // during invalidation must not tear down this long-lived collector.
+                    runCatching {
+                        invalidateHomeSnapshot()
+                        refreshHomeSnapshotAsync(force = true)
+                    }.onFailure { throwable ->
+                        if (throwable is CancellationException) {
+                            throw throwable
+                        }
+                        diagnosticsLogger.warning(
+                            TAG,
+                            "home_snapshot_option_change_refresh_failed previous=$old current=$option",
+                            throwable
+                        )
+                    }
                 }
             }
         }

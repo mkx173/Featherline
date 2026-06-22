@@ -19,22 +19,18 @@ import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -42,6 +38,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.IOException
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -380,8 +377,35 @@ class JournalRepositoryTest {
         assertEquals("CUSTOM", row.paletteKey)
     }
 
+    // The hero snapshot refresh is driven by a reactive observer on appScope that baselines
+    // on the first pinned-dates emission. Drive it through hero changes (add + rename) so the
+    // collector is provably live and baselined regardless of startup timing, then empty the
+    // table and wait for the resulting refresh so nothing is left in flight, and reset the
+    // mock — so a test can assert precisely which later mutation does or doesn't refresh.
+    private suspend fun resetToEmptyWithLiveObserver() {
+        val icon = AnchorIcon.entries.first().storageKey
+        repo.addTrackedDate("__warmup__", icon, LocalDate.of(2000, 1, 1), null, pinned = true)
+        val id = repo.observeTrackedDates().first { it.isNotEmpty() }.first().id
+        // A second hero change guarantees a refresh whether the collector baselined before or
+        // after the add above.
+        repo.updateTrackedDate(id, "__warmup2__", icon, LocalDate.of(2000, 1, 1), null)
+        coVerify(timeout = 5_000L, atLeast = 1) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
+        }
+        clearMocks(homeSnapshotRepository, answers = false)
+        // Empty the table; the delete is the last change, so waiting for its refresh drains
+        // any earlier in-flight one (the single collector processes emissions in order).
+        repo.deleteTrackedDate(id)
+        coVerify(timeout = 5_000L, atLeast = 1) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
+        }
+        clearMocks(homeSnapshotRepository, answers = false)
+    }
+
     @Test
     fun pinningFirstDate_triggersSnapshotRefresh() = runBlocking {
+        resetToEmptyWithLiveObserver()
+
         repo.addTrackedDate(
             "HRT start",
             AnchorIcon.entries.first().storageKey,
@@ -390,7 +414,9 @@ class JournalRepositoryTest {
             pinned = true,
         )
 
-        coVerify(atLeast = 1) {
+        // The refresh is reactive (off the pinned-dates flow), so it lands shortly after the
+        // write commits rather than inline.
+        coVerify(timeout = 5_000L, atLeast = 1) {
             homeSnapshotRepository.refreshHomeSnapshotAsync(
                 now = any(),
                 force = true,
@@ -401,42 +427,34 @@ class JournalRepositoryTest {
 
     @Test
     fun renamingNonHeroDate_doesNotTriggerSnapshotRefresh() = runBlocking {
-        repo.addTrackedDate(
-            "Hero",
-            AnchorIcon.entries.first().storageKey,
-            LocalDate.of(2020, 1, 1),
-            null,
-            pinned = true,
-        )
-        repo.addTrackedDate(
-            "Other",
-            AnchorIcon.entries.first().storageKey,
-            LocalDate.of(2021, 1, 1),
-            null,
-            pinned = false,
-        )
+        resetToEmptyWithLiveObserver()
+        val icon = AnchorIcon.entries.first().storageKey
+        repo.addTrackedDate("Hero", icon, LocalDate.of(2020, 1, 1), null, pinned = true)
+        repo.addTrackedDate("Other", icon, LocalDate.of(2021, 1, 1), null, pinned = false)
+        // Let the pin-driven refresh from adding the hero settle, then reset.
+        coVerify(timeout = 5_000L, atLeast = 1) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
+        }
         clearMocks(homeSnapshotRepository, answers = false)
 
         val otherId = repo.observeTrackedDates().first { rows -> rows.any { it.name == "Other" } }
             .first { it.name == "Other" }
             .id
-        repo.updateTrackedDate(
-            otherId,
-            "Other renamed",
-            AnchorIcon.entries.first().storageKey,
-            LocalDate.of(2021, 1, 1),
-            null,
-        )
+        repo.updateTrackedDate(otherId, "Other renamed", icon, LocalDate.of(2021, 1, 1), null)
 
-        coVerify(exactly = 0) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(
-                now = any(),
-                force = true,
-                zoneId = any(),
-            )
+        // Barrier: a real hero change. The observer processes pinned-list emissions in order,
+        // so once this refresh is seen, any (incorrect) refresh from the non-hero rename would
+        // already have landed — exactly=1 proves the non-hero rename triggered none.
+        val heroId = repo.observeTrackedDates().first { rows -> rows.any { it.name == "Hero" } }
+            .first { it.name == "Hero" }
+            .id
+        repo.updateTrackedDate(heroId, "Hero renamed", icon, LocalDate.of(2020, 1, 1), null)
+
+        coVerify(timeout = 5_000L, atLeast = 1) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
         }
-        coVerify(exactly = 0) {
-            homeSnapshotRepository.invalidateHomeSnapshot()
+        coVerify(exactly = 1) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
         }
     }
 
@@ -528,102 +546,46 @@ class JournalRepositoryTest {
         assertEquals(emptyList<TrackedDate>(), repo.observeTrackedDates().first())
     }
 
+    // The hero snapshot refresh is decoupled onto appScope (not the caller's scope), and is
+    // best-effort: a snapshot/DataStore failure must neither fail the journal write nor tear
+    // down the long-lived observer. Here the first invalidation throws; the collector must
+    // survive so a later hero change still drives a refresh.
     @Test
-    fun deleteTrackedDate_refreshesSnapshotWhenCallerIsCancelledAfterMutation() = runBlocking {
-        val journalDao = mockk<JournalDao>()
-        val hero = trackedDateEntity(
-            uuid = "hero",
-            name = "Hero",
-            date = LocalDate.of(2024, 1, 1),
-            pinnedOrder = 0,
-            createdAt = 1_000L,
-        )
-        var heroReadCount = 0
-        coEvery { journalDao.getFirstPinnedTrackedDate() } coAnswers {
-            heroReadCount += 1
-            if (heroReadCount == 1) {
-                hero
-            } else {
-                yield()
-                null
-            }
+    fun snapshotInvalidationFailure_isBestEffort_keepingObserverAlive() = runBlocking {
+        resetToEmptyWithLiveObserver()
+        val icon = AnchorIcon.entries.first().storageKey
+        var invalidateCalls = 0
+        coEvery { homeSnapshotRepository.invalidateHomeSnapshot() } coAnswers {
+            invalidateCalls += 1
+            if (invalidateCalls == 1) throw IOException("simulated DataStore failure")
         }
-        coEvery { journalDao.deleteTrackedDate("hero") } coAnswers {
-            currentCoroutineContext()[Job]?.cancel()
-            Unit
-        }
-        val database = mockk<HrtTrackerDatabase>()
-        every { database.journalDao() } returns journalDao
-        val holder = mockk<DatabaseHolder>()
-        every { holder.get() } returns database
-        // The warm caches observe databaseFlow at construction; a null source
-        // keeps them dormant so they don't touch the narrowly-mocked dao here.
-        every { holder.databaseFlow } returns MutableStateFlow(null)
-        val repository = JournalRepository(
-            databaseHolder = holder,
-            clock = clock,
-            homeSnapshotRepository = homeSnapshotRepository,
-            appScope = appScope,
-        )
 
-        val job = launch { repository.deleteTrackedDate("hero") }
-        job.join()
+        // First hero change: the observer's invalidate throws but is swallowed (best-effort).
+        repo.addTrackedDate("Hero", icon, LocalDate.of(2024, 1, 1), null, pinned = true)
+        val id = repo.observeTrackedDates().first { rows -> rows.any { it.name == "Hero" } }
+            .first { it.name == "Hero" }
+            .id
 
-        assertTrue(job.isCancelled)
-        coVerify(exactly = 1) { journalDao.deleteTrackedDate("hero") }
-        coVerify(exactly = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(
-                now = any(),
-                force = true,
-                zoneId = any(),
-            )
+        // Second hero change: only fires a refresh if the collector survived the failure.
+        repo.updateTrackedDate(id, "Hero renamed", icon, LocalDate.of(2024, 1, 1), null)
+        coVerify(timeout = 5_000L, atLeast = 1) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
         }
     }
 
     @Test
-    fun deleteTrackedDate_invalidatesSnapshotBeforeRefreshWhenHeroChanges() = runBlocking {
-        val journalDao = mockk<JournalDao>()
-        val hero = trackedDateEntity(
-            uuid = "hero",
-            name = "Hero",
-            date = LocalDate.of(2024, 1, 1),
-            pinnedOrder = 0,
-            createdAt = 1_000L,
-        )
-        coEvery { journalDao.getFirstPinnedTrackedDate() } returnsMany listOf(hero, null)
-        coEvery { journalDao.deleteTrackedDate("hero") } just Runs
-        val database = mockk<HrtTrackerDatabase>()
-        every { database.journalDao() } returns journalDao
-        val holder = mockk<DatabaseHolder>()
-        every { holder.get() } returns database
-        // The warm caches observe databaseFlow at construction; a null source
-        // keeps them dormant so they don't touch the narrowly-mocked dao here.
-        every { holder.databaseFlow } returns MutableStateFlow(null)
-        val snapshotRepository = mockk<HomeSnapshotRepository>()
-        coEvery { snapshotRepository.invalidateHomeSnapshot() } just Runs
-        every {
-            snapshotRepository.refreshHomeSnapshotAsync(
-                now = any(),
-                force = true,
-                zoneId = any(),
-            )
-        } just Runs
-        val repository = JournalRepository(
-            databaseHolder = holder,
-            clock = clock,
-            homeSnapshotRepository = snapshotRepository,
-            appScope = appScope,
-        )
+    fun heroChange_invalidatesSnapshotBeforeRefresh() = runBlocking {
+        resetToEmptyWithLiveObserver()
+        val icon = AnchorIcon.entries.first().storageKey
 
-        repository.deleteTrackedDate("hero")
+        repo.addTrackedDate("Hero", icon, LocalDate.of(2024, 1, 1), null, pinned = true)
 
+        coVerify(timeout = 5_000L, atLeast = 1) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
+        }
         coVerifyOrder {
-            snapshotRepository.invalidateHomeSnapshot()
-            snapshotRepository.refreshHomeSnapshotAsync(
-                now = any(),
-                force = true,
-                zoneId = any(),
-            )
+            homeSnapshotRepository.invalidateHomeSnapshot()
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
         }
     }
 

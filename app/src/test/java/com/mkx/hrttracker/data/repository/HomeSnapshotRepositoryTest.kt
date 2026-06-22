@@ -172,6 +172,40 @@ class HomeSnapshotRepositoryTest {
         coVerify(exactly = 1) { homeSnapshotStore.clearSnapshot() }
     }
 
+    // The chart-window observer runs on appScope, which has no exception handler. A DataStore
+    // failure during invalidation must be best-effort: swallowed, not allowed to tear down the
+    // long-lived collector — otherwise later option changes would silently stop refreshing.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun optionChangeObserver_survivesInvalidationFailure() = runTest {
+        var clearCalls = 0
+        coEvery { homeSnapshotStore.clearSnapshot() } coAnswers {
+            clearCalls += 1
+            if (clearCalls == 1) throw IOException("simulated DataStore failure")
+        }
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher),
+            defaultDispatcher = dispatcher,
+        )
+        // The initial SEVEN_DAYS emission is the baseline and is ignored.
+        advanceUntilIdle()
+
+        // First toggle: the observer's invalidate throws, but it is swallowed (best-effort).
+        chartWindowOptionState.value = HomeE2ChartWindowOption.THIRTY_DAYS
+        advanceUntilIdle()
+
+        // Second toggle: only reaches clearSnapshot again if the collector survived the failure.
+        chartWindowOptionState.value = HomeE2ChartWindowOption.SEVEN_DAYS
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { homeSnapshotStore.clearSnapshot() }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun runHomeDataMutation_rebuildContainsUpdatedDisplayNameForEveryGroupSlot() = runTest {

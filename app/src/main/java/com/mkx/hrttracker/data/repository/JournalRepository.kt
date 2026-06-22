@@ -13,16 +13,16 @@ import com.mkx.hrttracker.model.journal.TrackedDate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.LocalDate
 import java.util.UUID
@@ -91,6 +91,36 @@ class JournalRepository @Inject constructor(
     fun getCachedPinnedTrackedDates(): List<TrackedDate>? = pinnedTrackedDatesCache.value
 
     fun getCachedNotes(): List<Note>? = notesCache.value
+
+    init {
+        // Keep the cold-start Home snapshot in step with the journal hero (the first pinned
+        // date), reactively — mirroring HomeSnapshotRepository's home-E2-settings observer.
+        // Running on appScope decouples this from the journal write, so a snapshot/DataStore
+        // failure can never fail (or crash) the committed mutation, and we avoid the expensive
+        // full runHomeDataMutation. The warm cache's null = not-yet-loaded; the first loaded
+        // value is the process-start baseline (the normal Home build already covers startup),
+        // so only later hero changes force a rebuild. Best-effort: appScope has no exception
+        // handler, so a DataStore failure must not tear down this long-lived collector.
+        appScope.launch {
+            var baselined = false
+            var previousHero: TrackedDate? = null
+            pinnedTrackedDatesCache.collect { pinned ->
+                if (pinned == null) return@collect
+                val hero = pinned.firstOrNull()
+                if (!baselined) {
+                    baselined = true
+                    previousHero = hero
+                    return@collect
+                }
+                if (hero == previousHero) return@collect
+                previousHero = hero
+                runCatching {
+                    homeSnapshotRepository.invalidateHomeSnapshot()
+                    homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
+                }.onFailure { if (it is CancellationException) throw it }
+            }
+        }
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeTrackedDates(): Flow<List<TrackedDate>> =
@@ -174,61 +204,40 @@ class JournalRepository @Inject constructor(
     suspend fun getNoteEntities(): List<NoteEntity> =
         databaseHolder.get().journalDao().getNotes()
 
-    // The snapshot caches only the FIRST pinned date (the Home hero). Rebuild it
-    // exactly when that date's rendered content changes — name / icon / date / palette /
-    // background / pin identity. Compare the mapped model rather than the raw entity:
-    // every write bumps updatedAtEpochMillis (which the model drops), so comparing
-    // entities would force a full rebuild on every hero-row write — even a no-op re-save
-    // — producing an identical snapshot. Async because the live UI already reads the
-    // anchor from the Room source; this only refreshes the cold-start cache for next launch.
-    private suspend fun <T> refreshingSnapshotIfHeroChanges(block: suspend () -> T): T {
-        val before = databaseHolder.get().journalDao().getFirstPinnedTrackedDate()?.toModel()
-        val result = block()
-        withContext(NonCancellable) {
-            val after = databaseHolder.get().journalDao().getFirstPinnedTrackedDate()?.toModel()
-            if (before != after) {
-                homeSnapshotRepository.invalidateHomeSnapshot()
-                homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
-            }
-        }
-        return result
-    }
-
     suspend fun addTrackedDate(
         name: String,
         icon: String,
         date: LocalDate,
         paletteKey: String?,
         pinned: Boolean,
-    ) =
-        refreshingSnapshotIfHeroChanges {
-            val database = databaseHolder.get()
-            database.withTransaction {
-                val dao = database.journalDao()
-                val now = clock.millis()
-                // The caller decides whether to pin (the add sheet's toggle, defaulted so the
-                // first date pins and later ones don't). Pin-on-create appends to the bottom of
-                // the pinned list; an unpinned date is timeline-only.
-                val pinnedOrder = if (pinned) {
-                    PinOrder.appendOrderAfterMax(dao.getMaxPinnedOrder())
-                } else {
-                    null
-                }
-                dao.upsertTrackedDate(
-                    TrackedDateEntity(
-                        uuid = UUID.randomUUID().toString(),
-                        name = name,
-                        iconKey = AnchorIcon.fromStorageValue(icon).storageKey,
-                        dateIso = date.toString(),
-                        paletteKey = paletteKey,
-                        heroBackgroundKey = null,
-                        pinnedOrder = pinnedOrder,
-                        createdAtEpochMillis = now,
-                        updatedAtEpochMillis = now,
-                    )
-                )
+    ) {
+        val database = databaseHolder.get()
+        database.withTransaction {
+            val dao = database.journalDao()
+            val now = clock.millis()
+            // The caller decides whether to pin (the add sheet's toggle, defaulted so the
+            // first date pins and later ones don't). Pin-on-create appends to the bottom of
+            // the pinned list; an unpinned date is timeline-only.
+            val pinnedOrder = if (pinned) {
+                PinOrder.appendOrderAfterMax(dao.getMaxPinnedOrder())
+            } else {
+                null
             }
+            dao.upsertTrackedDate(
+                TrackedDateEntity(
+                    uuid = UUID.randomUUID().toString(),
+                    name = name,
+                    iconKey = AnchorIcon.fromStorageValue(icon).storageKey,
+                    dateIso = date.toString(),
+                    paletteKey = paletteKey,
+                    heroBackgroundKey = null,
+                    pinnedOrder = pinnedOrder,
+                    createdAtEpochMillis = now,
+                    updatedAtEpochMillis = now,
+                )
+            )
         }
+    }
 
     suspend fun updateTrackedDate(
         id: String,
@@ -236,7 +245,7 @@ class JournalRepository @Inject constructor(
         icon: String,
         date: LocalDate,
         paletteKey: String?,
-    ) = refreshingSnapshotIfHeroChanges {
+    ) {
         val database = databaseHolder.get()
         database.withTransaction {
             val dao = database.journalDao()
@@ -253,11 +262,11 @@ class JournalRepository @Inject constructor(
         }
     }
 
-    suspend fun deleteTrackedDate(id: String) = refreshingSnapshotIfHeroChanges {
+    suspend fun deleteTrackedDate(id: String) {
         databaseHolder.get().journalDao().deleteTrackedDate(id)
     }
 
-    suspend fun setPinned(id: String, pinned: Boolean) = refreshingSnapshotIfHeroChanges {
+    suspend fun setPinned(id: String, pinned: Boolean) {
         val database = databaseHolder.get()
         database.withTransaction {
             val dao = database.journalDao()
@@ -293,11 +302,11 @@ class JournalRepository @Inject constructor(
         }
     }
 
-    suspend fun setHeroBackground(id: String, background: HeroBackground) = refreshingSnapshotIfHeroChanges {
+    suspend fun setHeroBackground(id: String, background: HeroBackground) {
         databaseHolder.get().journalDao().updateHeroBackground(id, background.storageKey, clock.millis())
     }
 
-    suspend fun reorderPinned(idsInOrder: List<String>) = refreshingSnapshotIfHeroChanges {
+    suspend fun reorderPinned(idsInOrder: List<String>) {
         val database = databaseHolder.get()
         database.withTransaction {
             val dao = database.journalDao()
