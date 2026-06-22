@@ -576,4 +576,33 @@ class JournalScreenTest {
             assertEquals(listOf(today.minusDays(1) to "Edited yesterday"), savedNotes)
         }
     }
+
+    @Test
+    fun todayNoteWithoutPastNotes_showsNoEarlierNotesEndCard() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        val todayNote = Note(id = "today", date = today, text = "Today note")
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = today,
+                        todayNote = todayNote,
+                        recentNotes = listOf(todayNote),
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = {},
+                    onSaveNote = { _, _ -> },
+                )
+            }
+        }
+
+        // With today's note saved but no past notes, the notes area must still close with an
+        // end card ("No earlier notes") instead of vanishing into nothing.
+        composeRule.onNodeWithText(context.getString(R.string.journal_no_earlier_notes))
+            .assertIsDisplayed()
+    }
 }

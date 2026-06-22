@@ -210,20 +210,8 @@ fun JournalScreenContent(
                     }
                 }
 
-                if (uiState.recentNotes.isEmpty() && uiState.olderNotesCount == 0) {
-                    item(key = "journal-notes-empty-gap") {
-                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-                    }
-                    hrtSection(key = "journal-notes-empty") {
-                        item(key = "journal-notes-empty-item") {
-                            SupportMessageListItem(
-                                text = stringResource(R.string.journal_no_notes),
-                                supportingText = stringResource(R.string.journal_all_notes_empty),
-                                painter = painterResource(R.drawable.ic_info),
-                            )
-                        }
-                    }
-                } else if (timelineNotes.isNotEmpty()) {
+                // Recent past notes form the rail; today lives in the composer above.
+                if (timelineNotes.isNotEmpty()) {
                     item(key = "journal-notes-list-gap") {
                         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
                     }
@@ -239,6 +227,10 @@ fun JournalScreenContent(
                     }
                 }
 
+                // One terminal always closes the notes area so it never looks unfinished once
+                // the first note is written: "see all" when older notes exist beyond the
+                // window, otherwise an end card — the full empty hint when nothing is saved, or
+                // a quiet "no earlier notes" once today's or any recent note exists.
                 if (uiState.olderNotesCount > 0) {
                     item(key = "journal-see-all-notes", contentType = "journal-action") {
                         HrtOutlinedButton(
@@ -252,6 +244,26 @@ fun JournalScreenContent(
                             modifier = Modifier
                                 .padding(top = dimensionResource(R.dimen.padding_small)),
                         )
+                    }
+                } else {
+                    item(key = "journal-notes-end-gap") {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                    }
+                    hrtSection(key = "journal-notes-end") {
+                        item(key = "journal-notes-end-item") {
+                            if (uiState.todayNote == null && timelineNotes.isEmpty()) {
+                                SupportMessageListItem(
+                                    text = stringResource(R.string.journal_no_notes),
+                                    supportingText = stringResource(R.string.journal_all_notes_empty),
+                                    painter = painterResource(R.drawable.ic_info),
+                                )
+                            } else {
+                                SupportMessageListItem(
+                                    text = stringResource(R.string.journal_no_earlier_notes),
+                                    painter = painterResource(R.drawable.ic_info),
+                                )
+                            }
+                        }
                     }
                 }
             }
