@@ -184,6 +184,7 @@ fun JournalScreenContent(
                             }
                         }
                     }
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                 }
 
                 // The Today composer is its own standalone section (count 1 -> fully
@@ -195,7 +196,12 @@ fun JournalScreenContent(
                         HrtSectionHeader(
                             text = stringResource(R.string.journal_notes_section),
                             trailing = {
-                                Text(text = stringResource(R.string.journal_notes_window_meta))
+                                Text(
+                                    text = stringResource(R.string.journal_notes_window_meta),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+
+                                    )
                             },
                         )
                     },

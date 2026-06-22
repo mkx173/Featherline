@@ -52,7 +52,6 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -2352,8 +2351,6 @@ private fun NoteEditorCard(
                             modifier = Modifier.padding(
                                 top = dimensionResource(R.dimen.padding_small),
                             ),
-                            hasSaveableChanges = draftText.isNotBlank() &&
-                                draftText.trim() != text.trim(),
                             onDelete = if (editingExistingNote) {
                                 { isDeleteConfirmationVisible = true }
                             } else {
@@ -2369,10 +2366,12 @@ private fun NoteEditorCard(
                             },
                             onSave = {
                                 val trimmed = draftText.trim()
-                                if (trimmed.isNotEmpty()) {
+                                if (trimmed.isNotEmpty() && trimmed != text.trim()) {
                                     onSave(trimmed)
-                                    finishEditing()
+                                } else if (text.isNotEmpty()) {
+                                    draftText = text
                                 }
+                                finishEditing()
                             },
                         )
                     }
@@ -2416,7 +2415,7 @@ private fun TodayComposerHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = Icons.Rounded.EditNote,
+            painter = painterResource(R.drawable.ic_edit_note),
             contentDescription = null,
             modifier = Modifier.size(18.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2446,7 +2445,6 @@ private fun TodayComposerHeader(
 
 @Composable
 private fun TodayComposerControls(
-    hasSaveableChanges: Boolean,
     onDelete: (() -> Unit)?,
     onCancel: () -> Unit,
     onSave: () -> Unit,
@@ -2460,7 +2458,7 @@ private fun TodayComposerControls(
         if (onDelete != null) {
             IconButton(onClick = onDelete) {
                 Icon(
-                    imageVector = Icons.Rounded.Delete,
+                    painter = painterResource(R.drawable.ic_delete),
                     contentDescription = stringResource(R.string.journal_delete_note),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -2477,9 +2475,7 @@ private fun TodayComposerControls(
                 )
             }
             FilledTonalIconButton(
-                onClick = {
-                    if (hasSaveableChanges) onSave()
-                },
+                onClick = onSave,
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Check,
@@ -2510,13 +2506,15 @@ private fun TodayComposerPrompt(
         Icon(
             imageVector = Icons.Rounded.Add,
             contentDescription = null,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(24.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        val journalWriteAboutTodayLabel = stringResource(R.string.journal_write_about_today)
         Text(
-            text = stringResource(R.string.journal_write_about_today),
+            text = journalWriteAboutTodayLabel,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.cjkTextOffset(journalWriteAboutTodayLabel)
         )
     }
 }
@@ -2570,7 +2568,6 @@ fun NotesTimeline(
     modifier: Modifier = Modifier,
 ) {
     if (notes.isEmpty()) {
-        EmptyRecentNotesCard(modifier = modifier)
         return
     }
     // A continuous rail of accent dots (mirroring MilestonesTimeline) with each day's note as
@@ -2774,17 +2771,6 @@ private fun noteTimelineDateLabel(
 }
 
 @Composable
-fun EmptyRecentNotesCard(
-    modifier: Modifier = Modifier,
-) {
-    PreferenceSegmentedListItem(
-        modifier = modifier,
-        title = stringResource(R.string.journal_notes_window_meta),
-        supportingText = stringResource(R.string.journal_write_about_today),
-    )
-}
-
-@Composable
 fun EmptyAllNotesCard(
     modifier: Modifier = Modifier,
 ) {
@@ -2942,7 +2928,6 @@ private fun JournalEmptyStatesPreview() {
     JournalComponentPreview {
         EmptyMilestonesCard(onAddDate = {})
         EmptyPinnedMilestonesCard(onClick = {})
-        EmptyRecentNotesCard()
         EmptyAllNotesCard()
     }
 }

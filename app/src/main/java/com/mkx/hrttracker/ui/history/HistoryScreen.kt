@@ -30,7 +30,6 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FlipToBack
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Public
@@ -739,7 +738,7 @@ private fun HistoryScreenContent(
                     ),
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Delete,
+                    painter = painterResource(R.drawable.ic_delete),
                     contentDescription = stringResource(R.string.delete_entries_fab)
                 )
             }

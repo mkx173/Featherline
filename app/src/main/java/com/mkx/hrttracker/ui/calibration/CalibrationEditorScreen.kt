@@ -19,7 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.ButtonDefaults
@@ -51,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -553,7 +553,7 @@ private fun CalibrationEditorScreenContent(
                             text = stringResource(R.string.delete_entries_confirm),
                             onClick = onDeleteClick,
                             modifier = Modifier.fillMaxWidth(),
-                            icon = Icons.Rounded.Delete,
+                            iconPainter = painterResource(R.drawable.ic_delete),
                             iconModifier = Modifier.size(
                                 ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
                             ),

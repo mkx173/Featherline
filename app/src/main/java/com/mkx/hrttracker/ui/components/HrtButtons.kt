@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
@@ -76,6 +77,7 @@ fun HrtFilledTonalButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     icon: ImageVector? = null,
+    iconPainter: Painter? = null,
     iconModifier: Modifier = Modifier,
     iconSpacing: Dp = 8.dp,
     iconContentDescription: String? = null,
@@ -86,7 +88,7 @@ fun HrtFilledTonalButton(
     val resolvedContentPadding = contentPadding
         ?: ButtonDefaults.contentPaddingFor(
             buttonHeight = ButtonDefaults.MinHeight,
-            hasStartIcon = icon != null,
+            hasStartIcon = icon != null || iconPainter != null,
         )
 
     ButtonContainer(compact = compact) {
@@ -97,7 +99,14 @@ fun HrtFilledTonalButton(
             colors = colors,
             contentPadding = resolvedContentPadding,
         ) {
-            if (icon != null) {
+            if (iconPainter != null) {
+                Icon(
+                    painter = iconPainter,
+                    contentDescription = iconContentDescription,
+                    modifier = iconModifier,
+                )
+                Spacer(modifier = Modifier.size(iconSpacing))
+            } else if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = iconContentDescription,
