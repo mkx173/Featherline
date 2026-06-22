@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.journal
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
@@ -18,6 +19,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
@@ -31,9 +33,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
+import java.time.format.TextStyle
 
 private const val TodayComposerTextFieldTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTagPrefix = "note-timeline-text-field-"
+private const val NoteTimelineRowTagPrefix = "note-timeline-row-"
+private const val NoteTimelineDotTagPrefix = "note-timeline-dot-"
+private const val NoteTimelineLineBottomTagPrefix = "note-timeline-line-bottom-"
 private const val JournalScreenListTag = "journal-screen-list"
 
 class JournalScreenTest {
@@ -518,6 +524,100 @@ class JournalScreenTest {
         ).assertIsDisplayed()
         composeRule.onNodeWithText("Today timeline note").assertIsDisplayed()
         composeRule.onNodeWithText("2026-06-16").assertIsNotDisplayed()
+    }
+
+    @Test
+    fun notesTimelineRow_keepsSixDpGapBetweenOutgoingLineAndNextDot() {
+        val today = LocalDate.of(2026, 6, 16)
+        var expectedGapPx = 0f
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                expectedGapPx = with(LocalDensity.current) { 6.dp.toPx() }
+                NotesTimeline(
+                    notes = listOf(
+                        Note(
+                            id = "june-15",
+                            date = today.minusDays(1),
+                            text = "Yesterday note",
+                        ),
+                        Note(
+                            id = "june-14",
+                            date = today.minusDays(2),
+                            text = "Earlier note",
+                        ),
+                    ),
+                    today = today,
+                    onSave = { _, _ -> },
+                )
+            }
+        }
+
+        val outgoingLineBottom = composeRule.onNodeWithTag(
+            "${NoteTimelineLineBottomTagPrefix}june-15",
+            useUnmergedTree = true,
+        )
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .bottom
+        val dotTop = composeRule.onNodeWithTag(
+            "${NoteTimelineDotTagPrefix}june-14",
+            useUnmergedTree = true,
+        )
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .top
+
+        assertEquals(expectedGapPx.toDouble(), (dotTop - outgoingLineBottom).toDouble(), 0.5)
+    }
+
+    @Test
+    fun notesTimelineRow_keepsDateLabelFlushWithIncomingRowTop() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val appLocale = context.resources.configuration.locales[0]
+        val today = LocalDate.of(2026, 6, 16)
+        val targetDate = today.minusDays(2)
+        val dateFormatter = dateLabelFormatter(appLocale, today)
+        val targetDateLabel = context.getString(
+            R.string.journal_note_date_weekday_pattern,
+            targetDate.dayOfWeek.getDisplayName(TextStyle.FULL, appLocale),
+            dateFormatter(targetDate),
+        ).uppercase(appLocale)
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                NotesTimeline(
+                    notes = listOf(
+                        Note(
+                            id = "june-15",
+                            date = today.minusDays(1),
+                            text = "Yesterday note",
+                        ),
+                        Note(
+                            id = "june-14",
+                            date = targetDate,
+                            text = "Earlier note",
+                        ),
+                    ),
+                    today = today,
+                    onSave = { _, _ -> },
+                )
+            }
+        }
+
+        val incomingRowTop = composeRule.onNodeWithTag(
+            "${NoteTimelineRowTagPrefix}june-14",
+            useUnmergedTree = true,
+        )
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .top
+        val dateLabelTop = composeRule.onNodeWithText(targetDateLabel, useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .top
+
+        assertEquals(0.0, (dateLabelTop - incomingRowTop).toDouble(), 0.5)
     }
 
     @Test

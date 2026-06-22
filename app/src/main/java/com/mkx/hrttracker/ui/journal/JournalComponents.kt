@@ -102,6 +102,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
@@ -116,6 +117,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -125,6 +127,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.takeOrElse
 import androidx.compose.ui.util.lerp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
@@ -171,6 +174,9 @@ import kotlinx.coroutines.delay
 
 private const val TodayComposerTextFieldTestTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field-"
+private const val NoteTimelineRowTestTagPrefix = "note-timeline-row-"
+private const val NoteTimelineDotTestTagPrefix = "note-timeline-dot-"
+private const val NoteTimelineLineBottomTestTagPrefix = "note-timeline-line-bottom-"
 internal const val SimpleHomeCardTestTag = "simple-home-card"
 
 // Shared by the timeline rail. The inter-card gap lives inside each row's
@@ -2225,6 +2231,7 @@ fun TodayComposer(
         modifier = modifier.fillMaxWidth(),
     ) {
         NoteEditorCard(
+            modifier = Modifier.padding(bottom = 6.dp),
             text = note?.text.orEmpty(),
             identity = note?.id ?: "today-$today",
             onSave = onSave,
@@ -2286,7 +2293,7 @@ private fun NoteEditorCard(
 
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         header?.invoke()
         AnimatedContent(
@@ -2406,25 +2413,34 @@ private fun TodayComposerHeader(
         dateLabelFormatter(appLocale, today)
     }
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             imageVector = Icons.Rounded.EditNote,
             contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+
+        val journalTodayLabel = stringResource(R.string.journal_today)
         Text(
-            text = stringResource(R.string.journal_today),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = dateFormatter(today),
-            style = MaterialTheme.typography.bodySmall,
+            text = journalTodayLabel,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(journalTodayLabel),
+        )
+        val todayLabel = dateFormatter(today)
+        Text(
+            text = todayLabel,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Normal,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.alignByBaseline().cjkTextOffset(todayLabel)
         )
     }
 }
@@ -2567,7 +2583,9 @@ fun NotesTimeline(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
-        Column(modifier = Modifier.padding(horizontal = TimelineDotInset, vertical = 16.dp)) {
+        Column(
+            modifier = Modifier.padding(horizontal = TimelineDotInset, vertical = 16.dp),
+        ) {
             notes.forEachIndexed { index, note ->
                 NoteTimelineRow(
                     note = note,
@@ -2593,32 +2611,57 @@ private fun NoteTimelineRow(
     modifier: Modifier = Modifier,
 ) {
     val dateLabel = noteTimelineDateLabel(note.date, today)
-    val rowGap = dimensionResource(R.dimen.list_segment_gap)
+    val dateLabelStyle = MaterialTheme.typography.labelLarge
+    var dateLabelHeightPx by remember(dateLabel) { mutableStateOf(0) }
+    val density = LocalDensity.current
+    val outgoingLineBottomInset = with(density) {
+        val dateLabelHeight = if (dateLabelHeightPx > 0) {
+            dateLabelHeightPx.toFloat()
+        } else {
+            dateLabelStyle.lineHeight.takeOrElse { dateLabelStyle.fontSize }.toPx()
+        }
+        val dotTopInDateLabel = (dateLabelHeight - TimelineNodeSize.toPx()) / 2f
+        val insetPx = (TimelineNodeGap.toPx() - dotTopInDateLabel)
+            .coerceAtLeast(0f)
+            .toInt()
+        insetPx.toDp()
+    }
     val labelGap = dimensionResource(R.dimen.padding_small)
     val railColor = MaterialTheme.colorScheme.outlineVariant
     // ConstraintLayout so the dot is anchored to the date label (not the row), keeping it put
     // when the card below expands into the editor. The connector segments run from the row
     // edges to the dot, abutting the neighbouring rows into one continuous rail.
-    ConstraintLayout(modifier = modifier.fillMaxWidth()) {
+    ConstraintLayout(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("$NoteTimelineRowTestTagPrefix${note.id}"),
+    ) {
         val (lineTop, lineBottom, dot, header, card) = createRefs()
         val contentStart = createGuidelineFromStart(TimelineRailWidth)
 
         Text(
             text = dateLabel,
-            style = MaterialTheme.typography.labelMedium,
+            style = dateLabelStyle,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.constrainAs(header) {
-                top.linkTo(parent.top, margin = if (isFirst) 0.dp else rowGap)
-                start.linkTo(contentStart)
-            },
+            modifier = Modifier
+                .onSizeChanged { dateLabelHeightPx = it.height }
+                .constrainAs(header) {
+                    top.linkTo(parent.top)
+                    start.linkTo(contentStart)
+                }
+                .cjkTextOffset(dateLabel),
         )
         Box(
-            modifier = Modifier.constrainAs(card) {
-                top.linkTo(header.bottom, margin = labelGap)
-                start.linkTo(contentStart)
-                end.linkTo(parent.end)
-                width = Dimension.fillToConstraints
-            },
+            modifier = Modifier
+                .constrainAs(card) {
+                    top.linkTo(header.bottom, margin = labelGap)
+                    start.linkTo(contentStart)
+                    end.linkTo(parent.end)
+                    width = Dimension.fillToConstraints
+                }
+                // 8dp between this note's text field and the next row's date string; dropped on
+                // the last row since nothing follows it.
+                .padding(bottom = if (isLast) 0.dp else dimensionResource(R.dimen.padding_small)),
         ) {
             NoteEditorCard(
                 text = note.text,
@@ -2637,7 +2680,8 @@ private fun NoteTimelineRow(
                     bottom.linkTo(header.bottom)
                 }
                 .size(TimelineNodeSize)
-                .background(MaterialTheme.colorScheme.primary, CircleShape),
+                .background(MaterialTheme.colorScheme.primary, CircleShape)
+                .testTag("$NoteTimelineDotTestTagPrefix${note.id}"),
         )
         if (!isFirst) {
             Box(
@@ -2658,13 +2702,14 @@ private fun NoteTimelineRow(
                 modifier = Modifier
                     .constrainAs(lineBottom) {
                         top.linkTo(dot.bottom, margin = TimelineNodeGap)
-                        bottom.linkTo(parent.bottom)
+                        bottom.linkTo(parent.bottom, margin = outgoingLineBottomInset)
                         start.linkTo(dot.start)
                         end.linkTo(dot.end)
                         height = Dimension.fillToConstraints
                     }
                     .width(TimelineRailStroke)
-                    .background(railColor, RoundedCornerShape(TimelineRailStroke / 2)),
+                    .background(railColor, RoundedCornerShape(TimelineRailStroke / 2))
+                    .testTag("$NoteTimelineLineBottomTestTagPrefix${note.id}"),
             )
         }
     }
