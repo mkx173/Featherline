@@ -79,6 +79,7 @@ import java.time.LocalDate
 import kotlin.math.ceil
 
 const val AddDateNameFieldTestTag = "add-date-name-field"
+const val AddDateDeleteConfirmButtonTestTag = "add-date-delete-confirm-button"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,6 +114,7 @@ fun AddDateSheet(
             text = { Text(text = stringResource(R.string.journal_delete_date_confirmation)) },
             confirmButton = {
                 TextButton(
+                    modifier = Modifier.testTag(AddDateDeleteConfirmButtonTestTag),
                     onClick = {
                         isDeleteConfirmationVisible = false
                         onDelete()

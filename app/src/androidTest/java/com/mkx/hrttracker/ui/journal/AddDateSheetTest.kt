@@ -187,7 +187,7 @@ class AddDateSheetTest {
         composeRule.onNodeWithText(context.getString(R.string.journal_delete_date_title))
             .assertIsDisplayed()
         composeRule.runOnIdle { assertTrue(!deleted) }
-        composeRule.onNodeWithText(context.getString(R.string.delete_entries_confirm)).performClick()
+        composeRule.onNodeWithTag(AddDateDeleteConfirmButtonTestTag).performClick()
         composeRule.runOnIdle { assertTrue(deleted) }
     }
 
