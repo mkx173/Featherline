@@ -165,6 +165,8 @@
     <string name="history_month_picker_title">Jump to month</string>
     <string name="history_month_picker_month">Month</string>
     <string name="history_month_picker_year">Year</string>
+    <string name="month_picker_month">Month</string>
+    <string name="month_picker_year">Year</string>
     <string name="history_summary_logged_strip">%1$s %2$s</string>
     <string name="history_summary_on_track">On track</string>
     <string name="history_summary_partial">Partial</string>
@@ -214,6 +216,8 @@
     <string name="journal_pinned_section">Pinned</string>
     <string name="journal_timeline_section">All dates</string>
     <string name="journal_all_notes">All notes</string>
+    <string name="journal_filter_by_month">Filter by month</string>
+    <string name="journal_clear_month_filter">Show all notes</string>
     <string name="journal_edit">Edit</string>
     <string name="journal_done">Done</string>
     <string name="journal_hero_badge">HERO</string>

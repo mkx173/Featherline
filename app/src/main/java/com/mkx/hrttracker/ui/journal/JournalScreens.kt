@@ -62,6 +62,7 @@ import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -74,6 +75,7 @@ import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
+import com.mkx.hrttracker.ui.components.MonthPickerDialog
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.monthHeaderFormatter
@@ -611,6 +613,34 @@ fun AllNotesScreenContent(
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
     // Shared across every month's timeline so a single note edits at a time, reset on navigation.
     val editorController = rememberNoteEditorController()
+    val appLocale = rememberAppLocale()
+
+    // Month filter (UI-only over the already-grouped notes): null shows every month. The picker is
+    // bounded to the months that actually have notes, so an active filter always lands on a
+    // non-empty month; a stale selection (its last note deleted) collapses back to "all".
+    val availableMonths = remember(uiState.monthGroups) { uiState.monthGroups.map { it.month } }
+    var selectedMonth by remember { mutableStateOf<YearMonth?>(null) }
+    var isMonthPickerVisible by remember { mutableStateOf(false) }
+    val activeMonth = selectedMonth?.takeIf { it in availableMonths }
+    val displayedGroups = if (activeMonth == null) {
+        uiState.monthGroups
+    } else {
+        uiState.monthGroups.filter { it.month == activeMonth }
+    }
+
+    if (isMonthPickerVisible && availableMonths.isNotEmpty()) {
+        MonthPickerDialog(
+            availableMonths = availableMonths,
+            selectedMonth = activeMonth ?: availableMonths.max(),
+            title = stringResource(R.string.journal_filter_by_month),
+            appLocale = appLocale,
+            onDismiss = { isMonthPickerVisible = false },
+            onConfirm = { month ->
+                isMonthPickerVisible = false
+                selectedMonth = month
+            },
+        )
+    }
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -629,6 +659,34 @@ fun AllNotesScreenContent(
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.navigate_back),
+                        )
+                    }
+                },
+                actions = {
+                    if (uiState.monthGroups.isNotEmpty()) {
+                        // Flip between "filter" (tap to pick a month) and "filter off" (tap to
+                        // clear), mirroring the History top bar's coin-flip action.
+                        FlipSlot(
+                            flipped = activeMonth != null,
+                            contentAlignment = Alignment.CenterEnd,
+                            front = {
+                                IconButton(onClick = { isMonthPickerVisible = true }) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_filter_list),
+                                        contentDescription =
+                                            stringResource(R.string.journal_filter_by_month),
+                                    )
+                                }
+                            },
+                            back = {
+                                IconButton(onClick = { selectedMonth = null }) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_filter_list_off),
+                                        contentDescription =
+                                            stringResource(R.string.journal_clear_month_filter),
+                                    )
+                                }
+                            },
                         )
                     }
                 },
@@ -655,12 +713,12 @@ fun AllNotesScreenContent(
                     .imePadding(),
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
-                if (uiState.monthGroups.isEmpty()) {
+                if (displayedGroups.isEmpty()) {
                     item(key = "all-notes-empty", contentType = "journal-empty") {
                         EmptyAllNotesCard()
                     }
                 } else {
-                    uiState.monthGroups.forEachIndexed { groupIndex, group ->
+                    displayedGroups.forEachIndexed { groupIndex, group ->
                         item(
                             key = "all-notes-header-${group.month}",
                             contentType = "journal-month-header",
@@ -693,7 +751,7 @@ fun AllNotesScreenContent(
                             }
                         }
 
-                        if (groupIndex < uiState.monthGroups.lastIndex) {
+                        if (groupIndex < displayedGroups.lastIndex) {
                             item(key = "all-notes-gap-${group.month}") {
                                 Spacer(modifier = Modifier.height(16.dp))
                             }

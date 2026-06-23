@@ -134,6 +134,54 @@ class AllNotesScreenTest {
         }
     }
 
+    @Test
+    fun monthFilter_narrowsToSelectedMonthAndClears() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                AllNotesScreenContent(
+                    uiState = AllNotesUiState(
+                        isLoading = false,
+                        monthGroups = listOf(
+                            MonthGroupUiState(
+                                month = YearMonth.of(2026, 6),
+                                notes = listOf(note("june-15", LocalDate.of(2026, 6, 15), "June note")),
+                            ),
+                            MonthGroupUiState(
+                                month = YearMonth.of(2026, 5),
+                                notes = listOf(note("may-20", LocalDate.of(2026, 5, 20), "May note")),
+                            ),
+                        ),
+                    ),
+                    onNavigateBack = { },
+                    onSaveNote = { _, _ -> },
+                    onDeleteNote = { },
+                )
+            }
+        }
+
+        // Both months visible before filtering.
+        composeRule.onNodeWithText("June note").assertIsDisplayed()
+        composeRule.onNodeWithText("May note").assertIsDisplayed()
+
+        // Open the picker and confirm; the default selection is the most recent month (June).
+        composeRule.onNodeWithContentDescription(context.getString(R.string.journal_filter_by_month))
+            .performClick()
+        composeRule.onNodeWithText(context.getString(R.string.journal_filter_by_month))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.confirm)).performClick()
+
+        // List is narrowed to June; the May note is filtered out.
+        composeRule.onNodeWithText("June note").assertIsDisplayed()
+        composeRule.onNodeWithText("May note").assertDoesNotExist()
+
+        // The action flips to "show all"; clearing restores every month.
+        composeRule.onNodeWithContentDescription(context.getString(R.string.journal_clear_month_filter))
+            .performClick()
+        composeRule.onNodeWithText("May note").assertIsDisplayed()
+    }
+
     private fun monthLabel(month: YearMonth, locale: java.util.Locale): String {
         return monthHeaderFormatter(locale, currentYear = Int.MIN_VALUE)(month.atDay(1))
     }
