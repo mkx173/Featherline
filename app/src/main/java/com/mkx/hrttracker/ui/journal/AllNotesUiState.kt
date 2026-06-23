@@ -13,4 +13,6 @@ data class AllNotesUiState(
     val isLoading: Boolean = true,
     val today: LocalDate = LocalDate.now(),
     val monthGroups: List<MonthGroupUiState> = emptyList(),
+    val noteMutationError: JournalNoteMutation? = null,
+    val noteSaveFailureToken: Int = 0,
 )
