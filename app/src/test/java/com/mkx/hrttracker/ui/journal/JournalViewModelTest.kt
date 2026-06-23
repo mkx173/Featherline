@@ -23,9 +23,11 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -290,6 +292,53 @@ class JournalViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { repository.deleteNoteForDate(noteDate) }
+    }
+
+    @Test
+    fun saveNote_writeFailure_setsSaveErrorAndBumpsToken() = runTest {
+        val noteDate = LocalDate.of(2026, 6, 1)
+        stubEmptyObservers()
+        coEvery { repository.saveNoteForDate(noteDate, "boom") } throws IOException("disk full")
+        val viewModel = JournalViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        val tokenBefore = viewModel.uiState.value.noteSaveFailureToken
+
+        viewModel.saveNote(noteDate, "boom")
+        advanceUntilIdle()
+
+        assertEquals(JournalNoteMutation.SAVE, viewModel.uiState.value.noteMutationError)
+        assertEquals(tokenBefore + 1, viewModel.uiState.value.noteSaveFailureToken)
+
+        viewModel.consumeNoteMutationError()
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.noteMutationError)
+    }
+
+    @Test
+    fun deleteNote_writeFailure_setsDeleteError() = runTest {
+        val noteDate = LocalDate.of(2026, 6, 1)
+        stubEmptyObservers()
+        coEvery { repository.deleteNoteForDate(noteDate) } throws IOException("io")
+        val viewModel = JournalViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        viewModel.deleteNote(noteDate)
+        advanceUntilIdle()
+
+        assertEquals(JournalNoteMutation.DELETE, viewModel.uiState.value.noteMutationError)
+    }
+
+    @Test
+    fun saveNote_success_leavesErrorNull() = runTest {
+        val noteDate = LocalDate.of(2026, 6, 1)
+        stubEmptyObservers()
+        coEvery { repository.saveNoteForDate(noteDate, "ok") } returns Unit
+        val viewModel = JournalViewModel(repository, appTimeSource)
+
+        viewModel.saveNote(noteDate, "ok")
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.noteMutationError)
     }
 
     private fun stubEmptyObservers() {
