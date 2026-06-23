@@ -59,6 +59,7 @@ import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
@@ -134,7 +135,13 @@ fun JournalScreenContent(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             HazeTopAppBar(
-                title = { Text(text = stringResource(R.string.tab_journal)) },
+                title = {
+                    val title = stringResource(R.string.tab_journal)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 scrollBehavior = scrollBehavior,
             )
@@ -437,7 +444,13 @@ fun MilestonesScreenContent(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             HazeTopAppBar(
-                title = { Text(text = stringResource(R.string.journal_since_you_started)) },
+                title = {
+                    val title = stringResource(R.string.journal_since_you_started)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -601,7 +614,13 @@ fun AllNotesScreenContent(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             HazeTopAppBar(
-                title = { Text(text = stringResource(R.string.journal_all_notes)) },
+                title = {
+                    val title = stringResource(R.string.journal_all_notes)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
