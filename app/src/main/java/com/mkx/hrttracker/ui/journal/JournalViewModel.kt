@@ -148,6 +148,7 @@ class JournalViewModel @Inject constructor(
     // unsaved draft.
     private fun failNoteWrite(error: Throwable, mutation: JournalNoteMutation) {
         if (error is CancellationException) throw error
+        if (error !is Exception) throw error
         noteMutationError.value = mutation
         if (mutation == JournalNoteMutation.SAVE) {
             noteSaveFailureToken.value += 1
@@ -173,7 +174,10 @@ class JournalViewModel @Inject constructor(
                     journalRepository.saveNoteForDate(date, "Sample note for $date")
                 }
             }
-        }.onFailure { if (it is CancellationException) throw it }
+        }.onFailure {
+            if (it is CancellationException) throw it
+            if (it !is Exception) throw it
+        }
     }
 }
 

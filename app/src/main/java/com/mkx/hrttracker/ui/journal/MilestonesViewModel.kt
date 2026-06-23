@@ -129,6 +129,7 @@ class MilestonesViewModel @Inject constructor(
                 .onSuccess { reconcilePendingAgainstSource() }
                 .onFailure {
                     if (it is CancellationException) throw it
+                    if (it !is Exception) throw it
                     // Roll back the optimistic pin so the tray snaps back to the source of truth.
                     pendingEdits.update { e -> e.copy(pinnedState = e.pinnedState - id) }
                     dateMutationError.value = MilestoneMutation.SAVE
@@ -143,6 +144,7 @@ class MilestonesViewModel @Inject constructor(
                 .onSuccess { reconcilePendingAgainstSource() }
                 .onFailure {
                     if (it is CancellationException) throw it
+                    if (it !is Exception) throw it
                     pendingEdits.update { e -> e.copy(heroBackground = e.heroBackground - id) }
                     dateMutationError.value = MilestoneMutation.SAVE
                 }
@@ -156,6 +158,7 @@ class MilestonesViewModel @Inject constructor(
                 .onSuccess { reconcilePendingAgainstSource() }
                 .onFailure {
                     if (it is CancellationException) throw it
+                    if (it !is Exception) throw it
                     // Coarse rollback: clears ANY pending order, not just this one. Acceptable because
                     // user actions serialize and Room latency is short (design §3 edge case).
                     pendingEdits.update { e -> e.copy(pinnedOrder = null) }
@@ -177,6 +180,7 @@ class MilestonesViewModel @Inject constructor(
             }
         }.onFailure {
             if (it is CancellationException) throw it
+            if (it !is Exception) throw it
             dateMutationError.value = MilestoneMutation.SAVE
         }
     }
@@ -206,6 +210,7 @@ class MilestonesViewModel @Inject constructor(
                 .onSuccess { reconcilePendingAgainstSource() }
                 .onFailure {
                     if (it is CancellationException) throw it
+                    if (it !is Exception) throw it
                     pendingEdits.update { e -> e.copy(dateEdits = e.dateEdits - id) }
                     dateMutationError.value = MilestoneMutation.SAVE
                 }
@@ -216,6 +221,7 @@ class MilestonesViewModel @Inject constructor(
         runCatching { withContext(NonCancellable) { journalRepository.deleteTrackedDate(id) } }
             .onFailure {
                 if (it is CancellationException) throw it
+                if (it !is Exception) throw it
                 dateMutationError.value = MilestoneMutation.DELETE
             }
     }

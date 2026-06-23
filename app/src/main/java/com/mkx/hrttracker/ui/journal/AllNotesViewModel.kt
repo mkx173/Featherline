@@ -76,6 +76,7 @@ class AllNotesViewModel @Inject constructor(
 
     private fun failNoteWrite(error: Throwable, mutation: JournalNoteMutation) {
         if (error is CancellationException) throw error
+        if (error !is Exception) throw error
         noteMutationError.value = mutation
         if (mutation == JournalNoteMutation.SAVE) {
             noteSaveFailureToken.value += 1
