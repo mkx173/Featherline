@@ -83,6 +83,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -2232,12 +2233,14 @@ private fun TodayMarkerRow(
 
 // Coordinates which note editor is open across the Today composer and the timeline rows below
 // it. Holding the open note's identity in one place keeps a single editor open at a time —
-// opening another closes the previous — and, being plain composition state (not
-// rememberSaveable), it is discarded when the screen leaves composition, so navigating away and
-// back returns with every editor closed rather than restoring a stale open one.
+// opening another closes the previous. The open identity is persisted via [Saver] (it is always
+// a note id or "today-<date>" String), so an editor left open survives process death and
+// navigating away and back: the row reopens with its saved draft (draftText is itself
+// rememberSaveable). On restore the field reopens but is not focused, so the keyboard stays down
+// until the user taps it (see the focus gate in NoteEditorCard).
 @Stable
-class NoteEditorController {
-    var activeEditorId by mutableStateOf<Any?>(null)
+class NoteEditorController(initialActiveEditorId: Any? = null) {
+    var activeEditorId by mutableStateOf(initialActiveEditorId)
         private set
 
     fun isEditing(identity: Any?): Boolean = activeEditorId != null && activeEditorId == identity
@@ -2249,10 +2252,18 @@ class NoteEditorController {
     fun finish(identity: Any?) {
         if (activeEditorId == identity) activeEditorId = null
     }
+
+    companion object {
+        val Saver: Saver<NoteEditorController, String> = Saver(
+            save = { it.activeEditorId as? String },
+            restore = { NoteEditorController(initialActiveEditorId = it) },
+        )
+    }
 }
 
 @Composable
-fun rememberNoteEditorController(): NoteEditorController = remember { NoteEditorController() }
+fun rememberNoteEditorController(): NoteEditorController =
+    rememberSaveable(saver = NoteEditorController.Saver) { NoteEditorController() }
 
 @Composable
 fun TodayComposer(
@@ -2481,21 +2492,25 @@ private fun NoteEditorCard(
         }
     }
 
-    // Focus the field when edit mode begins. Tapping existing text's field already focuses it
-    // (that focus is what flips isEditing); this also covers expanding from the prompt, where
-    // the tap landed on the prompt rather than the field.
-    // On close, if no save is pending, discard the in-progress draft so it can't linger: the
-    // collapsed row renders draftText, and re-opening goes through controller.begin (not
-    // beginEditing) without re-seeding, so an abandoned edit would otherwise resurface — and be
-    // re-savable — after switching to another card, cancelling, backing out, or confirming a delete
-    // (whose write may fail, leaving the row showing an unsaved draft as if persisted). A pending
-    // save keeps its draft: it is held through the round-trip and the failure-recovery reopen.
+    // Focus the field (raising the IME) when edit mode begins from a tap this session. Tapping
+    // existing text's field already focuses it (that focus is what flips isEditing); this also
+    // covers expanding from the prompt, where the tap landed on the prompt rather than the field.
+    // An editor restored already-open (process death, or navigating away and back) is open on the
+    // first composition, so it reopens silently — draft shown, keyboard down — until the user taps.
+    // On close with no pending save, discard the in-progress draft so it can't linger: the collapsed
+    // row renders draftText, and re-opening goes through controller.begin (not beginEditing) without
+    // re-seeding, so an abandoned edit would otherwise resurface — and be re-savable — after
+    // switching to another card, cancelling, backing out, or confirming a delete (whose write may
+    // fail, leaving the row showing an unsaved draft as if persisted). A pending save keeps its
+    // draft: it is held through the round-trip and the failure-recovery reopen.
+    var firstCompositionSettled by remember { mutableStateOf(false) }
     LaunchedEffect(isEditing) {
         if (isEditing) {
-            runCatching { focusRequester.requestFocus() }
+            if (firstCompositionSettled) runCatching { focusRequester.requestFocus() }
         } else if (!savePending) {
             draftText = text
         }
+        firstCompositionSettled = true
     }
 
     // Release the save latch once the committed text lands — from here the field is held by
