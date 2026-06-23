@@ -2316,6 +2316,12 @@ private fun NoteEditorCard(
     // the delete button from it live would pop delete in mid-close; this keeps it hidden for a
     // note first created in this session.
     var editingExistingNote by remember { mutableStateOf(text.isNotEmpty()) }
+    // A brand-new note's saved [text] only flips non-empty after the save round-trips through the
+    // repository — a frame or more after the editor closes [isEditing] synchronously. Without this
+    // latch there's a window where neither isEditing nor text is truthy, so the field would collapse
+    // back to the prompt for a beat ("write about today…" blinking in) before the saved text lands.
+    // Set when a save is committed; released once the text catches up (see the effect below).
+    var savePending by remember(identity) { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
@@ -2341,7 +2347,7 @@ private fun NoteEditorCard(
 
     // The box stays mounted whenever text exists, so tapping to edit never shifts it; with no
     // text yet the prompt stands in until the first edit.
-    val showField = isEditing || text.isNotEmpty()
+    val showField = isEditing || text.isNotEmpty() || savePending
 
     val finishEditing = {
         focusManager.clearFocus()
@@ -2365,6 +2371,9 @@ private fun NoteEditorCard(
     val saveEditing = {
         val trimmed = draftText.trim()
         if (trimmed.isNotEmpty() && trimmed != text.trim()) {
+            // Hold the field through the async save so the prompt doesn't blink back in while the
+            // committed text round-trips. Released by the effect below once [text] reflects the save.
+            savePending = true
             onSave(trimmed)
         } else if (text.isNotEmpty()) {
             draftText = text
@@ -2474,6 +2483,13 @@ private fun NoteEditorCard(
     // the tap landed on the prompt rather than the field.
     LaunchedEffect(isEditing) {
         if (isEditing) runCatching { focusRequester.requestFocus() }
+    }
+
+    // Release the save latch once the committed text lands — from here the field is held by
+    // text.isNotEmpty() and normal text-driven logic governs again (so a later delete can revert
+    // to the prompt). Until then savePending keeps the field mounted through the save round-trip.
+    LaunchedEffect(text) {
+        if (text.isNotEmpty()) savePending = false
     }
 
     // Keep the full editor in view as it grows and as the keyboard rises: re-fire on every box

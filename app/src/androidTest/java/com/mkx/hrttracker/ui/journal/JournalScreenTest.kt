@@ -72,9 +72,7 @@ class JournalScreenTest {
         composeRule.onNodeWithText(context.getString(R.string.journal_no_dates))
             .assertIsDisplayed()
             .performClick()
-        composeRule.onNodeWithText(
-            context.resources.getQuantityString(R.plurals.journal_see_all_notes_earlier, 2, 2)
-        )
+        composeRule.onNodeWithText(context.getString(R.string.journal_see_all_notes))
             .assertIsDisplayed()
             .performClick()
 
@@ -383,6 +381,47 @@ class JournalScreenTest {
         composeRule.runOnIdle {
             assertFalse(saved)
         }
+    }
+
+    @Test
+    fun todayEditor_savingNewNote_doesNotFlashPromptBack() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = LocalDate.of(2026, 6, 16),
+                        recentNotes = listOf(
+                            Note(
+                                id = "june-15",
+                                date = LocalDate.of(2026, 6, 15),
+                                text = "Older note",
+                            )
+                        ),
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    // Mirror the real ViewModel: the save round-trips through the repository, so the
+                    // note text is NOT fed back synchronously. The editor must hold the field until
+                    // the saved text lands rather than blinking back to the "write about today" prompt.
+                    onSaveTodayNote = {},
+                    onSaveNote = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
+            .performClick()
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextInput("A new day")
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save))
+            .assertIsEnabled()
+            .performClick()
+
+        // The prompt must not reappear while the saved text is in flight.
+        composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
+            .assertDoesNotExist()
     }
 
     @Test
@@ -777,8 +816,11 @@ class JournalScreenTest {
         }
         composeRule.onNodeWithContentDescription(context.getString(R.string.save))
             .assertIsNotDisplayed()
+        // The editor collapses to view mode holding the saved text; it must not blink back to the
+        // prompt while the committed text round-trips through the repository.
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).assertTextContains("Done from keyboard")
         composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
-            .assertIsDisplayed()
+            .assertDoesNotExist()
     }
 
     @Test
