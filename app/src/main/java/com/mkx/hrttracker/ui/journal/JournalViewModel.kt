@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.journal
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.journal.TrackedDate
@@ -121,6 +122,24 @@ class JournalViewModel @Inject constructor(
 
     fun deleteNote(date: LocalDate) = viewModelScope.launch {
         journalRepository.deleteNoteForDate(date)
+    }
+
+    // Debug-only: seed date-stamped sample notes across the recent window, the previous few
+    // months, and prior years, so the notes timeline, the "see all earlier notes" count, and the
+    // All Notes month grouping can be exercised without hand-entering data. Reachable only from a
+    // BuildConfig.DEBUG-gated long-press in the journal notes header; guarded here too so it stays
+    // inert in release. Re-running overwrites the same dates (saveNoteForDate upserts).
+    fun addDebugSampleNotes() = viewModelScope.launch {
+        if (!BuildConfig.DEBUG) return@launch
+        val today = today()
+        val dates = buildList {
+            listOf(1L, 3L, 8L, 15L, 27L).forEach { add(today.minusDays(it)) }
+            (2L..7L).forEach { add(today.minusMonths(it).withDayOfMonth(15)) }
+            (1..3).forEach { add(LocalDate.of(today.year - it, 6, 15)) }
+        }
+        dates.forEach { date ->
+            journalRepository.saveNoteForDate(date, "Sample note for $date")
+        }
     }
 }
 

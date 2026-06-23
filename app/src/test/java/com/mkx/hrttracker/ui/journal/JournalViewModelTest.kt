@@ -241,6 +241,31 @@ class JournalViewModelTest {
     }
 
     @Test
+    fun addDebugSampleNotes_seedsNotesAcrossRecentMonthsAndYears() = runTest {
+        stubEmptyObservers()
+        coEvery { repository.saveNoteForDate(any(), any()) } returns Unit
+        val viewModel = JournalViewModel(repository, appTimeSource)
+
+        viewModel.addDebugSampleNotes()
+        advanceUntilIdle()
+
+        // One date-stamped note lands in each of the three ranges: the recent window (timeline
+        // rail), a previous month (older-notes count / All Notes), and a prior year (All Notes
+        // spanning years) — 14 distinct dates in total.
+        val recent = today.minusDays(3)
+        val previousMonth = today.minusMonths(3).withDayOfMonth(15)
+        val previousYear = LocalDate.of(today.year - 2, 6, 15)
+        coVerify(exactly = 1) { repository.saveNoteForDate(recent, "Sample note for $recent") }
+        coVerify(exactly = 1) {
+            repository.saveNoteForDate(previousMonth, "Sample note for $previousMonth")
+        }
+        coVerify(exactly = 1) {
+            repository.saveNoteForDate(previousYear, "Sample note for $previousYear")
+        }
+        coVerify(exactly = 14) { repository.saveNoteForDate(any(), any()) }
+    }
+
+    @Test
     fun deleteTodayNote_usesCurrentLocalDateAfterRollover() = runTest {
         stubEmptyObservers()
         val tomorrow = LocalDate.of(2026, 6, 17)

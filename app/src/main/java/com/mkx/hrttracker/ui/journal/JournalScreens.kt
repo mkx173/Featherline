@@ -2,6 +2,8 @@ package com.mkx.hrttracker.ui.journal
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -50,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.takeOrElse
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.HeroBackground
@@ -97,6 +100,7 @@ fun JournalScreen(
         onSaveNote = viewModel::saveNote,
         onDeleteTodayNote = viewModel::deleteTodayNote,
         onDeleteNote = viewModel::deleteNote,
+        onAddDebugNotes = viewModel::addDebugSampleNotes,
         scrollToTopSignal = scrollToTopSignal,
         modifier = modifier,
     )
@@ -112,6 +116,7 @@ fun JournalScreenContent(
     onSaveNote: (LocalDate, String) -> Unit,
     onDeleteTodayNote: () -> Unit = { },
     onDeleteNote: (LocalDate) -> Unit = { },
+    onAddDebugNotes: () -> Unit = { },
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
 ) {
@@ -207,8 +212,20 @@ fun JournalScreenContent(
                                     text = stringResource(R.string.journal_notes_window_meta),
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-
-                                    )
+                                    // Debug-only: long-press this meta label to seed sample notes
+                                    // across the recent window, previous months, and prior years.
+                                    // No ripple — it's a hidden gesture on a plain text label.
+                                    modifier = if (BuildConfig.DEBUG) {
+                                        Modifier.combinedClickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = {},
+                                            onLongClick = onAddDebugNotes,
+                                        )
+                                    } else {
+                                        Modifier
+                                    },
+                                )
                             },
                         )
                     },
