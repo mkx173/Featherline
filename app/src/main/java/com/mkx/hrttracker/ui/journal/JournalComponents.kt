@@ -81,6 +81,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -179,6 +180,7 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val TodayComposerTextFieldTestTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field-"
@@ -2313,6 +2315,13 @@ private fun NoteEditorCard(
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    // A stable scope for the reveal scroll, deliberately separate from the keyed effect below.
+    // The reveal has to re-fire as the box grows and the keyboard rises, but a LaunchedEffect
+    // cancels its body whenever its keys change — so firing the scroll there cancels the in-flight
+    // animation every frame the keyboard ticks, and it only settles once the keyboard stops (a
+    // visible "catch-up" step after the expand). Launching into this scope instead leaves prior
+    // requests running; the bring-into-view responder folds them into one continuous scroll.
+    val revealScope = rememberCoroutineScope()
     val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     val sizeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<IntSize>()
 
@@ -2454,10 +2463,14 @@ private fun NoteEditorCard(
         if (isEditing) runCatching { focusRequester.requestFocus() }
     }
 
-    // Keep the full editor in view as it grows and as the keyboard rises. Re-keyed on the box
-    // height and IME inset so the final, fully-expanded box clears the IME.
+    // Keep the full editor in view as it grows and as the keyboard rises: re-fire on every box
+    // height and IME-inset change so the final, fully-expanded box (field + button row) clears the
+    // keyboard. Each request is launched into [revealScope] rather than run in this effect's own
+    // (keyed, cancel-on-rekey) coroutine, so a new request never cancels the in-flight scroll —
+    // the responder coalesces them into one motion that rides up with the keyboard instead of
+    // snapping into place after it settles.
     LaunchedEffect(isEditing, editorBoxHeightPx, imeBottomPx) {
-        if (isEditing) runCatching { bringIntoViewRequester.bringIntoView() }
+        if (isEditing) revealScope.launch { runCatching { bringIntoViewRequester.bringIntoView() } }
     }
 
     if (isDeleteConfirmationVisible) {
