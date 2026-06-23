@@ -594,7 +594,6 @@ fun AllNotesScreen(
         onNavigateBack = onNavigateBack,
         onSaveNote = viewModel::saveNote,
         onDeleteNote = viewModel::deleteNote,
-        today = uiState.today,
         modifier = modifier,
     )
 }
@@ -606,7 +605,6 @@ fun AllNotesScreenContent(
     onNavigateBack: () -> Unit,
     onSaveNote: (LocalDate, String) -> Unit,
     onDeleteNote: (LocalDate) -> Unit = { },
-    today: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -680,7 +678,6 @@ fun AllNotesScreenContent(
                         ) { index, note ->
                             AllNotesNoteRow(
                                 note = note,
-                                today = today,
                                 index = index,
                                 count = group.notes.size,
                                 controller = editorController,

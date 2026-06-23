@@ -53,7 +53,6 @@ class AllNotesScreenTest {
                     onNavigateBack = { navigatedBack = true },
                     onSaveNote = { _, _ -> },
                     onDeleteNote = { },
-                    today = LocalDate.of(2026, 6, 16),
                 )
             }
         }
@@ -114,7 +113,6 @@ class AllNotesScreenTest {
                     onNavigateBack = { },
                     onSaveNote = { _, _ -> },
                     onDeleteNote = { deletedDates += it },
-                    today = LocalDate.of(2026, 6, 16),
                 )
             }
         }

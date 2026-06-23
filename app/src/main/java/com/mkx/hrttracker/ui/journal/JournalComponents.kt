@@ -2844,7 +2844,6 @@ private fun NoteTimelineRow(
 @Composable
 fun AllNotesNoteRow(
     note: Note,
-    today: LocalDate,
     index: Int,
     count: Int,
     controller: NoteEditorController,
@@ -2852,7 +2851,7 @@ fun AllNotesNoteRow(
     onDelete: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val dateLabel = noteTimelineDateLabel(note.date, today)
+    val dateLabel = noteDateLabelWithoutYear(note.date)
     EditorSegmentedListItem(
         index = index,
         count = count,
@@ -2930,6 +2929,19 @@ private fun noteTimelineDateLabel(
     }
     // Exact date with a short weekday, year shown only for past years (e.g. "Jun 15 Sun",
     // "Jun 15, 2025 Sun", "6月15日 周三"). No relative "Today"/"Yesterday" labels.
+    return dateFormatter(date)
+}
+
+// Date + short weekday without the year (e.g. "Jun 15 Sun", "6月15日 周三"). Used by the All Notes
+// list, where each row already sits under a month-and-year section header, so repeating the year
+// per row is redundant. Reuse the schedule formatter with the note's own date as the reference so
+// it never crosses into the "other year" branch.
+@Composable
+private fun noteDateLabelWithoutYear(date: LocalDate): String {
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale, date) {
+        medicationGroupScheduleDateFormatter(appLocale, today = date)
+    }
     return dateFormatter(date)
 }
 
