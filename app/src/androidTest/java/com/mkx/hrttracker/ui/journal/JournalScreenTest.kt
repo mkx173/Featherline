@@ -777,6 +777,84 @@ class JournalScreenTest {
     }
 
     @Test
+    fun notesTimelineRow_switchingEditorsDiscardsUnsavedDraft() {
+        val today = LocalDate.of(2026, 6, 16)
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = today,
+                        recentNotes = listOf(
+                            Note(id = "june-15", date = today.minusDays(1), text = "Yesterday note"),
+                            Note(id = "june-14", date = today.minusDays(2), text = "Earlier note"),
+                        ),
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = {},
+                    onSaveNote = { _, _ -> },
+                )
+            }
+        }
+
+        // Edit row A's text but don't save it.
+        composeRule.onNodeWithText("Yesterday note").performClick()
+        composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15").performTextClearance()
+        composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
+            .performTextInput("Abandoned edit")
+
+        // Switch to row B without saving — the shared controller closes A without its cancel path.
+        composeRule.onNodeWithText("Earlier note").performClick()
+
+        // Re-open A: the abandoned draft must NOT survive; the field shows the persisted text.
+        composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15").performClick()
+        composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
+            .assertTextContains("Yesterday note")
+        composeRule.onAllNodesWithText("Abandoned edit").assertCountEquals(0)
+    }
+
+    @Test
+    fun todaySavedNote_failedDeleteKeepsSavedTextNotDraft() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        val todayNote = Note(id = "june-16", date = today, text = "Existing note")
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = today,
+                        todayNote = todayNote,
+                        recentNotes = listOf(todayNote),
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = {},
+                    onSaveNote = { _, _ -> },
+                    // Simulate a delete that fails to persist: the note stays in uiState.
+                    onDeleteTodayNote = {},
+                    onDeleteNote = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Existing note").performClick()
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextClearance()
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextInput("Modified draft")
+        composeRule.onNodeWithContentDescription(context.getString(R.string.journal_delete_note))
+            .performClick()
+        composeRule.onNodeWithText(context.getString(R.string.delete_entries_confirm)).performClick()
+
+        // The delete did not persist (row still present); the field must show the saved text, not
+        // the unsaved modification it would otherwise keep displaying as if persisted.
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).assertTextContains("Existing note")
+        composeRule.onAllNodesWithText("Modified draft").assertCountEquals(0)
+    }
+
+    @Test
     fun todayEditor_imeActionSavesAndCloses() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val today = LocalDate.of(2026, 6, 16)

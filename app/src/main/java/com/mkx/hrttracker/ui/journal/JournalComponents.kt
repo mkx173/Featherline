@@ -2484,8 +2484,18 @@ private fun NoteEditorCard(
     // Focus the field when edit mode begins. Tapping existing text's field already focuses it
     // (that focus is what flips isEditing); this also covers expanding from the prompt, where
     // the tap landed on the prompt rather than the field.
+    // On close, if no save is pending, discard the in-progress draft so it can't linger: the
+    // collapsed row renders draftText, and re-opening goes through controller.begin (not
+    // beginEditing) without re-seeding, so an abandoned edit would otherwise resurface — and be
+    // re-savable — after switching to another card, cancelling, backing out, or confirming a delete
+    // (whose write may fail, leaving the row showing an unsaved draft as if persisted). A pending
+    // save keeps its draft: it is held through the round-trip and the failure-recovery reopen.
     LaunchedEffect(isEditing) {
-        if (isEditing) runCatching { focusRequester.requestFocus() }
+        if (isEditing) {
+            runCatching { focusRequester.requestFocus() }
+        } else if (!savePending) {
+            draftText = text
+        }
     }
 
     // Release the save latch once the committed text lands — from here the field is held by
