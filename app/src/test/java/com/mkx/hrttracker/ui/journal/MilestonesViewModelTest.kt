@@ -28,6 +28,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -651,6 +652,131 @@ class MilestonesViewModelTest {
         advanceUntilIdle()
         assertEquals("External edit", viewModel.uiState.value.hero?.name)
         assertEquals(MedicationGroupColorKey.ROSE, viewModel.uiState.value.hero?.palette)
+    }
+
+    @Test
+    fun setPinned_writeFailure_rollsBackPinAndSetsSaveError() = runTest {
+        val a = trackedDate(
+            id = "a", name = "Anchor A", icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1), pinnedOrder = null,
+        )
+        val dates = MutableStateFlow(listOf(a))
+        every { repository.observeTrackedDates() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(emptyList())
+        coEvery { repository.setPinned(any(), any()) } throws IOException("io")
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.pinnedTray.isEmpty())
+
+        viewModel.setPinned("a", true)
+        advanceUntilIdle()
+
+        // Optimistic pin rolled back to the source-of-truth (still unpinned) and SAVE surfaced.
+        assertTrue(viewModel.uiState.value.pinnedTray.isEmpty())
+        assertEquals(MilestoneMutation.SAVE, viewModel.uiState.value.dateMutationError)
+    }
+
+    @Test
+    fun reorderPinned_writeFailure_revertsOrderAndSetsSaveError() = runTest {
+        val a = trackedDate(
+            id = "a", name = "Anchor A", icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
+        )
+        val b = trackedDate(
+            id = "b", name = "Anchor B", icon = AnchorIcon.FLAG,
+            date = LocalDate.of(2024, 5, 1), pinnedOrder = 1,
+        )
+        val dates = MutableStateFlow(listOf(a, b))
+        every { repository.observeTrackedDates() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b))
+        coEvery { repository.reorderPinned(any()) } throws IOException("io")
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        assertEquals(listOf("Anchor A", "Anchor B"), viewModel.uiState.value.pinnedTray.map { it.name })
+
+        viewModel.reorderPinned(listOf("b", "a"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("Anchor A", "Anchor B"), viewModel.uiState.value.pinnedTray.map { it.name })
+        assertEquals(MilestoneMutation.SAVE, viewModel.uiState.value.dateMutationError)
+    }
+
+    @Test
+    fun setHeroBackground_writeFailure_revertsBackgroundAndSetsSaveError() = runTest {
+        val hero = trackedDate(
+            id = "a", name = "Anchor A", icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
+        )
+        val dates = MutableStateFlow(listOf(hero))
+        every { repository.observeTrackedDates() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
+        coEvery { repository.setHeroBackground(any(), any()) } throws IOException("io")
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        assertEquals(HeroBackground.None, viewModel.uiState.value.hero?.heroBackground)
+
+        viewModel.setHeroBackground("a", HeroBackground.DateColor)
+        advanceUntilIdle()
+
+        assertEquals(HeroBackground.None, viewModel.uiState.value.hero?.heroBackground)
+        assertEquals(MilestoneMutation.SAVE, viewModel.uiState.value.dateMutationError)
+    }
+
+    @Test
+    fun updateDate_writeFailure_revertsFieldsAndSetsSaveError() = runTest {
+        val original = trackedDate(
+            id = "a", name = "Old name", icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1), palette = MedicationGroupColorKey.ROSE,
+            pinnedOrder = 0,
+        )
+        val dates = MutableStateFlow(listOf(original))
+        every { repository.observeTrackedDates() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(listOf(original))
+        coEvery { repository.updateTrackedDate(any(), any(), any(), any(), any()) } throws IOException("io")
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        viewModel.updateDate(
+            id = "a",
+            name = "New name",
+            icon = AnchorIcon.FLAG.storageKey,
+            date = LocalDate.of(2024, 5, 2),
+            paletteKey = MedicationGroupColorKey.TEAL.name,
+        )
+        advanceUntilIdle()
+
+        val hero = viewModel.uiState.value.hero
+        assertEquals("Old name", hero?.name)
+        assertEquals(AnchorIcon.MEDICATION, hero?.icon)
+        assertEquals(LocalDate.of(2024, 4, 1), hero?.date)
+        assertEquals(MedicationGroupColorKey.ROSE, hero?.palette)
+        assertEquals(MilestoneMutation.SAVE, viewModel.uiState.value.dateMutationError)
+    }
+
+    @Test
+    fun deleteDate_writeFailure_setsDeleteError() = runTest {
+        stubTrackedDates()
+        coEvery { repository.deleteTrackedDate("date-1") } throws IOException("io")
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        viewModel.deleteDate("date-1")
+        advanceUntilIdle()
+
+        assertEquals(MilestoneMutation.DELETE, viewModel.uiState.value.dateMutationError)
+    }
+
+    @Test
+    fun addDate_writeFailure_setsSaveError() = runTest {
+        stubTrackedDates()
+        coEvery { repository.addTrackedDate(any(), any(), any(), any(), any()) } throws IOException("io")
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        viewModel.addDate("Labs", AnchorIcon.LABS.storageKey, LocalDate.of(2026, 7, 1), "TEAL", pinned = true)
+        advanceUntilIdle()
+
+        assertEquals(MilestoneMutation.SAVE, viewModel.uiState.value.dateMutationError)
     }
 
     private fun stubTrackedDates(

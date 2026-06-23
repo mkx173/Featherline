@@ -9,6 +9,8 @@ import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -28,6 +31,7 @@ class MilestonesViewModel @Inject constructor(
     appTimeSource: AppTimeSource,
 ) : ViewModel() {
     private val editMode = MutableStateFlow(false)
+    private val dateMutationError = MutableStateFlow<MilestoneMutation?>(null)
     private val todayFlow = appTimeSource.currentMinute
         .map { it.toLocalDate() }
         .distinctUntilChanged()
@@ -62,8 +66,8 @@ class MilestonesViewModel @Inject constructor(
         buildUiState(all, today, pending)
     }
 
-    val uiState: StateFlow<MilestonesUiState> = combine(core, editMode) { state, isEdit ->
-        state.copy(isEditMode = isEdit)
+    val uiState: StateFlow<MilestonesUiState> = combine(core, editMode, dateMutationError) { state, isEdit, error ->
+        state.copy(isEditMode = isEdit, dateMutationError = error)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
@@ -121,24 +125,42 @@ class MilestonesViewModel @Inject constructor(
     fun setPinned(id: String, pinned: Boolean) {
         pendingEdits.update { it.copy(pinnedState = it.pinnedState + (id to pinned)) }
         viewModelScope.launch {
-            journalRepository.setPinned(id, pinned)
-            reconcilePendingAgainstSource()
+            runCatching { withContext(NonCancellable) { journalRepository.setPinned(id, pinned) } }
+                .onSuccess { reconcilePendingAgainstSource() }
+                .onFailure {
+                    if (it is CancellationException) throw it
+                    // Roll back the optimistic pin so the tray snaps back to the source of truth.
+                    pendingEdits.update { e -> e.copy(pinnedState = e.pinnedState - id) }
+                    dateMutationError.value = MilestoneMutation.SAVE
+                }
         }
     }
 
     fun setHeroBackground(id: String, background: HeroBackground) {
         pendingEdits.update { it.copy(heroBackground = it.heroBackground + (id to background)) }
         viewModelScope.launch {
-            journalRepository.setHeroBackground(id, background)
-            reconcilePendingAgainstSource()
+            runCatching { withContext(NonCancellable) { journalRepository.setHeroBackground(id, background) } }
+                .onSuccess { reconcilePendingAgainstSource() }
+                .onFailure {
+                    if (it is CancellationException) throw it
+                    pendingEdits.update { e -> e.copy(heroBackground = e.heroBackground - id) }
+                    dateMutationError.value = MilestoneMutation.SAVE
+                }
         }
     }
 
     fun reorderPinned(ids: List<String>) {
         pendingEdits.update { it.copy(pinnedOrder = ids) }
         viewModelScope.launch {
-            journalRepository.reorderPinned(ids)
-            reconcilePendingAgainstSource()
+            runCatching { withContext(NonCancellable) { journalRepository.reorderPinned(ids) } }
+                .onSuccess { reconcilePendingAgainstSource() }
+                .onFailure {
+                    if (it is CancellationException) throw it
+                    // Coarse rollback: clears ANY pending order, not just this one. Acceptable because
+                    // user actions serialize and Room latency is short (design §3 edge case).
+                    pendingEdits.update { e -> e.copy(pinnedOrder = null) }
+                    dateMutationError.value = MilestoneMutation.SAVE
+                }
         }
     }
 
@@ -149,7 +171,14 @@ class MilestonesViewModel @Inject constructor(
         paletteKey: String?,
         pinned: Boolean,
     ) = viewModelScope.launch {
-        journalRepository.addTrackedDate(name, icon, date, paletteKey, pinned)
+        runCatching {
+            withContext(NonCancellable) {
+                journalRepository.addTrackedDate(name, icon, date, paletteKey, pinned)
+            }
+        }.onFailure {
+            if (it is CancellationException) throw it
+            dateMutationError.value = MilestoneMutation.SAVE
+        }
     }
 
     fun updateDate(
@@ -169,13 +198,30 @@ class MilestonesViewModel @Inject constructor(
         )
         pendingEdits.update { it.copy(dateEdits = it.dateEdits + (id to edit)) }
         viewModelScope.launch {
-            journalRepository.updateTrackedDate(id, name, icon, date, paletteKey)
-            reconcilePendingAgainstSource()
+            runCatching {
+                withContext(NonCancellable) {
+                    journalRepository.updateTrackedDate(id, name, icon, date, paletteKey)
+                }
+            }
+                .onSuccess { reconcilePendingAgainstSource() }
+                .onFailure {
+                    if (it is CancellationException) throw it
+                    pendingEdits.update { e -> e.copy(dateEdits = e.dateEdits - id) }
+                    dateMutationError.value = MilestoneMutation.SAVE
+                }
         }
     }
 
     fun deleteDate(id: String) = viewModelScope.launch {
-        journalRepository.deleteTrackedDate(id)
+        runCatching { withContext(NonCancellable) { journalRepository.deleteTrackedDate(id) } }
+            .onFailure {
+                if (it is CancellationException) throw it
+                dateMutationError.value = MilestoneMutation.DELETE
+            }
+    }
+
+    fun consumeDateMutationError() {
+        dateMutationError.value = null
     }
 
     private fun pinnedSorted(dates: List<TrackedDate>): List<TrackedDate> =
