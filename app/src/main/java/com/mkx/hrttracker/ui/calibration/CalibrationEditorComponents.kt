@@ -44,18 +44,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.node.LayoutAwareModifierNode
-import androidx.compose.ui.node.ModifierNodeElement
-import androidx.compose.ui.node.requireLayoutCoordinates
-import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.relocation.BringIntoViewModifierNode
-import androidx.compose.ui.relocation.bringIntoView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -74,6 +66,7 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
+import com.mkx.hrttracker.ui.components.bringWholeFieldIntoView
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calibrationUnitLabel
 
@@ -591,71 +584,6 @@ internal fun calibrationEditorAnalyteImeAction(index: Int, count: Int): ImeActio
     }
 }
 
-private fun Modifier.bringWholeFieldIntoView(): Modifier =
-    this.then(WholeFieldBringIntoViewElement)
-
-private object WholeFieldBringIntoViewElement :
-    ModifierNodeElement<WholeFieldBringIntoViewNode>() {
-    override fun create(): WholeFieldBringIntoViewNode = WholeFieldBringIntoViewNode()
-
-    override fun update(node: WholeFieldBringIntoViewNode) = Unit
-
-    override fun equals(other: Any?): Boolean = other === this
-
-    override fun hashCode(): Int = javaClass.hashCode()
-
-    override fun InspectorInfo.inspectableProperties() {
-        name = "bringWholeFieldIntoView"
-    }
-}
-
-private class WholeFieldBringIntoViewNode :
-    Modifier.Node(),
-    BringIntoViewModifierNode,
-    LayoutAwareModifierNode {
-    override val shouldAutoInvalidate: Boolean = false
-
-    private var hasBeenPlaced = false
-
-    override fun onPlaced(coordinates: LayoutCoordinates) {
-        hasBeenPlaced = true
-    }
-
-    override suspend fun bringIntoView(
-        childCoordinates: LayoutCoordinates,
-        boundsProvider: () -> Rect?,
-    ) {
-        fun localRect(): Rect? {
-            if (!isAttached || !hasBeenPlaced) return null
-
-            val layoutCoordinates = requireLayoutCoordinates()
-            val attachedChildCoordinates = childCoordinates.takeIf(LayoutCoordinates::isAttached)
-                ?: return null
-            val childRect = boundsProvider() ?: return null
-            return layoutCoordinates.localRectOf(attachedChildCoordinates, childRect)
-        }
-
-        bringIntoView {
-            localRect()?.let {
-                val layoutCoordinates = requireLayoutCoordinates()
-                Rect(
-                    0f,
-                    0f,
-                    layoutCoordinates.size.width.toFloat(),
-                    layoutCoordinates.size.height.toFloat(),
-                )
-            }
-        }
-    }
-}
-
-private fun LayoutCoordinates.localRectOf(
-    sourceCoordinates: LayoutCoordinates,
-    rect: Rect,
-): Rect {
-    val localRect = localBoundingBoxOf(sourceCoordinates, clipBounds = false)
-    return rect.translate(localRect.topLeft)
-}
 
 @Composable
 private fun CalibrationRangeStatusChip(

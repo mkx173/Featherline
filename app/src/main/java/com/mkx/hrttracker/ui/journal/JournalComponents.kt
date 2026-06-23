@@ -47,6 +47,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
@@ -69,6 +71,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -118,6 +121,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
@@ -150,6 +154,7 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SegmentPosition
 import com.mkx.hrttracker.ui.components.StockStatusIndicator
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.bringWholeFieldIntoView
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.isHazeBlurSupported
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -2218,6 +2223,30 @@ private fun TodayMarkerRow(
     }
 }
 
+// Coordinates which note editor is open across the Today composer and the timeline rows below
+// it. Holding the open note's identity in one place keeps a single editor open at a time —
+// opening another closes the previous — and, being plain composition state (not
+// rememberSaveable), it is discarded when the screen leaves composition, so navigating away and
+// back returns with every editor closed rather than restoring a stale open one.
+@Stable
+class NoteEditorController {
+    var activeEditorId by mutableStateOf<Any?>(null)
+        private set
+
+    fun isEditing(identity: Any?): Boolean = activeEditorId != null && activeEditorId == identity
+
+    fun begin(identity: Any?) {
+        activeEditorId = identity
+    }
+
+    fun finish(identity: Any?) {
+        if (activeEditorId == identity) activeEditorId = null
+    }
+}
+
+@Composable
+fun rememberNoteEditorController(): NoteEditorController = remember { NoteEditorController() }
+
 @Composable
 fun TodayComposer(
     today: LocalDate,
@@ -2225,6 +2254,7 @@ fun TodayComposer(
     onSave: (String) -> Unit,
     onDelete: () -> Unit = { },
     modifier: Modifier = Modifier,
+    editorController: NoteEditorController = rememberNoteEditorController(),
 ) {
     EditorSegmentedListItem(
         modifier = modifier.fillMaxWidth(),
@@ -2233,6 +2263,7 @@ fun TodayComposer(
             modifier = Modifier.padding(bottom = 6.dp),
             text = note?.text.orEmpty(),
             identity = note?.id ?: "today-$today",
+            controller = editorController,
             onSave = onSave,
             onDelete = onDelete,
             fieldModifier = Modifier.testTag(TodayComposerTextFieldTestTag),
@@ -2254,6 +2285,7 @@ fun TodayComposer(
 private fun NoteEditorCard(
     text: String,
     identity: Any,
+    controller: NoteEditorController,
     onSave: (String) -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
@@ -2261,7 +2293,10 @@ private fun NoteEditorCard(
     header: (@Composable () -> Unit)? = null,
     prompt: (@Composable (onClick: () -> Unit) -> Unit)? = null,
 ) {
-    var isEditing by rememberSaveable(identity, text) { mutableStateOf(false) }
+    // The open/closed state is owned by the shared controller so only one card edits at a time
+    // and the open state is dropped on navigation away. The draft stays local and is re-seeded
+    // from [text] each time editing begins.
+    val isEditing = controller.isEditing(identity)
     var draftText by rememberSaveable(identity, text) { mutableStateOf(text) }
     var isDeleteConfirmationVisible by rememberSaveable(identity) { mutableStateOf(false) }
     // Whether this edit targets text that already existed. Captured when editing begins and
@@ -2281,13 +2316,26 @@ private fun NoteEditorCard(
 
     val finishEditing = {
         focusManager.clearFocus()
-        isEditing = false
+        controller.finish(identity)
     }
 
     val beginEditing = {
         draftText = text
         editingExistingNote = text.isNotEmpty()
-        isEditing = true
+        controller.begin(identity)
+    }
+
+    // Commit the draft and close the editor. Shared by the Save button and the IME "Done" action
+    // so both follow the same save-then-clear-focus path. A blank or unchanged draft writes
+    // nothing and just reverts to the saved text.
+    val saveEditing = {
+        val trimmed = draftText.trim()
+        if (trimmed.isNotEmpty() && trimmed != text.trim()) {
+            onSave(trimmed)
+        } else if (text.isNotEmpty()) {
+            draftText = text
+        }
+        finishEditing()
     }
 
     Column(
@@ -2317,6 +2365,9 @@ private fun NoteEditorCard(
                         .fillMaxWidth()
                         .clip(MaterialTheme.shapes.large)
                         .background(MaterialTheme.colorScheme.surfaceContainer)
+                        // Lift the whole card — text field plus the Cancel/Save/Delete row — above
+                        // the IME on focus, not just the cursor line (see bringWholeFieldIntoView).
+                        .bringWholeFieldIntoView()
                         .padding(horizontal = 14.dp, vertical = 12.dp),
                 ) {
                     ComposerTextField(
@@ -2325,8 +2376,9 @@ private fun NoteEditorCard(
                         focusRequester = focusRequester,
                         onFocused = {
                             editingExistingNote = text.isNotEmpty()
-                            isEditing = true
+                            controller.begin(identity)
                         },
+                        onImeAction = saveEditing,
                         expanded = isEditing,
                         modifier = fieldModifier.fillMaxWidth(),
                     )
@@ -2364,15 +2416,7 @@ private fun NoteEditorCard(
                                 if (text.isNotEmpty()) draftText = text
                                 finishEditing()
                             },
-                            onSave = {
-                                val trimmed = draftText.trim()
-                                if (trimmed.isNotEmpty() && trimmed != text.trim()) {
-                                    onSave(trimmed)
-                                } else if (text.isNotEmpty()) {
-                                    draftText = text
-                                }
-                                finishEditing()
-                            },
+                            onSave = saveEditing,
                         )
                     }
                 }
@@ -2530,6 +2574,7 @@ private fun ComposerTextField(
     onValueChange: (String) -> Unit,
     focusRequester: FocusRequester,
     onFocused: () -> Unit,
+    onImeAction: () -> Unit,
     modifier: Modifier = Modifier,
     expanded: Boolean = false,
 ) {
@@ -2551,6 +2596,11 @@ private fun ComposerTextField(
             .onFocusChanged { if (it.isFocused) onFocused() },
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = colorScheme.onSurface),
         cursorBrush = SolidColor(colorScheme.primary),
+        // The keyboard's action key commits the note, matching the Save button's path (the field
+        // stays multiline for display — the same Done-to-save convention as the calibration notes
+        // field).
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { onImeAction() }),
         decorationBox = { innerTextField ->
             Box(modifier = Modifier.fillMaxWidth().heightIn(min = minHeight)) {
                 innerTextField()
@@ -2566,6 +2616,7 @@ fun NotesTimeline(
     onSave: (LocalDate, String) -> Unit,
     onDelete: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
+    editorController: NoteEditorController = rememberNoteEditorController(),
 ) {
     if (notes.isEmpty()) {
         return
@@ -2587,6 +2638,7 @@ fun NotesTimeline(
                     isFirst = index == 0,
                     isLast = index == notes.lastIndex,
                     today = today,
+                    controller = editorController,
                     onSave = onSave,
                     onDelete = onDelete,
                 )
@@ -2601,6 +2653,7 @@ private fun NoteTimelineRow(
     isFirst: Boolean,
     isLast: Boolean,
     today: LocalDate,
+    controller: NoteEditorController,
     onSave: (LocalDate, String) -> Unit,
     onDelete: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
@@ -2661,6 +2714,7 @@ private fun NoteTimelineRow(
             NoteEditorCard(
                 text = note.text,
                 identity = note.id,
+                controller = controller,
                 onSave = { onSave(note.date, it) },
                 onDelete = { onDelete(note.date) },
                 fieldModifier = Modifier.testTag("$NoteTimelineTextFieldTestTagPrefix${note.id}"),

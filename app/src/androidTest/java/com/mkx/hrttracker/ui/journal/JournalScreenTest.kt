@@ -4,17 +4,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
@@ -737,6 +740,86 @@ class JournalScreenTest {
         composeRule.runOnIdle {
             assertEquals(listOf(today.minusDays(1) to "Edited yesterday"), savedNotes)
         }
+    }
+
+    @Test
+    fun todayEditor_imeActionSavesAndCloses() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        val savedTexts = mutableListOf<String>()
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = today,
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = { savedTexts += it },
+                    onSaveNote = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
+            .performClick()
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag)
+            .performTextInput("Done from keyboard")
+
+        // The keyboard's action key must follow the Save button's path: write the note, then
+        // close the editor (clearing focus collapses it back to the prompt).
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performImeAction()
+
+        composeRule.runOnIdle {
+            assertEquals(listOf("Done from keyboard"), savedTexts)
+        }
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save))
+            .assertIsNotDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun openingAnotherEditor_closesThePreviouslyOpenEditor() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 16)
+        val todayNote = Note(id = "june-16", date = today, text = "Today entry")
+        val pastNote = Note(id = "june-15", date = today.minusDays(1), text = "Yesterday entry")
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = today,
+                        todayNote = todayNote,
+                        recentNotes = listOf(todayNote, pastNote),
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = {},
+                    onSaveNote = { _, _ -> },
+                )
+            }
+        }
+
+        // Open the Today editor; its Save control (only shown while editing) appears.
+        composeRule.onNodeWithText("Today entry").performClick()
+        composeRule.onAllNodesWithContentDescription(context.getString(R.string.save))
+            .assertCountEquals(1)
+
+        // Opening the past note's editor must close Today's: a single note edits at a time, so
+        // exactly one Save control is ever present — never one per opened card.
+        composeRule.onNodeWithTag(JournalScreenListTag)
+            .performScrollToNode(hasText("Yesterday entry"))
+        composeRule.onNodeWithText("Yesterday entry").performClick()
+
+        composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
+            .assertIsDisplayed()
+        composeRule.onAllNodesWithContentDescription(context.getString(R.string.save))
+            .assertCountEquals(1)
     }
 
     @Test

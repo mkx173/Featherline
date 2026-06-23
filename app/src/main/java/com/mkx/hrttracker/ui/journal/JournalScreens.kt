@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -117,6 +118,9 @@ fun JournalScreenContent(
     val listState = rememberLazyListState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
     val timelineNotes = uiState.recentNotes.filter { it.date != uiState.today }
+    // One controller shared by the Today composer and the timeline rows: a single editor stays
+    // open at a time, and it resets to closed when this screen leaves composition.
+    val editorController = rememberNoteEditorController()
     ScrollToTopSignalEffect(
         signal = scrollToTopSignal,
         topAppBarState = scrollBehavior.state,
@@ -148,6 +152,9 @@ fun JournalScreenContent(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
+                    // Shrink the list above the keyboard so the focused editor can scroll into the
+                    // visible area (paired with bringWholeFieldIntoView on the editor card).
+                    .imePadding()
                     .testTag(JournalScreenListTestTag),
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
@@ -212,6 +219,7 @@ fun JournalScreenContent(
                             note = uiState.todayNote,
                             onSave = onSaveTodayNote,
                             onDelete = onDeleteTodayNote,
+                            editorController = editorController,
                         )
                     }
                 }
@@ -228,6 +236,7 @@ fun JournalScreenContent(
                                 today = uiState.today,
                                 onSave = onSaveNote,
                                 onDelete = onDeleteNote,
+                                editorController = editorController,
                             )
                         }
                     }
@@ -573,6 +582,8 @@ fun AllNotesScreenContent(
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
+    // Shared across every month's timeline so a single note edits at a time, reset on navigation.
+    val editorController = rememberNoteEditorController()
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -605,7 +616,10 @@ fun AllNotesScreenContent(
 
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    // Lift the list above the keyboard so a focused note editor scrolls into view.
+                    .imePadding(),
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
                 if (uiState.monthGroups.isEmpty()) {
@@ -635,6 +649,7 @@ fun AllNotesScreenContent(
                                         today = today,
                                         onSave = onSaveNote,
                                         onDelete = onDeleteNote,
+                                        editorController = editorController,
                                     )
                                 }
                             }
