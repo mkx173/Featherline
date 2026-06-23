@@ -321,11 +321,13 @@ class JournalViewModelTest {
         coEvery { repository.deleteNoteForDate(noteDate) } throws IOException("io")
         val viewModel = JournalViewModel(repository, appTimeSource)
         advanceUntilIdle()
+        val tokenBefore = viewModel.uiState.value.noteSaveFailureToken
 
         viewModel.deleteNote(noteDate)
         advanceUntilIdle()
 
         assertEquals(JournalNoteMutation.DELETE, viewModel.uiState.value.noteMutationError)
+        assertEquals(tokenBefore, viewModel.uiState.value.noteSaveFailureToken)
     }
 
     @Test
@@ -339,6 +341,7 @@ class JournalViewModelTest {
         advanceUntilIdle()
 
         assertNull(viewModel.uiState.value.noteMutationError)
+        coVerify(exactly = 1) { repository.saveNoteForDate(noteDate, "ok") }
     }
 
     private fun stubEmptyObservers() {

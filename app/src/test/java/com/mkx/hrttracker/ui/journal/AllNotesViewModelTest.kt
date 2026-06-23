@@ -114,11 +114,13 @@ class AllNotesViewModelTest {
         coEvery { repository.deleteNoteForDate(noteDate) } throws IOException("io")
         val viewModel = AllNotesViewModel(repository, appTimeSource)
         advanceUntilIdle()
+        val tokenBefore = viewModel.uiState.value.noteSaveFailureToken
 
         viewModel.deleteNote(noteDate)
         advanceUntilIdle()
 
         assertEquals(JournalNoteMutation.DELETE, viewModel.uiState.value.noteMutationError)
+        assertEquals(tokenBefore, viewModel.uiState.value.noteSaveFailureToken)
     }
 
     private fun note(
