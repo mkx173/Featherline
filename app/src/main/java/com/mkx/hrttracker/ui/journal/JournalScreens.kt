@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -11,9 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -21,6 +24,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -658,37 +662,82 @@ fun AllNotesScreenContent(
                         EmptyAllNotesCard()
                     }
                 } else {
-                    uiState.monthGroups.forEachIndexed { index, group ->
+                    uiState.monthGroups.forEachIndexed { groupIndex, group ->
                         item(
-                            key = "all-notes-${group.month}",
-                            contentType = "journal-month-section",
+                            key = "all-notes-header-${group.month}",
+                            contentType = "journal-month-header",
                         ) {
-                            HrtSection(
-                                title = allNotesMonthLabel(group.month),
-                                topPadding = index != 0,
-                                headerTrailing = {
-                                    Text(
-                                        text = group.notes.size.toString(),
-                                        modifier = Modifier.alignByBaseline(),
+                            AllNotesMonthHeader(
+                                monthLabel = allNotesMonthLabel(group.month),
+                                noteCount = group.notes.size,
+                            )
+                        }
+
+                        itemsIndexed(
+                            items = group.notes,
+                            key = { _, note -> "all-notes-${note.id}" },
+                            contentType = { _, _ -> "journal-note-row" },
+                        ) { index, note ->
+                            AllNotesNoteRow(
+                                note = note,
+                                today = today,
+                                index = index,
+                                count = group.notes.size,
+                                controller = editorController,
+                                onSave = onSaveNote,
+                                onDelete = onDeleteNote,
+                            )
+                            if (index < group.notes.lastIndex) {
+                                Spacer(
+                                    modifier = Modifier.height(
+                                        dimensionResource(R.dimen.list_segment_gap)
                                     )
-                                },
-                                headerTrailingAlignByBaseline = true,
-                            ) {
-                                item {
-                                    NotesTimeline(
-                                        notes = group.notes,
-                                        today = today,
-                                        onSave = onSaveNote,
-                                        onDelete = onDeleteNote,
-                                        editorController = editorController,
-                                    )
-                                }
+                                )
+                            }
+                        }
+
+                        if (groupIndex < uiState.monthGroups.lastIndex) {
+                            item(key = "all-notes-gap-${group.month}") {
+                                Spacer(modifier = Modifier.height(16.dp))
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+// Month section header for the All Notes list, matching the calibration screen's: an uppercased
+// month label, a hairline divider filling the row, and the month's note count on the trailing end.
+@Composable
+private fun AllNotesMonthHeader(
+    monthLabel: String,
+    noteCount: Int,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp, top = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = monthLabel.uppercase(),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+        )
+        Text(
+            text = noteCount.toString(),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
     }
 }
 

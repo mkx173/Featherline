@@ -120,7 +120,7 @@ class AllNotesScreenTest {
         }
 
         composeRule.onNodeWithText("June note").performClick()
-        composeRule.onNodeWithText(context.getString(R.string.journal_delete_note))
+        composeRule.onNodeWithContentDescription(context.getString(R.string.journal_delete_note))
             .assertIsDisplayed()
             .performClick()
         composeRule.onNodeWithText(context.getString(R.string.journal_delete_note_title))

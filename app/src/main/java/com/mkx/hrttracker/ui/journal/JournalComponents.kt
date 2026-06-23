@@ -2836,6 +2836,51 @@ private fun NoteTimelineRow(
     }
 }
 
+// A single past note on the All Notes screen: its own segmented list card, the date label as
+// the card's title above the editable text field. Unlike [NotesTimeline] (the journal top page),
+// the all-notes list drops the timeline rail and groups notes as plain segmented cards, mirroring
+// the calibration screen's month sections. [index]/[count] drive the card's segmented corners.
+@Composable
+fun AllNotesNoteRow(
+    note: Note,
+    today: LocalDate,
+    index: Int,
+    count: Int,
+    controller: NoteEditorController,
+    onSave: (LocalDate, String) -> Unit,
+    onDelete: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val dateLabel = noteTimelineDateLabel(note.date, today)
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("$NoteTimelineRowTestTagPrefix${note.id}"),
+    ) {
+        NoteEditorCard(
+            text = note.text,
+            identity = note.id,
+            controller = controller,
+            onSave = { onSave(note.date, it) },
+            onDelete = { onDelete(note.date) },
+            fieldModifier = Modifier.testTag("$NoteTimelineTextFieldTestTagPrefix${note.id}"),
+            header = {
+                Text(
+                    text = dateLabel,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // 6dp here plus the editor Column's 2dp gap matches the old rail's 8dp label gap.
+                    modifier = Modifier
+                        .padding(bottom = 6.dp)
+                        .cjkTextOffset(dateLabel),
+                )
+            },
+        )
+    }
+}
+
 // A filled accent dot for a note's day. Notes carry no medication palette, so every dot is
 // the app's primary accent (unlike MilestoneNode, which colours by palette / future state).
 @Composable
