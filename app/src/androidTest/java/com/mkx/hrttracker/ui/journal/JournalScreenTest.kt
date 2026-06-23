@@ -29,13 +29,13 @@ import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
-import java.time.format.TextStyle
 
 private const val TodayComposerTextFieldTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTagPrefix = "note-timeline-text-field-"
@@ -610,7 +610,7 @@ class JournalScreenTest {
         }
 
         composeRule.onNodeWithText(
-            context.getString(R.string.journal_today).uppercase(appLocale)
+            medicationGroupScheduleDateFormatter(appLocale, today)(today)
         ).assertIsDisplayed()
         composeRule.onNodeWithText("Today timeline note").assertIsDisplayed()
         composeRule.onNodeWithText("2026-06-16").assertIsNotDisplayed()
@@ -667,12 +667,7 @@ class JournalScreenTest {
         val appLocale = context.resources.configuration.locales[0]
         val today = LocalDate.of(2026, 6, 16)
         val targetDate = today.minusDays(2)
-        val dateFormatter = dateLabelFormatter(appLocale, today)
-        val targetDateLabel = context.getString(
-            R.string.journal_note_date_weekday_pattern,
-            targetDate.dayOfWeek.getDisplayName(TextStyle.FULL, appLocale),
-            dateFormatter(targetDate),
-        ).uppercase(appLocale)
+        val targetDateLabel = medicationGroupScheduleDateFormatter(appLocale, today)(targetDate)
 
         composeRule.setContent {
             HrtTrackerTheme(dynamicColor = false) {

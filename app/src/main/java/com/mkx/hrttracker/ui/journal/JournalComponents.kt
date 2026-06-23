@@ -167,6 +167,7 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.isAppInDarkTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.blurEffect
@@ -176,7 +177,6 @@ import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import sh.calvin.reorderable.ReorderableColumn
 import java.time.LocalDate
-import java.time.format.TextStyle
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
@@ -2521,7 +2521,7 @@ private fun TodayComposerHeader(
 ) {
     val appLocale = rememberAppLocale()
     val dateFormatter = remember(appLocale, today) {
-        dateLabelFormatter(appLocale, today)
+        medicationGroupScheduleDateFormatter(appLocale, today)
     }
     Row(
         modifier = modifier.fillMaxWidth().padding(vertical = 6.dp),
@@ -2545,6 +2545,7 @@ private fun TodayComposerHeader(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(journalTodayLabel),
         )
+        // Trailing date with a short weekday, matching the note rows' titles (e.g. "Jun 23 Tue").
         val todayLabel = dateFormatter(today)
         Text(
             text = todayLabel,
@@ -2860,6 +2861,7 @@ fun AllNotesNoteRow(
             .testTag("$NoteTimelineRowTestTagPrefix${note.id}"),
     ) {
         NoteEditorCard(
+            modifier = Modifier.padding(bottom = 6.dp),
             text = note.text,
             identity = note.id,
             controller = controller,
@@ -2924,21 +2926,11 @@ private fun noteTimelineDateLabel(
 ): String {
     val appLocale = rememberAppLocale()
     val dateFormatter = remember(appLocale, today) {
-        dateLabelFormatter(appLocale, today)
+        medicationGroupScheduleDateFormatter(appLocale, today)
     }
-    val todayLabel = stringResource(R.string.journal_today)
-    val yesterdayLabel = stringResource(R.string.journal_yesterday)
-    val label = when (date) {
-        today -> todayLabel
-        today.minusDays(1) -> yesterdayLabel
-        else -> stringResource(
-            R.string.journal_note_date_weekday_pattern,
-            date.dayOfWeek.getDisplayName(TextStyle.FULL, appLocale),
-            dateFormatter(date),
-        )
-    }
-
-    return label.uppercase(appLocale)
+    // Exact date with a short weekday, year shown only for past years (e.g. "Jun 15 Sun",
+    // "Jun 15, 2025 Sun", "6月15日 周三"). No relative "Today"/"Yesterday" labels.
+    return dateFormatter(date)
 }
 
 @Composable
