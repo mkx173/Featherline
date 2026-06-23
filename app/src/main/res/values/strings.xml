@@ -217,6 +217,10 @@
     <string name="journal_timeline_section">All dates</string>
     <string name="journal_all_notes">All notes</string>
     <string name="journal_filter_by_month">Filter by month</string>
+    <string name="journal_note_save_failed">Couldn\'t save note. Try again.</string>
+    <string name="journal_note_delete_failed">Couldn\'t delete note. Try again.</string>
+    <string name="journal_date_save_failed">Couldn\'t save changes. Try again.</string>
+    <string name="journal_date_delete_failed">Couldn\'t delete date. Try again.</string>
     <string name="journal_clear_month_filter">Show all notes</string>
     <string name="journal_edit">Edit</string>
     <string name="journal_done">Done</string>

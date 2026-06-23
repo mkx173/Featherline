@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.journal
 
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.combinedClickable
@@ -44,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
@@ -96,6 +98,22 @@ fun JournalScreen(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val saveFailedMessage = stringResource(R.string.journal_note_save_failed)
+    val deleteFailedMessage = stringResource(R.string.journal_note_delete_failed)
+    LaunchedEffect(uiState.noteMutationError) {
+        when (uiState.noteMutationError) {
+            JournalNoteMutation.SAVE -> {
+                Toast.makeText(context, saveFailedMessage, Toast.LENGTH_SHORT).show()
+                viewModel.consumeNoteMutationError()
+            }
+            JournalNoteMutation.DELETE -> {
+                Toast.makeText(context, deleteFailedMessage, Toast.LENGTH_SHORT).show()
+                viewModel.consumeNoteMutationError()
+            }
+            null -> Unit
+        }
+    }
 
     JournalScreenContent(
         uiState = uiState,
@@ -107,6 +125,7 @@ fun JournalScreen(
         onDeleteNote = viewModel::deleteNote,
         onAddDebugNotes = viewModel::addDebugSampleNotes,
         scrollToTopSignal = scrollToTopSignal,
+        noteSaveFailureToken = uiState.noteSaveFailureToken,
         modifier = modifier,
     )
 }
@@ -336,6 +355,23 @@ fun MilestonesScreen(
     // across navigation. Reset it when leaving the screen so re-entry starts in view mode.
     DisposableEffect(Unit) {
         onDispose { viewModel.exitEditMode() }
+    }
+
+    val context = LocalContext.current
+    val saveFailedMessage = stringResource(R.string.journal_date_save_failed)
+    val deleteFailedMessage = stringResource(R.string.journal_date_delete_failed)
+    LaunchedEffect(uiState.dateMutationError) {
+        when (uiState.dateMutationError) {
+            MilestoneMutation.SAVE -> {
+                Toast.makeText(context, saveFailedMessage, Toast.LENGTH_SHORT).show()
+                viewModel.consumeDateMutationError()
+            }
+            MilestoneMutation.DELETE -> {
+                Toast.makeText(context, deleteFailedMessage, Toast.LENGTH_SHORT).show()
+                viewModel.consumeDateMutationError()
+            }
+            null -> Unit
+        }
     }
 
     MilestonesScreenContent(
@@ -593,12 +629,29 @@ fun AllNotesScreen(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val saveFailedMessage = stringResource(R.string.journal_note_save_failed)
+    val deleteFailedMessage = stringResource(R.string.journal_note_delete_failed)
+    LaunchedEffect(uiState.noteMutationError) {
+        when (uiState.noteMutationError) {
+            JournalNoteMutation.SAVE -> {
+                Toast.makeText(context, saveFailedMessage, Toast.LENGTH_SHORT).show()
+                viewModel.consumeNoteMutationError()
+            }
+            JournalNoteMutation.DELETE -> {
+                Toast.makeText(context, deleteFailedMessage, Toast.LENGTH_SHORT).show()
+                viewModel.consumeNoteMutationError()
+            }
+            null -> Unit
+        }
+    }
 
     AllNotesScreenContent(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
         onSaveNote = viewModel::saveNote,
         onDeleteNote = viewModel::deleteNote,
+        noteSaveFailureToken = uiState.noteSaveFailureToken,
         modifier = modifier,
     )
 }

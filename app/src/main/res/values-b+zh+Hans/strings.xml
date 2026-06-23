@@ -209,6 +209,10 @@
     <string name="journal_timeline_section">所有日期</string>
     <string name="journal_all_notes">全部笔记</string>
     <string name="journal_filter_by_month">按月份筛选</string>
+    <string name="journal_note_save_failed">无法保存笔记，请重试。</string>
+    <string name="journal_note_delete_failed">无法删除笔记，请重试。</string>
+    <string name="journal_date_save_failed">无法保存更改，请重试。</string>
+    <string name="journal_date_delete_failed">无法删除日期，请重试。</string>
     <string name="journal_clear_month_filter">显示全部笔记</string>
     <string name="journal_edit">编辑</string>
     <string name="journal_done">完成</string>
