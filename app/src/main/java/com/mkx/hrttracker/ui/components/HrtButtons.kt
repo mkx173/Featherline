@@ -81,6 +81,8 @@ fun HrtFilledTonalButton(
     iconModifier: Modifier = Modifier,
     iconSpacing: Dp = 8.dp,
     iconContentDescription: String? = null,
+    trailingIcon: ImageVector? = null,
+    trailingIconContentDescription: String? = null,
     colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(),
     compact: Boolean = false,
     contentPadding: PaddingValues? = null,
@@ -115,6 +117,13 @@ fun HrtFilledTonalButton(
                 Spacer(modifier = Modifier.size(iconSpacing))
             }
             LocalizedButtonLabelText(text = text)
+            if (trailingIcon != null) {
+                Spacer(modifier = Modifier.size(iconSpacing))
+                Icon(
+                    imageVector = trailingIcon,
+                    contentDescription = trailingIconContentDescription,
+                )
+            }
         }
     }
 }

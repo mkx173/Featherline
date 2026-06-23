@@ -197,9 +197,6 @@
     <string name="journal_no_dates">暂无追踪的日期</string>
     <string name="journal_add_date">添加日期</string>
     <string name="journal_see_all_notes">查看全部笔记</string>
-    <plurals name="journal_see_all_notes_earlier">
-        <item quantity="other">查看全部笔记 · %1$d 条更早</item>
-    </plurals>
     <string name="journal_today">今天</string>
     <string name="journal_yesterday">昨天</string>
     <string name="journal_note_date_weekday_pattern">%2$s %1$s</string>

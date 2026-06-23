@@ -205,10 +205,6 @@
     <string name="journal_no_dates">No tracked dates yet</string>
     <string name="journal_add_date">Add a date</string>
     <string name="journal_see_all_notes">See all notes</string>
-    <plurals name="journal_see_all_notes_earlier">
-        <item quantity="one">See all notes · %1$d earlier</item>
-        <item quantity="other">See all notes · %1$d earlier</item>
-    </plurals>
     <string name="journal_today">Today</string>
     <string name="journal_yesterday">Yesterday</string>
     <string name="journal_note_date_weekday_pattern">%1$s, %2$s</string>

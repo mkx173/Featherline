@@ -44,7 +44,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -62,7 +61,6 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
-import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
@@ -265,15 +263,12 @@ fun JournalScreenContent(
                 // a quiet "no earlier notes" once today's or any recent note exists.
                 if (uiState.olderNotesCount > 0) {
                     item(key = "journal-see-all-notes", contentType = "journal-action") {
-                        HrtOutlinedButton(
-                            text = pluralStringResource(
-                                R.plurals.journal_see_all_notes_earlier,
-                                uiState.olderNotesCount,
-                                uiState.olderNotesCount,
-                            ),
+                        HrtFilledTonalButton(
+                            text = stringResource(R.string.journal_see_all_notes),
                             onClick = onOpenAllNotes,
                             trailingIcon = Icons.Rounded.ChevronRight,
                             modifier = Modifier
+                                .fillMaxWidth()
                                 .padding(top = dimensionResource(R.dimen.padding_small)),
                         )
                     }
