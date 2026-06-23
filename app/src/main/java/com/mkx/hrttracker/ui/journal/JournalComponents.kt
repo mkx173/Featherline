@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.journal
 
 import android.animation.ValueAnimator
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
@@ -2273,6 +2274,7 @@ fun TodayComposer(
             onSave = onSave,
             onDelete = onDelete,
             fieldModifier = Modifier.testTag(TodayComposerTextFieldTestTag),
+            reserveWritingHeight = true,
             header = { TodayComposerHeader(today = today) },
             prompt = { onClick -> TodayComposerPrompt(onClick = onClick) },
         )
@@ -2286,6 +2288,8 @@ fun TodayComposer(
 // box (the Today title+date, or a row's date label). [prompt] is the view-mode affordance
 // shown when there is no text yet (Today's "write about today"); pass null where text always
 // exists (timeline rows). [identity] keys the edit state so it resets when the note changes.
+// [reserveWritingHeight] opens the field to a minimum writing height (the Today composer, where a
+// new note starts empty); leave it false where the field already has text to hug (timeline rows).
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun NoteEditorCard(
@@ -2296,6 +2300,7 @@ private fun NoteEditorCard(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
     fieldModifier: Modifier = Modifier,
+    reserveWritingHeight: Boolean = false,
     header: (@Composable () -> Unit)? = null,
     prompt: (@Composable (onClick: () -> Unit) -> Unit)? = null,
 ) {
@@ -2367,6 +2372,20 @@ private fun NoteEditorCard(
         finishEditing()
     }
 
+    // Discard the in-progress edit and close. Existing text stays mounted, so revert the draft to
+    // it; a brand-new note animates back to the prompt, so leave the draft alone (clearing it
+    // would blank the field mid-exit) and let the next open re-seed it. Shared by the Cancel button
+    // and the back gesture.
+    val cancelEditing = {
+        if (text.isNotEmpty()) draftText = text
+        finishEditing()
+    }
+
+    // While an editor is open, back cancels the edit and dismisses the keyboard instead of leaving
+    // the journal; once nothing is open the handler is disabled and back falls through to
+    // navigation (home). Only the open card has isEditing == true, so only its handler is enabled.
+    BackHandler(enabled = isEditing) { cancelEditing() }
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -2410,6 +2429,7 @@ private fun NoteEditorCard(
                         },
                         onImeAction = saveEditing,
                         expanded = isEditing,
+                        reserveWritingHeight = reserveWritingHeight,
                         modifier = fieldModifier.fillMaxWidth(),
                     )
                     AnimatedVisibility(
@@ -2438,14 +2458,7 @@ private fun NoteEditorCard(
                             } else {
                                 null
                             },
-                            onCancel = {
-                                // Existing text stays mounted, so revert the draft to it. A
-                                // brand-new note animates back to the prompt, so leave the draft
-                                // alone (clearing it would blank the field mid-exit); the next
-                                // open re-seeds it.
-                                if (text.isNotEmpty()) draftText = text
-                                finishEditing()
-                            },
+                            onCancel = cancelEditing,
                             onSave = saveEditing,
                         )
                     }
@@ -2617,14 +2630,17 @@ private fun ComposerTextField(
     onImeAction: () -> Unit,
     modifier: Modifier = Modifier,
     expanded: Boolean = false,
+    reserveWritingHeight: Boolean = false,
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    // Edit mode reserves ~3 lines of writing room; view mode hugs the text. Animating the
-    // min height (rather than toggling minLines) grows/shrinks smoothly instead of snapping,
-    // and doesn't re-animate on every keystroke. Uses the motionScheme effects spring — the
-    // same one the buttons reveal on — so the field and buttons move together as one resize.
+    // When [reserveWritingHeight] is set (the Today composer), edit mode opens ~3 lines of writing
+    // room so a fresh, empty note starts comfortable; otherwise (timeline rows, which already have
+    // text) the field just hugs its text. Animating the min height (rather than toggling minLines)
+    // grows/shrinks smoothly instead of snapping, and doesn't re-animate on every keystroke. Uses
+    // the motionScheme effects spring — the same one the buttons reveal on — so the field and
+    // buttons move together as one resize.
     val minHeight by animateDpAsState(
-        targetValue = if (expanded) 72.dp else 0.dp,
+        targetValue = if (expanded && reserveWritingHeight) 72.dp else 0.dp,
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Dp>(),
         label = "composer-field-min-height",
     )
