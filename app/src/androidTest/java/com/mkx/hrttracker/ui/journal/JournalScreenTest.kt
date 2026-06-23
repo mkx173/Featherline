@@ -768,8 +768,8 @@ class JournalScreenTest {
         composeRule.onNodeWithTag(TodayComposerTextFieldTag)
             .performTextInput("Done from keyboard")
 
-        // The keyboard's action key must follow the Save button's path: write the note, then
-        // close the editor (clearing focus collapses it back to the prompt).
+        // The keyboard's action key follows the Save button's path: write the note, then close
+        // the editor (clearing focus collapses it back to the prompt).
         composeRule.onNodeWithTag(TodayComposerTextFieldTag).performImeAction()
 
         composeRule.runOnIdle {

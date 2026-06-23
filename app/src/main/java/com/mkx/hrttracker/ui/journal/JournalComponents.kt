@@ -36,14 +36,18 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -107,6 +111,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
@@ -154,7 +159,6 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SegmentPosition
 import com.mkx.hrttracker.ui.components.StockStatusIndicator
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import com.mkx.hrttracker.ui.components.bringWholeFieldIntoView
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.isHazeBlurSupported
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -2306,9 +2310,20 @@ private fun NoteEditorCard(
     // note first created in this session.
     var editingExistingNote by remember { mutableStateOf(text.isNotEmpty()) }
     val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     val sizeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<IntSize>()
+
+    // Reveal the whole editor — field plus the button row that grows in below it — above the IME.
+    // The reveal must re-fire as the box expands and as the keyboard rises (a single request on
+    // focus only catches the collapsed box, leaving the buttons under the IME), so it is keyed on
+    // both the measured box height and the IME inset. Only the open editor reads the IME inset, so
+    // idle rows don't recompose through the keyboard animation.
+    val density = LocalDensity.current
+    var editorBoxHeightPx by remember { mutableStateOf(0) }
+    val imeBottomPx = if (isEditing) WindowInsets.ime.getBottom(density) else 0
 
     // The box stays mounted whenever text exists, so tapping to edit never shifts it; with no
     // text yet the prompt stands in until the first edit.
@@ -2316,6 +2331,11 @@ private fun NoteEditorCard(
 
     val finishEditing = {
         focusManager.clearFocus()
+        // Dismiss the keyboard on close, mirroring the calibration notes field's onDone
+        // (clearFocus + hide). Shared by Save/Cancel/IME action; a no-op when already hidden.
+        // NOTE: this dismiss can stutter (the focus change cancels the keyboard's slide); the
+        // calibration field has the same issue, to be fixed for both later.
+        keyboardController?.hide()
         controller.finish(identity)
     }
 
@@ -2365,9 +2385,10 @@ private fun NoteEditorCard(
                         .fillMaxWidth()
                         .clip(MaterialTheme.shapes.large)
                         .background(MaterialTheme.colorScheme.surfaceContainer)
-                        // Lift the whole card — text field plus the Cancel/Save/Delete row — above
-                        // the IME on focus, not just the cursor line (see bringWholeFieldIntoView).
-                        .bringWholeFieldIntoView()
+                        // Track the box's grown height and let the reveal scroll it (field + button
+                        // row) above the IME — see the bringIntoView effect below.
+                        .onSizeChanged { editorBoxHeightPx = it.height }
+                        .bringIntoViewRequester(bringIntoViewRequester)
                         .padding(horizontal = 14.dp, vertical = 12.dp),
                 ) {
                     ComposerTextField(
@@ -2431,6 +2452,12 @@ private fun NoteEditorCard(
     // the tap landed on the prompt rather than the field.
     LaunchedEffect(isEditing) {
         if (isEditing) runCatching { focusRequester.requestFocus() }
+    }
+
+    // Keep the full editor in view as it grows and as the keyboard rises. Re-keyed on the box
+    // height and IME inset so the final, fully-expanded box clears the IME.
+    LaunchedEffect(isEditing, editorBoxHeightPx, imeBottomPx) {
+        if (isEditing) runCatching { bringIntoViewRequester.bringIntoView() }
     }
 
     if (isDeleteConfirmationVisible) {
@@ -2596,9 +2623,9 @@ private fun ComposerTextField(
             .onFocusChanged { if (it.isFocused) onFocused() },
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = colorScheme.onSurface),
         cursorBrush = SolidColor(colorScheme.primary),
-        // The keyboard's action key commits the note, matching the Save button's path (the field
-        // stays multiline for display — the same Done-to-save convention as the calibration notes
-        // field).
+        // The keyboard's action key saves and dismisses (commit + clearFocus + hide) — the same
+        // path as the Save button, matching the calibration notes field's onDone. The field stays
+        // multiline for display.
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { onImeAction() }),
         decorationBox = { innerTextField ->
