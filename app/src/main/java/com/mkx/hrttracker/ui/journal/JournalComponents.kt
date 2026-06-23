@@ -2262,6 +2262,7 @@ fun TodayComposer(
     onDelete: () -> Unit = { },
     modifier: Modifier = Modifier,
     editorController: NoteEditorController = rememberNoteEditorController(),
+    saveFailureToken: Int = 0,
 ) {
     EditorSegmentedListItem(
         modifier = modifier.fillMaxWidth(),
@@ -2277,6 +2278,7 @@ fun TodayComposer(
             reserveWritingHeight = true,
             header = { TodayComposerHeader(today = today) },
             prompt = { onClick -> TodayComposerPrompt(onClick = onClick) },
+            saveFailureToken = saveFailureToken,
         )
     }
 }
@@ -2303,6 +2305,7 @@ private fun NoteEditorCard(
     reserveWritingHeight: Boolean = false,
     header: (@Composable () -> Unit)? = null,
     prompt: (@Composable (onClick: () -> Unit) -> Unit)? = null,
+    saveFailureToken: Int = 0,
 ) {
     // The open/closed state is owned by the shared controller so only one card edits at a time
     // and the open state is dropped on navigation away. The draft stays local and is re-seeded
@@ -2490,6 +2493,20 @@ private fun NoteEditorCard(
     // to the prompt). Until then savePending keeps the field mounted through the save round-trip.
     LaunchedEffect(text) {
         if (text.isNotEmpty()) savePending = false
+    }
+
+    // A failed save never round-trips text, so the savePending latch (and the held field showing the
+    // unsaved draft as if it closed) would otherwise stick forever. When the VM signals a save
+    // failure via a bumped token, release the latch and re-open this editor so the unsaved draft
+    // stays editable for retry. The token is shared by every note composer, but only the one that
+    // actually saved has savePending set, so only it reacts; the initial token (0) is a no-op
+    // because savePending is false then. controller.begin(identity) is used directly (not
+    // beginEditing) so draftText is NOT re-seeded — the typed text is preserved.
+    LaunchedEffect(saveFailureToken) {
+        if (savePending) {
+            savePending = false
+            controller.begin(identity)
+        }
     }
 
     // Keep the full editor in view as it grows and as the keyboard rises: re-fire on every box
@@ -2690,6 +2707,7 @@ fun NotesTimeline(
     onDelete: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
     editorController: NoteEditorController = rememberNoteEditorController(),
+    saveFailureToken: Int = 0,
 ) {
     if (notes.isEmpty()) {
         return
@@ -2714,6 +2732,7 @@ fun NotesTimeline(
                     controller = editorController,
                     onSave = onSave,
                     onDelete = onDelete,
+                    saveFailureToken = saveFailureToken,
                 )
             }
         }
@@ -2730,6 +2749,7 @@ private fun NoteTimelineRow(
     onSave: (LocalDate, String) -> Unit,
     onDelete: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
+    saveFailureToken: Int = 0,
 ) {
     val dateLabel = noteTimelineDateLabel(note.date, today)
     val dateLabelStyle = MaterialTheme.typography.labelLarge
@@ -2791,6 +2811,7 @@ private fun NoteTimelineRow(
                 onSave = { onSave(note.date, it) },
                 onDelete = { onDelete(note.date) },
                 fieldModifier = Modifier.testTag("$NoteTimelineTextFieldTestTagPrefix${note.id}"),
+                saveFailureToken = saveFailureToken,
             )
         }
         // Accent dot, vertically centred on the date label.
@@ -2850,6 +2871,7 @@ fun AllNotesNoteRow(
     onSave: (LocalDate, String) -> Unit,
     onDelete: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
+    saveFailureToken: Int = 0,
 ) {
     val dateLabel = noteDateLabelWithoutYear(note.date)
     EditorSegmentedListItem(
@@ -2867,6 +2889,7 @@ fun AllNotesNoteRow(
             onSave = { onSave(note.date, it) },
             onDelete = { onDelete(note.date) },
             fieldModifier = Modifier.testTag("$NoteTimelineTextFieldTestTagPrefix${note.id}"),
+            saveFailureToken = saveFailureToken,
             header = {
                 Text(
                     text = dateLabel,

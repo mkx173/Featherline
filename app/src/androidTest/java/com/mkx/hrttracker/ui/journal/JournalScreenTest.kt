@@ -887,4 +887,51 @@ class JournalScreenTest {
         composeRule.onNodeWithText(context.getString(R.string.journal_no_earlier_notes))
             .assertIsDisplayed()
     }
+
+    @Test
+    fun todayEditor_failedSave_keepsDraftAndReopensForRetry() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        // The composer's draft-recovery reacts to a bumped save-failure token. Simulate the VM:
+        // the save never feeds text back (failed write) and the token bumps. The draft must stay
+        // in the field and the editor must re-open for retry.
+        var token by mutableIntStateOf(0)
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreenContent(
+                    uiState = JournalUiState(
+                        isLoading = false,
+                        today = LocalDate.of(2026, 6, 16),
+                        recentNotes = listOf(
+                            Note(
+                                id = "june-15",
+                                date = LocalDate.of(2026, 6, 15),
+                                text = "Older note",
+                            )
+                        ),
+                    ),
+                    onOpenMilestones = {},
+                    onOpenAllNotes = {},
+                    onSaveTodayNote = { token++ },
+                    onSaveNote = { _, _ -> },
+                    noteSaveFailureToken = token,
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
+            .performClick()
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextInput("A new day")
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save))
+            .assertIsEnabled()
+            .performClick()
+
+        // Draft preserved and the editor re-opened: the prompt is gone, the typed text remains,
+        // and Save is available again to retry.
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).assertTextContains("A new day")
+        composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
+            .assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save))
+            .assertIsDisplayed()
+    }
 }

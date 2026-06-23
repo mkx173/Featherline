@@ -124,6 +124,7 @@ fun JournalScreenContent(
     onAddDebugNotes: () -> Unit = { },
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
+    noteSaveFailureToken: Int = 0,
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
@@ -248,6 +249,7 @@ fun JournalScreenContent(
                             onSave = onSaveTodayNote,
                             onDelete = onDeleteTodayNote,
                             editorController = editorController,
+                            saveFailureToken = noteSaveFailureToken,
                         )
                     }
                 }
@@ -265,6 +267,7 @@ fun JournalScreenContent(
                                 onSave = onSaveNote,
                                 onDelete = onDeleteNote,
                                 editorController = editorController,
+                                saveFailureToken = noteSaveFailureToken,
                             )
                         }
                     }
@@ -608,6 +611,7 @@ fun AllNotesScreenContent(
     onSaveNote: (LocalDate, String) -> Unit,
     onDeleteNote: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
+    noteSaveFailureToken: Int = 0,
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
@@ -741,6 +745,7 @@ fun AllNotesScreenContent(
                                 controller = editorController,
                                 onSave = onSaveNote,
                                 onDelete = onDeleteNote,
+                                saveFailureToken = noteSaveFailureToken,
                             )
                             if (index < group.notes.lastIndex) {
                                 Spacer(
